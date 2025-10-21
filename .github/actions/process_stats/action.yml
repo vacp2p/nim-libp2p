@@ -1,0 +1,28 @@
+name: Process Stats
+description: "Set up Nim and run scripts to aggregate latency and process raw docker stats"
+
+inputs:
+  with-mermaid-charts:
+    description: "With mermaid chart generation"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Aggregate latency stats and prepare markdown for comment and summary 
+      shell: bash
+      run: |
+        nim c -r -d:release -o:/tmp/process_latency_stats ./performance/scripts/process_latency_stats.nim
+
+    - name: Process raw docker stats to csv files
+      shell: bash
+      run: |
+        nim c -r -d:release -o:/tmp/process_docker_stats ./performance/scripts/process_docker_stats.nim
+    
+    - name: Process csv files and create mermaid charts
+      if: inputs.with-mermaid-charts == 'true'
+      shell: bash
+      run: |
+        nim c -r -d:release -o:/tmp/docker_stats_charts ./performance/scripts/docker_stats_charts.nim
+        

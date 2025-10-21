@@ -10,7 +10,6 @@
 import locks
 import tables
 import pkg/chronos
-import pkg/chronicles
 import ./transport
 import ../multiaddress
 import ../stream/connection

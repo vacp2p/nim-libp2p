@@ -23,35 +23,54 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
-  transports/[transport, tcptransport, memorytransport],
+  transports/[transport, tcptransport, wstransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
-  protocols/connectivity/[autonat/server, relay/relay, relay/client, relay/rtransport],
+  protocols/connectivity/[
+    autonat/server,
+    autonatv2/server,
+    autonatv2/service,
+    autonatv2/client,
+    relay/relay,
+    relay/client,
+    relay/rtransport,
+  ],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
+  autotls/service,
   nameresolving/nameresolver,
   errors,
   utility
 import services/wildcardresolverservice
 
-export switch, peerid, peerinfo, connection, multiaddress, crypto, errors
+export
+  switch, peerid, peerinfo, connection, multiaddress, crypto, errors, TLSPrivateKey,
+  TLSCertificate, TLSFlags, ServerFlags
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
 type
-  TransportProvider* {.public.} =
+  TransportProvider* {.deprecated: "Use TransportBuilder instead".} =
     proc(upgr: Upgrade, privateKey: PrivateKey): Transport {.gcsafe, raises: [].}
+
+  TransportBuilder* {.public.} =
+    proc(config: TransportConfig): Transport {.gcsafe, raises: [].}
+
+  TransportConfig* = ref object
+    upgr*: Upgrade
+    privateKey*: PrivateKey
+    autotls*: Opt[AutotlsService]
 
   SecureProtocol* {.pure.} = enum
     Noise
 
   SwitchBuilder* = ref object
-    privKey: Option[PrivateKey]
+    privKey: Opt[PrivateKey]
     addresses: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
     muxers: seq[MuxerProvider]
-    transports: seq[TransportProvider]
+    transports: seq[TransportBuilder]
     rng: ref HmacDrbgContext
     maxConnections: int
     maxIn: int
@@ -63,8 +82,12 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     autonat: bool
-    circuitRelay: Relay
-    rdv: RendezVous
+    autonatV2ServerConfig: Opt[AutonatV2Config]
+    autonatV2Client: AutonatV2Client
+    autonatV2ServiceConfig: AutonatV2ServiceConfig
+    autotls: Opt[AutotlsService]
+    circuitRelay: Opt[Relay]
+    rdv: Opt[RendezVous]
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
@@ -76,7 +99,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should initialize to default")
 
   SwitchBuilder(
-    privKey: none(PrivateKey),
+    privKey: Opt.none(PrivateKey),
     addresses: @[address],
     secureManagers: @[],
     maxConnections: MaxConnections,
@@ -85,6 +108,9 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     maxConnsPerPeer: MaxConnectionsPerPeer,
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
+    autotls: Opt.none(AutotlsService),
+    circuitRelay: Opt.none(Relay),
+    rdv: Opt.none(RendezVous),
     enableWildcardResolver: true,
   )
 
@@ -94,7 +120,7 @@ proc withPrivateKey*(
   ## Set the private key of the switch. Will be used to
   ## generate a PeerId
 
-  b.privKey = some(privateKey)
+  b.privKey = Opt.some(privateKey)
   b
 
 proc withAddresses*(
@@ -131,12 +157,19 @@ proc withMplex*(
 
 proc withYamux*(
     b: SwitchBuilder,
+    maxChannCount: int = MaxChannelCount,
     windowSize: int = YamuxDefaultWindowSize,
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
 ): SwitchBuilder =
   proc newMuxer(conn: Connection): Muxer =
-    Yamux.new(conn, windowSize, inTimeout = inTimeout, outTimeout = outTimeout)
+    Yamux.new(
+      conn,
+      maxChannCount = maxChannCount,
+      windowSize = windowSize,
+      inTimeout = inTimeout,
+      outTimeout = outTimeout,
+    )
 
   assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
   b.muxers.add(MuxerProvider.new(newMuxer, YamuxCodec))
@@ -147,8 +180,23 @@ proc withNoise*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b
 
 proc withTransport*(
-    b: SwitchBuilder, prov: TransportProvider
+    b: SwitchBuilder, prov: TransportBuilder
 ): SwitchBuilder {.public.} =
+  ## Use a custom transport
+  runnableExamples:
+    let switch = SwitchBuilder
+      .new()
+      .withTransport(
+        proc(config: TransportConfig): Transport =
+          TcpTransport.new(flags, config.upgr)
+      )
+      .build()
+  b.transports.add(prov)
+  b
+
+proc withTransport*(
+    b: SwitchBuilder, prov: TransportProvider
+): SwitchBuilder {.deprecated: "Use TransportBuilder instead".} =
   ## Use a custom transport
   runnableExamples:
     let switch = SwitchBuilder
@@ -158,15 +206,30 @@ proc withTransport*(
           TcpTransport.new(flags, upgr)
       )
       .build()
-  b.transports.add(prov)
-  b
+  let tBuilder: TransportBuilder = proc(config: TransportConfig): Transport =
+    prov(config.upgr, config.privateKey)
+  b.withTransport(tBuilder)
 
 proc withTcpTransport*(
     b: SwitchBuilder, flags: set[ServerFlags] = {}
 ): SwitchBuilder {.public.} =
   b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-      TcpTransport.new(flags, upgr)
+    proc(config: TransportConfig): Transport =
+      TcpTransport.new(flags, config.upgr)
+  )
+
+proc withWsTransport*(
+    b: SwitchBuilder,
+    tlsPrivateKey: TLSPrivateKey = nil,
+    tlsCertificate: TLSCertificate = nil,
+    tlsFlags: set[TLSFlags] = {},
+    flags: set[ServerFlags] = {},
+): SwitchBuilder =
+  b.withTransport(
+    proc(config: TransportConfig): Transport =
+      WsTransport.new(
+        config.upgr, tlsPrivateKey, tlsCertificate, config.autotls, tlsFlags, flags
+      )
   )
 
 when defined(libp2p_quic_support):
@@ -174,14 +237,14 @@ when defined(libp2p_quic_support):
 
   proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
     b.withTransport(
-      proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-        QuicTransport.new(upgr, privateKey)
+      proc(config: TransportConfig): Transport =
+        QuicTransport.new(config.upgr, config.privateKey)
     )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.withTransport(
-    proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-      MemoryTransport.new(upgr)
+    proc(config: TransportConfig): Transport =
+      MemoryTransport.new(config.upgr)
   )
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.public.} =
@@ -238,14 +301,36 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
-proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
-  b.circuitRelay = r
+proc withAutonatV2Server*(
+    b: SwitchBuilder, config: AutonatV2Config = AutonatV2Config.new()
+): SwitchBuilder =
+  b.autonatV2ServerConfig = Opt.some(config)
   b
 
-proc withRendezVous*(
-    b: SwitchBuilder, rdv: RendezVous = RendezVous.new()
+proc withAutonatV2*(
+    b: SwitchBuilder, serviceConfig = AutonatV2ServiceConfig.new()
 ): SwitchBuilder =
-  b.rdv = rdv
+  b.autonatV2Client = AutonatV2Client.new(b.rng)
+  b.autonatV2ServiceConfig = serviceConfig
+  b
+
+when defined(libp2p_autotls_support):
+  proc withAutotls*(
+      b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
+  ): SwitchBuilder {.public.} =
+    b.autotls = Opt.some(AutotlsService.new(config = config))
+    b
+
+proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
+  b.circuitRelay = Opt.some(r)
+  b
+
+proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
+  var lrdv = rdv
+  if rdv.isNil():
+    lrdv = RendezVous.new()
+
+  b.rdv = Opt.some(lrdv)
   b
 
 proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
@@ -289,10 +374,17 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms)
 
+  b.autotls.withValue(autotlsService):
+    b.services.insert(autotlsService, 0)
+
   let transports = block:
     var transports: seq[Transport]
     for tProvider in b.transports:
-      transports.add(tProvider(muxedUpgrade, seckey))
+      transports.add(
+        tProvider(
+          TransportConfig(upgr: muxedUpgrade, privateKey: seckey, autotls: b.autotls)
+        )
+      )
     transports
 
   if b.secureManagers.len == 0:
@@ -310,6 +402,13 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   if b.enableWildcardResolver:
     b.services.insert(WildcardAddressResolverService.new(), 0)
 
+  if not isNil(b.autonatV2Client):
+    b.services.add(
+      AutonatV2Service.new(
+        b.rng, client = b.autonatV2Client, config = b.autonatV2ServiceConfig
+      )
+    )
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -323,48 +422,53 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   switch.mount(identify)
 
+  if not isNil(b.autonatV2Client):
+    b.autonatV2Client.setup(switch)
+    switch.mount(b.autonatV2Client)
+
+  b.autonatV2ServerConfig.withValue(config):
+    switch.mount(AutonatV2.new(switch, config = config))
+
   if b.autonat:
-    let autonat = Autonat.new(switch)
-    switch.mount(autonat)
+    switch.mount(Autonat.new(switch))
 
-  if not isNil(b.circuitRelay):
-    if b.circuitRelay of RelayClient:
-      switch.addTransport(RelayTransport.new(RelayClient(b.circuitRelay), muxedUpgrade))
-    b.circuitRelay.setup(switch)
-    switch.mount(b.circuitRelay)
+  b.circuitRelay.withValue(relay):
+    if relay of RelayClient:
+      switch.addTransport(RelayTransport.new(RelayClient(relay), muxedUpgrade))
+    relay.setup(switch)
+    switch.mount(relay)
 
-  if not isNil(b.rdv):
-    b.rdv.setup(switch)
-    switch.mount(b.rdv)
+  b.rdv.withValue(rdvService):
+    rdvService.setup(switch)
+    switch.mount(rdvService)
 
   return switch
 
-proc newStandardSwitch*(
-    privKey = none(PrivateKey),
-    addrs: MultiAddress | seq[MultiAddress] =
-      MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("valid address"),
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
+type TransportType* {.pure.} = enum
+  QUIC
+  TCP
+  Memory
+
+proc newStandardSwitchBuilder*(
+    privKey = Opt.none(PrivateKey),
+    addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
+    transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
     rng = newRng(),
+    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
     maxConnections = MaxConnections,
     maxIn = -1,
     maxOut = -1,
     maxConnsPerPeer = MaxConnectionsPerPeer,
-    nameResolver: NameResolver = nil,
+    nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
     peerStoreCapacity = 1000,
-): Switch {.raises: [LPError], public.} =
+): SwitchBuilder {.raises: [LPError], public.} =
   ## Helper for common switch configurations.
-  let addrs =
-    when addrs is MultiAddress:
-      @[addrs]
-    else:
-      addrs
   var b = SwitchBuilder
     .new()
-    .withAddresses(addrs)
     .withRng(rng)
     .withSignedPeerRecord(sendSignedPeerRecord)
     .withMaxConnections(maxConnections)
@@ -372,12 +476,73 @@ proc newStandardSwitch*(
     .withMaxOut(maxOut)
     .withMaxConnsPerPeer(maxConnsPerPeer)
     .withPeerStore(capacity = peerStoreCapacity)
-    .withMplex(inTimeout, outTimeout)
-    .withTcpTransport(transportFlags)
-    .withNameResolver(nameResolver)
     .withNoise()
 
   privKey.withValue(pkey):
     b = b.withPrivateKey(pkey)
 
-  b.build()
+  nameResolver.withValue(nr):
+    b = b.withNameResolver(nr)
+
+  var addrs =
+    when addrs is MultiAddress:
+      @[addrs]
+    else:
+      addrs
+
+  case transport
+  of TransportType.QUIC:
+    when defined(libp2p_quic_support):
+      if addrs.len == 0:
+        addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
+      b = b.withQuicTransport().withAddresses(addrs)
+    else:
+      raiseAssert "QUIC not supported in this build"
+  of TransportType.TCP:
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
+    b = b.withTcpTransport(transportFlags).withAddresses(addrs).withMplex(
+        inTimeout, outTimeout
+      )
+  of TransportType.Memory:
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init(MemoryAutoAddress).tryGet()]
+    b = b.withMemoryTransport().withAddresses(addrs).withMplex(inTimeout, outTimeout)
+
+  b
+
+proc newStandardSwitch*(
+    privKey = Opt.none(PrivateKey),
+    addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
+    transport: TransportType = TransportType.TCP,
+    transportFlags: set[ServerFlags] = {},
+    rng = newRng(),
+    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
+    inTimeout: Duration = 5.minutes,
+    outTimeout: Duration = 5.minutes,
+    maxConnections = MaxConnections,
+    maxIn = -1,
+    maxOut = -1,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
+    nameResolver = Opt.none(NameResolver),
+    sendSignedPeerRecord = false,
+    peerStoreCapacity = 1000,
+): Switch {.raises: [LPError], public.} =
+  newStandardSwitchBuilder(
+    privKey = privKey,
+    addrs = addrs,
+    transport = transport,
+    transportFlags = transportFlags,
+    rng = rng,
+    secureManagers = secureManagers,
+    inTimeout = inTimeout,
+    outTimeout = outTimeout,
+    maxConnections = maxConnections,
+    maxIn = maxIn,
+    maxOut = maxOut,
+    maxConnsPerPeer = maxConnsPerPeer,
+    nameResolver = nameResolver,
+    sendSignedPeerRecord = sendSignedPeerRecord,
+    peerStoreCapacity = peerStoreCapacity,
+  )
+  .build()

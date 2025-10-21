@@ -59,3 +59,8 @@ proc waitForStates*[T](
 ): Future[seq[FutureStateWrapper[T]]] {.async.} =
   await sleepAsync(timeout)
   return futures.mapIt(it.toState())
+
+proc completedFuture*(): Future[void] =
+  let f = newFuture[void]()
+  f.complete()
+  f

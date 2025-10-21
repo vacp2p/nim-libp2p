@@ -1,3 +1,4 @@
+{.used.}
 ## # Circuit Relay example
 ##
 ## Circuit Relay can be used when a node cannot reach another node
@@ -38,10 +39,8 @@ proc main() {.async.} =
       echo "2 - Dst Received: ", msg
       assert "test3" == msg
       await conn.writeLp("test4")
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      echo "exception in handler", e.msg
+    except LPStreamError as exc:
+      echo "exception in handler", exc.msg
 
   let
     relay = Relay.new()

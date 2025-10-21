@@ -422,6 +422,6 @@ method stop*(r: Relay): Future[void] {.async: (raises: [], raw: true).} =
     warn "Stopping relay without starting it"
     return fut
   r.started = false
-  r.reservationLoop.cancel()
+  r.reservationLoop.cancelSoon()
   r.reservationLoop = nil
   fut

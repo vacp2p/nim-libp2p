@@ -1,17 +1,17 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "1.10.1"
+version = "1.14.1"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
 skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
-requires "nim >= 1.6.0",
-  "nimcrypto >= 0.6.0 & < 0.7.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
-  "chronicles >= 0.10.2", "chronos >= 4.0.3", "metrics", "secp256k1", "stew >= 0.4.0",
-  "websock", "unittest2", "results",
-  "https://github.com/status-im/nim-quic.git#a6c30263c95fc5ddb2ef4d197c09b282555c06b0"
+requires "nim >= 2.0.0",
+  "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
+  "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
+  "websock >= 0.2.1", "unittest2", "results", "quic >= 0.3.0",
+  "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
@@ -30,7 +30,9 @@ proc runTest(filename: string, moreoptions: string = "") =
   excstr.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
-  exec excstr & " -r " & " tests/" & filename
+  exec excstr &
+    " -r -d:libp2p_quic_support -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
+    filename
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false, extraFlags = "") =
@@ -46,25 +48,30 @@ proc tutorialToMd(filename: string) =
     " -r --verbosity:0 --hints:off tools/markdown_builder.nim "
   writeFile(filename.replace(".nim", ".md"), markdown)
 
+task testmultiformatexts, "Run multiformat extensions tests":
+  let opts =
+    "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
+    "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
+    "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
+    "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim " &
+    "-d:libp2p_contentids_exts=../tests/multiformat_exts/contentids_exts.nim "
+  runTest("multiformat_exts/testmultiformat_exts", opts)
+
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
 
-task testdaemon, "Runs daemon tests":
-  runTest("testdaemon")
-
-task testinterop, "Runs interop tests":
-  runTest("testinterop")
-
 task testpubsub, "Runs pubsub tests":
-  runTest("pubsub/testpubsub")
+  runTest("pubsub/testpubsub", "-d:libp2p_gossipsub_1_4")
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter")
-  runTest("testpkifilter", moreoptions = "-d:libp2p_pki_schemes=")
+
+task testintegration, "Runs integraion tests":
+  runTest("testintegration")
 
 task test, "Runs the test suite":
   runTest("testall")
-  exec "nimble testfilter"
+  testmultiformatextsTask()
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")

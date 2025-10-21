@@ -10,8 +10,8 @@
 # those terms.
 
 import
-  testvarint, testconnection, testbridgestream, testminprotobuf, teststreamseq,
-  testsemaphore, testheartbeat, testfuture
+  testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
+  testheartbeat, testfuture, testzeroqueue, testbytesview
 
 import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
 
@@ -30,6 +30,20 @@ import
 import
   testnameresolve, testmultistream, testbufferstream, testidentify,
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
-  testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testrendezvous,
-  testdiscovery, testyamux, testautonat, testautonatservice, testautorelay, testdcutr,
-  testhpservice, testutility, testhelpers, testwildcardresolverservice
+  testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
+  testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
+  testautorelay, testdcutr, testhpservice, testutility, testhelpers,
+  testwildcardresolverservice, testperf, testpkifilter
+
+import discovery/testdiscovery
+
+import kademlia/[testencoding, testroutingtable, testfindnode, testputval, testping]
+
+when defined(libp2p_autotls_support):
+  import testautotls
+
+import
+  mix/[
+    testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
+    testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode, testconn,
+  ]

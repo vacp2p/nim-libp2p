@@ -7,9 +7,9 @@ import
 
 import ./helpers
 
-type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
+type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
 
-template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string = "") =
+template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string = "") =
   block:
     let transpProvider = prov
 
@@ -32,6 +32,9 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
         let conn = await transport1.accept()
         if conn.observedAddr.isSome():
           check transport1.handles(conn.observedAddr.get())
+        # skip IP check, only check transport and port
+        check conn.localAddr.get()[3] == transport1.addrs[0][3]
+        check conn.localAddr.get()[4] == transport1.addrs[0][4]
         await conn.close()
 
       let handlerWait = acceptHandler()
@@ -211,21 +214,28 @@ template commonTransportTest*(prov: TransportProvider, ma1: string, ma2: string 
       let conn = await transport1.dial(transport1.addrs[0])
 
       var msg = newSeq[byte](6)
-      try:
+      expect LPStreamEOFError:
         await conn.readExactly(addr msg[0], 6)
-        check false
-      except CatchableError as exc:
-        check true
 
       # we don't HAVE to throw on write on EOF
       # (at least TCP doesn't)
       try:
         await conn.write(msg)
-      except CatchableError as exc:
-        check true
+      except LPStreamEOFError as exc:
+        discard
 
       await conn.close()
         #for some protocols, closing requires actively reading, so we must close here
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
       await transport1.stop()
+
+    asyncTest "transport start/stop events":
+      let transport = transpProvider()
+      let addrs = @[MultiAddress.init(ma1).tryGet()]
+
+      await transport.start(addrs)
+      check await transport.onRunning.wait().withTimeout(1.seconds)
+
+      await transport.stop()
+      check await transport.onStop.wait().withTimeout(1.seconds)

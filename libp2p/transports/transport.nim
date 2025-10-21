@@ -18,9 +18,9 @@ import
   ../multicodec,
   ../muxers/muxer,
   ../upgrademngrs/upgrade,
-  ../protocols/connectivity/autonat/core
+  ../protocols/connectivity/autonat/types
 
-export core.NetworkReachability
+export types.NetworkReachability
 
 logScope:
   topics = "libp2p transport"
@@ -36,19 +36,26 @@ type
     running*: bool
     upgrader*: Upgrade
     networkReachability*: NetworkReachability
+    onRunning*: AsyncEvent
+    onStop*: AsyncEvent
 
 proc newTransportClosedError*(parent: ref Exception = nil): ref TransportError =
   newException(TransportClosedError, "Transport closed, no more connections!", parent)
 
+proc initialize*(self: Transport) =
+  self.onRunning = newAsyncEvent()
+  self.onStop = newAsyncEvent()
+
 method start*(
     self: Transport, addrs: seq[MultiAddress]
-) {.base, async: (raises: [LPError, TransportError]).} =
+) {.base, async: (raises: [LPError, TransportError, CancelledError]).} =
   ## start the transport
   ##
 
   trace "starting transport on addrs", address = $addrs
   self.addrs = addrs
   self.running = true
+  self.onRunning.fire()
 
 method stop*(self: Transport) {.base, async: (raises: []).} =
   ## stop and cleanup the transport
@@ -57,6 +64,7 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
 
   trace "stopping transport", address = $self.addrs
   self.running = false
+  self.onStop.fire()
 
 method accept*(
     self: Transport

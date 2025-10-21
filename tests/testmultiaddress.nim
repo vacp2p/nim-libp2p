@@ -94,15 +94,15 @@ const
     "0401020304", "0400000000", "2900000000000000000000000000000001",
     "29260100094F819700803ECA6566E80C21", "91020000", "060000", "84010000", "910204D2",
     "0604D2", "840104D2", "9102FFFF", "06FFFF",
-    "A503221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
+    "E301221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
     "910204D2840104D2", "910204D2AD02", "910204D2AE02", "0604D2E003", "0604D2BB03",
-    "A503221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B0604D2",
+    "E301221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B0604D2",
     "047F000001910204D2", "047F00000191020000", "047F0000010604D2",
-    "047F000001A503221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
-    "047F000001A503221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B0604D2",
-    "29200108A07AC542013AC986FFFE317095061F40DD03A503221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
-    "9302047F000001062382DD03A503221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
-    "047F000001062382A202A503221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
+    "047F000001E301221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
+    "047F000001E301221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B0604D2",
+    "29200108A07AC542013AC986FFFE317095061F40DD03E301221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
+    "9302047F000001062382DD03E301221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
+    "047F000001062382A202E301221220D52EBB89D85B02A284948203A62FF28389C57C9F42BEEC4EC20DB76A68911C0B",
   ]
 
   RustFailureVectors = [
@@ -123,12 +123,9 @@ const
     "/ip4/127.0.0.1/ipfs", "/ip4/127.0.0.1/ipfs/tcp", "/p2p-circuit/50",
   ]
 
-  PathVectors = ["/unix/tmp/p2pd.sock", "/unix/a/b/c/d/e/f/g/h/i.sock"]
+  PathVectors = ["/unix/a/b/c/d/e/f/g/h/i.sock"]
 
-  PathExpects = [
-    "90030E2F746D702F703270642E736F636B",
-    "9003172F612F622F632F642F652F662F672F682F692E736F636B",
-  ]
+  PathExpects = ["9003172F612F622F632F642F652F662F672F682F692E736F636B"]
 
   PatternVectors = [
     PatternVector(
@@ -341,6 +338,20 @@ suite "MultiAddress test suite":
       MultiAddress.init("/ip4/0.0.0.0").get().protoAddress().get() == address_v4
       MultiAddress.init("/ip6/::0").get().protoAddress().get() == address_v6
 
+  test "MultiAddress getPart":
+    let ma = MultiAddress
+      .init(
+        "/ip4/0.0.0.0/tcp/0/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSuNEXT/unix/stdio/"
+      )
+      .get()
+    check:
+      $ma.getPart(multiCodec("ip4")).get() == "/ip4/0.0.0.0"
+      $ma.getPart(multiCodec("tcp")).get() == "/tcp/0"
+      # returns first codec match
+      $ma.getPart(multiCodec("p2p")).get() ==
+        "/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
+      ma.getPart(multiCodec("udp")).isErr()
+
   test "MultiAddress getParts":
     let ma = MultiAddress
       .init(
@@ -421,3 +432,22 @@ suite "MultiAddress test suite":
     for item in CrashesVectors:
       let res = MultiAddress.init(hexToSeqByte(item))
       check res.isErr()
+
+  test "areAddrsConsistent":
+    # same address should be consistent
+    check areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+    )
+
+    # different addresses with same stack should be consistent
+    check areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.2/tcp/4041").get(),
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+    )
+
+    # addresses with different stacks should not be consistent
+    check not areAddrsConsistent(
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      MultiAddress.init("/ip4/127.0.0.1/udp/4040").get(),
+    )

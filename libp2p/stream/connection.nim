@@ -33,12 +33,19 @@ type
     timeoutHandler*: TimeoutHandler # timeout handler
     peerId*: PeerId
     observedAddr*: Opt[MultiAddress]
+    localAddr*: Opt[MultiAddress]
     protocol*: string # protocol used by the connection, used as metrics tag
     transportDir*: Direction # underlying transport (usually socket) direction
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
 proc timeoutMonitor(s: Connection) {.async: (raises: []).}
+
+method closeWrite*(s: Connection): Future[void] {.base, async: (raises: []).} =
+  ## Close the write side of the connection
+  ## Subclasses should implement this for their specific transport
+  ## Default implementation just closes the entire connection
+  await s.close()
 
 func shortLog*(conn: Connection): string =
   try:
@@ -51,6 +58,8 @@ func shortLog*(conn: Connection): string =
 
 chronicles.formatIt(Connection):
   shortLog(it)
+
+declarePublicCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
 
 method initStream*(s: Connection) =
   if s.objName.len == 0:
@@ -131,13 +140,17 @@ when defined(libp2p_agents_metrics):
     var conn = s
     while conn != nil:
       conn.shortAgent = shortAgent
-      conn = conn.getWrapped()
+      let wrapped = conn.getWrapped()
+      if wrapped == conn:
+        break
+      conn = wrapped
 
 proc new*(
     C: type Connection,
     peerId: PeerId,
     dir: Direction,
-    observedAddr: Opt[MultiAddress],
+    observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress),
+    localAddr: Opt[MultiAddress] = Opt.none(MultiAddress),
     timeout: Duration = DefaultConnectionTimeout,
     timeoutHandler: TimeoutHandler = nil,
 ): Connection =
@@ -147,6 +160,7 @@ proc new*(
     timeout: timeout,
     timeoutHandler: timeoutHandler,
     observedAddr: observedAddr,
+    localAddr: localAddr,
   )
 
   result.initStream()

@@ -11,6 +11,7 @@
 
 {.push raises: [].}
 {.push public.}
+{.used.}
 
 import
   std/[hashes, strutils],
@@ -23,7 +24,8 @@ import
   ./multicodec,
   ./multihash,
   ./vbuffer,
-  ./protobuf/minprotobuf
+  ./protobuf/minprotobuf,
+  ./utils/sequninit
 
 export results, utility
 
@@ -48,6 +50,15 @@ func shortLog*(pid: PeerId): string =
   spid
 
 chronicles.formatIt(PeerId):
+  shortLog(it)
+
+func shortLog*(pid: Opt[PeerId]): string =
+  if pid.isNone:
+    "[none]"
+  else:
+    shortLog(pid.value())
+
+chronicles.formatIt(Opt[PeerId]):
   shortLog(it)
 
 func toBytes*(pid: PeerId, data: var openArray[byte]): int =
@@ -141,7 +152,7 @@ func init*(pid: var PeerId, data: string): bool =
   ## Initialize peer id from base58 encoded string representation.
   ##
   ## Returns ``true`` if peer was successfully initialiazed.
-  var p = newSeq[byte](len(data) + 4)
+  var p = newSeqUninit[byte](len(data) + 4)
   var length = 0
   if Base58.decode(data, p, length) == Base58Status.Success:
     p.setLen(length)

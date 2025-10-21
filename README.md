@@ -17,18 +17,20 @@
 </p>
 
 # Table of Contents
-- [Background](#background)
-- [Install](#install)
-- [Getting Started](#getting-started)
-  - [Testing](#testing)
-- [Modules](#modules)
-- [Users](#users)
-- [Stability](#stability)
-- [Development](#development)
-  - [Contribute](#contribute)
-  - [Contributors](#contributors)
-  - [Core Maintainers](#core-maintainers)
-- [License](#license)
+- [Table of Contents](#table-of-contents)
+  - [Background](#background)
+  - [Install](#install)
+  - [Getting Started](#getting-started)
+  - [Development](#development)
+    - [Testing](#testing)
+    - [Contribute](#contribute)
+    - [Contributors](#contributors)
+    - [Core Maintainers](#core-maintainers)
+    - [Compile time flags](#compile-time-flags)
+  - [Modules](#modules)
+  - [Users](#users)
+  - [Stability](#stability)
+  - [License](#license)
 
 ## Background
 libp2p is a [Peer-to-Peer](https://en.wikipedia.org/wiki/Peer-to-peer) networking stack, with [implementations](https://github.com/libp2p/libp2p#implementations) in multiple languages derived from the same [specifications.](https://github.com/libp2p/specs)
@@ -39,20 +41,133 @@ This is a native Nim implementation, using [chronos](https://github.com/status-i
 Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p's documentation [**docs.libp2p.io**](https://docs.libp2p.io).
 
 ## Install
-**Prerequisite**
-- [Nim](https://nim-lang.org/install.html)
-> The currently supported Nim versions are 1.6, 2.0 and 2.2.
+
+> The currently supported Nim versions are 2.0 and 2.2.
 
 ```
 nimble install libp2p
 ```
-
-## Getting Started
 You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/). See [examples](./examples) for simple usage patterns.
 
+## Getting Started
+Try out the chat example. Full code can be found [here](https://github.com/vacp2p/nim-libp2p/blob/master/examples/directchat.nim):
+
+```bash
+nim c -r --threads:on examples/directchat.nim
+```
+
+This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in another instance to connect to it.
+
+```bash
+./examples/directchat
+/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu # change this hash by the hash you were given
+```
+
+You can now chat between the instances!
+
+![Chat example](https://imgur.com/caYRu8K.gif)
+
+## Development
+Clone the repository and install the dependencies:
+```sh
+git clone https://github.com/vacp2p/nim-libp2p
+cd nim-libp2p
+nimble install -dy
+```
+You can use `nix develop` to start a shell with Nim and Nimble.
+
+nimble 0.20.1 is required for running `testnative`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
+
 ### Testing
-Remember you'll need to build the `go-libp2p-daemon` binary to run the `nim-libp2p` tests.
-To do so, please follow the installation instructions in [daemonapi.md](examples/go-daemon/daemonapi.md).
+Run unit tests:
+```sh
+# run all the unit tests
+nimble test
+```
+
+For a list of all available test suites, use:
+```
+nimble tasks
+```
+
+### Contribute
+
+The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! Specifically, you can:
+- Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it.
+- **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs.
+- **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](tests/).
+- **Small PRs**. Try to keep PRs atomic and digestible. This makes the review process and pinpointing bugs easier.
+- **Code format**. See [Coding Style](CODING_STYLE.md).
+- **Join the Conversation**. Connect with other contributors in our [community channel](https://discord.com/channels/1204447718093750272/1351621032263417946). Ask questions, share ideas, get support, and stay informed about the latest updates from the maintainers.
+
+### Contributors
+<a href="https://github.com/vacp2p/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=vacp2p/nim-libp2p" alt="nim-libp2p contributors"></a>
+
+### Core Maintainers
+<table>
+  <tbody>
+    <tr>
+      <td align="center"><a href="https://github.com/richard-ramos"><img src="https://avatars.githubusercontent.com/u/1106587?v=4?s=100" width="100px;" alt="Richard"/><br /><sub><b>Richard</b></sub></a></td>
+      <td align="center"><a href="https://github.com/vladopajic"><img src="https://avatars.githubusercontent.com/u/4353513?v=4?s=100" width="100px;" alt="Vlado"/><br /><sub><b>Vlado</b></sub></a></td>
+      <td align="center"><a href="https://github.com/gmelodie"><img src="https://avatars.githubusercontent.com/u/8129788?v=4?s=100" width="100px;" alt="Gabe"/><br /><sub><b>Gabe</b></sub></a></td>
+    </tr>
+  </tbody>
+</table>
+
+### Compile time flags
+
+Enable quic transport support
+```bash
+nim c -d:libp2p_quic_support some_file.nim
+```
+
+Enable autotls support
+```bash
+nim c -d:libp2p_autotls_support some_file.nim
+```
+
+Enable expensive metrics (ie, metrics with per-peer cardinality):
+```bash
+nim c -d:libp2p_expensive_metrics some_file.nim
+```
+
+Set list of known libp2p agents for metrics:
+```bash
+nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,lodestar,prysm,teku some_file.nim
+```
+
+Specify gossipsub specific topics to measure in the metrics:
+```bash
+nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
+```
+
+Extend `MultiFormats`:
+| Multi format   | Compiler flag<br>(path to extensions file) | Expected definition in extension file |
+|----------------|--------------------------------------------|-------------------------------|
+| `MultiCodec`   | `-d:libp2p_multicodec_exts`                | `const CodecExts = []`        |
+| `MultiHash`    | `-d:libp2p_multihash_exts`                 | `const HashExts = []`         |
+| `MultiAddress` | `-d:libp2p_multiaddress_exts`              | `const AddressExts = []`      |
+| `MultiBase`    | `-d:libp2p_multibase_exts`                 | `const BaseExts = []`         |
+| `ContentIds`   | `-d:libp2p_contentids_exts`                | `const ContentIdsExts = []`   |
+
+For example, a file called `multihash_exts.nim` could be created and contain `MultiHash` extensions:
+```nim
+proc coder1(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+proc coder2(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+proc sha2_256_override(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+const HashExts = [
+  MHash(mcodec: multiCodec("codec_mc1"), size: 0, coder: coder1),
+  MHash(mcodec: multiCodec("codec_mc2"), size: 6, coder: coder2),
+  MHash(mcodec: multiCodec("sha2-256"), size: 6, coder: sha2_256_override),
+]
+```
+These `MultiHashes` will be available at compile time when the binary is compiled with `-d:libp2p_multihash_exts=multihash_exts.nim`.
 
 ## Modules
 List of packages modules implemented in nim-libp2p:
@@ -64,8 +179,6 @@ List of packages modules implemented in nim-libp2p:
 | [connmanager](libp2p/connmanager.nim)                      | Connection manager                                                                                               |
 | [identify / push identify](libp2p/protocols/identify.nim)  | [Identify](https://docs.libp2p.io/concepts/fundamentals/protocols/#identify) protocol                            |
 | [ping](libp2p/protocols/ping.nim)                          | [Ping](https://docs.libp2p.io/concepts/fundamentals/protocols/#ping) protocol                                    |
-| [libp2p-daemon-client](libp2p/daemon/daemonapi.nim)        | [go-daemon](https://github.com/libp2p/go-libp2p-daemon) nim wrapper                                              |
-| [interop-libp2p](tests/testinterop.nim)                    | Interop tests                                                                                                    |
 | **Transports**                                             |                                                                                                                  |
 | [libp2p-tcp](libp2p/transports/tcptransport.nim)           | TCP transport                                                                                                    |
 | [libp2p-ws](libp2p/transports/wstransport.nim)             | WebSocket & WebSocket Secure transport                                                                           |
@@ -109,72 +222,7 @@ The versioning follows [semver](https://semver.org/), with some additions:
 - Some of libp2p procedures are marked as `.public.`, they will remain compatible during each `MAJOR` version
 - The rest of the procedures are considered internal, and can change at any `MINOR` version (but remain compatible for each new `PATCH`)
 
-We aim to be compatible at all time with at least 2 Nim `MINOR` versions, currently `1.6 & 2.0`
-
-## Development
-Clone and Install dependencies:
-```sh
-git clone https://github.com/vacp2p/nim-libp2p
-cd nim-libp2p
-# to use dependencies computed by nimble
-nimble install -dy
-# OR to install the dependencies versions used in CI
-nimble install_pinned
-```
-
-Run unit tests:
-```sh
-# run all the unit tests
-nimble test
-```
-This requires the go daemon to be available. To only run native tests, use `nimble testnative`.
-Or use `nimble tasks` to show all available tasks.
-
-### Contribute
-
-The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! Specifically, you can:
-- Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it.
-- **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs.
-- **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](tests/).
-- **Small PRs**. Try to keep PRs atomic and digestible. This makes the review process and pinpointing bugs easier.
-- **Code format**. Please format code using [nph](https://github.com/arnetheduck/nph) v0.5.1. This will ensure a consistent codebase and make PRs easier to review. A CI rule has been added to ensure that future commits are all formatted using the same nph version.
-The code follows the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
-
-### Contributors
-<a href="https://github.com/vacp2p/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=vacp2p/nim-libp2p" alt="nim-libp2p contributors"></a>
-
-### Core Maintainers
-<table>
-  <tbody>
-    <tr>
-      <td align="center"><a href="https://github.com/richard-ramos"><img src="https://avatars.githubusercontent.com/u/1106587?v=4?s=100" width="100px;" alt="Richard"/><br /><sub><b>Richard</b></sub></a></td>
-      <td align="center"><a href="https://github.com/vladopajic"><img src="https://avatars.githubusercontent.com/u/4353513?v=4?s=100" width="100px;" alt="Vlado"/><br /><sub><b>Vlado</b></sub></a></td>
-      <td align="center"><a href="https://github.com/gmelodie"><img src="https://avatars.githubusercontent.com/u/8129788?v=4?s=100" width="100px;" alt="Gabe"/><br /><sub><b>Gabe</b></sub></a></td>
-    </tr>
-  </tbody>
-</table>
-
-### Compile time flags
-
-Enable quic transport support
-```bash
-nim c -d:libp2p_quic_support some_file.nim
-```
-
-Enable expensive metrics (ie, metrics with per-peer cardinality):
-```bash
-nim c -d:libp2p_expensive_metrics some_file.nim
-```
-
-Set list of known libp2p agents for metrics:
-```bash
-nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,lodestar,prysm,teku some_file.nim
-```
-
-Specify gossipsub specific topics to measure in the metrics:
-```bash
-nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
-```
+We aim to be compatible at all time with at least 2 Nim `MINOR` versions, currently `2.0 & 2.2`
 
 ## License
 

@@ -34,8 +34,6 @@ when defined(libp2p_agents_metrics):
   declareCounter libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"]
   declareCounter libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"]
 
-declareCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
-
 func shortLog*(conn: ChronosStream): auto =
   try:
     if conn == nil:
@@ -64,8 +62,15 @@ proc init*(
     dir: Direction,
     timeout = DefaultChronosStreamTimeout,
     observedAddr: Opt[MultiAddress],
+    localAddr: Opt[MultiAddress],
 ): ChronosStream =
-  result = C(client: client, timeout: timeout, dir: dir, observedAddr: observedAddr)
+  result = C(
+    client: client,
+    timeout: timeout,
+    dir: dir,
+    observedAddr: observedAddr,
+    localAddr: localAddr,
+  )
   result.initStream()
 
 template withExceptions(body: untyped) =
@@ -152,6 +157,19 @@ method closed*(s: ChronosStream): bool =
 
 method atEof*(s: ChronosStream): bool =
   s.client.atEof()
+
+method closeWrite*(s: ChronosStream) {.async: (raises: []).} =
+  ## Close the write side of the TCP connection using half-close
+  if not s.client.closed():
+    try:
+      await s.client.shutdownWait()
+      trace "Write side closed", address = $s.client.remoteAddress(), s
+    except TransportError:
+      # Ignore transport errors during shutdown
+      discard
+    except CatchableError:
+      # Ignore other errors during shutdown
+      discard
 
 method closeImpl*(s: ChronosStream) {.async: (raises: []).} =
   trace "Shutting down chronos stream", address = $s.client.remoteAddress(), s

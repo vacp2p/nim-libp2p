@@ -8,7 +8,7 @@ inputs:
     default: "amd64"
   nim_ref:
     description: "Nim version"
-    default: "version-1-6"
+    default: "version-2-0"
   shell:
     description: "Shell to run commands in"
     default: "bash --noprofile --norc -e -o pipefail"

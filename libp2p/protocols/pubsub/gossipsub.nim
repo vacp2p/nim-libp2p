@@ -29,10 +29,13 @@ import
   ../../utility,
   ../../switch
 
+when defined(libp2p_gossipsub_1_4):
+  import ./bandwidth
+
 import results
 export results
 
-import ./gossipsub/[types, scoring, behavior], ../../utils/heartbeat
+import ./gossipsub/[types, scoring, behavior, preamblestore], ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
 
@@ -50,6 +53,10 @@ declareCounter(
 )
 declareCounter(
   libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant"
+)
+declareCounter(
+  libp2p_gossipsub_imreceiving_saved_messages,
+  "number of duplicates avoided by imreceiving",
 )
 declareCounter(
   libp2p_gossipsub_saved_bytes,
@@ -218,10 +225,14 @@ method init*(g: GossipSub) =
     try:
       await g.handleConn(conn, proto)
     except CancelledError as exc:
-      trace "Unexpected cancellation in gossipsub handler", conn
+      trace "Unexpected cancellation in gossipsub handler", conn, description = exc.msg
       raise exc
 
   g.handler = handler
+
+  when defined(libp2p_gossipsub_1_4):
+    g.codecs &= GossipSubCodec_14
+
   g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
@@ -239,6 +250,9 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
   peer.iHaveBudget = IHavePeerBudget
   peer.pingBudget = PingsPeerBudget
+
+  when defined(libp2p_gossipsub_1_4):
+    peer.preambleBudget = PreamblePeerBudget
 
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
@@ -346,11 +360,14 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
+  when defined(libp2p_gossipsub_1_4):
+    g.handlePreamble(peer, control.preamble)
+    g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
-  let messages = g.handleIWant(peer, control.iwant)
+  let (messages, msgIDs) = g.handleIWant(peer, control.iwant)
 
   let
     isPruneNotEmpty = respControl.prune.len > 0
@@ -371,12 +388,33 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     g.send(peer, RPCMsg(control: some(respControl)), isHighPriority = true)
 
   if messages.len > 0:
-    for smsg in messages:
+    when defined(libp2p_gossipsub_1_4):
+      var preambles: seq[ControlPreamble]
+
+    for i, smsg in messages:
       let topic = smsg.topic
       if g.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
       else:
         libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+
+      when defined(libp2p_gossipsub_1_4):
+        # should we send preamble here? (Not in specs so far)
+        # So receiver will send IMReciving only for preambles received from mesh members
+        preambles.add(
+          ControlPreamble(
+            topicID: smsg.topic,
+            messageID: msgIDs[i],
+            messageLength: smsg.data.len.uint32,
+          )
+        )
+
+    when defined(libp2p_gossipsub_1_4):
+      g.broadcast(
+        @[peer],
+        RPCMsg(control: some(ControlMessage(preamble: preambles))),
+        isHighPriority = true,
+      )
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
@@ -410,6 +448,34 @@ proc sendIDontWant(
     ),
     isHighPriority = true,
   )
+
+when defined(libp2p_gossipsub_1_4):
+  const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
+
+  proc sendPreamble(
+      g: GossipSub, msg: Message, msgId: MessageId, toSendPeers: var HashSet[PubSubPeer]
+  ) =
+    if msg.data.len < preambleMessageSizeThreshold:
+      return
+
+    g.broadcast(
+      toSendPeers.filterIt(it.codec == GossipSubCodec_14),
+      RPCMsg(
+        control: some(
+          ControlMessage(
+            preamble:
+              @[
+                ControlPreamble(
+                  topicID: msg.topic,
+                  messageID: msgId,
+                  messageLength: msg.data.len.uint32,
+                )
+              ]
+          )
+        )
+      ),
+      isHighPriority = true,
+    )
 
 const iDontWantMessageSizeThreshold* = 512
 
@@ -488,6 +554,28 @@ proc validateAndRelay(
       return false
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
+
+    when defined(libp2p_gossipsub_1_4):
+      proc isMsgInIMReceiving(it: PubSubPeer): bool =
+        if it.heIsReceivings.hasKey(msgId):
+          libp2p_gossipsub_imreceiving_saved_messages.inc
+          return true
+        return false
+
+      proc deferSend(deferPeers: HashSet[PubSubPeer]) {.async.} =
+        let receiveTimeMs = calculateReceiveTimeMs(msg.data.len)
+        await sleepAsync(receiveTimeMs.milliseconds)
+        for deferPeer in deferPeers:
+          if not deferPeer.isMsgInIdontWant:
+            #No need to send preamble at timeout
+            g.broadcast(@[deferPeer], RPCMsg(messages: @[msg]), isHighPriority = false)
+
+      let allPeers = toSendPeers
+      toSendPeers.exclIfIt(isMsgInIMReceiving(it))
+      g.sendPreamble(msg, msgId, toSendPeers)
+      if not PullOperation:
+        let receivingPeers = allPeers - toSendPeers
+        asyncSpawn deferSend(receivingPeers)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
@@ -602,6 +690,14 @@ method rpcHandler*(
       msgId = msgIdResult.get
       msgIdSalted = g.salt(msgId)
 
+    when defined(libp2p_gossipsub_1_4):
+      if msg.data.len > preambleMessageSizeThreshold:
+        g.ongoingReceives.del(msgId)
+        g.ongoingIWantReceives.del(msgId)
+        var startTime: Moment
+        if peer.heIsSendings.pop(msgId, startTime):
+          peer.bandwidthTracking.download.update(startTime, msg.data.len)
+
     if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
 
@@ -629,9 +725,8 @@ method rpcHandler*(
       continue
 
     if (msg.signature.len > 0 or g.verifySignature) and not msg.verify():
-      # always validate if signature is present or required
-      debug "Dropping message due to failed signature verification",
-        msgId = shortLog(msgId), peer
+      debug "Dropping message due to failed signature verification", msg = msg
+
       await g.punishInvalidMessage(peer, msg)
       continue
 
@@ -702,24 +797,27 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-method publish*(
+proc makePeersForPublishUsingCustomConn(
+    g: GossipSub, topic: string
+): HashSet[PubSubPeer] =
+  assert g.customConnCallbacks.isSome,
+    "GossipSub misconfiguration: useCustomConn was true, but no customConnCallbacks provided"
+
+  trace "Selecting peers via custom connection callback"
+
+  return g.customConnCallbacks.get().customPeerSelectionCB(
+      g.gossipsub.getOrDefault(topic),
+      g.subscribedDirectPeers.getOrDefault(topic),
+      g.mesh.getOrDefault(topic),
+      g.fanout.getOrDefault(topic),
+    )
+
+proc makePeersForPublishDefault(
     g: GossipSub, topic: string, data: seq[byte]
-): Future[int] {.async: (raises: []).} =
-  logScope:
-    topic
-
-  if topic.len <= 0: # data could be 0/empty
-    debug "Empty topic, skipping publish"
-    return 0
-
-  # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
-
-  trace "Publishing message on topic", data = data.shortLog
-
+): HashSet[PubSubPeer] =
   var peers: HashSet[PubSubPeer]
 
-  # add always direct peers
+  # Always include direct peers
   peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
 
   if topic in g.topics: # if we're subscribed use the mesh
@@ -769,6 +867,34 @@ method publish*(
     # ultimately is not sent)
     g.lastFanoutPubSub[topic] = Moment.fromNow(g.parameters.fanoutTTL)
 
+  return peers
+
+method publish*(
+    g: GossipSub,
+    topic: string,
+    data: seq[byte],
+    publishParams: Option[PublishParams] = none(PublishParams),
+): Future[int] {.async: (raises: []).} =
+  logScope:
+    topic
+
+  if topic.len <= 0: # data could be 0/empty
+    debug "Empty topic, skipping publish"
+    return 0
+
+  # base returns always 0
+  discard await procCall PubSub(g).publish(topic, data)
+
+  trace "Publishing message on topic", data = data.shortLog
+
+  let pubParams = publishParams.get(PublishParams())
+
+  var peers =
+    if pubParams.useCustomConn:
+      g.makePeersForPublishUsingCustomConn(topic)
+    else:
+      g.makePeersForPublishDefault(topic, data)
+
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
     debug "No peers for topic, skipping publish",
@@ -802,12 +928,23 @@ method publish*(
     trace "Dropping already-seen message"
     return 0
 
-  g.mcache.put(msgId, msg)
+  if not pubParams.skipMCache:
+    g.mcache.put(msgId, msg)
 
-  if g.parameters.sendIDontWantOnPublish and isLargeMessage(msg, msgId):
-    g.sendIDontWant(msg, msgId, peers)
+  if g.parameters.sendIDontWantOnPublish:
+    if not pubParams.skipIDontWant and isLargeMessage(msg, msgId):
+      g.sendIDontWant(msg, msgId, peers)
 
-  g.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+    when defined(libp2p_gossipsub_1_4):
+      if not pubParams.skipPreamble:
+        g.sendPreamble(msg, msgId, peers)
+
+  g.broadcast(
+    peers,
+    RPCMsg(messages: @[msg]),
+    isHighPriority = true,
+    useCustomConn = pubParams.useCustomConn,
+  )
 
   if g.knownTopics.contains(topic):
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
@@ -861,6 +998,8 @@ method start*(
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
+  when defined(libp2p_gossipsub_1_4):
+    g.preambleExpirationFut = g.preambleExpirationHeartbeat()
   g.started = true
   fut
 
@@ -875,6 +1014,9 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
     return fut
 
   # stop heartbeat interval
+  when defined(libp2p_gossipsub_1_4):
+    g.preambleExpirationFut.cancelSoon()
+
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()

@@ -11,6 +11,7 @@
 
 import bearssl/rand
 import secp256k1, results, stew/byteutils, nimcrypto/[hash, sha2]
+import ../utils/sequninit
 
 export sha2, results, rand
 
@@ -85,8 +86,9 @@ proc init*(sig: var SkSignature, data: string): SkResult[void] =
   var buffer: seq[byte]
   try:
     buffer = hexToSeqByte(data)
-  except ValueError:
-    return err("secp: Hex to bytes failed")
+  except ValueError as e:
+    let errMsg = "secp: Hex to bytes failed: " & e.msg
+    return err(errMsg.cstring)
   init(sig, buffer)
 
 proc init*(t: typedesc[SkPrivateKey], data: openArray[byte]): SkResult[SkPrivateKey] =
@@ -181,7 +183,7 @@ proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.
-  result = newSeq[byte](72)
+  result = newSeqUninit[byte](72)
   let length = toBytes(sig, result)
   result.setLen(length)
 

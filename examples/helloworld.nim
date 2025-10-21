@@ -1,3 +1,5 @@
+{.used.}
+
 import chronos # an efficient library for async
 import stew/byteutils # various utils
 import libp2p
@@ -15,10 +17,8 @@ proc new(T: typedesc[TestProto]): T =
     try:
       echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
       await conn.writeLp("Roger p2p!")
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      echo "exception in handler", e.msg
+    except LPStreamError as exc:
+      echo "exception in handler", exc.msg
     finally:
       # We must close the connections ourselves when we're done with it
       await conn.close()

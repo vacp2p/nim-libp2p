@@ -47,6 +47,7 @@ proc connHandler*(
     self: TcpTransport,
     client: StreamTransport,
     observedAddr: Opt[MultiAddress],
+    localAddr: Opt[MultiAddress],
     dir: Direction,
 ): Connection =
   trace "Handling tcp connection",
@@ -59,6 +60,7 @@ proc connHandler*(
       client = client,
       dir = dir,
       observedAddr = observedAddr,
+      localAddr = localAddr,
       timeout = self.connectionsTimeout,
     )
   )
@@ -93,7 +95,7 @@ proc new*(
     upgrade: Upgrade,
     connectionsTimeout = 10.minutes,
 ): T {.public.} =
-  T(
+  let self = T(
     flags: flags,
     clientFlags:
       if ServerFlags.TcpNoDelay in flags:
@@ -104,10 +106,12 @@ proc new*(
     networkReachability: NetworkReachability.Unknown,
     connectionsTimeout: connectionsTimeout,
   )
+  procCall Transport(self).initialize()
+  self
 
 method start*(
     self: TcpTransport, addrs: seq[MultiAddress]
-): Future[void] {.async: (raises: [LPError, transport.TransportError]).} =
+): Future[void] {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## Start transport listening to the given addresses - for dial-only transports,
   ## start with an empty list
 
@@ -133,7 +137,9 @@ method start*(
           try:
             createStreamServer(ta, flags = self.flags)
           except common.TransportError as exc:
-            raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+            raise (ref TcpTransportError)(
+              msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
+            )
 
       self.servers &= server
 
@@ -250,9 +256,13 @@ method accept*(
     except TransportUseClosedError as exc:
       raise newTransportClosedError(exc)
     except TransportOsError as exc:
-      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      raise (ref TcpTransportError)(
+        msg: "TransportOs error in accept:" & exc.msg, parent: exc
+      )
     except common.TransportError as exc: # Needed for chronos 4.0.0 support
-      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      raise (ref TcpTransportError)(
+        msg: "TransportError in accept: " & exc.msg, parent: exc
+      )
     except CancelledError as exc:
       cancelAcceptFuts()
       raise exc
@@ -261,18 +271,22 @@ method accept*(
     safeCloseWait(transp)
     raise newTransportClosedError()
 
-  let remote =
+  let (localAddr, observedAddr) =
     try:
-      transp.remoteAddress
+      (
+        MultiAddress.init(transp.localAddress).expect(
+          "Can initialize from local address"
+        ),
+        MultiAddress.init(transp.remoteAddress).expect(
+          "Can initialize from remote address"
+        ),
+      )
     except TransportOsError as exc:
       # The connection had errors / was closed before `await` returned control
       safeCloseWait(transp)
-      debug "Cannot read remote address", description = exc.msg
+      debug "Cannot read address", description = exc.msg
       return nil
-
-  let observedAddr =
-    MultiAddress.init(remote).expect("Can initialize from remote address")
-  self.connHandler(transp, Opt.some(observedAddr), Direction.In)
+  self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.In)
 
 method dial*(
     self: TcpTransport,
@@ -302,7 +316,8 @@ method dial*(
     except CancelledError as exc:
       raise exc
     except CatchableError as exc:
-      raise (ref TcpTransportError)(msg: exc.msg, parent: exc)
+      raise
+        (ref TcpTransportError)(msg: "TcpTransport dial error: " & exc.msg, parent: exc)
 
   # If `stop` is called after `connect` but before `await` returns, we might
   # end up with a race condition where `stop` returns but not all connections
@@ -313,14 +328,17 @@ method dial*(
     safeCloseWait(transp)
     raise newTransportClosedError()
 
-  let observedAddr =
+  let (observedAddr, localAddr) =
     try:
-      MultiAddress.init(transp.remoteAddress).expect("remote address is valid")
+      (
+        MultiAddress.init(transp.remoteAddress).expect("remote address is valid"),
+        MultiAddress.init(transp.localAddress).expect("local address is valid"),
+      )
     except TransportOsError as exc:
       safeCloseWait(transp)
-      raise (ref TcpTransportError)(msg: exc.msg)
+      raise (ref TcpTransportError)(msg: "MultiAddress.init error in dial: " & exc.msg)
 
-  self.connHandler(transp, Opt.some(observedAddr), Direction.Out)
+  self.connHandler(transp, Opt.some(observedAddr), Opt.some(localAddr), Direction.Out)
 
 method handles*(t: TcpTransport, address: MultiAddress): bool {.raises: [].} =
   if procCall Transport(t).handles(address):

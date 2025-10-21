@@ -25,15 +25,11 @@ jobs:
             cpu: i386
           - os: linux-gcc-14
             cpu: amd64
-          - os: macos
-            cpu: amd64
           - os: macos-14
             cpu: arm64
           - os: windows
             cpu: amd64
         nim:
-          - ref: version-1-6
-            memory_management: refc
           - ref: version-2-0
             memory_management: refc
           - ref: version-2-2
@@ -46,10 +42,6 @@ jobs:
           - platform:
               os: linux-gcc-14
             builder: ubuntu-24.04
-            shell: bash
-          - platform:
-              os: macos
-            builder: macos-13
             shell: bash
           - platform:
               os: macos-14
@@ -80,15 +72,6 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_ref: ${{ matrix.nim.ref }}
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '~1.16.0' # That's the minimum Go version that works with arm.
-
-      - name: Install p2pd
-        run: |
-          V=1 bash scripts/build_p2pd.sh p2pdCache 124530a3
-
       - name: Restore deps from cache
         id: deps-cache
         uses: actions/cache@v3
@@ -118,5 +101,5 @@ jobs:
           nimble --version
           gcc --version
 
-          export NIMFLAGS="${NIMFLAGS} -d:libp2p_quic_support --mm:${{ matrix.nim.memory_management }}" 
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" 
           nimble test

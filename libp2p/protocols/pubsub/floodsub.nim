@@ -185,14 +185,17 @@ method init*(f: FloodSub) =
     try:
       await f.handleConn(conn, proto)
     except CancelledError as exc:
-      trace "Unexpected cancellation in floodsub handler", conn
+      trace "Unexpected cancellation in floodsub handler", conn, description = exc.msg
       raise exc
 
   f.handler = handler
   f.codec = FloodSubCodec
 
 method publish*(
-    f: FloodSub, topic: string, data: seq[byte]
+    f: FloodSub,
+    topic: string,
+    data: seq[byte],
+    publishParams: Option[PublishParams] = none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)

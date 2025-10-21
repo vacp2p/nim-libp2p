@@ -79,11 +79,13 @@ proc new*(
 ): T {.public.} =
   ## Creates a Tor transport
 
-  T(
+  let self = T(
     transportAddress: transportAddress,
     upgrader: upgrade,
     tcpTransport: TcpTransport.new(flags, upgrade),
   )
+  procCall Transport(self).initialize()
+  self
 
 proc handlesDial(address: MultiAddress): bool {.gcsafe.} =
   return Onion3.match(address) or TCP.match(address) or DNSANY.match(address)
@@ -237,17 +239,21 @@ method dial*(
   try:
     transp = await connectToTorServer(self.transportAddress)
     await dialPeer(transp, address)
-    return self.tcpTransport.connHandler(transp, Opt.none(MultiAddress), Direction.Out)
+    return self.tcpTransport.connHandler(
+      transp, Opt.none(MultiAddress), Opt.none(MultiAddress), Direction.Out
+    )
   except CancelledError as e:
     safeCloseWait(transp)
     raise e
   except CatchableError as e:
     safeCloseWait(transp)
-    raise newException(transport.TransportDialError, e.msg, e)
+    raise newException(
+      transport.TransportDialError, "error in dial TorTransport: " & e.msg, e
+    )
 
 method start*(
     self: TorTransport, addrs: seq[MultiAddress]
-) {.async: (raises: [LPError, transport.TransportError]).} =
+) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
   ##
 
@@ -301,8 +307,8 @@ proc new*(
     flags: set[ServerFlags] = {},
 ): TorSwitch {.raises: [LPError], public.} =
   var builder = SwitchBuilder.new().withRng(rng).withTransport(
-      proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-        TorTransport.new(torServer, flags, upgr)
+      proc(config: TransportConfig): Transport =
+        TorTransport.new(torServer, flags, config.upgr)
     )
   if addresses.len != 0:
     builder = builder.withAddresses(addresses)

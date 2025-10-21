@@ -11,7 +11,7 @@
 
 import chronos
 import results
-import peerid, stream/connection, transports/transport
+import peerid, stream/connection, transports/transport, muxers/muxer
 
 export results
 
@@ -49,6 +49,22 @@ method dial*(
 
   doAssert(false, "[Dial.dial] abstract method not implemented!")
 
+method dialAndUpgrade*(
+    self: Dial,
+    peerId: Opt[PeerId],
+    hostname: string,
+    addrs: MultiAddress,
+    dir = Direction.Out,
+): Future[Muxer] {.base, async: (raises: [CancelledError]).} =
+  doAssert(false, "[Dial.dialAndUpgrade] abstract method not implemented!")
+
+method dialAndUpgrade*(
+    self: Dial, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
+): Future[Muxer] {.
+    base, async: (raises: [CancelledError, MaError, TransportAddressError, LPError])
+.} =
+  doAssert(false, "[Dial.dialAndUpgrade] abstract method not implemented!")
+
 method dial*(
     self: Dial,
     peerId: PeerId,
@@ -64,6 +80,11 @@ method dial*(
 
 method addTransport*(self: Dial, transport: Transport) {.base.} =
   doAssert(false, "[Dial.addTransport] abstract method not implemented!")
+
+method negotiateStream*(
+    self: Dial, conn: Connection, protos: seq[string]
+): Future[Connection] {.base, async: (raises: [CatchableError]).} =
+  doAssert(false, "[Dial.negotiateStream] abstract method not implemented!")
 
 method tryDial*(
     self: Dial, peerId: PeerId, addrs: seq[MultiAddress]

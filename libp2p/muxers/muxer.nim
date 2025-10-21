@@ -54,6 +54,10 @@ method newStream*(
 .} =
   raiseAssert("[Muxer.newStream] abstract method not implemented!")
 
+when defined(libp2p_agents_metrics):
+  method setShortAgent*(m: Muxer, shortAgent: string) {.base, gcsafe.} =
+    m.connection.shortAgent = shortAgent
+
 method close*(m: Muxer) {.base, async: (raises: []).} =
   if m.connection != nil:
     await m.connection.close()

@@ -11,8 +11,7 @@
 
 import std/[oids, strformat]
 import pkg/[chronos, chronicles, metrics]
-import
-  ./coder, ../muxer, ../../stream/[bufferstream, connection, streamseq], ../../peerinfo
+import ./coder, ../muxer, ../../stream/[bufferstream, connection], ../../peerinfo
 
 export connection
 
@@ -87,7 +86,7 @@ proc open*(s: LPChannel) {.async: (raises: [CancelledError, LPStreamError]).} =
     raise exc
   except LPStreamError as exc:
     await s.conn.close()
-    raise exc
+    raise newException(LPStreamError, "Opening LPChannel failed: " & exc.msg, exc)
 
 method closed*(s: LPChannel): bool =
   s.closedLocal
@@ -150,6 +149,10 @@ method close*(s: LPChannel) {.async: (raises: []).} =
   await s.closeUnderlying() # maybe already eofed
 
   trace "Closed channel", s, len = s.len
+
+method closeWrite*(s: LPChannel) {.async: (raises: []).} =
+  ## For mplex, closeWrite is the same as close - it implements half-close
+  await s.close()
 
 method initStream*(s: LPChannel) =
   if s.objName.len == 0:

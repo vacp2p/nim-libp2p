@@ -1,3 +1,4 @@
+{.used.}
 ## # Custom protocol in libp2p
 ##
 ## In the [previous tutorial](tutorial_1_connect.md), we've looked at how to create a simple ping program using the `nim-libp2p`.
@@ -30,10 +31,8 @@ proc new(T: typedesc[TestProto]): T =
     # a string
     try:
       echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      echo "exception in handler", e.msg
+    except LPStreamError as exc:
+      echo "exception in handler", exc.msg
     finally:
       await conn.close()
 

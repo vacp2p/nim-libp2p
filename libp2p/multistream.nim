@@ -249,11 +249,7 @@ proc addHandler*[E](
   m.handlers.add(HandlerHolder(protos: @[codec], protocol: protocol, match: matcher))
 
 proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
-  # Nim 1.6.18: Using `mapIt` results in a seq of `.Raising([])`
-  # TODO https://github.com/nim-lang/Nim/issues/23445
-  var futs = newSeqOfCap[Future[void].Raising([CancelledError])](m.handlers.len)
-  for it in m.handlers:
-    futs.add it.protocol.start()
+  let futs = m.handlers.mapIt(it.protocol.start())
   try:
     await allFutures(futs)
     for fut in futs:
@@ -273,10 +269,7 @@ proc start*(m: MultistreamSelect) {.async: (raises: [CancelledError]).} =
     raise exc
 
 proc stop*(m: MultistreamSelect) {.async: (raises: []).} =
-  # Nim 1.6.18: Using `mapIt` results in a seq of `.Raising([CancelledError])`
-  var futs = newSeqOfCap[Future[void].Raising([])](m.handlers.len)
-  for it in m.handlers:
-    futs.add it.protocol.stop()
+  let futs = m.handlers.mapIt(it.protocol.stop())
   await noCancel allFutures(futs)
   for fut in futs:
     await fut

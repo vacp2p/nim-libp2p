@@ -49,8 +49,10 @@ template checkTrackers*() =
     {.push warning[BareExcept]: off.}
   try:
     GC_fullCollect()
-  except CatchableError:
-    discard
+  except Defect as exc:
+    raise exc # Reraise to maintain call stack
+  except Exception:
+    raiseAssert "Unexpected exception during GC collection"
   when defined(nimHasWarnBareExcept):
     {.pop.}
 
@@ -92,7 +94,9 @@ proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
   testBufferStream.initStream()
   testBufferStream
 
-macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
+macro checkUntilTimeoutCustom*(
+    timeout: Duration, sleepInterval: Duration, code: untyped
+): untyped =
   ## Periodically checks a given condition until it is true or a timeout occurs.
   ##
   ## `code`: untyped - A condition expression that should eventually evaluate to true.
@@ -101,17 +105,17 @@ macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
   ## Examples:
   ##   ```nim
   ##   # Example 1:
-  ##   asyncTest "checkUntilCustomTimeout should pass if the condition is true":
+  ##   asyncTest "checkUntilTimeoutCustom should pass if the condition is true":
   ##     let a = 2
   ##     let b = 2
-  ##     checkUntilCustomTimeout(2.seconds):
+  ##     checkUntilTimeoutCustom(2.seconds):
   ##       a == b
   ##
   ##   # Example 2: Multiple conditions
-  ##   asyncTest "checkUntilCustomTimeout should pass if the conditions are true":
+  ##   asyncTest "checkUntilTimeoutCustom should pass if the conditions are true":
   ##     let a = 2
   ##     let b = 2
-  ##     checkUntilCustomTimeout(5.seconds)::
+  ##     checkUntilTimeoutCustom(5.seconds)::
   ##       a == b
   ##       a == 2
   ##       b == 1
@@ -145,12 +149,12 @@ macro checkUntilCustomTimeout*(timeout: Duration, code: untyped): untyped =
           if `combinedBoolExpr`:
             return
           else:
-            await sleepAsync(100.millis)
+            await sleepAsync(`sleepInterval`)
 
     await checkExpiringInternal()
 
 macro checkUntilTimeout*(code: untyped): untyped =
-  ## Same as `checkUntilCustomTimeout` but with a default timeout of 10 seconds.
+  ## Same as `checkUntilTimeoutCustom` but with a default timeout of 2s with 50ms interval.
   ##
   ## Examples:
   ##   ```nim
@@ -171,7 +175,7 @@ macro checkUntilTimeout*(code: untyped): untyped =
   ##       b == 1
   ##   ```
   result = quote:
-    checkUntilCustomTimeout(10.seconds, `code`)
+    checkUntilTimeoutCustom(2.seconds, 50.milliseconds, `code`)
 
 proc unorderedCompare*[T](a, b: seq[T]): bool =
   if a == b:

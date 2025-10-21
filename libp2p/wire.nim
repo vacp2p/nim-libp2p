@@ -108,7 +108,9 @@ proc createStreamServer*[T](
 ): StreamServer {.raises: [LPError, MaInvalidAddress].} =
   ## Create new TCP stream server which bounds to ``ma`` address.
   if not (RTRANSPMA.match(ma)):
-    raise newException(MaInvalidAddress, "Incorrect or unsupported address!")
+    raise newException(
+      MaInvalidAddress, "Incorrect or unsupported address in createStreamServer"
+    )
 
   try:
     return createStreamServer(
@@ -123,7 +125,7 @@ proc createStreamServer*[T](
       init,
     )
   except CatchableError as exc:
-    raise newException(LPError, exc.msg)
+    raise newException(LPError, "failed createStreamServer: " & exc.msg, exc)
 
 proc createStreamServer*[T](
     ma: MultiAddress,
@@ -146,56 +148,7 @@ proc createStreamServer*[T](
       initTAddress(ma).tryGet(), flags, udata, sock, backlog, bufferSize, child, init
     )
   except CatchableError as exc:
-    raise newException(LPError, exc.msg)
-
-proc createAsyncSocket*(ma: MultiAddress): AsyncFD {.raises: [ValueError, LPError].} =
-  ## Create new asynchronous socket using MultiAddress' ``ma`` socket type and
-  ## protocol information.
-  ##
-  ## Returns ``asyncInvalidSocket`` on error.
-  ##
-  ## Note: This procedure only used in `go-libp2p-daemon` wrapper.
-  ##
-
-  var
-    socktype: SockType = SockType.SOCK_STREAM
-    protocol: Protocol = Protocol.IPPROTO_TCP
-
-  let address = initTAddress(ma).tryGet()
-  if address.family in {AddressFamily.IPv4, AddressFamily.IPv6}:
-    if ma[1].tryGet().protoCode().tryGet() == multiCodec("udp"):
-      socktype = SockType.SOCK_DGRAM
-      protocol = Protocol.IPPROTO_UDP
-    elif ma[1].tryGet().protoCode().tryGet() == multiCodec("tcp"):
-      socktype = SockType.SOCK_STREAM
-      protocol = Protocol.IPPROTO_TCP
-  elif address.family in {AddressFamily.Unix}:
-    socktype = SockType.SOCK_STREAM
-    protocol = cast[Protocol](0)
-  else:
-    return asyncInvalidSocket
-
-  try:
-    createAsyncSocket(address.getDomain(), socktype, protocol)
-  except CatchableError as exc:
-    raise newException(LPError, exc.msg)
-
-proc bindAsyncSocket*(sock: AsyncFD, ma: MultiAddress): bool {.raises: [LPError].} =
-  ## Bind socket ``sock`` to MultiAddress ``ma``.
-  ##
-  ## Note: This procedure only used in `go-libp2p-daemon` wrapper.
-  ##
-
-  var
-    saddr: Sockaddr_storage
-    slen: SockLen
-
-  let address = initTAddress(ma).tryGet()
-  toSAddr(address, saddr, slen)
-  if bindSocket(SocketHandle(sock), cast[ptr SockAddr](addr saddr), slen) == 0:
-    result = true
-  else:
-    result = false
+    raise newException(LPError, "failed simpler createStreamServer: " & exc.msg, exc)
 
 proc getLocalAddress*(sock: AsyncFD): TransportAddress =
   ## Retrieve local socket ``sock`` address.

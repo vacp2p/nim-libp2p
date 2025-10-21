@@ -1,0 +1,99 @@
+name: Performance
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * *"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  performance:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      # Test mode: 'reliability' for scheduled/manual runs, 'performance' for PR/push
+      TEST_MODE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'reliability' || 'performance' }}
+      VACP2P: "vacp2p"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_NUMBER: ${{ github.event.number }}
+      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      MARKER: "<!-- perf-summary-marker -->"
+      COMMENT_SUMMARY_PATH: "/tmp/perf-summary.md"
+      SHARED_VOLUME_PATH: "performance/output"
+      DOCKER_STATS_PREFIX: "docker_stats_"
+      PUBLISH_BRANCH_NAME: "performance_plots"
+      CHECKOUT_SUBFOLDER_HISTORY: "history"
+      PUBLISH_DIR_LATENCY_HISTORY: "latency_history"
+      LATENCY_HISTORY_PATH: "history/latency_history"
+      LATENCY_HISTORY_PREFIX: "pr"
+
+    name: "Performance Testing"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image with cache
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: performance/test_node/Dockerfile
+          tags: test_node:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.x"
+          repo-token: ${{ env.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          cd performance
+          nimble install
+
+      - name: Run performance tests
+        if: env.TEST_MODE == 'performance'
+        run: |
+          cd performance
+          nimble performance
+
+      - name: Run reliability tests
+        if: env.TEST_MODE == 'reliability'
+        run: |
+          cd performance
+          nimble reliability
+
+      - name: Process latency and docker stats
+        uses: ./.github/actions/process_stats
+        with:
+          with-mermaid-charts: ${{ env.TEST_MODE == 'performance' }}
+
+      - name: Publish history
+        if: github.repository_owner == env.VACP2P && env.TEST_MODE == 'performance'
+        uses: ./.github/actions/publish_history
+
+      - name: Post/Update PR comment
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/add_comment

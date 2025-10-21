@@ -1,7 +1,7 @@
 {.used.}
 
 # Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -12,6 +12,7 @@
 import chronos, stew/byteutils
 import
   ../libp2p/[
+    autotls/service,
     stream/connection,
     transports/transport,
     transports/wstransport,
@@ -67,21 +68,22 @@ suite "WebSocket transport":
   teardown:
     checkTrackers()
 
-  proc wsTraspProvider(): Transport =
+  proc wsTranspProvider(): Transport =
     WsTransport.new(Upgrade())
 
-  commonTransportTest(wsTraspProvider, "/ip4/0.0.0.0/tcp/0/ws")
+  commonTransportTest(wsTranspProvider, "/ip4/0.0.0.0/tcp/0/ws")
 
-  proc wsSecureTranspProvider(): Transport {.gcsafe.} =
+  proc wsSecureTranspProvider(): Transport {.gcsafe, raises: [].} =
     try:
       return WsTransport.new(
         Upgrade(),
         TLSPrivateKey.init(SecureKey),
         TLSCertificate.init(SecureCert),
+        Opt.none(AutotlsService),
         {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
       )
-    except CatchableError:
-      check(false)
+    except TLSStreamProtocolError:
+      check false
 
   commonTransportTest(wsSecureTranspProvider, "/ip4/0.0.0.0/tcp/0/wss")
 
@@ -91,11 +93,14 @@ suite "WebSocket transport":
       Upgrade(),
       TLSPrivateKey.init(SecureKey),
       TLSCertificate.init(SecureCert),
+      Opt.none(AutotlsService),
       {TLSFlags.NoVerifyHost},
     )
 
     const correctPattern = mapAnd(TCP, mapEq("wss"))
     await transport1.start(ma)
+    defer:
+      await transport1.stop()
     check correctPattern.match(transport1.addrs[0])
     proc acceptHandler() {.async.} =
       while true:
@@ -104,20 +109,16 @@ suite "WebSocket transport":
           await conn.close()
 
     let handlerWait = acceptHandler()
+    defer:
+      await handlerWait.cancelAndWait()
 
     # ws.test is in certificate
     let conn = await transport1.dial("ws.test", transport1.addrs[0])
 
     await conn.close()
 
-    try:
-      let conn = await transport1.dial("ws.wronghostname", transport1.addrs[0])
-      check false
-    except CatchableError as exc:
-      check true
-
-    await handlerWait.cancelAndWait()
-    await transport1.stop()
+    expect TransportDialError:
+      discard await transport1.dial("ws.wronghostname", transport1.addrs[0])
 
   asyncTest "handles tls/ws":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
@@ -136,3 +137,83 @@ suite "WebSocket transport":
     await closing
 
     await transport1.stop()
+
+when defined(libp2p_autotls_support):
+  import bearssl/pem
+  import ../libp2p/[autotls/service, autotls/mockservice, transports/tls/certificate]
+
+  proc generateCertAndKey(key: KeyPair): (TLSPrivateKey, TLSCertificate) =
+    let certDer = generateX509(key, encodingFormat = DER).certificate
+    let certPem = pemEncode(certDer, "CERTIFICATE")
+    let keyPem = pemEncode(key.seckey.getRawBytes().get(), "PRIVATE KEY")
+    (TLSPrivateKey.init(keyPem), TLSCertificate.init(certPem))
+
+  suite "WebSocket transport with autotls":
+    asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+
+      let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+      let (privkey, cert) = generateCertAndKey(key)
+      let autotls = MockAutotlsService.new()
+      autotls.mockedKey = privkey
+      autotls.mockedCert = cert
+      await autotls.setup()
+
+      let wstransport = WsTransport.new(
+        Upgrade(),
+        nil, # TLSPrivateKey
+        nil, # TLSCertificate
+        Opt.some(AutotlsService(autotls)),
+      )
+      await wstransport.start(ma)
+      defer:
+        await wstransport.stop()
+
+      # TLSPrivateKey and TLSCertificate should be set
+      check wstransport.secure
+
+      # autotls should be used
+      let autotlsCert = await autotls.getCertWhenReady()
+      check wstransport.tlsCertificate == autotlsCert.cert
+
+    asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+
+      let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+      let (privkey, cert) = generateCertAndKey(key)
+      let autotls = MockAutotlsService.new()
+      autotls.mockedKey = privkey
+      autotls.mockedCert = cert
+      await autotls.setup()
+
+      let secureKey = TLSPrivateKey.init(SecureKey)
+      let secureCert = TLSCertificate.init(SecureCert)
+
+      let wstransport = WsTransport.new(
+        Upgrade(), secureKey, secureCert, Opt.some(AutotlsService(autotls))
+      )
+      await wstransport.start(ma)
+      defer:
+        await wstransport.stop()
+
+      # TLSPrivateKey and TLSCertificate should be set
+      check wstransport.secure
+
+      # autotls should be ignored
+      check wstransport.tlsCertificate == secureCert
+      check wstransport.tlsPrivateKey == secureKey
+
+    asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+      let wstransport = WsTransport.new(
+        Upgrade(),
+        nil, # TLSPrivateKey
+        nil, # TLSCertificate
+        Opt.none(AutotlsService),
+      )
+      await wstransport.start(ma)
+      defer:
+        await wstransport.stop()
+
+      # TLSPrivateKey and TLSCertificate should not be set
+      check not wstransport.secure

@@ -556,12 +556,12 @@ suite "Mplex":
             listenJob.complete()
 
           await mplexListen.handle()
-          await sleepAsync(1.seconds) # give chronos some slack to process things
+          await sleepAsync(500.millis) # give chronos some slack to process things
           await mplexListen.close()
         except CancelledError as exc:
           raise exc
-        except CatchableError as exc:
-          check false
+        except transport.TransportError:
+          raiseAssert "Transport error"
 
       let acceptFut = acceptHandler()
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -731,14 +731,12 @@ suite "Mplex":
           listenStreams.add(stream)
           try:
             discard await stream.readLp(1024)
-          except LPStreamEOFError:
-            return
           except CancelledError, LPStreamError:
             return
           finally:
             await stream.close()
 
-          check false
+          raiseAssert "Channel not closed"
 
         await mplexListen.handle()
         await mplexListen.close()
@@ -803,14 +801,9 @@ suite "Mplex":
 
       proc dialReadLoop() {.async.} =
         for s in dialStreams:
-          try:
+          expect LPStreamEOFError:
             discard await s.readLp(1024)
-            check false
-          except LPStreamEOFError:
-            await s.close()
-            continue
-
-          check false
+          await s.close()
 
       await done
       let readLoop = dialReadLoop()

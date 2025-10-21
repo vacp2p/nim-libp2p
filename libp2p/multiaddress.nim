@@ -27,6 +27,7 @@ import
   utility
 import stew/[base58, base32, endians2]
 export results, vbuffer, errors, utility
+import ./utils/sequninit
 
 logScope:
   topics = "libp2p multiaddress"
@@ -73,6 +74,8 @@ type
 
 func maErr*(msg: string): ref MaError =
   (ref MaError)(msg: msg)
+
+const libp2p_multiaddress_exts* {.strdefine.} = ""
 
 const
   # These are needed in order to avoid an ambiguity error stemming from
@@ -223,7 +226,7 @@ proc p2pStB(s: string, vb: var VBuffer): bool =
 
 proc p2pBtS(vb: var VBuffer, s: var string): bool =
   ## P2P address bufferToString() implementation.
-  var address = newSeq[byte]()
+  var address = newSeqUninit[byte](0)
   if vb.readSeq(address) > 0:
     var mh: MultiHash
     if MultiHash.decode(address, mh).isOk:
@@ -232,7 +235,7 @@ proc p2pBtS(vb: var VBuffer, s: var string): bool =
 
 proc p2pVB(vb: var VBuffer): bool =
   ## P2P address validateBuffer() implementation.
-  var address = newSeq[byte]()
+  var address = newSeqUninit[byte](0)
   if vb.readSeq(address) > 0:
     var mh: MultiHash
     if MultiHash.decode(address, mh).isOk:
@@ -456,7 +459,7 @@ const
 
   P2PPattern* = mapEq("p2p")
 
-  IPFS* = mapAnd(Reliable, P2PPattern)
+  IPFS* = mapAnd(Reliable, mapEq("ipfs"))
 
   HTTP* = mapOr(
     mapAnd(TCP, mapEq("http")), mapAnd(IP, mapEq("http")), mapAnd(DNS, mapEq("http"))
@@ -474,11 +477,21 @@ const
 
   Memory* = mapEq("memory")
 
-proc initMultiAddressCodeTable(): Table[MultiCodec, MAProtocol] {.compileTime.} =
-  for item in ProtocolsList:
-    result[item.mcodec] = item
+proc initMultiAddressCodeTable(
+    protocols: openArray[MAProtocol]
+): Table[MultiCodec, MAProtocol] {.compileTime.} =
+  var res: Table[MultiCodec, MAProtocol]
 
-const CodeAddresses = initMultiAddressCodeTable()
+  for protocol in protocols:
+    res[protocol.mcodec] = protocol
+
+  return res
+
+when libp2p_multiaddress_exts != "":
+  includeFile(libp2p_multiaddress_exts)
+  const CodeAddresses = initMultiAddressCodeTable(@ProtocolsList & @AddressExts)
+else:
+  const CodeAddresses = initMultiAddressCodeTable(@ProtocolsList)
 
 proc trimRight(s: string, ch: char): string =
   ## Consume trailing characters ``ch`` from string ``s`` and return result.
@@ -555,7 +568,7 @@ proc protoAddress*(ma: MultiAddress): MaResult[seq[byte]] =
   ##
   ## If current MultiAddress do not have argument value, then result array will
   ## be empty.
-  var buffer = newSeq[byte](len(ma.data.buffer))
+  var buffer = newSeqUninit[byte](len(ma.data.buffer))
   let res = ?protoArgument(ma, buffer)
   buffer.setLen(res)
   ok(buffer)
@@ -569,7 +582,7 @@ proc protoArgument*(ma: MultiAddress): MaResult[seq[byte]] =
 
 proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var header: uint64
-  var data = newSeq[byte]()
+  var data = newSeqUninit[byte](0)
   var offset = 0
   var vb = ma
   var res: MultiAddress
@@ -643,7 +656,7 @@ proc `[]`*(ma: MultiAddress, slice: HSlice): MaResult[MultiAddress] {.inline.} =
 iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
   ## Iterates over all addresses inside of MultiAddress ``ma``.
   var header: uint64
-  var data = newSeq[byte]()
+  var data = newSeqUninit[byte](0)
   var vb = ma
   while true:
     if vb.data.isEmpty():
@@ -841,6 +854,14 @@ proc init*(
       res.data.writeArray(toBytesBE(cast[uint16](value)))
       res.data.finish()
       ok(res)
+
+proc getPart*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] =
+  ## Returns the first multiaddress in ``value`` with codec ``codec``
+  for part in ma:
+    let part = ?part
+    if codec == ?part.protoCode:
+      return ok(part)
+  err("no such codec in multiaddress")
 
 proc getProtocol(name: string): MAProtocol {.inline.} =
   let mc = MultiCodec.codec(name)
@@ -1118,3 +1139,32 @@ proc getRepeatedField*(
       err(ProtoError.IncorrectBlob)
     else:
       ok(true)
+
+proc areAddrsConsistent*(a, b: MultiAddress): bool =
+  ## Checks if two multiaddresses have the same protocol stack.
+  let protosA = a.protocols().get()
+  let protosB = b.protocols().get()
+  if protosA.len != protosB.len:
+    return false
+
+  for idx in 0 ..< protosA.len:
+    let protoA = protosA[idx]
+    let protoB = protosB[idx]
+
+    if protoA != protoB:
+      if idx == 0:
+        # allow DNS ↔ IP at the first component
+        if protoB == multiCodec("dns") or protoB == multiCodec("dnsaddr"):
+          if not (protoA == multiCodec("ip4") or protoA == multiCodec("ip6")):
+            return false
+        elif protoB == multiCodec("dns4"):
+          if protoA != multiCodec("ip4"):
+            return false
+        elif protoB == multiCodec("dns6"):
+          if protoA != multiCodec("ip6"):
+            return false
+        else:
+          return false
+      else:
+        return false
+  true

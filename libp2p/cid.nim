@@ -10,10 +10,12 @@
 ## This module implementes CID (Content IDentifier).
 
 {.push raises: [].}
+{.used.}
 
 import tables, hashes
-import multibase, multicodec, multihash, vbuffer, varint, results
+import multibase, multicodec, multihash, vbuffer, varint, results, utility
 import stew/base58
+import ./utils/sequninit
 
 export results
 
@@ -35,6 +37,8 @@ type
     mcodec*: MultiCodec
     hpos*: int
     data*: VBuffer
+
+const libp2p_contentids_exts* {.strdefine.} = ""
 
 const ContentIdsList = [
   multiCodec("raw"),
@@ -67,11 +71,21 @@ const ContentIdsList = [
   multiCodec("ed25519-pub"),
 ]
 
-proc initCidCodeTable(): Table[int, MultiCodec] {.compileTime.} =
-  for item in ContentIdsList:
-    result[int(item)] = item
+proc initCidCodeTable(
+    codecs: openArray[MultiCodec]
+): Table[int, MultiCodec] {.compileTime.} =
+  var res: Table[int, MultiCodec]
 
-const CodeContentIds = initCidCodeTable()
+  for codec in codecs:
+    res[codec.int] = codec
+
+  return res
+
+when libp2p_contentids_exts != "":
+  includeFile(libp2p_contentids_exts)
+  const CodeContentIds = initCidCodeTable(@ContentIdsList & @ContentIdsExts)
+else:
+  const CodeContentIds = initCidCodeTable(@ContentIdsList)
 
 template orError*(exp: untyped, err: untyped): untyped =
   exp.mapErr do(_: auto) -> auto:
@@ -122,7 +136,7 @@ proc decode(data: openArray[char]): Result[Cid, CidError] =
     return err(CidError.Incorrect)
   if len(data) == 46:
     if data[0] == 'Q' and data[1] == 'm':
-      buffer = newSeq[byte](BTCBase58.decodedLength(len(data)))
+      buffer = newSeqUninit[byte](BTCBase58.decodedLength(len(data)))
       if BTCBase58.decode(data, buffer, plen) != Base58Status.Success:
         return err(CidError.Incorrect)
       buffer.setLen(plen)
@@ -130,7 +144,7 @@ proc decode(data: openArray[char]): Result[Cid, CidError] =
     let length = MultiBase.decodedLength(data[0], len(data))
     if length == -1:
       return err(CidError.Incorrect)
-    buffer = newSeq[byte](length)
+    buffer = newSeqUninit[byte](length)
     if MultiBase.decode(data, buffer, plen) != MultiBaseStatus.Success:
       return err(CidError.Incorrect)
     buffer.setLen(plen)

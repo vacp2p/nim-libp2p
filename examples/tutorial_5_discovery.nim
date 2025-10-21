@@ -1,3 +1,4 @@
+{.used.}
 ## # Discovery Manager
 ##
 ## In the [previous tutorial](tutorial_4_gossipsub.md), we built a custom protocol using [protobuf](https://developers.google.com/protocol-buffers) and
@@ -19,7 +20,11 @@ import libp2p/discovery/discoverymngr
 ## [RendezVous](https://github.com/libp2p/specs/blob/master/rendezvous/README.md) to be mounted on the switch using withRendezVous.
 ##
 ## Note that other discovery methods such as [Kademlia](https://github.com/libp2p/specs/blob/master/kad-dht/README.md) or [discv5](https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md) exist.
-proc createSwitch(rdv: RendezVous = RendezVous.new()): Switch =
+proc createSwitch(rdv: RendezVous = nil): Switch =
+  var lrdv = rdv
+  if rdv.isNil():
+    lrdv = RendezVous.new()
+
   SwitchBuilder
   .new()
   .withRng(newRng())
@@ -37,10 +42,8 @@ proc new(T: typedesc[DumbProto], nodeNumber: int): T =
   proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       echo "Node", nodeNumber, " received: ", string.fromBytes(await conn.readLp(1024))
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      echo "exception in handler", e.msg
+    except LPStreamError as exc:
+      echo "exception in handler", exc.msg
     finally:
       await conn.close()
 

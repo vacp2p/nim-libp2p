@@ -14,7 +14,7 @@ import unittest2
 
 import ../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../libp2p/protocols/connectivity/dcutr/[client, server]
-from ../libp2p/protocols/connectivity/autonat/core import NetworkReachability
+from ../libp2p/protocols/connectivity/autonat/types import NetworkReachability
 import ../libp2p/builders
 import ../libp2p/utils/future
 import ./helpers
@@ -66,7 +66,7 @@ suite "Dcutr":
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
-    expect CatchableError:
+    expect AsyncTimeoutError:
       # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
       # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
       # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
@@ -115,7 +115,7 @@ suite "Dcutr":
         reuseConnection = true,
         dir = Direction.Out,
     ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
-      await sleepAsync(100.millis)
+      await sleepAsync(50.millis)
 
     let behindNATSwitch = SwitchStub.new(newStandardSwitch(), connectTimeoutProc)
     let publicSwitch = newStandardSwitch()
@@ -168,7 +168,7 @@ suite "Dcutr":
     for t in behindNATSwitch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
-    expect CatchableError:
+    expect AsyncTimeoutError:
       # we can't hole punch when both peers are in the same machine. This means that the simultaneous dialings will result
       # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
       # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
@@ -194,7 +194,7 @@ suite "Dcutr":
         reuseConnection = true,
         dir = Direction.Out,
     ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
-      await sleepAsync(100.millis)
+      await sleepAsync(50.millis)
 
     await ductrServerTest(connectProc)
 
