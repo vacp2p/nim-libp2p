@@ -159,7 +159,7 @@ proc init*(
     libp2pPubKey: SkPublicKey,
 ): T =
   T(
-    peerId: PeerId,
+    peerId: peerId,
     multiAddr: multiAddr,
     mixPubKey: mixPubKey,
     libp2pPubKey: libp2pPubKey,
