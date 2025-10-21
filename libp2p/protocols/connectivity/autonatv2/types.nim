@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import results, chronos, chronicles
+import results, chronos
 import
   ../../../multiaddress, ../../../peerid, ../../../protobuf/minprotobuf, ../../../switch
 from ../autonat/types import NetworkReachability
