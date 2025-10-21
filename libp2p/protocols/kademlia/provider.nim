@@ -22,7 +22,7 @@ proc dispatchAddProvider(
 
   let msg = Message(
     msgType: MessageType.addProvider,
-    key: Opt.some(key),
+    key: key,
     providerPeers: @[switch.peerInfo.toPeer()],
   )
   await conn.writeLp(msg.encode().buffer)
@@ -43,9 +43,7 @@ proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gc
 proc handleAddProvider*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let key = msg.key.valueOr:
-    error "No key in message buffer", msg = msg, conn = conn
-    return
+  let key = msg.key
 
   if Cid.init(key).isErr():
     error "Received key is an invalid CID", msg = msg, conn = conn, key = key

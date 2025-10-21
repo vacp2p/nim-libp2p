@@ -23,7 +23,7 @@ proc dispatchGetVal(
   let conn = await switch.dial(peer, KadCodec)
   defer:
     await conn.close()
-  let msg = Message(msgType: MessageType.getValue, key: Opt.some(key))
+  let msg = Message(msgType: MessageType.getValue, key: key)
   await conn.writeLp(msg.encode().buffer)
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
@@ -125,16 +125,14 @@ proc getValue*(
 proc handleGetValue*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let key = msg.key.valueOr:
-    error "No key in rpc buffer", msg = msg, conn = conn
-    return
+  let key = msg.key
 
   let entryRecord = kad.dataTable.get(key).valueOr:
     try:
       await conn.writeLp(
         Message(
           msgType: MessageType.getValue,
-          key: Opt.some(key),
+          key: key,
           closerPeers: kad.findClosestPeers(key),
         ).encode().buffer
       )
@@ -146,10 +144,10 @@ proc handleGetValue*(
     await conn.writeLp(
       Message(
         msgType: MessageType.getValue,
-        key: Opt.some(key),
+        key: key,
         record: Opt.some(
           Record(
-            key: Opt.some(key),
+            key: key,
             value: Opt.some(entryRecord.value),
             timeReceived: Opt.some(entryRecord.time),
           )
