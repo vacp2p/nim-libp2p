@@ -10,8 +10,8 @@
 import std/[tables, sequtils, sets]
 from times import now
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
+import ../../[peerid, switch, multihash, cid, multicodec]
 import ../protocol
-import ../../[peerid, switch, multihash]
 import ./protobuf
 
 const
@@ -30,8 +30,13 @@ const
 
 type Key* = seq[byte]
 
-proc isValid*(k: Key): bool =
-  return k.len > 0 and k.len < 80
+proc toCid*(k: Key): Cid =
+  let cidRes = Cid.init(k)
+  if cidRes.isOk:
+    cidRes.get()
+  else:
+    debug "Key is an invalid CID, encapsulating", key = k
+    Cid.init(CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k).get()).get()
 
 proc toKey*(p: PeerId): Key =
   return Key(p.data)
