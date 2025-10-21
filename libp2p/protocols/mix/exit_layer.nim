@@ -1,4 +1,4 @@
-import chronicles, chronos, metrics, std/sequtils
+import chronicles, chronos, metrics, std/sequtils, std/tables
 import ../../builders
 import ../../stream/connection
 import ./[mix_metrics, reply_connection, serialization, multiaddr]
