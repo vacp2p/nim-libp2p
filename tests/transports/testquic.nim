@@ -352,8 +352,6 @@ suite "Quic transport":
 
   asyncTest "multiaddress validation - accept valid addresses":
     let transport = await createTransport()
-    defer:
-      await transport.stop()
 
     let validAddresses =
       @[
@@ -366,8 +364,6 @@ suite "Quic transport":
 
   asyncTest "multiaddress validation - reject invalid addresses":
     let transport = await createTransport()
-    defer:
-      await transport.stop()
 
     let invalidAddresses =
       @[
@@ -381,7 +377,7 @@ suite "Quic transport":
 
   asyncTest "address normalization - port assignment":
     # Start with port 0 and verify it gets assigned a real port
-    let transport = await createTransport(isServer = false)
+    let transport = await createTransport()
     let ma = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
     await transport.start(@[ma])
     defer:
