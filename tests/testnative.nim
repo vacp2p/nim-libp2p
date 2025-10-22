@@ -19,13 +19,7 @@ import
   testmultibase, testmultihash, testmultiaddress, testcid, testpeerid,
   testsigned_envelope, testrouting_record
 
-import
-  testtcptransport,
-  testtortransport,
-  testwstransport,
-  testquic,
-  testmemorytransport,
-  transports/tls/testcertificate
+import transports/testtransports
 
 import
   testnameresolve, testmultistream, testbufferstream, testidentify,
