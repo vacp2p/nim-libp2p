@@ -73,6 +73,23 @@ proc cryptoRandomInt(rng: ref HmacDrbgContext, max: int): Result[int, string] =
   let res = rng[].generate(uint64) mod uint64(max)
   ok(res.int)
 
+proc removeClosedConnections(
+    mixProto: MixProtocol, pid: PeerId
+) {.async: (raises: []).} =
+  var peersToGC = mixProto.connPool
+    .keys()
+    .toSeq()
+    .filterIt(not mixProto.switch.isConnected(it))
+    .toHashSet()
+  peersToGC.incl(pid)
+
+  for p in peersToGC:
+    try:
+      await mixProto.connPool[pid].close()
+      mixProto.connPool.del(pid)
+    except KeyError:
+      raiseAssert "checked with hasKey"
+
 proc getConn(
     mixProto: MixProtocol,
     pid: PeerId,
@@ -80,18 +97,15 @@ proc getConn(
     codecs: seq[string],
     forceNewStream: bool = false,
 ): Future[Connection] {.async: (raises: [DialFailedError, CancelledError]).} =
-  if mixProto.connPool.hasKey(pid):
-    try:
-      if forceNewStream:
-        await mixProto.connPool[pid].close()
-        mixProto.connPool.del(pid)
-      else:
-        return mixProto.connPool[pid]
-    except KeyError:
-      raiseAssert "checked with hasKey"
-  let c = await mixProto.switch.dial(pid, addrs, codecs)
-  mixProto.connPool[pid] = c
-  return c
+  if forceNewStream:
+    # GC all expired connections including the one used for `pid`
+    await mixProto.removeClosedConnections(pid)
+  try:
+    return mixProto.connPool[pid]
+  except KeyError:
+    let c = await mixProto.switch.dial(pid, addrs, codecs)
+    mixProto.connPool[pid] = c
+    return c
 
 proc writeLp(
     mixProto: MixProtocol,
