@@ -11,7 +11,7 @@
 
 import chronos, stew/byteutils
 import
-  ../libp2p/[
+  ../../libp2p/[
     autotls/service,
     stream/connection,
     transports/transport,
@@ -21,7 +21,7 @@ import
     errors,
   ]
 
-import ./helpers, ./commontransport
+import ../helpers, ./commontransport
 
 const
   SecureKey =
@@ -140,7 +140,7 @@ suite "WebSocket transport":
 
 when defined(libp2p_autotls_support):
   import bearssl/pem
-  import ../libp2p/[autotls/service, autotls/mockservice, transports/tls/certificate]
+  import ../../libp2p/[autotls/service, autotls/mockservice, transports/tls/certificate]
 
   proc generateCertAndKey(key: KeyPair): (TLSPrivateKey, TLSCertificate) =
     let certDer = generateX509(key, encodingFormat = DER).certificate

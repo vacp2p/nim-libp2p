@@ -12,8 +12,8 @@
 {.push raises: [].}
 
 import stew/byteutils
-import ../libp2p/[transports/memorytransport, multiaddress]
-import ./helpers
+import ../../libp2p/[transports/memorytransport, multiaddress]
+import ../helpers
 
 suite "Memory transport":
   teardown:
