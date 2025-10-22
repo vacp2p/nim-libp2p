@@ -33,7 +33,7 @@ proc bootstrap*(
     let msg =
       try:
         await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(
-          chronos.seconds(5)
+          kad.config.timeout
         )
       except CatchableError as exc:
         debug "Send find node exception during bootstrap",
@@ -63,7 +63,7 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       discard await kad.findNode(randomKey)
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh buckets", chronos.minutes(10):
+  heartbeat "refresh buckets", kad.config.bucketRefreshTime:
     await kad.refreshBuckets()
 
 proc new*(
