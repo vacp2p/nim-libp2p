@@ -19,6 +19,7 @@ const
 
   DefaultMaxBuckets* = 256
   DefaultTimeout* = 5.seconds
+  DefaultBucketRefreshTime* = 10.minutes
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -243,6 +244,7 @@ type KadDHTConfig* = ref object
   validator*: EntryValidator
   selector*: EntrySelector
   timeout*: chronos.Duration
+  bucketRefreshTime*: chronos.Duration
   retries*: int
   replication*: int
   alpha*: int
@@ -254,6 +256,7 @@ proc new*(
     validator: EntryValidator = DefaultEntryValidator(),
     selector: EntrySelector = DefaultEntrySelector(),
     timeout: chronos.Duration = DefaultTimeout,
+    bucketRefreshTime: chronos.Duration = DefaultBucketRefreshTime,
     retries: int = DefaultRetries,
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
@@ -264,6 +267,7 @@ proc new*(
     validator: validator,
     selector: selector,
     timeout: timeout,
+    bucketRefreshTime: bucketRefreshTime,
     retries: retries,
     replication: replication,
     alpha: alpha,
