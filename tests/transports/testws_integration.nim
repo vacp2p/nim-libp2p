@@ -14,7 +14,7 @@
 import chronos #, strutils#, sequtils
 import chronos/apps/http/httpclient
 import
-  ../libp2p/[
+  ../../libp2p/[
     stream/connection,
     upgrademngrs/upgrade,
     nameresolving/dnsresolver,
@@ -28,7 +28,7 @@ import
     utils/ipaddr,
   ]
 
-from ./helpers import suite, asyncTest, asyncTeardown, checkTrackers, skip, check
+from ../helpers import suite, asyncTest, asyncTeardown, checkTrackers, skip, check
 
 suite "WebSocket transport integration":
   teardown:
