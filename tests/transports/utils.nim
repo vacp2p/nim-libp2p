@@ -12,6 +12,8 @@ import
     transports/wstransport,
     transports/tls/certificate,
     upgrademngrs/upgrade,
+    multiaddress,
+    multicodec,
   ]
 import ../helpers
 
@@ -29,6 +31,9 @@ proc tcpTransProvider*(): Transport =
 const torServer* = initTAddress("127.0.0.1", 9050.Port)
 proc torTransProvider*(): Transport =
   TorTransport.new(torServer, {ReuseAddr}, Upgrade())
+
+proc isTorTransport*(ma: MultiAddress): bool =
+  ma.contains(multiCodec("onion3")).get(false)
 
 # WS
 

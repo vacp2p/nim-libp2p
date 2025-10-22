@@ -16,90 +16,89 @@ template basicTransportTest*(
 
     asyncTest "can handle local address":
       let ma = @[MultiAddress.init(ma1).tryGet()]
-      let transport1 = transportProvider()
-      await transport1.start(ma)
-      check transport1.handles(transport1.addrs[0])
-      await transport1.stop()
 
-    asyncTest "e2e: handle observedAddr":
+      let transport = transportProvider()
+      await transport.start(ma)
+      defer:
+        await transport.stop()
+
+      check transport.handles(transport.addrs[0])
+
+    asyncTest "handle observedAddr":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transportProvider()
-      await transport1.start(ma)
+      let server = transportProvider()
+      await server.start(ma)
+      let client = transportProvider()
 
-      let transport2 = transportProvider()
+      let acceptFut = server.accept()
+      let clientConn = await client.dial(server.addrs[0])
+      let serverConn = await acceptFut
 
-      proc acceptHandler() {.async.} =
-        let conn = await transport1.accept()
-        if conn.observedAddr.isSome():
-          check transport1.handles(conn.observedAddr.get())
+      defer:
+        await allFutures(clientConn.close(), serverConn.close())
+        await allFutures(client.stop(), server.stop())
+
+      # Tor transport doesn't provide observedAddr for privacy reasons
+      if not isTorTransport(server.addrs[0]):
+        check:
+          server.handles(clientConn.observedAddr.get())
+          client.handles(serverConn.observedAddr.get())
+
+      check:
         # skip IP check, only check transport and port
-        check conn.localAddr.get()[3] == transport1.addrs[0][3]
-        check conn.localAddr.get()[4] == transport1.addrs[0][4]
-        await conn.close()
+        serverConn.localAddr.get()[3] == server.addrs[0][3]
+        serverConn.localAddr.get()[4] == server.addrs[0][4]
 
-      let handlerWait = acceptHandler()
-
-      let conn = await transport2.dial(transport1.addrs[0])
-
-      if conn.observedAddr.isSome():
-        check transport2.handles(conn.observedAddr.get())
-
-      await conn.close()
-        #for some protocols, closing requires actively reading, so we must close here
-
-      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
-
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
-
-    asyncTest "e2e: handle dial cancellation":
+    asyncTest "handle dial cancellation":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transportProvider()
-      await transport1.start(ma)
+      let server = transportProvider()
+      await server.start(ma)
+      let client = transportProvider()
+      defer:
+        await allFutures(client.stop(), server.stop())
 
-      let transport2 = transportProvider()
-      let cancellation = transport2.dial(transport1.addrs[0])
+      let connFut = client.dial(server.addrs[0])
+      await connFut.cancelAndWait()
 
-      await cancellation.cancelAndWait()
-      check cancellation.cancelled
+      check connFut.cancelled
 
-      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
-
-    asyncTest "e2e: handle accept cancellation":
+    asyncTest "handle accept cancellation":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transportProvider()
-      await transport1.start(ma)
+      let server = transportProvider()
+      await server.start(ma)
+      defer:
+        await server.stop()
 
-      let acceptHandler = transport1.accept()
-      await acceptHandler.cancelAndWait()
-      check acceptHandler.cancelled
+      let acceptFut = server.accept()
+      await acceptFut.cancelAndWait()
 
-      await transport1.stop()
+      check acceptFut.cancelled
 
-    asyncTest "e2e: stopping transport kills connections":
+    asyncTest "stopping transport kills connections":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transportProvider()
-      await transport1.start(ma)
+      let server = transportProvider()
+      await server.start(ma)
+      let client = transportProvider()
 
-      let transport2 = transportProvider()
+      let acceptFut = server.accept()
+      let clientConn = await client.dial(server.addrs[0])
+      let serverConn = await acceptFut
 
-      let acceptHandler = transport1.accept()
-      let conn = await transport2.dial(transport1.addrs[0])
-      let serverConn = await acceptHandler
+      await allFutures(client.stop(), server.stop())
 
-      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
-
-      check serverConn.closed()
-      check conn.closed()
+      check:
+        clientConn.closed()
+        serverConn.closed()
 
     asyncTest "transport start/stop events":
+      let ma = @[MultiAddress.init(ma1).tryGet()]
       let transport = transportProvider()
-      let addrs = @[MultiAddress.init(ma1).tryGet()]
 
-      await transport.start(addrs)
+      await transport.start(ma)
       check await transport.onRunning.wait().withTimeout(1.seconds)
 
       await transport.stop()
