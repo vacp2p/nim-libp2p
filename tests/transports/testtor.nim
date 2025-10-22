@@ -23,9 +23,11 @@ import
     builders,
   ]
 
-import ../helpers, ../stubs/torstub, ./commontransport
+import ../helpers
+import ../stubs/torstub
+import ./commontransport
+import ./utils
 
-const torServer = initTAddress("127.0.0.1", 9050.Port)
 var stub: TorServerStub
 var startFut: Future[void]
 suite "Tor transport":
@@ -47,6 +49,12 @@ suite "Tor transport":
     waitFor startFut.cancelAndWait()
     waitFor stub.stop()
     checkTrackers()
+
+  basicTransportTest(
+    torTransProvider,
+    "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+    "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81",
+  )
 
   proc test(lintesAddr: string, dialAddr: string) {.async.} =
     let server = TcpTransport.new({ReuseAddr}, Upgrade())
@@ -151,12 +159,3 @@ suite "Tor transport":
     expect(AssertionDefect):
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
     waitFor torSwitch.stop()
-
-  proc transProvider(): Transport =
-    TorTransport.new(torServer, {ReuseAddr}, Upgrade())
-
-  commonTransportTest(
-    transProvider,
-    "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-    "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81",
-  )

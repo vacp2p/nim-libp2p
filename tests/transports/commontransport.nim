@@ -6,16 +6,17 @@ import
     [stream/connection, transports/transport, upgrademngrs/upgrade, multiaddress]
 
 import ../helpers
+import ./utils
 
-type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
-
-template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string = "") =
+template basicTransportTest*(
+    provider: TransportBuilder, ma1: string, ma2: string = ""
+) =
   block:
-    let transpProvider = prov
+    let transportProvider = provider
 
     asyncTest "can handle local address":
       let ma = @[MultiAddress.init(ma1).tryGet()]
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(ma)
       check transport1.handles(transport1.addrs[0])
       await transport1.stop()
@@ -23,10 +24,10 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
     asyncTest "e2e: handle observedAddr":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(ma)
 
-      let transport2 = transpProvider()
+      let transport2 = transportProvider()
 
       proc acceptHandler() {.async.} =
         let conn = await transport1.accept()
@@ -54,7 +55,7 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
     asyncTest "e2e: handle write":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(ma)
 
       proc acceptHandler() {.async.} =
@@ -64,7 +65,7 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
 
       let handlerWait = acceptHandler()
 
-      let transport2 = transpProvider()
+      let transport2 = transportProvider()
       let conn = await transport2.dial(transport1.addrs[0])
       var msg = newSeq[byte](6)
       await conn.readExactly(addr msg[0], 6)
@@ -79,7 +80,7 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
 
     asyncTest "e2e: handle read":
       let ma = @[MultiAddress.init(ma1).tryGet()]
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(ma)
 
       proc acceptHandler() {.async.} =
@@ -91,7 +92,7 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
 
       let handlerWait = acceptHandler()
 
-      let transport2 = transpProvider()
+      let transport2 = transportProvider()
       let conn = await transport2.dial(transport1.addrs[0])
       await conn.write("Hello!")
 
@@ -104,10 +105,10 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
     asyncTest "e2e: handle dial cancellation":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(ma)
 
-      let transport2 = transpProvider()
+      let transport2 = transportProvider()
       let cancellation = transport2.dial(transport1.addrs[0])
 
       await cancellation.cancelAndWait()
@@ -118,7 +119,7 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
     asyncTest "e2e: handle accept cancellation":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(ma)
 
       let acceptHandler = transport1.accept()
@@ -138,7 +139,7 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
           MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet(),
         ]
 
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(addrs)
 
       proc acceptHandler() {.async, gensym.} =
@@ -186,10 +187,10 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
     asyncTest "e2e: stopping transport kills connections":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(ma)
 
-      let transport2 = transpProvider()
+      let transport2 = transportProvider()
 
       let acceptHandler = transport1.accept()
       let conn = await transport2.dial(transport1.addrs[0])
@@ -202,7 +203,7 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
 
     asyncTest "read or write on closed connection":
       let ma = @[MultiAddress.init(ma1).tryGet()]
-      let transport1 = transpProvider()
+      let transport1 = transportProvider()
       await transport1.start(ma)
 
       proc acceptHandler() {.async, gensym.} =
@@ -231,7 +232,7 @@ template commonTransportTest*(prov: TransportBuilder, ma1: string, ma2: string =
       await transport1.stop()
 
     asyncTest "transport start/stop events":
-      let transport = transpProvider()
+      let transport = transportProvider()
       let addrs = @[MultiAddress.init(ma1).tryGet()]
 
       await transport.start(addrs)
