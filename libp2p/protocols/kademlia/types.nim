@@ -38,6 +38,9 @@ proc toCid*(k: Key): Cid =
     debug "Key is an invalid CID, encapsulating", key = k
     Cid.init(CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k).get()).get()
 
+proc toKey*(c: Cid): Key =
+  c.mhash().get().data.buffer
+
 proc toKey*(p: PeerId): Key =
   return Key(p.data)
 

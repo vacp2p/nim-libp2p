@@ -41,7 +41,7 @@ suite "KadDHT - AddProvider":
       switch3.peerInfo.addrs
 
     # kad1 has kad3 in its addressbook after adding provider
-    await kad3.addProvider(key)
+    await kad3.addProvider(key.toCid())
     await sleepAsync(10.milliseconds)
     check switch1.peerStore[AddressBook][switch3.peerInfo.peerId] ==
       switch3.peerInfo.addrs

@@ -14,7 +14,7 @@ import ../protocol
 import ./[protobuf, types, find]
 
 proc dispatchAddProvider(
-    switch: Switch, peer: PeerId, key: Key
+    switch: Switch, peer: PeerId, cid: Cid
 ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
   let conn = await switch.dial(peer, KadCodec)
   defer:
@@ -22,18 +22,17 @@ proc dispatchAddProvider(
 
   let msg = Message(
     msgType: MessageType.addProvider,
-    key: key,
+    key: cid.toKey(),
     providerPeers: @[switch.peerInfo.toPeer()],
   )
   await conn.writeLp(msg.encode().buffer)
 
-proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
+proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gcsafe.} =
   ## Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self's peerInfo to each of them
 
-  let peers = await kad.findNode(key)
+  let peers = await kad.findNode(cid.toKey())
   for chunk in peers.toChunks(kad.config.alpha):
-    let rpcBatch =
-      chunk.mapIt(kad.switch.dispatchAddProvider(it, key.toCid().data.buffer))
+    let rpcBatch = chunk.mapIt(kad.switch.dispatchAddProvider(it, cid))
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
     except AsyncTimeoutError:
