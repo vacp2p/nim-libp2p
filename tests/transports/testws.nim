@@ -30,8 +30,10 @@ suite "WebSocket transport":
     checkTrackers()
 
   basicTransportTest(wsTransProvider, "/ip4/0.0.0.0/tcp/0/ws")
-
   basicTransportTest(wsSecureTransProvider, "/ip4/0.0.0.0/tcp/0/wss")
+
+  connectionTransportTest(wsTransProvider, "/ip4/0.0.0.0/tcp/0/ws")
+  connectionTransportTest(wsSecureTransProvider, "/ip4/0.0.0.0/tcp/0/wss")
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]

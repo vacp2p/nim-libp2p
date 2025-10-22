@@ -31,6 +31,7 @@ suite "TCP transport":
     checkTrackers()
 
   basicTransportTest(tcpTransProvider, "/ip4/0.0.0.0/tcp/0")
+  connectionTransportTest(tcpTransProvider, "/ip4/0.0.0.0/tcp/0")
 
   asyncTest "test listener: handle write":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]

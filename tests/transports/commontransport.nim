@@ -52,6 +52,65 @@ template basicTransportTest*(
 
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
+    asyncTest "e2e: handle dial cancellation":
+      let ma = @[MultiAddress.init(ma1).tryGet()]
+
+      let transport1 = transportProvider()
+      await transport1.start(ma)
+
+      let transport2 = transportProvider()
+      let cancellation = transport2.dial(transport1.addrs[0])
+
+      await cancellation.cancelAndWait()
+      check cancellation.cancelled
+
+      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
+
+    asyncTest "e2e: handle accept cancellation":
+      let ma = @[MultiAddress.init(ma1).tryGet()]
+
+      let transport1 = transportProvider()
+      await transport1.start(ma)
+
+      let acceptHandler = transport1.accept()
+      await acceptHandler.cancelAndWait()
+      check acceptHandler.cancelled
+
+      await transport1.stop()
+
+    asyncTest "e2e: stopping transport kills connections":
+      let ma = @[MultiAddress.init(ma1).tryGet()]
+
+      let transport1 = transportProvider()
+      await transport1.start(ma)
+
+      let transport2 = transportProvider()
+
+      let acceptHandler = transport1.accept()
+      let conn = await transport2.dial(transport1.addrs[0])
+      let serverConn = await acceptHandler
+
+      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
+
+      check serverConn.closed()
+      check conn.closed()
+
+    asyncTest "transport start/stop events":
+      let transport = transportProvider()
+      let addrs = @[MultiAddress.init(ma1).tryGet()]
+
+      await transport.start(addrs)
+      check await transport.onRunning.wait().withTimeout(1.seconds)
+
+      await transport.stop()
+      check await transport.onStop.wait().withTimeout(1.seconds)
+
+template connectionTransportTest*(
+    provider: TransportBuilder, ma1: string, ma2: string = ""
+) =
+  block:
+    let transportProvider = provider
+
     asyncTest "e2e: handle write":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
@@ -101,32 +160,6 @@ template basicTransportTest*(
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
       await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
-
-    asyncTest "e2e: handle dial cancellation":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
-
-      let transport1 = transportProvider()
-      await transport1.start(ma)
-
-      let transport2 = transportProvider()
-      let cancellation = transport2.dial(transport1.addrs[0])
-
-      await cancellation.cancelAndWait()
-      check cancellation.cancelled
-
-      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
-
-    asyncTest "e2e: handle accept cancellation":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
-
-      let transport1 = transportProvider()
-      await transport1.start(ma)
-
-      let acceptHandler = transport1.accept()
-      await acceptHandler.cancelAndWait()
-      check acceptHandler.cancelled
-
-      await transport1.stop()
 
     asyncTest "e2e should allow multiple local addresses":
       when defined(windows):
@@ -184,23 +217,6 @@ template basicTransportTest*(
 
       await transport1.stop()
 
-    asyncTest "e2e: stopping transport kills connections":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
-
-      let transport1 = transportProvider()
-      await transport1.start(ma)
-
-      let transport2 = transportProvider()
-
-      let acceptHandler = transport1.accept()
-      let conn = await transport2.dial(transport1.addrs[0])
-      let serverConn = await acceptHandler
-
-      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
-
-      check serverConn.closed()
-      check conn.closed()
-
     asyncTest "read or write on closed connection":
       let ma = @[MultiAddress.init(ma1).tryGet()]
       let transport1 = transportProvider()
@@ -230,13 +246,3 @@ template basicTransportTest*(
       await handlerWait.wait(1.seconds) # when no issues will not wait that long!
 
       await transport1.stop()
-
-    asyncTest "transport start/stop events":
-      let transport = transportProvider()
-      let addrs = @[MultiAddress.init(ma1).tryGet()]
-
-      await transport.start(addrs)
-      check await transport.onRunning.wait().withTimeout(1.seconds)
-
-      await transport.stop()
-      check await transport.onStop.wait().withTimeout(1.seconds)
