@@ -4,6 +4,7 @@ import chronos
 import random
 import sequtils
 import stew/byteutils
+from strutils import parseInt, replace
 import
   ../../libp2p/[transports/transport, transports/quictransport, upgrademngrs/upgrade]
 import ../helpers
@@ -383,7 +384,9 @@ suite "Quic transport":
     defer:
       await transport.stop()
 
-    check transport.addrs[0] != ma # Should assign non-zero port
+    let portStr = ($transport.addrs[0][multiCodec("udp")].get()).replace("/udp/", "")
+    let assignedPort = parseInt(portStr)
+    check assignedPort > 0
 
   asyncTest "cannot bind second listener to same port":
     let server = await createTransport(isServer = true)
