@@ -44,7 +44,7 @@ proc sendFindNode*(
   defer:
     await conn.close()
 
-  let msg = Message(msgType: MessageType.findNode, key: Opt.some(targetId))
+  let msg = Message(msgType: MessageType.findNode, key: targetId)
   await conn.writeLp(msg.encode().buffer)
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
@@ -151,10 +151,7 @@ proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
 proc handleFindNode*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let targetIdBytes = msg.key.valueOr:
-    error "FindNode message without key data present", msg = msg, conn = conn
-    return
-  let targetId = PeerId.init(targetIdBytes).valueOr:
+  let targetId = PeerId.init(msg.key).valueOr:
     error "FindNode message without valid key data", msg = msg, conn = conn
     return
 
