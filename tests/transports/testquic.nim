@@ -364,7 +364,7 @@ suite "Quic transport":
     for address in validAddresses:
       check transport.handles(MultiAddress.init(address).tryGet())
 
-  asyncTest "multiaddress validation - reject unsupported variants":
+  asyncTest "multiaddress validation - reject invalid addresses":
     let transport = await createTransport()
     defer:
       await transport.stop()
@@ -423,6 +423,10 @@ suite "Quic transport":
     let clientConn = await client.dial(server.addrs[0])
     let serverConn = await acceptFut
 
+    defer:
+      await allFutures(clientConn.close(), serverConn.close())
+      await allFutures(client.stop(), server.stop())
+
     # Verify all addresses are populated
     check:
       clientConn.observedAddr.isSome()
@@ -439,8 +443,3 @@ suite "Quic transport":
     check:
       clientConn.observedAddr.get() == serverConn.localAddr.get()
       serverConn.localAddr.get() == server.addrs[0]
-
-    await clientConn.close()
-    await serverConn.close()
-    await client.stop()
-    await server.stop()
