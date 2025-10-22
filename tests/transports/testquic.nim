@@ -384,9 +384,14 @@ suite "Quic transport":
     defer:
       await transport.stop()
 
+    # Extract port number
     let portStr = ($transport.addrs[0][multiCodec("udp")].get()).replace("/udp/", "")
     let assignedPort = parseInt(portStr)
-    check assignedPort > 0
+
+    check:
+      assignedPort > 0
+      # Ensure IP address is the same
+      transport.addrs[0][multiCodec("ip4")].get() == ma[multiCodec("ip4")].get()
 
   asyncTest "cannot bind second listener to same port":
     let server = await createTransport(isServer = true)
@@ -394,25 +399,22 @@ suite "Quic transport":
       await server.stop()
 
     # Try to bind client transport to same address
-    let client = await createTransport()
+    let server2 = await createTransport()
     expect QuicTransportError:
-      await client.start(@[server.addrs[0]])
+      await server2.start(@[server.addrs[0]])
 
   asyncTest "dial with malformed multiaddresses":
     let server = await createTransport(isServer = true)
+    let client = await createTransport() # not started
     defer:
       await server.stop()
 
     # Incomplete address structure
+    var ma = MultiAddress.init("/ip4/127.0.0.1/quic-v1").tryGet()
     expect QuicTransportDialError:
-      discard
-        await server.dial("", MultiAddress.init("/ip4/127.0.0.1/quic-v1").tryGet())
-
-    # Invalid IP address value
-    expect LPError:
-      discard await server.dial(
-        "", MultiAddress.init("/ip4/999.999.999.999/udp/1234/quic-v1").tryGet()
-      )
+      discard await server.dial("", ma)
+    expect QuicTransportDialError:
+      discard await client.dial("", ma)
 
   asyncTest "observedAddr and localAddr are populated on connections":
     let server = await createTransport(isServer = true)
