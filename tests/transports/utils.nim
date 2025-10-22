@@ -1,0 +1,83 @@
+{.used.}
+
+import chronos
+import stew/byteutils
+import
+  ../../libp2p/[
+    transports/transport,
+    transports/quictransport,
+    transports/tls/certificate,
+    upgrademngrs/upgrade,
+  ]
+import ../helpers
+
+# QUIC
+
+proc createServerAcceptConn*(
+    server: QuicTransport, isEofExpected: bool = false
+): proc(): Future[void] {.
+  async: (raises: [transport.TransportError, LPStreamError, CancelledError])
+.} =
+  proc handler() {.
+      async: (raises: [transport.TransportError, LPStreamError, CancelledError])
+  .} =
+    while true:
+      let conn =
+        try:
+          await server.accept()
+        except QuicTransportAcceptStopped:
+          return # Transport is stopped
+      if conn == nil:
+        continue
+
+      let stream = await getStream(QuicSession(conn), Direction.In)
+      defer:
+        await stream.close()
+
+      try:
+        var resp: array[6, byte]
+        await stream.readExactly(addr resp, 6)
+        check string.fromBytes(resp) == "client"
+        await stream.write("server")
+      except LPStreamEOFError as exc:
+        if isEofExpected:
+          discard
+        else:
+          raise exc
+
+  return handler
+
+proc invalidCertGenerator*(
+    kp: KeyPair
+): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
+  try:
+    let keyNew = PrivateKey.random(ECDSA, (newRng())[]).get()
+    let pubkey = keyNew.getPublicKey().get()
+    # invalidKp has pubkey that does not match seckey
+    let invalidKp = KeyPair(seckey: kp.seckey, pubkey: pubkey)
+    return generateX509(invalidKp, encodingFormat = EncodingFormat.PEM)
+  except ResultError[crypto.CryptoError]:
+    raiseAssert "private key should be set"
+
+proc createTransport*(
+    isServer: bool = false,
+    withInvalidCert: bool = false,
+    privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
+): Future[QuicTransport] {.async.} =
+  let key =
+    if privateKey.isNone:
+      PrivateKey.random(ECDSA, (newRng())[]).tryGet()
+    else:
+      privateKey.get()
+
+  let trans =
+    if withInvalidCert:
+      QuicTransport.new(Upgrade(), key, invalidCertGenerator)
+    else:
+      QuicTransport.new(Upgrade(), key)
+
+  if isServer: # servers are started because they need to listen
+    let ma = @[MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()]
+    await trans.start(ma)
+
+  return trans
