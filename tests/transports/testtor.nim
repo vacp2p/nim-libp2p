@@ -54,7 +54,6 @@ suite "Tor transport":
   basicTransportTest(
     torTransProvider,
     "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-    "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81",
   )
   connectionTransportTest(
     torTransProvider,

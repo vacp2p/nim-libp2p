@@ -76,7 +76,7 @@ template connectionTransportTest*(
       await serverFut
       await server.stop()
 
-    asyncTest "e2e should allow multiple local addresses":
+    asyncTest "should allow multiple local addresses":
       when defined(windows):
         # this randomly locks the Windows CI job
         skip()

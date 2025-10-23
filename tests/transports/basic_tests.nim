@@ -8,14 +8,12 @@ import
 import ../helpers
 import ./utils
 
-template basicTransportTest*(
-    provider: TransportBuilder, ma1: string, ma2: string = ""
-) =
+template basicTransportTest*(provider: TransportBuilder, address: string) =
   block:
     let transportProvider = provider
 
     asyncTest "can handle local address":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let ma = @[MultiAddress.init(address).tryGet()]
 
       let transport = transportProvider()
       await transport.start(ma)
@@ -25,7 +23,7 @@ template basicTransportTest*(
       check transport.handles(transport.addrs[0])
 
     asyncTest "handle observedAddr":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let ma = @[MultiAddress.init(address).tryGet()]
 
       let server = transportProvider()
       await server.start(ma)
@@ -51,7 +49,7 @@ template basicTransportTest*(
         serverConn.localAddr.get()[4] == server.addrs[0][4]
 
     asyncTest "handle dial cancellation":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let ma = @[MultiAddress.init(address).tryGet()]
 
       let server = transportProvider()
       await server.start(ma)
@@ -65,7 +63,7 @@ template basicTransportTest*(
       check connFut.cancelled
 
     asyncTest "handle accept cancellation":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let ma = @[MultiAddress.init(address).tryGet()]
 
       let server = transportProvider()
       await server.start(ma)
@@ -78,7 +76,7 @@ template basicTransportTest*(
       check acceptFut.cancelled
 
     asyncTest "stopping transport kills connections":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let ma = @[MultiAddress.init(address).tryGet()]
 
       let server = transportProvider()
       await server.start(ma)
@@ -95,7 +93,7 @@ template basicTransportTest*(
         serverConn.closed()
 
     asyncTest "transport start/stop events":
-      let ma = @[MultiAddress.init(ma1).tryGet()]
+      let ma = @[MultiAddress.init(address).tryGet()]
       let transport = transportProvider()
 
       await transport.start(ma)
