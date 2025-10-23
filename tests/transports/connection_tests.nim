@@ -77,11 +77,6 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "should allow multiple local addresses":
-      when defined(windows):
-        # this randomly locks the Windows CI job
-        skip()
-        return
-
       let addrs =
         @[
           MultiAddress.init(ma1).tryGet(),
@@ -92,7 +87,6 @@ template connectionTransportTest*(
       proc serverHandler(server: Transport) {.async.} =
         while true:
           let conn = await server.accept()
-          await conn.write(newSeq[byte](0))
           await conn.write(message)
           await conn.close()
 
@@ -151,12 +145,21 @@ template connectionTransportTest*(
         expect LPStreamEOFError:
           await conn.readExactly(addr buffer[0], 1)
 
-        if isWsTransport(server.addrs[0]):
-          # WS throws on write after EOF
-          expect LPStreamEOFError:
+      if isWsTransport(server.addrs[0]):
+        # WS throws on write after EOF
+        expect LPStreamEOFError:
+          await conn.write(buffer)
+      else:
+        when defined(windows):
+          if isTorTransport(server.addrs[0]):
+            # TOR on Windows throws on write after EOF
+            expect LPStreamEOFError:
+              await conn.write(buffer)
+          else:
+            # TCP on Windows doesn't throw on write after EOF
             await conn.write(buffer)
         else:
-          # TCP and TOR don't throw on write after EOF
+          # TCP and TOR on non-Windows don't throw on write after EOF
           await conn.write(buffer)
 
       let server = transportProvider()
