@@ -28,8 +28,8 @@ import ../stubs/torstub
 import ./basic_tests
 import ./connection_tests
 
-const torServer* = initTAddress("127.0.0.1", 9050.Port)
-proc torTransProvider*(): Transport =
+const torServer = initTAddress("127.0.0.1", 9050.Port)
+proc torTransProvider(): Transport =
   TorTransport.new(torServer, {ReuseAddr}, Upgrade())
 
 var stub: TorServerStub

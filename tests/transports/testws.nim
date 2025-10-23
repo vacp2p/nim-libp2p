@@ -26,7 +26,7 @@ import ./basic_tests
 import ./connection_tests
 
 const
-  SecureKey* =
+  SecureKey =
     """
 -----BEGIN PRIVATE KEY-----
 MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAP0yH7F7FtGunC91
@@ -46,7 +46,7 @@ NABr5ec1FxuJa/8=
 -----END PRIVATE KEY-----
 """
 
-  SecureCert* =
+  SecureCert =
     """
 -----BEGIN CERTIFICATE-----
 MIICjDCCAfWgAwIBAgIURjeiJmkNbBVktqXvnXh44DKx364wDQYJKoZIhvcNAQEL
@@ -66,10 +66,10 @@ wdK6xU2VOAxI0GUzwzjcyNl7RDFA3ayFaGl+9+oppWM=
 -----END CERTIFICATE-----
 """
 
-proc wsTransProvider*(): Transport =
+proc wsTransProvider(): Transport =
   WsTransport.new(Upgrade())
 
-proc wsSecureTransProvider*(): Transport {.gcsafe, raises: [].} =
+proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
   try:
     return WsTransport.new(
       Upgrade(),
