@@ -77,11 +77,6 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "should allow multiple local addresses":
-      when defined(windows):
-        # this randomly locks the Windows CI job
-        skip()
-        return
-
       let addrs =
         @[
           MultiAddress.init(ma1).tryGet(),
