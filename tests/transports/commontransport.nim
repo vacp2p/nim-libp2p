@@ -110,138 +110,163 @@ template connectionTransportTest*(
   block:
     let transportProvider = provider
 
-    asyncTest "e2e: handle write":
+    asyncTest "handle write":
       let ma = @[MultiAddress.init(ma1).tryGet()]
+      const message = "Hello!"
 
-      let transport1 = transportProvider()
-      await transport1.start(ma)
+      proc serverHandler(server: Transport) {.async.} =
+        let conn = await server.accept()
+        defer:
+          await conn.close()
 
-      proc acceptHandler() {.async.} =
-        let conn = await transport1.accept()
-        await conn.write("Hello!")
-        await conn.close()
+        await conn.write(message)
 
-      let handlerWait = acceptHandler()
+      proc runClient(server: Transport) {.async.} =
+        let client = transportProvider()
+        let conn = await client.dial(server.addrs[0])
+        defer:
+          await conn.close()
+          await client.stop()
 
-      let transport2 = transportProvider()
-      let conn = await transport2.dial(transport1.addrs[0])
-      var msg = newSeq[byte](6)
-      await conn.readExactly(addr msg[0], 6)
+        var buffer = newSeq[byte](message.len)
+        await conn.readExactly(addr buffer[0], message.len)
 
-      await conn.close()
-        #for some protocols, closing requires actively reading, so we must close here
+        check string.fromBytes(buffer) == message
 
-      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
+      let server = transportProvider()
+      await server.start(ma)
+      let serverFut = serverHandler(server)
 
-      check string.fromBytes(msg) == "Hello!"
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+      await runClient(server)
+      await serverFut
+      await server.stop()
 
-    asyncTest "e2e: handle read":
+    asyncTest "handle read":
       let ma = @[MultiAddress.init(ma1).tryGet()]
-      let transport1 = transportProvider()
-      await transport1.start(ma)
+      const message = "Hello!"
 
-      proc acceptHandler() {.async.} =
-        let conn = await transport1.accept()
-        var msg = newSeq[byte](6)
-        await conn.readExactly(addr msg[0], 6)
-        check string.fromBytes(msg) == "Hello!"
-        await conn.close()
+      proc serverHandler(server: Transport) {.async.} =
+        let conn = await server.accept()
+        defer:
+          await conn.close()
 
-      let handlerWait = acceptHandler()
+        var buffer = newSeq[byte](message.len)
+        await conn.readExactly(addr buffer[0], message.len)
 
-      let transport2 = transportProvider()
-      let conn = await transport2.dial(transport1.addrs[0])
-      await conn.write("Hello!")
+        check string.fromBytes(buffer) == message
 
-      await conn.close()
-        #for some protocols, closing requires actively reading, so we must close here
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+      proc runClient(server: Transport) {.async.} =
+        let client = transportProvider()
+        let conn = await client.dial(server.addrs[0])
+        defer:
+          await conn.close()
+          await client.stop()
 
-      await allFuturesThrowing(allFinished(transport1.stop(), transport2.stop()))
+        await conn.write(message)
+
+      let server = transportProvider()
+      await server.start(ma)
+      let serverFut = serverHandler(server)
+
+      await runClient(server)
+      await serverFut
+      await server.stop()
 
     asyncTest "e2e should allow multiple local addresses":
       when defined(windows):
         # this randomly locks the Windows CI job
         skip()
         return
+
       let addrs =
         @[
           MultiAddress.init(ma1).tryGet(),
           MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet(),
         ]
+      const message = "Hello!"
 
-      let transport1 = transportProvider()
-      await transport1.start(addrs)
-
-      proc acceptHandler() {.async, gensym.} =
+      proc serverHandler(server: Transport) {.async.} =
         while true:
-          let conn = await transport1.accept()
+          let conn = await server.accept()
           await conn.write(newSeq[byte](0))
-          await conn.write("Hello!")
+          await conn.write(message)
           await conn.close()
 
-      let handlerWait = acceptHandler()
+      proc runClient(server: Transport) {.async.} =
+        let client = transportProvider()
+        defer:
+          await client.stop()
 
-      check transport1.addrs.len == 2
-      check transport1.addrs[0] != transport1.addrs[1]
+        check:
+          server.addrs.len == 2
+          server.addrs[0] != server.addrs[1]
 
-      var msg = newSeq[byte](6)
+        proc dialAndVerify(ma: MultiAddress) {.async.} =
+          let conn = await client.dial(ma)
+          defer:
+            await conn.close()
 
-      proc client(ma: MultiAddress) {.async.} =
-        let conn1 = await transport1.dial(ma)
-        await conn1.readExactly(addr msg[0], 6)
-        check string.fromBytes(msg) == "Hello!"
-        await conn1.close()
+          var buffer = newSeq[byte](message.len)
+          await conn.readExactly(addr buffer[0], message.len)
 
-      #Dial the same server multiple time in a row
-      await client(transport1.addrs[0])
-      await client(transport1.addrs[0])
-      await client(transport1.addrs[0])
+          check string.fromBytes(buffer) == message
 
-      #Dial the same server on different addresses
-      await client(transport1.addrs[1])
-      await client(transport1.addrs[0])
-      await client(transport1.addrs[1])
+        # Dial the same server multiple time in a row
+        await dialAndVerify(server.addrs[0])
+        await dialAndVerify(server.addrs[0])
+        await dialAndVerify(server.addrs[0])
 
-      #Cancel a dial
-      #TODO add back once chronos fixes cancellation
-      #let
-      #  dial1 = transport1.dial(transport1.addrs[1])
-      #  dial2 = transport1.dial(transport1.addrs[0])
-      #await dial1.cancelAndWait()
-      #await dial2.cancelAndWait()
+        # Dial the same server on different addresses
+        await dialAndVerify(server.addrs[1])
+        await dialAndVerify(server.addrs[0])
+        await dialAndVerify(server.addrs[1])
 
-      await handlerWait.cancelAndWait()
+        # Cancel a dial
+        # TODO add back once chronos fixes cancellation
+        # let
+        #   dial1 = client.dial(server.addrs[1])
+        #   dial2 = client.dial(server.addrs[0])
+        # await dial1.cancelAndWait()
+        # await dial2.cancelAndWait()
 
-      await transport1.stop()
+      let server = transportProvider()
+      await server.start(addrs)
+      let serverFut = serverHandler(server)
+
+      await runClient(server)
+      await serverFut.cancelAndWait()
+      await server.stop()
 
     asyncTest "read or write on closed connection":
       let ma = @[MultiAddress.init(ma1).tryGet()]
-      let transport1 = transportProvider()
-      await transport1.start(ma)
 
-      proc acceptHandler() {.async, gensym.} =
-        let conn = await transport1.accept()
+      proc serverHandler(server: Transport) {.async.} =
+        let conn = await server.accept()
         await conn.close()
 
-      let handlerWait = acceptHandler()
+      proc runClient(server: Transport) {.async.} =
+        let client = transportProvider()
+        let conn = await client.dial(server.addrs[0])
+        defer:
+          await conn.close()
+          await client.stop()
 
-      let conn = await transport1.dial(transport1.addrs[0])
+        var buffer = newSeq[byte](1)
+        expect LPStreamEOFError:
+          await conn.readExactly(addr buffer[0], 1)
 
-      var msg = newSeq[byte](6)
-      expect LPStreamEOFError:
-        await conn.readExactly(addr msg[0], 6)
+        if isWsTransport(server.addrs[0]):
+          # WS throws on write after EOF
+          expect LPStreamEOFError:
+            await conn.write(buffer)
+        else:
+          # TCP and TOR don't throw on write after EOF
+          await conn.write(buffer)
 
-      # we don't HAVE to throw on write on EOF
-      # (at least TCP doesn't)
-      try:
-        await conn.write(msg)
-      except LPStreamEOFError as exc:
-        discard
+      let server = transportProvider()
+      await server.start(ma)
+      let serverFut = serverHandler(server)
 
-      await conn.close()
-        #for some protocols, closing requires actively reading, so we must close here
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
-
-      await transport1.stop()
+      await runClient(server)
+      await serverFut
+      await server.stop()

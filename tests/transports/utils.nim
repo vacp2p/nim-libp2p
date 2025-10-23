@@ -26,6 +26,12 @@ type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
 proc tcpTransProvider*(): Transport =
   TcpTransport.new(upgrade = Upgrade())
 
+proc isTcpTransport*(ma: MultiAddress): bool =
+  # Check if this is a pure TCP transport (not WebSocket over TCP)
+  ma.contains(multiCodec("tcp")).get(false) and
+    not ma.contains(multiCodec("ws")).get(false) and
+    not ma.contains(multiCodec("wss")).get(false)
+
 # TOR
 
 const torServer* = initTAddress("127.0.0.1", 9050.Port)
@@ -92,6 +98,9 @@ proc wsSecureTransProvider*(): Transport {.gcsafe, raises: [].} =
     )
   except TLSStreamProtocolError:
     check false
+
+proc isWsTransport*(ma: MultiAddress): bool =
+  ma.contains(multiCodec("ws")).get(false) or ma.contains(multiCodec("wss")).get(false)
 
 # QUIC
 
