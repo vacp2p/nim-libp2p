@@ -4,12 +4,36 @@ import chronos
 import stew/byteutils
 import
   ../../libp2p/[
-    transports/transport,
     transports/quictransport,
+    transports/transport,
     transports/tls/certificate,
     upgrademngrs/upgrade,
+    multiaddress,
+    multicodec,
   ]
 import ../helpers
+
+# Common 
+
+type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
+
+# TCP
+
+proc isTcpTransport*(ma: MultiAddress): bool =
+  # Check if this is a pure TCP transport (not WebSocket over TCP)
+  ma.contains(multiCodec("tcp")).get(false) and
+    not ma.contains(multiCodec("ws")).get(false) and
+    not ma.contains(multiCodec("wss")).get(false)
+
+# TOR
+
+proc isTorTransport*(ma: MultiAddress): bool =
+  ma.contains(multiCodec("onion3")).get(false)
+
+# WS
+
+proc isWsTransport*(ma: MultiAddress): bool =
+  ma.contains(multiCodec("ws")).get(false) or ma.contains(multiCodec("wss")).get(false)
 
 # QUIC
 

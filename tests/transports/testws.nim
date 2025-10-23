@@ -21,7 +21,9 @@ import
     errors,
   ]
 
-import ../helpers, ./commontransport
+import ../helpers
+import ./basic_tests
+import ./connection_tests
 
 const
   SecureKey =
@@ -64,28 +66,30 @@ wdK6xU2VOAxI0GUzwzjcyNl7RDFA3ayFaGl+9+oppWM=
 -----END CERTIFICATE-----
 """
 
+proc wsTransProvider(): Transport =
+  WsTransport.new(Upgrade())
+
+proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
+  try:
+    return WsTransport.new(
+      Upgrade(),
+      TLSPrivateKey.init(SecureKey),
+      TLSCertificate.init(SecureCert),
+      Opt.none(AutotlsService),
+      {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
+    )
+  except TLSStreamProtocolError:
+    raiseAssert "should not happen"
+
 suite "WebSocket transport":
   teardown:
     checkTrackers()
 
-  proc wsTranspProvider(): Transport =
-    WsTransport.new(Upgrade())
+  basicTransportTest(wsTransProvider, "/ip4/0.0.0.0/tcp/0/ws")
+  basicTransportTest(wsSecureTransProvider, "/ip4/0.0.0.0/tcp/0/wss")
 
-  commonTransportTest(wsTranspProvider, "/ip4/0.0.0.0/tcp/0/ws")
-
-  proc wsSecureTranspProvider(): Transport {.gcsafe, raises: [].} =
-    try:
-      return WsTransport.new(
-        Upgrade(),
-        TLSPrivateKey.init(SecureKey),
-        TLSCertificate.init(SecureCert),
-        Opt.none(AutotlsService),
-        {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
-      )
-    except TLSStreamProtocolError:
-      check false
-
-  commonTransportTest(wsSecureTranspProvider, "/ip4/0.0.0.0/tcp/0/wss")
+  connectionTransportTest(wsTransProvider, "/ip4/0.0.0.0/tcp/0/ws")
+  connectionTransportTest(wsSecureTransProvider, "/ip4/0.0.0.0/tcp/0/wss")
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
@@ -122,7 +126,7 @@ suite "WebSocket transport":
 
   asyncTest "handles tls/ws":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
-    let transport1 = wsSecureTranspProvider()
+    let transport1 = wsSecureTransProvider()
     const correctPattern = mapAnd(TCP, mapEq("tls"), mapEq("ws"))
     await transport1.start(ma)
     check transport1.handles(transport1.addrs[0])

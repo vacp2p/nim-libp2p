@@ -22,11 +22,19 @@ import
     wire,
   ]
 
-import ../helpers, ./commontransport
+import ../helpers
+import ./basic_tests
+import ./connection_tests
+
+proc tcpTransProvider(): Transport =
+  TcpTransport.new(upgrade = Upgrade())
 
 suite "TCP transport":
   teardown:
     checkTrackers()
+
+  basicTransportTest(tcpTransProvider, "/ip4/0.0.0.0/tcp/0")
+  connectionTransportTest(tcpTransProvider, "/ip4/0.0.0.0/tcp/0")
 
   asyncTest "test listener: handle write":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
@@ -176,9 +184,6 @@ suite "TCP transport":
 
     await allFutures(transport.stop(), transport2.stop(), transport3.stop())
 
-  proc transProvider(): Transport =
-    TcpTransport.new(upgrade = Upgrade())
-
   asyncTest "Custom timeout":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
     let transport: TcpTransport =
@@ -195,5 +200,3 @@ suite "TCP transport":
     await handlerWait.wait(1.seconds) # when no issues will not wait that long!
     await streamTransport.closeWait()
     await transport.stop()
-
-  commonTransportTest(transProvider, "/ip4/0.0.0.0/tcp/0")
