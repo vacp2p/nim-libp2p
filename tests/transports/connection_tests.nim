@@ -147,9 +147,9 @@ template connectionTransportTest*(
           await conn.close()
           await client.stop()
 
-        var buffer = newSeq[byte](1)
+        var buffer = newSeq[byte](6)
         expect LPStreamEOFError:
-          await conn.readExactly(addr buffer[0], 1)
+          await conn.readExactly(addr buffer[0], 6)
 
         if isWsTransport(server.addrs[0]):
           # WS throws on write after EOF
