@@ -23,7 +23,8 @@ import
   ]
 
 import ../helpers
-import ./commontransport
+import ./basic_tests
+import ./connection_tests
 import ./utils
 
 suite "TCP transport":

@@ -25,7 +25,8 @@ import
 
 import ../helpers
 import ../stubs/torstub
-import ./commontransport
+import ./basic_tests
+import ./connection_tests
 import ./utils
 
 var stub: TorServerStub
