@@ -153,7 +153,7 @@ template connectionTransportTest*(
           await conn.readExactly(addr buffer[0], 6)
 
         try:
-          await conn.write(msg)
+          await conn.write(buffer)
         except LPStreamEOFError as exc:
           discard
 
