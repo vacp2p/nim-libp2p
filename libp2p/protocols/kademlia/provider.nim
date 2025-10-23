@@ -14,6 +14,9 @@ import ../../utils/heartbeat
 import ../protocol
 import ./[protobuf, types, find]
 
+proc `==`*(a, b: ProviderRecord): bool =
+  a.provider.id == b.provider.id and a.key == b.key
+
 # for HeapQueue
 proc `<`*(a, b: ProviderRecord): bool =
   a.expiresAt < b.expiresAt
@@ -27,7 +30,15 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
 
   try:
     pm.knownKeys[record.key].incl(record.provider)
-    pm.records.push(record) # TODO: handle duplicates
+
+    # remove old providerRecord if any
+    let oldRecordIdx = pm.records.find(record)
+    if oldRecordIdx != -1:
+      debug "updating provider"
+      pm.records.del(oldRecordIdx)
+
+    # push new providerRecord
+    pm.records.push(record)
   except KeyError:
     raiseAssert("checked with hasKey")
 
@@ -79,29 +90,32 @@ proc stopProviding*(kad: KadDHT, c: Cid) =
 
 proc manageRepublishProvidedKeys*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "republish provided keys", kad.config.republishProvidedKeysInterval:
-    for c in kad.providerManager.providedKeys:
+    let providedKeys = kad.providerManager.providedKeys
+    for c in providedKeys:
       await kad.addProvider(c)
 
-proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  var records = kad.providerManager.records
+proc hasExpiredRecords(pm: ProviderManager): bool =
+  pm.records.len() > 0 and pm.records[0] < chronos.Moment.now()
 
+proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "cleanup expired provider records", kad.config.cleanupProvidersInterval:
-    while records.len() > 0 and records[0] < chronos.Moment.now():
-      let expired = records.pop()
+    debug "cleaning up expired records", now = chronos.Moment.now()
+    while kad.providerManager.hasExpiredRecords():
+      let expired = kad.providerManager.records.pop()
+      debug "found expired record", now = chronos.Moment.now(), expired = expired
       kad.providerManager.rmProviderRecord(expired)
 
 proc handleAddProvider*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let key = msg.key
-
-  if Cid.init(key).isErr():
-    error "Received key is an invalid CID", msg = msg, conn = conn, key = key
+  if Cid.init(msg.key).isErr():
+    error "Received key is an invalid CID", msg = msg, conn = conn, key = msg.key
     return
 
   # filter out infos that do not match sender's
   let peerBytes = conn.peerId.getBytes()
 
+  debug "got addProvider", providerPeers = msg.providerPeers.len()
   for peer in msg.providerPeers.filterIt(it.id == peerBytes):
     let p = PeerId.init(peer.id).valueOr:
       debug "Invalid peer id received", error = error
@@ -112,6 +126,10 @@ proc handleAddProvider*(
       ProviderRecord(
         provider: peer,
         expiresAt: chronos.Moment.now() + kad.config.providerExpirationInterval,
-        key: key.toCid(),
+        key: msg.key.toCid(),
       )
     )
+    debug "added ProviderRecord",
+      provider = peer.id,
+      key = msg.key.toCid(),
+      recordsLen = kad.providerManager.records.len()
