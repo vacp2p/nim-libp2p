@@ -144,6 +144,7 @@ template connectionTransportTest*(
         expect LPStreamEOFError:
           await conn.readExactly(addr buffer[0], 1)
 
+        # TODO(nim-libp2p#1788): Unify behaviour between transports
         if isWsTransport(server.addrs[0]):
           # WS throws on write after EOF
           expect LPStreamEOFError:
