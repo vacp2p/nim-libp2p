@@ -134,7 +134,6 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "read or write on closed connection":
-      echo "HANGING"
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
       proc serverHandler(server: Transport) {.async.} =
@@ -148,19 +147,25 @@ template connectionTransportTest*(
           await conn.close()
           await client.stop()
 
-        var buffer = newSeq[byte](6)
+        var buffer = newSeq[byte](1)
         expect LPStreamEOFError:
-          await conn.readExactly(addr buffer[0], 6)
+          await conn.readExactly(addr buffer[0], 1)
 
-        try:
-          await conn.write(buffer)
-        except LPStreamEOFError as exc:
-          discard
+        if isWsTransport(server.addrs[0]):
+          # WS throws on write after EOF
+          expect LPStreamEOFError:
+            await conn.write(buffer)
+        else:
+          # TCP and Tor may or may not throw on write after EOF
+          try:
+            await conn.write(buffer)
+          except LPStreamEOFError:
+            echo "WRITE FAILED"
 
       let server = transportProvider()
       await server.start(ma)
       let serverFut = serverHandler(server)
 
       await runClient(server)
-      await serverFut
+      await serverFut.wait(1.seconds)
       await server.stop()
