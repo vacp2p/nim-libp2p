@@ -1,10 +1,7 @@
-import sequtils
-import ./protobuf
-import ./xordistance
-import ./keys
-import ../../[peerid, peerinfo]
-import algorithm
+import algorithm, sequtils
 import chronicles
+import ../../[peerid, peerinfo]
+import ./[protobuf, types]
 
 type
   LookupNode* = object

@@ -11,7 +11,7 @@
 
 import unittest
 import chronos
-import ../../libp2p/protocols/kademlia/[consts, xordistance]
+import ../../libp2p/protocols/kademlia
 
 suite "xor distance":
   test "countLeadingZeroBits works":

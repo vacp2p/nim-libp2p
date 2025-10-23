@@ -583,7 +583,7 @@ proc new*(
     finally:
       await conn.close()
 
-  echo "Rendezvous protocol initialized", codec
+  info "Rendezvous protocol initialized", codec
   rdv.handler = handleStream
   rdv.codec = codec
   return rdv
