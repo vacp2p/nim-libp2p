@@ -9,10 +9,11 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2
+import unittest2, nimcrypto
 import ../../libp2p/protobuf/minprotobuf
 import ../../libp2p/protocols/kademlia/protobuf
-import ../../libp2p/multiaddress
+import ../../libp2p/protocols/kademlia
+import ../../libp2p/[multiaddress, peerid]
 import results
 
 template checkEncodeDecode(obj: untyped) =

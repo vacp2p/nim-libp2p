@@ -76,7 +76,13 @@ proc new*(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(replication = config.replication),
   )
-  let kad = T(rng: rng, switch: switch, rtable: rtable, config: config)
+  let kad = T(
+    rng: rng,
+    switch: switch,
+    rtable: rtable,
+    config: config,
+    providerManager: ProviderManager.new(),
+  )
 
   kad.codec = KadCodec
   kad.handler = proc(
@@ -113,20 +119,30 @@ proc new*(
         return
   return kad
 
-method start*(kad: KadDHT): Future[void] {.async: (raises: [CancelledError]).} =
+method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   if kad.started:
     warn "Starting kad-dht twice"
     return
 
   kad.maintenanceLoop = kad.maintainBuckets()
+  kad.republishLoop = kad.manageRepublishProvidedKeys()
+  kad.expiredLoop = kad.manageExpiredProviders()
+
   kad.started = true
 
   info "Kad DHT started"
 
-method stop*(kad: KadDHT): Future[void] {.async: (raises: []).} =
+method stop*(kad: KadDHT) {.async: (raises: []).} =
   if not kad.started:
     return
 
   kad.started = false
+
   kad.maintenanceLoop.cancelSoon()
   kad.maintenanceLoop = nil
+
+  kad.republishLoop.cancelSoon()
+  kad.republishLoop = nil
+
+  kad.expiredLoop.cancelSoon()
+  kad.expiredLoop = nil
