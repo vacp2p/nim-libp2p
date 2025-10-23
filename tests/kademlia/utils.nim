@@ -1,7 +1,7 @@
 {.used.}
 import std/tables
 import results, chronos
-import ../../libp2p/protocols/kademlia/[kademlia, routingtable, keys]
+import ../../libp2p/protocols/kademlia
 import ../../libp2p/[switch, builders]
 
 type PermissiveValidator* = ref object of EntryValidator
