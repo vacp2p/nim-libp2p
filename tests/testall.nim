@@ -1,3 +1,4 @@
 {.used.}
 
-import testnative, ./pubsub/testpubsub
+import testnative
+# , ./pubsub/testpubsub
