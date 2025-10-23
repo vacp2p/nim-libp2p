@@ -32,7 +32,7 @@ proc runTest(filename: string, moreoptions: string = "") =
     excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
   exec excstr &
     " -r -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
-    filename
+    filename & " --output-level=VERBOSE"
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false, extraFlags = "") =
