@@ -5,9 +5,7 @@ import stew/byteutils
 import
   ../../libp2p/[
     transports/quictransport,
-    transports/tcptransport,
     transports/transport,
-    transports/wstransport,
     transports/tls/certificate,
     upgrademngrs/upgrade,
     multiaddress,
