@@ -1,37 +1,13 @@
-import algorithm
-import bearssl/rand
-import chronos
-import chronicles
-import ./consts
-import ./keys
-import ./xordistance
+import algorithm, sequtils
+import bearssl/rand, chronos, chronicles, results
+import ./types
 import ../../peerid
-import sequtils
 import ../../utils/sequninit
-import results
 
 logScope:
   topics = "kad-dht rtable"
 
 const NoneHasher = Opt.none(XorDHasher)
-
-type
-  NodeEntry* = object
-    nodeId*: Key
-    lastSeen*: Moment
-
-  Bucket* = object
-    peers*: seq[NodeEntry]
-
-  RoutingTableConfig* = ref object
-    replication*: int
-    hasher*: Opt[XorDHasher]
-    maxBuckets*: int
-
-  RoutingTable* = ref object
-    selfId*: Key
-    buckets*: seq[Bucket]
-    config*: RoutingTableConfig
 
 proc new*(
     T: typedesc[RoutingTableConfig],

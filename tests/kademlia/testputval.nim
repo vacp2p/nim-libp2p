@@ -1,10 +1,9 @@
 {.used.}
 import std/[times, tables]
-import chronicles
 import chronos
 import unittest2
 import ../../libp2p/[switch, builders]
-import ../../libp2p/protocols/kademlia/[kademlia, routingtable]
+import ../../libp2p/protocols/kademlia
 import ../utils/async_tests
 import ./utils.nim
 import ../helpers
