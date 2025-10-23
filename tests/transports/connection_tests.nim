@@ -13,10 +13,11 @@ template connectionTransportTest*(
 ) =
   block:
     let transportProvider = provider
+    const message =
+      "Transparent, immutable records, as we will see, are critical to good governance"
 
     asyncTest "handle write":
       let ma = @[MultiAddress.init(ma1).tryGet()]
-      const message = "Hello!"
 
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
@@ -47,7 +48,6 @@ template connectionTransportTest*(
 
     asyncTest "handle read":
       let ma = @[MultiAddress.init(ma1).tryGet()]
-      const message = "Hello!"
 
       proc serverHandler(server: Transport) {.async.} =
         let conn = await server.accept()
@@ -82,7 +82,6 @@ template connectionTransportTest*(
           MultiAddress.init(ma1).tryGet(),
           MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet(),
         ]
-      const message = "Hello!"
 
       proc serverHandler(server: Transport) {.async.} =
         while true:

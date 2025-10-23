@@ -25,7 +25,9 @@ import
 import ../helpers
 import ./basic_tests
 import ./connection_tests
-import ./utils
+
+proc tcpTransProvider*(): Transport =
+  TcpTransport.new(upgrade = Upgrade())
 
 suite "TCP transport":
   teardown:
