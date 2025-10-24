@@ -31,7 +31,7 @@ proc baseTest*(scenarioName: string, transport: TransportType) {.async.} =
     peerLimit = 5
     msgCount = 100
     msgInterval = 300 # ms
-    msgSize = 2 * 1024 # 2KB
+    msgSize = 1024 # 1KB
     warmupCount = 10
 
   # --- Node Setup ---
