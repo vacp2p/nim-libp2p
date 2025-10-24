@@ -4,7 +4,6 @@ import chronos
 import random
 import sequtils
 import stew/byteutils
-from strutils import parseInt, replace
 import
   ../../libp2p/[transports/transport, transports/quictransport, upgrademngrs/upgrade]
 import ../helpers
