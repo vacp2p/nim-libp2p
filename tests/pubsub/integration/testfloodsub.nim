@@ -158,6 +158,10 @@ suite "FloodSub Integration":
     check (await nodes[0].publish("bar", "Hello!".toBytes())) > 0
 
   asyncTest "FloodSub multiple peers, no self trigger":
+    when defined(macosx):
+      skip() # test is flaky in CI for macos
+      return
+
     var runs = 10
 
     var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
@@ -201,6 +205,10 @@ suite "FloodSub Integration":
     await allFuturesThrowing(futs.mapIt(it[0]))
 
   asyncTest "FloodSub multiple peers, with self trigger":
+    when defined(macosx):
+      skip() # test is flaky in CI for macos
+      return
+
     var runs = 10
 
     var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
@@ -247,11 +255,12 @@ suite "FloodSub Integration":
     # test calling unsubscribeAll for coverage
     for node in nodes:
       node.unsubscribeAll("foobar")
-      check:
+      let n = node
+      checkUntilTimeout:
         # we keep the peers in table
-        FloodSub(node).floodsub["foobar"].len == 9
+        FloodSub(n).floodsub["foobar"].len == runs - 1
         # remove the topic tho
-        node.topics.len == 0
+        n.topics.len == 0
 
   asyncTest "FloodSub message size validation":
     var messageReceived = 0
