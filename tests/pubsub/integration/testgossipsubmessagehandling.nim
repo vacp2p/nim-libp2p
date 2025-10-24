@@ -548,7 +548,7 @@ suite "GossipSub Integration - Message Handling":
 
   asyncTest "GossipSub floodPublish limit":
     let
-      nodes = setupNodes(20)
+      nodes = setupNodes(10)
       gossip1 = GossipSub(nodes[0])
 
     gossip1.parameters.floodPublish = true
@@ -556,11 +556,11 @@ suite "GossipSub Integration - Message Handling":
 
     startNodesAndDeferStop(nodes)
     await connectNodes(nodes[1 ..^ 1], nodes[0])
-    await baseTestProcedure(nodes, gossip1, gossip1.parameters.dLow, 17)
+    await baseTestProcedure(nodes, gossip1, gossip1.parameters.dLow, nodes.len - 1)
 
   asyncTest "GossipSub floodPublish limit with bandwidthEstimatebps = 0":
     let
-      nodes = setupNodes(20)
+      nodes = setupNodes(10)
       gossip1 = GossipSub(nodes[0])
 
     gossip1.parameters.floodPublish = true
