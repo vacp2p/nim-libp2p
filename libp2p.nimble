@@ -26,14 +26,17 @@ let cfg =
 import hashes, strutils
 
 proc runTest(filename: string, moreoptions: string = "") =
-  var excstr = nimc & " " & lang & " -d:debug " & cfg & " " & flags
-  excstr.add(" " & moreoptions & " ")
+  var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags
+  compileCmd.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
-    excstr &= " --nimcache:nimcache/" & filename & "-" & $excstr.hash
-  exec excstr &
-    " -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4 tests/" &
-    filename
-  exec filename.toExe & " --output-level=VERBOSE "
+    compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
+  compileCmd &= " -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4"
+  
+  # step 1: compile test binary
+  exec compileCmd & " tests/" & filename
+  # step 2: run binary
+  exec "./tests/" & filename.toExe & " --output-level=VERBOSE"
+  # step 3: remove binary
   rmFile "tests/" & filename.toExe
 
 proc buildSample(filename: string, run = false, extraFlags = "") =
