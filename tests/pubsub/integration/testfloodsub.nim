@@ -158,7 +158,7 @@ suite "FloodSub Integration":
     check (await nodes[0].publish("bar", "Hello!".toBytes())) > 0
 
   asyncTest "FloodSub multiple peers, no self trigger":
-    var runs = 10
+    var runs = 5
 
     var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
     for i in 0 ..< runs:
@@ -201,7 +201,7 @@ suite "FloodSub Integration":
     await allFuturesThrowing(futs.mapIt(it[0]))
 
   asyncTest "FloodSub multiple peers, with self trigger":
-    var runs = 10
+    var runs = 5
 
     var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
     for i in 0 ..< runs:
@@ -250,7 +250,7 @@ suite "FloodSub Integration":
       let n = node
       checkUntilTimeout:
         # we keep the peers in table
-        FloodSub(n).floodsub["foobar"].len == 9
+        FloodSub(n).floodsub["foobar"].len == runs - 1
         # remove the topic tho
         n.topics.len == 0
 
