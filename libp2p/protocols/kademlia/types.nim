@@ -27,6 +27,7 @@ const
   DefaultRepublishInterval* = 10.minutes # same as bootstrap
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
+  DefaultProvideInterval* = 10.minutes
 
   KadCodec* = "/ipfs/kad/1.0.0"
   MaxMsgSize* = 4096
@@ -172,15 +173,12 @@ type
   ProviderRecord* = object
     provider*: Provider
     expiresAt*: chronos.Moment
-    key*: Cid
+    cid*: Cid
 
   ProviderManager* = ref object
     records*: HeapQueue[ProviderRecord]
-    knownKeys*: Table[Cid, HashSet[Provider]]
-    providedKeys*: HashSet[Cid]
-
-proc new*(T: typedesc[ProviderManager]): T =
-  T(providedKeys: initHashSet[Cid]())
+    knownCids*: Table[Cid, HashSet[Provider]]
+    providedCids*: Table[Cid, chronos.Moment]
 
 ## Currently a string, because for some reason, that's what is chosen at the protobuf level
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)

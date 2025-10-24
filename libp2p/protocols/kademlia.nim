@@ -125,7 +125,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     return
 
   kad.maintenanceLoop = kad.maintainBuckets()
-  kad.republishLoop = kad.manageRepublishProvidedKeys()
+  kad.republishLoop = kad.manageRepublishProvidedCids()
   kad.expiredLoop = kad.manageExpiredProviders()
 
   kad.started = true

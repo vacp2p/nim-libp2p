@@ -1,7 +1,7 @@
 {.used.}
-import std/[heapqueue, sets]
+import std/heapqueue
 from std/times import now, utc
-import chronos
+import chronos, chronicles
 import unittest2
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
@@ -118,13 +118,13 @@ suite "KadDHT - ProviderManager":
     await kad2.addProvider(key2.toCid())
 
     # wait rest of expiration time
-    await sleepAsync(ExpirationInterval - CleanupInterval)
+    await sleepAsync(ExpirationInterval - 2 * CleanupInterval)
 
     # provider records have not expired (refreshed)
     check kad1.providerManager.records.len() == 2
 
     # wait expiration time
-    await sleepAsync(ExpirationInterval + CleanupInterval)
+    await sleepAsync(ExpirationInterval + 2 * CleanupInterval)
 
     # provider records have expired
     check kad1.providerManager.records.len() == 0
@@ -152,24 +152,24 @@ suite "KadDHT - ProviderManager":
     await sleepAsync(10.milliseconds)
 
     check:
-      kad1.providerManager.providedKeys.len() == 1
+      kad1.providerManager.providedCids.len() == 1
       kad2.providerManager.records.len() == 2
-      kad2.providerManager.knownKeys.len() == 2
+      kad2.providerManager.knownCids.len() == 2
 
     # after the expiration time only key2 expired
-    await sleepAsync(ExpirationInterval + CleanupInterval)
+    await sleepAsync(ExpirationInterval + 2 * CleanupInterval)
 
     check:
-      kad1.providerManager.providedKeys.len() == 1
+      kad1.providerManager.providedCids.len() == 1
       kad2.providerManager.records.len() == 1
-      kad2.providerManager.knownKeys.len() == 1
+      kad2.providerManager.knownCids.len() == 1
 
     # stop providing key
     kad1.stopProviding(key1.toCid())
 
     # after the expiration time, key1 expired
-    await sleepAsync(ExpirationInterval + CleanupInterval)
+    await sleepAsync(ExpirationInterval + 2 * CleanupInterval)
     check:
-      kad1.providerManager.providedKeys.len() == 0
+      kad1.providerManager.providedCids.len() == 0
       kad2.providerManager.records.len() == 0
-      kad2.providerManager.knownKeys.len() == 0
+      kad2.providerManager.knownCids.len() == 0

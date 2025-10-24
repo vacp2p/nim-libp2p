@@ -67,7 +67,7 @@ template setupKadSwitch*(validator: untyped, selector: untyped): untyped =
     config = KadDHTConfig.new(
       validator,
       selector,
-      timeout = 1.seconds,
+      timeout = chronos.seconds(1),
       cleanupProvidersInterval = CleanupInterval,
       providerExpirationInterval = ExpirationInterval,
       republishProvidedKeysInterval = RepublishInterval,
