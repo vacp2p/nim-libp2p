@@ -4,6 +4,11 @@ import results, chronos
 import ../../libp2p/protocols/kademlia
 import ../../libp2p/[switch, builders]
 
+const
+  CleanupInterval*: Duration = 100.milliseconds
+  ExpirationInterval*: Duration = 1.seconds
+  RepublishInterval*: Duration = 50.milliseconds
+
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =
   true
@@ -58,7 +63,15 @@ proc containsNoData*(kad: KadDHT, key: Key): bool {.raises: [].} =
 template setupKadSwitch*(validator: untyped, selector: untyped): untyped =
   let switch = createSwitch()
   let kad = KadDHT.new(
-    switch, config = KadDHTConfig.new(validator, selector, timeout = chronos.seconds(1))
+    switch,
+    config = KadDHTConfig.new(
+      validator,
+      selector,
+      timeout = chronos.seconds(1),
+      cleanupProvidersInterval = CleanupInterval,
+      providerExpirationInterval = ExpirationInterval,
+      republishProvidedKeysInterval = RepublishInterval,
+    ),
   )
   switch.mount(kad)
   await switch.start()
