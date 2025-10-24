@@ -25,19 +25,19 @@ let cfg =
 
 import hashes, strutils
 
-proc runTest(filename: string, moreoptions: string = "") =
+proc runTest(filename: string, moreoptions: string = "", verbose: bool = true) =
   var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags
-  compileCmd.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
   compileCmd &= " -d:libp2p_autotls_support"
   compileCmd &= " -d:libp2p_mix_experimental_exit_is_dest"
   compileCmd &= " -d:libp2p_gossipsub_1_4"
+  compileCmd &= " " & moreoptions & " "
 
   # step 1: compile test binary
   exec compileCmd & " tests/" & filename
   # step 2: run binary
-  exec "./tests/" & filename.toExe & " --output-level=VERBOSE"
+  exec "./tests/" & filename.toExe & (if verbose: " --output-level=VERBOSE" else: "")
   # step 3: remove binary
   rmFile "tests/" & filename.toExe
 
@@ -61,7 +61,7 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim " &
     "-d:libp2p_contentids_exts=../tests/multiformat_exts/contentids_exts.nim "
-  runTest("multiformat_exts/testmultiformat_exts", opts)
+  runTest("multiformat_exts/testmultiformat_exts", opts, false)
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
