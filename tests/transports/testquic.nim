@@ -17,11 +17,26 @@ proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
+const validAddresses =
+  @[
+    "/ip4/127.0.0.1/udp/1234/quic-v1", "/ip6/::1/udp/1234/quic-v1",
+    "/dns/example.com/udp/1234/quic-v1",
+  ]
+
+const invalidAddresses =
+  @[
+    "/ip4/127.0.0.1/udp/1234", # UDP without quic-v1
+    "/ip4/127.0.0.1/tcp/1234/quic-v1", # Wrong transport (TCP instead of UDP)
+    "/ip4/127.0.0.1/udp/1234/quic", # Legacy quic (not quic-v1)
+  ]
+
 suite "Quic transport":
   teardown:
     checkTrackers()
 
-  basicTransportTest(quicTransProvider, "/ip4/127.0.0.1/udp/0/quic-v1")
+  basicTransportTest(
+    quicTransProvider, "/ip4/127.0.0.1/udp/0/quic-v1", validAddresses, invalidAddresses
+  )
 
   asyncTest "transport e2e":
     let server = await createTransport(isServer = true)
@@ -312,97 +327,3 @@ suite "Quic transport":
     await runClient(server)
     await serverFut
     await server.stop()
-
-  asyncTest "multiaddress validation - accept valid addresses":
-    let transport = await createTransport()
-
-    let validAddresses =
-      @[
-        "/ip4/127.0.0.1/udp/1234/quic-v1", "/ip6/::1/udp/1234/quic-v1",
-        "/dns/example.com/udp/1234/quic-v1",
-      ]
-
-    for address in validAddresses:
-      check transport.handles(MultiAddress.init(address).tryGet())
-
-  asyncTest "multiaddress validation - reject invalid addresses":
-    let transport = await createTransport()
-
-    let invalidAddresses =
-      @[
-        "/ip4/127.0.0.1/udp/1234", # UDP without quic-v1
-        "/ip4/127.0.0.1/tcp/1234/quic-v1", # Wrong transport (TCP instead of UDP)
-        "/ip4/127.0.0.1/udp/1234/quic", # Legacy quic (not quic-v1)
-      ]
-
-    for address in invalidAddresses:
-      check not transport.handles(MultiAddress.init(address).tryGet())
-
-  asyncTest "address normalization - port assignment":
-    # Start with port 0 and verify it gets assigned a real port
-    let transport = await createTransport()
-    let ma = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-    await transport.start(@[ma])
-    defer:
-      await transport.stop()
-
-    # Extract port number
-    let portStr = ($transport.addrs[0][multiCodec("udp")].get()).replace("/udp/", "")
-    let assignedPort = parseInt(portStr)
-
-    check:
-      assignedPort > 0
-      # Ensure IP address is the same
-      transport.addrs[0][multiCodec("ip4")].get() == ma[multiCodec("ip4")].get()
-
-  asyncTest "cannot bind second listener to same port":
-    let server = await createTransport(isServer = true)
-    defer:
-      await server.stop()
-
-    # Try to bind client transport to same address
-    let server2 = await createTransport()
-    expect QuicTransportError:
-      await server2.start(@[server.addrs[0]])
-
-  asyncTest "dial with malformed multiaddresses":
-    let server = await createTransport(isServer = true)
-    let client = await createTransport() # not started
-    defer:
-      await server.stop()
-
-    # Incomplete address structure
-    var ma = MultiAddress.init("/ip4/127.0.0.1/quic-v1").tryGet()
-    expect QuicTransportDialError:
-      discard await server.dial("", ma)
-    expect QuicTransportDialError:
-      discard await client.dial("", ma)
-
-  asyncTest "observedAddr and localAddr are populated on connections":
-    let server = await createTransport(isServer = true)
-    let client = await createTransport()
-
-    let acceptFut = server.accept()
-    let clientConn = await client.dial(server.addrs[0])
-    let serverConn = await acceptFut
-
-    defer:
-      await allFutures(clientConn.close(), serverConn.close())
-      await allFutures(client.stop(), server.stop())
-
-    # Verify all addresses are populated
-    check:
-      clientConn.observedAddr.isSome()
-      clientConn.localAddr.isSome()
-      serverConn.observedAddr.isSome()
-      serverConn.localAddr.isSome()
-
-    # Verify addresses contain quic-v1
-    check:
-      serverConn.localAddr.get().contains(multiCodec("quic-v1")).tryGet()
-      clientConn.localAddr.get().contains(multiCodec("quic-v1")).tryGet()
-
-    # Verify address symmetry and correctness
-    check:
-      clientConn.observedAddr.get() == serverConn.localAddr.get()
-      serverConn.localAddr.get() == server.addrs[0]

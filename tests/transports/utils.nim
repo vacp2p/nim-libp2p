@@ -2,6 +2,7 @@
 
 import chronos
 import stew/byteutils
+import stew/endians2
 import
   ../../libp2p/[
     transports/quictransport,
@@ -13,17 +14,14 @@ import
   ]
 import ../helpers
 
-# Common 
-
-type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
-
 # TCP
 
 proc isTcpTransport*(ma: MultiAddress): bool =
-  # Check if this is a pure TCP transport (not WebSocket over TCP)
+  # Check if this is a pure TCP transport (not WebSocket or Tor)
   ma.contains(multiCodec("tcp")).get(false) and
     not ma.contains(multiCodec("ws")).get(false) and
-    not ma.contains(multiCodec("wss")).get(false)
+    not ma.contains(multiCodec("wss")).get(false) and
+    not ma.contains(multiCodec("onion3")).get(false)
 
 # TOR
 
@@ -36,6 +34,18 @@ proc isWsTransport*(ma: MultiAddress): bool =
   ma.contains(multiCodec("ws")).get(false) or ma.contains(multiCodec("wss")).get(false)
 
 # QUIC
+
+proc isQuicTransport*(ma: MultiAddress): bool =
+  ma.contains(multiCodec("udp")).get(false)
+
+proc getPortProtocol*(ma: MultiAddress): string =
+  ## Returns the protocol name that contains the port ("tcp" or "udp")
+  if ma.contains(multiCodec("tcp")).get(false):
+    "tcp"
+  elif ma.contains(multiCodec("udp")).get(false):
+    "udp"
+  else:
+    ""
 
 proc createServerAcceptConn*(
     server: QuicTransport, isEofExpected: bool = false
@@ -105,3 +115,21 @@ proc createTransport*(
     await trans.start(ma)
 
   return trans
+
+# Common 
+
+type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
+
+proc extractPort*(ma: MultiAddress): int =
+  var codec =
+    if isTcpTransport(ma) or isWsTransport(ma):
+      multiCodec("tcp")
+    elif isQuicTransport(ma):
+      multiCodec("udp")
+    else:
+      raiseAssert "not supported"
+
+  # Extract port number
+  let portBytes = ma[codec].tryGet().protoArgument().tryGet()
+  let port = int(fromBytesBE(uint16, portBytes))
+  port
