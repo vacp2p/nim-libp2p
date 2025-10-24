@@ -38,15 +38,6 @@ proc isWsTransport*(ma: MultiAddress): bool =
 proc isQuicTransport*(ma: MultiAddress): bool =
   ma.contains(multiCodec("udp")).get(false)
 
-proc getPortProtocol*(ma: MultiAddress): string =
-  ## Returns the protocol name that contains the port ("tcp" or "udp")
-  if ma.contains(multiCodec("tcp")).get(false):
-    "tcp"
-  elif ma.contains(multiCodec("udp")).get(false):
-    "udp"
-  else:
-    ""
-
 proc createServerAcceptConn*(
     server: QuicTransport, isEofExpected: bool = false
 ): proc(): Future[void] {.
