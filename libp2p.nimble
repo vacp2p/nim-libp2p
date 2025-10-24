@@ -30,8 +30,10 @@ proc runTest(filename: string, moreoptions: string = "") =
   compileCmd.add(" " & moreoptions & " ")
   if getEnv("CICOV").len > 0:
     compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
-  compileCmd &= " -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4"
-  
+  compileCmd &= " -d:libp2p_autotls_support"
+  compileCmd &= " -d:libp2p_mix_experimental_exit_is_dest"
+  compileCmd &= " -d:libp2p_gossipsub_1_4"
+
   # step 1: compile test binary
   exec compileCmd & " tests/" & filename
   # step 2: run binary
