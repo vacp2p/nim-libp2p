@@ -8,50 +8,20 @@ from strutils import parseInt, replace
 import
   ../../libp2p/[transports/transport, transports/quictransport, upgrademngrs/upgrade]
 import ../helpers
+import ./basic_tests
 import ./utils
+
+proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
+  try:
+    return QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, (newRng())[]).tryGet())
+  except ResultError[crypto.CryptoError]:
+    raiseAssert "should not happen"
 
 suite "Quic transport":
   teardown:
     checkTrackers()
 
-  asyncTest "can handle local address":
-    let server = await createTransport(isServer = true)
-    check server.handles(server.addrs[0])
-    await server.stop()
-
-  asyncTest "handle accept cancellation":
-    let server = await createTransport(isServer = true)
-
-    let acceptFut = server.accept()
-    await acceptFut.cancelAndWait()
-    check acceptFut.cancelled
-
-    await server.stop()
-
-  asyncTest "handle dial cancellation":
-    let server = await createTransport(isServer = true)
-    let client = await createTransport(isServer = false)
-
-    let connFut = client.dial(server.addrs[0])
-    await connFut.cancelAndWait()
-    check connFut.cancelled
-
-    await client.stop()
-    await server.stop()
-
-  asyncTest "stopping transport kills connections":
-    let server = await createTransport(isServer = true)
-    let client = await createTransport(isServer = false)
-
-    let acceptFut = server.accept()
-    let conn = await client.dial(server.addrs[0])
-    let serverConn = await acceptFut
-
-    await client.stop()
-    await server.stop()
-
-    check serverConn.closed()
-    check conn.closed()
+  basicTransportTest(quicTransProvider, "/ip4/127.0.0.1/udp/0/quic-v1")
 
   asyncTest "transport e2e":
     let server = await createTransport(isServer = true)
@@ -177,14 +147,6 @@ suite "Quic transport":
     await runClient(server)
     await serverHandlerFut
     await server.stop()
-
-  asyncTest "quic transport start/stop events":
-    let transport = await createTransport(isServer = true)
-    # createTransport will call start
-    check await transport.onRunning.wait().withTimeout(1.seconds)
-
-    await transport.stop()
-    check await transport.onStop.wait().withTimeout(1.seconds)
 
   asyncTest "peer ID extraction from certificate":
     # Create server with known private key
