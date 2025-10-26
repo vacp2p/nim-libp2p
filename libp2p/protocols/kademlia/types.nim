@@ -191,7 +191,7 @@ proc get*(self: LocalTable, key: Key): Opt[EntryRecord] {.raises: [].} =
   try:
     return Opt.some(self[key])
   except KeyError:
-    doAssert false, "checked with hasKey"
+    raiseAssert "checked with hasKey"
 
 type EntryValidator* = ref object of RootObj
 method isValid*(

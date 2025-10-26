@@ -115,7 +115,7 @@ proc fwdRequest(
       try:
         behaviorCb = self.destReadBehavior[codec]
       except KeyError:
-        doAssert false, "checked with HasKey"
+        raiseAssert "checked with HasKey"
 
       response = await behaviorCb(destConn)
   except LPStreamError as exc:
