@@ -7,10 +7,17 @@ description = "LibP2P implementation"
 license = "MIT"
 skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 
-requires "nim >= 2.0.0",
-  "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
-  "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
-  "websock >= 0.2.1", "unittest2", "results", "quic >= 0.5.0",
+# Nim version check - prevents doing any nimble task if 
+# version is not satisfied to show more cleaner error to user.
+when (NimMajor, NimMinor) < (2, 0):
+  {.error: "nim-libp2p requires Nim v2.0 or v2.2".}
+
+requires "nim >= 2.0.0"
+
+requires "nimcrypto >= 0.6.0",
+  "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5", "chronicles >= 0.11.0",
+  "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2", "websock >= 0.2.1",
+  "unittest2", "results", "quic >= 0.5.0",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
