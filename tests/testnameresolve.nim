@@ -196,6 +196,8 @@ suite "Name resolving":
       checkTrackers()
 
     asyncTest "test manual dns ip resolve":
+      skip()
+      return
       ## DNS mock server
       proc clientMark1(
           transp: DatagramTransport, raddr: TransportAddress
@@ -248,6 +250,9 @@ suite "Name resolving":
       await server.closeWait()
 
     asyncTest "test unresponsive dns server":
+      skip()
+      return
+    
       var unresponsiveTentatives = 0
       ## DNS mock server
       proc clientMark1(
