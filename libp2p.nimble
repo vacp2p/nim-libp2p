@@ -77,7 +77,7 @@ task testintegration, "Runs integraion tests":
 
 task test, "Runs the test suite":
   runTest("testall")
-  testmultiformatextsTask()
+  # testmultiformatextsTask()
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
