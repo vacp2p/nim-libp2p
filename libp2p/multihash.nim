@@ -29,9 +29,10 @@ import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, multicodec, multibase
 import stew/base58
 import results
+import ./utility
 export results
 # This is workaround for Nim `import` bug.
-export sha, sha2, keccak, blake2, hash, utils
+export sha, sha2, keccak, blake2, hash, utils, vbuffer
 
 const
   MaxHashSize* = 128
@@ -40,6 +41,7 @@ const
   ErrWrongDigestSize = "Incorrect digest size"
   ErrDecodeError = "Decoding error from bytes"
   ErrParseError = "Parse error fromHex"
+  libp2p_multihash_exts* {.strdefine.} = ""
 
 type
   MHashCoderProc* = proc(data: openArray[byte], output: var openArray[byte]) {.
@@ -350,11 +352,21 @@ const HashesList = [
   MHash(mcodec: multiCodec("blake2s-256"), size: 32, coder: blake2Shash),
 ]
 
-proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
-  for item in HashesList:
-    result[item.mcodec] = item
+proc initMultiHashCodeTable(
+    hashes: openArray[MHash]
+): Table[MultiCodec, MHash] {.compileTime.} =
+  var res: Table[MultiCodec, MHash]
 
-const CodeHashes = initMultiHashCodeTable()
+  for hash in hashes:
+    res[hash.mcodec] = hash
+
+  return res
+
+when libp2p_multihash_exts != "":
+  includeFile(libp2p_multihash_exts)
+  const CodeHashes = initMultiHashCodeTable(@HashesList & @HashExts)
+else:
+  const CodeHashes = initMultiHashCodeTable(@HashesList)
 
 proc digestImplWithHash(hash: MHash, data: openArray[byte]): MultiHash =
   var buffer: array[MaxHashSize, byte]
@@ -384,6 +396,20 @@ proc digestImplWithoutHash(hash: MHash, data: openArray[byte]): MultiHash =
   result.data.writeArray(data)
   result.data.finish()
 
+func digestSize*(codec: MultiCodec): MhResult[int] =
+  let hash = CodeHashes.getOrDefault(codec)
+  if isNil(hash.coder):
+    err(ErrNotSupported)
+  else:
+    ok(hash.size)
+
+func digestSize*(hashname: string): MhResult[int] =
+  let mc = MultiCodec.codec(hashname)
+  if mc == InvalidMultiCodec:
+    err(ErrIncorrectName)
+  else:
+    mc.digestSize
+
 proc digest*(
     mhtype: typedesc[MultiHash], hashname: string, data: openArray[byte]
 ): MhResult[MultiHash] {.inline.} =
@@ -400,11 +426,11 @@ proc digest*(
       ok(digestImplWithHash(hash, data))
 
 proc digest*(
-    mhtype: typedesc[MultiHash], hashcode: int, data: openArray[byte]
+    mhtype: typedesc[MultiHash], mcodec: MultiCodec, data: openArray[byte]
 ): MhResult[MultiHash] {.inline.} =
   ## Perform digest calculation using hash algorithm with code ``hashcode`` on
   ## data array ``data``.
-  let hash = CodeHashes.getOrDefault(hashcode)
+  let hash = CodeHashes.getOrDefault(mcodec)
   if isNil(hash.coder):
     err(ErrNotSupported)
   else:

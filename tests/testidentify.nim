@@ -11,6 +11,7 @@
 
 import options
 import chronos
+import chronicles
 import
   ../libp2p/[
     protocols/identify,
@@ -116,13 +117,13 @@ suite "Identify":
     asyncTest "handle failed identify":
       msListen.addHandler(IdentifyCodec, identifyProto1)
 
-      proc acceptHandler() {.async.} =
+      proc acceptHandler() {.async: (raises: [CancelledError]).} =
         var conn: Connection
         try:
           conn = await transport1.accept()
           await msListen.handle(conn)
-        except CatchableError:
-          discard
+        except transport.TransportError as exc:
+          debug "Transport error", description = exc.msg
         finally:
           await conn.close()
 

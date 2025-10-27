@@ -28,15 +28,9 @@ import ../../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../../helpers
 
 proc waitSub(sender, receiver: auto, key: string) {.async.} =
-  # turn things deterministic
-  # this is for testing purposes only
-  var ceil = 15
   let fsub = cast[FloodSub](sender)
-  while not fsub.floodsub.hasKey(key) or
-      not fsub.floodsub.hasPeerId(key, receiver.peerInfo.peerId):
-    await sleepAsync(100.millis)
-    dec ceil
-    doAssert(ceil > 0, "waitSub timeout!")
+  checkUntilTimeout:
+    fsub.floodsub.hasKey(key) and fsub.floodsub.hasPeerId(key, receiver.peerInfo.peerId)
 
 suite "FloodSub Integration":
   teardown:

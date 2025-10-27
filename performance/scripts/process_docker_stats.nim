@@ -2,15 +2,9 @@ from times import parse, toTime, toUnix
 import strformat
 import strutils
 import json
-import os
 import options
-
-type DockerStatsSample = object
-  timestamp: float
-  cpuPercent: float
-  memUsageMB: float
-  netRxMB: float
-  netTxMB: float
+import ../types
+import common
 
 proc parseTimestamp(statsJson: JsonNode): float =
   let isoStr = statsJson["read"].getStr("")
@@ -57,9 +51,6 @@ proc extractNetworkRaw(statsJson: JsonNode): (int, int) =
       netTxBytes += v["tx_bytes"].getInt(0)
   return (netRxBytes, netTxBytes)
 
-proc convertMB(bytes: int): float =
-  return float(bytes) / 1024.0 / 1024.0
-
 proc parseDockerStatsLine(line: string): Option[DockerStatsSample] =
   var samples = none(DockerStatsSample)
   if line.len == 0:
@@ -93,11 +84,6 @@ proc processDockerStatsLog*(inputPath: string): seq[DockerStatsSample] =
       samples.add(sampleOpt.get)
   return samples
 
-proc calcRateMBps(curr: float, prev: float, dt: float): float =
-  if dt == 0:
-    return 0.0
-  return ((curr - prev)) / dt
-
 proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
   var f = open(outPath, fmWrite)
   f.writeLine(
@@ -120,7 +106,9 @@ proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
     let ulMBps = calcRateMBps(s.netTxMB, prevTx, dt)
     let dlAcc = s.netRxMB - rxOffset
     let ulAcc = s.netTxMB - txOffset
-    let memUsage = s.memUsageMB - memOffset
+    var memUsage = s.memUsageMB - memOffset
+    if memUsage < 0:
+      memUsage = 0
     f.writeLine(
       fmt"{relTimestamp:.2f},{s.cpuPercent:.2f},{memUsage:.2f},{dlMBps:.4f},{ulMBps:.4f},{dlAcc:.4f},{ulAcc:.4f}"
     )
@@ -129,19 +117,9 @@ proc writeCsvSeries(samples: seq[DockerStatsSample], outPath: string) =
     prevTimestamp = relTimestamp
   f.close()
 
-proc findInputFiles(dir: string, prefix: string): seq[string] =
-  var files: seq[string] = @[]
-  for entry in walkDir(dir):
-    if entry.kind == pcFile and entry.path.endsWith(".log") and
-        entry.path.contains(prefix):
-      files.add(entry.path)
-  return files
-
 proc main() =
-  let dir = getEnv("SHARED_VOLUME_PATH", "performance/output")
-  let prefix = getEnv("DOCKER_STATS_PREFIX", "docker_stats_")
-
-  let inputFiles = findInputFiles(dir, prefix)
+  let env = getGitHubEnv()
+  let inputFiles = findLogFiles(env.sharedVolumePath, env.dockerStatsPrefix)
   if inputFiles.len == 0:
     echo "No docker stats files found."
     return

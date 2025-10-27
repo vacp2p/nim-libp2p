@@ -19,6 +19,7 @@ import tables
 import results
 import stew/[base32, base58, base64]
 import ./utils/sequninit
+import ./utility
 
 type
   MultiBaseStatus* {.pure.} = enum
@@ -44,6 +45,8 @@ type
     ): MultiBaseStatus {.nimcall, gcsafe, noSideEffect, raises: [].}
     encl: MBCodeSize
     decl: MBCodeSize
+
+const libp2p_multibase_exts* {.strdefine.} = ""
 
 proc idd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
@@ -384,9 +387,23 @@ proc initMultiBaseNameTable(): Table[string, MBCodec] {.compileTime.} =
   for item in MultiBaseCodecs:
     result[item.name] = item
 
-const
-  CodeMultiBases = initMultiBaseCodeTable()
-  NameMultiBases = initMultiBaseNameTable()
+proc initLists(
+    codecs: seq[MBCodec]
+): (Table[char, MBCodec], Table[string, MBCodec]) {.compileTime.} =
+  var codes: Table[char, MBCodec]
+  var names: Table[string, MBCodec]
+
+  for codec in codecs:
+    codes[codec.code] = codec
+    names[codec.name] = codec
+
+  return (codes, names)
+
+when libp2p_multibase_exts != "":
+  includeFile(libp2p_multibase_exts)
+  const (CodeMultiBases, NameMultiBases) = initLists(@MultiBaseCodecs & @BaseExts)
+else:
+  const (CodeMultiBases, NameMultiBases) = initLists(@MultiBaseCodecs)
 
 proc encodedLength*(mbtype: typedesc[MultiBase], encoding: string, length: int): int =
   ## Return estimated size of buffer to store MultiBase encoded value with

@@ -57,7 +57,7 @@ proc new*(
     observedAddr: Opt[MultiAddress],
     localAddr: Opt[MultiAddress],
     timeout = 10.minutes,
-): T =
+): T {.raises: [].} =
   let stream = T(
     session: session,
     timeout: timeout,
@@ -119,7 +119,7 @@ type WsTransport* = ref object of Transport
 
   tlsPrivateKey*: TLSPrivateKey
   tlsCertificate*: TLSCertificate
-  autotls: AutotlsService
+  autotls: Opt[AutotlsService]
   tlsFlags: set[TLSFlags]
   flags: set[ServerFlags]
   handshakeTimeout: Duration
@@ -140,21 +140,22 @@ method start*(
     return
 
   when defined(libp2p_autotls_support):
-    if not self.secure and not self.autotls.isNil():
-      if not await self.autotls.running.wait().withTimeout(DefaultAutotlsWaitTimeout):
-        error "Unable to upgrade, autotls not running"
-        await self.stop()
-        return
+    if not self.secure and self.autotls.isSome():
+      self.autotls.withValue(autotls):
+        if not await autotls.running.wait().withTimeout(DefaultAutotlsWaitTimeout):
+          error "Unable to upgrade, autotls not running"
+          await self.stop()
+          return
 
-      trace "Waiting for autotls certificate"
-      try:
-        let autotlsCert = await self.autotls.getCertWhenReady()
-        self.tlsCertificate = autotlsCert.cert
-        self.tlsPrivateKey = autotlsCert.privkey
-      except AutoTLSError as exc:
-        raise newException(LPError, exc.msg, exc)
-      except TLSStreamProtocolError as exc:
-        raise newException(LPError, exc.msg, exc)
+        trace "Waiting for autotls certificate"
+        try:
+          let autotlsCert = await autotls.getCertWhenReady()
+          self.tlsCertificate = autotlsCert.cert
+          self.tlsPrivateKey = autotlsCert.privkey
+        except AutoTLSError as exc:
+          raise newException(LPError, exc.msg, exc)
+        except TLSStreamProtocolError as exc:
+          raise newException(LPError, exc.msg, exc)
 
   trace "Starting WS transport"
   await procCall Transport(self).start(addrs)
@@ -386,16 +387,16 @@ proc new*(
     upgrade: Upgrade,
     tlsPrivateKey: TLSPrivateKey,
     tlsCertificate: TLSCertificate,
-    autotls: AutotlsService,
+    autotls: Opt[AutotlsService],
     tlsFlags: set[TLSFlags] = {},
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
     rng: ref HmacDrbgContext = nil,
     handshakeTimeout = DefaultHeadersTimeout,
-): T {.public.} =
+): T {.raises: [].} =
   ## Creates a secure WebSocket transport
 
-  T(
+  let self = T(
     upgrader: upgrade,
     tlsPrivateKey: tlsPrivateKey,
     tlsCertificate: tlsCertificate,
@@ -406,6 +407,8 @@ proc new*(
     rng: rng,
     handshakeTimeout: handshakeTimeout,
   )
+  procCall Transport(self).initialize()
+  self
 
 proc new*(
     T: typedesc[WsTransport],
@@ -414,14 +417,14 @@ proc new*(
     factories: openArray[ExtFactory] = [],
     rng: ref HmacDrbgContext = nil,
     handshakeTimeout = DefaultHeadersTimeout,
-): T {.public.} =
+): T {.raises: [].} =
   ## Creates a clear-text WebSocket transport
 
   T.new(
     upgrade = upgrade,
     tlsPrivateKey = nil,
     tlsCertificate = nil,
-    autotls = nil,
+    autotls = Opt.none(AutotlsService),
     flags = flags,
     factories = @factories,
     rng = rng,

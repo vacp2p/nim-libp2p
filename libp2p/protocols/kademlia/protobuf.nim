@@ -4,14 +4,12 @@ import ../../utility
 import results
 import ../../multiaddress
 import stew/objects
-import stew/assign2
-import options
 
 type
   Record* {.public.} = object
-    key*: Option[seq[byte]]
-    value*: Option[seq[byte]]
-    timeReceived*: Option[string]
+    key*: seq[byte]
+    value*: Opt[seq[byte]]
+    timeReceived*: Opt[string]
 
   MessageType* = enum
     putValue = 0
@@ -34,20 +32,18 @@ type
 
   Message* {.public.} = object
     msgType*: MessageType
-    key*: Option[seq[byte]]
-    record*: Option[Record]
+    key*: seq[byte]
+    record*: Opt[Record]
     closerPeers*: seq[Peer]
     providerPeers*: seq[Peer]
 
 proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.}
 
-proc writeOpt*[T](
-  pb: var ProtoBuffer, field: int, opt: Option[T]
-) {.raises: [], gcsafe.}
+proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gcsafe.}
 
 proc encode*(record: Record): ProtoBuffer {.raises: [].} =
   var pb = initProtoBuffer()
-  pb.writeOpt(1, record.key)
+  pb.write(1, record.key)
   pb.writeOpt(2, record.value)
   pb.writeOpt(5, record.timeReceived)
   pb.finish()
@@ -67,7 +63,7 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
 
   pb.write(1, uint32(ord(msg.msgType)))
 
-  pb.writeOpt(2, msg.key)
+  pb.write(2, msg.key)
 
   msg.record.withValue(record):
     pb.writeOpt(3, msg.record)
@@ -82,9 +78,7 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
 
   return pb
 
-proc writeOpt*[T](
-    pb: var ProtoBuffer, field: int, opt: Option[T]
-) {.raises: [], gcsafe.} =
+proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gcsafe.} =
   opt.withValue(v):
     pb.write(field, v)
 
@@ -92,21 +86,21 @@ proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe
   pb.write(field, value.encode())
 
 proc getOptionField[T: ProtoScalar | string | seq[byte]](
-    pb: ProtoBuffer, field: int, output: var Option[T]
+    pb: ProtoBuffer, field: int, output: var Opt[T]
 ): ProtoResult[void] =
   var f: T
   if ?pb.getField(field, f):
-    assign(output, some(f))
+    output = Opt.some(f)
   ok()
 
-proc decode*(T: type Record, pb: ProtoBuffer): ProtoResult[Option[T]] =
+proc decode*(T: type Record, pb: ProtoBuffer): ProtoResult[T] =
   var r: Record
-  ?pb.getOptionField(1, r.key)
+  ?pb.getRequiredField(1, r.key)
   ?pb.getOptionField(2, r.value)
   ?pb.getOptionField(5, r.timeReceived)
-  return ok(some(r))
+  return ok(r)
 
-proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[Option[T]] =
+proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
   var
     p: Peer
     id: seq[byte]
@@ -122,17 +116,14 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[Option[T]] =
       return err(ProtoError.BadWireType)
     p.connection = connType
 
-  return ok(some(p))
+  return ok(p)
 
-proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
+proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   var
     m: Message
-    key: seq[byte]
     recPb: seq[byte]
     closerPbs: seq[seq[byte]]
     providerPbs: seq[seq[byte]]
-
-  var pb = initProtoBuffer(buf)
 
   var msgTypeVal: uint32
   ?pb.getRequiredField(1, msgTypeVal)
@@ -143,21 +134,21 @@ proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
 
   m.msgType = msgType
 
-  ?pb.getOptionField(2, m.key)
+  ?pb.getRequiredField(2, m.key)
 
   if ?pb.getField(3, recPb):
-    assign(m.record, ?Record.decode(initProtoBuffer(recPb)))
+    m.record = Opt.some(?Record.decode(initProtoBuffer(recPb)))
 
   discard ?pb.getRepeatedField(8, closerPbs)
   for ppb in closerPbs:
-    let peerOpt = ?Peer.decode(initProtoBuffer(ppb))
-    peerOpt.withValue(peer):
-      m.closerPeers.add(peer)
+    m.closerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
 
   discard ?pb.getRepeatedField(9, providerPbs)
   for ppb in providerPbs:
-    let peer = ?Peer.decode(initProtoBuffer(ppb))
-    peer.withValue(peer):
-      m.providerPeers.add(peer)
+    m.providerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
 
   return ok(m)
+
+proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
+  var pb = initProtoBuffer(buf)
+  return Message.decode(pb)

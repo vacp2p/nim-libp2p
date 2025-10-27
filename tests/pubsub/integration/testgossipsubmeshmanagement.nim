@@ -12,7 +12,7 @@
 import chronicles
 import std/[sequtils]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../helpers
 
 suite "GossipSub Integration - Mesh Management":
@@ -337,3 +337,26 @@ suite "GossipSub Integration - Mesh Management":
     # Then on the next heartbeat mesh is rebalanced and peers are regrafted to the initial d value
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
+
+  # TODO: Remove loop when GossipSub tests fully switched to QUIC
+  const transports = @[TransportType.TCP, TransportType.QUIC]
+  for transport in transports:
+    asyncTest "Outbound peers are marked correctly " & $transport:
+      let
+        numberOfNodes = 4
+        topic = "foobar"
+        nodes = generateNodes(numberOfNodes, gossip = true, transport = transport)
+          .toGossipSub()
+
+      startNodesAndDeferStop(nodes)
+
+      await connectNodes(nodes[0], nodes[1]) # Out
+      await connectNodes(nodes[0], nodes[2]) # Out
+      await connectNodes(nodes[3], nodes[0]) # In
+      subscribeAllNodes(nodes, topic, voidTopicHandler)
+
+      checkUntilTimeout:
+        nodes[0].mesh.outboundPeers(topic) == 2
+        nodes[0].getPeerByPeerId(topic, nodes[1].peerInfo.peerId).outbound == true
+        nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId).outbound == true
+        nodes[0].getPeerByPeerId(topic, nodes[3].peerInfo.peerId).outbound == false

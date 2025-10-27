@@ -75,6 +75,8 @@ type
 func maErr*(msg: string): ref MaError =
   (ref MaError)(msg: msg)
 
+const libp2p_multiaddress_exts* {.strdefine.} = ""
+
 const
   # These are needed in order to avoid an ambiguity error stemming from
   # some cint constants with the same name defined in the posix modules
@@ -457,7 +459,7 @@ const
 
   P2PPattern* = mapEq("p2p")
 
-  IPFS* = mapAnd(Reliable, P2PPattern)
+  IPFS* = mapAnd(Reliable, mapEq("ipfs"))
 
   HTTP* = mapOr(
     mapAnd(TCP, mapEq("http")), mapAnd(IP, mapEq("http")), mapAnd(DNS, mapEq("http"))
@@ -475,11 +477,21 @@ const
 
   Memory* = mapEq("memory")
 
-proc initMultiAddressCodeTable(): Table[MultiCodec, MAProtocol] {.compileTime.} =
-  for item in ProtocolsList:
-    result[item.mcodec] = item
+proc initMultiAddressCodeTable(
+    protocols: openArray[MAProtocol]
+): Table[MultiCodec, MAProtocol] {.compileTime.} =
+  var res: Table[MultiCodec, MAProtocol]
 
-const CodeAddresses = initMultiAddressCodeTable()
+  for protocol in protocols:
+    res[protocol.mcodec] = protocol
+
+  return res
+
+when libp2p_multiaddress_exts != "":
+  includeFile(libp2p_multiaddress_exts)
+  const CodeAddresses = initMultiAddressCodeTable(@ProtocolsList & @AddressExts)
+else:
+  const CodeAddresses = initMultiAddressCodeTable(@ProtocolsList)
 
 proc trimRight(s: string, ch: char): string =
   ## Consume trailing characters ``ch`` from string ``s`` and return result.

@@ -1,8 +1,21 @@
-import sequtils
 import chronos
-import ../../libp2p/[protobuf/minprotobuf, protocols/rendezvous, switch, builders]
+import sequtils
 
-proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
+import
+  ../../libp2p/[
+    builders,
+    crypto/crypto,
+    discovery/discoverymngr,
+    discovery/rendezvousinterface,
+    peerid,
+    protobuf/minprotobuf,
+    protocols/rendezvous,
+    protocols/rendezvous/protobuf,
+    routing_record,
+    switch,
+  ]
+
+proc createSwitch*(): Switch =
   SwitchBuilder
   .new()
   .withRng(newRng())
@@ -10,7 +23,21 @@ proc createSwitch*(rdv: RendezVous = RendezVous.new()): Switch =
   .withMemoryTransport()
   .withMplex()
   .withNoise()
-  .withRendezVous(rdv)
+  .build()
+
+proc createSwitch*(rdv: RendezVous): Switch =
+  var lrdv = rdv
+  if rdv.isNil():
+    lrdv = RendezVous.new()
+
+  SwitchBuilder
+  .new()
+  .withRng(newRng())
+  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
+  .withMemoryTransport()
+  .withMplex()
+  .withNoise()
+  .withRendezVous(lrdv)
   .build()
 
 proc setupNodes*(count: int): seq[RendezVous] =
@@ -19,7 +46,7 @@ proc setupNodes*(count: int): seq[RendezVous] =
   var rdvs: seq[RendezVous] = @[]
 
   for x in 0 ..< count:
-    let rdv = RendezVous.new()
+    var rdv: RendezVous = RendezVous.new()
     let node = createSwitch(rdv)
     rdvs.add(rdv)
 
@@ -38,13 +65,13 @@ template startAndDeferStop*(nodes: seq[RendezVous]) =
   defer:
     await allFutures(nodes.mapIt(it.switch.stop()))
 
-proc connectNodes*[T: RendezVous](dialer: T, target: T) {.async.} =
+proc connectNodes*(dialer: RendezVous, target: RendezVous) {.async.} =
   await dialer.switch.connect(
     target.switch.peerInfo.peerId, target.switch.peerInfo.addrs
   )
 
-proc connectNodesToRendezvousNode*[T: RendezVous](
-    nodes: seq[T], rendezvousNode: T
+proc connectNodesToRendezvousNode*(
+    nodes: seq[RendezVous], rendezvousNode: RendezVous
 ) {.async.} =
   for node in nodes:
     await connectNodes(node, rendezvousNode)
@@ -76,3 +103,65 @@ proc populatePeerRegistrations*(
   let record = targetRdv.registered.s[0]
   for i in 0 ..< count - 1:
     targetRdv.registered.s.add(record)
+
+proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
+  let rng = newRng()
+  let wrongPrivKey = PrivateKey.random(rng[]).tryGet()
+  let record = PeerRecord.init(peerId, @[])
+  SignedPeerRecord.init(wrongPrivKey, record).tryGet()
+
+proc sendRdvMessage*(
+    node: RendezVous, target: RendezVous, buffer: seq[byte]
+): Future[seq[byte]] {.async.} =
+  let conn = await node.switch.dial(target.switch.peerInfo.peerId, RendezVousCodec)
+  defer:
+    await conn.close()
+
+  await conn.writeLp(buffer)
+
+  let response = await conn.readLp(4096)
+  response
+
+proc prepareRegisterMessage*(
+    namespace: string, spr: seq[byte], ttl: Duration
+): Message =
+  Message(
+    msgType: MessageType.Register,
+    register: Opt.some(
+      Register(ns: namespace, signedPeerRecord: spr, ttl: Opt.some(ttl.seconds.uint64))
+    ),
+  )
+
+proc prepareDiscoverMessage*(
+    ns: Opt[string] = Opt.none(string),
+    limit: Opt[uint64] = Opt.none(uint64),
+    cookie: Opt[seq[byte]] = Opt.none(seq[byte]),
+): Message =
+  Message(
+    msgType: MessageType.Discover,
+    discover: Opt.some(Discover(ns: ns, limit: limit, cookie: cookie)),
+  )
+
+proc setupDiscMngrNodes*(count: int): (seq[DiscoveryManager], seq[RendezVous]) =
+  doAssert(count > 0, "Count must be greater than 0")
+
+  var dms: seq[DiscoveryManager] = @[]
+  var nodes: seq[RendezVous] = @[]
+
+  for x in 0 ..< count:
+    let node = RendezVous.new()
+    let switch = createSwitch(node)
+    nodes.add(node)
+
+    let dm = DiscoveryManager()
+    dm.add(
+      RendezVousInterface.new(node, ttr = 100.milliseconds, tta = 100.milliseconds)
+    )
+    dms.add(dm)
+
+  return (dms, nodes)
+
+template deferStop*(dms: seq[DiscoveryManager]) =
+  defer:
+    for dm in dms:
+      dm.stop()

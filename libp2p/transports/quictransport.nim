@@ -58,11 +58,7 @@ method readOnce*(
       stream.cached = await stream.stream.read()
       if stream.cached.len == 0:
         raise newLPStreamEOFError()
-    except CancelledError as exc:
-      raise exc
-    except LPStreamEOFError as exc:
-      raise exc
-    except CatchableError as exc:
+    except QuicError as exc:
       raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
 
   let toRead = min(nbytes, stream.cached.len)
@@ -78,11 +74,7 @@ method write*(
   try:
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
-  except QuicError:
-    raise newLPStreamEOFError()
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
+  except QuicError as exc:
     raise
       (ref LPStreamError)(msg: "error in quic stream write: " & exc.msg, parent: exc)
 
@@ -92,13 +84,13 @@ method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
   try:
     await stream.stream.closeWrite()
-  except CatchableError as exc:
+  except CancelledError, QuicError:
     discard
 
 method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
   try:
     await stream.stream.close()
-  except CatchableError as exc:
+  except CancelledError, QuicError:
     discard
   await procCall P2PConnection(stream).closeImpl()
 
@@ -116,25 +108,29 @@ method close*(session: QuicSession) {.async: (raises: []).} =
 proc getStream*(
     session: QuicSession, direction = Direction.In
 ): Future[QuicStream] {.async: (raises: [QuicTransportError]).} =
+  var stream: Stream
   try:
-    var stream: Stream
     case direction
     of Direction.In:
       stream = await session.connection.incomingStream()
     of Direction.Out:
       stream = await session.connection.openStream()
       await stream.write(@[]) # QUIC streams do not exist until data is sent
-
-    let qs =
-      QuicStream.new(stream, session.observedAddr, session.localAddr, session.peerId)
-    when defined(libp2p_agents_metrics):
-      qs.shortAgent = session.shortAgent
-
-    session.streams.add(qs)
-    return qs
-  except CatchableError as exc:
-    # TODO: incomingStream is using {.async.} with no raises
+  except CancelledError as exc:
+    raise (ref QuicTransportError)(msg: "cancelled getStream: " & exc.msg, parent: exc)
+  except QuicError as exc:
     raise (ref QuicTransportError)(msg: "error in getStream: " & exc.msg, parent: exc)
+
+  let qs =
+    QuicStream.new(stream, session.observedAddr, session.localAddr, session.peerId)
+  when defined(libp2p_agents_metrics):
+    qs.shortAgent = session.shortAgent
+
+  # Inherit transportDir from parent session for GossipSub outbound peer tracking
+  qs.transportDir = session.transportDir
+
+  session.streams.add(qs)
+  return qs
 
 method getWrapped*(self: QuicSession): P2PConnection =
   self
@@ -158,28 +154,22 @@ method newStream*(
 .} =
   try:
     return await m.quicSession.getStream(Direction.Out)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
+  except QuicTransportError as exc:
     raise newException(MuxerError, "error in newStream: " & exc.msg, exc)
 
-proc handleStream(m: QuicMuxer, chann: QuicStream) {.async: (raises: []).} =
-  ## call the muxer stream handler for this channel
-  ##
-  try:
+method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
+  proc handleStream(chann: QuicStream) {.async: (raises: []).} =
+    ## call the muxer stream handler for this channel
+    ##
     await m.streamHandler(chann)
     trace "finished handling stream"
     doAssert(chann.closed, "connection not closed by handler!")
-  except CatchableError as exc:
-    trace "Exception in quic stream handler", msg = exc.msg
-    await chann.close()
 
-method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   try:
     while not m.quicSession.atEof:
-      let incomingStream = await m.quicSession.getStream(Direction.In)
-      asyncSpawn m.handleStream(incomingStream)
-  except CatchableError as exc:
+      let stream = await m.quicSession.getStream(Direction.In)
+      asyncSpawn handleStream(stream)
+  except QuicTransportError as exc:
     trace "Exception in quic handler", msg = exc.msg
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
@@ -227,11 +217,13 @@ proc defaultCertGenerator(
   return generateX509(kp, encodingFormat = EncodingFormat.PEM)
 
 proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
-  return QuicTransport(
+  let self = QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms),
     privateKey: privateKey,
     certGenerator: defaultCertGenerator,
   )
+  procCall Transport(self).initialize()
+  self
 
 proc new*(
     _: type QuicTransport,
@@ -239,11 +231,13 @@ proc new*(
     privateKey: PrivateKey,
     certGenerator: CertGenerator,
 ): QuicTransport =
-  return QuicTransport(
+  let self = QuicTransport(
     upgrader: QuicUpgrade(ms: u.ms),
     privateKey: privateKey,
     certGenerator: certGenerator,
   )
+  procCall Transport(self).initialize()
+  self
 
 method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises: [].} =
   if not procCall Transport(transport).handles(address):
@@ -252,7 +246,7 @@ method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises:
 
 proc makeConfig(self: QuicTransport): TLSConfig =
   let pubkey = self.privateKey.getPublicKey().valueOr:
-    doAssert false, "could not obtain public key"
+    raiseAssert "could not obtain public key"
     return
 
   let cert = self.certGenerator(KeyPair(seckey: self.privateKey, pubkey: pubkey))
@@ -282,7 +276,7 @@ method start*(
       MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
       MultiAddress.init("/quic-v1").get()
   except QuicConfigError as exc:
-    doAssert false, "invalid quic setup: " & $exc.msg
+    raiseAssert "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
     raise (ref QuicTransportError)(
       msg: "tlscert error in quic start: " & exc.msg, parent: exc
@@ -294,7 +288,6 @@ method start*(
     raise (ref QuicTransportError)(
       msg: "transport error in quic start: " & exc.msg, parent: exc
     )
-  self.running = true
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let conns = transport.connections[0 .. ^1]
@@ -313,22 +306,29 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
   await procCall Transport(transport).stop()
 
 proc wrapConnection(
-    transport: QuicTransport, connection: QuicConnection
-): QuicSession {.raises: [TransportOsError, MaError].} =
-  let
+    transport: QuicTransport, connection: QuicConnection, transportDir: Direction
+): QuicSession {.raises: [TransportOsError].} =
+  var observedAddr: MultiAddress
+  var localAddr: MultiAddress
+  try:
     observedAddr =
       MultiAddress.init(connection.remoteAddress(), IPPROTO_UDP).get() &
       MultiAddress.init("/quic-v1").get()
     localAddr =
       MultiAddress.init(connection.localAddress(), IPPROTO_UDP).get() &
       MultiAddress.init("/quic-v1").get()
-    session = QuicSession(
-      connection: connection,
-      observedAddr: Opt.some(observedAddr),
-      localAddr: Opt.some(localAddr),
-    )
+  except MaError as e:
+    raiseAssert "Multiaddr Error" & e.msg
 
+  let session = QuicSession(
+    connection: connection,
+    observedAddr: Opt.some(observedAddr),
+    localAddr: Opt.some(localAddr),
+  )
   session.initStream()
+
+  # Set the transport direction for outbound peer tracking in GossipSub 1.1
+  session.transportDir = transportDir
 
   transport.connections.add(session)
 
@@ -354,15 +354,9 @@ method accept*(
 
   try:
     let connection = await self.listener.accept()
-    return self.wrapConnection(connection)
-  except CancelledError as exc:
-    raise exc
+    return self.wrapConnection(connection, Direction.In)
   except QuicError as exc:
     debug "Quic Error", description = exc.msg
-  except MaError as exc:
-    debug "Multiaddr Error", description = exc.msg
-  except CatchableError as exc: # TODO: removing this requires async/raises in nim-quic
-    info "Unexpected error accepting quic connection", description = exc.msg
   except TransportOsError as exc:
     debug "OS Error", description = exc.msg
 
@@ -374,16 +368,32 @@ method dial*(
 ): Future[connection.Connection] {.
     async: (raises: [transport.TransportError, CancelledError])
 .} =
+  let taAddress =
+    try:
+      initTAddress(address).tryGet
+    except LPError as e:
+      raise newException(
+        QuicTransportDialError, "error in quic dial: invald address: " & e.msg, e
+      )
+
   try:
     if not self.client.isSome:
       self.client = Opt.some(QuicClient.init(self.makeConfig(), rng = self.getRng()))
 
     let client = self.client.get()
-    let quicConnection = await client.dial(initTAddress(address).tryGet)
-    return self.wrapConnection(quicConnection)
-  except CancelledError as e:
-    raise e
-  except CatchableError as e:
+    let quicConnection = await client.dial(taAddress)
+    return self.wrapConnection(quicConnection, Direction.Out)
+  except QuicConfigError as e:
+    raise newException(
+      QuicTransportDialError, "error in quic dial: invalid tls config:" & e.msg, e
+    )
+  except TLSCertificateError as e:
+    raise newException(
+      QuicTransportDialError, "error in quic dial: tls certificate error:" & e.msg, e
+    )
+  except TransportOsError as e:
+    raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
+  except QuicError as e:
     raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
 
 method upgrade*(
@@ -409,6 +419,6 @@ method upgrade*(
       trace "exception in stream handler", conn, msg = exc.msg
     finally:
       await conn.closeWithEOF()
-    trace "Stream handler done", conn
+      trace "Stream handler done", conn
   muxer.handleFut = muxer.handle()
   return muxer

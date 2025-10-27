@@ -6,7 +6,6 @@ const
   k* = 16 # Security parameter
   r* = 5 # Maximum path length
   t* = 6 # t.k - combined length of next hop address and delay
-  L* = 3 # Path length
   AlphaSize* = 32 # Group element
   BetaSize* = ((r * (t + 1)) + 1) * k # bytes
   GammaSize* = 16 # Output of HMAC-SHA-256, truncated to 16 bytes
@@ -15,12 +14,11 @@ const
   AddrSize* = (t * k) - DelaySize # Address size
   PacketSize* = 4608 # Total packet size (from spec)
   MessageSize* = PacketSize - HeaderSize - k # Size of the message itself
-  payloadSize* = MessageSize + k # Total payload size
-  SurbSize* = HeaderSize + k + AddrSize
+  PayloadSize* = MessageSize + k # Total payload size
+  SurbSize* = HeaderSize + AddrSize + k
     # Size of a surb packet inside the message payload
   SurbLenSize* = 1 # Size of the field storing the number of surbs
   SurbIdLen* = k # Size of the identifier used when sending a message with surb
-  DefaultSurbs* = uint8(4) # Default number of SURBs to send
 
 type Header* = object
   Alpha*: seq[byte]
@@ -31,6 +29,9 @@ proc init*(
     T: typedesc[Header], alpha: seq[byte], beta: seq[byte], gamma: seq[byte]
 ): T =
   return T(Alpha: alpha, Beta: beta, Gamma: gamma)
+
+proc get*(header: Header): (seq[byte], seq[byte], seq[byte]) =
+  (header.Alpha, header.Beta, header.Gamma)
 
 proc serialize*(header: Header): seq[byte] =
   doAssert header.Alpha.len == AlphaSize,
@@ -67,8 +68,8 @@ proc serialize*(message: Message): seq[byte] =
 proc deserialize*(
     T: typedesc[Message], serializedMessage: openArray[byte]
 ): Result[T, string] =
-  if len(serializedMessage) != payloadSize:
-    return err("Serialized message must be exactly " & $payloadSize & " bytes")
+  if len(serializedMessage) != PayloadSize:
+    return err("Serialized message must be exactly " & $PayloadSize & " bytes")
   return ok(serializedMessage[k ..^ 1])
 
 type Hop* = object
@@ -89,8 +90,11 @@ proc get*(hop: Hop): seq[byte] =
 proc serialize*(hop: Hop): seq[byte] =
   if hop.MultiAddress.len == 0:
     return newSeq[byte](AddrSize)
+
   doAssert len(hop.MultiAddress) == AddrSize,
     "MultiAddress must be exactly " & $AddrSize & " bytes"
+
+  return hop.MultiAddress
 
 proc deserialize*(T: typedesc[Hop], data: openArray[byte]): Result[T, string] =
   if len(data) != AddrSize:
@@ -136,6 +140,23 @@ proc serialize*(info: RoutingInfo): seq[byte] =
 
   return addrBytes & info.Delay & info.Gamma & info.Beta
 
+proc readBytes(
+    data: openArray[byte], offset: var int, readSize: Opt[int] = Opt.none(int)
+): Result[seq[byte], string] =
+  if data.len < offset:
+    return err("not enough data")
+
+  readSize.withValue(size):
+    if data.len < offset + size:
+      return err("not enough data")
+    let slice = data[offset ..< offset + size]
+    offset += size
+    return ok(slice)
+
+  let slice = data[offset .. ^1]
+  offset = data.len
+  return ok(slice)
+
 proc deserialize*(T: typedesc[RoutingInfo], data: openArray[byte]): Result[T, string] =
   if len(data) != BetaSize + ((t + 1) * k):
     return err("Data must be exactly " & $(BetaSize + ((t + 1) * k)) & " bytes")
@@ -143,13 +164,13 @@ proc deserialize*(T: typedesc[RoutingInfo], data: openArray[byte]): Result[T, st
   let hop = Hop.deserialize(data[0 .. AddrSize - 1]).valueOr:
     return err("Deserialize hop error: " & error)
 
+  var offset: int = AddrSize
   return ok(
     RoutingInfo(
       Addr: hop,
-      Delay: data[AddrSize .. (AddrSize + DelaySize - 1)],
-      Gamma: data[(AddrSize + DelaySize) .. (AddrSize + DelaySize + GammaSize - 1)],
-      Beta:
-        data[(AddrSize + DelaySize + GammaSize) .. (((r * (t + 1)) + t + 2) * k) - 1],
+      Delay: ?data.readBytes(offset, Opt.some(DelaySize)),
+      Gamma: ?data.readBytes(offset, Opt.some(GammaSize)),
+      Beta: ?data.readBytes(offset, Opt.some(BetaSize)),
     )
   )
 
@@ -159,6 +180,9 @@ type SphinxPacket* = object
 
 proc init*(T: typedesc[SphinxPacket], header: Header, payload: seq[byte]): T =
   T(Hdr: header, Payload: payload)
+
+proc get*(packet: SphinxPacket): (Header, seq[byte]) =
+  (packet.Hdr, packet.Payload)
 
 proc serialize*(packet: SphinxPacket): seq[byte] =
   let headerBytes = packet.Hdr.serialize()
@@ -177,7 +201,7 @@ type
 
   Key* = seq[byte]
 
-  I* = array[SurbIdLen, byte]
+  SURBIdentifier* = array[SurbIdLen, byte]
 
   SURB* = object
     hop*: Hop
@@ -194,23 +218,6 @@ proc serializeMessageWithSURBs*(
   let surbBytes =
     surbs.mapIt(it.hop.serialize() & it.header.serialize() & it.key).concat()
   ok(byte(surbs.len) & surbBytes & msg)
-
-proc readBytes(
-    data: seq[byte], offset: var int, readSize: Opt[int] = Opt.none(int)
-): Result[seq[byte], string] =
-  if data.len < offset:
-    return err("not enough data")
-
-  readSize.withValue(size):
-    if data.len < offset + size:
-      return err("not enough data")
-    let slice = data[offset ..< offset + size]
-    offset += size
-    return ok(slice)
-
-  let slice = data[offset .. ^1]
-  offset = data.len
-  return ok(slice)
 
 proc extractSURBs*(msg: seq[byte]): Result[(seq[SURB], seq[byte]), string] =
   var offset = 0

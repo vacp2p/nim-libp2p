@@ -19,13 +19,7 @@ import
   testmultibase, testmultihash, testmultiaddress, testcid, testpeerid,
   testsigned_envelope, testrouting_record
 
-import
-  testtcptransport,
-  testtortransport,
-  testwstransport,
-  testquic,
-  testmemorytransport,
-  transports/tls/testcertificate
+import transports/testtransports
 
 import
   testnameresolve, testmultistream, testbufferstream, testidentify,
@@ -33,11 +27,15 @@ import
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
   testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
   testautorelay, testdcutr, testhpservice, testutility, testhelpers,
-  testwildcardresolverservice, testperf
+  testwildcardresolverservice, testperf, testpkifilter
 
 import discovery/testdiscovery
 
-import kademlia/[testencoding, testroutingtable, testfindnode, testputval]
+import
+  kademlia/[
+    testencoding, testroutingtable, testfindnode, testputval, testgetval, testprovider,
+    testping,
+  ]
 
 when defined(libp2p_autotls_support):
   import testautotls
@@ -45,5 +43,5 @@ when defined(libp2p_autotls_support):
 import
   mix/[
     testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
-    testmixmessage,
+    testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode, testconn,
   ]

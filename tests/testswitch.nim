@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import options, sequtils
+import results, sequtils
 import chronos
 import stew/byteutils
 import
@@ -31,6 +31,7 @@ import
     muxers/mplex/lpchannel,
     stream/lpstream,
     nameresolving/mockresolver,
+    nameresolving/nameresolver,
     stream/chronosstream,
     utils/semaphore,
     transports/tcptransport,
@@ -48,15 +49,14 @@ suite "Switch":
     checkTrackers()
 
   asyncTest "e2e use switch dial proto string":
-    let done = newFuture[void]()
+    let done: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -90,15 +90,14 @@ suite "Switch":
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use switch dial proto string with custom matcher":
-    let done = newFuture[void]()
+    let done: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -137,15 +136,14 @@ suite "Switch":
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e should not leak bufferstreams and connections on channel close":
-    let done = newFuture[void]()
+    let done: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -184,9 +182,7 @@ suite "Switch":
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -222,7 +218,8 @@ suite "Switch":
     let resolver = MockResolver.new()
     let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
     let switch2 = newStandardSwitch(
-      secureManagers = [SecureProtocol.Noise], nameResolver = resolver
+      secureManagers = [SecureProtocol.Noise],
+      nameResolver = Opt.some(NameResolver(resolver)),
     )
     await switch1.start()
     await switch2.start()
@@ -264,7 +261,7 @@ suite "Switch":
         MultiAddress.init(multiCodec("p2p"), PeerId.random.tryGet().data).tryGet(),
       )
       .tryGet()
-    expect(CatchableError):
+    expect(DialFailedError):
       discard (await switch2.connect(fakeMa))
 
     # real thing works
@@ -510,9 +507,9 @@ suite "Switch":
     let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
-    let switch2 = newStandardSwitch(privKey = some(privKey), rng = rng)
+    let switch2 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
 
-    let switch3 = newStandardSwitch(privKey = some(privKey), rng = rng)
+    let switch3 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -574,8 +571,10 @@ suite "Switch":
       peerInfo = PeerInfo.new(privateKey)
 
     var switches: seq[Switch]
-    var done = newFuture[void]()
-    var onConnect: Future[void]
+    var done: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
+    var onConnect: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
     proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
       try:
         case event.kind
@@ -585,9 +584,7 @@ suite "Switch":
         of ConnEventKind.Disconnected:
           check not switches[0].isConnected(peerInfo.peerId)
           done.complete()
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except DialFailedError:
         check false # should not get here
 
     switches.add(newStandardSwitch(rng = rng))
@@ -596,10 +593,9 @@ suite "Switch":
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     await switches[0].start()
 
-    switches.add(newStandardSwitch(privKey = some(privateKey), rng = rng))
-    onConnect =
-      switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
-    await onConnect
+    switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
+    await switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
+    onConnect.complete()
 
     await done
 
@@ -607,48 +603,49 @@ suite "Switch":
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
     let rng = crypto.newRng()
-    # use same private keys to emulate two connection from same peer
-    let
-      privateKey = PrivateKey.random(rng[]).tryGet()
-      peerInfo = PeerInfo.new(privateKey)
+    let privateKey = PrivateKey.random(rng[]).tryGet()
+    let peerInfo = PeerInfo.new(privateKey)
 
-    var conns = 1
+    var conns = 0
     var switches: seq[Switch]
-    var done = newFuture[void]()
-    var onConnect: Future[void]
+    let done: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
+    let allConnected = newAsyncEvent()
+
     proc hook(peerId2: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
-      try:
-        case event.kind
-        of ConnEventKind.Connected:
-          if conns == 5:
-            await onConnect
-            await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
-            return
+      case event.kind
+      of ConnEventKind.Connected:
+        conns.inc
+        if conns == 5:
+          allConnected.fire()
+      of ConnEventKind.Disconnected:
+        conns.dec
+        if conns == 0:
+          check not switches[0].isConnected(peerInfo.peerId)
+          done.complete()
 
-          conns.inc
-        of ConnEventKind.Disconnected:
-          if conns == 1:
-            check not switches[0].isConnected(peerInfo.peerId)
-            done.complete()
-          conns.dec
-      except CancelledError as e:
-        raise e
-      except CatchableError:
-        check false # should not get here
-
+    # Start first switch
     switches.add(newStandardSwitch(maxConnsPerPeer = 10, rng = rng))
-
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
+    switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     await switches[0].start()
 
+    # Connect remaining switches sequentially
     for i in 1 .. 5:
-      switches.add(newStandardSwitch(privKey = some(privateKey), rng = rng))
+      switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
+      switches[i].addConnEventHandler(hook, ConnEventKind.Connected)
       switches[i].addConnEventHandler(hook, ConnEventKind.Disconnected)
-      onConnect =
-        switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
-      await onConnect
+      await switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
 
+    # Wait until all 5 are connected
+    await allConnected.wait()
+
+    # Trigger disconnect safely
+    await switches[0].disconnect(peerInfo.peerId)
+
+    # Wait until all disconnected
     await done
+
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
 
@@ -685,9 +682,7 @@ suite "Switch":
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         discard await conn.readLp(100)
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check true # should be here
 
     let testProto = new TestProto
@@ -839,15 +834,14 @@ suite "Switch":
     await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
 
   asyncTest "e2e peer store":
-    let done = newFuture[void]()
+    let done: Future[void].Raising([]) =
+      cast[Future[void].Raising([])](newFuture[void]())
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -899,9 +893,7 @@ suite "Switch":
         let msg = string.fromBytes(await conn.readLp(1024))
         check "Hello!" == msg
         await conn.writeLp("Hello!")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()
@@ -964,7 +956,7 @@ suite "Switch":
     resolver.ipResponses[("localhost", true)] = @["::1"]
 
     let
-      srcSwitch = newStandardSwitch(nameResolver = resolver)
+      srcSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)))
       destSwitch = newStandardSwitch()
 
     await destSwitch.start()
@@ -987,7 +979,7 @@ suite "Switch":
       wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
-      srcTcpSwitch = newStandardSwitch(nameResolver = resolver)
+      srcTcpSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)))
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
@@ -1037,45 +1029,42 @@ suite "Switch":
     await srcWsSwitch.stop()
     await srcTcpSwitch.stop()
 
-  when defined(libp2p_quic_support):
-    asyncTest "e2e quic transport":
-      let
-        quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-        quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+  asyncTest "e2e quic transport":
+    let
+      quicAddress1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+      quicAddress2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
 
-        srcSwitch = SwitchBuilder
-          .new()
-          .withAddress(quicAddress1)
-          .withRng(crypto.newRng())
-          .withQuicTransport()
-          .withNoise()
-          .build()
+      srcSwitch = SwitchBuilder
+        .new()
+        .withAddress(quicAddress1)
+        .withRng(crypto.newRng())
+        .withQuicTransport()
+        .withNoise()
+        .build()
 
-        destSwitch = SwitchBuilder
-          .new()
-          .withAddress(quicAddress2)
-          .withRng(crypto.newRng())
-          .withQuicTransport()
-          .withNoise()
-          .build()
+      destSwitch = SwitchBuilder
+        .new()
+        .withAddress(quicAddress2)
+        .withRng(crypto.newRng())
+        .withQuicTransport()
+        .withNoise()
+        .build()
 
-      await destSwitch.start()
-      await srcSwitch.start()
+    await destSwitch.start()
+    await srcSwitch.start()
 
-      await srcSwitch.connect(destSwitch.peerInfo.peerId, destSwitch.peerInfo.addrs)
-      check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
+    await srcSwitch.connect(destSwitch.peerInfo.peerId, destSwitch.peerInfo.addrs)
+    check srcSwitch.isConnected(destSwitch.peerInfo.peerId)
 
-      await destSwitch.stop()
-      await srcSwitch.stop()
+    await destSwitch.stop()
+    await srcSwitch.stop()
 
   asyncTest "mount unstarted protocol":
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         check "test123" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test456")
-      except CancelledError as e:
-        raise e
-      except CatchableError:
+      except LPStreamError:
         check false # should not be here
       finally:
         await conn.close()

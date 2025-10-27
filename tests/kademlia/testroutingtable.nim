@@ -12,20 +12,22 @@
 import unittest
 import chronos
 import ../../libp2p/crypto/crypto
-import ../../libp2p/protocols/kademlia/[xordistance, routingtable, consts, keys]
+import ../../libp2p/protocols/kademlia
 import results
 
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
-  return Key(kind: KeyType.Raw, data: @buf)
+  return @buf
 
 let rng = crypto.newRng()
 
 suite "routing table":
+  const TargetBucket = 6
+
   test "inserts single key in correct bucket":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId, Opt.none(XorDHasher))
+    var rt = RoutingTable.new(selfId)
     let other = testKey(0b10000000)
     discard rt.insert(other)
 
@@ -37,20 +39,41 @@ suite "routing table":
 
   test "does not insert beyond capacity":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId, Opt.some(noOpHasher))
-    let targetBucket = 6
-    for _ in 0 ..< DefaultReplic + 5:
-      var kid = randomKeyInBucketRange(selfId, targetBucket, rng)
-      kid.kind = KeyType.Raw # Overriding so we don't use sha for comparing xor distances
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication + 5:
+      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
-    check targetBucket < rt.buckets.len
-    let bucket = rt.buckets[targetBucket]
-    check bucket.peers.len <= DefaultReplic
+    check TargetBucket < rt.buckets.len
+    let bucket = rt.buckets[TargetBucket]
+    check bucket.peers.len <= config.replication
+
+  test "evicts oldest key at max capacity":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+    for _ in 0 ..< config.replication + 10:
+      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
+      discard rt.insert(kid)
+
+    check rt.buckets[TargetBucket].peers.len == config.replication
+
+    # new entry should evict oldest entry
+    let (oldest, oldestIdx) = rt.buckets[TargetBucket].oldestPeer()
+
+    check rt.insert(randomKeyInBucketRange(selfId, TargetBucket, rng))
+
+    let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
+
+    # oldest was evicted
+    check oldest.nodeId != oldestAfterInsert.nodeId
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
-    var rt = RoutingTable.init(selfId, Opt.some(noOpHasher))
+    var rt = RoutingTable.new(
+      selfId, config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    )
     let ids = @[testKey(1), testKey(2), testKey(3), testKey(4), testKey(5)]
     for id in ids:
       discard rt.insert(id)
@@ -73,10 +96,8 @@ suite "routing table":
 
   test "randomKeyInBucketRange returns id at correct distance":
     let selfId = testKey(0)
-    let targetBucket = 3
-    var rid = randomKeyInBucketRange(selfId, targetBucket, rng)
-    rid.kind = KeyType.Raw # Overriding so we don't use sha for comparing xor distances
+    var rid = randomKeyInBucketRange(selfId, TargetBucket, rng)
     let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
     check:
-      idx == targetBucket
+      idx == TargetBucket
       rid != selfId

@@ -158,7 +158,7 @@ proc askPeer(
   trace "Asking peer for reachability"
   let ans =
     try:
-      let reqAddrs = switch.peerInfo.listenAddrs
+      let reqAddrs = switch.peerInfo.addrs
       let autonatV2Resp = await self.client.sendDialRequest(peerId, reqAddrs)
       debug "AutonatV2Response", autonatV2Resp = autonatV2Resp
       autonatV2Resp.reachability

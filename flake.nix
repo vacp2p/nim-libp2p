@@ -26,7 +26,7 @@
       devShells = forAllSystems (system: {
         default = pkgsFor.${system}.mkShell {
           nativeBuildInputs = with pkgsFor.${system}; [
-            nim-2_2 nimble openssl.dev
+            nim-2_2 nimble
           ];
         };
       });

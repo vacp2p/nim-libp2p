@@ -18,10 +18,10 @@ suite "Certificate roundtrip tests":
 
       let certX509 = generateX509(keypair, encodingFormat = EncodingFormat.DER)
       let cert = parse(certX509.certificate)
-
-      check peerId == cert.peerId()
-      check cert.publicKey().scheme == scheme
-      check cert.verify()
+      check:
+        peerId == cert.peerId()
+        cert.publicKey().scheme == scheme
+        cert.verify()
 
   test "gnerate with invalid validity time":
     var rng = newRng()
@@ -111,54 +111,49 @@ suite "Test vectors":
     check not cert.verify()
 
   test "CSR generation":
-    var certKey: cert_key_t
-    var certCtx: cert_context_t
-    var derCSR: ptr cert_buffer = nil
+    let certKey = cert_generate_key().expect("could not generate key")
 
-    check cert_init_drbg("seed".cstring, 4, certCtx.addr) == CERT_SUCCESS
-    check cert_generate_key(certCtx, certKey.addr) == CERT_SUCCESS
+    check:
+      cert_signing_req("my.domain.string", certKey).isOk()
 
-    check cert_signing_req("my.domain.string".cstring, certKey, derCSR.addr) ==
-      CERT_SUCCESS
+      cert_signing_req(
+        "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaa",
+          # 253 characters, no labels longer than 63, okay
+        certKey,
+      )
+      .isOk()
 
-    check cert_signing_req(
-      "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaa".cstring,
-        # 253 characters, no labels longer than 63, okay
-      certKey,
-      derCSR.addr,
-    ) == CERT_SUCCESS
+      cert_signing_req(
+        "my.domain.", # domain ending in ".", okay
+        certKey,
+      )
+      .isOk()
 
-    check cert_signing_req(
-      "my.domain.".cstring, # domain ending in ".", okay
-      certKey,
-      derCSR.addr,
-    ) == CERT_SUCCESS
-
-    check cert_signing_req(
-      "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".cstring,
+      cert_signing_req(
+        "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         # 254 characters, too long
-      certKey,
-      derCSR.addr,
-    ) == -48 # CERT_ERROR_CN_TOO_LONG
+        certKey,
+      )
+      .error() == CERT_ERROR_CN_TOO_LONG
 
-    check cert_signing_req(
-      "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".cstring,
-        # 64 character label, too long
-      certKey,
-      derCSR.addr,
-    ) == -49 # CERT_ERROR_CN_LABEL_TOO_LONG
+      cert_signing_req(
+        "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          # 64 character label, too long
+        certKey,
+      )
+      .error() == CERT_ERROR_CN_LABEL_TOO_LONG
 
-    check cert_signing_req(
-      "my..empty.label.domain".cstring, # domain with empty label
-      certKey,
-      derCSR.addr,
-    ) == -50 # CERT_ERROR_CN_EMPTY_LABEL
+      cert_signing_req(
+        "my..empty.label.domain", # domain with empty label
+        certKey,
+      )
+      .error() == CERT_ERROR_CN_EMPTY_LABEL # CERT_ERROR_CN_EMPTY_LABEL
 
-    check cert_signing_req(
-      "".cstring, # domain with empty cn
-      certKey,
-      derCSR.addr,
-    ) == -51 # CERT_ERROR_CN_EMPTY
+      cert_signing_req(
+        "", # domain with empty cn
+        certKey,
+      )
+      .error() == CERT_ERROR_CN_EMPTY
 
 suite "utilities test":
   test "parseCertTime":
@@ -169,23 +164,18 @@ suite "utilities test":
     check 157766400 == dt.toUnix()
 
   test "KeyPair to cert_key_t":
-    var certKey: cert_key_t
-    var certKeyBack: ptr cert_buffer = nil
-
     let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
 
     let rawSeckey: seq[byte] = key.seckey.getRawBytes.valueOr:
       raiseAssert "Failed to get seckey raw bytes (DER)"
 
-    let seckeyBuffer = rawSeckey.toCertBuffer()
-
     # make seckey into certKey
-    check cert_new_key_t(seckeyBuffer.unsafeAddr, certKey.addr) == CERT_SUCCESS
+    let certKey = cert_new_key_t(rawSeckey).valueOr:
+      raiseAssert("Failed to create key")
 
     # make certKey back into seq[byte]
-    check cert_serialize_privk(certKey, certKeyBack.addr, CERT_FORMAT_DER) ==
-      CERT_SUCCESS
+    let rawSeckeyBack = cert_serialize_privk(certKey, CERT_FORMAT_DER).valueOr:
+      raiseAssert("Failed to serialize privk")
 
     # after and before should be the same
-    let rawSeckeyBack = certKeyBack.toSeq()
     check rawSeckey == rawSeckeyBack
