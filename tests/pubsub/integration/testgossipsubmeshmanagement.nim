@@ -338,28 +338,21 @@ suite "GossipSub Integration - Mesh Management":
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
 
-  # TODO: Remove loop when GossipSub tests fully switched to QUIC
-  const transports = @[TransportType.TCP, TransportType.QUIC]
-  for transport in transports:
-    asyncTest "Outbound peers are marked correctly " & $transport:
-      if defined(macosx) and transport == TransportType.QUIC:
-        skip()
+  asyncTest "Outbound peers are marked correctly":
+    let
+      numberOfNodes = 4
+      topic = "foobar"
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-      let
-        numberOfNodes = 4
-        topic = "foobar"
-        nodes = generateNodes(numberOfNodes, gossip = true, transport = transport)
-          .toGossipSub()
+    startNodesAndDeferStop(nodes)
 
-      startNodesAndDeferStop(nodes)
+    await connectNodes(nodes[0], nodes[1]) # Out
+    await connectNodes(nodes[0], nodes[2]) # Out
+    await connectNodes(nodes[3], nodes[0]) # In
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
 
-      await connectNodes(nodes[0], nodes[1]) # Out
-      await connectNodes(nodes[0], nodes[2]) # Out
-      await connectNodes(nodes[3], nodes[0]) # In
-      subscribeAllNodes(nodes, topic, voidTopicHandler)
-
-      checkUntilTimeout:
-        nodes[0].mesh.outboundPeers(topic) == 2
-        nodes[0].getPeerByPeerId(topic, nodes[1].peerInfo.peerId).outbound == true
-        nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId).outbound == true
-        nodes[0].getPeerByPeerId(topic, nodes[3].peerInfo.peerId).outbound == false
+    checkUntilTimeout:
+      nodes[0].mesh.outboundPeers(topic) == 2
+      nodes[0].getPeerByPeerId(topic, nodes[1].peerInfo.peerId).outbound == true
+      nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId).outbound == true
+      nodes[0].getPeerByPeerId(topic, nodes[3].peerInfo.peerId).outbound == false
