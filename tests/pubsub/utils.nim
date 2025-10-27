@@ -192,7 +192,8 @@ proc generateNodes*(
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
     disconnectBadPeers: bool = false,
-    transport: TransportType = TransportType.QUIC,
+    transport: TransportType =
+      if defined(macosx): TransportType.TCP else: TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
