@@ -540,7 +540,7 @@ proc baseTestProcedure*(
     for i in 0 ..< 50:
       if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == nodes.len - 1:
         break setup
-      await sleepAsync(1.seconds)
+      await sleepAsync(200.milliseconds)
     check false
 
   check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
