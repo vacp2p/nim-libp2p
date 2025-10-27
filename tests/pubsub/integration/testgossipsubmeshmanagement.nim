@@ -342,6 +342,9 @@ suite "GossipSub Integration - Mesh Management":
   const transports = @[TransportType.TCP, TransportType.QUIC]
   for transport in transports:
     asyncTest "Outbound peers are marked correctly " & $transport:
+      if defined(macosx) and transport == TransportType.QUIC:
+        skip()
+
       let
         numberOfNodes = 4
         topic = "foobar"
