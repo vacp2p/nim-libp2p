@@ -42,7 +42,7 @@ Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p'
 
 ## Install
 
-> The currently supported Nim versions are 2.0 and 2.2.
+The currently **supported Nim versions** are **v2.0** and **v2.2**.
 
 ```
 nimble install libp2p
