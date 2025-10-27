@@ -32,26 +32,6 @@ const torServer = initTAddress("127.0.0.1", 9050.Port)
 proc torTransProvider(): Transport =
   TorTransport.new(torServer, {ReuseAddr}, Upgrade())
 
-const validTorAddresses =
-  @[
-    # Addresses for dialing
-    "/ip4/127.0.0.1/tcp/1234", # TCP
-    "/ip6/::1/tcp/1234", # TCP over IPv6
-    "/dns/example.com/tcp/1234", # TCP with DNS
-    "/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80", # Onion3
-    # Addresses for listening (TcpOnion3)
-    "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-    "/ip6/::1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-  ]
-
-const invalidTorAddresses =
-  @[
-    "/ip4/127.0.0.1/udp/1234", # UDP not supported
-    "/ip4/127.0.0.1/tcp/1234/ws", # WebSocket not supported
-    "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC not supported
-    "/ip4/127.0.0.1/tcp/1234/wss", # WSS not supported
-  ]
-
 var stub: TorServerStub
 var startFut: Future[void]
 
@@ -74,6 +54,26 @@ suite "Tor transport":
     waitFor startFut.cancelAndWait()
     waitFor stub.stop()
     checkTrackers()
+
+  const validTorAddresses =
+    @[
+      # Addresses for dialing
+      "/ip4/127.0.0.1/tcp/1234", # TCP
+      "/ip6/::1/tcp/1234", # TCP over IPv6
+      "/dns/example.com/tcp/1234", # TCP with DNS
+      "/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80", # Onion3
+      # Addresses for listening (TcpOnion3)
+      "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+      "/ip6/::1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+    ]
+
+  const invalidTorAddresses =
+    @[
+      "/ip4/127.0.0.1/udp/1234", # UDP not supported
+      "/ip4/127.0.0.1/tcp/1234/ws", # WebSocket not supported
+      "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC not supported
+      "/ip4/127.0.0.1/tcp/1234/wss", # WSS not supported
+    ]
 
   basicTransportTest(
     torTransProvider,
