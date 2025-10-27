@@ -88,14 +88,12 @@ template basicTransportTest*(
     let transport = transportProvider()
 
     for validAddress in validAddresses:
-      echo validAddress
       check transport.handles(MultiAddress.init(validAddress).tryGet())
 
   asyncTest "multiaddress validation - reject invalid addresses":
     let transport = transportProvider()
 
     for invalidAddress in invalidAddresses:
-      echo invalidAddress
       check not transport.handles(MultiAddress.init(invalidAddress).tryGet())
 
   asyncTest "address normalization - port assignment":
