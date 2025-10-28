@@ -5,9 +5,9 @@ import stew/byteutils
 import
   ../../libp2p/
     [peerid, crypto/crypto, protocols/pubsub/mcache, protocols/pubsub/rpc/message]
+from ../helpers import rng
 
 proc randomPeerId(): PeerId =
-  var rng = newRng()
   PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
 
 const MsgIdGenSuccess = "msg id generation success"

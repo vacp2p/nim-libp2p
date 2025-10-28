@@ -12,11 +12,11 @@
 import unittest2
 import stew/byteutils
 import ../libp2p/[signed_envelope]
+from ./helpers import rng
 
 suite "Signed envelope":
   test "Encode -> decode -> encode -> decode test":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       envelope =
         Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
@@ -77,9 +77,7 @@ proc payloadType*(T: typedesc[DummyPayload]): seq[byte] =
 suite "Signed payload":
   test "Simple encode -> decode":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
-
       dummyPayload = DummyPayload(awesome: 12.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
       encoded = signed.encode().tryGet()
@@ -91,22 +89,20 @@ suite "Signed payload":
 
   test "Invalid payload":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
-
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
       encoded = signed.encode().tryGet()
+
     check SignedDummy.decode(encoded).error == EnvelopeInvalidSignature
 
   test "Invalid payload type":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
-
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = Envelope
         .init(privKey, @[55.byte], dummyPayload.encode(), DummyPayload.payloadDomain)
         .tryGet()
       encoded = signed.encode().tryGet()
+
     check SignedDummy.decode(encoded).error == EnvelopeWrongType

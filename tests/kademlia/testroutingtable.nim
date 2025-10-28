@@ -14,6 +14,7 @@ import chronos
 import ../../libp2p/crypto/crypto
 import ../../libp2p/protocols/kademlia
 import results
+from ../helpers import rng
 
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
@@ -22,7 +23,6 @@ proc testKey*(x: byte): Key =
 
 suite "routing table":
   const TargetBucket = 6
-  let rng = crypto.newRng()
 
   test "inserts single key in correct bucket":
     let selfId = testKey(0)

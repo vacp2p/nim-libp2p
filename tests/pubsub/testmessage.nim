@@ -15,10 +15,9 @@ import
     protocols/pubsub/rpc/protobuf,
   ]
 import ../utils/async_tests
+from ../helpers import rng
 
 suite "Message":
-  let rng = newRng()
-
   test "signature":
     var seqno = 11'u64
     let

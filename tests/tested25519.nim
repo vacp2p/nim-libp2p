@@ -14,6 +14,7 @@ import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/crypto
 import ../libp2p/crypto/ed25519/ed25519
+from ./helpers import rng
 
 const TestsCount = 20
 
@@ -101,8 +102,6 @@ const GoodScalars = [
 ]
 
 suite "Ed25519 test suite":
-  let rng = newRng()
-
   test "Scalar check edge cases test":
     for item in FailScalars:
       check checkScalar(fromHex(stripSpaces(item))) == 0

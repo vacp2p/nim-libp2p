@@ -12,6 +12,7 @@ when defined(nimHasUsed):
 import unittest2
 import ../libp2p/crypto/crypto
 import nimcrypto/utils
+from ./helpers import rng
 
 const ECDSA_PrivateKey =
   """
@@ -131,8 +132,6 @@ const
     " test"
 
 suite "Public key infrastructure filtering test suite":
-  let rng = newRng()
-
   test RSATestMessage:
     when not (supported(PKScheme.RSA)):
       let sk2048 = PrivateKey.random(PKScheme.RSA, rng[], 2048)
