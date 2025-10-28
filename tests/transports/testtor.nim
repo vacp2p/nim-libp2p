@@ -50,7 +50,7 @@ suite "Tor transport":
       "/ip4/127.0.0.1/tcp/8081",
     )
     startFut = stub.start(torServer)
-  
+
   teardown:
     waitFor startFut.cancelAndWait()
     waitFor stub.stop()
