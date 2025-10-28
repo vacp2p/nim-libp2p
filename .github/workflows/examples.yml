@@ -56,5 +56,5 @@ jobs:
           nimble --version
           gcc --version
 
-          NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          NIMFLAGS="${NIMFLAGS}"
           nimble examples

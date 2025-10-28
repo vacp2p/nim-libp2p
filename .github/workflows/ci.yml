@@ -31,9 +31,7 @@ jobs:
             cpu: amd64
         nim:
           - ref: version-2-0
-            memory_management: refc
           - ref: version-2-2
-            memory_management: refc
         include:
           - platform:
               os: linux
@@ -101,5 +99,5 @@ jobs:
           nimble --version
           gcc --version
 
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" 
+          export NIMFLAGS="${NIMFLAGS}" 
           nimble test

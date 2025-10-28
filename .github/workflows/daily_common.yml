@@ -12,7 +12,7 @@ on:
       nim:
         description: 'Nim Configuration'
         required: true
-        type: string # Following this format: [{"ref": ..., "memory_management": ...}, ...]
+        type: string # Following this format: [{"ref": "nim version" }, ...]
       cpu:
         description: 'CPU'
         required: true
@@ -84,7 +84,7 @@ jobs:
           nim --version
           nimble --version
 
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          export NIMFLAGS="${NIMFLAGS}"
           nimble test
 
       - name: Run integration tests
@@ -93,6 +93,6 @@ jobs:
           nim --version
           nimble --version
 
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          export NIMFLAGS="${NIMFLAGS}"
           nimble testintegration
 
