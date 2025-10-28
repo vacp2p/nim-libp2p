@@ -1,6 +1,8 @@
 import chronicles, chronos, metrics, std/sequtils, std/tables
 import ../../builders
 import ../../stream/connection
+import ../../varint
+import ../../utils/sequninit
 import ./[mix_metrics, reply_connection, serialization, multiaddr]
 
 when defined(libp2p_mix_experimental_exit_is_dest):
@@ -15,16 +17,24 @@ type destReadBehaviorCb* = proc(conn: Connection): Future[seq[byte]] {.
   async: (raises: [CancelledError, LPStreamError])
 .}
 
+## Wrapper for destination read behavior with metadata.
+## When a callback uses length-prefixed reads (e.g., readLp), it strips the length prefix.
+## Setting usesLengthPrefix=true tells the exit layer to restore the prefix in the reply,
+## ensuring that application code can correctly call readLp() on the MixEntryConnection.
+type DestReadBehavior* = object
+  callback*: destReadBehaviorCb
+  usesLengthPrefix*: bool
+
 type ExitLayer* = object
   switch: Switch
   onReplyDialer: OnReplyDialer
-  destReadBehavior: TableRef[string, destReadBehaviorCb]
+  destReadBehavior: TableRef[string, DestReadBehavior]
 
 proc init*(
     T: typedesc[ExitLayer],
     switch: Switch,
     onReplyDialer: OnReplyDialer,
-    destReadBehavior: TableRef[string, destReadBehaviorCb],
+    destReadBehavior: TableRef[string, DestReadBehavior],
 ): T =
   ExitLayer(
     switch: switch, onReplyDialer: onReplyDialer, destReadBehavior: destReadBehavior
@@ -111,13 +121,24 @@ proc fwdRequest(
         error "No destReadBehavior for codec", codec
         return
 
-      var behaviorCb: destReadBehaviorCb
+      var behavior: DestReadBehavior
       try:
-        behaviorCb = self.destReadBehavior[codec]
+        behavior = self.destReadBehavior[codec]
       except KeyError:
         doAssert false, "checked with HasKey"
 
-      response = await behaviorCb(destConn)
+      let rawResponse = await behavior.callback(destConn)
+
+      # Add length prefix back only if the behavior callback uses length-prefixed reads
+      # (e.g., readLp). This ensures that when application code calls readLp() on the
+      # MixEntryConnection, it can correctly read the response.
+      if behavior.usesLengthPrefix:
+        let vbytes = PB.toBytes(rawResponse.len.uint64)
+        response = newSeqUninit[byte](rawResponse.len + vbytes.len)
+        response[0 ..< vbytes.len] = vbytes.toOpenArray()
+        response[vbytes.len ..< response.len] = rawResponse
+      else:
+        response = rawResponse
   except LPStreamError as exc:
     error "Stream error while writing to next hop: ", err = exc.msg
     mix_messages_error.inc(labelValues = ["ExitLayer", "LPSTREAM_ERR"])

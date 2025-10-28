@@ -40,21 +40,26 @@ method readOnce*(
   if s.isEof:
     raise newLPStreamEOFError()
 
-  try:
-    await s.replyReceivedFut
-    if s.cached.len == 0:
-      s.isEof = true
-      raise newLPStreamEOFError()
-  except CancelledError as exc:
-    raise exc
-  except LPStreamEOFError as exc:
-    raise exc
-  except CatchableError as exc:
-    raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
+  # Only wait for reply if cache is empty
+  if s.cached.len == 0:
+    try:
+      await s.replyReceivedFut
+      if s.cached.len == 0:
+        # No data received - this is EOF
+        s.isEof = true
+        raise newLPStreamEOFError()
+    except CancelledError as exc:
+      raise exc
+    except LPStreamEOFError as exc:
+      raise exc
+    except CatchableError as exc:
+      raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
 
+  # We have data in cache, return what we can
   let toRead = min(nbytes, s.cached.len)
   copyMem(pbytes, addr s.cached[0], toRead)
   s.cached = s.cached[toRead ..^ 1]
+
   return toRead
 
 method write*(
