@@ -14,13 +14,12 @@ import chronos
 import ../../libp2p/crypto/crypto
 import ../../libp2p/protocols/kademlia
 import results
+from ../helpers import rng
 
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
   return @buf
-
-let rng = crypto.newRng()
 
 suite "routing table":
   const TargetBucket = 6

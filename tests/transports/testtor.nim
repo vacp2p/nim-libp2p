@@ -28,14 +28,14 @@ import ../stubs/torstub
 import ./basic_tests
 import ./connection_tests
 
-const torServer = initTAddress("127.0.0.1", 9050.Port)
-proc torTransProvider(): Transport =
-  TorTransport.new(torServer, {ReuseAddr}, Upgrade())
-
-var stub: TorServerStub
-var startFut: Future[void]
-
 suite "Tor transport":
+  const torServer = initTAddress("127.0.0.1", 9050.Port)
+  var stub: TorServerStub
+  var startFut: Future[void]
+
+  proc torTransProvider(): Transport =
+    TorTransport.new(torServer, {ReuseAddr}, Upgrade())
+
   setup:
     stub = TorServerStub.new()
     stub.registerAddr("127.0.0.1:8080", "/ip4/127.0.0.1/tcp/8080")
@@ -50,6 +50,7 @@ suite "Tor transport":
       "/ip4/127.0.0.1/tcp/8081",
     )
     startFut = stub.start(torServer)
+
   teardown:
     waitFor startFut.cancelAndWait()
     waitFor stub.stop()
@@ -125,8 +126,6 @@ suite "Tor transport":
           await conn.close()
 
       return T.new(codecs = @[TestCodec], handler = handle)
-
-    let rng = newRng()
 
     let ma = MultiAddress
       .init(

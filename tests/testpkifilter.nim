@@ -12,8 +12,7 @@ when defined(nimHasUsed):
 import unittest2
 import ../libp2p/crypto/crypto
 import nimcrypto/utils
-
-let rng = newRng()
+from ./helpers import rng
 
 const ECDSA_PrivateKey =
   """

@@ -13,6 +13,7 @@ import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, ecnist]
 import results
+from ./helpers import rng
 
 const
   TestsCount = 10 # number of random tests
@@ -289,8 +290,6 @@ const
        ec8bc6a5c8c41b3ebb09f0cf66bbae602d355161c97597b088060bb8456a4458
        35ab""",
   ]
-
-let rng = newRng()
 
 suite "EC NIST-P256/384/521 test suite":
   test "[secp256r1] Private key serialize/deserialize test":
