@@ -13,8 +13,6 @@ import unittest2
 import ../libp2p/crypto/crypto
 import nimcrypto/utils
 
-let rng = newRng()
-
 const ECDSA_PrivateKey =
   """
   080312793077020101042070896381749FF6B30381C045F627C68C3062749BB53CB13
@@ -133,6 +131,8 @@ const
     " test"
 
 suite "Public key infrastructure filtering test suite":
+  let rng = newRng()
+  
   test RSATestMessage:
     when not (supported(PKScheme.RSA)):
       let sk2048 = PrivateKey.random(PKScheme.RSA, rng[], 2048)

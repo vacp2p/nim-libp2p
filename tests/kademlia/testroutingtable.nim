@@ -20,10 +20,9 @@ proc testKey*(x: byte): Key =
   buf[31] = x
   return @buf
 
-let rng = crypto.newRng()
-
 suite "routing table":
   const TargetBucket = 6
+  let rng = crypto.newRng()
 
   test "inserts single key in correct bucket":
     let selfId = testKey(0)

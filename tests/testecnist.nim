@@ -290,9 +290,9 @@ const
        35ab""",
   ]
 
-let rng = newRng()
-
 suite "EC NIST-P256/384/521 test suite":
+  let rng = newRng()
+
   test "[secp256r1] Private key serialize/deserialize test":
     for i in 0 ..< TestsCount:
       var rkey1, rkey2: EcPrivateKey

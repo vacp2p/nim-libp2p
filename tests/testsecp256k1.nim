@@ -12,10 +12,9 @@
 import unittest2
 import ../libp2p/crypto/[crypto, secp]
 
-let rng = newRng()
-
 suite "Secp256k1 testing suite":
   const TestsCount = 20
+  let rng = newRng()
 
   test "Private key serialize/deserialize test":
     for i in 0 ..< TestsCount:

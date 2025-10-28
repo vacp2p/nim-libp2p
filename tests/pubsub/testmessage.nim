@@ -16,9 +16,10 @@ import
   ]
 import ../utils/async_tests
 
-let rng = newRng()
 
 suite "Message":
+  let rng = newRng()
+  
   test "signature":
     var seqno = 11'u64
     let

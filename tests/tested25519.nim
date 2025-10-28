@@ -100,9 +100,9 @@ const GoodScalars = [
   "ECD3F55C1A631258D69CF7A2DEF9DE1400000000000000000000000000000010",
 ]
 
-let rng = newRng()
-
 suite "Ed25519 test suite":
+  let rng = newRng()
+
   test "Scalar check edge cases test":
     for item in FailScalars:
       check checkScalar(fromHex(stripSpaces(item))) == 0

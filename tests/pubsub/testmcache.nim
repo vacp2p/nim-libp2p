@@ -6,9 +6,8 @@ import
   ../../libp2p/
     [peerid, crypto/crypto, protocols/pubsub/mcache, protocols/pubsub/rpc/message]
 
-var rng = newRng()
-
 proc randomPeerId(): PeerId =
+  var rng = newRng()
   PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
 
 const MsgIdGenSuccess = "msg id generation success"

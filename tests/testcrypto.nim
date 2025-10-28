@@ -350,9 +350,9 @@ proc testStretcher(s, e: int, cs: string, ds: string): bool =
     if not result:
       break
 
-let rng = newRng()
-
 suite "Key interface test suite":
+  let rng = newRng()
+
   test "Go test vectors":
     for i in 0 ..< len(PrivateKeys):
       var seckey =
