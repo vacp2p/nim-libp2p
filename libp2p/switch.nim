@@ -134,7 +134,7 @@ proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
 
 proc disconnect*(
     s: Switch, peerId: PeerId
-) {.gcsafe, public, async: (raises: [CancelledError]).} =
+) {.public, async: (raises: [CancelledError]).} =
   ## Disconnect from a peer, waiting for the connection(s) to be dropped
   await s.connManager.dropPeer(peerId)
 
