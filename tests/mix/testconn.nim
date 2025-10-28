@@ -2,6 +2,7 @@
 
 import results, unittest2, options
 import std/[enumerate, sequtils]
+import stew/byteutils
 import ../../libp2p/protocols/[mix, ping]
 import ../../libp2p/[peerid, multiaddress, switch, builders]
 import ../../libp2p/crypto/secp
@@ -174,3 +175,82 @@ suite "Mix Protocol":
     await conn.close()
 
     check response != 0.seconds
+
+  asyncTest "length-prefixed protocol - verify readLp fix":
+    ## This test verifies the fix for the length prefix bug where responses
+    ## from protocols using readLp() were losing their length prefix when
+    ## flowing back through the mix network.
+    const TestCodec = "/lengthprefix/test/1.0.0"
+
+    # Test message that will be sent and received
+    let testMessage = "Hello from mix protocol with length prefix!"
+    let testPayload = testMessage.toBytes()
+
+    # Future to capture received message at destination
+    var receivedAtDest = newFuture[seq[byte]]()
+
+    # Protocol handler at destination that uses writeLp
+    type LengthPrefixTestProtocol = ref object of LPProtocol
+
+    proc newLengthPrefixTestProtocol(): LengthPrefixTestProtocol =
+      let proto = LengthPrefixTestProtocol()
+
+      proc handle(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          # Read the request with readLp
+          let request = await conn.readLp(1024)
+          receivedAtDest.complete(request)
+
+          # Send response with writeLp (adds length prefix)
+          let response = "Response: " & string.fromBytes(request)
+          await conn.writeLp(response.toBytes())
+        except CatchableError as e:
+          discard
+
+      proto.handler = handle
+      proto.codec = TestCodec
+      return proto
+
+    var mixProto: seq[MixProtocol] = @[]
+    for index, _ in enumerate(switches):
+      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
+          "should have initialized mix protocol"
+        )
+      # Register with readLp behavior - this should preserve length prefix
+      proto.registerDestReadBehavior(TestCodec, readLp(1024))
+      mixProto.add(proto)
+      switches[index].mount(proto)
+
+    let destNode = switches[^1]
+    let testProto = newLengthPrefixTestProtocol()
+    destNode.mount(testProto)
+
+    # Start all nodes
+    await switches.mapIt(it.start()).allFutures()
+
+    let conn = mixProto[0]
+      .toConnection(
+        MixDestination.exitNode(destNode.peerInfo.peerId),
+        TestCodec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
+      )
+      .expect("could not build connection")
+
+    # Send request
+    await conn.writeLp(testPayload)
+
+    # Verify destination received the message correctly
+    check (await receivedAtDest.wait(5.seconds)) == testPayload
+
+    # Read response - this should work correctly with the length prefix fix
+    let response = await conn.readLp(1024)
+    await conn.close()
+
+    # Verify the response was read correctly
+    let expectedResponse = "Response: " & testMessage
+    check string.fromBytes(response) == expectedResponse
+
+    # Verify response length is correct (not truncated)
+    check response.len == expectedResponse.len
