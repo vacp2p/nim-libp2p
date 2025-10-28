@@ -342,8 +342,8 @@ suite "GossipSub Integration - Mesh Management":
     let
       numberOfNodes = 4
       topic = "foobar"
-      nodes = generateNodes(numberOfNodes, gossip = true, transport = transport)
-        .toGossipSub()
+      nodes =
+        generateNodes(numberOfNodes, gossip = true, transport = transport).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
