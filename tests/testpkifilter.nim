@@ -132,7 +132,7 @@ const
 
 suite "Public key infrastructure filtering test suite":
   let rng = newRng()
-  
+
   test RSATestMessage:
     when not (supported(PKScheme.RSA)):
       let sk2048 = PrivateKey.random(PKScheme.RSA, rng[], 2048)
