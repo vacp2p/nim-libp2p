@@ -181,9 +181,11 @@ suite "Mix Protocol":
     ## from protocols using readLp() were losing their length prefix when
     ## flowing back through the mix network.
     const TestCodec = "/lengthprefix/test/1.0.0"
+    const readLen = 1024
 
     # Test message that will be sent and received
-    let testMessage = "Hello from mix protocol with length prefix!"
+    let testMessage =
+      "Privacy for everyone and transparency for people in power is one way to reduce corruption"
     let testPayload = testMessage.toBytes()
 
     # Future to capture received message at destination
@@ -207,7 +209,7 @@ suite "Mix Protocol":
           let response = "Response: " & string.fromBytes(request)
           await conn.writeLp(response.toBytes())
         except CatchableError as e:
-          discard
+          raiseAssert "Unexpected error: " & e.msg
 
       proto.handler = handle
       proto.codec = TestCodec
@@ -219,7 +221,7 @@ suite "Mix Protocol":
           "should have initialized mix protocol"
         )
       # Register with readLp behavior - this should preserve length prefix
-      proto.registerDestReadBehavior(TestCodec, readLp(1024))
+      proto.registerDestReadBehavior(TestCodec, readLp(readLen))
       mixProto.add(proto)
       switches[index].mount(proto)
 
@@ -245,12 +247,9 @@ suite "Mix Protocol":
     check (await receivedAtDest.wait(5.seconds)) == testPayload
 
     # Read response - this should work correctly with the length prefix fix
-    let response = await conn.readLp(1024)
+    let response = await conn.readLp(readLen)
     await conn.close()
 
     # Verify the response was read correctly
     let expectedResponse = "Response: " & testMessage
     check string.fromBytes(response) == expectedResponse
-
-    # Verify response length is correct (not truncated)
-    check response.len == expectedResponse.len
