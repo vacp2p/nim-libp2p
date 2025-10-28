@@ -340,7 +340,6 @@ suite "GossipSub Integration - Mesh Management":
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
 
-
   asyncTest "Outbound peers are marked correctly":
     let
       numberOfNodes = 4
