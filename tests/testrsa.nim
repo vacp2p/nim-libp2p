@@ -12,6 +12,7 @@
 import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, rsa]
+from ./helpers import rng
 
 const
   NotAllowedPrivateKeys = [
@@ -351,8 +352,6 @@ const
        9DC529573BBF8C149D5E1E8745F9B72D4E68607C859327AF54D0013F37542236
        ACB51807206B8332127E3692269013B96F0CABD95D7431805E48176ADC5D1366""",
   ]
-
-let rng = newRng()
 
 type
   RsaPrivateKey = rsa.RsaPrivateKey

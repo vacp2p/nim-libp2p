@@ -11,8 +11,7 @@
 
 import unittest2
 import ../libp2p/crypto/[crypto, secp]
-
-let rng = newRng()
+from ./helpers import rng
 
 suite "Secp256k1 testing suite":
   const TestsCount = 20
