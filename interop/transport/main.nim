@@ -51,7 +51,7 @@ proc main() {.async.} =
         MultiAddress.init("/ip4/" & ip & "/tcp/0/ws").tryGet()
       )
   else:
-    doAssert false
+    raiseAssert "unsupported transport"
 
   case secureChannel
   of "noise":

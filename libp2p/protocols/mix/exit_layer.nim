@@ -125,7 +125,7 @@ proc fwdRequest(
       try:
         behavior = self.destReadBehavior[codec]
       except KeyError:
-        doAssert false, "checked with HasKey"
+        raiseAssert "checked with HasKey"
 
       let rawResponse = await behavior.callback(destConn)
 
