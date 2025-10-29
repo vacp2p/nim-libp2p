@@ -15,8 +15,7 @@ import
     protocols/pubsub/rpc/protobuf,
   ]
 import ../utils/async_tests
-
-let rng = newRng()
+from ../helpers import rng
 
 suite "Message":
   test "signature":

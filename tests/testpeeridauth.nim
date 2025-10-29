@@ -27,7 +27,6 @@ import ./helpers
 
 suite "PeerID Auth Client":
   var client {.threadvar.}: MockPeerIDAuthClient
-  var rng {.threadvar.}: ref HmacDrbgContext
   var peerInfo {.threadvar.}: PeerInfo
 
   asyncTeardown:
@@ -35,7 +34,6 @@ suite "PeerID Auth Client":
     checkTrackers()
 
   asyncSetup:
-    rng = newRng()
     client = MockPeerIDAuthClient.new(rng)
     client.mockedHeaders = HttpTable.init()
     peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng[]).get())

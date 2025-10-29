@@ -16,6 +16,7 @@ import unittest2
 import bearssl/hash
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
+from ./helpers import rng
 
 const
   PrivateKeys = [
@@ -349,8 +350,6 @@ proc testStretcher(s, e: int, cs: string, ds: string): bool =
       r1 and r2 and r3 and r4 and r5 and r6 and r7 and r8 and r9 and rA and rB and rC
     if not result:
       break
-
-let rng = newRng()
 
 suite "Key interface test suite":
   test "Go test vectors":
