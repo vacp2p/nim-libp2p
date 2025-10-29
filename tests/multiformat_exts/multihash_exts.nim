@@ -1,11 +1,20 @@
 proc coder1(data: openArray[byte], output: var openArray[byte]) =
-  copyMem(addr output[0], unsafeAddr data[0], len(output))
+  let n = min(data.len, output.len)
+  if n == 0:
+    return
+  copyMem(addr output[0], addr data[0], n)
 
 proc coder2(data: openArray[byte], output: var openArray[byte]) =
-  copyMem(addr output[0], unsafeAddr data[0], len(output))
+  let n = min(data.len, output.len)
+  if n == 0:
+    return
+  copyMem(addr output[0], addr data[0], n)
 
 proc sha2_256_override(data: openArray[byte], output: var openArray[byte]) =
-  copyMem(addr output[0], unsafeAddr data[0], len(output))
+  let n = min(data.len, output.len)
+  if n == 0:
+    return
+  copyMem(addr output[0], addr data[0], n)
 
 const HashExts = [
   MHash(mcodec: multiCodec("codec_mc1"), size: 0, coder: coder1),
