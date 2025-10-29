@@ -11,7 +11,7 @@
 
 import chronos
 import strformat
-import ../tests/tools/unittests
+import ../tests/tools/suite
 import ./runner
 
 type NetworkScenario = object
