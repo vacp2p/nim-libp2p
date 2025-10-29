@@ -281,7 +281,7 @@ suite "Name resolving":
         mapIt(
           @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it)
         )
-      
+
       check unresponsiveTentatives == 1 # client callback called
 
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
