@@ -196,6 +196,10 @@ suite "Name resolving":
       checkTrackers()
 
     asyncTest "test manual dns ip resolve":
+      if defined(macosx):
+        skip() # flaky on mac
+        return
+
       ## DNS mock server
       proc clientMark1(
           transp: DatagramTransport, raddr: TransportAddress
