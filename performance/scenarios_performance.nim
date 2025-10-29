@@ -9,15 +9,14 @@
 
 {.used.}
 
-import chronos
-import ../tests/tools/suite
+import unittest2
 import ./runner
 
 setupOutputDirectory()
 
 suite "Performance Tests":
-  asyncTest "Base Test TCP":
+  test "Base Test TCP":
     run("Base Test", "TCP")
 
-  asyncTest "Base Test QUIC":
+  test "Base Test QUIC":
     run("Base Test", "QUIC")
