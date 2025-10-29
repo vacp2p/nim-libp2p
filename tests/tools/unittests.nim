@@ -85,7 +85,6 @@ template checkTrackers*() =
   when defined(nimHasWarnBareExcept):
     {.pop.}
 
-
 macro checkUntilTimeoutCustom*(
     timeout: Duration, sleepInterval: Duration, code: untyped
 ): untyped =
@@ -168,4 +167,3 @@ macro checkUntilTimeout*(code: untyped): untyped =
   ##   ```
   result = quote:
     checkUntilTimeoutCustom(30.seconds, 50.milliseconds, `code`)
-

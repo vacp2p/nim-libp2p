@@ -15,4 +15,3 @@ proc unorderedCompare*[T](a, b: seq[T]): bool =
     return true
 
   return false
-

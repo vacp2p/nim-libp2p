@@ -16,6 +16,3 @@ proc getRng(): ref HmacDrbgContext =
 
 template rng*(): ref HmacDrbgContext =
   getRng()
-
-
-
