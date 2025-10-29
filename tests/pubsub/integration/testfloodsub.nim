@@ -107,7 +107,7 @@ suite "FloodSub Integration":
 
   asyncTest "FloodSub validation should fail":
     proc handler(topic: string, data: seq[byte]) {.async.} =
-      check false # if we get here, it should fail
+      raiseAssert "Handler should not be called when validation fails"
 
     let nodes = generateNodes(2)
 

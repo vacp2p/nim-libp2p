@@ -51,7 +51,7 @@ proc makeAutonatServicePrivate(): Switch =
         ).encode().buffer
       )
     except LPStreamError:
-      check false # should not be here
+      raiseAssert "Unexpected LPStreamError in autonat private service handler"
     finally:
       await conn.close()
   autonatProtocol.codec = AutonatCodec
