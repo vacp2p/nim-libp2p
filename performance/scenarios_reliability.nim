@@ -9,6 +9,7 @@
 
 {.used.}
 
+import chronos
 import strformat
 import ../tests/utils/unittests
 import ./runner
