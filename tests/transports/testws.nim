@@ -81,11 +81,10 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
   except TLSStreamProtocolError:
     raiseAssert "should not happen"
 
-suite "WebSocket transport":
-  teardown:
-    checkTrackers()
-
-  const validAddresses =
+const
+  wsAddress = "/ip4/127.0.0.1/tcp/0/ws"
+  wsSecureAddress = "/ip4/127.0.0.1/tcp/0/wss"
+  validAddresses =
     @[
       # Plain WebSocket
       "/ip4/127.0.0.1/tcp/1234/ws",
@@ -98,8 +97,7 @@ suite "WebSocket transport":
       "/dns/example.com/tcp/1234/wss",
       "/dns/example.com/tcp/1234/tls/ws",
     ]
-
-  const invalidAddresses =
+  invalidAddresses =
     @[
       "/ip4/127.0.0.1/tcp/1234", # Missing /ws or /wss
       "/ip4/127.0.0.1/udp/1234/ws", # UDP instead of TCP
@@ -107,15 +105,17 @@ suite "WebSocket transport":
       "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC instead of WebSocket
     ]
 
+suite "WebSocket transport":
+  teardown:
+    checkTrackers()
+
+  basicTransportTest(wsTransProvider, wsAddress, validAddresses, invalidAddresses)
   basicTransportTest(
-    wsTransProvider, "/ip4/127.0.0.1/tcp/0/ws", validAddresses, invalidAddresses
-  )
-  basicTransportTest(
-    wsSecureTransProvider, "/ip4/127.0.0.1/tcp/0/wss", validAddresses, invalidAddresses
+    wsSecureTransProvider, wsSecureAddress, validAddresses, invalidAddresses
   )
 
-  connectionTransportTest(wsTransProvider, "/ip4/127.0.0.1/tcp/0/ws")
-  connectionTransportTest(wsSecureTransProvider, "/ip4/127.0.0.1/tcp/0/wss")
+  connectionTransportTest(wsTransProvider, wsAddress)
+  connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]

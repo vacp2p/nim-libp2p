@@ -16,26 +16,25 @@ proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
-suite "Quic transport":
-  teardown:
-    checkTrackers()
-
-  const validAddresses =
+const
+  address = "/ip4/127.0.0.1/udp/0/quic-v1"
+  validAddresses =
     @[
       "/ip4/127.0.0.1/udp/1234/quic-v1", "/ip6/::1/udp/1234/quic-v1",
       "/dns/example.com/udp/1234/quic-v1",
     ]
-
-  const invalidAddresses =
+  invalidAddresses =
     @[
       "/ip4/127.0.0.1/udp/1234", # UDP without quic-v1
       "/ip4/127.0.0.1/tcp/1234/quic-v1", # Wrong transport (TCP instead of UDP)
       "/ip4/127.0.0.1/udp/1234/quic", # Legacy quic (not quic-v1)
     ]
 
-  basicTransportTest(
-    quicTransProvider, "/ip4/127.0.0.1/udp/0/quic-v1", validAddresses, invalidAddresses
-  )
+suite "Quic transport":
+  teardown:
+    checkTrackers()
+
+  basicTransportTest(quicTransProvider, address, validAddresses, invalidAddresses)
 
   asyncTest "transport e2e":
     let server = await createTransport(isServer = true)
