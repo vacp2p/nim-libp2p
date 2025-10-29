@@ -13,7 +13,7 @@ import json, uri
 import chronos
 import chronos/apps/http/httpclient
 import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth/client, wire]
-import ./tools/[unittest]
+import ./tools/[unittest, crypto]
 
 when defined(linux) and defined(amd64):
   {.used.}
