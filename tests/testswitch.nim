@@ -326,8 +326,7 @@ suite "Switch":
 
         check peerId == switch1.peerInfo.peerId
       else:
-        raiseAssert "Connection event hook called more than expected (step = " & $step &
-          ")"
+        raiseAssert "Connection event hook called more than expected"
 
       step.inc()
 
