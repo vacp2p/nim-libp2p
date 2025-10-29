@@ -15,7 +15,6 @@ import ./suite
 export unittest2 except suite
 export suite, asyncTeardown, asyncSetup, asyncTest
 
-
 const
   StreamTransportTrackerName = "stream.transport"
   StreamServerTrackerName = "stream.server"
