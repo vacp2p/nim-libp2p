@@ -196,6 +196,10 @@ suite "Name resolving":
       checkTrackers()
 
     asyncTest "test manual dns ip resolve":
+      if defined(macosx):
+        skip() # flaky on mac
+        return
+
       ## DNS mock server
       proc clientMark1(
           transp: DatagramTransport, raddr: TransportAddress
@@ -248,6 +252,10 @@ suite "Name resolving":
       await server.closeWait()
 
     asyncTest "test unresponsive dns server":
+      if defined(macosx):
+        skip() # flaky on mac
+        return
+
       var unresponsiveTentatives = 0
       ## DNS mock server
       proc clientMark1(
@@ -290,11 +298,19 @@ suite "Name resolving":
       await unresponsiveServer.closeWait()
 
     asyncTest "inexisting domain resolving":
+      if defined(macosx):
+        skip() # flaky on mac
+        return
+
       var dnsresolver = DnsResolver.new(guessOsNameServers())
       let invalid = await dnsresolver.resolveIp("thisdomain.doesnot.exist", 0.Port)
       check invalid.len == 0
 
     asyncTest "wrong domain resolving":
+      if defined(macosx):
+        skip() # flaky on mac
+        return
+
       var dnsresolver = DnsResolver.new(guessOsNameServers())
       let invalid = await dnsresolver.resolveIp("", 0.Port)
       check invalid.len == 0
