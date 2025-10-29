@@ -541,7 +541,7 @@ proc baseTestProcedure*(
       if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == nodes.len - 1:
         break setup
       await sleepAsync(200.milliseconds)
-    check false
+    raiseAssert "Failed to publish message to peers"
 
   check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
   check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg
