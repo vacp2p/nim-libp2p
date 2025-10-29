@@ -14,7 +14,7 @@ import chronos, metrics
 import ../libp2p/[builders, switch]
 import ../libp2p/services/wildcardresolverservice
 import ../libp2p/[multiaddress, multicodec]
-import ./helpers
+import ./tools/[unittests]
 
 proc getAddressesMock(
     addrFamily: AddressFamily

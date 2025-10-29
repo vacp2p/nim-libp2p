@@ -10,7 +10,7 @@
 # those terms.
 
 import ../libp2p/stream/[bufferstream, lpstream]
-import ./helpers
+import ./tools/[unittests]
 
 include ../libp2p/muxers/yamux/yamux
 

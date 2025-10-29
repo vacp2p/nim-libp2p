@@ -15,7 +15,7 @@ import stew/byteutils
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../../libp2p/protocols/pubsub/rpc/[message]
-import ../../helpers, ../../utils/[futures]
+import ../../tools/[unittests], ../../tools/[futures]
 
 suite "GossipSub Integration - Gossip Protocol":
   teardown:

@@ -10,7 +10,7 @@
 # those terms.
 
 import ../libp2p/crypto/[crypto, secp]
-import ./helpers
+import ./tools/[unittests, crypto]
 
 suite "Secp256k1 testing suite":
   const TestsCount = 20

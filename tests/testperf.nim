@@ -13,7 +13,7 @@ import chronos
 import ../libp2p
 import
   ../libp2p/[switch, protocols/perf/client, protocols/perf/server, protocols/perf/core]
-import ./helpers
+import ./tools/[unittests]
 
 proc createSwitch(
     isServer: bool = false,

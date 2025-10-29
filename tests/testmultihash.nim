@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import utils/unittests
+import tools/unittests
 import nimcrypto/utils
 import ../libp2p/multicodec
 import ../libp2p/multihash

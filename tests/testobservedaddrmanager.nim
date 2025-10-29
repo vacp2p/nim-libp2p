@@ -10,7 +10,8 @@
 # those terms.
 
 import chronos
-import ../libp2p/multiaddress, ../libp2p/observedaddrmanager, ./helpers
+import ../libp2p/multiaddress, ../libp2p/observedaddrmanager
+import ./tools/[unittests]
 
 suite "ObservedAddrManager":
   teardown:

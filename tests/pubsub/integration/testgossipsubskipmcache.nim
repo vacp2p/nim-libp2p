@@ -14,7 +14,7 @@ import stew/byteutils
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, peertable]
 import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../helpers
+import ../../tools/[unittests]
 
 suite "GossipSub Integration - Skip MCache Support":
   teardown:

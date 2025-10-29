@@ -23,7 +23,7 @@ when defined(libp2p_autotls_support):
       wire,
     ]
 
-  import ./helpers
+  import ./tools/[unittests]
 
   suite "AutoTLS ACME API":
     var api {.threadvar.}: MockACMEApi

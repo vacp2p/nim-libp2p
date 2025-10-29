@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import utils/unittests
+import tools/unittests
 import ../libp2p/utils/zeroqueue
 
 proc toSeq(p: pointer, length: int): seq[byte] =

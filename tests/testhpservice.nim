@@ -13,12 +13,13 @@
 
 import chronos
 
-import ./helpers
 import ./stubs/switchstub
 import ../libp2p/[builders, switch, wire, services/hpservice, services/autorelayservice]
 import ../libp2p/protocols/connectivity/relay/[relay, client]
 import ../libp2p/protocols/connectivity/autonat/[service]
 import ../libp2p/nameresolving/[nameresolver, mockresolver]
+
+import ./tools/[unittests, futures]
 import stubs/autonatclientstub
 
 proc createSwitch(

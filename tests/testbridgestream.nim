@@ -11,7 +11,7 @@
 
 import chronos
 import stew/byteutils
-import ./helpers
+import ./tools/[unittests]
 import ../libp2p/stream/bridgestream
 
 suite "BridgeStream":

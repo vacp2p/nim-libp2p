@@ -18,7 +18,7 @@ import
   ../libp2p/peerid,
   ../libp2p/routing_record
 
-import ./helpers
+import ./tools/[unittests, crypto]
 
 suite "PeerInfo":
   test "Should init with private key":

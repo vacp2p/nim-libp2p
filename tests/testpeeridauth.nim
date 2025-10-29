@@ -23,7 +23,7 @@ import
       crypto/crypto,
     ]
 
-import ./helpers
+import ./tools/[unittests]
 
 suite "PeerID Auth Client":
   var client {.threadvar.}: MockPeerIDAuthClient

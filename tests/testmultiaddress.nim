@@ -13,7 +13,7 @@
 
 import std/sequtils
 
-import utils/unittests
+import tools/unittests
 import stew/byteutils
 import ../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
 

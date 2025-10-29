@@ -11,7 +11,7 @@
 
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, rsa]
-import ./helpers
+import ./tools/[unittests, crypto]
 
 const
   NotAllowedPrivateKeys = [

@@ -12,7 +12,7 @@ import
     multiaddress,
     multicodec,
   ]
-import ../helpers
+import ../tools/[unittests]
 
 # TCP
 

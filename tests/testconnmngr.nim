@@ -14,7 +14,7 @@ import results
 import chronos
 import ../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
 
-import helpers
+import ./tools/[unittests, compare, futures]
 
 proc getMuxer(peerId: PeerId, dir: Direction = Direction.In): Muxer =
   return Muxer(connection: Connection.new(peerId, dir))

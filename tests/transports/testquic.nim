@@ -6,7 +6,7 @@ import sequtils
 import stew/byteutils
 import
   ../../libp2p/[transports/transport, transports/quictransport, upgrademngrs/upgrade]
-import ../helpers
+import ../tools/[unittests]
 import ./basic_tests
 import ./utils
 

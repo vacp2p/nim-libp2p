@@ -12,7 +12,7 @@
 import chronos
 
 import ../libp2p/utils/future
-import ./helpers
+import ./tools/[unittests]
 
 suite "Future":
   asyncTest "anyCompleted must complete with first completed future":

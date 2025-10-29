@@ -23,7 +23,7 @@ import
     crypto/crypto,
   ]
 import ../../libp2p/discovery/discoverymngr
-import ../helpers
+import ../tools/[unittests]
 import ./utils
 
 suite "RendezVous Errors":

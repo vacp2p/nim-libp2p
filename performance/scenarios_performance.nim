@@ -10,7 +10,7 @@
 {.used.}
 
 import chronos
-import ../tests/utils/unittests
+import ../tests/tools/unittests
 import ./runner
 
 setupOutputDirectory()

@@ -2,9 +2,9 @@
 import chronos
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
-import ../utils/unittests
+import ../tools/unittests
 import ./utils.nim
-import ../helpers
+import ../tools/[unittests]
 
 suite "KadDHT - Ping":
   teardown:

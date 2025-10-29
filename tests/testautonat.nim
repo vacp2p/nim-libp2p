@@ -20,8 +20,8 @@ import
     protocols/connectivity/autonat/server,
     nameresolving/nameresolver,
     nameresolving/mockresolver,
-  ],
-  ./helpers
+  ]
+import ./tools/[unittests]
 
 proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder

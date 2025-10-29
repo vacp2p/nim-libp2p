@@ -20,7 +20,7 @@ import
     protocols/connectivity/autonatv2/mockclient,
   ]
 import ../libp2p/nameresolving/[nameresolver, mockresolver]
-import ./helpers
+import ./tools/[unittests, futures]
 
 proc createSwitch(
     autonatSvc: Service = nil,

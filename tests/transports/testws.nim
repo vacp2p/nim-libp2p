@@ -21,7 +21,7 @@ import
     errors,
   ]
 
-import ../helpers
+import ../tools/[unittests]
 import ./basic_tests
 import ./connection_tests
 

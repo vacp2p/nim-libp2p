@@ -11,7 +11,7 @@
 
 import ../../libp2p/[protocols/rendezvous/protobuf]
 import ../../libp2p/protobuf/minprotobuf
-import ../helpers
+import ../tools/[unittests]
 
 suite "RendezVous Protobuf":
   teardown:

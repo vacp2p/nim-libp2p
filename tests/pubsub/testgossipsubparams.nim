@@ -3,7 +3,7 @@
 import chronos
 import results
 
-import ../utils/unittests
+import ../tools/unittests
 import ../../libp2p/protocols/pubsub/gossipsub/[types]
 import ../../libp2p/protocols/pubsub/[gossipsub, pubsubpeer]
 import ../../libp2p/[peerid, multiaddress]

@@ -1,4 +1,4 @@
-from ../../tests/helpers import checkTrackers
+from ../../tests/tools/unittests import checkTrackers
 import ./test_node
 import ./utils
 import chronos

@@ -11,7 +11,7 @@
 # those terms.
 
 import options
-import ./helpers
+import ./tools/[unittests]
 import ../libp2p/utility
 
 suite "Utility":

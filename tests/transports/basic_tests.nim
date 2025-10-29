@@ -11,7 +11,7 @@ import
     multicodec,
   ]
 
-import ../helpers
+import ../tools/[unittests]
 import ./utils
 
 template basicTransportTest*(

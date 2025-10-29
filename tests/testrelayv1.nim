@@ -29,7 +29,7 @@ import
     upgrademngrs/upgrade,
     varint,
   ]
-import ./helpers
+import ./tools/[unittests]
 
 proc new(T: typedesc[RelayTransport], relay: Relay): T =
   T.new(relay = relay, upgrader = relay.switch.transports[0].upgrader)
