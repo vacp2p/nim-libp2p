@@ -15,6 +15,7 @@ import ../../libp2p
 import ../../libp2p/protocols/pubsub/rpc/messages
 import ../../libp2p/muxers/mplex/lpchannel
 import ../../libp2p/protocols/ping
+import ../../tests/tools/unittests
 import ../runner
 import ../types
 
