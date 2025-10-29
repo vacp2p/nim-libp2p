@@ -17,7 +17,7 @@ import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/gossipsub/[types, scoring]
 import ../../libp2p/muxers/muxer
 import ../../libp2p/[multiaddress, peerid]
-import ../tools/[unittests]
+import ../tools/[unittest]
 
 suite "GossipSub Scoring":
   const topic = "foobar"

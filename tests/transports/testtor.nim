@@ -23,7 +23,7 @@ import
     builders,
   ]
 
-import ../tools/[unittests, crypto]
+import ../tools/[unittest, crypto]
 import ../stubs/torstub
 import ./basic_tests
 import ./connection_tests

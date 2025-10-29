@@ -5,7 +5,7 @@ import ../../../libp2p/transports/tls/certificate
 import ../../../libp2p/transports/tls/certificate_ffi
 import ../../../libp2p/crypto/crypto
 import ../../../libp2p/peerid
-import ../../tools/unittests
+import ../../tools/unittest
 
 suite "Certificate roundtrip tests":
   test "generate then parse with DER ecoding":

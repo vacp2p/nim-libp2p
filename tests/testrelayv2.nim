@@ -18,7 +18,7 @@ import
     protocols/connectivity/relay/utils,
     protocols/connectivity/relay/client,
   ]
-import ./tools/[unittests]
+import ./tools/[unittest]
 import std/times
 import stew/byteutils
 

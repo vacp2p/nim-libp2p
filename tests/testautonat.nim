@@ -21,7 +21,7 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import ./tools/[unittests]
+import ./tools/[unittest]
 
 proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder

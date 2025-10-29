@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ../tools/unittests
+import ../tools/unittest
 import ../../libp2p/protobuf/minprotobuf
 import ../../libp2p/protocols/kademlia/protobuf
 import ../../libp2p/multiaddress

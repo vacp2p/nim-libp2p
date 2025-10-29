@@ -23,7 +23,7 @@ import
     nameresolving/mockresolver,
   ]
 
-import ./tools/[unittests]
+import ./tools/[unittest]
 #
 #Cloudflare
 const fallbackDnsServers =

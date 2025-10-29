@@ -13,7 +13,7 @@
 import nimcrypto/utils
 import ../libp2p/crypto/crypto
 import ../libp2p/crypto/ed25519/ed25519
-import ./tools/[unittests, crypto]
+import ./tools/[unittest, crypto]
 
 const TestsCount = 20
 

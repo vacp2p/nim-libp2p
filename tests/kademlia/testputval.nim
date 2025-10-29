@@ -3,9 +3,9 @@ import std/[times, tables]
 import chronos
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
-import ../tools/unittests
+import ../tools/unittest
 import ./utils.nim
-import ../tools/[unittests]
+import ../tools/[unittest]
 
 suite "KadDHT - PutVal":
   teardown:

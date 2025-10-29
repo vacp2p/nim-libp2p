@@ -7,7 +7,7 @@ import stew/byteutils
 import ../../libp2p/protocols/[mix, ping]
 import ../../libp2p/[peerid, multiaddress, switch, builders]
 import ../../libp2p/crypto/secp
-import ../tools/[unittests, crypto]
+import ../tools/[unittest, crypto]
 
 proc createSwitch(
     multiAddr: MultiAddress, libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey)

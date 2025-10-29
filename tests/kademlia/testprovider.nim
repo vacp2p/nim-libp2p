@@ -3,9 +3,9 @@ from std/times import now, utc
 import chronos
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
-import ../tools/unittests
+import ../tools/unittest
 import ./utils.nim
-import ../tools/[unittests]
+import ../tools/[unittest]
 
 suite "KadDHT - AddProvider":
   teardown:

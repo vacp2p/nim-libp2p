@@ -5,7 +5,7 @@ import
   ../../libp2p/
     [stream/connection, transports/transport, upgrademngrs/upgrade, multiaddress]
 
-import ../tools/[unittests]
+import ../tools/[unittest]
 import ./utils
 
 template connectionTransportTest*(

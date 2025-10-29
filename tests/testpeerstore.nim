@@ -16,7 +16,7 @@ import
   ../libp2p/peerid,
   ../libp2p/peerstore
 
-import ./tools/[unittests, crypto]
+import ./tools/[unittest, crypto]
 
 suite "PeerStore":
   # Testvars

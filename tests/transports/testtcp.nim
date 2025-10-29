@@ -22,7 +22,7 @@ import
     wire,
   ]
 
-import ../tools/[unittests]
+import ../tools/[unittest]
 import ./basic_tests
 import ./connection_tests
 

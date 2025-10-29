@@ -9,7 +9,7 @@ import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 when defined(libp2p_gossipsub_1_4):
   import ../../../libp2p/protocols/pubsub/gossipsub/preamblestore
 
-import ../../tools/[unittests]
+import ../../tools/[unittest]
 
 suite "GossipSub Integration - Control Messages":
   teardown:

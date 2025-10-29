@@ -15,7 +15,7 @@ import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
 import ../../../libp2p/protocols/pubsub/rpc/[messages]
 import ../../../libp2p/stream/connection
-import ../../tools/[unittests]
+import ../../tools/[unittest]
 
 type DummyConnection* = ref object of Connection
 

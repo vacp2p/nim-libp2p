@@ -1,19 +1,48 @@
-## Use this module instead of unittest2 directly in tests.
-## It wraps unittest2.suite in a proc to avoid issue with too many global variables
-## See https://github.com/nim-lang/Nim/issues/8500
-
-import unittest2
-import chronos
-import macros
+import chronos, unittest2, macros
 
 import ../../libp2p/stream/[chronosstream, bufferstream, lpstream, connection]
 import ../../libp2p/transports/tcptransport
 import ../../libp2p/muxers/mplex/lpchannel
 import ../../libp2p/protocols/secure/secure
-import ./suite
 
 export unittest2 except suite
-export suite, asyncTeardown, asyncSetup, asyncTest
+
+## suite wraps unittest2.suite in a proc to avoid issue with too many global variables
+## See https://github.com/nim-lang/Nim/issues/8500
+template suite*(name: string, body: untyped): untyped =
+  block:
+    proc testSuite() =
+      unittest2.suite name:
+        body
+
+    testSuite()
+
+template asyncTeardown*(body: untyped): untyped =
+  teardown:
+    waitFor(
+      (
+        proc() {.async.} =
+          body
+      )()
+    )
+
+template asyncSetup*(body: untyped): untyped =
+  setup:
+    waitFor(
+      (
+        proc() {.async.} =
+          body
+      )()
+    )
+
+template asyncTest*(name: string, body: untyped): untyped =
+  test name:
+    waitFor(
+      (
+        proc() {.async.} =
+          body
+      )()
+    )
 
 const
   StreamTransportTrackerName = "stream.transport"

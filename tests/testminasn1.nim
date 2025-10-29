@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import tools/unittests
+import tools/unittest
 import ../libp2p/crypto/minasn1
 import nimcrypto/utils as ncrutils
 

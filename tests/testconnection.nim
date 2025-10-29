@@ -12,7 +12,7 @@
 import chronos
 import ../libp2p/[stream/connection, stream/bufferstream]
 
-import ./tools/[unittests]
+import ./tools/[unittest]
 
 suite "Connection":
   asyncTest "close":

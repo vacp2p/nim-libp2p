@@ -14,7 +14,7 @@
 import chronos, uri
 import ../libp2p/[autotls/service, autotls/acme/api, autotls/acme/client, wire]
 
-import ./tools/[unittests]
+import ./tools/[unittest]
 
 suite "AutoTLS Configuration Tests":
   asyncTeardown:

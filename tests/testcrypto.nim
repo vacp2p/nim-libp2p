@@ -15,7 +15,7 @@ from std/strutils import toUpper
 import bearssl/hash
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-import ./tools/[unittests, crypto]
+import ./tools/[unittest, crypto]
 
 const
   PrivateKeys = [

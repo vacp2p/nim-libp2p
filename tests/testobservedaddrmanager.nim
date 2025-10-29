@@ -11,7 +11,7 @@
 
 import chronos
 import ../libp2p/multiaddress, ../libp2p/observedaddrmanager
-import ./tools/[unittests]
+import ./tools/[unittest]
 
 suite "ObservedAddrManager":
   teardown:

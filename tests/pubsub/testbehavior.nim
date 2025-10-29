@@ -8,7 +8,7 @@ import chronicles
 import ../../libp2p/[routing_record, crypto/crypto, multiaddress]
 import ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable]
 import ../../libp2p/protocols/pubsub/rpc/[message]
-import ../tools/[unittests]
+import ../tools/[unittest]
 import ../tools/[futures]
 
 suite "GossipSub Behavior":

@@ -18,7 +18,7 @@ import
     protocols/connectivity/relay/client,
     services/autorelayservice,
   ]
-import ./tools/[unittests]
+import ./tools/[unittest]
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
   var builder = SwitchBuilder

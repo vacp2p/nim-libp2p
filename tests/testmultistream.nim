@@ -23,7 +23,7 @@ import
 
 {.push raises: [].}
 
-import ./tools/[unittests]
+import ./tools/[unittest]
 
 when defined(nimHasUsed):
   {.used.}

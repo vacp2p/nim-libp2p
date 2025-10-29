@@ -23,7 +23,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ./tools/[unittests]
+import ./tools/[unittest]
 
 suite "Ping":
   var

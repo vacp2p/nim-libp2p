@@ -15,7 +15,7 @@ import stew/byteutils
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../tools/[unittests]
+import ../../tools/[unittest]
 import ../../tools/[futures]
 
 suite "GossipSub Integration - Scoring":

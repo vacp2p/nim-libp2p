@@ -2,9 +2,9 @@
 
 import chronos
 import ../../libp2p/[peerid, protocols/pubsub/rpc/messages]
-import ../tools/unittests
+import ../tools/unittest
 import sequtils
-import ../tools/[unittests]
+import ../tools/[unittest]
 import stew/byteutils
 import utils
 import ../../libp2p/protocols/pubsub/gossipsub/preamblestore

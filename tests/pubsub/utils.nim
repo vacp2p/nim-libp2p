@@ -14,7 +14,7 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../tools/[unittests, crypto, bufferstream, futures]
+import ../tools/[unittest, crypto, bufferstream, futures]
 
 export builders
 

@@ -3,8 +3,8 @@ import chronicles, chronos
 import std/[sequtils, enumerate]
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
-import ../tools/[unittests]
-import ../tools/unittests
+import ../tools/[unittest]
+import ../tools/unittest
 import ./utils.nim
 
 proc hasKey(kad: KadDHT, key: Key): bool =

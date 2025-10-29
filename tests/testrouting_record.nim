@@ -11,7 +11,7 @@
 
 import stew/byteutils
 import ../libp2p/[routing_record, crypto/crypto]
-import ./tools/[unittests, crypto]
+import ./tools/[unittest, crypto]
 
 suite "Routing record":
   test "Encode -> decode test":

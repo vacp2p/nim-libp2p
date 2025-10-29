@@ -14,7 +14,7 @@ import stew/byteutils
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, pubsub]
 import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../tools/[unittests]
+import ../../tools/[unittest]
 import ../../tools/futures
 
 suite "GossipSub Integration - Signature Flags":

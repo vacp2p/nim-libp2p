@@ -14,7 +14,7 @@ import chronos
 
 import ../libp2p/utils/semaphore
 
-import ./tools/[unittests]
+import ./tools/[unittest]
 
 randomize()
 

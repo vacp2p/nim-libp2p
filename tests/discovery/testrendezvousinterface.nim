@@ -20,7 +20,7 @@ import
   ]
 import ../../libp2p/discovery/[rendezvousinterface, discoverymngr]
 import ../../libp2p/utils/[semaphore, offsettedseq]
-import ../tools/[unittests]
+import ../tools/[unittest]
 import ./utils
 
 type
