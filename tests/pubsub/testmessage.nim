@@ -13,8 +13,7 @@ import
     protocols/pubsub/rpc/messages,
     protocols/pubsub/rpc/protobuf,
   ]
-import ../utils/unittests
-from ../helpers import rng
+import ../tools/[unittest, crypto as cryptoTools]
 
 suite "Message":
   test "signature":

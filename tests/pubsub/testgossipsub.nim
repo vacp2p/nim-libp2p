@@ -17,7 +17,7 @@ import
   ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
 import ../../libp2p/muxers/muxer
-import ../helpers
+import ../tools/[unittest, bufferstream]
 
 suite "GossipSub":
   const topic = "foobar"

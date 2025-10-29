@@ -14,7 +14,7 @@ import std/[sequtils]
 import chronicles
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../helpers
+import ../../tools/[unittest]
 
 suite "GossipSub Integration - Compatibility":
   const topic = "foobar"

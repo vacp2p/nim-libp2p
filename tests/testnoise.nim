@@ -33,7 +33,7 @@ import
     upgrademngrs/muxedupgrade,
     connmanager,
   ]
-import ./helpers
+import ./tools/[unittest, crypto, futures]
 
 const TestCodec = "/test/proto/1.0.0"
 

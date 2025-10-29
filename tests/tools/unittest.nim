@@ -1,23 +1,48 @@
-{.push raises: [].}
+import chronos, unittest2, macros
 
-import chronos
-import macros
-import algorithm
+import ../../libp2p/stream/[chronosstream, bufferstream, lpstream, connection]
+import ../../libp2p/transports/tcptransport
+import ../../libp2p/muxers/mplex/lpchannel
+import ../../libp2p/protocols/secure/secure
 
-import ../libp2p/transports/tcptransport
-import ../libp2p/stream/bufferstream
-import ../libp2p/crypto/crypto
-import ../libp2p/stream/lpstream
-import ../libp2p/stream/chronosstream
-import ../libp2p/muxers/mplex/lpchannel
-import ../libp2p/protocols/secure/secure
-import ../libp2p/switch
-import ../libp2p/nameresolving/mockresolver
+export unittest2 except suite
 
-import errorhelpers
-import utils/unittests
+## suite wraps unittest2.suite in a proc to avoid issue with too many global variables
+## See https://github.com/nim-lang/Nim/issues/8500
+template suite*(name: string, body: untyped): untyped =
+  block:
+    proc testSuite() =
+      unittest2.suite name:
+        body
 
-export unittests, errorhelpers, mockresolver
+    testSuite()
+
+template asyncTeardown*(body: untyped): untyped =
+  teardown:
+    waitFor(
+      (
+        proc() {.async.} =
+          body
+      )()
+    )
+
+template asyncSetup*(body: untyped): untyped =
+  setup:
+    waitFor(
+      (
+        proc() {.async.} =
+          body
+      )()
+    )
+
+template asyncTest*(name: string, body: untyped): untyped =
+  test name:
+    waitFor(
+      (
+        proc() {.async.} =
+          body
+      )()
+    )
 
 const
   StreamTransportTrackerName = "stream.transport"
@@ -55,44 +80,6 @@ template checkTrackers*() =
     raiseAssert "Unexpected exception during GC collection"
   when defined(nimHasWarnBareExcept):
     {.pop.}
-
-type RngWrap = object
-  rng: ref HmacDrbgContext
-
-var rngVar: RngWrap
-
-proc getRng(): ref HmacDrbgContext =
-  # TODO if `rngVar` is a threadvar like it should be, there are random and
-  #      spurious compile failures on mac - this is not gcsafe but for the
-  #      purpose of the tests, it's ok as long as we only use a single thread
-  {.gcsafe.}:
-    if rngVar.rng.isNil:
-      rngVar.rng = newRng()
-    rngVar.rng
-
-template rng*(): ref HmacDrbgContext =
-  getRng()
-
-type
-  WriteHandler* = proc(data: seq[byte]): Future[void] {.
-    async: (raises: [CancelledError, LPStreamError])
-  .}
-
-  TestBufferStream* = ref object of BufferStream
-    writeHandler*: WriteHandler
-
-method write*(
-    s: TestBufferStream, msg: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  s.writeHandler(msg)
-
-method getWrapped*(s: TestBufferStream): Connection =
-  nil
-
-proc new*(T: typedesc[TestBufferStream], writeHandler: WriteHandler): T =
-  let testBufferStream = T(writeHandler: writeHandler)
-  testBufferStream.initStream()
-  testBufferStream
 
 macro checkUntilTimeoutCustom*(
     timeout: Duration, sleepInterval: Duration, code: untyped
@@ -176,25 +163,3 @@ macro checkUntilTimeout*(code: untyped): untyped =
   ##   ```
   result = quote:
     checkUntilTimeoutCustom(30.seconds, 50.milliseconds, `code`)
-
-proc unorderedCompare*[T](a, b: seq[T]): bool =
-  if a == b:
-    return true
-  if a.len != b.len:
-    return false
-
-  var aSorted = a
-  var bSorted = b
-  aSorted.sort()
-  bSorted.sort()
-
-  if aSorted == bSorted:
-    return true
-
-  return false
-
-proc default*(T: typedesc[MockResolver]): T =
-  let resolver = MockResolver.new()
-  resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
-  resolver.ipResponses[("localhost", true)] = @["::1"]
-  resolver

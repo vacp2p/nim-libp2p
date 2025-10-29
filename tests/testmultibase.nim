@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import utils/unittests
+import tools/unittest
 import ../libp2p/multibase
 import results
 

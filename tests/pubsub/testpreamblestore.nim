@@ -10,9 +10,9 @@ import
     protocols/pubsub/pubsubpeer,
     protocols/pubsub/rpc/messages,
   ]
-import ../utils/unittests
+import ../tools/unittest
 import ./utils
-import ../helpers
+import ../tools/[unittest]
 
 proc mockPreamble(
     id: MessageId,

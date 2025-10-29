@@ -10,7 +10,7 @@
 # those terms.
 
 import chronos
-import ./helpers
+import ./tools/[unittest]
 from std/exitprocs import nil
 
 suite "checkUntilTimeout helpers":

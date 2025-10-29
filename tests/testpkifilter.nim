@@ -9,9 +9,9 @@
 when defined(nimHasUsed):
   {.used.}
 
-import ../libp2p/crypto/crypto
 import nimcrypto/utils
-import ./helpers
+import ../libp2p/crypto/crypto
+import ./tools/[unittest, crypto]
 
 const ECDSA_PrivateKey =
   """

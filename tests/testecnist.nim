@@ -10,9 +10,9 @@
 # those terms.
 
 import nimcrypto/utils
-import ../libp2p/crypto/[crypto, ecnist]
 import results
-import ./helpers
+import ../libp2p/crypto/[crypto, ecnist]
+import ./tools/[unittest, crypto]
 
 const
   TestsCount = 10 # number of random tests

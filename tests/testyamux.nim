@@ -12,8 +12,8 @@
 import sugar
 import chronos
 import ../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux]
-import ./helpers
-import ./utils/futures
+import ./tools/[unittest]
+import ./tools/futures
 
 include ../libp2p/muxers/yamux/yamux
 

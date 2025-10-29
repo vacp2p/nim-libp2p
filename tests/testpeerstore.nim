@@ -14,8 +14,9 @@ import
   ../libp2p/crypto/crypto,
   ../libp2p/multiaddress,
   ../libp2p/peerid,
-  ../libp2p/peerstore,
-  ./helpers
+  ../libp2p/peerstore
+
+import ./tools/[unittest, crypto]
 
 suite "PeerStore":
   # Testvars
