@@ -83,7 +83,7 @@ suite "GossipSub Integration - Scoring":
     )
     await waitForHeartbeat()
 
-    check:
+    checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == true
 
@@ -96,7 +96,7 @@ suite "GossipSub Integration - Scoring":
     )
     await waitForHeartbeat()
 
-    check:
+    checkUntilTimeout:
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == true
       currentRateLimitHits() == rateLimitHits
 

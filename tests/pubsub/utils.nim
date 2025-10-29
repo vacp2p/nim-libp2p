@@ -192,7 +192,8 @@ proc generateNodes*(
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
     disconnectBadPeers: bool = false,
-    transport: TransportType = TransportType.TCP,
+    transport: TransportType =
+      if defined(macosx): TransportType.TCP else: TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
@@ -537,9 +538,9 @@ proc baseTestProcedure*(
 
   block setup:
     for i in 0 ..< 50:
-      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == 19:
+      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == nodes.len - 1:
         break setup
-      await sleepAsync(10.milliseconds)
+      await sleepAsync(200.milliseconds)
     check false
 
   check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
