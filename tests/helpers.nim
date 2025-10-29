@@ -15,9 +15,9 @@ import ../libp2p/switch
 import ../libp2p/nameresolving/mockresolver
 
 import errorhelpers
-import utils/async_tests
+import utils/unittests
 
-export async_tests, errorhelpers, mockresolver
+export unittests, errorhelpers, mockresolver
 
 const
   StreamTransportTrackerName = "stream.transport"

@@ -12,11 +12,10 @@
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
 from std/strutils import toUpper
-import unittest2
 import bearssl/hash
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-from ./helpers import rng
+import ./helpers
 
 const
   PrivateKeys = [

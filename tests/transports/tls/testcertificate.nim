@@ -1,8 +1,7 @@
 {.used.}
 
-import unittest2
-
 import times
+import ../../utils/unittests
 import ../../../libp2p/transports/tls/certificate
 import ../../../libp2p/transports/tls/certificate_ffi
 import ../../../libp2p/crypto/crypto

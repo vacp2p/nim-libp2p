@@ -9,11 +9,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2
 import nimcrypto/utils
 import ../libp2p/crypto/[crypto, ecnist]
 import results
-from ./helpers import rng
+import ./helpers
 
 const
   TestsCount = 10 # number of random tests

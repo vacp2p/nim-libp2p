@@ -9,10 +9,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2
 import stew/byteutils
 import ../libp2p/[signed_envelope]
-from ./helpers import rng
+import ./helpers
 
 suite "Signed envelope":
   test "Encode -> decode -> encode -> decode test":

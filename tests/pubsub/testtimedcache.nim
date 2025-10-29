@@ -1,6 +1,6 @@
 {.used.}
 
-import unittest2
+import ../utils/unittests
 import chronos/timer
 import ../../libp2p/protocols/pubsub/timedcache
 

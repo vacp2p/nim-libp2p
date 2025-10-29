@@ -9,7 +9,6 @@
 
 {.used.}
 
-import unittest2
 import chronos
 import stew/byteutils
 import ../utils
@@ -101,18 +100,18 @@ suite "GossipSub Integration - Signature Flags":
       receivedMessage.seqno.len == 0
       receivedMessage.signature.len == 0
       receivedMessage.key.len == 0
-
+ 
   type NodeConfig = object
-    sign: bool
-    verify: bool
-    anonymize: bool
+      sign: bool
+      verify: bool
+      anonymize: bool
 
   type Scenario = object
     senderConfig: NodeConfig
     receiverConfig: NodeConfig
     shouldWork: bool
 
-  let scenarios: seq[Scenario] =
+  const scenarios: seq[Scenario] =
     @[
       # valid combos
       # S default, R default
@@ -180,22 +179,25 @@ suite "GossipSub Integration - Signature Flags":
     ]
 
   for scenario in scenarios:
-    let title = "Compatibility matrix: " & $scenario
+    let
+      title = "Compatibility matrix: " & $scenario
+      # Create a copy to avoid lent iterator capture issue
+      localScenario = scenario
     asyncTest title:
       let
         sender = generateNodes(
           1,
           gossip = true,
-          sign = scenario.senderConfig.sign,
-          verifySignature = scenario.senderConfig.verify,
-          anonymize = scenario.senderConfig.anonymize,
+          sign = localScenario.senderConfig.sign,
+          verifySignature = localScenario.senderConfig.verify,
+          anonymize = localScenario.senderConfig.anonymize,
         )[0]
         receiver = generateNodes(
           1,
           gossip = true,
-          sign = scenario.receiverConfig.sign,
-          verifySignature = scenario.receiverConfig.verify,
-          anonymize = scenario.receiverConfig.anonymize,
+          sign = localScenario.receiverConfig.sign,
+          verifySignature = localScenario.receiverConfig.verify,
+          anonymize = localScenario.receiverConfig.anonymize,
         )[0]
         nodes = @[sender, receiver]
 
@@ -211,7 +213,7 @@ suite "GossipSub Integration - Signature Flags":
 
       let messageReceived = await waitForState(messageReceivedFut, HEARTBEAT_TIMEOUT)
       check:
-        if scenario.shouldWork:
+        if localScenario.shouldWork:
           messageReceived.isCompleted(true)
         else:
           messageReceived.isCancelled()

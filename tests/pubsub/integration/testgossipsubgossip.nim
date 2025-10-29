@@ -9,9 +9,9 @@
 
 {.used.}
 
+import chronos
 import std/[sequtils]
 import stew/byteutils
-import chronicles
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../../libp2p/protocols/pubsub/rpc/[message]

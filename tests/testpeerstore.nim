@@ -10,7 +10,6 @@
 # those terms.
 
 import
-  unittest2,
   std/[tables, sequtils],
   ../libp2p/crypto/crypto,
   ../libp2p/multiaddress,

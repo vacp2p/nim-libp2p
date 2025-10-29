@@ -1,10 +1,8 @@
-import unittest2
-
 {.used.}
 
 import chronos
 import ../../libp2p/[peerid, protocols/pubsub/rpc/messages]
-import ../utils/async_tests
+import ../utils/unittests
 import sequtils
 import ../helpers
 import stew/byteutils

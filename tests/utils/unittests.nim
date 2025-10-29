@@ -1,6 +1,7 @@
-import unittest2, chronos
+import unittest2
+import chronos
 
-export unittest2, chronos
+export unittest2 except suite
 
 template asyncTeardown*(body: untyped): untyped =
   teardown:
@@ -28,3 +29,11 @@ template asyncTest*(name: string, body: untyped): untyped =
           body
       )()
     )
+
+template suite*(name: string, body: untyped): untyped =
+  block:
+    proc testSuite() =
+      unittest2.suite name:
+        body
+
+    testSuite()

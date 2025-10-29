@@ -9,7 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2
+import ../utils/unittests
 import ../../libp2p/cid
 import ../../libp2p/multicodec
 import ../../libp2p/multihash

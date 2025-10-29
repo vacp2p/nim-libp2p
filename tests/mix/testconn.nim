@@ -1,12 +1,13 @@
 {.used.}
 
-import results, unittest2, options
+import chronos
+import results, options
 import std/[enumerate, sequtils]
 import stew/byteutils
 import ../../libp2p/protocols/[mix, ping]
 import ../../libp2p/[peerid, multiaddress, switch, builders]
 import ../../libp2p/crypto/secp
-import ../utils/async_tests
+import ../utils/unittests
 import ../helpers
 
 proc createSwitch(

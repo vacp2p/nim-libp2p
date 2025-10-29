@@ -10,7 +10,7 @@
 # those terms.
 
 import std/tables
-import unittest2
+import ../utils/unittests
 import ../../libp2p/multicodec
 import ../../libp2p/utils/sequninit
 
