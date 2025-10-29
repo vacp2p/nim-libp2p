@@ -14,6 +14,7 @@ import
     routing_record,
     switch,
   ]
+from ../helpers import rng
 
 proc createSwitch*(): Switch =
   SwitchBuilder
@@ -105,7 +106,6 @@ proc populatePeerRegistrations*(
     targetRdv.registered.s.add(record)
 
 proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
-  let rng = newRng()
   let wrongPrivKey = PrivateKey.random(rng[]).tryGet()
   let record = PeerRecord.init(peerId, @[])
   SignedPeerRecord.init(wrongPrivKey, record).tryGet()

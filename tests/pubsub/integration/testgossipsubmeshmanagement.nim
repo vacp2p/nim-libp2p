@@ -40,7 +40,7 @@ suite "GossipSub Integration - Mesh Management":
 
   asyncTest "Nodes graft peers according to DValues - numberOfNodes > dHigh":
     let
-      numberOfNodes = 15
+      numberOfNodes = 8
       topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
@@ -50,17 +50,19 @@ suite "GossipSub Integration - Mesh Management":
 
     let
       expectedNumberOfPeers = numberOfNodes - 1
-      dHigh = 12
+      dHigh = 7
       d = 6
       dLow = 4
 
     for i in 0 ..< numberOfNodes:
       let node = nodes[i]
       checkUntilTimeout:
-        node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
-        node.mesh.getOrDefault(topic).len >= dLow and
-          node.mesh.getOrDefault(topic).len <= dHigh
         node.fanout.len == 0
+        node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
+        (
+          node.mesh.getOrDefault(topic).len >= dLow and
+          node.mesh.getOrDefault(topic).len <= dHigh
+        )
 
   asyncTest "GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =

@@ -12,11 +12,11 @@
 import unittest2
 import stew/byteutils
 import ../libp2p/[routing_record, crypto/crypto]
+from ./helpers import rng
 
 suite "Routing record":
   test "Encode -> decode test":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses =
@@ -54,7 +54,6 @@ suite "Routing record":
 suite "Signed Routing Record":
   test "Encode -> decode test":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses =
@@ -78,7 +77,6 @@ suite "Signed Routing Record":
 
   test "Can't use mismatched public key":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       privKey2 = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
@@ -96,7 +94,6 @@ suite "Signed Routing Record":
 
   test "Decode doesn't fail if some addresses are invalid":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses =
@@ -110,7 +107,6 @@ suite "Signed Routing Record":
 
   test "Decode doesn't fail if there are no addresses":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = newSeq[MultiAddress]()
@@ -123,7 +119,6 @@ suite "Signed Routing Record":
 
   test "Decode fails if all addresses are invalid":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress(), MultiAddress()]

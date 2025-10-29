@@ -9,7 +9,7 @@ import stew/endians2
 import ../protocol
 import ../../utils/sequninit
 import ../../stream/[connection, lpstream]
-import ../../[switch, multicodec, peerinfo]
+import ../../[switch, multicodec, peerinfo, varint]
 
 when defined(enable_mix_benchmarks):
   import ./benchmark
@@ -44,16 +44,16 @@ type MixProtocol* = ref object of LPProtocol
   rng: ref HmacDrbgContext
   # TODO: verify if this requires cleanup for cases in which response never arrives (and connection is closed)
   connCreds: Table[SURBIdentifier, ConnCreds]
-  destReadBehavior: TableRef[string, destReadBehaviorCb]
+  destReadBehavior: TableRef[string, DestReadBehavior]
   connPool: Table[PeerId, Connection]
 
 proc hasDestReadBehavior*(mixProto: MixProtocol, codec: string): bool =
   return mixProto.destReadBehavior.hasKey(codec)
 
 proc registerDestReadBehavior*(
-    mixProto: MixProtocol, codec: string, fwdBehavior: destReadBehaviorCb
+    mixProto: MixProtocol, codec: string, behavior: DestReadBehavior
 ) =
-  mixProto.destReadBehavior[codec] = fwdBehavior
+  mixProto.destReadBehavior[codec] = behavior
 
 proc loadAllButIndexMixPubInfo*(
     index, numNodes: int, pubInfoFolderPath: string = "./pubInfo"
@@ -254,7 +254,7 @@ proc handleMixMessages(
     let nextHopBytes = processedSP.nextHop.get()
 
     let (nextPeerId, nextAddr) = bytesToMultiAddr(nextHopBytes).valueOr:
-      error "Failed to convert bytes to multiaddress", err = error
+      trace "Failed to convert bytes to multiaddress", err = error
       mix_messages_error.inc(labelValues = ["Intermediate", "INVALID_DEST"])
       return
 
@@ -589,6 +589,7 @@ proc anonymizeLocalProtocolSend*(
 
     let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
       mix_messages_error.inc(labelValues = ["Entry", "INVALID_MIX_INFO"])
+      trace "Failed to convert multiaddress to bytes", error = error
       return err(fmt"Failed to convert multiaddress to bytes: {error}")
       #TODO: should we skip and pick a different node here??
 
@@ -664,7 +665,7 @@ proc init*(
   mixProto.pubNodeInfo = pubNodeInfo
   mixProto.switch = switch
   mixProto.tagManager = tagManager
-  mixProto.destReadBehavior = newTable[string, destReadBehaviorCb]()
+  mixProto.destReadBehavior = newTable[string, DestReadBehavior]()
 
   let onReplyDialer = proc(
       surb: SURB, message: seq[byte]
