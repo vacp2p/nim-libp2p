@@ -57,7 +57,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in protocol handler"
       finally:
         await conn.close()
         done.complete()
@@ -98,7 +98,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in custom matcher protocol handler"
       finally:
         await conn.close()
         done.complete()
@@ -144,7 +144,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in bufferstream leak test handler"
       finally:
         await conn.close()
         done.complete()
@@ -183,7 +183,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in connect-then-dial test handler"
       finally:
         await conn.close()
 
@@ -326,7 +326,7 @@ suite "Switch":
 
         check peerId == switch1.peerInfo.peerId
       else:
-        check false
+        raiseAssert "Connection event hook called more than expected"
 
       step.inc()
 
@@ -374,7 +374,7 @@ suite "Switch":
 
         check peerId == switch2.peerInfo.peerId
       else:
-        check false
+        raiseAssert "Connection event hook called more than expected"
 
       step.inc()
 
@@ -423,7 +423,7 @@ suite "Switch":
           event.kind == PeerEventKind.Left
           peerId == switch2.peerInfo.peerId
       else:
-        check false
+        raiseAssert "Peer event handler called more than expected"
 
       step.inc()
 
@@ -472,7 +472,7 @@ suite "Switch":
           event.kind == PeerEventKind.Left
           peerId == switch1.peerInfo.peerId
       else:
-        check false
+        raiseAssert "Peer event handler called more than expected"
 
       step.inc()
 
@@ -525,7 +525,7 @@ suite "Switch":
         check:
           event.kind == PeerEventKind.Left
       else:
-        check false # should not trigger this
+        raiseAssert "Peer event handler called more than expected"
 
       step.inc()
 
@@ -585,7 +585,7 @@ suite "Switch":
           check not switches[0].isConnected(peerInfo.peerId)
           done.complete()
       except DialFailedError:
-        check false # should not get here
+        raiseAssert "Unexpected DialFailedError in connection event hook"
 
     switches.add(newStandardSwitch(rng = rng))
 
@@ -842,7 +842,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in peer store test handler"
       finally:
         await conn.close()
         done.complete()
@@ -894,7 +894,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in multiple local addresses test handler"
       finally:
         await conn.close()
 
@@ -1065,7 +1065,7 @@ suite "Switch":
         check "test123" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test456")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in mount unstarted protocol test handler"
       finally:
         await conn.close()
 

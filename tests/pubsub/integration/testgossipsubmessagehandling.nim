@@ -263,7 +263,7 @@ suite "GossipSub Integration - Message Handling":
 
   asyncTest "GossipSub validation should fail (reject)":
     proc handler(topic: string, data: seq[byte]) {.async.} =
-      check false # if we get here, it should fail
+      raiseAssert "Handler should not be called when validation rejects message"
 
     let nodes = generateNodes(2, gossip = true)
 
@@ -296,7 +296,7 @@ suite "GossipSub Integration - Message Handling":
 
   asyncTest "GossipSub validation should fail (ignore)":
     proc handler(topic: string, data: seq[byte]) {.async.} =
-      check false # if we get here, it should fail
+      raiseAssert "Handler should not be called when validation ignores message"
 
     let nodes = generateNodes(2, gossip = true)
 
