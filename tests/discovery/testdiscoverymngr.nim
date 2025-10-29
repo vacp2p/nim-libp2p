@@ -19,7 +19,7 @@ import
     discovery/rendezvousinterface,
   ]
 import ../helpers
-import ../utils/async_tests
+import ../utils/unittests
 import ./utils
 
 suite "Discovery Manager":

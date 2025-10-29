@@ -9,7 +9,8 @@
 
 {.used.}
 
-import ../tests/utils/async_tests
+import chronos
+import ../tests/utils/unittests
 import ./runner
 
 setupOutputDirectory()

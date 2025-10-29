@@ -83,12 +83,7 @@ task testintegration, "Runs integraion tests":
   runTest("testintegration")
 
 task test, "Runs the test suite":
-  # runTest("testall")
-  # temporally `testall` task is split into `testnative` and `testpubsub`, it's main components,
-  # in order to reduce total global variables created by unittest2 library.
-  # we should seek to return to running `testall` because compiling code once is faster.
-  testnativeTask()
-  testpubsubTask()
+  runTest("testall")
   testmultiformatextsTask()
 
 task website, "Build the website":

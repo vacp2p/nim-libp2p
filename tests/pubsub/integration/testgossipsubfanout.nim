@@ -9,6 +9,7 @@
 
 {.used.}
 
+import chronos
 import stew/byteutils
 import chronicles
 import ../utils

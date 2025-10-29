@@ -11,7 +11,6 @@
 
 import std/options
 import chronos, metrics
-import unittest2
 import ../libp2p/[builders, switch]
 import ../libp2p/services/wildcardresolverservice
 import ../libp2p/[multiaddress, multicodec]

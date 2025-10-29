@@ -1,6 +1,7 @@
 {.used.}
 
-import strformat, results, unittest2
+import strformat, results
+import ../utils/unittests
 import ../../libp2p/[crypto/crypto, crypto/secp, multiaddress, multicodec, peerid]
 import ../../libp2p/protocols/mix/[curve25519, mix_node]
 

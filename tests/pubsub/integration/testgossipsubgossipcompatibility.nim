@@ -9,6 +9,7 @@
 
 {.used.}
 
+import chronos
 import std/[sequtils]
 import chronicles
 import ../utils

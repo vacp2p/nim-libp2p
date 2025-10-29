@@ -9,6 +9,7 @@
 
 {.used.}
 
+import chronos
 import chronos/rateLimit
 import stew/byteutils
 import utils

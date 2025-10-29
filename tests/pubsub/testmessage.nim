@@ -1,7 +1,6 @@
-import unittest2
-
 {.used.}
 
+import chronos
 import options, strutils
 import stew/byteutils
 import
@@ -14,7 +13,7 @@ import
     protocols/pubsub/rpc/messages,
     protocols/pubsub/rpc/protobuf,
   ]
-import ../utils/async_tests
+import ../utils/unittests
 from ../helpers import rng
 
 suite "Message":

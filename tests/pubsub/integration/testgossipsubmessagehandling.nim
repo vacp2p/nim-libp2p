@@ -9,6 +9,7 @@
 
 {.used.}
 
+import chronos
 import std/[sequtils, enumerate]
 import stew/byteutils
 import sugar

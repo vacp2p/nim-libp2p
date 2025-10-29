@@ -1,5 +1,3 @@
-import unittest2
-
 {.used.}
 
 import chronos
@@ -12,7 +10,7 @@ import
     protocols/pubsub/pubsubpeer,
     protocols/pubsub/rpc/messages,
   ]
-import ../utils/async_tests
+import ../utils/unittests
 import ./utils
 import ../helpers
 

@@ -1,5 +1,6 @@
 {.used.}
 
+import chronos
 import std/[sequtils]
 import stew/byteutils
 import ../utils

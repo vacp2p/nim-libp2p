@@ -10,7 +10,6 @@
 import std/options
 import chronos
 import sequtils
-import unittest2
 import ../libp2p/[builders, switch]
 import ./helpers
 

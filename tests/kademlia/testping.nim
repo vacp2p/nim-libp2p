@@ -1,9 +1,8 @@
 {.used.}
 import chronos
-import unittest2
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
-import ../utils/async_tests
+import ../utils/unittests
 import ./utils.nim
 import ../helpers
 

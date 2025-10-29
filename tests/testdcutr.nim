@@ -10,7 +10,6 @@
 # those terms.
 
 import chronos
-import unittest2
 
 import ../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../libp2p/protocols/connectivity/dcutr/[client, server]

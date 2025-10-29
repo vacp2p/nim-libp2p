@@ -9,8 +9,9 @@
 
 {.used.}
 
+import chronos
 import strformat
-import ../tests/utils/async_tests
+import ../tests/utils/unittests
 import ./runner
 
 type NetworkScenario = object

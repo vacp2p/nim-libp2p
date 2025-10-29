@@ -11,7 +11,6 @@
 
 import std/[options, sequtils]
 import chronos, metrics
-import unittest2
 import
   ../libp2p/[
     builders,

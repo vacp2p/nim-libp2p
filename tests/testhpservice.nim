@@ -13,7 +13,6 @@
 
 import chronos
 
-import unittest2
 import ./helpers
 import ./stubs/switchstub
 import ../libp2p/[builders, switch, wire, services/hpservice, services/autorelayservice]
