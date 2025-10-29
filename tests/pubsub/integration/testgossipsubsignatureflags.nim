@@ -100,11 +100,11 @@ suite "GossipSub Integration - Signature Flags":
       receivedMessage.seqno.len == 0
       receivedMessage.signature.len == 0
       receivedMessage.key.len == 0
- 
+
   type NodeConfig = object
-      sign: bool
-      verify: bool
-      anonymize: bool
+    sign: bool
+    verify: bool
+    anonymize: bool
 
   type Scenario = object
     senderConfig: NodeConfig
