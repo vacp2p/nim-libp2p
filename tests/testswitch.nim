@@ -423,7 +423,7 @@ suite "Switch":
           event.kind == PeerEventKind.Left
           peerId == switch2.peerInfo.peerId
       else:
-        raiseAssert "Peer event handler called more than expected (step = " & $step & ")"
+        raiseAssert "Peer event handler called more than expected"
 
       step.inc()
 
