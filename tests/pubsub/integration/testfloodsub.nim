@@ -9,8 +9,7 @@
 
 {.used.}
 
-import sequtils, tables, sets
-import chronos, stew/byteutils
+import sequtils, tables, sets, chronos, stew/byteutils
 import
   ../utils,
   ../../../libp2p/[
@@ -24,7 +23,6 @@ import
     protocols/pubsub/pubsubpeer,
   ]
 import ../../../libp2p/protocols/pubsub/errors as pubsub_errors
-
 import ../../tools/[unittest, futures]
 
 proc waitSub(sender, receiver: auto, key: string) {.async.} =

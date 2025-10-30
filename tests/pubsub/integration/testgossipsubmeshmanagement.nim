@@ -9,11 +9,10 @@
 
 {.used.}
 
-import chronos
-import std/[sequtils]
-import ../utils
+import chronos, std/[sequtils]
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../tools/[unittest, futures]
+import ../utils
 
 suite "GossipSub Integration - Mesh Management":
   teardown:

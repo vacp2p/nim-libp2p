@@ -9,13 +9,10 @@
 
 {.used.}
 
-import chronos
-import stew/byteutils
+import chronos, stew/byteutils
+import ../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, pubsub]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../tools/[unittest]
-import ../../tools/futures
 
 suite "GossipSub Integration - Signature Flags":
   const

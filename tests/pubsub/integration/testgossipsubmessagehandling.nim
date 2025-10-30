@@ -9,15 +9,12 @@
 
 {.used.}
 
-import chronos
-import std/[sequtils, enumerate]
-import stew/byteutils
-import sugar
-import chronicles
+import chronos, std/[sequtils, enumerate], stew/byteutils, sugar, chronicles
+import
+  ../../../libp2p/protocols/pubsub/
+    [gossipsub, mcache, peertable, timedcache, rpc/message]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
-import ../../../libp2p/protocols/pubsub/rpc/[message]
-import ../../tools/[unittest], ../../tools/[futures]
 
 const MsgIdSuccess = "msg id gen success"
 

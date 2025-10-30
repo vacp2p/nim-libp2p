@@ -9,13 +9,11 @@
 
 {.used.}
 
-import chronos
-import stew/byteutils
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
+import chronos, stew/byteutils
 import ../../../libp2p/stream/connection
+import ../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer, rpc/messages]
 import ../../tools/[unittest]
+import ../utils
 
 type DummyConnection* = ref object of Connection
 

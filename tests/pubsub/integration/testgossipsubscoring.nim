@@ -9,14 +9,12 @@
 
 {.used.}
 
-import chronos
-import std/[sequtils, strutils]
-import stew/byteutils
+import chronos, std/[sequtils, strutils], stew/byteutils
+import
+  ../../../libp2p/protocols/pubsub/
+    [gossipsub, mcache, peertable, pubsubpeer, rpc/messages]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../tools/[unittest]
-import ../../tools/[futures]
 
 suite "GossipSub Integration - Scoring":
   const topic = "foobar"

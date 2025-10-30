@@ -9,13 +9,10 @@
 
 {.used.}
 
-import chronos
-import std/[sequtils]
-import stew/byteutils
+import chronos, std/[sequtils], stew/byteutils
+import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, rpc/message]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../../libp2p/protocols/pubsub/rpc/[message]
-import ../../tools/[unittest], ../../tools/[futures]
 
 suite "GossipSub Integration - Gossip Protocol":
   teardown:
