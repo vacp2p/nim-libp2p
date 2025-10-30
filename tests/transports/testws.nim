@@ -19,11 +19,14 @@ import
     upgrademngrs/upgrade,
     multiaddress,
     errors,
+    muxers/muxer,
+    muxers/mplex/mplex,
   ]
 
 import ../helpers
 import ./basic_tests
 import ./connection_tests
+import ./stream_tests
 
 const
   SecureKey =
@@ -81,6 +84,9 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
   except TLSStreamProtocolError:
     raiseAssert "should not happen"
 
+proc muxerProvider(_: Transport, conn: Connection): Muxer =
+  Mplex.new(conn)
+
 const
   wsAddress = "/ip4/127.0.0.1/tcp/0/ws"
   wsSecureAddress = "/ip4/127.0.0.1/tcp/0/wss"
@@ -116,6 +122,9 @@ suite "WebSocket transport":
 
   connectionTransportTest(wsTransProvider, wsAddress)
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
+
+  streamTransportTest(wsTransProvider, wsAddress, muxerProvider)
+  streamTransportTest(wsSecureTransProvider, wsSecureAddress, muxerProvider)
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
