@@ -9,8 +9,9 @@
 
 {.used.}
 
-import results, unittest, stew/byteutils
+import results, stew/byteutils
 import ../../libp2p/protocols/mix/mix_message
+import ../tools/[unittest]
 
 # Define test cases
 suite "mix_message_tests":

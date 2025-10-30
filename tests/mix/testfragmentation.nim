@@ -9,8 +9,9 @@
 
 {.used.}
 
-import results, unittest
+import results
 import ../../libp2p/[peerid, protocols/mix/serialization, protocols/mix/fragmentation]
+import ../tools/[unittest]
 
 suite "Fragmentation":
   let peerId =

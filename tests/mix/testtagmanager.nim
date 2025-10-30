@@ -9,8 +9,9 @@
 
 {.used.}
 
-import chronicles, results, unittest
+import chronicles, results
 import ../../libp2p/protocols/mix/[curve25519, tag_manager]
+import ../tools/[unittest]
 
 suite "tag_manager_tests":
   var tm: TagManager

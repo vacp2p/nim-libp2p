@@ -9,9 +9,9 @@
 
 {.used.}
 
-import unittest, chronos, results
+import chronos, results
 import ../../libp2p/[protocols/kademlia, crypto/crypto]
-import ../tools/[crypto]
+import ../tools/[unittest, crypto]
 
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]

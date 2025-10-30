@@ -9,9 +9,10 @@
 
 {.used.}
 
-import results, unittest
+import results
 import ../../libp2p/protocols/mix/[serialization, multiaddr]
 import ../../libp2p/[peerid, multiaddress]
+import ../tools/[unittest]
 
 template maddr(ma: string): MultiAddress =
   MultiAddress.init(ma).tryGet()

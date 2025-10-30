@@ -9,8 +9,9 @@
 
 {.used.}
 
-import results, unittest
+import results
 import ../../libp2p/protocols/mix/serialization
+import ../tools/[unittest]
 
 # Define test cases
 suite "serialization_tests":

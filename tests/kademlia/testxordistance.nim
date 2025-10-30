@@ -9,8 +9,9 @@
 
 {.used.}
 
-import unittest, chronos
+import chronos
 import ../../libp2p/protocols/kademlia
+import ../tools/[unittest]
 
 suite "xor distance":
   test "countLeadingZeroBits works":

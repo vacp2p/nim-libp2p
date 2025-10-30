@@ -9,8 +9,9 @@
 
 {.used.}
 
-import nimcrypto, results, unittest
+import nimcrypto, results
 import ../../libp2p/protocols/mix/crypto
+import ../tools/[unittest]
 
 suite "cryptographic_functions_tests":
   test "aes_ctr_encrypt_decrypt":
