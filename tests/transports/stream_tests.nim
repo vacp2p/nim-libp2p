@@ -31,9 +31,11 @@ template streamTransportTest*(
           raiseAssert "should not happen"
         finally:
           await stream.close()
-          await muxer.close()
-          await conn.close()
-      asyncSpawn muxer.handle()
+      let muxerTask = muxer.handle()
+      asyncSpawn muxerTask
+      await muxerTask
+      await muxer.close()
+      await conn.close()
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
@@ -77,9 +79,11 @@ template streamTransportTest*(
           raiseAssert "should not happen"
         finally:
           await stream.close()
-          await muxer.close()
-          await conn.close()
-      asyncSpawn muxer.handle()
+      let muxerTask = muxer.handle()
+      asyncSpawn muxerTask
+      await muxerTask
+      await muxer.close()
+      await conn.close()
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
@@ -119,9 +123,11 @@ template streamTransportTest*(
           discard
         finally:
           await stream.close()
-          await muxer.close()
-          await conn.close()
-      asyncSpawn muxer.handle()
+      let muxerTask = muxer.handle()
+      asyncSpawn muxerTask
+      await muxerTask
+      await muxer.close()
+      await conn.close()
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
@@ -174,8 +180,9 @@ template streamTransportTest*(
     await serverTask
     await server.stop()
 
-  asyncTest "incomplete read":
+  asyncTest "client write after EOF":
     let ma = @[MultiAddress.init(address).tryGet()]
+    var clientHandlerTask: Future[void]
 
     proc serverHandler(server: Transport) {.async.} =
       let conn = await server.accept()
@@ -189,7 +196,62 @@ template streamTransportTest*(
           await stream.close()
           await muxer.close()
           await conn.close()
-      asyncSpawn muxer.handle()
+      clientHandlerTask = muxer.handle()
+      asyncSpawn clientHandlerTask
+
+    proc runClient(server: Transport) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial("", server.addrs[0])
+      let muxer = muxerProvider(client, conn)
+      let muxerTask = muxer.handle()
+      asyncSpawn muxerTask
+
+      let stream = await muxer.newStream()
+
+      var buffer: array[serverMessage.len, byte]
+      await stream.readExactly(addr buffer, serverMessage.len)
+      check string.fromBytes(buffer) == serverMessage
+      await clientHandlerTask
+
+      if isQuicTransport(ma[0]):
+        expect LPStreamError:
+          await stream.write(clientMessage)
+      else:
+        expect LPStreamEOFError:
+          await stream.write(clientMessage)
+
+      await stream.close()
+      await muxer.close()
+      await conn.close()
+      await muxerTask
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverTask = serverHandler(server)
+    asyncSpawn serverTask
+
+    await runClient(server)
+    await serverTask
+    await server.stop()
+
+  asyncTest "incomplete read":
+    let ma = @[MultiAddress.init(address).tryGet()]
+
+    proc serverHandler(server: Transport) {.async.} =
+      let conn = await server.accept()
+      let muxer = muxerProvider(server, conn)
+      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        try:
+          await stream.write(serverMessage)
+        except CatchableError:
+          discard
+        finally:
+          await stream.close()
+      let muxerTask = muxer.handle()
+      asyncSpawn muxerTask
+      await muxerTask
+      await muxer.close()
+      await conn.close()
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
@@ -308,9 +370,11 @@ template streamTransportTest*(
           discard
         finally:
           await stream.close()
-          await muxer.close()
-          await conn.close()
-      asyncSpawn muxer.handle()
+      let muxerTask = muxer.handle()
+      asyncSpawn muxerTask
+      await muxerTask
+      await muxer.close()
+      await conn.close()
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
