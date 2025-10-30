@@ -1,10 +1,7 @@
 import chronos, unittest2, macros
+import ./trackers
 
-import ../../libp2p/stream/[chronosstream, bufferstream, lpstream, connection]
-import ../../libp2p/transports/tcptransport
-import ../../libp2p/muxers/mplex/lpchannel
-import ../../libp2p/protocols/secure/secure
-
+export checkTrackers # TODO: maybe consider importing it on demand?
 export unittest2 except suite
 
 ## suite wraps unittest2.suite in a proc to avoid issue with too many global variables
@@ -43,43 +40,6 @@ template asyncTest*(name: string, body: untyped): untyped =
           body
       )()
     )
-
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
-  DgramTransportTrackerName = "datagram.transport"
-
-  trackerNames = [
-    LPStreamTrackerName, ConnectionTrackerName, LPChannelTrackerName,
-    SecureConnTrackerName, BufferStreamTrackerName, TcpTransportTrackerName,
-    StreamTransportTrackerName, StreamServerTrackerName, DgramTransportTrackerName,
-    ChronosStreamTrackerName,
-  ]
-
-template checkTracker*(name: string) =
-  if isCounterLeaked(name):
-    let
-      tracker = getTrackerCounter(name)
-      trackerDescription =
-        "Opened " & name & ": " & $tracker.opened & "\n" & "Closed " & name & ": " &
-        $tracker.closed
-    checkpoint trackerDescription
-    fail()
-
-template checkTrackers*() =
-  for name in trackerNames:
-    checkTracker(name)
-  # Also test the GC is not fooling with us
-  when defined(nimHasWarnBareExcept):
-    {.push warning[BareExcept]: off.}
-  try:
-    GC_fullCollect()
-  except Defect as exc:
-    raise exc # Reraise to maintain call stack
-  except Exception:
-    raiseAssert "Unexpected exception during GC collection"
-  when defined(nimHasWarnBareExcept):
-    {.pop.}
 
 macro checkUntilTimeoutCustom*(
     timeout: Duration, sleepInterval: Duration, code: untyped

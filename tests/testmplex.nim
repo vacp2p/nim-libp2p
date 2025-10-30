@@ -27,7 +27,7 @@ import
     varint,
   ]
 
-import ./tools/[unittest, futures, bufferstream, compare]
+import ./tools/[unittest, trackers, futures, bufferstream, compare]
 
 suite "Mplex":
   teardown:
