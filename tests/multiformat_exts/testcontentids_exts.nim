@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,10 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
+import ../../libp2p/[cid, multicodec, multihash]
 import ../tools/unittest
-import ../../libp2p/cid
-import ../../libp2p/multicodec
-import ../../libp2p/multihash
 
 suite "ContentId extensions":
   test "extended contentids correctly hash data":

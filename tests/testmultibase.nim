@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,11 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import tools/unittest
-import ../libp2p/multibase
+{.used.}
+
 import results
+import ../libp2p/multibase
+import ./tools/[unittest]
 
 const GoTestVectors = [
   ["identity", "\x00Decentralize everything!!!", "Decentralize everything!!!"],

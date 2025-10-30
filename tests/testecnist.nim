@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,8 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import nimcrypto/utils
-import results
+{.used.}
+
+import results, nimcrypto/utils
 import ../libp2p/crypto/[crypto, ecnist]
 import ./tools/[unittest, crypto]
 

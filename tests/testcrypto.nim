@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -8,15 +6,16 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+{.used.}
 
-## Test vectors was made using Go implementation
-## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
 from std/strutils import toUpper
-import bearssl/hash
-import nimcrypto/utils
+import bearssl/hash, nimcrypto/utils
 import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 import ./tools/[unittest, crypto]
 
+## Test vectors was made using Go implementation
+## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
+## 
 const
   PrivateKeys = [
     """080012A809308204A40201000282010100C8B014EC01E135D635F7E246BA7D42

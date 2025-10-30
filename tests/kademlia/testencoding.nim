@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -8,12 +6,11 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+{.used.}
 
-import ../tools/unittest
-import ../../libp2p/protobuf/minprotobuf
-import ../../libp2p/protocols/kademlia/protobuf
-import ../../libp2p/multiaddress
 import results
+import ../../libp2p/[multiaddress, protobuf/minprotobuf, protocols/kademlia/protobuf]
+import ../tools/unittest
 
 template checkEncodeDecode(obj: untyped) =
   check obj == decode(typeof(obj), obj.encode()).get()

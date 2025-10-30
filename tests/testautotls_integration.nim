@@ -7,31 +7,28 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [].}
-
-import chronos
-import chronos/apps/http/httpclient
-import
-  ../libp2p/[
-    stream/connection,
-    upgrademngrs/upgrade,
-    autotls/acme/api,
-    autotls/acme/client,
-    autotls/service,
-    autotls/utils,
-    multiaddress,
-    switch,
-    builders,
-    nameresolving/dnsresolver,
-    wire,
-  ]
-
-import ./tools/[unittest]
+{.used.}
 
 when defined(linux) and defined(amd64):
-  {.used.}
+  {.push raises: [].}
 
-  import ../libp2p/utils/ipaddr
+  import chronos, chronos/apps/http/httpclient
+  import
+    ../libp2p/[
+      stream/connection,
+      upgrademngrs/upgrade,
+      autotls/acme/api,
+      autotls/acme/client,
+      autotls/service,
+      autotls/utils,
+      multiaddress,
+      utils/ipaddr,
+      switch,
+      builders,
+      nameresolving/dnsresolver,
+      wire,
+    ]
+  import ./tools/[unittest]
 
   suite "AutoTLS Integration":
     asyncTeardown:

@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-LibP2P
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,10 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
 {.push raises: [].}
 
-import chronos
-import stew/byteutils
+import chronos, stew/byteutils
 import ../../libp2p/[transports/memorytransport, multiaddress]
 import ../tools/[unittest]
 

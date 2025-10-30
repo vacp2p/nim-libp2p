@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import options
-import chronos
-import chronicles
+{.used.}
+
+import options, chronos, chronicles
 import
   ../libp2p/[
     protocols/identify,

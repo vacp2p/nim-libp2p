@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023-2024 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 import chronos, stew/byteutils
 import ../libp2p/stream/bufferstream, ../libp2p/stream/lpstream
-
 import ./tools/[unittest, futures]
 
 suite "BufferStream":

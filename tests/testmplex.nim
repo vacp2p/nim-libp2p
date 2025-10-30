@@ -9,8 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import strformat, random, sequtils
-import chronos, nimcrypto/utils, chronicles, stew/byteutils
+import strformat, random, sequtils, chronos, nimcrypto/utils, chronicles, stew/byteutils
 import
   ../libp2p/[
     errors,
@@ -26,7 +25,6 @@ import
     vbuffer,
     varint,
   ]
-
 import ./tools/[unittest, trackers, futures, bufferstream, compare]
 
 suite "Mplex":

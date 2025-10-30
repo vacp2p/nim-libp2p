@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,11 +7,12 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 # MacOs has some nasty jitter when sleeping
 # (up to 7 ms), so we skip test there
 when not defined(macosx):
   import chronos
-
   import ../libp2p/utils/heartbeat
   import ./tools/[unittest]
 

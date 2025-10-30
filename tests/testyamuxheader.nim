@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,7 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ../libp2p/stream/[bufferstream, lpstream]
+{.used.}
+
+import ../libp2p/[stream/bufferstream, stream/lpstream, muxers/yamux/yamux]
 import ./tools/[unittest]
 
 include ../libp2p/muxers/yamux/yamux

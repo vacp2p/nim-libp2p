@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import results, sequtils
-import chronos
-import stew/byteutils
+{.used.}
+
+import results, sequtils, chronos, stew/byteutils
 import
   ../libp2p/[
     errors,

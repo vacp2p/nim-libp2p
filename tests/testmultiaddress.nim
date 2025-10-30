@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,13 +7,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [].}
+{.used.}
 
-import std/sequtils
-
-import tools/unittest
-import stew/byteutils
+import std/sequtils, stew/byteutils
 import ../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
+import ./tools/[unittest]
+
+{.push raises: [].}
 
 type PatternVector = object
   pattern: MaPattern

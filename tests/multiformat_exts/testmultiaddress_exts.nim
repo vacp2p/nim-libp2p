@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,10 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
+import ../../libp2p/[multicodec, multiaddress, transcoder]
 import ../tools/unittest
-import ../../libp2p/multicodec
-import ../../libp2p/multiaddress
-import ../../libp2p/transcoder
 
 suite "MutliAddress extensions":
   test "registered protocols can be correctly initialized":

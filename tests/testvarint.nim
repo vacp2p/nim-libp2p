@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,8 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import tools/unittest
+{.used.}
+
 import ../libp2p/varint
+import ./tools/[unittest]
 
 const PBedgeValues = [
   0'u64,

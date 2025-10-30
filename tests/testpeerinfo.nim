@@ -9,15 +9,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import options
-import chronos
+import options, chronos
 import
   ../libp2p/crypto/crypto,
   ../libp2p/multicodec,
   ../libp2p/peerinfo,
   ../libp2p/peerid,
   ../libp2p/routing_record
-
 import ./tools/[unittest, crypto]
 
 suite "PeerInfo":

@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,8 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 import chronos
-import ../libp2p/multiaddress, ../libp2p/observedaddrmanager
+import ../libp2p/[multiaddress, observedaddrmanager]
 import ./tools/[unittest]
 
 suite "ObservedAddrManager":

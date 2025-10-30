@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,13 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import
-  std/[tables, sequtils],
-  ../libp2p/crypto/crypto,
-  ../libp2p/multiaddress,
-  ../libp2p/peerid,
-  ../libp2p/peerstore
+{.used.}
 
+import std/[tables, sequtils]
+import ../libp2p/[crypto/crypto, multiaddress, peerid, peerstore]
 import ./tools/[unittest, crypto]
 
 suite "PeerStore":

@@ -9,9 +9,7 @@
 
 {.push raises: [].}
 
-import json, uri
-import chronos
-import chronos/apps/http/httpclient
+import json, uri, chronos, chronos/apps/http/httpclient
 import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth/client, wire]
 import ./tools/[unittest, crypto]
 

@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 import chronos
 import ../libp2p/[stream/connection, stream/bufferstream]
-
 import ./tools/[unittest]
 
 suite "Connection":

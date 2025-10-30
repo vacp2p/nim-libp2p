@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,11 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest
-import chronos
-import results
-import ../../libp2p/crypto/crypto
-import ../../libp2p/protocols/kademlia
+{.used.}
+
+import unittest, chronos, results
+import ../../libp2p/[protocols/kademlia, crypto/crypto]
 import ../tools/[crypto]
 
 proc testKey*(x: byte): Key =

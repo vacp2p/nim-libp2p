@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,10 +7,11 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ../tools/unittest
+{.used.}
+
+import results, stew/byteutils
 import ../../libp2p/multibase
-import stew/byteutils
-import results
+import ../tools/unittest
 
 suite "MutliBase extensions":
   test "extended hashes correctly hash data":

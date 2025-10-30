@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -8,6 +6,8 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+
+{.used.}
 
 import stew/byteutils
 import ../libp2p/[routing_record, crypto/crypto]

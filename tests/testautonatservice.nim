@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,16 +7,18 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[options, sequtils]
-import chronos, metrics
+{.used.}
+
+import chronos, metrics, std/[options, sequtils]
 import
   ../libp2p/[
     builders,
     switch,
     protocols/connectivity/autonat/client,
     protocols/connectivity/autonat/service,
+    nameresolving/nameresolver,
+    nameresolving/mockresolver,
   ]
-import ../libp2p/nameresolving/[nameresolver, mockresolver]
 import stubs/autonatclientstub
 import ./tools/[unittest, futures]
 

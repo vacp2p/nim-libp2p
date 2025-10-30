@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,10 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
 {.push raises: [].}
 
-import chronos
-import chronos/apps/http/httpclient
+import chronos, chronos/apps/http/httpclient
 import
   ../../libp2p/[
     stream/connection,
@@ -27,7 +25,6 @@ import
     wire,
     utils/ipaddr,
   ]
-
 import ../tools/[unittest]
 
 suite "WebSocket transport integration":

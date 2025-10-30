@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,10 +7,11 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import tools/unittest
-import ../libp2p/protobuf/minprotobuf
-import ../libp2p/varint
+{.used.}
+
 import stew/byteutils, strutils
+import ../libp2p/[protobuf/minprotobuf, varint]
+import ./tools/[unittest]
 
 suite "MinProtobuf test suite":
   const VarintVectors = [

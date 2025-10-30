@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 import std/[sequtils, tables]
-import chronos
-import chronicles
+import chronos, chronicles
 import
   ../libp2p/[
     stream/connection,
@@ -22,8 +21,8 @@ import
     nameresolving/dnsresolver,
     nameresolving/mockresolver,
   ]
-
 import ./tools/[unittest]
+
 #
 #Cloudflare
 const fallbackDnsServers =

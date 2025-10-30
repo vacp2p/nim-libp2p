@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2023 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
+import ../../libp2p/[multihash, multicodec]
 import ../tools/unittest
-import ../../libp2p/multicodec
-import ../../libp2p/multihash
 
 suite "MutliHash extensions":
   test "extended hashes correctly hash data":
