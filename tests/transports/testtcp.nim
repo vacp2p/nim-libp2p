@@ -20,14 +20,20 @@ import
     multicodec,
     errors,
     wire,
+    muxers/muxer,
+    muxers/mplex/mplex,
   ]
 
 import ../helpers
 import ./basic_tests
 import ./connection_tests
+import ./stream_tests
 
 proc tcpTransProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
+
+proc muxerProvider(_: Transport, conn: Connection): Muxer =
+  Mplex.new(conn)
 
 const
   address = "/ip4/127.0.0.1/tcp/0"
@@ -51,6 +57,7 @@ suite "TCP transport":
 
   basicTransportTest(tcpTransProvider, address, validAddresses, invalidAddresses)
   connectionTransportTest(tcpTransProvider, address)
+  streamTransportTest(tcpTransProvider, address, muxerProvider)
 
   asyncTest "test listener: handle write":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]

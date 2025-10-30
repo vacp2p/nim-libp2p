@@ -9,7 +9,7 @@ import ../helpers
 import ./utils
 
 template connectionTransportTest*(
-    provider: TransportBuilder, ma1: string, ma2: string = ""
+    provider: TransportProvider, ma1: string, ma2: string = ""
 ) =
   block:
     let transportProvider = provider

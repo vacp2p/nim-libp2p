@@ -15,7 +15,7 @@ import ../helpers
 import ./utils
 
 template basicTransportTest*(
-    provider: TransportBuilder,
+    provider: TransportProvider,
     address: string,
     validAddresses: seq[string],
     invalidAddresses: seq[string],

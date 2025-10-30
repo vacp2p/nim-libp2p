@@ -11,6 +11,7 @@ import
     upgrademngrs/upgrade,
     multiaddress,
     multicodec,
+    muxers/muxer,
   ]
 import ../helpers
 
@@ -109,7 +110,8 @@ proc createTransport*(
 
 # Common 
 
-type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
+type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
+type StreamMuxerProvider* = proc(transport: Transport, conn: Connection): Muxer
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =

@@ -5,9 +5,11 @@ import random
 import sequtils
 import stew/byteutils
 import
-  ../../libp2p/[transports/transport, transports/quictransport, upgrademngrs/upgrade]
+  ../../libp2p/
+    [transports/transport, transports/quictransport, upgrademngrs/upgrade, muxers/muxer]
 import ../helpers
 import ./basic_tests
+import ./stream_tests
 import ./utils
 
 proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
@@ -15,6 +17,9 @@ proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
     return QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, (newRng())[]).tryGet())
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
+
+proc muxerProvider(transport: Transport, conn: Connection): Muxer =
+  waitFor transport.upgrade(conn, Opt.none(PeerId))
 
 const
   address = "/ip4/127.0.0.1/udp/0/quic-v1"
@@ -35,6 +40,7 @@ suite "Quic transport":
     checkTrackers()
 
   basicTransportTest(quicTransProvider, address, validAddresses, invalidAddresses)
+  streamTransportTest(quicTransProvider, address, muxerProvider)
 
   asyncTest "transport e2e":
     let server = await createTransport(isServer = true)
