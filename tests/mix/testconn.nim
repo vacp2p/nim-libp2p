@@ -11,8 +11,17 @@
 
 import chronos, results, options, std/[enumerate, sequtils], stew/byteutils
 import
-  ../../libp2p/
-    [protocols/mix, protocols/ping, peerid, multiaddress, switch, builders, crypto/secp]
+  ../../libp2p/[
+    protocols/mix,
+    protocols/mix/mix_node,
+    protocols/mix/mix_protocol,
+    protocols/ping,
+    peerid,
+    multiaddress,
+    switch,
+    builders,
+    crypto/secp,
+  ]
 import ../tools/[unittest, crypto]
 
 proc createSwitch(
@@ -259,3 +268,86 @@ suite "Mix Protocol":
     # Verify the response was read correctly
     let expectedResponse = "Response: " & testMessage
     check string.fromBytes(response) == expectedResponse
+
+  asyncTest "skip and remove nodes with invalid multiaddress from pool":
+    # This test validates that nodes with invalid multiaddrs are:
+    # 1. Skipped during path construction
+    # 2. Removed from pubNodeInfo pool
+    # 3. Message still succeeds if enough valid nodes remain
+
+    # Create invalid node with a multiaddr missing transport layer
+    let invalidPeerId = PeerId.random().expect("could not generate peerId")
+    let invalidMultiAddr =
+      MultiAddress.init("/ip4/0.0.0.0").expect("could not initialize invalid multiaddr")
+
+    # Get valid keys from any node's pub info
+    let validPubInfo = MixPubInfo.readFromFile(1).expect("could not read pub info")
+    let (_, _, validMixPubKey, validLibp2pPubKey) = validPubInfo.get()
+
+    let invalidPubInfo = MixPubInfo.init(
+      invalidPeerId, invalidMultiAddr, validMixPubKey, validLibp2pPubKey
+    )
+
+    # Setup all mix protocol nodes (needed for forwarding)
+    var mixProto: seq[MixProtocol] = @[]
+    for index, _ in enumerate(switches):
+      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
+          "should have initialized mix protocol"
+        )
+      mixProto.add(proto)
+      switches[index].mount(proto)
+
+    # Now inject invalid node into sender's (node 0) pool
+    # Include enough valid nodes so that even after invalid node is removed,
+    # we still have sufficient nodes for PathLength = 3
+    # Using 6 valid nodes + 1 invalid = 7 total, which gives enough room
+    var nodePool = initTable[PeerId, MixPubInfo]()
+    for i in 1 ..< 7: # Load 6 valid nodes (indices 1, 2, 3, 4, 5, 6)
+      let pubInfo = MixPubInfo.readFromFile(i).expect("could not read pub info")
+      nodePool[pubInfo.peerId] = pubInfo
+
+    nodePool[invalidPeerId] = invalidPubInfo
+    mixProto[0].setNodePool(nodePool)
+
+    # Verify pool has 6 valid + 1 invalid = 7 nodes
+    check mixProto[0].getNodePoolSize() == 7
+
+    # Setup destination node
+    let receivedMessage = newFuture[seq[byte]]()
+    switches[1].mount(newNoReplyProtocol(switches[1], receivedMessage))
+
+    # Start all switches - they're needed as intermediate nodes in the mix path
+    # even though only sender (0) and destination (1) are doing protocol work
+    await switches.mapIt(it.start()).allFutures()
+
+    # Send messages in a loop until invalid node is encountered and removed
+    # With 6 valid + 1 invalid nodes and PathLength=3, we need multiple attempts
+    let testPayload = "test message".toBytes()
+    var initialPoolSize = mixProto[0].getNodePoolSize()
+
+    # Try up to 20 times to encounter the invalid node
+    # Stop if pool size goes below 3 (can't construct path anymore)
+    for attempt in 0 ..< 20:
+      if mixProto[0].getNodePoolSize() < 3:
+        break
+
+      let conn = mixProto[0].toConnection(
+        MixDestination.init(switches[1].peerInfo.peerId, switches[1].peerInfo.addrs[0]),
+        NoReplyProtocolCodec,
+        MixParameters(expectReply: Opt.none(bool), numSurbs: Opt.none(uint8)),
+      )
+
+      if conn.isErr:
+        # If we can't build connection due to insufficient nodes, break
+        break
+
+      await conn.get().writeLp(testPayload)
+      discard await receivedMessage.wait(5.seconds)
+      await conn.get().close()
+
+      # Check if invalid node was removed
+      if mixProto[0].getNodePoolSize() < initialPoolSize:
+        break
+
+    # Verify invalid node was removed from pool (should be 6 valid nodes remaining)
+    check mixProto[0].getNodePoolSize() == 6
