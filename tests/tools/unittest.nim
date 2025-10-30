@@ -1,9 +1,5 @@
 import chronos, unittest2, macros
-
-import ../../libp2p/stream/[chronosstream, bufferstream, lpstream, connection]
-import ../../libp2p/transports/tcptransport
-import ../../libp2p/muxers/mplex/lpchannel
-import ../../libp2p/protocols/secure/secure
+import ./trackers
 
 export unittest2 except suite
 
@@ -44,18 +40,6 @@ template asyncTest*(name: string, body: untyped): untyped =
       )()
     )
 
-const
-  StreamTransportTrackerName = "stream.transport"
-  StreamServerTrackerName = "stream.server"
-  DgramTransportTrackerName = "datagram.transport"
-
-  trackerNames = [
-    LPStreamTrackerName, ConnectionTrackerName, LPChannelTrackerName,
-    SecureConnTrackerName, BufferStreamTrackerName, TcpTransportTrackerName,
-    StreamTransportTrackerName, StreamServerTrackerName, DgramTransportTrackerName,
-    ChronosStreamTrackerName,
-  ]
-
 template checkTracker*(name: string) =
   if isCounterLeaked(name):
     let
@@ -67,7 +51,7 @@ template checkTracker*(name: string) =
     fail()
 
 template checkTrackers*() =
-  for name in trackerNames:
+  for name in AllTrackerNames:
     checkTracker(name)
   # Also test the GC is not fooling with us
   when defined(nimHasWarnBareExcept):
