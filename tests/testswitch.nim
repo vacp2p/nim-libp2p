@@ -38,7 +38,7 @@ import
     transports/wstransport,
     transports/quictransport,
   ]
-import ./tools/[unittest, futures, crypto]
+import ./tools/[unittest, trackers, futures, crypto]
 
 const TestCodec = "/test/proto/1.0.0"
 
