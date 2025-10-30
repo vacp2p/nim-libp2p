@@ -9,8 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options, net
-import chronos
+import chronos, std/options, net
 import
   ../libp2p/[
     switch,

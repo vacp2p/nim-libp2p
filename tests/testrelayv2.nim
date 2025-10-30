@@ -1,7 +1,5 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,7 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import bearssl, chronos, options
+{.used.}
+
+import bearssl, chronos, options, std/times, stew/byteutils
 import ../libp2p
 import
   ../libp2p/[
@@ -19,8 +19,6 @@ import
     protocols/connectivity/relay/client,
   ]
 import ./tools/[unittest]
-import std/times
-import stew/byteutils
 
 proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   var builder = SwitchBuilder

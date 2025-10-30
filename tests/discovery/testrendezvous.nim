@@ -1,7 +1,5 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,12 +7,14 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import sequtils, strformat, sugar, chronos, stew/byteutils
+{.used.}
 
+import sequtils, strformat, sugar, chronos, stew/byteutils
 import
   ../../libp2p/[
     protocols/rendezvous,
     protocols/rendezvous/protobuf,
+    discovery/discoverymngr,
     peerinfo,
     switch,
     routing_record,
@@ -23,9 +23,8 @@ import
     protobuf/minprotobuf,
     utils/semaphore,
     builders,
+    utils/offsettedseq,
   ]
-import ../../libp2p/discovery/discoverymngr
-import ../../libp2p/utils/offsettedseq
 import ../tools/[unittest]
 import ./utils
 

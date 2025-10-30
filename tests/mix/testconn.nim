@@ -1,12 +1,18 @@
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
-import chronos
-import results, options
-import std/[enumerate, sequtils]
-import stew/byteutils
-import ../../libp2p/protocols/[mix, ping]
-import ../../libp2p/[peerid, multiaddress, switch, builders]
-import ../../libp2p/crypto/secp
+import chronos, results, options, std/[enumerate, sequtils], stew/byteutils
+import
+  ../../libp2p/
+    [protocols/mix, protocols/ping, peerid, multiaddress, switch, builders, crypto/secp]
 import ../tools/[unittest, crypto]
 
 proc createSwitch(

@@ -1,7 +1,5 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,11 +7,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-## Test vectors are from RFC 8032 (https://tools.ietf.org/html/rfc8032)
+{.used.}
+
 import nimcrypto/utils
-import ../libp2p/crypto/crypto
-import ../libp2p/crypto/ed25519/ed25519
+import ../libp2p/crypto/[crypto, ed25519/ed25519]
 import ./tools/[unittest, crypto]
+
+## Test vectors are from RFC 8032 (https://tools.ietf.org/html/rfc8032)
 
 const TestsCount = 20
 

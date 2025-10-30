@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,8 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options
-import chronos
+{.used.}
+
+import chronos, std/options
 import ../libp2p/[multiaddress, utils/ipaddr]
 import ./tools/[unittest]
 

@@ -9,12 +9,10 @@
 
 {.used.}
 
-import chronos
-import std/[sequtils]
-import chronicles
-import ../utils
+import chronos, std/[sequtils], chronicles
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../tools/[unittest]
+import ../utils
 
 suite "GossipSub Integration - Compatibility":
   const topic = "foobar"
