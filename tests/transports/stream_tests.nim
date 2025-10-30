@@ -1,12 +1,14 @@
 {.used.}
 
-import chronos, stew/byteutils
+import chronos, stew/byteutils, sequtils
 import ../../libp2p/[stream/connection, transports/transport, muxers/muxer]
 import ../helpers
 import ./utils
 
 template streamTransportTest*(
-    provider: TransportProvider, address: string, muxerProvider: StreamMuxerProvider
+    transportProvider: TransportProvider,
+    address: string,
+    muxerProvider: StreamMuxerProvider,
 ) =
   const serverMessage =
     "Privacy is necessary for an open society in the electronic age."
@@ -32,7 +34,7 @@ template streamTransportTest*(
       asyncSpawn muxer.handle()
 
     proc runClient(server: Transport) {.async.} =
-      let client = provider()
+      let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
       let muxer = muxerProvider(client, conn)
       asyncSpawn muxer.handle()
@@ -47,10 +49,270 @@ template streamTransportTest*(
       await stream.close()
       await client.stop()
 
-    let server = provider()
+    let server = transportProvider()
     await server.start(ma)
     let serverHandlerFut = serverHandler(server)
 
     await runClient(server)
     await serverHandlerFut
+    await server.stop()
+
+  asyncTest "read/write Lp":
+    let ma = @[MultiAddress.init(address).tryGet()]
+
+    proc serverHandler(server: Transport) {.async.} =
+      let conn = await server.accept()
+      let muxer = muxerProvider(server, conn)
+      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        try:
+          check (await stream.readLp(100)) == fromHex("1234")
+          await stream.writeLp(fromHex("5678"))
+        except CatchableError:
+          raiseAssert "should not happen"
+        finally:
+          await stream.close()
+      asyncSpawn muxer.handle()
+
+    proc runClient(server: Transport) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial("", server.addrs[0])
+      let muxer = muxerProvider(client, conn)
+      asyncSpawn muxer.handle()
+
+      let stream = await muxer.newStream()
+      await stream.writeLp(fromHex("1234"))
+      check (await stream.readLp(100)) == fromHex("5678")
+      await stream.close()
+      await client.stop()
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverHandlerFut = serverHandler(server)
+
+    await runClient(server)
+    await serverHandlerFut
+    await server.stop()
+
+  asyncTest "EOF handling - first readOnce at EOF + repeated reads + write after close":
+    let ma = @[MultiAddress.init(address).tryGet()]
+
+    proc serverHandler(server: Transport) {.async.} =
+      let conn = await server.accept()
+      let muxer = muxerProvider(server, conn)
+      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        try:
+          await stream.write(serverMessage)
+        except CatchableError:
+          discard
+        finally:
+          await stream.close()
+      asyncSpawn muxer.handle()
+
+    proc runClient(server: Transport, serverHandlerFut: Future[void]) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial("", server.addrs[0])
+      let muxer = muxerProvider(client, conn)
+      asyncSpawn muxer.handle()
+
+      let stream = await muxer.newStream()
+
+      var buffer: array[serverMessage.len, byte]
+      await stream.readExactly(addr buffer, serverMessage.len)
+      check string.fromBytes(buffer) == serverMessage
+
+      # First readOnce after EOF
+      if (isQuicTransport(ma[0])):
+        expect LPStreamEOFError:
+          discard await stream.readOnce(addr buffer, 1)
+      else:
+        let bytesRead = await stream.readOnce(addr buffer, 1)
+        check bytesRead == 0
+
+      # Attempting second readOnce at EOF
+      if (isQuicTransport(ma[0])):
+        expect LPStreamEOFError:
+          discard await stream.readOnce(addr buffer, 1)
+      else:
+        expect LPStreamRemoteClosedError:
+          discard await stream.readOnce(addr buffer, 1)
+
+      # Attempting readExactly at EOF
+      if (isQuicTransport(ma[0])):
+        expect LPStreamEOFError:
+          await stream.readExactly(addr buffer, 1)
+      else:
+        expect LPStreamRemoteClosedError:
+          await stream.readExactly(addr buffer, 1)
+
+      # Wait for server to fully close before attempting write to avoid race condition
+      await serverHandlerFut
+
+      # Attempting write after remote close
+      # Both transports allow buffered writes without immediate error
+      if (isQuicTransport(ma[0])):
+        await stream.write(clientMessage)
+      else:
+        await stream.write(clientMessage)
+
+      await stream.close()
+      await conn.close()
+      await client.stop()
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverHandlerFut = serverHandler(server)
+
+    await runClient(server, serverHandlerFut)
+    await server.stop()
+
+  asyncTest "incomplete read":
+    let ma = @[MultiAddress.init(address).tryGet()]
+
+    proc serverHandler(server: Transport) {.async.} =
+      let conn = await server.accept()
+      let muxer = muxerProvider(server, conn)
+      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        try:
+          await stream.write(serverMessage)
+        except CatchableError:
+          discard
+        finally:
+          await stream.close()
+      asyncSpawn muxer.handle()
+
+    proc runClient(server: Transport) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial("", server.addrs[0])
+      let muxer = muxerProvider(client, conn)
+      asyncSpawn muxer.handle()
+
+      let stream = await muxer.newStream()
+
+      var buffer: array[2 * serverMessage.len, byte]
+
+      if (isQuicTransport(ma[0])):
+        expect LPStreamEOFError:
+          await stream.readExactly(addr buffer, 2 * serverMessage.len)
+      else:
+        expect LPStreamIncompleteError:
+          await stream.readExactly(addr buffer, 2 * serverMessage.len)
+
+      # Verify that partial data was read before EOF
+      check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
+
+      await stream.close()
+      await client.stop()
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverHandlerFut = serverHandler(server)
+
+    await runClient(server)
+    await serverHandlerFut
+    await server.stop()
+
+  asyncTest "server closeWrite - client can still write":
+    let ma = @[MultiAddress.init(address).tryGet()]
+
+    proc serverHandler(server: Transport) {.async.} =
+      let conn = await server.accept()
+      let muxer = muxerProvider(server, conn)
+      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        try:
+          # Server sends data and closes its write side
+          await stream.write(serverMessage)
+          await stream.closeWrite()
+
+          # Server should still be able to read from client
+          var buffer: array[clientMessage.len, byte]
+          await stream.readExactly(addr buffer, clientMessage.len)
+          check string.fromBytes(buffer) == clientMessage
+        except CatchableError:
+          raiseAssert "should not happen"
+        finally:
+          await stream.close()
+      asyncSpawn muxer.handle()
+
+    proc runClient(server: Transport) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial("", server.addrs[0])
+      let muxer = muxerProvider(client, conn)
+      asyncSpawn muxer.handle()
+
+      let stream = await muxer.newStream()
+
+      # Client reads server data
+      var buffer: array[serverMessage.len, byte]
+      await stream.readExactly(addr buffer, serverMessage.len)
+      check string.fromBytes(buffer) == serverMessage
+
+      # Server has closed write side, so further reads should EOF
+      if (isQuicTransport(ma[0])):
+        expect LPStreamEOFError:
+          discard await stream.readOnce(addr buffer, 1)
+      else:
+        # TCP/Mplex: First readOnce after closeWrite returns 0 (polite EOF)
+        let bytesRead = await stream.readOnce(addr buffer, 1)
+        check bytesRead == 0
+
+      # Client should still be able to write back to server
+      await stream.write(clientMessage)
+
+      await stream.close()
+      await client.stop()
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverHandlerFut = serverHandler(server)
+
+    await runClient(server)
+    await serverHandlerFut
+    await server.stop()
+
+  asyncTest "stream caching with multiple partial reads":
+    let ma = @[MultiAddress.init(address).tryGet()]
+    const messageSize = 2048
+    const chunkSize = 256
+    let message = (0 ..< messageSize).mapIt(byte(it mod 256))
+
+    proc serverHandler(server: Transport) {.async.} =
+      let conn = await server.accept()
+      let muxer = muxerProvider(server, conn)
+      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+        try:
+          await stream.write(message)
+        except CatchableError:
+          discard
+        finally:
+          await stream.close()
+      asyncSpawn muxer.handle()
+
+    proc runClient(server: Transport) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial("", server.addrs[0])
+      let muxer = muxerProvider(client, conn)
+      asyncSpawn muxer.handle()
+
+      let stream = await muxer.newStream()
+
+      var receivedData: seq[byte] = @[]
+
+      # Read a message chunk by chunk
+      while receivedData.len < messageSize:
+        var chunk: array[chunkSize, byte]
+        let bytesRead = await stream.readOnce(addr chunk[0], chunkSize)
+        check bytesRead > 0
+        receivedData.add(chunk[0 ..< bytesRead])
+
+      check receivedData == message
+
+      await stream.close()
+      await client.stop()
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverFut = serverHandler(server)
+
+    await runClient(server)
+    await serverFut
     await server.stop()
