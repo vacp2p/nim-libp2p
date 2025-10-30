@@ -25,7 +25,7 @@ import
   ]
 import ../../../libp2p/protocols/pubsub/errors as pubsub_errors
 
-import ../../helpers
+import ../../tools/[unittest, futures]
 
 proc waitSub(sender, receiver: auto, key: string) {.async.} =
   let fsub = cast[FloodSub](sender)
@@ -107,7 +107,7 @@ suite "FloodSub Integration":
 
   asyncTest "FloodSub validation should fail":
     proc handler(topic: string, data: seq[byte]) {.async.} =
-      check false # if we get here, it should fail
+      raiseAssert "Handler should not be called when validation fails"
 
     let nodes = generateNodes(2)
 

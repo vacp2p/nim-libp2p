@@ -9,7 +9,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2, ../libp2p/multiaddress, ../libp2p/observedaddrmanager, ./helpers
+import chronos
+import ../libp2p/multiaddress, ../libp2p/observedaddrmanager
+import ./tools/[unittest]
 
 suite "ObservedAddrManager":
   teardown:

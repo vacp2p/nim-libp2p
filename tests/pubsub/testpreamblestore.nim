@@ -1,5 +1,3 @@
-import unittest2
-
 {.used.}
 
 import chronos
@@ -12,9 +10,9 @@ import
     protocols/pubsub/pubsubpeer,
     protocols/pubsub/rpc/messages,
   ]
-import ../utils/async_tests
+import ../tools/unittest
 import ./utils
-import ../helpers
+import ../tools/[unittest]
 
 proc mockPreamble(
     id: MessageId,

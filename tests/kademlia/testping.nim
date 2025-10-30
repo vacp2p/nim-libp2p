@@ -1,11 +1,10 @@
 {.used.}
 import chronos
-import unittest2
 import ../../libp2p/[switch, builders]
 import ../../libp2p/protocols/kademlia
-import ../utils/async_tests
+import ../tools/unittest
 import ./utils.nim
-import ../helpers
+import ../tools/[unittest]
 
 suite "KadDHT - Ping":
   teardown:

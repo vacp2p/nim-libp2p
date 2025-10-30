@@ -1,5 +1,6 @@
 {.used.}
 
+import chronos
 import std/[sequtils]
 import chronicles
 import ../utils
@@ -8,7 +9,7 @@ import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 when defined(libp2p_gossipsub_1_4):
   import ../../../libp2p/protocols/pubsub/gossipsub/preamblestore
 
-import ../../helpers
+import ../../tools/[unittest]
 
 suite "GossipSub Integration - Control Messages":
   teardown:

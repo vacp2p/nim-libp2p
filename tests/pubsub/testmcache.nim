@@ -1,11 +1,11 @@
 {.used.}
 
-import unittest2, sequtils
+import sequtils
 import stew/byteutils
 import
   ../../libp2p/
     [peerid, crypto/crypto, protocols/pubsub/mcache, protocols/pubsub/rpc/message]
-from ../helpers import rng
+import ../tools/[unittest, crypto]
 
 proc randomPeerId(): PeerId =
   PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()

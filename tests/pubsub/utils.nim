@@ -1,3 +1,5 @@
+import chronicles
+import metrics
 import hashes, random, tables, sets, sequtils
 import chronos, results, stew/byteutils, chronos/ratelimit
 import
@@ -12,9 +14,7 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../helpers
-import chronicles
-import metrics
+import ../tools/[unittest, crypto, bufferstream, futures]
 
 export builders
 
@@ -540,7 +540,7 @@ proc baseTestProcedure*(
       if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == nodes.len - 1:
         break setup
       await sleepAsync(200.milliseconds)
-    check false
+    raiseAssert "Failed to publish message to peers"
 
   check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
   check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg

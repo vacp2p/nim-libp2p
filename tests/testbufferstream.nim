@@ -12,7 +12,7 @@
 import chronos, stew/byteutils
 import ../libp2p/stream/bufferstream, ../libp2p/stream/lpstream
 
-import ./helpers
+import ./tools/[unittest, futures]
 
 suite "BufferStream":
   teardown:

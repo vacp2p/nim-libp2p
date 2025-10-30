@@ -9,8 +9,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ./helpers
+import chronos
 import stew/byteutils
+import ./tools/[unittest]
 import ../libp2p/stream/bridgestream
 
 suite "BridgeStream":

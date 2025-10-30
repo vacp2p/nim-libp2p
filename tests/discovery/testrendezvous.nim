@@ -26,7 +26,7 @@ import
   ]
 import ../../libp2p/discovery/discoverymngr
 import ../../libp2p/utils/offsettedseq
-import ../helpers
+import ../tools/[unittest]
 import ./utils
 
 type CustomPeerRecord* = object

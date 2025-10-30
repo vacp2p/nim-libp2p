@@ -11,10 +11,10 @@
 
 import unittest
 import chronos
+import results
 import ../../libp2p/crypto/crypto
 import ../../libp2p/protocols/kademlia
-import results
-from ../helpers import rng
+import ../tools/[crypto]
 
 proc testKey*(x: byte): Key =
   var buf: array[IdLength, byte]

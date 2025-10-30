@@ -18,8 +18,8 @@ import
     discovery/discoverymngr,
     discovery/rendezvousinterface,
   ]
-import ../helpers
-import ../utils/async_tests
+import ../tools/[unittest]
+import ../tools/unittest
 import ./utils
 
 suite "Discovery Manager":
