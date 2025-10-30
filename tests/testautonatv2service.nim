@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,8 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/sequtils
-import chronos, metrics
+{.used.}
+
+import std/sequtils, chronos, metrics
 import
   ../libp2p/[
     builders,
@@ -18,9 +17,10 @@ import
     protocols/connectivity/autonatv2/types,
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/mockclient,
+    nameresolving/nameresolver,
+    nameresolving/mockresolver,
   ]
-import ../libp2p/nameresolving/[nameresolver, mockresolver]
-import ./helpers
+import ./tools/[unittest, futures]
 
 proc createSwitch(
     autonatSvc: Service = nil,

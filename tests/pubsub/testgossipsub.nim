@@ -9,15 +9,12 @@
 
 {.used.}
 
-import chronos
-import chronos/rateLimit
-import stew/byteutils
-import utils
-import
-  ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, pubsubpeer]
-import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
+import chronos, chronos/rateLimit, stew/byteutils, utils
 import ../../libp2p/muxers/muxer
-import ../helpers
+import
+  ../../libp2p/protocols/pubsub/
+    [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]
+import ../tools/[unittest, bufferstream]
 
 suite "GossipSub":
   const topic = "foobar"

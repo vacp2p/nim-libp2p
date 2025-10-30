@@ -1,7 +1,5 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,9 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import results, sequtils
-import chronos
-import stew/byteutils
+{.used.}
+
+import results, sequtils, chronos, stew/byteutils
 import
   ../libp2p/[
     errors,
@@ -38,7 +36,7 @@ import
     transports/wstransport,
     transports/quictransport,
   ]
-import ./helpers
+import ./tools/[unittest, trackers, futures, crypto]
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -504,7 +502,6 @@ suite "Switch":
   asyncTest "e2e should trigger peer events only once per peer":
     let switch1 = newStandardSwitch()
 
-    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
     let switch2 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
@@ -564,7 +561,6 @@ suite "Switch":
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop())
 
   asyncTest "e2e should allow dropping peer from connection events":
-    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let
       privateKey = PrivateKey.random(rng[]).tryGet()
@@ -602,7 +598,6 @@ suite "Switch":
     await allFuturesThrowing(switches.mapIt(it.stop()))
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
-    let rng = crypto.newRng()
     let privateKey = PrivateKey.random(rng[]).tryGet()
     let peerInfo = PeerInfo.new(privateKey)
 
@@ -983,7 +978,7 @@ suite "Switch":
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
@@ -996,7 +991,7 @@ suite "Switch":
       destSwitch = SwitchBuilder
         .new()
         .withAddresses(@[tcpAddress, wsAddress])
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
@@ -1037,7 +1032,7 @@ suite "Switch":
       srcSwitch = SwitchBuilder
         .new()
         .withAddress(quicAddress1)
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withQuicTransport()
         .withNoise()
         .build()
@@ -1045,7 +1040,7 @@ suite "Switch":
       destSwitch = SwitchBuilder
         .new()
         .withAddress(quicAddress2)
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withQuicTransport()
         .withNoise()
         .build()

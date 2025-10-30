@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -8,6 +6,8 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+
+{.used.}
 
 import chronos, stew/byteutils
 import
@@ -22,8 +22,7 @@ import
     muxers/muxer,
     muxers/mplex/mplex,
   ]
-
-import ../helpers
+import ../tools/[unittest]
 import ./basic_tests
 import ./connection_tests
 import ./stream_tests

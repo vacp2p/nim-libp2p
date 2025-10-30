@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,11 +7,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 import chronos
 import ../libp2p
 import
   ../libp2p/[switch, protocols/perf/client, protocols/perf/server, protocols/perf/core]
-import ./helpers
+import ./tools/[unittest]
 
 proc createSwitch(
     isServer: bool = false,

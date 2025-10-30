@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,13 +9,10 @@
 
 {.used.}
 
-import chronos
-import std/[sequtils]
-import stew/byteutils
+import chronos, std/[sequtils], stew/byteutils
+import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, rpc/message]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../../libp2p/protocols/pubsub/rpc/[message]
-import ../../helpers, ../../utils/[futures]
 
 suite "GossipSub Integration - Gossip Protocol":
   teardown:

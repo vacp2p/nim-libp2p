@@ -2,7 +2,6 @@
 
 import chronos, stew/byteutils, sequtils
 import ../../libp2p/[stream/connection, transports/transport, muxers/muxer]
-import ../helpers
 import ./utils
 
 template streamTransportTest*(

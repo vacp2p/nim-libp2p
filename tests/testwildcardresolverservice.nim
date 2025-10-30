@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2024 Status Research & Development GmbH
 # Licensed under either of
@@ -9,12 +7,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options
-import chronos, metrics
-import ../libp2p/[builders, switch]
-import ../libp2p/services/wildcardresolverservice
-import ../libp2p/[multiaddress, multicodec]
-import ./helpers
+{.used.}
+
+import std/options, chronos, metrics
+import
+  ../libp2p/
+    [builders, switch, services/wildcardresolverservice, multiaddress, multicodec]
+import ./tools/[unittest]
 
 proc getAddressesMock(
     addrFamily: AddressFamily

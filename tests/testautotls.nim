@@ -1,19 +1,18 @@
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+{.used.}
+
 when defined(libp2p_autotls_support):
-  {.used.}
-
-  # Nim-Libp2p
-  # Copyright (c) 2025 Status Research & Development GmbH
-  # Licensed under either of
-  #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-  #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-  # at your option.
-  # This file may not be copied, modified, or distributed except according to
-  # those terms.
-
   {.push raises: [].}
 
-  import sequtils, json, uri
-  import chronos, chronos/apps/http/httpclient
+  import sequtils, json, uri, chronos, chronos/apps/http/httpclient
   import
     ../libp2p/[
       stream/connection,
@@ -22,8 +21,7 @@ when defined(libp2p_autotls_support):
       autotls/acme/client,
       wire,
     ]
-
-  import ./helpers
+  import ./tools/[unittest]
 
   suite "AutoTLS ACME API":
     var api {.threadvar.}: MockACMEApi

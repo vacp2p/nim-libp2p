@@ -9,8 +9,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options, net
-import chronos
+import chronos, std/options, net
 import
   ../libp2p/[
     switch,
@@ -22,8 +21,8 @@ import
     protocols/connectivity/autonatv2/utils,
     protocols/connectivity/autonatv2/client,
     protocols/connectivity/autonatv2/mockserver,
-  ],
-  ./helpers
+  ]
+import ./tools/[unittest]
 
 proc setupAutonat(
     srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),

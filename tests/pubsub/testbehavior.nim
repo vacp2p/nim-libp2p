@@ -1,15 +1,19 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
-import chronos
-import std/[sequtils, tables]
-import stew/byteutils
-import utils
-import chronicles
+import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles
 import ../../libp2p/[routing_record, crypto/crypto, multiaddress]
-import ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable]
-import ../../libp2p/protocols/pubsub/rpc/[message]
-import ../helpers
-import ../utils/[futures]
+import
+  ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, rpc/message]
+import ../tools/[unittest, futures]
 
 suite "GossipSub Behavior":
   const

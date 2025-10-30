@@ -1,7 +1,5 @@
-{.used.}
-
 # Nim-Libp2p
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,10 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
 {.push raises: [].}
 
-import tables
-import chronos, stew/[byteutils]
+import tables, chronos, stew/[byteutils]
 import
   ../../libp2p/[
     stream/connection,
@@ -25,8 +23,7 @@ import
     muxers/mplex/mplex,
     builders,
   ]
-
-import ../helpers
+import ../tools/[unittest, crypto]
 import ../stubs/torstub
 import ./basic_tests
 import ./connection_tests
