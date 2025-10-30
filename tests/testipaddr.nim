@@ -11,7 +11,8 @@
 
 import std/options
 import chronos
-import ../libp2p/[utils/ipaddr], ./helpers
+import ../libp2p/[multiaddress, utils/ipaddr]
+import ./tools/[unittest]
 
 suite "IpAddr Utils":
   teardown:

@@ -9,8 +9,8 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ./helpers
-import unittest2
+import chronos
+import ./tools/[unittest]
 from std/exitprocs import nil
 
 suite "checkUntilTimeout helpers":

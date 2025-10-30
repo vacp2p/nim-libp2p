@@ -10,7 +10,7 @@
 {.used.}
 
 import strformat
-import ../tests/utils/async_tests
+import unittest2
 import ./runner
 
 type NetworkScenario = object
@@ -62,7 +62,7 @@ setupOutputDirectory()
 suite "Network Reliability Tests":
   for transport in transportTypes:
     for scenario in scenarios:
-      asyncTest fmt"{scenario.name} {transport}":
+      test fmt"{scenario.name} {transport}":
         run(
           scenario.name,
           transport,

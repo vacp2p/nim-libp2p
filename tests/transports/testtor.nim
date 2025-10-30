@@ -23,7 +23,7 @@ import
     builders,
   ]
 
-import ../helpers
+import ../tools/[unittest, crypto]
 import ../stubs/torstub
 import ./basic_tests
 import ./connection_tests
@@ -138,7 +138,7 @@ suite "Tor transport":
           check string.fromBytes(resp) == "client"
           await conn.write("server")
         except LPStreamError:
-          check false # should not be here
+          raiseAssert "Unexpected LPStreamError in Tor onion3 test handler"
         finally:
           await conn.close()
 

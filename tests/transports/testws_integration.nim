@@ -11,7 +11,7 @@
 
 {.push raises: [].}
 
-import chronos #, strutils#, sequtils
+import chronos
 import chronos/apps/http/httpclient
 import
   ../../libp2p/[
@@ -28,7 +28,7 @@ import
     utils/ipaddr,
   ]
 
-from ../helpers import suite, asyncTest, asyncTeardown, checkTrackers, skip, check
+import ../tools/[unittest]
 
 suite "WebSocket transport integration":
   teardown:

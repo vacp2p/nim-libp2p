@@ -11,9 +11,10 @@
 
 {.push raises: [].}
 
+import chronos
 import stew/byteutils
 import ../../libp2p/[transports/memorytransport, multiaddress]
-import ../helpers
+import ../tools/[unittest]
 
 suite "Memory transport":
   teardown:

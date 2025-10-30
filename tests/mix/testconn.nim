@@ -1,13 +1,13 @@
 {.used.}
 
-import results, unittest2, options
+import chronos
+import results, options
 import std/[enumerate, sequtils]
 import stew/byteutils
 import ../../libp2p/protocols/[mix, ping]
 import ../../libp2p/[peerid, multiaddress, switch, builders]
 import ../../libp2p/crypto/secp
-import ../utils/async_tests
-import ../helpers
+import ../tools/[unittest, crypto]
 
 proc createSwitch(
     multiAddr: MultiAddress, libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey)

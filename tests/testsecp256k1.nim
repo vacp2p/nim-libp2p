@@ -9,9 +9,8 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2
 import ../libp2p/crypto/[crypto, secp]
-from ./helpers import rng
+import ./tools/[unittest, crypto]
 
 suite "Secp256k1 testing suite":
   const TestsCount = 20

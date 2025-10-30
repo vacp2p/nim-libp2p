@@ -14,7 +14,7 @@ import
     routing_record,
     switch,
   ]
-from ../helpers import rng
+import ../tools/[crypto]
 
 proc createSwitch*(): Switch =
   SwitchBuilder

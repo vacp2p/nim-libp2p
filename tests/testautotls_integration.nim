@@ -26,7 +26,7 @@ import
     wire,
   ]
 
-import ./helpers
+import ./tools/[unittest]
 
 when defined(linux) and defined(amd64):
   {.used.}

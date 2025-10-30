@@ -1,9 +1,10 @@
 {.used.}
 
+import chronos
 import std/[sequtils]
 import ../utils
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../helpers
+import ../../tools/[unittest]
 
 suite "GossipSub Integration - Heartbeat":
   teardown:

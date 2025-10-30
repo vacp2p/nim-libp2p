@@ -1,9 +1,9 @@
 {.used.}
 
-import unittest2
 import chronos
 import results
 
+import ../tools/unittest
 import ../../libp2p/protocols/pubsub/gossipsub/[types]
 import ../../libp2p/protocols/pubsub/[gossipsub, pubsubpeer]
 import ../../libp2p/[peerid, multiaddress]

@@ -10,13 +10,13 @@
 # those terms.
 
 import
-  unittest2,
   std/[tables, sequtils],
   ../libp2p/crypto/crypto,
   ../libp2p/multiaddress,
   ../libp2p/peerid,
-  ../libp2p/peerstore,
-  ./helpers
+  ../libp2p/peerstore
+
+import ./tools/[unittest, crypto]
 
 suite "PeerStore":
   # Testvars

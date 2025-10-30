@@ -27,7 +27,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ./helpers
+import ./tools/[unittest, crypto]
 
 suite "Identify":
   teardown:
