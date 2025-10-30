@@ -11,8 +11,8 @@ const
   DgramTransportTrackerName = "datagram.transport"
 
 const AllTrackerNames* = [
-    LPStreamTrackerName, ConnectionTrackerName, LPChannelTrackerName,
-    SecureConnTrackerName, BufferStreamTrackerName, TcpTransportTrackerName,
-    StreamTransportTrackerName, StreamServerTrackerName, DgramTransportTrackerName,
-    ChronosStreamTrackerName,
-  ]
+  LPStreamTrackerName, ConnectionTrackerName, LPChannelTrackerName,
+  SecureConnTrackerName, BufferStreamTrackerName, TcpTransportTrackerName,
+  StreamTransportTrackerName, StreamServerTrackerName, DgramTransportTrackerName,
+  ChronosStreamTrackerName,
+]
