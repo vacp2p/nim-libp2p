@@ -6,7 +6,9 @@ import ../tools/[stream]
 import ./utils
 
 template streamTransportTest*(
-    transportProvider: TransportProvider, address: string, muxerProvider: StreamProvider
+    transportProvider: TransportProvider,
+    address: string,
+    streamProvider: StreamProvider,
 ) =
   const serverMessage =
     "Privacy is necessary for an open society in the electronic age."
@@ -15,30 +17,18 @@ template streamTransportTest*(
   asyncTest "transport e2e":
     let ma = @[MultiAddress.init(address).tryGet()]
 
-    proc serverHandler(server: Transport) {.async.} =
-      let conn = await server.accept()
-      let muxer = muxerProvider(server, conn)
-      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        try:
-          var buffer: array[clientMessage.len, byte]
-          await stream.readExactly(addr buffer, clientMessage.len)
-          check string.fromBytes(buffer) == clientMessage
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        var buffer: array[clientMessage.len, byte]
+        await stream.readExactly(addr buffer, clientMessage.len)
+        check string.fromBytes(buffer) == clientMessage
 
-          await stream.write(serverMessage)
-        except CatchableError:
-          raiseAssert "should not happen"
-        finally:
-          await stream.close()
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-      await muxerTask
-      await muxer.close()
-      await conn.close()
+        await stream.write(serverMessage)
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
-      let muxer = muxerProvider(client, conn)
+      let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
       asyncSpawn muxerTask
 
@@ -56,7 +46,8 @@ template streamTransportTest*(
 
     let server = transportProvider()
     await server.start(ma)
-    let serverTask = serverHandler(server)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
     await runClient(server)
     await serverTask
@@ -65,27 +56,15 @@ template streamTransportTest*(
   asyncTest "read/write Lp":
     let ma = @[MultiAddress.init(address).tryGet()]
 
-    proc serverHandler(server: Transport) {.async.} =
-      let conn = await server.accept()
-      let muxer = muxerProvider(server, conn)
-      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        try:
-          check (await stream.readLp(100)) == fromHex("1234")
-          await stream.writeLp(fromHex("5678"))
-        except CatchableError:
-          raiseAssert "should not happen"
-        finally:
-          await stream.close()
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-      await muxerTask
-      await muxer.close()
-      await conn.close()
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        check (await stream.readLp(100)) == fromHex("1234")
+        await stream.writeLp(fromHex("5678"))
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
-      let muxer = muxerProvider(client, conn)
+      let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
       asyncSpawn muxerTask
 
@@ -100,7 +79,8 @@ template streamTransportTest*(
 
     let server = transportProvider()
     await server.start(ma)
-    let serverTask = serverHandler(server)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
     await runClient(server)
     await serverTask
@@ -109,26 +89,14 @@ template streamTransportTest*(
   asyncTest "EOF handling - first readOnce at EOF + repeated reads":
     let ma = @[MultiAddress.init(address).tryGet()]
 
-    proc serverHandler(server: Transport) {.async.} =
-      let conn = await server.accept()
-      let muxer = muxerProvider(server, conn)
-      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        try:
-          await stream.write(serverMessage)
-        except CatchableError:
-          discard
-        finally:
-          await stream.close()
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-      await muxerTask
-      await muxer.close()
-      await conn.close()
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        await stream.write(serverMessage)
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
-      let muxer = muxerProvider(client, conn)
+      let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
       asyncSpawn muxerTask
 
@@ -169,7 +137,8 @@ template streamTransportTest*(
 
     let server = transportProvider()
     await server.start(ma)
-    let serverTask = serverHandler(server)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
     await runClient(server)
     await serverTask
@@ -181,14 +150,10 @@ template streamTransportTest*(
 
     proc serverHandler(server: Transport) {.async.} =
       let conn = await server.accept()
-      let muxer = muxerProvider(server, conn)
+      let muxer = streamProvider(server, conn)
       muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        try:
+        noException(stream):
           await stream.write(serverMessage)
-        except CatchableError:
-          discard
-        finally:
-          await stream.close()
           await muxer.close()
           await conn.close()
       clientHandlerTask = muxer.handle()
@@ -197,7 +162,7 @@ template streamTransportTest*(
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
-      let muxer = muxerProvider(client, conn)
+      let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
       asyncSpawn muxerTask
 
@@ -231,26 +196,14 @@ template streamTransportTest*(
   asyncTest "incomplete read":
     let ma = @[MultiAddress.init(address).tryGet()]
 
-    proc serverHandler(server: Transport) {.async.} =
-      let conn = await server.accept()
-      let muxer = muxerProvider(server, conn)
-      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        try:
-          await stream.write(serverMessage)
-        except CatchableError:
-          discard
-        finally:
-          await stream.close()
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-      await muxerTask
-      await muxer.close()
-      await conn.close()
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        await stream.write(serverMessage)
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
-      let muxer = muxerProvider(client, conn)
+      let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
       asyncSpawn muxerTask
 
@@ -275,7 +228,8 @@ template streamTransportTest*(
 
     let server = transportProvider()
     await server.start(ma)
-    let serverTask = serverHandler(server)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
     await runClient(server)
     await serverTask
@@ -284,33 +238,21 @@ template streamTransportTest*(
   asyncTest "server closeWrite - client can still write":
     let ma = @[MultiAddress.init(address).tryGet()]
 
-    proc serverHandler(server: Transport) {.async.} =
-      let conn = await server.accept()
-      let muxer = muxerProvider(server, conn)
-      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        try:
-          # Server sends data and closes its write side
-          await stream.write(serverMessage)
-          await stream.closeWrite()
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        # Server sends data and closes its write side
+        await stream.write(serverMessage)
+        await stream.closeWrite()
 
-          # Server should still be able to read from client
-          var buffer: array[clientMessage.len, byte]
-          await stream.readExactly(addr buffer, clientMessage.len)
-          check string.fromBytes(buffer) == clientMessage
-        except CatchableError:
-          raiseAssert "should not happen"
-        finally:
-          await stream.close()
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-      await muxerTask
-      await muxer.close()
-      await conn.close()
+        # Server should still be able to read from client
+        var buffer: array[clientMessage.len, byte]
+        await stream.readExactly(addr buffer, clientMessage.len)
+        check string.fromBytes(buffer) == clientMessage
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
-      let muxer = muxerProvider(client, conn)
+      let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
       asyncSpawn muxerTask
 
@@ -340,7 +282,8 @@ template streamTransportTest*(
 
     let server = transportProvider()
     await server.start(ma)
-    let serverTask = serverHandler(server)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
     await runClient(server)
     await serverTask
@@ -352,26 +295,14 @@ template streamTransportTest*(
     const chunkSize = 256
     let message = newData(messageSize)
 
-    proc serverHandler(server: Transport) {.async.} =
-      let conn = await server.accept()
-      let muxer = muxerProvider(server, conn)
-      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        try:
-          await stream.write(message)
-        except CatchableError:
-          discard
-        finally:
-          await stream.close()
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-      await muxerTask
-      await muxer.close()
-      await conn.close()
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        await stream.write(message)
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
-      let muxer = muxerProvider(client, conn)
+      let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
       asyncSpawn muxerTask
 
@@ -387,7 +318,8 @@ template streamTransportTest*(
 
     let server = transportProvider()
     await server.start(ma)
-    let serverTask = serverHandler(server)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
     await runClient(server)
     await serverTask

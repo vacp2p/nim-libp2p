@@ -118,7 +118,8 @@ proc createTransport*(
 # Common 
 
 type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
-type StreamProvider* = proc(transport: Transport, conn: Connection): Muxer
+type StreamProvider* =
+  proc(transport: Transport, conn: Connection): Muxer {.gcsafe, raises: [].}
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =
@@ -133,3 +134,30 @@ proc extractPort*(ma: MultiAddress): int =
   let portBytes = ma[codec].tryGet().protoArgument().tryGet()
   let port = int(fromBytesBE(uint16, portBytes))
   port
+
+proc serverHandlerSingleStream*(
+    server: Transport,
+    streamProvider: StreamProvider,
+    handler: proc(stream: Connection) {.async: (raises: []).},
+) {.async: (raises: []).} =
+  try:
+    let conn = await server.accept()
+    let muxer = streamProvider(server, conn)
+    muxer.streamHandler = handler
+
+    let muxerTask = muxer.handle()
+    asyncSpawn muxerTask
+
+    await muxerTask
+    await muxer.close()
+    await conn.close()
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+
+template noException*(stream: Connection, body) =
+  try:
+    body
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+  finally:
+    await stream.close()
