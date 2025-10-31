@@ -552,8 +552,7 @@ proc anonymizeLocalProtocolSend*(
 
   var nextHopAddr: MultiAddress
   var nextHopPeerId: PeerId
-  var i = 0
-  while i < PathLength:
+  while hop.len < PathLength:
     if availableIndices.len == 0:
       mix_messages_error.inc(labelValues = ["Entry", "LOW_MIX_POOL"])
       return err("Ran out of available mix nodes while constructing path")
@@ -570,7 +569,7 @@ proc anonymizeLocalProtocolSend*(
       continue
 
     # Last hop will be the exit node that will forward the request
-    if i == PathLength - 1:
+    if hop.len == PathLength - 1:
       case destination.kind
       of ForwardAddr:
         # Last hop will be the exit node that will fwd the request
@@ -580,7 +579,7 @@ proc anonymizeLocalProtocolSend*(
         exitPeerId = destination.peerId
         randPeerId = destination.peerId
 
-    debug "Selected mix node: ", indexInPath = i, peerId = randPeerId
+    debug "Selected mix node: ", indexInPath = hop.len, peerId = randPeerId
 
     # Extract multiaddress, mix public key, and hop
     let (peerId, multiAddr, mixPubKey, _) =
@@ -600,15 +599,13 @@ proc anonymizeLocalProtocolSend*(
     # Only add to path after validation succeeds
     publicKeys.add(mixPubKey)
 
-    if i == 0:
+    if hop.len == 0:
       nextHopAddr = multiAddr
       nextHopPeerId = peerId
 
-    hop.add(Hop.init(multiAddrBytes))
-
     # Compute delay
     let delayMillisec =
-      if i != PathLength - 1:
+      if hop.len != PathLength - 1:
         cryptoRandomInt(mixProto.rng, 3).valueOr:
           mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
           return err(fmt"Failed to generate random number: {error}")
@@ -617,7 +614,7 @@ proc anonymizeLocalProtocolSend*(
 
     delay.add(@(delayMillisec.uint16.toBytesBE()))
 
-    i.inc() # Only increment when we successfully add a hop to the path
+    hop.add(Hop.init(multiAddrBytes))
 
   # Encode destination
   let destHop =
