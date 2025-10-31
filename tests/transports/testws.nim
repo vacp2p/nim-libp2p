@@ -83,7 +83,7 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
   except TLSStreamProtocolError:
     raiseAssert "should not happen"
 
-proc muxerProvider(_: Transport, conn: Connection): Muxer =
+proc streamProvider(_: Transport, conn: Connection): Muxer =
   Mplex.new(conn)
 
 const
@@ -122,8 +122,8 @@ suite "WebSocket transport":
   connectionTransportTest(wsTransProvider, wsAddress)
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
 
-  streamTransportTest(wsTransProvider, wsAddress, muxerProvider)
-  streamTransportTest(wsSecureTransProvider, wsSecureAddress, muxerProvider)
+  streamTransportTest(wsTransProvider, wsAddress, streamProvider)
+  streamTransportTest(wsSecureTransProvider, wsSecureAddress, streamProvider)
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]

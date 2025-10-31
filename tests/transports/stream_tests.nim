@@ -6,9 +6,7 @@ import ../tools/[stream]
 import ./utils
 
 template streamTransportTest*(
-    transportProvider: TransportProvider,
-    address: string,
-    muxerProvider: StreamMuxerProvider,
+    transportProvider: TransportProvider, address: string, muxerProvider: StreamProvider
 ) =
   const serverMessage =
     "Privacy is necessary for an open society in the electronic age."

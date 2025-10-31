@@ -31,7 +31,7 @@ import ./stream_tests
 proc tcpTransProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
 
-proc muxerProvider(_: Transport, conn: Connection): Muxer =
+proc streamProvider(_: Transport, conn: Connection): Muxer =
   Mplex.new(conn)
 
 const
@@ -56,7 +56,7 @@ suite "TCP transport":
 
   basicTransportTest(tcpTransProvider, address, validAddresses, invalidAddresses)
   connectionTransportTest(tcpTransProvider, address)
-  streamTransportTest(tcpTransProvider, address, muxerProvider)
+  streamTransportTest(tcpTransProvider, address, streamProvider)
 
   asyncTest "test listener: handle write":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]

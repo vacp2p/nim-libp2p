@@ -37,7 +37,7 @@ suite "Tor transport":
   proc torTransProvider(): Transport =
     TorTransport.new(torServer, {ReuseAddr}, Upgrade())
 
-  proc muxerProvider(_: Transport, conn: Connection): Muxer =
+  proc streamProvider(_: Transport, conn: Connection): Muxer =
     Mplex.new(conn)
 
   const
@@ -86,7 +86,7 @@ suite "Tor transport":
 
   basicTransportTest(torTransProvider, address, validAddresses, invalidAddresses)
   connectionTransportTest(torTransProvider, address, address2)
-  streamTransportTest(torTransProvider, address, muxerProvider)
+  streamTransportTest(torTransProvider, address, streamProvider)
 
   proc test(lintesAddr: string, dialAddr: string) {.async.} =
     let server = TcpTransport.new({ReuseAddr}, Upgrade())

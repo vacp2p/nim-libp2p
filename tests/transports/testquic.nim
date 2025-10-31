@@ -24,7 +24,7 @@ proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
-proc muxerProvider(transport: Transport, conn: Connection): Muxer =
+proc streamProvider(transport: Transport, conn: Connection): Muxer =
   waitFor transport.upgrade(conn, Opt.none(PeerId))
 
 const
@@ -46,7 +46,7 @@ suite "Quic transport":
     checkTrackers()
 
   basicTransportTest(quicTransProvider, address, validAddresses, invalidAddresses)
-  streamTransportTest(quicTransProvider, address, muxerProvider)
+  streamTransportTest(quicTransProvider, address, streamProvider)
 
   asyncTest "transport e2e":
     let server = await createTransport(isServer = true)

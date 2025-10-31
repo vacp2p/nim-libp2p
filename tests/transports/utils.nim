@@ -118,7 +118,7 @@ proc createTransport*(
 # Common 
 
 type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
-type StreamMuxerProvider* = proc(transport: Transport, conn: Connection): Muxer
+type StreamProvider* = proc(transport: Transport, conn: Connection): Muxer
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =
