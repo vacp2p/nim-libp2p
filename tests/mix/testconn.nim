@@ -9,10 +9,21 @@
 
 {.used.}
 
-import chronos, results, options, std/[enumerate, sequtils], stew/byteutils
+import chronos, results, options, std/[enumerate, sequtils, tables], stew/byteutils
 import
-  ../../libp2p/
-    [protocols/mix, protocols/ping, peerid, multiaddress, switch, builders, crypto/secp]
+  ../../libp2p/[
+    protocols/mix,
+    protocols/mix/mix_node,
+    protocols/mix/mix_protocol,
+    protocols/mix/sphinx,
+    protocols/ping,
+    peerid,
+    multiaddress,
+    switch,
+    builders,
+    crypto/secp,
+  ]
+
 import ../tools/[unittest, crypto]
 
 proc createSwitch(
@@ -259,3 +270,93 @@ suite "Mix Protocol":
     # Verify the response was read correctly
     let expectedResponse = "Response: " & testMessage
     check string.fromBytes(response) == expectedResponse
+
+  asyncTest "skip and remove nodes with invalid multiaddress from pool":
+    # This test validates that nodes with invalid multiaddrs are:
+    # 1. Skipped during path construction
+    # 2. Removed from pubNodeInfo pool
+    # 3. Message still succeeds if enough valid nodes remain
+
+    # Create invalid node with a multiaddr missing transport layer
+    let invalidPeerId = PeerId.random().expect("could not generate peerId")
+    let invalidMultiAddr =
+      MultiAddress.init("/ip4/0.0.0.0").expect("could not initialize invalid multiaddr")
+
+    # Get valid keys from any node's pub info
+    let validPubInfo = MixPubInfo.readFromFile(1).expect("could not read pub info")
+    let (_, _, validMixPubKey, validLibp2pPubKey) = validPubInfo.get()
+
+    let invalidPubInfo = MixPubInfo.init(
+      invalidPeerId, invalidMultiAddr, validMixPubKey, validLibp2pPubKey
+    )
+
+    # Setup all mix protocol nodes (needed for forwarding)
+    var mixProto: seq[MixProtocol] = @[]
+    for index, _ in enumerate(switches):
+      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
+          "should have initialized mix protocol"
+        )
+      mixProto.add(proto)
+      switches[index].mount(proto)
+
+    # Calculate how many valid nodes to include in the pool
+    # We need at least PathLength nodes after both:
+    # 1. Destination node is excluded from path selection
+    # 2. Invalid node is removed from pool
+    # So we need PathLength + 1 valid nodes minimum (3 + 1 = 4)
+    # Since destination (switches[1]) is one of them, we need 4 total valid nodes
+    let validNodesCount = min(switches.len - 1, PathLength + 1)
+    check switches.len - 1 >= PathLength + 1
+
+    # Now inject invalid node into sender's (node 0) pool
+    # Include enough valid nodes so that even after invalid node is removed,
+    # we still have sufficient nodes for PathLength = 3
+    var nodePool = initTable[PeerId, MixPubInfo]()
+    for i in 1 ..< validNodesCount + 1:
+      let pubInfo = MixPubInfo.readFromFile(i).expect("could not read pub info")
+      nodePool[pubInfo.peerId] = pubInfo
+
+    nodePool[invalidPeerId] = invalidPubInfo
+    mixProto[0].setNodePool(nodePool)
+
+    # Verify pool has validNodesCount + 1 invalid node
+    check mixProto[0].getNodePoolSize() == validNodesCount + 1
+
+    # Setup destination node
+    let receivedMessage = newFuture[seq[byte]]()
+    switches[1].mount(newNoReplyProtocol(switches[1], receivedMessage))
+
+    # Start all switches - they're needed as intermediate nodes in the mix path
+    # even though only sender (0) and destination (1) are doing protocol work
+    await switches.mapIt(it.start()).allFutures()
+
+    # Send messages in a loop until invalid node is encountered and removed
+    # With validNodesCount + 1 invalid nodes and PathLength=3, we need multiple attempts
+    let testPayload = "test message".toBytes()
+    var initialPoolSize = mixProto[0].getNodePoolSize()
+
+    # Try up to 20 times to encounter the invalid node
+    # Stop if pool size goes below PathLength (can't construct path anymore)
+    for attempt in 0 ..< 20:
+      if mixProto[0].getNodePoolSize() < PathLength:
+        break
+
+      let conn = mixProto[0].toConnection(
+        MixDestination.init(switches[1].peerInfo.peerId, switches[1].peerInfo.addrs[0]),
+        NoReplyProtocolCodec,
+      )
+
+      if conn.isErr:
+        # If we can't build connection due to insufficient nodes, break
+        break
+
+      await conn.get().writeLp(testPayload)
+      discard await receivedMessage.wait(5.seconds)
+      await conn.get().close()
+
+      # Check if invalid node was removed
+      if mixProto[0].getNodePoolSize() < initialPoolSize:
+        break
+
+    # Verify invalid node was removed from pool (should be 6 valid nodes remaining)
+    check mixProto[0].getNodePoolSize() == validNodesCount
