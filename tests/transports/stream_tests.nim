@@ -37,7 +37,9 @@ template streamTransportTest*(
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
+    await clientRunSingleStream(
+      server, transportProvider, streamProvider, clientStreamHandler
+    )
     await serverTask
     await server.stop()
 
@@ -58,7 +60,9 @@ template streamTransportTest*(
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
+    await clientRunSingleStream(
+      server, transportProvider, streamProvider, clientStreamHandler
+    )
     await serverTask
     await server.stop()
 
@@ -103,7 +107,9 @@ template streamTransportTest*(
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
+    await clientRunSingleStream(
+      server, transportProvider, streamProvider, clientStreamHandler
+    )
     await serverTask
     await server.stop()
 
@@ -181,7 +187,9 @@ template streamTransportTest*(
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
+    await clientRunSingleStream(
+      server, transportProvider, streamProvider, clientStreamHandler
+    )
     await serverTask
     await server.stop()
 
@@ -222,7 +230,9 @@ template streamTransportTest*(
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
+    await clientRunSingleStream(
+      server, transportProvider, streamProvider, clientStreamHandler
+    )
     await serverTask
     await server.stop()
 
@@ -245,6 +255,8 @@ template streamTransportTest*(
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
+    await clientRunSingleStream(
+      server, transportProvider, streamProvider, clientStreamHandler
+    )
     await serverTask
     await server.stop()
