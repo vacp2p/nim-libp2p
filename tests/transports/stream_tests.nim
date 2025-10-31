@@ -57,7 +57,6 @@ template streamTransportTest*(
     let server = transportProvider()
     await server.start(ma)
     let serverTask = serverHandler(server)
-    asyncSpawn serverTask
 
     await runClient(server)
     await serverTask
@@ -102,7 +101,6 @@ template streamTransportTest*(
     let server = transportProvider()
     await server.start(ma)
     let serverTask = serverHandler(server)
-    asyncSpawn serverTask
 
     await runClient(server)
     await serverTask
@@ -172,7 +170,6 @@ template streamTransportTest*(
     let server = transportProvider()
     await server.start(ma)
     let serverTask = serverHandler(server)
-    asyncSpawn serverTask
 
     await runClient(server)
     await serverTask
@@ -226,7 +223,6 @@ template streamTransportTest*(
     let server = transportProvider()
     await server.start(ma)
     let serverTask = serverHandler(server)
-    asyncSpawn serverTask
 
     await runClient(server)
     await serverTask
@@ -280,7 +276,6 @@ template streamTransportTest*(
     let server = transportProvider()
     await server.start(ma)
     let serverTask = serverHandler(server)
-    asyncSpawn serverTask
 
     await runClient(server)
     await serverTask
@@ -346,7 +341,6 @@ template streamTransportTest*(
     let server = transportProvider()
     await server.start(ma)
     let serverTask = serverHandler(server)
-    asyncSpawn serverTask
 
     await runClient(server)
     await serverTask
@@ -394,7 +388,6 @@ template streamTransportTest*(
     let server = transportProvider()
     await server.start(ma)
     let serverTask = serverHandler(server)
-    asyncSpawn serverTask
 
     await runClient(server)
     await serverTask
