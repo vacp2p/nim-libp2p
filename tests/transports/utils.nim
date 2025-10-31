@@ -18,6 +18,7 @@ import
     upgrademngrs/upgrade,
     multiaddress,
     multicodec,
+    muxers/muxer,
   ]
 import ../tools/[unittest]
 
@@ -116,7 +117,9 @@ proc createTransport*(
 
 # Common 
 
-type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
+type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
+type StreamProvider* =
+  proc(transport: Transport, conn: Connection): Muxer {.gcsafe, raises: [].}
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =
@@ -131,3 +134,53 @@ proc extractPort*(ma: MultiAddress): int =
   let portBytes = ma[codec].tryGet().protoArgument().tryGet()
   let port = int(fromBytesBE(uint16, portBytes))
   port
+
+proc serverHandlerSingleStream*(
+    server: Transport,
+    streamProvider: StreamProvider,
+    handler: proc(stream: Connection) {.async: (raises: []).},
+) {.async: (raises: []).} =
+  try:
+    let conn = await server.accept()
+    let muxer = streamProvider(server, conn)
+    muxer.streamHandler = handler
+
+    let muxerTask = muxer.handle()
+    asyncSpawn muxerTask
+
+    await muxerTask
+    await muxer.close()
+    await conn.close()
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+
+proc clientRunSingleStream*(
+    server: Transport,
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    handler: proc(stream: Connection) {.async.},
+) {.async: (raises: []).} =
+  try:
+    let client = transportProvider()
+    let conn = await client.dial("", server.addrs[0])
+    let muxer = streamProvider(client, conn)
+    let muxerTask = muxer.handle()
+    asyncSpawn muxerTask
+
+    let stream = await muxer.newStream()
+    await handler(stream)
+
+    await stream.close()
+    await muxer.close()
+    await conn.close()
+    await muxerTask
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+
+template noException*(stream: Connection, body) =
+  try:
+    body
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+  finally:
+    await stream.close()
