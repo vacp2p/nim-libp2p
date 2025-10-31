@@ -11,7 +11,7 @@
 
 import chronos
 from std/exitprocs import nil
-import ./tools/[unittest]
+import ./[unittest]
 
 suite "checkUntilTimeout helpers":
   asyncTest "checkUntilTimeout should pass if the condition is true":

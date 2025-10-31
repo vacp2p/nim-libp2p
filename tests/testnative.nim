@@ -9,6 +9,8 @@
 
 {.used.}
 
+import ./tools/test_all
+
 import
   testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
   testheartbeat, testfuture, testzeroqueue, testbytesview
@@ -26,8 +28,8 @@ import
   testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
   testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
-  testautorelay, testdcutr, testhpservice, testutility, testhelpers,
-  testwildcardresolverservice, testperf, testpkifilter
+  testautorelay, testdcutr, testhpservice, testutility, testwildcardresolverservice,
+  testperf, testpkifilter
 
 import discovery/testdiscovery
 
