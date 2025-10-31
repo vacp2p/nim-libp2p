@@ -552,7 +552,11 @@ proc anonymizeLocalProtocolSend*(
 
   var nextHopAddr: MultiAddress
   var nextHopPeerId: PeerId
-  for i in 0 ..< PathLength:
+  while hop.len < PathLength:
+    if availableIndices.len == 0:
+      mix_messages_error.inc(labelValues = ["Entry", "LOW_MIX_POOL"])
+      return err("Ran out of available mix nodes while constructing path")
+
     let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
       mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
       return err(fmt"Failed to generate random number: {error}")
@@ -565,7 +569,7 @@ proc anonymizeLocalProtocolSend*(
       continue
 
     # Last hop will be the exit node that will forward the request
-    if i == PathLength - 1:
+    if hop.len == PathLength - 1:
       case destination.kind
       of ForwardAddr:
         # Last hop will be the exit node that will fwd the request
@@ -575,29 +579,33 @@ proc anonymizeLocalProtocolSend*(
         exitPeerId = destination.peerId
         randPeerId = destination.peerId
 
-    debug "Selected mix node: ", indexInPath = i, peerId = randPeerId
+    debug "Selected mix node: ", indexInPath = hop.len, peerId = randPeerId
 
     # Extract multiaddress, mix public key, and hop
     let (peerId, multiAddr, mixPubKey, _) =
       mixProto.pubNodeInfo.getOrDefault(randPeerId).get()
 
+    # Validate multiaddr before committing this node to the path
+    let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
+      mix_messages_error.inc(labelValues = ["Entry", "INVALID_MIX_INFO"])
+      trace "Failed to convert multiaddress to bytes, skipping and removing node from pool",
+        error = error, peerId = peerId, multiAddr = multiAddr
+      # Remove this node from the pool to prevent future selection
+      mixProto.pubNodeInfo.del(randPeerId)
+      # Skip this node with invalid multiaddr and try another
+      # in future lookup in peerStore to see if there is any other valida multiaddr for this peer and use that.
+      continue
+
+    # Only add to path after validation succeeds
     publicKeys.add(mixPubKey)
 
-    if i == 0:
+    if hop.len == 0:
       nextHopAddr = multiAddr
       nextHopPeerId = peerId
 
-    let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
-      mix_messages_error.inc(labelValues = ["Entry", "INVALID_MIX_INFO"])
-      trace "Failed to convert multiaddress to bytes", error = error
-      return err(fmt"Failed to convert multiaddress to bytes: {error}")
-      #TODO: should we skip and pick a different node here??
-
-    hop.add(Hop.init(multiAddrBytes))
-
     # Compute delay
     let delayMillisec =
-      if i != PathLength - 1:
+      if hop.len != PathLength - 1:
         cryptoRandomInt(mixProto.rng, 3).valueOr:
           mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
           return err(fmt"Failed to generate random number: {error}")
@@ -605,6 +613,8 @@ proc anonymizeLocalProtocolSend*(
         0 # Last hop does not require a delay
 
     delay.add(@(delayMillisec.uint16.toBytesBE()))
+
+    hop.add(Hop.init(multiAddrBytes))
 
   # Encode destination
   let destHop =
