@@ -25,31 +25,19 @@ template streamTransportTest*(
 
         await stream.write(serverMessage)
 
-    proc runClient(server: Transport) {.async.} =
-      let client = transportProvider()
-      let conn = await client.dial("", server.addrs[0])
-      let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-
-      let stream = await muxer.newStream()
+    proc clientStreamHandler(stream: Connection) {.async.} =
       await stream.write(clientMessage)
 
       var buffer: array[serverMessage.len, byte]
       await stream.readExactly(addr buffer, serverMessage.len)
       check string.fromBytes(buffer) == serverMessage
 
-      await stream.close()
-      await muxer.close()
-      await conn.close()
-      await muxerTask
-
     let server = transportProvider()
     await server.start(ma)
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await runClient(server)
+    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
     await serverTask
     await server.stop()
 
@@ -61,28 +49,16 @@ template streamTransportTest*(
         check (await stream.readLp(100)) == fromHex("1234")
         await stream.writeLp(fromHex("5678"))
 
-    proc runClient(server: Transport) {.async.} =
-      let client = transportProvider()
-      let conn = await client.dial("", server.addrs[0])
-      let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-
-      let stream = await muxer.newStream()
+    proc clientStreamHandler(stream: Connection) {.async.} =
       await stream.writeLp(fromHex("1234"))
       check (await stream.readLp(100)) == fromHex("5678")
-
-      await stream.close()
-      await muxer.close()
-      await conn.close()
-      await muxerTask
 
     let server = transportProvider()
     await server.start(ma)
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await runClient(server)
+    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
     await serverTask
     await server.stop()
 
@@ -93,15 +69,7 @@ template streamTransportTest*(
       noException(stream):
         await stream.write(serverMessage)
 
-    proc runClient(server: Transport) {.async.} =
-      let client = transportProvider()
-      let conn = await client.dial("", server.addrs[0])
-      let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-
-      let stream = await muxer.newStream()
-
+    proc clientStreamHandler(stream: Connection) {.async.} =
       var buffer: array[serverMessage.len, byte]
       await stream.readExactly(addr buffer, serverMessage.len)
       check string.fromBytes(buffer) == serverMessage
@@ -130,17 +98,12 @@ template streamTransportTest*(
         expect LPStreamRemoteClosedError:
           await stream.readExactly(addr buffer, 1)
 
-      await stream.close()
-      await muxer.close()
-      await conn.close()
-      await muxerTask
-
     let server = transportProvider()
     await server.start(ma)
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await runClient(server)
+    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
     await serverTask
     await server.stop()
 
@@ -200,15 +163,7 @@ template streamTransportTest*(
       noException(stream):
         await stream.write(serverMessage)
 
-    proc runClient(server: Transport) {.async.} =
-      let client = transportProvider()
-      let conn = await client.dial("", server.addrs[0])
-      let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-
-      let stream = await muxer.newStream()
-
+    proc clientStreamHandler(stream: Connection) {.async.} =
       var buffer: array[2 * serverMessage.len, byte]
 
       if (isQuicTransport(ma[0])):
@@ -221,17 +176,12 @@ template streamTransportTest*(
       # Verify that partial data was read before EOF
       check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
 
-      await stream.close()
-      await muxer.close()
-      await conn.close()
-      await muxerTask
-
     let server = transportProvider()
     await server.start(ma)
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await runClient(server)
+    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
     await serverTask
     await server.stop()
 
@@ -249,15 +199,7 @@ template streamTransportTest*(
         await stream.readExactly(addr buffer, clientMessage.len)
         check string.fromBytes(buffer) == clientMessage
 
-    proc runClient(server: Transport) {.async.} =
-      let client = transportProvider()
-      let conn = await client.dial("", server.addrs[0])
-      let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-
-      let stream = await muxer.newStream()
-
+    proc clientStreamHandler(stream: Connection) {.async.} =
       # Client reads server data
       var buffer: array[serverMessage.len, byte]
       await stream.readExactly(addr buffer, serverMessage.len)
@@ -275,17 +217,12 @@ template streamTransportTest*(
       # Client should still be able to write back to server
       await stream.write(clientMessage)
 
-      await stream.close()
-      await muxer.close()
-      await conn.close()
-      await muxerTask
-
     let server = transportProvider()
     await server.start(ma)
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await runClient(server)
+    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
     await serverTask
     await server.stop()
 
@@ -299,28 +236,15 @@ template streamTransportTest*(
       noException(stream):
         await stream.write(message)
 
-    proc runClient(server: Transport) {.async.} =
-      let client = transportProvider()
-      let conn = await client.dial("", server.addrs[0])
-      let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-
-      let stream = await muxer.newStream()
+    proc clientStreamHandler(stream: Connection) {.async.} =
       let receivedData = await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
-
       check receivedData == message
-
-      await stream.close()
-      await muxer.close()
-      await conn.close()
-      await muxerTask
 
     let server = transportProvider()
     await server.start(ma)
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await runClient(server)
+    await clientRunSingleStream(server, transportProvider, streamProvider, clientStreamHandler)
     await serverTask
     await server.stop()

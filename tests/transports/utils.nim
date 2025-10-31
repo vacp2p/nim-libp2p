@@ -154,6 +154,29 @@ proc serverHandlerSingleStream*(
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 
+proc clientRunSingleStream*(
+    server: Transport,
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    handler: proc(stream: Connection) {.async.},
+) {.async: (raises: []).} =
+  try:
+    let client = transportProvider()
+    let conn = await client.dial("", server.addrs[0])
+    let muxer = streamProvider(client, conn)
+    let muxerTask = muxer.handle()
+    asyncSpawn muxerTask
+
+    let stream = await muxer.newStream()
+    await handler(stream)
+
+    await stream.close()
+    await muxer.close()
+    await conn.close()
+    await muxerTask
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+
 template noException*(stream: Connection, body) =
   try:
     body
