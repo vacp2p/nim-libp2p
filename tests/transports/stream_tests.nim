@@ -1,7 +1,8 @@
 {.used.}
 
-import chronos, stew/byteutils, sequtils
+import chronos, stew/byteutils
 import ../../libp2p/[stream/connection, transports/transport, muxers/muxer]
+import ../tools/[stream]
 import ./utils
 
 template streamTransportTest*(
@@ -357,7 +358,7 @@ template streamTransportTest*(
     let ma = @[MultiAddress.init(address).tryGet()]
     const messageSize = 2048
     const chunkSize = 256
-    let message = (0 ..< messageSize).mapIt(byte(it mod 256))
+    let message = newData(messageSize)
 
     proc serverHandler(server: Transport) {.async.} =
       let conn = await server.accept()
@@ -383,15 +384,7 @@ template streamTransportTest*(
       asyncSpawn muxerTask
 
       let stream = await muxer.newStream()
-
-      var receivedData: seq[byte] = @[]
-
-      # Read a message chunk by chunk
-      while receivedData.len < messageSize:
-        var chunk: array[chunkSize, byte]
-        let bytesRead = await stream.readOnce(addr chunk[0], chunkSize)
-        check bytesRead > 0
-        receivedData.add(chunk[0 ..< bytesRead])
+      let receivedData = await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
 
       check receivedData == message
 
