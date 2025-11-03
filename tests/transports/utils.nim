@@ -178,7 +178,6 @@ proc clientRunSingleStream*(
     let stream = await muxer.newStream()
     await handler(stream)
 
-    await stream.close()
     await muxer.close()
     await conn.close()
     await muxerTask
