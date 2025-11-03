@@ -118,8 +118,11 @@ proc createTransport*(
 # Common 
 
 type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
+
 type StreamProvider* =
   proc(transport: Transport, conn: Connection): Muxer {.gcsafe, raises: [].}
+
+type StreamHandler* = proc(stream: Connection) {.async: (raises: []).}
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =
@@ -144,9 +147,7 @@ template noException*(stream: Connection, body) =
     await stream.close()
 
 proc serverHandlerSingleStream*(
-    server: Transport,
-    streamProvider: StreamProvider,
-    handler: proc(stream: Connection) {.async: (raises: []).},
+    server: Transport, streamProvider: StreamProvider, handler: StreamHandler
 ) {.async: (raises: []).} =
   try:
     let conn = await server.accept()
@@ -165,7 +166,7 @@ proc clientRunSingleStream*(
     server: Transport,
     transportProvider: TransportProvider,
     streamProvider: StreamProvider,
-    handler: proc(stream: Connection) {.async.},
+    handler: StreamHandler,
 ) {.async: (raises: []).} =
   try:
     let client = transportProvider()
@@ -188,8 +189,8 @@ proc runSingleStreamScenario*(
     multiAddress: seq[MultiAddress],
     transportProvider: TransportProvider,
     streamProvider: StreamProvider,
-    serverStreamHandler: proc(stream: Connection) {.async: (raises: []).},
-    clientStreamHandler: proc(stream: Connection) {.async.},
+    serverStreamHandler: StreamHandler,
+    clientStreamHandler: StreamHandler,
 ) {.async: (raises: [CancelledError, LPError]).} =
   let server = transportProvider()
   await server.start(multiAddress)

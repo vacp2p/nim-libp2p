@@ -34,12 +34,13 @@ template streamTransportTest*(
 
         await stream.write(serverMessage)
 
-    proc clientStreamHandler(stream: Connection) {.async.} =
-      await stream.write(clientMessage)
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        await stream.write(clientMessage)
 
-      var buffer: array[serverMessage.len, byte]
-      await stream.readExactly(addr buffer, serverMessage.len)
-      check string.fromBytes(buffer) == serverMessage
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
@@ -53,9 +54,10 @@ template streamTransportTest*(
         check (await stream.readLp(100)) == fromHex("1234")
         await stream.writeLp(fromHex("5678"))
 
-    proc clientStreamHandler(stream: Connection) {.async.} =
-      await stream.writeLp(fromHex("1234"))
-      check (await stream.readLp(100)) == fromHex("5678")
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        await stream.writeLp(fromHex("1234"))
+        check (await stream.readLp(100)) == fromHex("5678")
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
@@ -68,36 +70,37 @@ template streamTransportTest*(
       noException(stream):
         await stream.write(serverMessage)
 
-    proc clientStreamHandler(stream: Connection) {.async.} =
-      var buffer: array[serverMessage.len, byte]
-      await stream.readExactly(addr buffer, serverMessage.len)
-      check string.fromBytes(buffer) == serverMessage
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
 
-      # First readOnce after EOF
-      # nim-libp2p#1833 Transports: Inconsistent EOF behavior between QUIC and Mplex: first readOnce after EOF
-      if (isQuicTransport(ma[0])):
-        expect LPStreamEOFError:
-          discard await stream.readOnce(addr buffer, 1)
-      else:
-        let bytesRead = await stream.readOnce(addr buffer, 1)
-        check bytesRead == 0
+        # First readOnce after EOF
+        # nim-libp2p#1833 Transports: Inconsistent EOF behavior between QUIC and Mplex: first readOnce after EOF
+        if (isQuicTransport(ma[0])):
+          expect LPStreamEOFError:
+            discard await stream.readOnce(addr buffer, 1)
+        else:
+          let bytesRead = await stream.readOnce(addr buffer, 1)
+          check bytesRead == 0
 
-      # Attempting second readOnce at EOF
-      # nim-libp2p#1834 Transports: Inconsistent EOF behavior between QUIC and Mplex: consecutive readOnce after EOF
-      if (isQuicTransport(ma[0])):
-        expect LPStreamEOFError:
-          discard await stream.readOnce(addr buffer, 1)
-      else:
-        expect LPStreamRemoteClosedError:
-          discard await stream.readOnce(addr buffer, 1)
+        # Attempting second readOnce at EOF
+        # nim-libp2p#1834 Transports: Inconsistent EOF behavior between QUIC and Mplex: consecutive readOnce after EOF
+        if (isQuicTransport(ma[0])):
+          expect LPStreamEOFError:
+            discard await stream.readOnce(addr buffer, 1)
+        else:
+          expect LPStreamRemoteClosedError:
+            discard await stream.readOnce(addr buffer, 1)
 
-      # Attempting readExactly at EOF
-      if (isQuicTransport(ma[0])):
-        expect LPStreamEOFError:
-          await stream.readExactly(addr buffer, 1)
-      else:
-        expect LPStreamRemoteClosedError:
-          await stream.readExactly(addr buffer, 1)
+        # Attempting readExactly at EOF
+        if (isQuicTransport(ma[0])):
+          expect LPStreamEOFError:
+            await stream.readExactly(addr buffer, 1)
+        else:
+          expect LPStreamRemoteClosedError:
+            await stream.readExactly(addr buffer, 1)
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
@@ -120,18 +123,19 @@ template streamTransportTest*(
           await conn.close()
       serverMuxerTask = muxer.handle()
 
-    proc clientStreamHandler(stream: Connection) {.async.} =
-      var buffer: array[serverMessage.len, byte]
-      await stream.readExactly(addr buffer, serverMessage.len)
-      check string.fromBytes(buffer) == serverMessage
-      await serverMuxerTask
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
+        await serverMuxerTask
 
-      if isQuicTransport(ma[0]):
-        expect LPStreamError:
-          await stream.write(clientMessage)
-      else:
-        expect LPStreamEOFError:
-          await stream.write(clientMessage)
+        if isQuicTransport(ma[0]):
+          expect LPStreamError:
+            await stream.write(clientMessage)
+        else:
+          expect LPStreamEOFError:
+            await stream.write(clientMessage)
 
     let server = transportProvider()
     await server.start(ma)
@@ -150,18 +154,19 @@ template streamTransportTest*(
       noException(stream):
         await stream.write(serverMessage)
 
-    proc clientStreamHandler(stream: Connection) {.async.} =
-      var buffer: array[2 * serverMessage.len, byte]
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        var buffer: array[2 * serverMessage.len, byte]
 
-      if (isQuicTransport(ma[0])):
-        expect LPStreamEOFError:
-          await stream.readExactly(addr buffer, 2 * serverMessage.len)
-      else:
-        expect LPStreamIncompleteError:
-          await stream.readExactly(addr buffer, 2 * serverMessage.len)
+        if (isQuicTransport(ma[0])):
+          expect LPStreamEOFError:
+            await stream.readExactly(addr buffer, 2 * serverMessage.len)
+        else:
+          expect LPStreamIncompleteError:
+            await stream.readExactly(addr buffer, 2 * serverMessage.len)
 
-      # Verify that partial data was read before EOF
-      check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
+        # Verify that partial data was read before EOF
+        check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
@@ -181,23 +186,24 @@ template streamTransportTest*(
         await stream.readExactly(addr buffer, clientMessage.len)
         check string.fromBytes(buffer) == clientMessage
 
-    proc clientStreamHandler(stream: Connection) {.async.} =
-      # Client reads server data
-      var buffer: array[serverMessage.len, byte]
-      await stream.readExactly(addr buffer, serverMessage.len)
-      check string.fromBytes(buffer) == serverMessage
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        # Client reads server data
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
 
-      # Server has closed write side, so further reads should EOF
-      if (isQuicTransport(ma[0])):
-        expect LPStreamEOFError:
-          discard await stream.readOnce(addr buffer, 1)
-      else:
-        # TCP/Mplex: First readOnce after closeWrite returns 0
-        let bytesRead = await stream.readOnce(addr buffer, 1)
-        check bytesRead == 0
+        # Server has closed write side, so further reads should EOF
+        if (isQuicTransport(ma[0])):
+          expect LPStreamEOFError:
+            discard await stream.readOnce(addr buffer, 1)
+        else:
+          # TCP/Mplex: First readOnce after closeWrite returns 0
+          let bytesRead = await stream.readOnce(addr buffer, 1)
+          check bytesRead == 0
 
-      # Client should still be able to write back to server
-      await stream.write(clientMessage)
+        # Client should still be able to write back to server
+        await stream.write(clientMessage)
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
@@ -213,9 +219,11 @@ template streamTransportTest*(
       noException(stream):
         await stream.write(message)
 
-    proc clientStreamHandler(stream: Connection) {.async.} =
-      let receivedData = await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
-      check receivedData == message
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noException(stream):
+        let receivedData =
+          await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
+        check receivedData == message
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
