@@ -79,6 +79,7 @@ template streamTransportTest*(
       check string.fromBytes(buffer) == serverMessage
 
       # First readOnce after EOF
+      # nim-libp2p#1833 Transports: Inconsistent EOF behavior between QUIC and Mplex: first readOnce after EOF
       if (isQuicTransport(ma[0])):
         expect LPStreamEOFError:
           discard await stream.readOnce(addr buffer, 1)
@@ -87,6 +88,7 @@ template streamTransportTest*(
         check bytesRead == 0
 
       # Attempting second readOnce at EOF
+      # nim-libp2p#1834 Transports: Inconsistent EOF behavior between QUIC and Mplex: consecutive readOnce after EOF
       if (isQuicTransport(ma[0])):
         expect LPStreamEOFError:
           discard await stream.readOnce(addr buffer, 1)
