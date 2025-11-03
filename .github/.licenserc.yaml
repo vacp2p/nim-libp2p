@@ -11,10 +11,8 @@ header:
       # This file may not be copied, modified, or distributed except according to
       # those terms.
   paths:
-  - "libp2p/**/*.nim"
-  - "tests/**/*.nim"
-  - "performance/**/*.nim"
-  - "interop/**/*.nim"
+  - "**/*.nim"
   paths-ignore:
+  - "examples/**"
   - "tests/multiformat_exts/*_exts.nim"
   comment: on-failure
