@@ -32,16 +32,9 @@ template streamTransportTest*(
       await stream.readExactly(addr buffer, serverMessage.len)
       check string.fromBytes(buffer) == serverMessage
 
-    let server = transportProvider()
-    await server.start(ma)
-    let serverTask =
-      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
-
-    await clientRunSingleStream(
-      server, transportProvider, streamProvider, clientStreamHandler
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
-    await serverTask
-    await server.stop()
 
   asyncTest "read/write Lp":
     let ma = @[MultiAddress.init(address).tryGet()]
@@ -55,16 +48,9 @@ template streamTransportTest*(
       await stream.writeLp(fromHex("1234"))
       check (await stream.readLp(100)) == fromHex("5678")
 
-    let server = transportProvider()
-    await server.start(ma)
-    let serverTask =
-      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
-
-    await clientRunSingleStream(
-      server, transportProvider, streamProvider, clientStreamHandler
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
-    await serverTask
-    await server.stop()
 
   asyncTest "EOF handling - first readOnce at EOF + repeated reads":
     let ma = @[MultiAddress.init(address).tryGet()]
@@ -104,16 +90,9 @@ template streamTransportTest*(
         expect LPStreamRemoteClosedError:
           await stream.readExactly(addr buffer, 1)
 
-    let server = transportProvider()
-    await server.start(ma)
-    let serverTask =
-      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
-
-    await clientRunSingleStream(
-      server, transportProvider, streamProvider, clientStreamHandler
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
-    await serverTask
-    await server.stop()
 
   asyncTest "client writes after EOF":
     let ma = @[MultiAddress.init(address).tryGet()]
@@ -175,16 +154,9 @@ template streamTransportTest*(
       # Verify that partial data was read before EOF
       check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
 
-    let server = transportProvider()
-    await server.start(ma)
-    let serverTask =
-      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
-
-    await clientRunSingleStream(
-      server, transportProvider, streamProvider, clientStreamHandler
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
-    await serverTask
-    await server.stop()
 
   asyncTest "server closeWrite - client can still write":
     let ma = @[MultiAddress.init(address).tryGet()]
@@ -218,16 +190,9 @@ template streamTransportTest*(
       # Client should still be able to write back to server
       await stream.write(clientMessage)
 
-    let server = transportProvider()
-    await server.start(ma)
-    let serverTask =
-      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
-
-    await clientRunSingleStream(
-      server, transportProvider, streamProvider, clientStreamHandler
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
-    await serverTask
-    await server.stop()
 
   asyncTest "stream caching with multiple partial reads":
     let ma = @[MultiAddress.init(address).tryGet()]
@@ -243,13 +208,6 @@ template streamTransportTest*(
       let receivedData = await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
       check receivedData == message
 
-    let server = transportProvider()
-    await server.start(ma)
-    let serverTask =
-      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
-
-    await clientRunSingleStream(
-      server, transportProvider, streamProvider, clientStreamHandler
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
-    await serverTask
-    await server.stop()

@@ -183,3 +183,21 @@ proc clientRunSingleStream*(
     await muxerTask
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
+
+proc runSingleStreamScenario*(
+    multiAddress: seq[MultiAddress],
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    serverStreamHandler: proc(stream: Connection) {.async: (raises: []).},
+    clientStreamHandler: proc(stream: Connection) {.async.},
+) {.async: (raises: [CancelledError, LPError]).} =
+  let server = transportProvider()
+  await server.start(multiAddress)
+  let serverTask =
+    serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+  await clientRunSingleStream(
+    server, transportProvider, streamProvider, clientStreamHandler
+  )
+  await serverTask
+  await server.stop()
