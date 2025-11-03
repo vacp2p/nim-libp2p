@@ -1,3 +1,12 @@
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
 import chronos, stew/byteutils
@@ -32,7 +41,7 @@ template streamTransportTest*(
       await stream.readExactly(addr buffer, serverMessage.len)
       check string.fromBytes(buffer) == serverMessage
 
-    await runSingleStreamScenario(
+    await runSingleStreamTest(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
@@ -48,7 +57,7 @@ template streamTransportTest*(
       await stream.writeLp(fromHex("1234"))
       check (await stream.readLp(100)) == fromHex("5678")
 
-    await runSingleStreamScenario(
+    await runSingleStreamTest(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
@@ -90,7 +99,7 @@ template streamTransportTest*(
         expect LPStreamRemoteClosedError:
           await stream.readExactly(addr buffer, 1)
 
-    await runSingleStreamScenario(
+    await runSingleStreamTest(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
@@ -154,7 +163,7 @@ template streamTransportTest*(
       # Verify that partial data was read before EOF
       check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
 
-    await runSingleStreamScenario(
+    await runSingleStreamTest(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
@@ -190,7 +199,7 @@ template streamTransportTest*(
       # Client should still be able to write back to server
       await stream.write(clientMessage)
 
-    await runSingleStreamScenario(
+    await runSingleStreamTest(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
@@ -208,6 +217,6 @@ template streamTransportTest*(
       let receivedData = await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
       check receivedData == message
 
-    await runSingleStreamScenario(
+    await runSingleStreamTest(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
