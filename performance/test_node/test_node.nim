@@ -18,7 +18,6 @@ import strformat
 import ../../libp2p
 import ../../libp2p/protocols/pubsub/peertable
 import ../../libp2p/protocols/ping
-import ../../tests/helpers
 import ./utils
 from nativesockets import getHostname
 

@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,13 +9,12 @@
 
 {.used.}
 
-import std/[sequtils, strutils]
-import stew/byteutils
+import chronos, std/[sequtils, strutils], stew/byteutils
+import
+  ../../../libp2p/protocols/pubsub/
+    [gossipsub, mcache, peertable, pubsubpeer, rpc/messages]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../helpers
-import ../../utils/[futures]
 
 suite "GossipSub Integration - Scoring":
   const topic = "foobar"

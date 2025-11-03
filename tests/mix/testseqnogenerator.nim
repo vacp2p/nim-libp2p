@@ -1,9 +1,18 @@
+# Nim-Libp2p
+# Copyright (c) 2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
-import chronicles, sets, unittest
-import std/[os, times]
+import chronicles, sets, std/[os, times]
 import ../../libp2p/peerid
 include ../../libp2p/protocols/mix/seqno_generator
+import ../tools/[unittest]
 
 const second = 1000
 

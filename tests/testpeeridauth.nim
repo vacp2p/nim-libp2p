@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,10 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
 {.push raises: [].}
 
-import uri, base64, times
-import chronos, chronos/apps/http/httpclient
+import chronos, chronos/apps/http/httpclient, uri, base64, times
 import
   ../libp2p/
     [
@@ -22,8 +20,7 @@ import
       wire,
       crypto/crypto,
     ]
-
-import ./helpers
+import ./tools/[unittest]
 
 suite "PeerID Auth Client":
   var client {.threadvar.}: MockPeerIDAuthClient

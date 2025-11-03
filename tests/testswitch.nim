@@ -1,7 +1,5 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,9 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import results, sequtils
-import chronos
-import stew/byteutils
+{.used.}
+
+import results, sequtils, chronos, stew/byteutils
 import
   ../libp2p/[
     errors,
@@ -38,7 +36,7 @@ import
     transports/wstransport,
     transports/quictransport,
   ]
-import ./helpers
+import ./tools/[unittest, trackers, futures, crypto]
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -57,7 +55,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in protocol handler"
       finally:
         await conn.close()
         done.complete()
@@ -98,7 +96,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in custom matcher protocol handler"
       finally:
         await conn.close()
         done.complete()
@@ -144,7 +142,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in bufferstream leak test handler"
       finally:
         await conn.close()
         done.complete()
@@ -183,7 +181,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in connect-then-dial test handler"
       finally:
         await conn.close()
 
@@ -326,7 +324,7 @@ suite "Switch":
 
         check peerId == switch1.peerInfo.peerId
       else:
-        check false
+        raiseAssert "Connection event hook called more than expected"
 
       step.inc()
 
@@ -374,7 +372,7 @@ suite "Switch":
 
         check peerId == switch2.peerInfo.peerId
       else:
-        check false
+        raiseAssert "Connection event hook called more than expected"
 
       step.inc()
 
@@ -423,7 +421,7 @@ suite "Switch":
           event.kind == PeerEventKind.Left
           peerId == switch2.peerInfo.peerId
       else:
-        check false
+        raiseAssert "Peer event handler called more than expected"
 
       step.inc()
 
@@ -472,7 +470,7 @@ suite "Switch":
           event.kind == PeerEventKind.Left
           peerId == switch1.peerInfo.peerId
       else:
-        check false
+        raiseAssert "Peer event handler called more than expected"
 
       step.inc()
 
@@ -504,7 +502,6 @@ suite "Switch":
   asyncTest "e2e should trigger peer events only once per peer":
     let switch1 = newStandardSwitch()
 
-    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
     let switch2 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
@@ -525,7 +522,7 @@ suite "Switch":
         check:
           event.kind == PeerEventKind.Left
       else:
-        check false # should not trigger this
+        raiseAssert "Peer event handler called more than expected"
 
       step.inc()
 
@@ -564,7 +561,6 @@ suite "Switch":
     await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop())
 
   asyncTest "e2e should allow dropping peer from connection events":
-    let rng = crypto.newRng()
     # use same private keys to emulate two connection from same peer
     let
       privateKey = PrivateKey.random(rng[]).tryGet()
@@ -585,7 +581,7 @@ suite "Switch":
           check not switches[0].isConnected(peerInfo.peerId)
           done.complete()
       except DialFailedError:
-        check false # should not get here
+        raiseAssert "Unexpected DialFailedError in connection event hook"
 
     switches.add(newStandardSwitch(rng = rng))
 
@@ -602,7 +598,6 @@ suite "Switch":
     await allFuturesThrowing(switches.mapIt(it.stop()))
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
-    let rng = crypto.newRng()
     let privateKey = PrivateKey.random(rng[]).tryGet()
     let peerInfo = PeerInfo.new(privateKey)
 
@@ -842,7 +837,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in peer store test handler"
       finally:
         await conn.close()
         done.complete()
@@ -894,7 +889,7 @@ suite "Switch":
         check "Hello!" == msg
         await conn.writeLp("Hello!")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in multiple local addresses test handler"
       finally:
         await conn.close()
 
@@ -983,7 +978,7 @@ suite "Switch":
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
@@ -996,7 +991,7 @@ suite "Switch":
       destSwitch = SwitchBuilder
         .new()
         .withAddresses(@[tcpAddress, wsAddress])
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
@@ -1037,7 +1032,7 @@ suite "Switch":
       srcSwitch = SwitchBuilder
         .new()
         .withAddress(quicAddress1)
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withQuicTransport()
         .withNoise()
         .build()
@@ -1045,7 +1040,7 @@ suite "Switch":
       destSwitch = SwitchBuilder
         .new()
         .withAddress(quicAddress2)
-        .withRng(crypto.newRng())
+        .withRng(rng)
         .withQuicTransport()
         .withNoise()
         .build()
@@ -1065,7 +1060,7 @@ suite "Switch":
         check "test123" == string.fromBytes(await conn.readLp(1024))
         await conn.writeLp("test456")
       except LPStreamError:
-        check false # should not be here
+        raiseAssert "Unexpected LPStreamError in mount unstarted protocol test handler"
       finally:
         await conn.close()
 

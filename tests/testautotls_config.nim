@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,12 +7,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 {.push raises: [].}
 
 import chronos, uri
 import ../libp2p/[autotls/service, autotls/acme/api, autotls/acme/client, wire]
-
-import ./helpers
+import ./tools/[unittest]
 
 suite "AutoTLS Configuration Tests":
   asyncTeardown:

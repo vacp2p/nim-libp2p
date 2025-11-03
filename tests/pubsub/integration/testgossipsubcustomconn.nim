@@ -1,5 +1,5 @@
 # Nim-LibP2P
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,13 +9,11 @@
 
 {.used.}
 
-import chronos
-import stew/byteutils
-import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
+import chronos, stew/byteutils
 import ../../../libp2p/stream/connection
-import ../../helpers
+import ../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer, rpc/messages]
+import ../../tools/[unittest]
+import ../utils
 
 type DummyConnection* = ref object of Connection
 

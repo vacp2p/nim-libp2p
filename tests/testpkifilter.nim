@@ -1,5 +1,5 @@
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,10 +9,9 @@
 when defined(nimHasUsed):
   {.used.}
 
-import unittest2
-import ../libp2p/crypto/crypto
 import nimcrypto/utils
-from ./helpers import rng
+import ../libp2p/crypto/crypto
+import ./tools/[unittest, crypto]
 
 const ECDSA_PrivateKey =
   """

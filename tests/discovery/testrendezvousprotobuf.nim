@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ../../libp2p/[protocols/rendezvous/protobuf]
-import ../../libp2p/protobuf/minprotobuf
-import ../helpers
+{.used.}
+
+import ../../libp2p/[protocols/rendezvous/protobuf, protobuf/minprotobuf]
+import ../tools/[unittest]
 
 suite "RendezVous Protobuf":
   teardown:

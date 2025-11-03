@@ -1,7 +1,5 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,12 +7,14 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
+import nimcrypto/utils, stew/base58, bearssl/hash
+import ../libp2p/[crypto/crypto, peerid]
+import ./tools/[unittest]
+
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-peer
-import unittest2
-import nimcrypto/utils, stew/base58
-import ../libp2p/crypto/crypto, ../libp2p/peerid
-import bearssl/hash
 
 const
   # Test vectors are generated using

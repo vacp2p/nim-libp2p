@@ -1,7 +1,5 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -9,14 +7,11 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import
-  unittest2,
-  std/[tables, sequtils],
-  ../libp2p/crypto/crypto,
-  ../libp2p/multiaddress,
-  ../libp2p/peerid,
-  ../libp2p/peerstore,
-  ./helpers
+{.used.}
+
+import std/[tables, sequtils]
+import ../libp2p/[crypto/crypto, multiaddress, peerid, peerstore]
+import ./tools/[unittest, crypto]
 
 suite "PeerStore":
   # Testvars

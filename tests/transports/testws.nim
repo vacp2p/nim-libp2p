@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-Libp2p
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -8,6 +6,8 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+
+{.used.}
 
 import chronos, stew/byteutils
 import
@@ -20,8 +20,7 @@ import
     multiaddress,
     errors,
   ]
-
-import ../helpers
+import ../tools/[unittest]
 import ./basic_tests
 import ./connection_tests
 
@@ -81,15 +80,41 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
   except TLSStreamProtocolError:
     raiseAssert "should not happen"
 
+const
+  wsAddress = "/ip4/127.0.0.1/tcp/0/ws"
+  wsSecureAddress = "/ip4/127.0.0.1/tcp/0/wss"
+  validAddresses =
+    @[
+      # Plain WebSocket
+      "/ip4/127.0.0.1/tcp/1234/ws",
+      "/ip6/::1/tcp/1234/ws",
+      "/dns/example.com/tcp/1234/ws",
+      # Secure WebSocket
+      "/ip4/127.0.0.1/tcp/1234/wss",
+      "/ip4/127.0.0.1/tcp/1234/tls/ws",
+      "/ip6/::1/tcp/1234/wss",
+      "/dns/example.com/tcp/1234/wss",
+      "/dns/example.com/tcp/1234/tls/ws",
+    ]
+  invalidAddresses =
+    @[
+      "/ip4/127.0.0.1/tcp/1234", # Missing /ws or /wss
+      "/ip4/127.0.0.1/udp/1234/ws", # UDP instead of TCP
+      "/ip4/127.0.0.1/udp/1234/wss", # UDP instead of TCP
+      "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC instead of WebSocket
+    ]
+
 suite "WebSocket transport":
   teardown:
     checkTrackers()
 
-  basicTransportTest(wsTransProvider, "/ip4/0.0.0.0/tcp/0/ws")
-  basicTransportTest(wsSecureTransProvider, "/ip4/0.0.0.0/tcp/0/wss")
+  basicTransportTest(wsTransProvider, wsAddress, validAddresses, invalidAddresses)
+  basicTransportTest(
+    wsSecureTransProvider, wsSecureAddress, validAddresses, invalidAddresses
+  )
 
-  connectionTransportTest(wsTransProvider, "/ip4/0.0.0.0/tcp/0/ws")
-  connectionTransportTest(wsSecureTransProvider, "/ip4/0.0.0.0/tcp/0/wss")
+  connectionTransportTest(wsTransProvider, wsAddress)
+  connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]

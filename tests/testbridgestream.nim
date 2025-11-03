@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-LibP2P
 # Copyright (c) 2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,8 +7,10 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ./helpers
-import stew/byteutils
+{.used.}
+
+import chronos, stew/byteutils
+import ./tools/[unittest]
 import ../libp2p/stream/bridgestream
 
 suite "BridgeStream":
