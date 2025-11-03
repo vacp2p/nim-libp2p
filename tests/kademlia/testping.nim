@@ -1,10 +1,18 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
+
 import chronos
-import ../../libp2p/[switch, builders]
-import ../../libp2p/protocols/kademlia
-import ../tools/unittest
-import ./utils.nim
+import ../../libp2p/[protocols/kademlia, switch, builders]
 import ../tools/[unittest]
+import ./utils.nim
 
 suite "KadDHT - Ping":
   teardown:

@@ -1,16 +1,25 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
 import strformat, results
-import ../tools/unittest
 import ../../libp2p/[crypto/crypto, crypto/secp, multiaddress, multicodec, peerid]
 import ../../libp2p/protocols/mix/[curve25519, mix_node]
+import ../tools/unittest
 
 suite "Mix Node Tests":
   var mixNodes {.threadvar.}: MixNodes
 
   setup:
     const count = 5
-    let mixNodes = initializeMixNodes(count).expect("could not generate mix nodes")
+    mixNodes = initializeMixNodes(count).expect("could not generate mix nodes")
     check:
       mixNodes.len == count
 
@@ -19,7 +28,7 @@ suite "Mix Node Tests":
     deletePubInfoFolder()
 
   test "get mix node by index":
-    for i in 0 ..< count:
+    for i in 0 ..< mixNodes.len:
       let node = mixNodes[i]
       let
         (peerId, multiAddr, mixPubKey, mixPrivKey, libp2pPubKey, libp2pPrivKey) =
@@ -36,7 +45,7 @@ suite "Mix Node Tests":
         libp2pPrivKey.getBytes().len == SkRawPrivateKeySize
 
   test "find mixnode by peerid":
-    for i in 0 ..< count:
+    for i in 0 ..< mixNodes.len:
       let
         node = mixNodes[i]
         foundNode = mixNodes.findByPeerId(node.peerId).expect("find mix node error")
@@ -50,7 +59,7 @@ suite "Mix Node Tests":
       mixNodes.findByPeerId(peerId).isErr()
 
   test "write and read mixnodeinfo":
-    for i in 0 ..< count:
+    for i in 0 ..< mixNodes.len:
       let node = mixNodes[i]
       node.writeToFile(i).expect("File write error")
       let readNode = MixNodeInfo.readFromFile(i).expect("Read node error")
@@ -59,7 +68,7 @@ suite "Mix Node Tests":
         readNode == node
 
   test "write and read mixpubinfo":
-    for i in 0 ..< count:
+    for i in 0 ..< mixNodes.len:
       let mixPubInfo =
         mixNodes.getMixPubInfoByIndex(i).expect("couldnt obtain mixpubinfo")
       mixPubInfo.writeToFile(i).expect("File write error")
@@ -78,7 +87,7 @@ suite "Mix Node Tests":
     let mixNodes =
       initializeMixNodes(count, basePort).expect("could not generate mix nodes")
 
-    for i in 0 ..< count:
+    for i in 0 ..< mixNodes.len:
       let tcpPort = mixNodes[i].multiAddr.getPart(multiCodec("tcp")).value()
       let expectedPort = MultiAddress.init(fmt"/tcp/{basePort + i}").tryGet()
       check:

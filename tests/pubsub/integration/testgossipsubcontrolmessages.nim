@@ -1,15 +1,20 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
-import chronos
-import std/[sequtils]
-import chronicles
-import ../utils
+import chronos, std/[sequtils], chronicles
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-
 when defined(libp2p_gossipsub_1_4):
   import ../../../libp2p/protocols/pubsub/gossipsub/preamblestore
-
 import ../../tools/[unittest]
+import ../utils
 
 suite "GossipSub Integration - Control Messages":
   teardown:

@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2022 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -12,15 +12,12 @@
 {.push raises: [].}
 
 import chronos
-
-import ./stubs/switchstub
 import ../libp2p/[builders, switch, wire, services/hpservice, services/autorelayservice]
 import ../libp2p/protocols/connectivity/relay/[relay, client]
 import ../libp2p/protocols/connectivity/autonat/[service]
 import ../libp2p/nameresolving/[nameresolver, mockresolver]
-
+import ./stubs/[autonatclientstub, switchstub]
 import ./tools/[unittest, futures, resolver]
-import stubs/autonatclientstub
 
 proc createSwitch(
     r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil
