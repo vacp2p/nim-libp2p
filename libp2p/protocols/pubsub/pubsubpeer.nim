@@ -246,6 +246,7 @@ proc runHandleLoop*(
       try:
         await conn.readLp(p.maxMessageSize)
       except LPStreamError as e:
+        echo "EXCEPTION IN RUN HANDLER LOOP", e.msg
         debug "Exception occurred reading message PubSubPeer.handle",
           conn, peer = p, closed = conn.closed, description = e.msg
         return
@@ -260,6 +261,7 @@ proc closeSendConn(
 ) {.async: (raises: [CancelledError]).} =
   if p.sendConn != nil:
     trace "Removing send connection", p, conn = p.sendConn
+    echo "CLOSING SEND CONNECTION!!!"
     await p.sendConn.close()
     p.sendConn = nil
 
@@ -369,6 +371,7 @@ proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: [
     trace "Unexpected exception in sendMsgContinue", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
+    echo "EXCEPTION IN SENDMSGCONTINUE", exc.msg
     await conn.close() # This will clean up the send connection
 
 proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledError]).} =

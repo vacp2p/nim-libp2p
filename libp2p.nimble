@@ -10,7 +10,7 @@ skipDirs = @["cbind", "examples", "interop", "performance", "tests", "tools"]
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
-  "websock >= 0.2.1", "unittest2", "results", "taskpools >= 0.1.0",
+  "websock >= 0.2.1", "unittest2", "results", "taskpools >= 0.1.0", "redis",
   "https://github.com/vacp2p/nim-lsquic#f2839d603d8ef6799a92cd018879f5f70acc6b66",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
