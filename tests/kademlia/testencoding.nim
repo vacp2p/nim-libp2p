@@ -8,8 +8,7 @@
 # those terms.
 {.used.}
 
-import unittest2, nimcrypto
-import results
+import nimcrypto, results
 import
   ../../libp2p/[
     multiaddress,

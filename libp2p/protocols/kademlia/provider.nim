@@ -34,7 +34,6 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
     # remove old providerRecord if any
     let oldRecordIdx = pm.records.find(record)
     if oldRecordIdx != -1:
-      debug "updating provider"
       pm.records.del(oldRecordIdx)
 
     # push new providerRecord
@@ -99,10 +98,8 @@ proc hasExpiredRecords(pm: ProviderManager): bool =
 
 proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "cleanup expired provider records", kad.config.cleanupProvidersInterval:
-    debug "cleaning up expired records", now = chronos.Moment.now()
     while kad.providerManager.hasExpiredRecords():
       let expired = kad.providerManager.records.pop()
-      debug "found expired record", now = chronos.Moment.now(), expired = expired
       kad.providerManager.rmProviderRecord(expired)
 
 proc handleAddProvider*(
@@ -115,10 +112,8 @@ proc handleAddProvider*(
   # filter out infos that do not match sender's
   let peerBytes = conn.peerId.getBytes()
 
-  debug "got addProvider", providerPeers = msg.providerPeers.len()
   for peer in msg.providerPeers.filterIt(it.id == peerBytes):
     let p = PeerId.init(peer.id).valueOr:
-      debug "Invalid peer id received", error = error
       continue
 
     # add provider to providerManager
@@ -129,7 +124,3 @@ proc handleAddProvider*(
         key: msg.key.toCid(),
       )
     )
-    debug "added ProviderRecord",
-      provider = peer.id,
-      key = msg.key.toCid(),
-      recordsLen = kad.providerManager.records.len()

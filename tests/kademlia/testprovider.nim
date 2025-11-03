@@ -9,14 +9,11 @@
 
 {.used.}
 
-import std/[heapqueue, sets]
+import std/[heapqueue, sets, tables]
 from std/times import now, utc
 import chronos
-import unittest2
+import ../../libp2p/[protocols/kademlia, switch, builders]
 import ../tools/[unittest]
-import ../../libp2p/[switch, builders]
-import ../../libp2p/protocols/kademlia
-import ../utils/async_tests
 import ./utils.nim
 
 suite "KadDHT - ProviderManager":
@@ -79,13 +76,15 @@ suite "KadDHT - ProviderManager":
     check kad1.providerManager.records.len() == 2
 
     # wait less than expiration time
-    await sleepAsync(CleanupInterval)
+    await sleepAsync(kad1.config.cleanupProvidersInterval)
 
     # provider records have not yet expired
     check kad1.providerManager.records.len() == 2
 
     # wait expiration time
-    await sleepAsync(ExpirationInterval + CleanupInterval)
+    await sleepAsync(
+      kad1.config.providerExpirationInterval + 2 * kad1.config.cleanupProvidersInterval
+    )
 
     # provider records expired and evicted
     check kad1.providerManager.records.len() == 0
@@ -118,7 +117,7 @@ suite "KadDHT - ProviderManager":
     check kad1.providerManager.records.len() == 2
 
     # wait less than expiration time
-    await sleepAsync(CleanupInterval)
+    await sleepAsync(kad1.config.cleanupProvidersInterval)
 
     # provider records have not yet expired
     check kad1.providerManager.records.len() == 2
@@ -128,13 +127,17 @@ suite "KadDHT - ProviderManager":
     await kad2.addProvider(key2.toCid())
 
     # wait rest of expiration time
-    await sleepAsync(ExpirationInterval - CleanupInterval)
+    await sleepAsync(
+      kad1.config.providerExpirationInterval - kad1.config.cleanupProvidersInterval
+    )
 
     # provider records have not expired (refreshed)
     check kad1.providerManager.records.len() == 2
 
     # wait expiration time
-    await sleepAsync(ExpirationInterval + CleanupInterval)
+    await sleepAsync(
+      kad1.config.providerExpirationInterval + 2 * kad1.config.cleanupProvidersInterval
+    )
 
     # provider records have expired
     check kad1.providerManager.records.len() == 0
@@ -167,7 +170,9 @@ suite "KadDHT - ProviderManager":
       kad2.providerManager.knownKeys.len() == 2
 
     # after the expiration time only key2 expired
-    await sleepAsync(ExpirationInterval + CleanupInterval)
+    await sleepAsync(
+      kad1.config.providerExpirationInterval + 2 * kad1.config.cleanupProvidersInterval
+    )
 
     check:
       kad1.providerManager.providedKeys.len() == 1
@@ -178,7 +183,9 @@ suite "KadDHT - ProviderManager":
     kad1.stopProviding(key1.toCid())
 
     # after the expiration time, key1 expired
-    await sleepAsync(ExpirationInterval + CleanupInterval)
+    await sleepAsync(
+      kad1.config.providerExpirationInterval + 2 * kad1.config.cleanupProvidersInterval
+    )
     check:
       kad1.providerManager.providedKeys.len() == 0
       kad2.providerManager.records.len() == 0

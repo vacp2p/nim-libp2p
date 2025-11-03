@@ -11,11 +11,6 @@
 import std/tables, results, chronos
 import ../../libp2p/[protocols/kademlia, switch, builders]
 
-const
-  CleanupInterval*: Duration = 100.milliseconds
-  ExpirationInterval*: Duration = 1.seconds
-  RepublishInterval*: Duration = 50.milliseconds
-
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =
   true
@@ -74,12 +69,13 @@ template setupKadSwitch*(validator: untyped, selector: untyped): untyped =
     config = KadDHTConfig.new(
       validator,
       selector,
-      timeout = 1.seconds,
-      cleanupProvidersInterval = CleanupInterval,
-      providerExpirationInterval = ExpirationInterval,
-      republishProvidedKeysInterval = RepublishInterval,
+      timeout = chronos.seconds(1),
+      cleanupProvidersInterval = chronos.milliseconds(100),
+      providerExpirationInterval = chronos.seconds(1),
+      republishProvidedKeysInterval = chronos.milliseconds(50),
     ),
   )
+
   switch.mount(kad)
   await switch.start()
   (switch, kad)
