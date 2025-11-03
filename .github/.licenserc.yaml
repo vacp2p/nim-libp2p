@@ -13,6 +13,8 @@ header:
   paths:
   - "libp2p/**/*.nim"
   - "tests/**/*.nim"
+  - "performance/**/*.nim"
+  - "interop/**/*.nim"
   paths-ignore:
   - "tests/multiformat_exts/*_exts.nim"
   comment: on-failure
