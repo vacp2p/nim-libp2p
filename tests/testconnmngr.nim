@@ -1,19 +1,16 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sequtils, tables]
-import results
-import chronos
-import ../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
+{.used.}
 
+import results, chronos, std/[sequtils, tables]
+import ../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
 import ./tools/[unittest, compare, futures]
 
 proc getMuxer(peerId: PeerId, dir: Direction = Direction.In): Muxer =

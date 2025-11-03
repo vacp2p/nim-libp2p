@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,15 +9,12 @@
 
 {.used.}
 
-import chronos
-import std/[sequtils, enumerate]
-import stew/byteutils
-import sugar
-import chronicles
+import chronos, std/[sequtils, enumerate], stew/byteutils, sugar, chronicles
+import
+  ../../../libp2p/protocols/pubsub/
+    [gossipsub, mcache, peertable, timedcache, rpc/message]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, timedcache]
-import ../../../libp2p/protocols/pubsub/rpc/[message]
-import ../../tools/[unittest], ../../tools/[futures]
 
 const MsgIdSuccess = "msg id gen success"
 

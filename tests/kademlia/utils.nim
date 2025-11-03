@@ -1,8 +1,15 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 {.used.}
-import std/tables
-import results, chronos
-import ../../libp2p/protocols/kademlia
-import ../../libp2p/[switch, builders]
+
+import std/tables, results, chronos
+import ../../libp2p/[protocols/kademlia, switch, builders]
 
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =

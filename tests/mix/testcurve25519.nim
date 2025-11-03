@@ -1,8 +1,17 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
-import results, unittest
-import ../../libp2p/crypto/curve25519
-import ../../libp2p/protocols/mix/curve25519
+import results
+import ../../libp2p/[crypto/curve25519, protocols/mix/curve25519]
+import ../tools/[unittest]
 
 proc isNotZero(key: FieldElement): bool =
   for byte in key:

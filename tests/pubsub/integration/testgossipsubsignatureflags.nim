@@ -1,7 +1,7 @@
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,13 +9,10 @@
 
 {.used.}
 
-import chronos
-import stew/byteutils
+import chronos, stew/byteutils
+import ../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, pubsub]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../tools/[unittest]
-import ../../tools/futures
 
 suite "GossipSub Integration - Signature Flags":
   const

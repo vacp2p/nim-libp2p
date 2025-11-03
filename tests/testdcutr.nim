@@ -1,23 +1,21 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos
+{.used.}
 
+import chronos
 import ../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../libp2p/protocols/connectivity/autonat/types import NetworkReachability
-import ../libp2p/builders
-import ../libp2p/utils/future
-import ./tools/[unittest]
+import ../libp2p/[builders, utils/future]
 import ./stubs/switchstub
+import ./tools/[unittest]
 
 suite "Dcutr":
   teardown:

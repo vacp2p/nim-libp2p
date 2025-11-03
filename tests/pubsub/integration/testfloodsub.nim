@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,8 +9,7 @@
 
 {.used.}
 
-import sequtils, tables, sets
-import chronos, stew/byteutils
+import sequtils, tables, sets, chronos, stew/byteutils
 import
   ../utils,
   ../../../libp2p/[
@@ -24,7 +23,6 @@ import
     protocols/pubsub/pubsubpeer,
   ]
 import ../../../libp2p/protocols/pubsub/errors as pubsub_errors
-
 import ../../tools/[unittest, futures]
 
 proc waitSub(sender, receiver: auto, key: string) {.async.} =

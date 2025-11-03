@@ -1,7 +1,24 @@
-import chronicles
-import metrics
-import hashes, random, tables, sets, sequtils
-import chronos, results, stew/byteutils, chronos/ratelimit
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+import
+  chronicles,
+  metrics,
+  hashes,
+  random,
+  tables,
+  sets,
+  sequtils,
+  chronos,
+  results,
+  stew/byteutils,
+  chronos/ratelimit
 import
   ../../libp2p/[
     builders,
