@@ -135,6 +135,14 @@ proc extractPort*(ma: MultiAddress): int =
   let port = int(fromBytesBE(uint16, portBytes))
   port
 
+template noException*(stream: Connection, body) =
+  try:
+    body
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+  finally:
+    await stream.close()
+
 proc serverHandlerSingleStream*(
     server: Transport,
     streamProvider: StreamProvider,
@@ -146,7 +154,6 @@ proc serverHandlerSingleStream*(
     muxer.streamHandler = handler
 
     let muxerTask = muxer.handle()
-    asyncSpawn muxerTask
 
     await muxerTask
     await muxer.close()
@@ -176,11 +183,3 @@ proc clientRunSingleStream*(
     await muxerTask
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
-
-template noException*(stream: Connection, body) =
-  try:
-    body
-  except CatchableError as exc:
-    raiseAssert "should not fail: " & exc.msg
-  finally:
-    await stream.close()

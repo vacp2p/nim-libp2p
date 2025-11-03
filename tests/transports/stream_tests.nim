@@ -115,34 +115,28 @@ template streamTransportTest*(
     await serverTask
     await server.stop()
 
-  asyncTest "client write after EOF":
+  asyncTest "client writes after EOF":
     let ma = @[MultiAddress.init(address).tryGet()]
-    var clientHandlerTask: Future[void]
+    var serverMuxerTask: Future[void]
 
     proc serverHandler(server: Transport) {.async.} =
       let conn = await server.accept()
       let muxer = streamProvider(server, conn)
       muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
         noException(stream):
+          # Custom pattern: closes muxer/connection inside the stream handler to force immediate shutdown.
+          # Using serverHandlerSingleStream would deadlock: client waits for server task,
+          # but muxer.handle() blocks reading messages until client closes its connection.
           await stream.write(serverMessage)
           await muxer.close()
           await conn.close()
-      clientHandlerTask = muxer.handle()
-      asyncSpawn clientHandlerTask
+      serverMuxerTask = muxer.handle()
 
-    proc runClient(server: Transport) {.async.} =
-      let client = transportProvider()
-      let conn = await client.dial("", server.addrs[0])
-      let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
-
-      let stream = await muxer.newStream()
-
+    proc clientStreamHandler(stream: Connection) {.async.} =
       var buffer: array[serverMessage.len, byte]
       await stream.readExactly(addr buffer, serverMessage.len)
       check string.fromBytes(buffer) == serverMessage
-      await clientHandlerTask
+      await serverMuxerTask
 
       if isQuicTransport(ma[0]):
         expect LPStreamError:
@@ -151,16 +145,13 @@ template streamTransportTest*(
         expect LPStreamEOFError:
           await stream.write(clientMessage)
 
-      await stream.close()
-      await muxer.close()
-      await conn.close()
-      await muxerTask
-
     let server = transportProvider()
     await server.start(ma)
     let serverTask = serverHandler(server)
 
-    await runClient(server)
+    await clientRunSingleStream(
+      server, transportProvider, streamProvider, clientStreamHandler
+    )
     await serverTask
     await server.stop()
 
