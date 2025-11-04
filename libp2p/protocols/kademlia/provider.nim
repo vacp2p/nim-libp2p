@@ -38,13 +38,13 @@ proc removeProviderRecord(pm: ProviderManager, record: ProviderRecord) =
     raiseAssert("checked with hasKey")
 
 proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
-  if not pm.knownKeys.hasKey(record.key):
-    pm.knownKeys[record.key] = initHashSet[Provider]()
-
   # if full, remove oldest
   if pm.records.len == pm.providerRecordCapacity:
     let oldest = pm.records.pop()
     pm.removeProviderRecord(oldest)
+
+  if not pm.knownKeys.hasKey(record.key):
+    pm.knownKeys[record.key] = initHashSet[Provider]()
 
   try:
     pm.knownKeys[record.key].incl(record.provider)
