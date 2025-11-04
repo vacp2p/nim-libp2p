@@ -24,9 +24,27 @@ proc `<`*(a, b: ProviderRecord): bool =
 proc `<`*(a: ProviderRecord, b: chronos.Moment): bool =
   a.expiresAt < b
 
+proc removeProviderRecord(pm: ProviderManager, record: ProviderRecord) =
+  ## Remove provider record and related keys
+
+  if not pm.knownKeys.hasKey(record.key):
+    return
+
+  try:
+    pm.knownKeys[record.key].excl(record.provider)
+    if pm.knownKeys[record.key].len() == 0:
+      pm.knownKeys.del(record.key)
+  except KeyError:
+    raiseAssert("checked with hasKey")
+
 proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
   if not pm.knownKeys.hasKey(record.key):
     pm.knownKeys[record.key] = initHashSet[Provider]()
+
+  # if full, remove oldest
+  if pm.records.len == pm.providerRecordCapacity:
+    let oldest = pm.records.pop()
+    pm.removeProviderRecord(oldest)
 
   try:
     pm.knownKeys[record.key].incl(record.provider)
@@ -38,19 +56,6 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
 
     # push new providerRecord
     pm.records.push(record)
-  except KeyError:
-    raiseAssert("checked with hasKey")
-
-proc rmProviderRecord(pm: ProviderManager, record: ProviderRecord) =
-  ## Remove provider record and related keys
-
-  if not pm.knownKeys.hasKey(record.key):
-    return
-
-  try:
-    pm.knownKeys[record.key].excl(record.provider)
-    if pm.knownKeys[record.key].len() == 0:
-      pm.knownKeys.del(record.key)
   except KeyError:
     raiseAssert("checked with hasKey")
 
@@ -81,16 +86,26 @@ proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gc
       discard
 
 proc startProviding*(kad: KadDHT, c: Cid) {.async: (raises: [CancelledError]).} =
-  kad.providerManager.providedKeys.incl(c)
+  if kad.providerManager.providedKeyCapacity == kad.providerManager.providedKeys.len():
+    # replace oldest provided key
+    var oldest: Cid
+    var oldestMoment = chronos.Moment.now()
+    for k, m in kad.providerManager.providedKeys:
+      if oldestMoment > m:
+        oldest = k
+        oldestMoment = m
+    kad.providerManager.providedKeys.del(oldest)
+
+  kad.providerManager.providedKeys[c] = chronos.Moment.now()
   await kad.addProvider(c)
 
 proc stopProviding*(kad: KadDHT, c: Cid) =
-  kad.providerManager.providedKeys.excl(c)
+  kad.providerManager.providedKeys.del(c)
 
 proc manageRepublishProvidedKeys*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "republish provided keys", kad.config.republishProvidedKeysInterval:
     let providedKeys = kad.providerManager.providedKeys
-    for c in providedKeys:
+    for c in providedKeys.keys():
       await kad.addProvider(c)
 
 proc hasExpiredRecords(pm: ProviderManager): bool =
@@ -100,7 +115,7 @@ proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} 
   heartbeat "cleanup expired provider records", kad.config.cleanupProvidersInterval:
     while kad.providerManager.hasExpiredRecords():
       let expired = kad.providerManager.records.pop()
-      kad.providerManager.rmProviderRecord(expired)
+      kad.providerManager.removeProviderRecord(expired)
 
 proc handleAddProvider*(
     kad: KadDHT, conn: Connection, msg: Message

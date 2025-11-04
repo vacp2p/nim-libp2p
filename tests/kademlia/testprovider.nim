@@ -9,9 +9,9 @@
 
 {.used.}
 
-import std/[heapqueue, sets, tables]
+import std/[heapqueue, tables]
 from std/times import now, utc
-import chronos
+import chronos, chronicles
 import ../../libp2p/[protocols/kademlia, switch, builders]
 import ../tools/[unittest]
 import ./utils.nim

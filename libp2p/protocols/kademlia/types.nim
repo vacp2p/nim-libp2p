@@ -24,6 +24,9 @@ const
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
   DefaultQuorum* = 5 # number of GetValue responses needed to decide
+  DefaultProviderRecordCapacity* = 500
+    # maximum number of provider records to store at once
+  DefaultProvidedKeyCapacity* = 500 # maximum number of provided keys to store at once
   DefaultRepublishInterval* = 10.minutes # same as bootstrap
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
@@ -177,10 +180,17 @@ type
   ProviderManager* = ref object
     records*: HeapQueue[ProviderRecord]
     knownKeys*: Table[Cid, HashSet[Provider]]
-    providedKeys*: HashSet[Cid]
+    providedKeys*: Table[Cid, chronos.Moment]
+    providerRecordCapacity*: int
+    providedKeyCapacity*: int
 
-proc new*(T: typedesc[ProviderManager]): T =
-  T(providedKeys: initHashSet[Cid]())
+proc new*(
+    T: typedesc[ProviderManager], providerRecordCapacity: int, providedKeyCapacity: int
+): T =
+  T(
+    providerRecordCapacity: providerRecordCapacity,
+    providedKeyCapacity: providedKeyCapacity,
+  )
 
 ## Currently a string, because for some reason, that's what is chosen at the protobuf level
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
@@ -270,6 +280,8 @@ type KadDHTConfig* = ref object
   alpha*: int
   ttl*: chronos.Duration
   quorum*: int
+  providerRecordCapacity*: int
+  providedKeyCapacity*: int
   republishProvidedKeysInterval*: chronos.Duration
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
@@ -284,6 +296,8 @@ proc new*(
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
     quorum: int = DefaultQuorum,
+    providerRecordCapacity = DefaultProviderRecordCapacity,
+    providedKeyCapacity = DefaultProvidedKeyCapacity,
     republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
@@ -297,6 +311,8 @@ proc new*(
     replication: replication,
     alpha: alpha,
     quorum: quorum,
+    providerRecordCapacity: providerRecordCapacity,
+    providedKeyCapacity: providedKeyCapacity,
     republishProvidedKeysInterval: republishProvidedKeysInterval,
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
