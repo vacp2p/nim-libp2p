@@ -8,8 +8,15 @@
 # those terms.
 {.used.}
 
-import results
-import ../../libp2p/[multiaddress, protobuf/minprotobuf, protocols/kademlia/protobuf]
+import nimcrypto, results
+import
+  ../../libp2p/[
+    multiaddress,
+    peerid,
+    protobuf/minprotobuf,
+    protocols/kademlia,
+    protocols/kademlia/protobuf,
+  ]
 import ../tools/unittest
 
 template checkEncodeDecode(obj: untyped) =
