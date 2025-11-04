@@ -84,7 +84,10 @@ proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byt
   err("Multiaddress codec has not been found")
 
 proc getWildcardMultiAddresses(
-    interfaceAddresses: seq[InterfaceAddress], protocol: Protocol, port: Port
+    interfaceAddresses: seq[InterfaceAddress],
+    protocol: Protocol,
+    port: Port,
+    isQuic: bool,
 ): seq[MultiAddress] =
   var addresses: seq[MultiAddress]
   for ifaddr in interfaceAddresses:
@@ -92,16 +95,23 @@ proc getWildcardMultiAddresses(
     address.port = port
     MultiAddress.init(address, protocol).withValue(maddress):
       addresses.add(maddress)
+
+  if isQuic:
+    let quicV1 = MultiAddress.init("/quic-v1").value()
+    return addresses.mapIt(it.concat(quicV1).value())
+
   addresses
 
 proc getWildcardAddress(
     maddress: MultiAddress,
     addrFamily: AddressFamily,
     port: Port,
+    proto: Protocol,
+    isQuic: bool,
     networkInterfaceProvider: NetworkInterfaceProvider,
 ): seq[MultiAddress] =
   let filteredInterfaceAddresses = networkInterfaceProvider(addrFamily)
-  getWildcardMultiAddresses(filteredInterfaceAddresses, IPPROTO_TCP, port)
+  getWildcardMultiAddresses(filteredInterfaceAddresses, proto, port, isQuic)
 
 proc expandWildcardAddresses(
     networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
@@ -110,15 +120,23 @@ proc expandWildcardAddresses(
 
   # In this loop we expand bound addresses like `0.0.0.0` and `::` to list of interface addresses.
   for listenAddr in listenAddrs:
-    if TCP_IP.matchPartial(listenAddr):
-      listenAddr.getProtocolArgument(multiCodec("tcp")).withValue(portArg):
+    let tcpMatchPartial = TCP_IP.matchPartial(listenAddr)
+    let quicMatchPartial = QUIC_V1_IP.matchPartial(listenAddr)
+    if tcpMatchPartial or quicMatchPartial:
+      let (netCodec, proto, isQuic) =
+        if tcpMatchPartial:
+          (multiCodec("tcp"), IPPROTO_TCP, false)
+        else:
+          (multiCodec("udp"), IPPROTO_UDP, true)
+      listenAddr.getProtocolArgument(netCodec).withValue(portArg):
         let port = Port(uint16.fromBytesBE(portArg))
         if IP4.matchPartial(listenAddr):
           listenAddr.getProtocolArgument(multiCodec("ip4")).withValue(ip4):
             if ip4 == AnyAddress.address_v4:
               addresses.add(
                 getWildcardAddress(
-                  listenAddr, AddressFamily.IPv4, port, networkInterfaceProvider
+                  listenAddr, AddressFamily.IPv4, port, proto, isQuic,
+                  networkInterfaceProvider,
                 )
               )
             else:
@@ -128,13 +146,15 @@ proc expandWildcardAddresses(
             if ip6 == AnyAddress6.address_v6:
               addresses.add(
                 getWildcardAddress(
-                  listenAddr, AddressFamily.IPv6, port, networkInterfaceProvider
+                  listenAddr, AddressFamily.IPv6, port, proto, isQuic,
+                  networkInterfaceProvider,
                 )
               )
               # IPv6 dual stack
               addresses.add(
                 getWildcardAddress(
-                  listenAddr, AddressFamily.IPv4, port, networkInterfaceProvider
+                  listenAddr, AddressFamily.IPv4, port, proto, isQuic,
+                  networkInterfaceProvider,
                 )
               )
             else:
