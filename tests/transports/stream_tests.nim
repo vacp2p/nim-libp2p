@@ -77,30 +77,16 @@ template streamTransportTest*(
         check string.fromBytes(buffer) == serverMessage
 
         # First readOnce after EOF
-        # nim-libp2p#1833 Transports: Inconsistent EOF behavior between QUIC and Mplex: first readOnce after EOF
-        if (isQuicTransport(ma[0])):
-          expect LPStreamEOFError:
-            discard await stream.readOnce(addr buffer, 1)
-        else:
-          let bytesRead = await stream.readOnce(addr buffer, 1)
-          check bytesRead == 0
+        let bytesRead = await stream.readOnce(addr buffer, 1)
+        check bytesRead == 0
 
         # Attempting second readOnce at EOF
-        # nim-libp2p#1834 Transports: Inconsistent EOF behavior between QUIC and Mplex: consecutive readOnce after EOF
-        if (isQuicTransport(ma[0])):
-          expect LPStreamEOFError:
-            discard await stream.readOnce(addr buffer, 1)
-        else:
-          expect LPStreamRemoteClosedError:
-            discard await stream.readOnce(addr buffer, 1)
+        expect LPStreamRemoteClosedError:
+          discard await stream.readOnce(addr buffer, 1)
 
-        # Attempting readExactly at EOF
-        if (isQuicTransport(ma[0])):
-          expect LPStreamEOFError:
-            await stream.readExactly(addr buffer, 1)
-        else:
-          expect LPStreamRemoteClosedError:
-            await stream.readExactly(addr buffer, 1)
+        # # Attempting readExactly at EOF
+        expect LPStreamRemoteClosedError:
+          await stream.readExactly(addr buffer, 1)
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
@@ -130,12 +116,8 @@ template streamTransportTest*(
         check string.fromBytes(buffer) == serverMessage
         await serverMuxerTask
 
-        if isQuicTransport(ma[0]):
-          expect LPStreamError:
-            await stream.write(clientMessage)
-        else:
-          expect LPStreamEOFError:
-            await stream.write(clientMessage)
+        expect LPStreamEOFError:
+          await stream.write(clientMessage)
 
     let server = transportProvider()
     await server.start(ma)
@@ -158,12 +140,8 @@ template streamTransportTest*(
       noException(stream):
         var buffer: array[2 * serverMessage.len, byte]
 
-        if (isQuicTransport(ma[0])):
-          expect LPStreamEOFError:
-            await stream.readExactly(addr buffer, 2 * serverMessage.len)
-        else:
-          expect LPStreamIncompleteError:
-            await stream.readExactly(addr buffer, 2 * serverMessage.len)
+        expect LPStreamIncompleteError:
+          await stream.readExactly(addr buffer, 2 * serverMessage.len)
 
         # Verify that partial data was read before EOF
         check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
@@ -194,13 +172,8 @@ template streamTransportTest*(
         check string.fromBytes(buffer) == serverMessage
 
         # Server has closed write side, so further reads should EOF
-        if (isQuicTransport(ma[0])):
-          expect LPStreamEOFError:
-            discard await stream.readOnce(addr buffer, 1)
-        else:
-          # TCP/Mplex: First readOnce after closeWrite returns 0
-          let bytesRead = await stream.readOnce(addr buffer, 1)
-          check bytesRead == 0
+        let bytesRead = await stream.readOnce(addr buffer, 1)
+        check bytesRead == 0
 
         # Client should still be able to write back to server
         await stream.write(clientMessage)

@@ -10,6 +10,7 @@
 {.used.}
 
 import ./tools/test_all
+import ./transports/test_all
 
 import
   testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
@@ -20,8 +21,6 @@ import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
 import
   testmultibase, testmultihash, testmultiaddress, testipaddr, testcid, testpeerid,
   testsigned_envelope, testrouting_record
-
-import transports/testtransports
 
 import
   testnameresolve, testmultistream, testbufferstream, testidentify,
