@@ -1,13 +1,13 @@
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[tables, sequtils, sets]
+import std/[tables, sequtils, sets, heapqueue]
 from times import now
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec]
@@ -19,11 +19,14 @@ const
 
   DefaultMaxBuckets* = 256
   DefaultTimeout* = 5.seconds
+  DefaultBucketRefreshTime* = 10.minutes
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
-  DefaultTTL* = 24.hours
   DefaultQuorum* = 5 # number of GetValue responses needed to decide
+  DefaultRepublishInterval* = 10.minutes # same as bootstrap
+  DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
+  DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
 
   KadCodec* = "/ipfs/kad/1.0.0"
   MaxMsgSize* = 4096
@@ -38,11 +41,14 @@ proc toCid*(k: Key): Cid =
     debug "Key is an invalid CID, encapsulating", key = k
     Cid.init(CIDv1, multiCodec("dag-pb"), MultiHash.digest("sha2-256", k).get()).get()
 
+proc toKey*(mh: MultiHash): Key =
+  mh.data.buffer
+
 proc toKey*(c: Cid): Key =
-  c.mhash().get().data.buffer
+  c.mhash().get().toKey()
 
 proc toKey*(p: PeerId): Key =
-  return Key(p.data)
+  MultiHash.init(p.data).get().toKey()
 
 proc toPeerId*(k: Key): Result[PeerId, string] =
   PeerId.init(k).mapErr(x => $x)
@@ -161,6 +167,21 @@ type
     buckets*: seq[Bucket]
     config*: RoutingTableConfig
 
+  Provider* = Peer
+
+  ProviderRecord* = object
+    provider*: Provider
+    expiresAt*: chronos.Moment
+    key*: Cid
+
+  ProviderManager* = ref object
+    records*: HeapQueue[ProviderRecord]
+    knownKeys*: Table[Cid, HashSet[Provider]]
+    providedKeys*: HashSet[Cid]
+
+proc new*(T: typedesc[ProviderManager]): T =
+  T(providedKeys: initHashSet[Cid]())
+
 ## Currently a string, because for some reason, that's what is chosen at the protobuf level
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
 type TimeStamp* = string
@@ -243,32 +264,42 @@ type KadDHTConfig* = ref object
   validator*: EntryValidator
   selector*: EntrySelector
   timeout*: chronos.Duration
+  bucketRefreshTime*: chronos.Duration
   retries*: int
   replication*: int
   alpha*: int
   ttl*: chronos.Duration
   quorum*: int
+  republishProvidedKeysInterval*: chronos.Duration
+  cleanupProvidersInterval*: chronos.Duration
+  providerExpirationInterval*: chronos.Duration
 
 proc new*(
     T: typedesc[KadDHTConfig],
     validator: EntryValidator = DefaultEntryValidator(),
     selector: EntrySelector = DefaultEntrySelector(),
     timeout: chronos.Duration = DefaultTimeout,
+    bucketRefreshTime: chronos.Duration = DefaultBucketRefreshTime,
     retries: int = DefaultRetries,
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
-    ttl: chronos.Duration = DefaultTTL,
     quorum: int = DefaultQuorum,
+    republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
+    cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
+    providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,
     selector: selector,
     timeout: timeout,
+    bucketRefreshTime: bucketRefreshTime,
     retries: retries,
     replication: replication,
     alpha: alpha,
-    ttl: ttl,
     quorum: quorum,
+    republishProvidedKeysInterval: republishProvidedKeysInterval,
+    cleanupProvidersInterval: cleanupProvidersInterval,
+    providerExpirationInterval: providerExpirationInterval,
   )
 
 type KadDHT* = ref object of LPProtocol
@@ -276,5 +307,8 @@ type KadDHT* = ref object of LPProtocol
   rng*: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop*: Future[void]
+  republishLoop*: Future[void]
+  expiredLoop*: Future[void]
   dataTable*: LocalTable
+  providerManager*: ProviderManager
   config*: KadDHTConfig

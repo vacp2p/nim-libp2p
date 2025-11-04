@@ -1,12 +1,19 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
-import unittest2
-
 import times
-import ../../../libp2p/transports/tls/certificate
-import ../../../libp2p/transports/tls/certificate_ffi
-import ../../../libp2p/crypto/crypto
-import ../../../libp2p/peerid
+import
+  ../../../libp2p/
+    [transports/tls/certificate, transports/tls/certificate_ffi, crypto/crypto, peerid]
+import ../../tools/unittest
 
 suite "Certificate roundtrip tests":
   test "generate then parse with DER ecoding":

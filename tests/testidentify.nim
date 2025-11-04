@@ -1,17 +1,15 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import options
-import chronos
-import chronicles
+{.used.}
+
+import options, chronos, chronicles
 import
   ../libp2p/[
     protocols/identify,
@@ -27,7 +25,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ./helpers
+import ./tools/[unittest, crypto]
 
 suite "Identify":
   teardown:

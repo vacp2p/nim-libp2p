@@ -1,18 +1,17 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 import std/tables
-import unittest2
-import ../../libp2p/multicodec
-import ../../libp2p/utils/sequninit
+import ../../libp2p/[multicodec, utils/sequninit]
+import ../tools/unittest
 
 suite "Multicodec extensions":
   test "can assign extended codecs by name":

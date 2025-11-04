@@ -1,7 +1,15 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.used.}
 
-import chronos
-import stew/byteutils
+import chronos, stew/[byteutils, endians2]
 import
   ../../libp2p/[
     transports/quictransport,
@@ -11,19 +19,16 @@ import
     multiaddress,
     multicodec,
   ]
-import ../helpers
-
-# Common 
-
-type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
+import ../tools/[unittest]
 
 # TCP
 
 proc isTcpTransport*(ma: MultiAddress): bool =
-  # Check if this is a pure TCP transport (not WebSocket over TCP)
+  # Check if this is a pure TCP transport (not WebSocket or Tor)
   ma.contains(multiCodec("tcp")).get(false) and
     not ma.contains(multiCodec("ws")).get(false) and
-    not ma.contains(multiCodec("wss")).get(false)
+    not ma.contains(multiCodec("wss")).get(false) and
+    not ma.contains(multiCodec("onion3")).get(false)
 
 # TOR
 
@@ -36,6 +41,9 @@ proc isWsTransport*(ma: MultiAddress): bool =
   ma.contains(multiCodec("ws")).get(false) or ma.contains(multiCodec("wss")).get(false)
 
 # QUIC
+
+proc isQuicTransport*(ma: MultiAddress): bool =
+  ma.contains(multiCodec("udp")).get(false)
 
 proc createServerAcceptConn*(
     server: QuicTransport, isEofExpected: bool = false
@@ -105,3 +113,21 @@ proc createTransport*(
     await trans.start(ma)
 
   return trans
+
+# Common 
+
+type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
+
+proc extractPort*(ma: MultiAddress): int =
+  var codec =
+    if isTcpTransport(ma) or isWsTransport(ma):
+      multiCodec("tcp")
+    elif isQuicTransport(ma):
+      multiCodec("udp")
+    else:
+      raiseAssert "not supported"
+
+  # Extract port number
+  let portBytes = ma[codec].tryGet().protoArgument().tryGet()
+  let port = int(fromBytesBE(uint16, portBytes))
+  port

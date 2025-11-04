@@ -1,18 +1,16 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
 {.push raises: [].}
 
-import tables
-import chronos, stew/[byteutils]
+import tables, chronos, stew/[byteutils]
 import
   ../../libp2p/[
     stream/connection,
@@ -22,8 +20,7 @@ import
     multiaddress,
     builders,
   ]
-
-import ../helpers
+import ../tools/[unittest, crypto]
 import ../stubs/torstub
 import ./basic_tests
 import ./connection_tests
@@ -35,6 +32,30 @@ suite "Tor transport":
 
   proc torTransProvider(): Transport =
     TorTransport.new(torServer, {ReuseAddr}, Upgrade())
+
+  const
+    address =
+      "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
+    address2 =
+      "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81"
+    validAddresses =
+      @[
+        # Addresses for dialing
+        "/ip4/127.0.0.1/tcp/1234", # TCP
+        "/ip6/::1/tcp/1234", # TCP over IPv6
+        "/dns/example.com/tcp/1234", # TCP with DNS
+        "/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80", # Onion3
+        # Addresses for listening (TcpOnion3)
+        "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+        "/ip6/::1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+      ]
+    invalidAddresses =
+      @[
+        "/ip4/127.0.0.1/udp/1234", # UDP not supported
+        "/ip4/127.0.0.1/tcp/1234/ws", # WebSocket not supported
+        "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC not supported
+        "/ip4/127.0.0.1/tcp/1234/wss", # WSS not supported
+      ]
 
   setup:
     stub = TorServerStub.new()
@@ -56,15 +77,8 @@ suite "Tor transport":
     waitFor stub.stop()
     checkTrackers()
 
-  basicTransportTest(
-    torTransProvider,
-    "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-  )
-  connectionTransportTest(
-    torTransProvider,
-    "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-    "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81",
-  )
+  basicTransportTest(torTransProvider, address, validAddresses, invalidAddresses)
+  connectionTransportTest(torTransProvider, address, address2)
 
   proc test(lintesAddr: string, dialAddr: string) {.async.} =
     let server = TcpTransport.new({ReuseAddr}, Upgrade())
@@ -121,7 +135,7 @@ suite "Tor transport":
           check string.fromBytes(resp) == "client"
           await conn.write("server")
         except LPStreamError:
-          check false # should not be here
+          raiseAssert "Unexpected LPStreamError in Tor onion3 test handler"
         finally:
           await conn.close()
 

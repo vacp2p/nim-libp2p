@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2025 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -69,7 +69,8 @@ proc findNode*(
 
   while not state.done:
     let toQuery = state.selectAlphaPeers()
-    debug "Queries", list = toQuery.mapIt(it.shortLog()), addrTab = addrTable
+    debug "Find node queries",
+      peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = addrTable
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
     for peer in toQuery.filterIt(kad.switch.peerInfo.peerId != it):

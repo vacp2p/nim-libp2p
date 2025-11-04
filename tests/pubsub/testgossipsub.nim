@@ -1,7 +1,7 @@
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,14 +9,12 @@
 
 {.used.}
 
-import chronos/rateLimit
-import stew/byteutils
-import utils
-import
-  ../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, pubsubpeer]
-import ../../libp2p/protocols/pubsub/rpc/[message, protobuf]
+import chronos, chronos/rateLimit, stew/byteutils, utils
 import ../../libp2p/muxers/muxer
-import ../helpers
+import
+  ../../libp2p/protocols/pubsub/
+    [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]
+import ../tools/[unittest, bufferstream]
 
 suite "GossipSub":
   const topic = "foobar"

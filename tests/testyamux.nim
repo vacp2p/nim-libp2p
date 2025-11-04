@@ -1,19 +1,17 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import sugar
-import chronos
+{.used.}
+
+import sugar, chronos
 import ../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux]
-import ./helpers
-import ./utils/futures
+import ./tools/[unittest, futures]
 
 include ../libp2p/muxers/yamux/yamux
 

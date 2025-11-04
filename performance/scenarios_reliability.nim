@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2025 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -10,7 +10,7 @@
 {.used.}
 
 import strformat
-import ../tests/utils/async_tests
+import unittest2
 import ./runner
 
 type NetworkScenario = object
@@ -62,7 +62,7 @@ setupOutputDirectory()
 suite "Network Reliability Tests":
   for transport in transportTypes:
     for scenario in scenarios:
-      asyncTest fmt"{scenario.name} {transport}":
+      test fmt"{scenario.name} {transport}":
         run(
           scenario.name,
           transport,

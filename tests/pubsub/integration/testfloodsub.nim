@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,8 +9,7 @@
 
 {.used.}
 
-import sequtils, tables, sets
-import chronos, stew/byteutils
+import sequtils, tables, sets, chronos, stew/byteutils
 import
   ../utils,
   ../../../libp2p/[
@@ -24,8 +23,7 @@ import
     protocols/pubsub/pubsubpeer,
   ]
 import ../../../libp2p/protocols/pubsub/errors as pubsub_errors
-
-import ../../helpers
+import ../../tools/[unittest, futures]
 
 proc waitSub(sender, receiver: auto, key: string) {.async.} =
   let fsub = cast[FloodSub](sender)
@@ -107,7 +105,7 @@ suite "FloodSub Integration":
 
   asyncTest "FloodSub validation should fail":
     proc handler(topic: string, data: seq[byte]) {.async.} =
-      check false # if we get here, it should fail
+      raiseAssert "Handler should not be called when validation fails"
 
     let nodes = generateNodes(2)
 
@@ -247,11 +245,12 @@ suite "FloodSub Integration":
     # test calling unsubscribeAll for coverage
     for node in nodes:
       node.unsubscribeAll("foobar")
-      check:
+      let n = node
+      checkUntilTimeout:
         # we keep the peers in table
-        FloodSub(node).floodsub["foobar"].len == 9
+        FloodSub(n).floodsub["foobar"].len == 9
         # remove the topic tho
-        node.topics.len == 0
+        n.topics.len == 0
 
   asyncTest "FloodSub message size validation":
     var messageReceived = 0

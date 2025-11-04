@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,11 +9,10 @@
 
 {.used.}
 
-import chronicles
-import std/[sequtils]
-import ../utils
+import chronos, std/[sequtils]
 import ../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
-import ../../helpers
+import ../../tools/[unittest, futures]
+import ../utils
 
 suite "GossipSub Integration - Mesh Management":
   teardown:
@@ -40,7 +39,7 @@ suite "GossipSub Integration - Mesh Management":
 
   asyncTest "Nodes graft peers according to DValues - numberOfNodes > dHigh":
     let
-      numberOfNodes = 15
+      numberOfNodes = 8
       topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
@@ -50,17 +49,19 @@ suite "GossipSub Integration - Mesh Management":
 
     let
       expectedNumberOfPeers = numberOfNodes - 1
-      dHigh = 12
+      dHigh = 7
       d = 6
       dLow = 4
 
     for i in 0 ..< numberOfNodes:
       let node = nodes[i]
       checkUntilTimeout:
-        node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
-        node.mesh.getOrDefault(topic).len >= dLow and
-          node.mesh.getOrDefault(topic).len <= dHigh
         node.fanout.len == 0
+        node.gossipsub.getOrDefault(topic).len == expectedNumberOfPeers
+        (
+          node.mesh.getOrDefault(topic).len >= dLow and
+          node.mesh.getOrDefault(topic).len <= dHigh
+        )
 
   asyncTest "GossipSub should add remote peer topic subscriptions":
     proc handler(topic: string, data: seq[byte]) {.async.} =

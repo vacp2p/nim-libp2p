@@ -1,16 +1,15 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, stew/byteutils
-import chronicles
+{.used.}
+
+import chronos, stew/byteutils, chronicles
 import
   ../libp2p/[
     switch,
@@ -33,7 +32,7 @@ import
     upgrademngrs/muxedupgrade,
     connmanager,
   ]
-import ./helpers
+import ./tools/[unittest, crypto, futures]
 
 const TestCodec = "/test/proto/1.0.0"
 

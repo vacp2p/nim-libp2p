@@ -1,16 +1,15 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options
-import chronos
+{.used.}
+
+import std/options, chronos
 import
   ../libp2p/[
     transports/tcptransport,
@@ -20,8 +19,8 @@ import
     protocols/connectivity/autonat/server,
     nameresolving/nameresolver,
     nameresolving/mockresolver,
-  ],
-  ./helpers
+  ]
+import ./tools/[unittest]
 
 proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder
@@ -51,7 +50,7 @@ proc makeAutonatServicePrivate(): Switch =
         ).encode().buffer
       )
     except LPStreamError:
-      check false # should not be here
+      raiseAssert "Unexpected LPStreamError in autonat private service handler"
     finally:
       await conn.close()
   autonatProtocol.codec = AutonatCodec

@@ -32,13 +32,7 @@ let cfg =
 
 import hashes, strutils
 
-proc runTest(
-    filename: string, moreoptions: string = "", verboseTestOutput: bool = true
-) =
-  # note: verboseTestOutput was added because  `testmultiformatexts` task fails
-  # when `--output-level` argument is used. we should seek to avoid having this 
-  # argument as all tests should run with verbose output.
-
+proc runTest(filename: string, moreoptions: string = "") =
   var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags
   if getEnv("CICOV").len > 0:
     compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
@@ -50,8 +44,7 @@ proc runTest(
   # step 1: compile test binary
   exec compileCmd & " tests/" & filename
   # step 2: run binary
-  exec "./tests/" & filename.toExe &
-    (if verboseTestOutput: " --output-level=VERBOSE" else: "")
+  exec "./tests/" & filename.toExe & " --output-level=VERBOSE"
   # step 3: remove binary
   rmFile "tests/" & filename.toExe
 
@@ -75,7 +68,7 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim " &
     "-d:libp2p_contentids_exts=../tests/multiformat_exts/contentids_exts.nim "
-  runTest("multiformat_exts/testmultiformat_exts", opts, false)
+  runTest("multiformat_exts/testmultiformat_exts", opts)
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
@@ -90,12 +83,7 @@ task testintegration, "Runs integraion tests":
   runTest("testintegration")
 
 task test, "Runs the test suite":
-  # runTest("testall")
-  # temporally `testall` task is split into `testnative` and `testpubsub`, it's main components,
-  # in order to reduce total global variables created by unittest2 library.
-  # we should seek to return to running `testall` because compiling code once is faster.
-  testnativeTask()
-  testpubsubTask()
+  runTest("testall")
   testmultiformatextsTask()
 
 task website, "Build the website":

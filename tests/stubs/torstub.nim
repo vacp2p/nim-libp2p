@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -11,9 +11,7 @@
 
 {.push raises: [].}
 
-import std/net
-import tables
-import chronos, stew/[byteutils, endians2]
+import std/net, tables, chronos, stew/[byteutils, endians2]
 import
   ../../libp2p/[
     stream/connection,

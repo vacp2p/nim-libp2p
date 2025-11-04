@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import chronos
 import hashes
 import json
@@ -15,7 +24,7 @@ import ../../libp2p
 import ../../libp2p/protocols/pubsub/rpc/messages
 import ../../libp2p/muxers/mplex/lpchannel
 import ../../libp2p/protocols/ping
-import ../../tests/helpers
+import ../../tests/tools/unittest
 import ../runner
 import ../types
 
