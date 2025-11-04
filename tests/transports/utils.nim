@@ -18,6 +18,7 @@ import
     upgrademngrs/upgrade,
     multiaddress,
     multicodec,
+    muxers/muxer,
   ]
 import ../tools/[unittest]
 
@@ -116,7 +117,12 @@ proc createTransport*(
 
 # Common 
 
-type TransportBuilder* = proc(): Transport {.gcsafe, raises: [].}
+type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
+
+type StreamProvider* =
+  proc(transport: Transport, conn: Connection): Muxer {.gcsafe, raises: [].}
+
+type StreamHandler* = proc(stream: Connection) {.async: (raises: []).}
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =
@@ -131,3 +137,67 @@ proc extractPort*(ma: MultiAddress): int =
   let portBytes = ma[codec].tryGet().protoArgument().tryGet()
   let port = int(fromBytesBE(uint16, portBytes))
   port
+
+template noException*(stream: Connection, body) =
+  try:
+    body
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+  finally:
+    await stream.close()
+
+proc serverHandlerSingleStream*(
+    server: Transport, streamProvider: StreamProvider, handler: StreamHandler
+) {.async: (raises: []).} =
+  try:
+    let conn = await server.accept()
+    let muxer = streamProvider(server, conn)
+    muxer.streamHandler = handler
+
+    let muxerTask = muxer.handle()
+
+    await muxerTask
+    await muxer.close()
+    await conn.close()
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+
+proc clientRunSingleStream*(
+    server: Transport,
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    handler: StreamHandler,
+) {.async: (raises: []).} =
+  try:
+    let client = transportProvider()
+    let conn = await client.dial("", server.addrs[0])
+    let muxer = streamProvider(client, conn)
+    let muxerTask = muxer.handle()
+    asyncSpawn muxerTask
+
+    let stream = await muxer.newStream()
+    await handler(stream)
+
+    await muxer.close()
+    await conn.close()
+    await muxerTask
+  except CatchableError as exc:
+    raiseAssert "should not fail: " & exc.msg
+
+proc runSingleStreamScenario*(
+    multiAddress: seq[MultiAddress],
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    serverStreamHandler: StreamHandler,
+    clientStreamHandler: StreamHandler,
+) {.async: (raises: [CancelledError, LPError]).} =
+  let server = transportProvider()
+  await server.start(multiAddress)
+  let serverTask =
+    serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+  await clientRunSingleStream(
+    server, transportProvider, streamProvider, clientStreamHandler
+  )
+  await serverTask
+  await server.stop()

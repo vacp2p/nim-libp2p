@@ -14,16 +14,20 @@ import tables, chronos, stew/[byteutils]
 import
   ../../libp2p/[
     stream/connection,
+    transports/transport,
     transports/tortransport,
     transports/tcptransport,
     upgrademngrs/upgrade,
     multiaddress,
+    muxers/muxer,
+    muxers/mplex/mplex,
     builders,
   ]
 import ../tools/[unittest, crypto]
 import ../stubs/torstub
 import ./basic_tests
 import ./connection_tests
+import ./stream_tests
 
 suite "Tor transport":
   const torServer = initTAddress("127.0.0.1", 9050.Port)
@@ -32,6 +36,9 @@ suite "Tor transport":
 
   proc torTransProvider(): Transport =
     TorTransport.new(torServer, {ReuseAddr}, Upgrade())
+
+  proc streamProvider(_: Transport, conn: Connection): Muxer =
+    Mplex.new(conn)
 
   const
     address =
@@ -79,6 +86,7 @@ suite "Tor transport":
 
   basicTransportTest(torTransProvider, address, validAddresses, invalidAddresses)
   connectionTransportTest(torTransProvider, address, address2)
+  streamTransportTest(torTransProvider, address, streamProvider)
 
   proc test(lintesAddr: string, dialAddr: string) {.async.} =
     let server = TcpTransport.new({ReuseAddr}, Upgrade())

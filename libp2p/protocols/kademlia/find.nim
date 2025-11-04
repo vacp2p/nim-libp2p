@@ -69,7 +69,8 @@ proc findNode*(
 
   while not state.done:
     let toQuery = state.selectAlphaPeers()
-    debug "Queries", list = toQuery.mapIt(it.shortLog()), addrTab = addrTable
+    debug "Find node queries",
+      peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = addrTable
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
     for peer in toQuery.filterIt(kad.switch.peerInfo.peerId != it):
