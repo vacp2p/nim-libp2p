@@ -5,6 +5,7 @@ import std/hashes
 import ./libp2p, ./libp2p/[muxers/mplex/lpchannel, crypto/secp, multiaddress]
 import ./libp2p/protocols/[pubsub/pubsubpeer, pubsub/rpc/messages, ping]
 import ./libp2p/utils/heartbeat
+import ./libp2p/multiaddress
 import math, metrics, metrics/chronos_httpserver
 from times import getTime, Time, toUnix, fromUnix, `-`, initTime, `$`, inMilliseconds
 from nativesockets import getHostname
@@ -84,15 +85,15 @@ proc connectGossipsubPeers(
   #Make target connections
   var connected = 0
   for peer in multiAddrs.mapIt(MultiAddress.init(it).tryGet()):
+    let p = peer
     if connected > connectTo:
       break
     try:
-      discard await switch.connect(peer, allowUnknownPeerId = true).wait(5.seconds)
+      discard await switch.connect(p).wait(5.seconds)
       connected.inc()
-      info "Connected!: current connections ",
-        connected = $connected, target = connectTo
+      info "Connected", p, currentConnections = $connected, target = connectTo
     except CatchableError as exc:
-      warn "Failed to dial ", theirAddress = peer, message = exc.msg
+      warn "Failed to dial ", theirAddress = p, message = exc.msg
       await sleepAsync(15.seconds)
 
   if connected == 0:
@@ -155,7 +156,7 @@ proc main() {.async.} =
     error "Failed to initialize metrics server", hostname, err = metricsServer.error
 
   info "Listening on ", hostname, address = switch.peerInfo.addrs[^1]
-  info "Peer details ", hostname, peerId = switch.peerInfo.peerId
+  info "MY PEER ID", hostname, peerId = switch.peerInfo.peerId
 
   # Wait for redis
 
@@ -163,7 +164,9 @@ proc main() {.async.} =
 
   let redisClient = open(redisAddr[0], Port(parseInt(redisAddr[1])))
 
-  discard redisClient.sadd("node", $switch.peerInfo.addrs[^1])
+  discard redisClient.sadd(
+    "node", $switch.peerInfo.addrs[^1] & "/p2p/" & $switch.peerInfo.peerId
+  )
 
   var members: RedisList
   while true:
