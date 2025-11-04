@@ -61,13 +61,13 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim " &
     "-d:libp2p_contentids_exts=../tests/multiformat_exts/contentids_exts.nim "
-  runTest("multiformat_exts/testmultiformat_exts", opts)
+  runTest("multiformat_exts/test_all", opts)
 
 task testnative, "Runs libp2p native tests":
   runTest("testnative")
 
 task testpubsub, "Runs pubsub tests":
-  runTest("pubsub/testpubsub", "-d:libp2p_gossipsub_1_4")
+  runTest("pubsub/test_all", "-d:libp2p_gossipsub_1_4")
 
 task testfilter, "Run PKI filter test":
   runTest("testpkifilter")
@@ -76,7 +76,7 @@ task testintegration, "Runs integraion tests":
   runTest("testintegration")
 
 task test, "Runs the test suite":
-  runTest("testall")
+  runTest("test_all")
   testmultiformatextsTask()
 
 task website, "Build the website":
