@@ -117,6 +117,31 @@ suite "Test vectors":
     # should not verify
     check not cert.verify()
 
+suite "utilities test":
+  test "parseCertTime":
+    var dt = parseCertTime("Mar 19 11:54:31 2025 GMT")
+    check 1742385271 == dt.toUnix()
+
+    dt = parseCertTime("Jan  1 00:00:00 1975 GMT")
+    check 157766400 == dt.toUnix()
+
+  test "KeyPair to cert_key_t":
+    let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+
+    let rawSeckey: seq[byte] = key.seckey.getRawBytes.valueOr:
+      raiseAssert "Failed to get seckey raw bytes (DER)"
+
+    # make seckey into certKey
+    let certKey = cert_new_key_t(rawSeckey).valueOr:
+      raiseAssert("Failed to create key")
+
+    # make certKey back into seq[byte]
+    let rawSeckeyBack = cert_serialize_privk(certKey, CERT_FORMAT_DER).valueOr:
+      raiseAssert("Failed to serialize privk")
+
+    # after and before should be the same
+    check rawSeckey == rawSeckeyBack
+
   test "CSR generation":
     let certKey = cert_generate_key().expect("could not generate key")
 
@@ -161,28 +186,3 @@ suite "Test vectors":
         certKey,
       )
       .error() == CERT_ERROR_CN_EMPTY
-
-suite "utilities test":
-  test "parseCertTime":
-    var dt = parseCertTime("Mar 19 11:54:31 2025 GMT")
-    check 1742385271 == dt.toUnix()
-
-    dt = parseCertTime("Jan  1 00:00:00 1975 GMT")
-    check 157766400 == dt.toUnix()
-
-  test "KeyPair to cert_key_t":
-    let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
-
-    let rawSeckey: seq[byte] = key.seckey.getRawBytes.valueOr:
-      raiseAssert "Failed to get seckey raw bytes (DER)"
-
-    # make seckey into certKey
-    let certKey = cert_new_key_t(rawSeckey).valueOr:
-      raiseAssert("Failed to create key")
-
-    # make certKey back into seq[byte]
-    let rawSeckeyBack = cert_serialize_privk(certKey, CERT_FORMAT_DER).valueOr:
-      raiseAssert("Failed to serialize privk")
-
-    # after and before should be the same
-    check rawSeckey == rawSeckeyBack
