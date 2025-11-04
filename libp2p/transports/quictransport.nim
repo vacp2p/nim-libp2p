@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import std/sequtils
 import chronos
 import chronicles
@@ -53,13 +62,19 @@ method getWrapped*(self: QuicStream): P2PConnection =
 method readOnce*(
     stream: QuicStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
+  if stream.atEof:
+    raise newLPStreamRemoteClosedError()
+
   if stream.cached.len == 0:
     try:
       stream.cached = await stream.stream.read()
       if stream.cached.len == 0:
-        raise newLPStreamEOFError()
-    except QuicError as exc:
-      raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
+        stream.isEof = true
+        return 0
+    except QuicError as e:
+      raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
+
+  stream.activity = true
 
   let toRead = min(nbytes, stream.cached.len)
   copyMem(pbytes, addr stream.cached[0], toRead)
@@ -74,9 +89,10 @@ method write*(
   try:
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
-  except QuicError as exc:
-    raise
-      (ref LPStreamError)(msg: "error in quic stream write: " & exc.msg, parent: exc)
+  except quic.ClosedStreamError:
+    raise newLPStreamRemoteClosedError()
+  except QuicError as e:
+    raise (ref LPStreamError)(msg: "error in quic stream write: " & e.msg, parent: e)
 
 {.pop.}
 

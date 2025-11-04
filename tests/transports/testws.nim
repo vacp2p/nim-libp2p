@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2025 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -19,10 +19,13 @@ import
     upgrademngrs/upgrade,
     multiaddress,
     errors,
+    muxers/muxer,
+    muxers/mplex/mplex,
   ]
 import ../tools/[unittest]
 import ./basic_tests
 import ./connection_tests
+import ./stream_tests
 
 const
   SecureKey =
@@ -80,6 +83,9 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
   except TLSStreamProtocolError:
     raiseAssert "should not happen"
 
+proc streamProvider(_: Transport, conn: Connection): Muxer =
+  Mplex.new(conn)
+
 const
   wsAddress = "/ip4/127.0.0.1/tcp/0/ws"
   wsSecureAddress = "/ip4/127.0.0.1/tcp/0/wss"
@@ -115,6 +121,9 @@ suite "WebSocket transport":
 
   connectionTransportTest(wsTransProvider, wsAddress)
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
+
+  streamTransportTest(wsTransProvider, wsAddress, streamProvider)
+  streamTransportTest(wsSecureTransProvider, wsSecureAddress, streamProvider)
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]

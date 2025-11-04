@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2025 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -22,7 +22,7 @@ import ../tools/[unittest]
 import ./utils
 
 template basicTransportTest*(
-    provider: TransportBuilder,
+    provider: TransportProvider,
     address: string,
     validAddresses: seq[string],
     invalidAddresses: seq[string],

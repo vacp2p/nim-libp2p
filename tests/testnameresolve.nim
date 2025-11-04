@@ -1,7 +1,7 @@
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -199,7 +199,7 @@ suite "Name resolving":
       proc clientMark1(
           transp: DatagramTransport, raddr: TransportAddress
       ): Future[void] {.async.} =
-        var msg = transp.getMessage()
+        let msg = transp.getMessage()
         let resp =
           if msg[24] == 1: #AAAA or A
             "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
@@ -220,7 +220,7 @@ suite "Name resolving":
       let server = newDatagramTransport(clientMark1)
 
       # The test
-      var dnsresolver = DnsResolver.new(@[server.localAddress])
+      let dnsresolver = DnsResolver.new(@[server.localAddress])
 
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_UNSPEC)) ==
         mapIt(
@@ -253,12 +253,11 @@ suite "Name resolving":
           transp: DatagramTransport, raddr: TransportAddress
       ): Future[void] {.async.} =
         unresponsiveTentatives.inc()
-        check unresponsiveTentatives == 1
 
       proc clientMark2(
           transp: DatagramTransport, raddr: TransportAddress
       ): Future[void] {.async.} =
-        var msg = transp.getMessage()
+        let msg = transp.getMessage()
         let resp =
           "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
           "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
@@ -272,29 +271,35 @@ suite "Name resolving":
         server = newDatagramTransport(clientMark2)
 
       # The test
-      var dnsresolver =
+      let dnsresolver =
         DnsResolver.new(@[unresponsiveServer.localAddress, server.localAddress])
 
-      check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
-        mapIt(
-          @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it)
-        )
+      check unresponsiveTentatives == 0 # client callback not yet called
 
       check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
         mapIt(
           @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it)
         )
+
+      check unresponsiveTentatives == 1 # client callback called
+
+      check await(dnsresolver.resolveIp("status.im", 0.Port, Domain.AF_INET)) ==
+        mapIt(
+          @["104.22.24.181:0", "172.67.10.161:0", "104.22.25.181:0"], initTAddress(it)
+        )
+
+      check unresponsiveTentatives == 1 # client callback should not be called anymore
 
       await server.closeWait()
       await unresponsiveServer.closeWait()
 
     asyncTest "inexisting domain resolving":
-      var dnsresolver = DnsResolver.new(guessOsNameServers())
+      let dnsresolver = DnsResolver.new(guessOsNameServers())
       let invalid = await dnsresolver.resolveIp("thisdomain.doesnot.exist", 0.Port)
       check invalid.len == 0
 
     asyncTest "wrong domain resolving":
-      var dnsresolver = DnsResolver.new(guessOsNameServers())
+      let dnsresolver = DnsResolver.new(guessOsNameServers())
       let invalid = await dnsresolver.resolveIp("", 0.Port)
       check invalid.len == 0
 

@@ -1,7 +1,7 @@
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -65,8 +65,17 @@ proc containsNoData*(kad: KadDHT, key: Key): bool {.raises: [].} =
 template setupKadSwitch*(validator: untyped, selector: untyped): untyped =
   let switch = createSwitch()
   let kad = KadDHT.new(
-    switch, config = KadDHTConfig.new(validator, selector, timeout = chronos.seconds(1))
+    switch,
+    config = KadDHTConfig.new(
+      validator,
+      selector,
+      timeout = chronos.seconds(1),
+      cleanupProvidersInterval = chronos.milliseconds(100),
+      providerExpirationInterval = chronos.seconds(1),
+      republishProvidedKeysInterval = chronos.milliseconds(50),
+    ),
   )
+
   switch.mount(kad)
   await switch.start()
   (switch, kad)

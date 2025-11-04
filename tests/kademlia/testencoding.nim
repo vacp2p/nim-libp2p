@@ -1,15 +1,22 @@
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 {.used.}
 
-import results
-import ../../libp2p/[multiaddress, protobuf/minprotobuf, protocols/kademlia/protobuf]
+import nimcrypto, results
+import
+  ../../libp2p/[
+    multiaddress,
+    peerid,
+    protobuf/minprotobuf,
+    protocols/kademlia,
+    protocols/kademlia/protobuf,
+  ]
 import ../tools/unittest
 
 template checkEncodeDecode(obj: untyped) =

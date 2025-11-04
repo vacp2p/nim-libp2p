@@ -1,7 +1,7 @@
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -20,13 +20,19 @@ import
     multicodec,
     errors,
     wire,
+    muxers/muxer,
+    muxers/mplex/mplex,
   ]
 import ../tools/[unittest]
 import ./basic_tests
 import ./connection_tests
+import ./stream_tests
 
 proc tcpTransProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
+
+proc streamProvider(_: Transport, conn: Connection): Muxer =
+  Mplex.new(conn)
 
 const
   address = "/ip4/127.0.0.1/tcp/0"
@@ -50,6 +56,7 @@ suite "TCP transport":
 
   basicTransportTest(tcpTransProvider, address, validAddresses, invalidAddresses)
   connectionTransportTest(tcpTransProvider, address)
+  streamTransportTest(tcpTransProvider, address, streamProvider)
 
   asyncTest "test listener: handle write":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
