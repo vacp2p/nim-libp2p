@@ -489,7 +489,7 @@ method handleConn*(
 
   try:
     peer.handler = peerHandler
-    await peer.runHandleLoop(conn) 
+    await peer.runHandleLoop(conn)
   except CancelledError as exc:
     raise exc
   finally:

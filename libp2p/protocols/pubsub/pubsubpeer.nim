@@ -232,7 +232,9 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
         if not (isNil(obs.onSend)):
           obs.onSend(p, msg)
 
-proc runHandleLoop*(p: PubSubPeer, conn: Connection) {.async: (raises: [CancelledError]).} =
+proc runHandleLoop*(
+    p: PubSubPeer, conn: Connection
+) {.async: (raises: [CancelledError]).} =
   debug "starting pubsub read loop", conn, peer = p, closed = conn.closed
   defer:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
