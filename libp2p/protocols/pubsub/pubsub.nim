@@ -474,7 +474,7 @@ method handleConn*(
       peer: PubSubPeer, data: seq[byte]
   ): Future[void] {.async: (raises: []).} =
     try:
-      p.rpcHandler(peer, data)
+      await p.rpcHandler(peer, data)
     except CatchableError as e: # must catch everything
       error "unexpected error in rpcHandler", description = e.msg
 
