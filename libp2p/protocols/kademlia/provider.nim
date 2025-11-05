@@ -85,16 +85,19 @@ proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gc
       # Dispatch will timeout if any of the calls don't receive a response (which is normal)
       discard
 
+proc delOldestKey(pm: ProviderManager) =
+  ## Delete oldest provided key from ProviderManager
+  var oldest: Cid
+  var oldestMoment = chronos.Moment.now()
+  for key, moment in pm.providedKeys:
+    if oldestMoment > moment:
+      oldest = key
+      oldestMoment = moment
+  pm.providedKeys.del(oldest)
+
 proc startProviding*(kad: KadDHT, c: Cid) {.async: (raises: [CancelledError]).} =
-  if kad.providerManager.providedKeyCapacity == kad.providerManager.providedKeys.len():
-    # replace oldest provided key
-    var oldest: Cid
-    var oldestMoment = chronos.Moment.now()
-    for k, m in kad.providerManager.providedKeys:
-      if oldestMoment > m:
-        oldest = k
-        oldestMoment = m
-    kad.providerManager.providedKeys.del(oldest)
+  if kad.providerManager.providedKeys.len() == kad.providerManager.providedKeyCapacity:
+    kad.providerManager.delOldestKey()
 
   kad.providerManager.providedKeys[c] = chronos.Moment.now()
   await kad.addProvider(c)
