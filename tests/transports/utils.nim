@@ -47,7 +47,7 @@ proc isQuicTransport*(ma: MultiAddress): bool =
   ma.contains(multiCodec("udp")).get(false)
 
 proc createServerAcceptConn*(
-    server: QuicTransport, isEofExpected: bool = false
+    server: QuicTransport, isStreamIncompleteExpected: bool = false
 ): proc(): Future[void] {.
   async: (raises: [transport.TransportError, LPStreamError, CancelledError])
 .} =
@@ -72,8 +72,8 @@ proc createServerAcceptConn*(
         await stream.readExactly(addr resp, 6)
         check string.fromBytes(resp) == "client"
         await stream.write("server")
-      except LPStreamEOFError as exc:
-        if isEofExpected:
+      except LPStreamIncompleteError as exc:
+        if isStreamIncompleteExpected:
           discard
         else:
           raise exc

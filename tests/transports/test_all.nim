@@ -10,5 +10,4 @@
 {.used.}
 
 import testmemory, testquic, testtcp, testtor, testws
-
 import tls/testcertificate

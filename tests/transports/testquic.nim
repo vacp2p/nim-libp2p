@@ -128,7 +128,7 @@ suite "Quic transport":
       await session.close()
       await client.stop()
 
-    # run multiple clients simultainiously
+    # run multiple clients simultaneously
     await allFutures(runClient(), runClient(), runClient())
 
   asyncTest "peer ID extraction from certificate":
