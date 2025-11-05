@@ -306,12 +306,15 @@ when defined(libp2p_autotls_support):
       error "Could not find a running TcpTransport in switch"
       return
 
-    heartbeat "Certificate Management", self.config.renewCheckTime:
-      if self.cert.isNone():
-        await self.tryIssueCertificate()
+    if self.cert.isNone():
+      await self.tryIssueCertificate()
 
-      # AutotlsService will renew the cert 1h before it expires
-      let cert = self.cert.get
+    # AutotlsService will renew the cert 1h before it expires
+    let cert = self.cert.valueOr:
+      error "Could not issue certificate"
+      return
+
+    heartbeat "Certificate Management", self.config.renewCheckTime:
       let waitTime = cert.expiry - Moment.now - self.config.renewBufferTime
       if waitTime <= self.config.renewBufferTime:
         await self.tryIssueCertificate()
