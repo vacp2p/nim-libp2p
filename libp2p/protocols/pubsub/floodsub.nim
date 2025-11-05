@@ -102,7 +102,7 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
   procCall PubSub(f).unsubscribePeer(peer)
 
 method rpcHandler*(
-    f: FloodSub, peer: PubSubPeer, data: seq[byte]
+    f: FloodSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   var rpcMsg = decodeRpcMsg(data).valueOr:
     debug "failed to decode msg from peer", peer, err = error
@@ -185,7 +185,7 @@ method init*(f: FloodSub) =
     try:
       await f.handleConn(conn, proto)
     except CancelledError as exc:
-      trace "Unexpected cancellation in floodsub handler", conn, description = exc.msg
+      trace "floodsub handler cancelled", conn
       raise exc
 
   f.handler = handler
