@@ -67,9 +67,7 @@ method readOnce*(
 
   if stream.cached.len == 0:
     try:
-      let readSeq = await stream.stream.read()
-      echo "\e[32m< READ: " , stream.peerId, " LEN: ", readSeq.len, " ", readSeq.toHex(), "\e[0m"
-      stream.cached = readSeq
+      stream.cached = await stream.stream.read()
       if stream.cached.len == 0:
         stream.isEof = true
         return 0
@@ -82,16 +80,6 @@ method readOnce*(
   copyMem(pbytes, addr stream.cached[0], toRead)
   stream.cached = stream.cached[toRead ..^ 1]
   libp2p_network_bytes.inc(toRead.int64, labelValues = ["in"])
-
-  #echo "READING::::::"
-  if toRead > 0:
-    var x = newSeq[byte](toRead)
-    copyMem(addr x[0], pbytes, toRead)
-    echo "FROM LEN: ", toRead
-    echo "\e[32m< FROM: ", stream.peerId, " LEN: ", toRead, " ", x.toHex(), "\e[0m"
-  else:
-    echo "\e[32m< NOTHING TO READ FROM ", stream.peerId, "\e[0m"
-
   return toRead
 
 {.push warning[LockLevel]: off.}
@@ -99,8 +87,6 @@ method write*(
     stream: QuicStream, bytes: seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   try:
-    echo "\e[36m> WRITING TO ",
-      stream.peerId, " ", bytes.len, " ", bytes.toHex(), "\e[0m"
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
   except quic.ClosedStreamError:

@@ -62,7 +62,10 @@ services:
     deploy:
       replicas: ${NUM_LIBP2P_NODES:-10}
     command: []
+    cap_add:
+      - NET_ADMIN # REQUIRED for tc
     environment:
+      NETEM: "delay 100ms 10ms distribution normal"
       NUM_LIBP2P_NODES: ${NUM_LIBP2P_NODES:-10}
       TRANSPORT: ${TRANSPORT:-QUIC}
       CONNECTTO: ${CONNECTTO:-10}

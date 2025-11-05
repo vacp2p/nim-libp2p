@@ -30,7 +30,6 @@ proc createMessageHandler(): proc(topic: string, data: seq[byte]) {.async, gcsaf
       sentNanosecs = nanoseconds(sentMoment - seconds(sentMoment.seconds))
       sentDate = initTime(sentMoment.seconds, sentNanosecs)
       diff = getTime() - sentDate
-    echo sentUint, " milliseconds: ", diff.inMilliseconds()
 
 proc messageValidator(topic: string, msg: Message): Future[ValidationResult] {.async.} =
   return ValidationResult.Accept
