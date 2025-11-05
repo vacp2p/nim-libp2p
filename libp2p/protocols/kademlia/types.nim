@@ -177,20 +177,28 @@ type
     expiresAt*: chronos.Moment
     key*: Cid
 
-  ProviderManager* = ref object
+  ProviderRecords* = ref object
     records*: HeapQueue[ProviderRecord]
+    capacity*: int
+
+  ProvidedKeys* = ref object
+    provided*: Table[Cid, chronos.Moment]
+    capacity*: int
+
+  ProviderManager* = ref object
+    providerRecords*: ProviderRecords
+    providedKeys*: ProvidedKeys
     knownKeys*: Table[Cid, HashSet[Provider]]
-    providedKeys*: Table[Cid, chronos.Moment]
-    providerRecordCapacity*: int
-    providedKeyCapacity*: int
 
 proc new*(
     T: typedesc[ProviderManager], providerRecordCapacity: int, providedKeyCapacity: int
 ): T =
-  T(
-    providerRecordCapacity: providerRecordCapacity,
-    providedKeyCapacity: providedKeyCapacity,
-  )
+  let pm = T()
+
+  pm.providerRecords = ProviderRecords(capacity: providerRecordCapacity)
+  pm.providedKeys = ProvidedKeys(capacity: providedKeyCapacity)
+
+  return pm
 
 ## Currently a string, because for some reason, that's what is chosen at the protobuf level
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)

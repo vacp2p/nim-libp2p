@@ -9,7 +9,7 @@
 
 {.used.}
 
-import std/[heapqueue, tables]
+import std/tables
 from std/times import now, utc
 import chronos, chronicles
 import ../../libp2p/[protocols/kademlia, switch, builders, multicodec]
@@ -38,15 +38,15 @@ suite "KadDHT - ProviderManager":
     kad2.dataTable.insert(key, value, $times.now().utc)
 
     # ensure providermanager is empty
-    check kad1.providerManager.records.len() == 0
+    check kad1.providerManager.providerRecords.len() == 0
 
     await kad2.addProvider(key.toCid())
     await sleepAsync(10.milliseconds)
 
     # kad1 has kad2 in its providermanager after adding provider
     check:
-      kad1.providerManager.records.len() == 1
-      kad1.providerManager.records[0].provider.id == kad2.rtable.selfId
+      kad1.providerManager.providerRecords.len() == 1
+      kad1.providerManager.providerRecords[0].provider.id == kad2.rtable.selfId
 
   asyncTest "Provider expired":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
@@ -67,19 +67,19 @@ suite "KadDHT - ProviderManager":
     kad2.dataTable.insert(key2, value, $times.now().utc)
 
     # ensure providermanager is empty
-    check kad1.providerManager.records.len() == 0
+    check kad1.providerManager.providerRecords.len() == 0
 
     await kad2.addProvider(key1.toCid())
     await kad2.addProvider(key2.toCid())
     await sleepAsync(10.milliseconds)
 
-    check kad1.providerManager.records.len() == 2
+    check kad1.providerManager.providerRecords.len() == 2
 
     # wait less than expiration time
     await sleepAsync(kad1.config.cleanupProvidersInterval)
 
     # provider records have not yet expired
-    check kad1.providerManager.records.len() == 2
+    check kad1.providerManager.providerRecords.len() == 2
 
     # wait expiration time
     await sleepAsync(
@@ -87,7 +87,7 @@ suite "KadDHT - ProviderManager":
     )
 
     # provider records expired and evicted
-    check kad1.providerManager.records.len() == 0
+    check kad1.providerManager.providerRecords.len() == 0
 
   asyncTest "Provider refreshed (not expired)":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
@@ -108,19 +108,19 @@ suite "KadDHT - ProviderManager":
     kad2.dataTable.insert(key2, value, $times.now().utc)
 
     # ensure providermanager is empty
-    check kad1.providerManager.records.len() == 0
+    check kad1.providerManager.providerRecords.len() == 0
 
     await kad2.addProvider(key1.toCid())
     await kad2.addProvider(key2.toCid())
     await sleepAsync(10.milliseconds)
 
-    check kad1.providerManager.records.len() == 2
+    check kad1.providerManager.providerRecords.len() == 2
 
     # wait less than expiration time
     await sleepAsync(kad1.config.cleanupProvidersInterval)
 
     # provider records have not yet expired
-    check kad1.providerManager.records.len() == 2
+    check kad1.providerManager.providerRecords.len() == 2
 
     # refresh providers
     await kad2.addProvider(key1.toCid())
@@ -132,7 +132,7 @@ suite "KadDHT - ProviderManager":
     )
 
     # provider records have not expired (refreshed)
-    check kad1.providerManager.records.len() == 2
+    check kad1.providerManager.providerRecords.len() == 2
 
     # wait expiration time
     await sleepAsync(
@@ -140,7 +140,7 @@ suite "KadDHT - ProviderManager":
     )
 
     # provider records have expired
-    check kad1.providerManager.records.len() == 0
+    check kad1.providerManager.providerRecords.len() == 0
 
   asyncTest "Start/stop providing":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
@@ -166,7 +166,7 @@ suite "KadDHT - ProviderManager":
 
     check:
       kad1.providerManager.providedKeys.len() == 1
-      kad2.providerManager.records.len() == 2
+      kad2.providerManager.providerRecords.len() == 2
       kad2.providerManager.knownKeys.len() == 2
 
     # after the expiration time only key2 expired
@@ -176,7 +176,7 @@ suite "KadDHT - ProviderManager":
 
     check:
       kad1.providerManager.providedKeys.len() == 1
-      kad2.providerManager.records.len() == 1
+      kad2.providerManager.providerRecords.len() == 1
       kad2.providerManager.knownKeys.len() == 1
 
     # stop providing key
@@ -188,7 +188,7 @@ suite "KadDHT - ProviderManager":
     )
     check:
       kad1.providerManager.providedKeys.len() == 0
-      kad2.providerManager.records.len() == 0
+      kad2.providerManager.providerRecords.len() == 0
       kad2.providerManager.knownKeys.len() == 0
 
   asyncTest "Provider limits":
@@ -212,24 +212,24 @@ suite "KadDHT - ProviderManager":
     kad1.dataTable.insert(key2, value, $times.now().utc)
 
     # set low capacities
-    kad1.providerManager.providedKeyCapacity = 1
-    kad2.providerManager.providerRecordCapacity = 1
+    kad1.providerManager.providedKeys.capacity = 1
+    kad2.providerManager.providerRecords.capacity = 1
 
     await kad1.startProviding(cid1)
     await sleepAsync(100.milliseconds)
-    let keyBefore = kad2.providerManager.records[0].key
+    let keyBefore = kad2.providerManager.providerRecords[0].key
     check:
       kad1.providerManager.providedKeys.len() == 1
       kad1.providerManager.providedKeys.hasKey(cid1)
-      kad2.providerManager.records.len() == 1
+      kad2.providerManager.providerRecords.len() == 1
 
     # setting capacity means we overwrite key1
     await kad1.startProviding(cid2)
     await sleepAsync(100.milliseconds)
-    let keyAfter = kad2.providerManager.records[0].key
+    let keyAfter = kad2.providerManager.providerRecords[0].key
     check:
       kad1.providerManager.providedKeys.len() == 1
       kad1.providerManager.providedKeys.hasKey(cid2)
       not kad1.providerManager.providedKeys.hasKey(cid1)
-      kad2.providerManager.records.len() == 1
+      kad2.providerManager.providerRecords.len() == 1
       keyBefore != keyAfter
