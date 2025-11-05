@@ -473,8 +473,10 @@ method handleConn*(
   proc handler(
       peer: PubSubPeer, data: seq[byte]
   ): Future[void] {.async: (raises: []).} =
-    # call pubsub rpc handler
-    p.rpcHandler(peer, data)
+    try:
+      p.rpcHandler(peer, data)
+    except CatchableError as e: # must catch everything
+      error "unexpected error in rpcHandler", description = e.msg
 
   let peer = p.getOrCreatePeer(conn.peerId, @[], proto)
 

@@ -185,7 +185,7 @@ method init*(f: FloodSub) =
     try:
       await f.handleConn(conn, proto)
     except CancelledError as exc:
-      trace "Unexpected cancellation in floodsub handler", conn, description = exc.msg
+      trace "floodsub handler cancelled", conn
       raise exc
 
   f.handler = handler
