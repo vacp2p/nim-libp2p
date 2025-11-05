@@ -131,7 +131,6 @@ proc getStream*(
       stream = await session.connection.incomingStream()
     of Direction.Out:
       stream = await session.connection.openStream()
-      await stream.write(@[]) # QUIC streams do not exist until data is sent
   except CancelledError as exc:
     raise (ref QuicTransportError)(msg: "cancelled getStream: " & exc.msg, parent: exc)
   except QuicError as exc:
