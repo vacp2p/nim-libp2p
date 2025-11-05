@@ -199,6 +199,11 @@ proc main() {.async.} =
 
   info "Starting listening endpoint for publish controller"
 
+  while true:
+    discard await gossipSub.publishNewMessage(50 * 1024, "test")
+    await sleepAsync(5.seconds)
+
+
   await sleepAsync(2.days)
 
 waitFor(main())
