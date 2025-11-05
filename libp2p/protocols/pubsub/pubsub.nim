@@ -384,11 +384,17 @@ method getOrCreatePeer*(
       peer[].codec = protoNegotiated
     return peer[]
 
+  let protos =
+    if protoNegotiated != "":
+      @[protoNegotiated]
+    else:
+      protosToDial
+
   proc getConn(): Future[Connection] {.
       async: (raises: [CancelledError, GetConnDialError])
   .} =
     try:
-      return await p.switch.dial(peerId, protosToDial)
+      return await p.switch.dial(peerId, protos)
     except CancelledError as exc:
       raise exc
     except DialFailedError as e:
