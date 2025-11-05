@@ -94,7 +94,6 @@ proc connectGossipsubPeers(
       info "Connected", p, currentConnections = $connected, target = connectTo
     except CatchableError as exc:
       warn "Failed to dial ", theirAddress = p, message = exc.msg
-      await sleepAsync(15.seconds)
 
   if connected == 0:
     return err("Failed to connect any peer")
@@ -115,7 +114,7 @@ proc subscribGossipsubTopic(gossipSub: GossipSub, topic: string) =
   gossipSub.addValidator([topic], messageValidator)
 
 proc meshHeartbeat(hostname: string, gossipSub: GossipSub) {.async.} =
-  heartbeat "mesh details", 5.seconds:
+  heartbeat "mesh details", 10.seconds:
     info "Mesh details ",
       hostname,
       meshPeers = gossipSub.mesh.getOrDefault("test").len,
