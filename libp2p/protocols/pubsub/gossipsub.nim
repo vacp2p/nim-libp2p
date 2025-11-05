@@ -631,7 +631,7 @@ proc rateLimit*(
         )
 
 method rpcHandler*(
-    g: GossipSub, peer: PubSubPeer, data: seq[byte]
+    g: GossipSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
   var rpcMsg = decodeRpcMsg(data).valueOr:

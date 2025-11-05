@@ -160,7 +160,7 @@ type
     customConnCallbacks*: Option[CustomConnectionCallbacks]
 
   RPCHandler* =
-    proc(peer: PubSubPeer, data: seq[byte]): Future[void] {.async: (raises: []).}
+    proc(peer: PubSubPeer, data: sink seq[byte]): Future[void] {.async: (raises: []).}
 
 when defined(libp2p_agents_metrics):
   func shortAgent*(p: PubSubPeer): string =
@@ -238,12 +238,11 @@ proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
       while not conn.atEof:
         trace "waiting for data", conn, peer = p, closed = conn.closed
 
-        var data = await conn.readLp(p.maxMessageSize)
+        let data = await conn.readLp(p.maxMessageSize)
         trace "read data from peer",
           conn, peer = p, closed = conn.closed, data = data.shortLog
 
         await p.handler(p, data)
-        data = newSeqUninit[byte](0) # Release memory
     except PeerRateLimitError as exc:
       debug "Peer rate limit exceeded, exiting read while",
         conn, peer = p, description = exc.msg

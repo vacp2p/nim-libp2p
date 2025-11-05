@@ -69,7 +69,7 @@ proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).}
 proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
   discard
 
-proc voidPeerHandler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
+proc voidPeerHandler(peer: PubSubPeer, data: sink seq[byte]) {.async: (raises: []).} =
   discard
 
 proc randomPeerId*(): PeerId =

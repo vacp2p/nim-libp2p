@@ -353,7 +353,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
 
 method rpcHandler*(
-    p: PubSub, peer: PubSubPeer, data: seq[byte]
+    p: PubSub, peer: PubSubPeer, data: sink seq[byte]
 ): Future[void] {.
     base, async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError])
 .} =
@@ -471,7 +471,7 @@ method handleConn*(
   ##
 
   proc handler(
-      peer: PubSubPeer, data: seq[byte]
+      peer: PubSubPeer, data: sink seq[byte]
   ): Future[void] {.async: (raises: []).} =
     try:
       await p.rpcHandler(peer, data)
