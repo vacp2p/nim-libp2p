@@ -470,24 +470,28 @@ method handleConn*(
   ##    that we're interested in
   ##
 
-  proc handler(
+  proc peerHandler(
       peer: PubSubPeer, data: sink seq[byte]
-  ): Future[void] {.async: (raises: []).} =
+  ): Future[void] {.async: (raises: [CancelledError]).} =
     try:
       await p.rpcHandler(peer, data)
-    except CatchableError as e: # must catch everything
-      error "unexpected error in rpcHandler", description = e.msg
+    except PeerMessageDecodeError as e:
+      trace "failed to decode message in peerHandler",
+        description = e.msg, conn, peer = peer
+      # loop continues and invalid messages are swallowed
+    except PeerRateLimitError as e:
+      trace "peer rate limit exceeded in peerHandler",
+        description = e.msg, conn, peer = peer
+      # loop needs to stop. we are doing this by closing connection
+      await conn.closeWithEOF()
 
   let peer = p.getOrCreatePeer(conn.peerId, @[], proto)
 
   try:
-    peer.handler = handler
+    peer.handler = peerHandler
     await peer.handle(conn) # spawn peer read loop
-    trace "pubsub peer handler ended", conn
   except CancelledError as exc:
     raise exc
-  except PeerMessageDecodeError as exc:
-    trace "exception ocurred in pubsub handle", description = exc.msg, conn
   finally:
     await conn.closeWithEOF()
 

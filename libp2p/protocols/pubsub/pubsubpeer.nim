@@ -159,8 +159,9 @@ type
     disconnected: bool
     customConnCallbacks*: Option[CustomConnectionCallbacks]
 
-  RPCHandler* =
-    proc(peer: PubSubPeer, data: sink seq[byte]): Future[void] {.async: (raises: []).}
+  RPCHandler* = proc(peer: PubSubPeer, data: sink seq[byte]): Future[void] {.
+    async: (raises: [CancelledError])
+  .}
 
 when defined(libp2p_agents_metrics):
   func shortAgent*(p: PubSubPeer): string =
@@ -231,32 +232,26 @@ proc sendObservers(p: PubSubPeer, msg: var RPCMsg) =
         if not (isNil(obs.onSend)):
           obs.onSend(p, msg)
 
-proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: []).} =
+proc handle*(p: PubSubPeer, conn: Connection) {.async: (raises: [CancelledError]).} =
   debug "starting pubsub read loop", conn, peer = p, closed = conn.closed
-  try:
-    try:
-      while not conn.atEof:
-        trace "waiting for data", conn, peer = p, closed = conn.closed
-
-        let data = await conn.readLp(p.maxMessageSize)
-        trace "read data from peer",
-          conn, peer = p, closed = conn.closed, data = data.shortLog
-
-        await p.handler(p, data)
-    except PeerRateLimitError as exc:
-      debug "Peer rate limit exceeded, exiting read while",
-        conn, peer = p, description = exc.msg
-    except LPStreamError as exc:
-      debug "Exception occurred in PubSubPeer.handle",
-        conn, peer = p, closed = conn.closed, description = exc.msg
-    finally:
-      await conn.close()
-  except CancelledError as e:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propagate CancelledError.
-    trace "Unexpected cancellation in PubSubPeer.handle", description = e.msg
-  finally:
+  defer:
     debug "exiting pubsub read loop", conn, peer = p, closed = conn.closed
+
+  while not conn.atEof:
+    trace "waiting for data", conn, peer = p, closed = conn.closed
+
+    let data =
+      try:
+        await conn.readLp(p.maxMessageSize)
+      except LPStreamError as e:
+        debug "Exception occurred reading message PubSubPeer.handle",
+          conn, peer = p, closed = conn.closed, description = e.msg
+        return
+
+    trace "read data from peer",
+      conn, peer = p, closed = conn.closed, data = data.shortLog
+
+    await p.handler(p, data)
 
 proc closeSendConn(
     p: PubSubPeer, event: PubSubPeerEventKind
