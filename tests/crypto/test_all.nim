@@ -9,4 +9,6 @@
 
 {.used.}
 
-import testcrypto, testecnist, tested25519, testminasn1, testpkifilter, testrsa, testsecp256k1
+import
+  testcrypto, testecnist, tested25519, testminasn1, testpkifilter, testrsa,
+  testsecp256k1
