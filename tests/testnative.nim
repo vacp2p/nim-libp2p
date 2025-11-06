@@ -30,7 +30,7 @@ import
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
   testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
   testautorelay, testdcutr, testhpservice, testutility, testwildcardresolverservice,
-  testperf, testpkifilter
+  testperf
 
 when defined(libp2p_autotls_support):
   import testautotls
