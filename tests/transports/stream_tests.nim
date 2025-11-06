@@ -297,9 +297,9 @@ template streamTransportTest*(
     const numConnections = 5
 
     # Track when stream handlers complete
-    var serverHandlerFuts: array[numConnections, Future[void]]
+    var serverStreamHandlerFuts: array[numConnections, Future[void]]
     for i in 0 ..< numConnections:
-      serverHandlerFuts[i] = newFuture[void]()
+      serverStreamHandlerFuts[i] = newFuture[void]()
 
     proc serverHandler(server: Transport) {.async.} =
       # Accept multiple connections and handle them
@@ -317,8 +317,7 @@ template streamTransportTest*(
               await stream.write(@buffer)
 
               # Signal that this stream handler is done
-              if not serverHandlerFuts[connectionId].finished():
-                serverHandlerFuts[connectionId].complete()
+              serverStreamHandlerFuts[connectionId].complete()
 
           let startStreamHandlerAndCleanup = proc() {.async.} =
             let muxerTask = muxer.handle()
@@ -326,7 +325,7 @@ template streamTransportTest*(
             await muxerTask
 
             # Wait for the stream handler to complete before closing
-            await serverHandlerFuts[connectionId]
+            await serverStreamHandlerFuts[connectionId]
 
             await muxer.close()
             await conn.close()
