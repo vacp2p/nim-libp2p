@@ -108,6 +108,7 @@ when defined(linux) and defined(amd64):
 
       if autotls.isNil():
         raiseAssert "autotls service not found in switch"
+        return
 
       # wait for cert to be ready
       check await autotls.certReady.wait().withTimeout(10.seconds)
