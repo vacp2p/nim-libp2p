@@ -61,19 +61,6 @@ proc initializeGossipsub(switch: Switch, anonymize: bool): GossipSub =
     anonymize = anonymize,
   )
 
-proc configureGossipsubParams(gossipSub: GossipSub) =
-  gossipSub.parameters.floodPublish = true
-  gossipSub.parameters.opportunisticGraftThreshold = -10000
-  gossipSub.parameters.heartbeatInterval = 1.seconds
-  gossipSub.parameters.pruneBackoff = 60.seconds
-  gossipSub.parameters.gossipFactor = 0.25
-  gossipSub.parameters.d = 6
-  gossipSub.parameters.dLow = 4
-  gossipSub.parameters.dHigh = 8
-  gossipSub.parameters.dScore = 6
-  gossipSub.parameters.dOut = 6 div 2
-  gossipSub.parameters.dLazy = 6
-
 proc connectGossipsubPeers(
     switch: Switch, addrs: seq[string], connectTo: int, rng: ref HmacDrbgContext
 ): Future[Result[int, string]] {.async.} =
@@ -102,12 +89,7 @@ proc connectGossipsubPeers(
   return ok(connected)
 
 proc subscribGossipsubTopic(gossipSub: GossipSub, topic: string) =
-  gossipSub.topicParams[topic] = TopicParams(
-    topicWeight: 1,
-    firstMessageDeliveriesWeight: 1,
-    firstMessageDeliveriesCap: 30,
-    firstMessageDeliveriesDecay: 0.9,
-  )
+
 
   gossipSub.subscribe(topic, createMessageHandler())
   gossipSub.addValidator([topic], messageValidator)
@@ -142,7 +124,6 @@ proc main() {.async.} =
     switch = builder.build()
     gossipSub = initializeGossipsub(switch, true)
 
-  configureGossipsubParams(gossipSub)
   subscribGossipsubTopic(gossipSub, "test")
   switch.mount(gossipSub)
   await switch.start()
