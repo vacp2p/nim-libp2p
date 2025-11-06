@@ -10,8 +10,8 @@
 {.used.}
 
 import nimcrypto/utils
-import ../libp2p/crypto/[crypto, ed25519/ed25519]
-import ./tools/[unittest, crypto]
+import ../../libp2p/crypto/[crypto, ed25519/ed25519]
+import ../tools/[unittest, crypto]
 
 ## Test vectors are from RFC 8032 (https://tools.ietf.org/html/rfc8032)
 

@@ -10,6 +10,7 @@
 {.used.}
 
 import ./tools/test_all
+import ./cypto/test_all
 import ./transports/test_all
 import ./discovery/test_all
 import ./kademlia/test_all
@@ -18,8 +19,6 @@ import ./mix/test_all
 import
   testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
   testheartbeat, testfuture, testzeroqueue, testbytesview
-
-import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
 
 import
   testmultibase, testmultihash, testmultiaddress, testipaddr, testcid, testpeerid,
