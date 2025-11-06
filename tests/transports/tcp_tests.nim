@@ -23,12 +23,16 @@ import
 import ../tools/[unittest]
 import ./utils
 
-const message = "No Backdoors. No Masters. No Silence."
+const
+  message = "No Backdoors. No Masters. No Silence."
+  zeroMultiaddressStrIP4 = "/ip4/0.0.0.0/tcp/0"
+  zeroMultiaddressStrIP6 = "/ip6/::/tcp/0"
+  zeroAddr = "0.0.0.0:0"
 
 proc transportProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
 
-template tcpIPTestsSuite*(suiteName: string, address: string) =
+template tcpIPTests*(suiteName: string, address: string) =
   block:
     let serverListenAddr = @[MultiAddress.init(address).tryGet()]
 
@@ -72,8 +76,13 @@ template tcpIPTestsSuite*(suiteName: string, address: string) =
       await conn.closeWait()
       await server.stop()
 
-template miscellaneousTestsSuite*() =
+template miscellaneousTests*() =
   block:
+    let zeroMultiaddress = MultiAddress.init(zeroMultiaddressStrIP4).tryGet()
+
+    tcpIPTests("ipv4", addressIP4)
+    tcpIPTests("ipv6", addressIP6)
+
     asyncTest "dialer: handle write":
       let handlerFut = newFuture[void]()
       proc serverHandler(server: StreamServer, transp: StreamTransport) {.async.} =
@@ -86,7 +95,7 @@ template miscellaneousTestsSuite*() =
         server.close()
         handlerFut.complete()
 
-      let sa = initTAddress("0.0.0.0:0")
+      let sa = initTAddress(zeroAddr)
       var server = createStreamServer(sa, serverHandler, {ReuseAddr})
       server.start()
 
@@ -118,7 +127,7 @@ template miscellaneousTestsSuite*() =
         server.close()
         handlerFut.complete()
 
-      let address = initTAddress("0.0.0.0:0")
+      let address = initTAddress(zeroAddr)
       var server = createStreamServer(address, serveClient, {ReuseAddr})
       server.start()
 
@@ -135,29 +144,21 @@ template miscellaneousTestsSuite*() =
       await server.join()
 
     asyncTest "Starting with duplicate but zero ports addresses must NOT fail":
-      let ma =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-        ]
-
       let transport = transportProvider()
 
+      let ma = @[zeroMultiaddress, zeroMultiaddress]
       await transport.start(ma)
       await transport.stop()
 
     asyncTest "Bind to listening port when not reachable":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = transportProvider()
-      await transport1.start(ma)
+      await transport1.start(@[zeroMultiaddress])
 
-      let ma2 = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport2 = transportProvider()
-      await transport2.start(ma2)
+      await transport2.start(@[zeroMultiaddress])
 
-      let ma3 = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport3 = transportProvider()
-      await transport3.start(ma3)
+      await transport3.start(@[zeroMultiaddress])
 
       let listeningPortTransport1 = transport1.addrs[0][multiCodec("tcp")].get()
 
@@ -176,10 +177,9 @@ template miscellaneousTestsSuite*() =
       await allFutures(transport1.stop(), transport2.stop(), transport3.stop())
 
     asyncTest "Custom timeout":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let server: TcpTransport =
         TcpTransport.new(upgrade = Upgrade(), connectionsTimeout = 1.milliseconds)
-      asyncSpawn server.start(ma)
+      asyncSpawn server.start(@[zeroMultiaddress])
 
       proc serverHandler() {.async.} =
         let conn = await server.accept()

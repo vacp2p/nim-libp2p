@@ -27,7 +27,7 @@ import ../tools/[unittest]
 import ./basic_tests
 import ./connection_tests
 import ./stream_tests
-import ./tcp_tests_suite
+import ./tcp_tests
 
 proc tcpTransProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
@@ -62,6 +62,4 @@ suite "TCP transport":
   streamTransportTest(tcpTransProvider, addressIP4, streamProvider)
 
   # tcp specific tests
-  tcpIPTestsSuite("ipv4", addressIP4)
-  tcpIPTestsSuite("ipv6", addressIP6)
-  miscellaneousTestsSuite()
+  miscellaneousTests()
