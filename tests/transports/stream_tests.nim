@@ -284,7 +284,6 @@ template streamTransportTest*(
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
-      asyncSpawn muxerTask
 
       let stream = await muxer.newStream()
       await stream.write(@[byte(connectionId)])
@@ -301,8 +300,8 @@ template streamTransportTest*(
 
       await stream.close()
       await muxer.close()
-      await conn.close()
       await muxerTask
+      await conn.close()
 
     let server = transportProvider()
     await server.start(ma)
