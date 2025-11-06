@@ -300,49 +300,76 @@ template streamTransportTest*(
       # Accept multiple connections and handle them
       var futs: seq[Future[void]]
       for i in 0 ..< numConnections:
+        echo "[SERVER] Waiting to accept connection ", i
         let conn = await server.accept()
+        echo "[SERVER] Accepted connection ", i
         let muxer = streamProvider(server, conn)
-        muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-          noExceptionWithStreamClose(stream):
-            # Read the connection ID sent by client
-            var buffer: array[1, byte]
-            await stream.readExactly(addr buffer, 1)
 
-            # Echo back the connection ID
-            await stream.write(@buffer)
+        # Capture loop index by value using block scope
+        block:
+          let acceptIdx = i
+          muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+            noExceptionWithStreamClose(stream):
+              var buffer: array[1, byte]
+              await stream.readExactly(addr buffer, 1)
+              let clientId = buffer[0]
+              echo "[SERVER-STREAM] Received from clientId=", clientId, ", writing back"
 
-        let startStreamHandlerAndCleanup = proc() {.async.} =
-          let muxerTask = muxer.handle()
-          await muxerTask
-          await muxer.close()
-          await conn.close()
+              await stream.write(@buffer)
+              echo "[SERVER-STREAM] Completed write to clientId=", clientId
 
-        futs.add(startStreamHandlerAndCleanup())
+          let startStreamHandlerAndCleanup = proc() {.async.} =
+            echo "[SERVER-ACCEPT#", acceptIdx, "] Starting muxer.handle()"
+            let muxerTask = muxer.handle()
+            await muxerTask
+            echo "[SERVER-ACCEPT#", acceptIdx, "] muxer.handle() completed"
+            await muxer.close()
+            echo "[SERVER-ACCEPT#", acceptIdx, "] muxer closed"
+            await conn.close()
+            echo "[SERVER-ACCEPT#", acceptIdx, "] connection closed"
+
+          futs.add(startStreamHandlerAndCleanup())
       await allFutures(futs)
 
     proc runClient(server: Transport, connectionId: int) {.async.} =
+      echo "[CLIENT ", connectionId, "] Creating client"
       let client = transportProvider()
+      echo "[CLIENT ", connectionId, "] Dialing server"
       let conn = await client.dial(server.addrs[0])
+      echo "[CLIENT ", connectionId, "] Connected, creating muxer"
       let muxer = streamProvider(client, conn)
+      echo "[CLIENT ", connectionId, "] Starting muxer.handle()"
       let muxerTask = muxer.handle()
 
+      echo "[CLIENT ", connectionId, "] Creating new stream"
       let stream = await muxer.newStream()
+      echo "[CLIENT ", connectionId, "] Writing connectionId byte: ", connectionId
       await stream.write(@[byte(connectionId)])
+      echo "[CLIENT ", connectionId, "] Write completed"
 
       var buffer: array[1, byte]
+      echo "[CLIENT ", connectionId, "] Reading response"
       await stream.readExactly(addr buffer, 1)
+      echo "[CLIENT ", connectionId, "] Read response: ", buffer[0]
 
       # Verify we got back our own connection ID
       check buffer[0] == byte(connectionId)
 
       # Wait for server to close the stream (EOF signal)
       # This ensures server finishes writing before we close
+      echo "[CLIENT ", connectionId, "] Waiting for EOF"
       check (await stream.readOnce(addr buffer, 1)) == 0
+      echo "[CLIENT ", connectionId, "] Got EOF"
 
+      echo "[CLIENT ", connectionId, "] Closing stream"
       await stream.close()
+      echo "[CLIENT ", connectionId, "] Closing muxer"
       await muxer.close()
+      echo "[CLIENT ", connectionId, "] Waiting for muxerTask"
       await muxerTask
+      echo "[CLIENT ", connectionId, "] Closing connection"
       await conn.close()
+      echo "[CLIENT ", connectionId, "] Done"
 
     let server = transportProvider()
     await server.start(ma)
