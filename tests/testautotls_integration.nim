@@ -95,13 +95,10 @@ when defined(linux) and defined(amd64):
         .withNoise()
         .build()
 
-      await switch.start()
-      defer:
-        await switch.stop()
-
       # find autotls in list of services
       var autotls: AutotlsService = nil
       for service in switch.services:
+        echo "Service type: ", service.type
         if service is AutotlsService:
           autotls = AutotlsService(service)
           break
@@ -109,6 +106,10 @@ when defined(linux) and defined(amd64):
       if autotls.isNil():
         raiseAssert "autotls service not found in switch"
         return
+
+      await switch.start()
+      defer:
+        await switch.stop()
 
       # wait for cert to be ready
       check await autotls.certReady.wait().withTimeout(10.seconds)

@@ -372,7 +372,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms)
 
   b.autotls.withValue(autotlsService):
-    b.services.insert(autotlsService, 0)
+    b.services.add(autotlsService)
 
   let transports = block:
     var transports: seq[Transport]
@@ -397,7 +397,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
       PeerStore.new(identify)
 
   if b.enableWildcardResolver:
-    b.services.insert(WildcardAddressResolverService.new(), 0)
+    b.services.add(WildcardAddressResolverService.new())
 
   if not isNil(b.autonatV2Client):
     b.services.add(
