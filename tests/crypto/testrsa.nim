@@ -10,8 +10,8 @@
 {.used.}
 
 import nimcrypto/utils
-import ../libp2p/crypto/[crypto, rsa]
-import ./tools/[unittest, crypto]
+import ../../libp2p/crypto/[crypto, rsa]
+import ../tools/[unittest, crypto]
 
 const
   NotAllowedPrivateKeys = [

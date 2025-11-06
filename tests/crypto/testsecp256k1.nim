@@ -9,8 +9,8 @@
 
 {.used.}
 
-import ../libp2p/crypto/[crypto, secp]
-import ./tools/[unittest, crypto]
+import ../../libp2p/crypto/[crypto, secp]
+import ../tools/[unittest, crypto]
 
 suite "Secp256k1 testing suite":
   const TestsCount = 20
