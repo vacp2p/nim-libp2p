@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, stew/byteutils, sequtils
+import chronos, stew/byteutils
 import ../../libp2p/[stream/connection, transports/transport, muxers/muxer]
 import ../tools/[stream]
 import ./utils
@@ -297,103 +297,68 @@ template streamTransportTest*(
     const numConnections = 5
 
     # Track when stream handlers complete
-    var streamHandlerDone: array[numConnections, Future[void]]
+    var serverHandlerFuts: array[numConnections, Future[void]]
     for i in 0 ..< numConnections:
-      streamHandlerDone[i] = newFuture[void]()
+      serverHandlerFuts[i] = newFuture[void]()
 
     proc serverHandler(server: Transport) {.async.} =
       # Accept multiple connections and handle them
       var futs: seq[Future[void]]
       for i in 0 ..< numConnections:
-        echo "[SERVER] Waiting to accept connection ", i
         let conn = await server.accept()
-        echo "[SERVER] Accepted connection ", i
         let muxer = streamProvider(server, conn)
 
-        # Use a capturing proc to properly capture loop variables by value
-        proc setupConnection(acceptIdx: int, conn: Connection, muxer: Muxer) =
+        # Use a proc to properly capture loop index
+        proc setupConnection(conn: Connection, muxer: Muxer, connectionId: int) =
           muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
             noExceptionWithStreamClose(stream):
               var buffer: array[1, byte]
               await stream.readExactly(addr buffer, 1)
-              let clientId = buffer[0]
-              echo "[SERVER-STREAM] Received from clientId=",
-                clientId, ", writing back, acceptIdx = ", acceptIdx
-
               await stream.write(@buffer)
-              echo "[SERVER-STREAM] Completed write to clientId=", clientId
 
               # Signal that this stream handler is done
-              if not streamHandlerDone[clientId].finished():
-                streamHandlerDone[clientId].complete()
-                echo streamHandlerDone.mapIt(it.finished())
+              if not serverHandlerFuts[connectionId].finished():
+                serverHandlerFuts[connectionId].complete()
 
           let startStreamHandlerAndCleanup = proc() {.async.} =
-            echo "[SERVER-ACCEPT#", acceptIdx, "] Starting muxer.handle()"
             let muxerTask = muxer.handle()
 
-            # Give the muxer a chance to start processing
-            # await sleepAsync(10.milliseconds)
             await muxerTask
-            echo "[SERVER-ACCEPT#", acceptIdx, "] muxer.handle() completed"
 
             # Wait for the stream handler to complete before closing
-            echo "[SERVER-ACCEPT#", acceptIdx, "] Waiting for stream handler"
-            await streamHandlerDone[acceptIdx]
-            echo "[SERVER-ACCEPT#", acceptIdx, "] Stream handler completed"
+            await serverHandlerFuts[connectionId]
 
-            # Now it's safe to close
             await muxer.close()
-            echo "[SERVER-ACCEPT#", acceptIdx, "] muxer closed"
             await conn.close()
-            echo "[SERVER-ACCEPT#", acceptIdx, "] connection closed"
-
-            # Finally wait for muxer task
 
           futs.add(startStreamHandlerAndCleanup())
 
-        setupConnection(i, conn, muxer)
+        setupConnection(conn, muxer, i)
       await allFutures(futs)
 
     proc runClient(server: Transport, connectionId: int) {.async.} =
-      echo "[CLIENT ", connectionId, "] Creating client"
       let client = transportProvider()
-      echo "[CLIENT ", connectionId, "] Dialing server"
       let conn = await client.dial(server.addrs[0])
-      echo "[CLIENT ", connectionId, "] Connected, creating muxer"
       let muxer = streamProvider(client, conn)
-      echo "[CLIENT ", connectionId, "] Starting muxer.handle()"
       let muxerTask = muxer.handle()
 
-      echo "[CLIENT ", connectionId, "] Creating new stream"
       let stream = await muxer.newStream()
-      echo "[CLIENT ", connectionId, "] Writing connectionId byte: ", connectionId
       await stream.write(@[byte(connectionId)])
-      echo "[CLIENT ", connectionId, "] Write completed"
 
       var buffer: array[1, byte]
-      echo "[CLIENT ", connectionId, "] Reading response"
       await stream.readExactly(addr buffer, 1)
-      echo "[CLIENT ", connectionId, "] Read response: ", buffer[0]
 
       # Verify we got back our own connection ID
       check buffer[0] == byte(connectionId)
 
       # Wait for server to close the stream (EOF signal)
       # This ensures server finishes writing before we close
-      echo "[CLIENT ", connectionId, "] Waiting for EOF"
       check (await stream.readOnce(addr buffer, 1)) == 0
-      echo "[CLIENT ", connectionId, "] Got EOF"
 
-      echo "[CLIENT ", connectionId, "] Closing stream"
       await stream.close()
-      echo "[CLIENT ", connectionId, "] Closing muxer"
       await muxer.close()
-      echo "[CLIENT ", connectionId, "] Waiting for muxerTask"
       await muxerTask
-      echo "[CLIENT ", connectionId, "] Closing connection"
       await conn.close()
-      echo "[CLIENT ", connectionId, "] Done"
 
     let server = transportProvider()
     await server.start(ma)
