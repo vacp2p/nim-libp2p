@@ -25,11 +25,11 @@ import ./utils
 
 const message = "No Backdoors. No Masters. No Silence."
 
-template tcpIPTestsSuite*(
-    suiteName: string, provider: TransportProvider, address: string
-) =
+proc transportProvider(): Transport =
+  TcpTransport.new(upgrade = Upgrade())
+
+template tcpIPTestsSuite*(suiteName: string, address: string) =
   block:
-    let transportProvider = provider
     let serverListenAddr = @[MultiAddress.init(address).tryGet()]
 
     asyncTest suiteName & ":listener: handle write":
@@ -72,9 +72,8 @@ template tcpIPTestsSuite*(
       await conn.closeWait()
       await server.stop()
 
-template miscellaneousTestsSuite*(provider: TransportProvider) =
+template miscellaneousTestsSuite*() =
   block:
-    let transportProvider = provider
     asyncTest "dialer: handle write":
       let handlerFut = newFuture[void]()
       proc serverHandler(server: StreamServer, transp: StreamTransport) {.async.} =
@@ -142,53 +141,53 @@ template miscellaneousTestsSuite*(provider: TransportProvider) =
           MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
         ]
 
-      let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+      let transport = transportProvider()
 
       await transport.start(ma)
       await transport.stop()
 
     asyncTest "Bind to listening port when not reachable":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      let transport: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      await transport.start(ma)
+      let transport1 = transportProvider()
+      await transport1.start(ma)
 
       let ma2 = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+      let transport2 = transportProvider()
       await transport2.start(ma2)
 
       let ma3 = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      let transport3: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+      let transport3 = transportProvider()
       await transport3.start(ma3)
 
-      let listeningPort = transport.addrs[0][multiCodec("tcp")].get()
+      let listeningPortTransport1 = transport1.addrs[0][multiCodec("tcp")].get()
 
-      let conn = await transport.dial(transport2.addrs[0])
+      let conn = await transport1.dial(transport2.addrs[0])
       let acceptedConn = await transport2.accept()
-      let acceptedPort = acceptedConn.observedAddr.get()[multiCodec("tcp")].get()
-      check listeningPort != acceptedPort
+      let acceptedPort2 = acceptedConn.observedAddr.get()[multiCodec("tcp")].get()
+      check listeningPortTransport1 != acceptedPort2
 
-      transport.networkReachability = NetworkReachability.NotReachable
+      transport1.networkReachability = NetworkReachability.NotReachable
 
-      let conn2 = await transport.dial(transport3.addrs[0])
-      let acceptedConn2 = await transport3.accept()
-      let acceptedPort2 = acceptedConn2.observedAddr.get()[multiCodec("tcp")].get()
-      check listeningPort == acceptedPort2
+      let conn2 = await transport1.dial(transport3.addrs[0])
+      let acceptedConn3 = await transport3.accept()
+      let acceptedPort3 = acceptedConn3.observedAddr.get()[multiCodec("tcp")].get()
+      check listeningPortTransport1 == acceptedPort3
 
-      await allFutures(transport.stop(), transport2.stop(), transport3.stop())
+      await allFutures(transport1.stop(), transport2.stop(), transport3.stop())
 
     asyncTest "Custom timeout":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      let transport: TcpTransport =
+      let server: TcpTransport =
         TcpTransport.new(upgrade = Upgrade(), connectionsTimeout = 1.milliseconds)
-      asyncSpawn transport.start(ma)
+      asyncSpawn server.start(ma)
 
-      proc acceptHandler() {.async.} =
-        let conn = await transport.accept()
+      proc serverHandler() {.async.} =
+        let conn = await server.accept()
         await conn.join()
 
-      let handlerWait = acceptHandler()
+      let handlerFut = serverHandler()
 
-      let streamTransport = await connect(transport.addrs[0])
-      await handlerWait.wait(1.seconds) # when no issues will not wait that long!
+      let streamTransport = await connect(server.addrs[0])
+      await handlerFut.wait(1.seconds)
       await streamTransport.closeWait()
-      await transport.stop()
+      await server.stop()

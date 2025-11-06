@@ -36,7 +36,7 @@ proc streamProvider(_: Transport, conn: Connection): Muxer =
   Mplex.new(conn)
 
 const
-  address = "/ip4/127.0.0.1/tcp/0"
+  addressIP4 = "/ip4/127.0.0.1/tcp/0"
   addressIP6 = "/ip6/::/tcp/0"
   validAddresses =
     @[
@@ -56,11 +56,12 @@ suite "TCP transport":
   teardown:
     checkTrackers()
 
-  basicTransportTest(tcpTransProvider, address, validAddresses, invalidAddresses)
-  connectionTransportTest(tcpTransProvider, address)
-  streamTransportTest(tcpTransProvider, address, streamProvider)
+  # shared tests with other transports
+  basicTransportTest(tcpTransProvider, addressIP4, validAddresses, invalidAddresses)
+  connectionTransportTest(tcpTransProvider, addressIP4)
+  streamTransportTest(tcpTransProvider, addressIP4, streamProvider)
 
-  tcpIPTestsSuite("ipv4", tcpTransProvider, address)
-  tcpIPTestsSuite("ipv6", tcpTransProvider, addressIP6)
-
-  miscellaneousTestsSuite(tcpTransProvider)
+  # tcp specific tests
+  tcpIPTestsSuite("ipv4", addressIP4)
+  tcpIPTestsSuite("ipv6", addressIP6)
+  miscellaneousTestsSuite()
