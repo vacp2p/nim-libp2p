@@ -172,3 +172,45 @@ proc handleAddProvider*(
         key: msg.key.toCid(),
       )
     )
+
+proc dispatchGetProviders(
+    switch: Switch, peer: PeerId, key: Key
+): Future[Providers] {.
+    async: (raises: [CancelledError, DialFailedError, LPStreamError])
+.} =
+  let conn = await switch.dial(peer, KadCodec)
+  defer:
+    await conn.close()
+  let msg = Message(msgType: MessageType.getProviders, key: key)
+  await conn.writeLp(msg.encode().buffer)
+
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+    error "GetProviders reply decode fail", error = error, conn = conn
+    return
+
+  var providers: Providers
+  for peer in reply.providerPeers:
+    let p = PeerId.init(peer.id).valueOr:
+      debug "Invalid peer id received", peerId = peer.id, error = error
+      continue
+    providers.incl(p)
+
+  return providers
+
+proc getProviders*(
+    kad: KadDHT, key: Key
+): Future[Providers] {.async: (raises: [CancelledError]), gcsafe.} =
+  ## Get providers for a given `key` from the nodes closest to that `key`.
+
+  var allProviders: Providers
+
+  for chunk in (await kad.findNode(key)).toChunks(kad.config.alpha):
+    let futures = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
+    try:
+      for providers in (await futures.allFutures().wait(kad.config.timeout)):
+        allProviders.incl(providers)
+    except AsyncTimeoutError:
+      debug "Some GetProviders requests timed out", key = key
+      discard # Timeouts are expected; proceed with what we have
+
+  allProviders
