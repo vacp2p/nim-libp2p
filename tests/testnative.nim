@@ -10,13 +10,15 @@
 {.used.}
 
 import ./tools/test_all
+import ./crypto/test_all
 import ./transports/test_all
+import ./discovery/test_all
+import ./kademlia/test_all
+import ./mix/test_all
 
 import
   testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
   testheartbeat, testfuture, testzeroqueue, testbytesview
-
-import testminasn1, testrsa, testecnist, tested25519, testsecp256k1, testcrypto
 
 import
   testmultibase, testmultihash, testmultiaddress, testipaddr, testcid, testpeerid,
@@ -28,21 +30,7 @@ import
   testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
   testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
   testautorelay, testdcutr, testhpservice, testutility, testwildcardresolverservice,
-  testperf, testpkifilter
-
-import discovery/testdiscovery
-
-import
-  kademlia/[
-    testencoding, testroutingtable, testfindnode, testputval, testgetval, testprovider,
-    testping,
-  ]
+  testperf
 
 when defined(libp2p_autotls_support):
   import testautotls
-
-import
-  mix/[
-    testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
-    testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode, testconn,
-  ]

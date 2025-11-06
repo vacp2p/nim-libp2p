@@ -13,7 +13,7 @@ import
   testbehavior, testgossipsub, testgossipsubparams, testmcache, testmessage,
   testscoring, testtimedcache, testpreamblestore
 
-import ./integration/testpubsubintegration
+import ./integration/test_all
 
 when defined(libp2p_gossipsub_1_4):
   import testpreamblestore

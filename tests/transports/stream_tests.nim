@@ -68,10 +68,18 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        var initData: array[1, byte]
+        await stream.readExactly(addr initData, 1)
         await stream.write(serverMessage)
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        # Quic does not signal the server about new stream
+        # The peer can only accept the stream after data
+        # has been sent to the stream, so we send a "hello"
+        # just so the server handlers is triggered
+        await stream.write(newData(1))
+
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
         check string.fromBytes(buffer) == serverMessage
@@ -101,6 +109,8 @@ template streamTransportTest*(
       let muxer = streamProvider(server, conn)
       muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
         noException(stream):
+          var initData: array[1, byte]
+          await stream.readExactly(addr initData, 1)
           # Custom pattern: closes muxer/connection inside the stream handler to force immediate shutdown.
           # Using serverHandlerSingleStream would deadlock: client waits for server task,
           # but muxer.handle() blocks reading messages until client closes its connection.
@@ -111,6 +121,12 @@ template streamTransportTest*(
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        # Quic does not signal the server about new stream
+        # The peer can only accept the stream after data
+        # has been sent to the stream, so we send a "hello"
+        # just so the server handlers is triggered
+        await stream.write(newData(1))
+
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
         check string.fromBytes(buffer) == serverMessage
@@ -134,10 +150,18 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        var initData: array[1, byte]
+        await stream.readExactly(addr initData, 1)
         await stream.write(serverMessage)
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        # Quic does not signal the server about new stream
+        # The peer can only accept the stream after data
+        # has been sent to the stream, so we send a "hello"
+        # just so the server handlers is triggered
+        await stream.write(newData(1))
+
         var buffer: array[2 * serverMessage.len, byte]
 
         expect LPStreamIncompleteError:
@@ -155,6 +179,9 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        var initData: array[1, byte]
+        await stream.readExactly(addr initData, 1)
+
         # Server sends data and closes its write side
         await stream.write(serverMessage)
         await stream.closeWrite()
@@ -166,6 +193,12 @@ template streamTransportTest*(
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        # Quic does not signal the server about new stream
+        # The peer can only accept the stream after data
+        # has been sent to the stream, so we send a "hello"
+        # just so the server handlers is triggered
+        await stream.write(newData(1))
+
         # Client reads server data
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
@@ -190,10 +223,18 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        var initData: array[1, byte]
+        await stream.readExactly(addr initData, 1)
         await stream.write(message)
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noException(stream):
+        # Quic does not signal the server about new stream
+        # The peer can only accept the stream after data
+        # has been sent to the stream, so we send a "hello"
+        # just so the server handlers is triggered
+        await stream.write(newData(1))
+
         let receivedData =
           await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
         check receivedData == message

@@ -10,8 +10,8 @@
 {.used.}
 
 import nimcrypto/utils as ncrutils
-import ../libp2p/crypto/minasn1
-import ./tools/[unittest]
+import ../../libp2p/crypto/minasn1
+import ../tools/[unittest]
 
 const Asn1EdgeValues = [
   0'u64,

@@ -10,8 +10,8 @@
 
 from std/strutils import toUpper
 import bearssl/hash, nimcrypto/utils
-import ../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
-import ./tools/[unittest, crypto]
+import ../../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
+import ../tools/[unittest, crypto]
 
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-crypto/blob/master/key.go
