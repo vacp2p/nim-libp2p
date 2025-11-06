@@ -38,7 +38,7 @@ template tcpIPTests(suiteName: string, address: string) =
 
     asyncTest suiteName & ":listener: handle write":
       let server = transportProvider()
-      asyncSpawn server.start(serverListenAddr)
+      await server.start(serverListenAddr)
 
       proc serverHandler() {.async.} =
         let conn = await server.accept()
@@ -57,7 +57,7 @@ template tcpIPTests(suiteName: string, address: string) =
 
     asyncTest suiteName & ":listener: handle read":
       let server = transportProvider()
-      asyncSpawn server.start(serverListenAddr)
+      await server.start(serverListenAddr)
 
       proc serverHandler() {.async.} =
         let conn = await server.accept()
@@ -179,7 +179,7 @@ template tcpTests*() =
     asyncTest "Custom timeout":
       let server: TcpTransport =
         TcpTransport.new(upgrade = Upgrade(), connectionsTimeout = 1.milliseconds)
-      asyncSpawn server.start(@[zeroMultiaddress])
+      await server.start(@[zeroMultiaddress])
 
       proc serverHandler() {.async.} =
         let conn = await server.accept()
