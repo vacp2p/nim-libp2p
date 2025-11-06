@@ -14,14 +14,14 @@ import ../../utils/heartbeat
 import ../protocol
 import ./[protobuf, types, find]
 
-proc `==`*(a, b: ProviderRecord): bool =
+proc `==`*(a, b: ProviderRecord): bool {.inline.} =
   a.provider.id == b.provider.id and a.key == b.key
 
 # for HeapQueue
-proc `<`*(a, b: ProviderRecord): bool =
+proc `<`*(a, b: ProviderRecord): bool {.inline.} =
   a.expiresAt < b.expiresAt
 
-proc `<`*(a: ProviderRecord, b: chronos.Moment): bool =
+proc `<`*(a: ProviderRecord, b: chronos.Moment): bool {.inline.} =
   a.expiresAt < b
 
 proc deleteOldest(pk: ProvidedKeys) =
@@ -34,37 +34,37 @@ proc deleteOldest(pk: ProvidedKeys) =
       oldestMoment = moment
   pk.provided.del(oldest)
 
-proc isFull*(pk: ProvidedKeys): bool =
+proc isFull*(pk: ProvidedKeys): bool {.inline.} =
   pk.provided.len() >= pk.capacity
 
-proc len*(pk: ProvidedKeys): int =
+proc len*(pk: ProvidedKeys): int {.inline.} =
   pk.provided.len()
 
-proc hasKey*(pk: ProvidedKeys, c: Cid): bool =
+proc hasKey*(pk: ProvidedKeys, c: Cid): bool {.inline.} =
   pk.provided.hasKey(c)
 
-proc del*(pk: ProvidedKeys, c: Cid) =
+proc del*(pk: ProvidedKeys, c: Cid) {.inline.} =
   pk.provided.del(c)
 
-proc pop*(pr: ProviderRecords): ProviderRecord =
+proc pop*(pr: ProviderRecords): ProviderRecord {.inline.} =
   pr.records.pop()
 
-proc len*(pr: ProviderRecords): int =
+proc len*(pr: ProviderRecords): int {.inline.} =
   pr.records.len()
 
-proc del*(pr: ProviderRecords, index: Natural) =
+proc del*(pr: ProviderRecords, index: Natural) {.inline.} =
   pr.records.del(index)
 
-proc find*(pr: ProviderRecords, record: ProviderRecord): int =
+proc find*(pr: ProviderRecords, record: ProviderRecord): int {.inline.} =
   pr.records.find(record)
 
-proc push*(pr: ProviderRecords, record: ProviderRecord) =
+proc push*(pr: ProviderRecords, record: ProviderRecord) {.inline.} =
   pr.records.push(record)
 
-proc isFull*(pr: ProviderRecords): bool =
+proc isFull*(pr: ProviderRecords): bool {.inline.} =
   pr.records.len() >= pr.capacity
 
-proc `[]`*(pr: ProviderRecords, i: int): ProviderRecord =
+proc `[]`*(pr: ProviderRecords, i: int): ProviderRecord {.inline.} =
   pr.records[i]
 
 proc removeProviderRecord(pm: ProviderManager, record: ProviderRecord) =
@@ -95,7 +95,6 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
   try:
     pm.knownKeys[record.key].incl(record.provider)
 
-    # push new providerRecord
     pm.providerRecords.push(record)
   except KeyError:
     raiseAssert("checked with hasKey")
