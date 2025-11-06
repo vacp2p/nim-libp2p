@@ -9,17 +9,12 @@
 
 {.used.}
 
-import chronos, stew/byteutils
+import chronos
 import
   ../../libp2p/[
-    stream/connection,
     transports/transport,
     transports/tcptransport,
     upgrademngrs/upgrade,
-    multiaddress,
-    multicodec,
-    errors,
-    wire,
     muxers/muxer,
     muxers/mplex/mplex,
   ]

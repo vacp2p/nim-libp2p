@@ -13,7 +13,6 @@ import chronos, stew/byteutils
 import
   ../../libp2p/[
     stream/connection,
-    transports/transport,
     transports/tcptransport,
     upgrademngrs/upgrade,
     multiaddress,
@@ -29,7 +28,7 @@ const
   zeroMultiaddressStrIP6 = "/ip6/::/tcp/0"
   zeroAddr = "0.0.0.0:0"
 
-proc transportProvider(): Transport =
+proc transportProvider(): TcpTransport =
   TcpTransport.new(upgrade = Upgrade())
 
 template tcpIPTests(suiteName: string, address: string) =
