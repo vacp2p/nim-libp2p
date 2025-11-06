@@ -142,14 +142,14 @@ template tcpTests*() =
       server.close()
       await server.join()
 
-    asyncTest "Starting with duplicate but zero ports addresses must NOT fail":
+    asyncTest "starting with duplicate but zero ports addresses must NOT fail":
       let transport = transportProvider()
 
       let ma = @[zeroMultiaddress, zeroMultiaddress]
       await transport.start(ma)
       await transport.stop()
 
-    asyncTest "Bind to listening port when not reachable":
+    asyncTest "bind to listening port when not reachable":
       let transport1 = transportProvider()
       await transport1.start(@[zeroMultiaddress])
 
@@ -175,7 +175,7 @@ template tcpTests*() =
 
       await allFutures(transport1.stop(), transport2.stop(), transport3.stop())
 
-    asyncTest "Custom timeout":
+    asyncTest "custom timeout":
       let server: TcpTransport =
         TcpTransport.new(upgrade = Upgrade(), connectionsTimeout = 1.milliseconds)
       await server.start(@[zeroMultiaddress])
