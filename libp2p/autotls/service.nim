@@ -197,10 +197,8 @@ when defined(libp2p_autotls_support):
       return false
 
     # generate autotls domain string: "*.{peerID}.{dnsServerURL}"
-    let baseDomain = api.Domain(
-      encodePeerId(self.peerInfo.peerId) & "." & AutoTLSDNSServer &
-        self.config.dnsServerURL
-    )
+    let baseDomain =
+      api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.dnsServerURL)
     let domain = api.Domain("*." & baseDomain)
 
     let acmeClient = self.acmeClient
@@ -260,7 +258,7 @@ when defined(libp2p_autotls_support):
     let derPrivKey = certKeyPair.seckey.rsakey.getBytes.valueOr:
       raise newException(AutoTLSError, "Unable to get TLS private key")
     let pemPrivKey: string = derPrivKey.pemEncode("PRIVATE KEY")
-    debug "autotls cert", pemPrivKey = pemPrivKey, cert = certificate.rawCertificate
+    debug "Autotls cert", pemPrivKey = pemPrivKey, cert = certificate.rawCertificate
 
     trace "Installing certificate"
     let newCert =
@@ -306,15 +304,14 @@ when defined(libp2p_autotls_support):
       error "Could not find a running TcpTransport in switch"
       return
 
-    if self.cert.isNone():
-      await self.tryIssueCertificate()
-
-    # AutotlsService will renew the cert 1h before it expires
-    let cert = self.cert.valueOr:
-      error "Could not issue certificate"
-      return
-
     heartbeat "Certificate Management", self.config.renewCheckTime:
+      if self.cert.isNone():
+        await self.tryIssueCertificate()
+
+      # AutotlsService will renew the cert 1h before it expires
+      let cert = self.cert.valueOr:
+        error "Could not issue certificate"
+        return
       let waitTime = cert.expiry - Moment.now - self.config.renewBufferTime
       if waitTime <= self.config.renewBufferTime:
         await self.tryIssueCertificate()

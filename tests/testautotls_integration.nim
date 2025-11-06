@@ -81,6 +81,7 @@ when defined(linux) and defined(amd64):
         except CatchableError:
           skip() # host doesn't have public IPv4 address
           return
+
       let switch = SwitchBuilder
         .new()
         .withRng(newRng())
@@ -95,24 +96,15 @@ when defined(linux) and defined(amd64):
         .withNoise()
         .build()
 
-      # find autotls in list of services
-      var autotls: AutotlsService = nil
-      for service in switch.services:
-        echo "Service type: ", service.type
-        if service is AutotlsService:
-          autotls = AutotlsService(service)
-          break
-
-      if autotls.isNil():
-        raiseAssert "autotls service not found in switch"
-        return
-
       await switch.start()
       defer:
         await switch.stop()
 
+      let autotls: AutotlsService = AutotlsService(switch.services[0])
+
       # wait for cert to be ready
-      check await autotls.certReady.wait().withTimeout(10.seconds)
+      await autotls.certReady.wait()
+
       # clear since we'll use it again for renewal
       autotls.certReady.clear()
 
