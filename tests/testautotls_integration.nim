@@ -100,7 +100,14 @@ when defined(linux) and defined(amd64):
       defer:
         await switch.stop()
 
-      let autotls: AutotlsService = AutotlsService(switch.services[0])
+      # find autotls service in switch
+      var autotls: AutotlsService = nil
+      for service in switch.services:
+        if service of AutotlsService:
+          autotls = AutotlsService(service)
+      if autotls.isNil():
+        raiseAssert "No Autotls service in switch"
+        return
 
       # wait for cert to be ready
       await autotls.certReady.wait()
