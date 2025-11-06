@@ -81,7 +81,8 @@ proc new*(
     switch: switch,
     rtable: rtable,
     config: config,
-    providerManager: ProviderManager.new(),
+    providerManager:
+      ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
   )
 
   kad.codec = KadCodec
