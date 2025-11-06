@@ -10,7 +10,7 @@
 {.used.}
 
 import ./tools/test_all
-import ./cypto/test_all
+import ./crypto/test_all
 import ./transports/test_all
 import ./discovery/test_all
 import ./kademlia/test_all
