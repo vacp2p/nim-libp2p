@@ -309,7 +309,7 @@ template streamTransportTest*(
         let muxer = streamProvider(server, conn)
 
         # Use a proc to properly capture loop index
-        proc setupConnection(conn: Connection, muxer: Muxer, connectionId: int) =
+        proc setupConnection(conn: Connection, muxer: Muxer, handlerIndex: int) =
           muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
             noExceptionWithStreamClose(stream):
               var buffer: array[1, byte]
@@ -317,7 +317,7 @@ template streamTransportTest*(
               await stream.write(@buffer)
 
               # Signal that this stream handler is done
-              serverStreamHandlerFuts[connectionId].complete()
+              serverStreamHandlerFuts[handlerIndex].complete()
 
           let startStreamHandlerAndCleanup = proc() {.async.} =
             let muxerTask = muxer.handle()
@@ -325,7 +325,7 @@ template streamTransportTest*(
             await muxerTask
 
             # Wait for the stream handler to complete before closing
-            await serverStreamHandlerFuts[connectionId]
+            await serverStreamHandlerFuts[handlerIndex]
 
             await muxer.close()
             await conn.close()
