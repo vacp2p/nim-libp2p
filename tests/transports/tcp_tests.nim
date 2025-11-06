@@ -26,12 +26,13 @@ const
   message = "No Backdoors. No Masters. No Silence."
   zeroMultiaddressStrIP4 = "/ip4/0.0.0.0/tcp/0"
   zeroMultiaddressStrIP6 = "/ip6/::/tcp/0"
-  zeroAddr = "0.0.0.0:0"
+  zeroAddrIP4 = "0.0.0.0:0"
+  zeroAddrIP6 = "[::]:0"
 
 proc transportProvider(): TcpTransport =
   TcpTransport.new(upgrade = Upgrade())
 
-template tcpIPTests(suiteName: string, address: string) =
+template tcpListenerIPTests(suiteName: string, address: string) =
   block:
     let serverListenAddr = @[MultiAddress.init(address).tryGet()]
 
@@ -75,14 +76,9 @@ template tcpIPTests(suiteName: string, address: string) =
       await conn.closeWait()
       await server.stop()
 
-template tcpTests*() =
+template tcpDialerIPTest(suiteName: string, address: string) =
   block:
-    let zeroMultiaddress = MultiAddress.init(zeroMultiaddressStrIP4).tryGet()
-
-    tcpIPTests("ipv4", zeroMultiaddressStrIP4)
-    tcpIPTests("ipv6", zeroMultiaddressStrIP6)
-
-    asyncTest "dialer: handle write":
+    asyncTest suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
       proc serverHandler(server: StreamServer, transp: StreamTransport) {.async.} =
         var wstream = newAsyncStreamWriter(transp)
@@ -94,8 +90,8 @@ template tcpTests*() =
         server.close()
         handlerFut.complete()
 
-      let sa = initTAddress(zeroAddr)
-      var server = createStreamServer(sa, serverHandler, {ReuseAddr})
+      let listenAddr = initTAddress(address)
+      var server = createStreamServer(listenAddr, serverHandler, {ReuseAddr})
       server.start()
 
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
@@ -113,7 +109,7 @@ template tcpTests*() =
       server.close()
       await server.join()
 
-    asyncTest "dialer: handle write":
+    asyncTest suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
       proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
         var rstream = newAsyncStreamReader(transp)
@@ -126,8 +122,8 @@ template tcpTests*() =
         server.close()
         handlerFut.complete()
 
-      let address = initTAddress(zeroAddr)
-      var server = createStreamServer(address, serveClient, {ReuseAddr})
+      let listenAddr = initTAddress(address)
+      var server = createStreamServer(listenAddr, serveClient, {ReuseAddr})
       server.start()
 
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
@@ -141,6 +137,15 @@ template tcpTests*() =
       server.stop()
       server.close()
       await server.join()
+
+template tcpTests*() =
+  tcpListenerIPTests("ipv4", zeroMultiaddressStrIP4)
+  tcpListenerIPTests("ipv6", zeroMultiaddressStrIP6)
+  tcpDialerIPTest("ipv4", zeroAddrIP4)
+  tcpDialerIPTest("ipv6", zeroAddrIP6)
+
+  block:
+    let zeroMultiaddress = MultiAddress.init(zeroMultiaddressStrIP4).tryGet()
 
     asyncTest "starting with duplicate but zero ports addresses must NOT fail":
       let transport = transportProvider()
