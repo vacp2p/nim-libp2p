@@ -32,7 +32,7 @@ const
 proc transportProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
 
-template tcpIPTests*(suiteName: string, address: string) =
+template tcpIPTests(suiteName: string, address: string) =
   block:
     let serverListenAddr = @[MultiAddress.init(address).tryGet()]
 
@@ -76,12 +76,12 @@ template tcpIPTests*(suiteName: string, address: string) =
       await conn.closeWait()
       await server.stop()
 
-template miscellaneousTests*() =
+template tcpTests*() =
   block:
     let zeroMultiaddress = MultiAddress.init(zeroMultiaddressStrIP4).tryGet()
 
-    tcpIPTests("ipv4", addressIP4)
-    tcpIPTests("ipv6", addressIP6)
+    tcpIPTests("ipv4", zeroMultiaddressStrIP4)
+    tcpIPTests("ipv6", zeroMultiaddressStrIP6)
 
     asyncTest "dialer: handle write":
       let handlerFut = newFuture[void]()
