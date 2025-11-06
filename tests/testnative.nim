@@ -11,6 +11,9 @@
 
 import ./tools/test_all
 import ./transports/test_all
+import ./discovery/test_all
+import ./kademlia/test_all
+import ./mix/test_all
 
 import
   testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
@@ -30,19 +33,5 @@ import
   testautorelay, testdcutr, testhpservice, testutility, testwildcardresolverservice,
   testperf, testpkifilter
 
-import discovery/testdiscovery
-
-import
-  kademlia/[
-    testencoding, testroutingtable, testfindnode, testputval, testgetval, testprovider,
-    testping,
-  ]
-
 when defined(libp2p_autotls_support):
   import testautotls
-
-import
-  mix/[
-    testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
-    testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode, testconn,
-  ]
