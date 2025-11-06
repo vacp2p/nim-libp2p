@@ -252,6 +252,9 @@ template streamTransportTest*(
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
+        var initData: array[1, byte]
+        await stream.readExactly(addr initData, 1)
+
         var writeFuts: seq[Future[void]] = @[]
         for i in 0 ..< parallelWrites:
           # each write has to have unique data
@@ -262,6 +265,12 @@ template streamTransportTest*(
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
+        # Quic does not signal the server about new stream
+        # The peer can only accept the stream after data
+        # has been sent to the stream, so we send a "hello"
+        # just so the server handlers is triggered
+        await stream.write(newData(1))
+
         const expectedSize = messageSize * parallelWrites
         let receivedData =
           await readStreamByChunkTillEOF(stream, chunkSize, expectedSize)
