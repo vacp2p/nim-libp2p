@@ -138,7 +138,7 @@ proc extractPort*(ma: MultiAddress): int =
   let port = int(fromBytesBE(uint16, portBytes))
   port
 
-template noException*(stream: Connection, body) =
+template noExceptionWithStreamClose*(stream: Connection, body) =
   try:
     body
   except CatchableError as exc:
