@@ -276,7 +276,7 @@ proc getRng(self: QuicTransport): ref HmacDrbgContext =
 
   return self.rng
 
-proc maFromTa(ta: TransportAddress): MultiAddress {.raises: [MaError].} =
+proc toMultiAddress(ta: TransportAddress): MultiAddress {.raises: [MaError].} =
   ## Returns quic MultiAddress from TransportAddress
   MultiAddress.init(ta, IPPROTO_UDP).get() & MultiAddress.init("/quic-v1").get()
 
@@ -289,7 +289,7 @@ method start*(
   try:
     let server = QuicServer.init(self.makeConfig(), self.getRng())
     self.listener = server.listen(initTAddress(addrs[0]).tryGet)
-    let listenMA = @[maFromTa(self.listener.localAddress())]
+    let listenMA = @[toMultiAddress(self.listener.localAddress())]
     await procCall Transport(self).start(listenMA)
   except QuicConfigError as exc:
     raiseAssert "invalid quic setup: " & $exc.msg
@@ -327,8 +327,8 @@ proc wrapConnection(
   var observedAddr: MultiAddress
   var localAddr: MultiAddress
   try:
-    observedAddr = maFromTa(connection.remoteAddress())
-    localAddr = maFromTa(connection.localAddress())
+    observedAddr = toMultiAddress(connection.remoteAddress())
+    localAddr = toMultiAddress(connection.localAddress())
   except MaError as e:
     raiseAssert "Multiaddr Error" & e.msg
 
