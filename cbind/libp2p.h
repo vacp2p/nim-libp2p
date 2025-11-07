@@ -3,7 +3,13 @@
  *
  * This header provides the public API for libp2p
  *
- * TODO: add description
+ * Copyright (c) 2025 Status Research & Development GmbH
+ * Licensed under either of
+ * -  Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+ * - MIT license ([LICENSE-MIT](LICENSE-MIT))
+ * at your option.
+ * This file may not be copied, modified, or distributed except according to
+ * those terms.
  */
 #ifndef __libp2p__
 #define __libp2p__

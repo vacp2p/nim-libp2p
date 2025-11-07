@@ -35,11 +35,11 @@ void signal_cond() {
 }
 
 void event_handler(int callerRet, const char *msg, size_t len, void *userData) {
-  if (callerRet == RET_ERR) {
-    printf("Error: %s\n", msg);
-    exit(1);
-  } else if (callerRet == RET_OK) {
+  if (callerRet == RET_OK) {
     printf("Receiving event: %s\n", msg);
+  } else {
+    printf("Error(%d): %s\n", callerRet, msg);
+    exit(1);
   }
   signal_cond();
 }

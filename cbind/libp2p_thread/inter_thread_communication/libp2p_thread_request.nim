@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 # Thread Request Dispatcher
 #
 # This file defines the `LibP2PThreadRequest` type, which acts as a wrapper for all
@@ -53,7 +62,7 @@ proc handleRes[T: string | void](
     foreignThreadGc:
       let msg = "libp2p error: handleRes fireSyncRes error: " & $res.error
       request[].callback(
-        RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
+        RET_ERR.cint, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
       )
     return
 
@@ -62,7 +71,7 @@ proc handleRes[T: string | void](
     when T is string:
       msg = res.get().cstring()
     request[].callback(
-      RET_OK, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
+      RET_OK.cint, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
     )
   return
 

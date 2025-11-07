@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 # FFI Types and Utilities
 #
 # This file defines the core types and utilities for the library's foreign
@@ -10,9 +19,12 @@ type Libp2pCallback* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
 
-const RET_OK*: cint = 0
-const RET_ERR*: cint = 1
-const RET_MISSING_CALLBACK*: cint = 2
+type
+  RetCode* {.size: sizeof(cint).}= enum
+    RET_OK = 0,
+    RET_ERR = 1,
+    RET_MISSING_CALLBACK = 2
+
 
 ### End of exported types
 ################################################################################

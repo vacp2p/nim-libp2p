@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 {.pragma: exported, exportc, cdecl, raises: [].}
 {.pragma: callback, cdecl, raises: [], gcsafe.}
 {.passc: "-fPIC".}
@@ -24,7 +33,7 @@ template checkLibParams*(
   ctx[].userData = userData
 
   if isNil(callback):
-    return RET_MISSING_CALLBACK
+    return RET_MISSING_CALLBACK.cint
 
 template callEventCallback(ctx: ptr LibP2PContext, eventName: string, body: untyped) =
   ## This template invokes the event callback for internal events
@@ -57,10 +66,10 @@ proc handleRequest(
     content: pointer,
     callback: Libp2pCallback,
     userData: pointer,
-): cint =
+): RetCode =
   libp2p_thread.sendRequestToLibP2PThread(ctx, requestType, content, callback, userData).isOkOr:
     let msg = "libp2p error: " & $error
-    callback(RET_ERR, addr msg[0], cast[csize_t](len(msg)), userData)
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
   return RET_OK
@@ -118,7 +127,7 @@ proc libp2p_new(
   ## Create the Libp2p thread that will keep waiting for req from the Client thread.
   var ctx = libp2p_thread.createLibP2PThread().valueOr:
     let msg = "Error in createLibp2pThread: " & $error
-    callback(RET_ERR, addr msg[0], cast[csize_t](len(msg)), userData)
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
     return nil
 
   ctx.userData = userData
@@ -147,13 +156,13 @@ proc libp2p_destroy(
 
   libp2p_thread.destroyLibP2PThread(ctx).isOkOr:
     let msg = "libp2p error: " & $error
-    callback(RET_ERR, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
 
   ## always need to invoke the callback although we don't retrieve value to the caller
-  callback(RET_OK, nil, 0, userData)
+  callback(RET_OK.cint, nil, 0, userData)
 
-  return RET_OK
+  return RET_OK.cint
 
 proc libp2p_set_event_callback(
     ctx: ptr LibP2PContext, callback: Libp2pCallback, userData: pointer
@@ -177,7 +186,7 @@ proc libp2p_hello(
     HelloRequest.createShared(HelloMsgType.HELLO),
     callback,
     userData,
-  )
+  ).cint
 
 ### End of exported procs
 ################################################################################

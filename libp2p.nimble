@@ -71,7 +71,7 @@ proc buildCBindings(libType: string, params = "") =
 
   exec nimc & " " & lang & " --out:build/libp2p." & ext & " --threads:on --app:" & app &
     " --opt:size --noMain --mm:refc --header --undef:metrics --nimMainPrefix:libp2p --nimcache:nimcache -d:asyncTimer=system " &
-    cfg & " " & flags & " library/libp2p.nim"
+    cfg & " " & flags & " cbind/libp2p.nim"
 
 proc tutorialToMd(filename: string) =
   let markdown = gorge "cat " & filename & " | " & nimc & " " & lang &
