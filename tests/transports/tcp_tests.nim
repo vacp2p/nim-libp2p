@@ -26,8 +26,8 @@ const
   message = "No Backdoors. No Masters. No Silence."
   zeroMAStrIP4 = "/ip4/0.0.0.0/tcp/0"
   zeroMAStrIP6 = "/ip6/::/tcp/0"
-  zeroAddrIP4 = "0.0.0.0:0"
-  zeroAddrIP6 = "[::]:0"
+  zeroTAIP4 = "0.0.0.0:0"
+  zeroTAIP6 = "[::]:0"
 
 template tcpListenerIPTests(suiteName: string, listenMA: MultiAddress) =
   block:
@@ -71,7 +71,7 @@ template tcpListenerIPTests(suiteName: string, listenMA: MultiAddress) =
       await conn.closeWait()
       await server.stop()
 
-template tcpDialerIPTest(suiteName: string, address: string) =
+template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
   block:
     asyncTest suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
@@ -83,7 +83,7 @@ template tcpDialerIPTest(suiteName: string, address: string) =
         await transp.closeWait()
         handlerFut.complete()
 
-      var server = createStreamServer(initTAddress(address), serverHandler, {ReuseAddr})
+      let server = createStreamServer(listenTA, serverHandler, {ReuseAddr})
       server.start()
 
       let ma = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
@@ -103,7 +103,7 @@ template tcpDialerIPTest(suiteName: string, address: string) =
 
     asyncTest suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
-      proc serveClient(server: StreamServer, transp: StreamTransport) {.async.} =
+      proc serverHandler(server: StreamServer, transp: StreamTransport) {.async.} =
         var rstream = newAsyncStreamReader(transp)
         let msg = await rstream.read(message.len)
         check string.fromBytes(msg) == message
@@ -112,7 +112,7 @@ template tcpDialerIPTest(suiteName: string, address: string) =
         await transp.closeWait()
         handlerFut.complete()
 
-      var server = createStreamServer(initTAddress(address), serveClient, {ReuseAddr})
+      let server = createStreamServer(listenTA, serverHandler, {ReuseAddr})
       server.start()
 
       let ma = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
@@ -130,8 +130,8 @@ template tcpDialerIPTest(suiteName: string, address: string) =
 template tcpTests*() =
   tcpListenerIPTests("ipv4", MultiAddress.init(zeroMAStrIP4).tryGet())
   tcpListenerIPTests("ipv6", MultiAddress.init(zeroMAStrIP6).tryGet())
-  tcpDialerIPTest("ipv4", zeroAddrIP4)
-  tcpDialerIPTest("ipv6", zeroAddrIP6)
+  tcpDialerIPTest("ipv4", initTAddress(zeroTAIP4))
+  tcpDialerIPTest("ipv6", initTAddress(zeroTAIP6))
 
   block:
     let listenMA = MultiAddress.init(zeroMAStrIP4).tryGet()
