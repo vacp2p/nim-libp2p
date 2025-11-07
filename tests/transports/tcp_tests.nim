@@ -29,7 +29,6 @@ const
   zeroAddrIP4 = "0.0.0.0:0"
   zeroAddrIP6 = "[::]:0"
 
-
 template tcpListenerIPTests(suiteName: string, address: string) =
   block:
     let serverListenAddr = @[MultiAddress.init(address).tryGet()]
