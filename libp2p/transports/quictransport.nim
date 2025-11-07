@@ -276,6 +276,10 @@ proc getRng(self: QuicTransport): ref HmacDrbgContext =
 
   return self.rng
 
+proc maFromTa(ta: TransportAddress): MultiAddress {.raises: [MaError].} =
+  ## Returns quic MultiAddress from TransportAddress
+  MultiAddress.init(ta, IPPROTO_UDP).get() & MultiAddress.init("/quic-v1").get()
+
 method start*(
     self: QuicTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
@@ -283,13 +287,10 @@ method start*(
   # TODO(#1663): handle multiple addr
 
   try:
-    self.listener = QuicServer.init(self.makeConfig(), rng = self.getRng()).listen(
-        initTAddress(addrs[0]).tryGet
-      )
-    await procCall Transport(self).start(addrs)
-    self.addrs[0] =
-      MultiAddress.init(self.listener.localAddress(), IPPROTO_UDP).tryGet() &
-      MultiAddress.init("/quic-v1").get()
+    let server = QuicServer.init(self.makeConfig(), self.getRng())
+    self.listener = server.listen(initTAddress(addrs[0]).tryGet)
+    let listenMA = @[maFromTa(self.listener.localAddress())]
+    await procCall Transport(self).start(listenMA)
   except QuicConfigError as exc:
     raiseAssert "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
@@ -326,12 +327,8 @@ proc wrapConnection(
   var observedAddr: MultiAddress
   var localAddr: MultiAddress
   try:
-    observedAddr =
-      MultiAddress.init(connection.remoteAddress(), IPPROTO_UDP).get() &
-      MultiAddress.init("/quic-v1").get()
-    localAddr =
-      MultiAddress.init(connection.localAddress(), IPPROTO_UDP).get() &
-      MultiAddress.init("/quic-v1").get()
+    observedAddr = maFromTa(connection.remoteAddress())
+    localAddr = maFromTa(connection.localAddress())
   except MaError as e:
     raiseAssert "Multiaddr Error" & e.msg
 
@@ -393,7 +390,7 @@ method dial*(
 
   try:
     if not self.client.isSome:
-      self.client = Opt.some(QuicClient.init(self.makeConfig(), rng = self.getRng()))
+      self.client = Opt.some(QuicClient.init(self.makeConfig(), self.getRng()))
 
     let client = self.client.get()
     let quicConnection = await client.dial(taAddress)
