@@ -1,4 +1,4 @@
-#include "../library/libp2p.h"
+#include "../cbind/libp2p.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +22,7 @@ void waitForCallback() {
     int ret = call;                                                            \
     if (ret != 0) {                                                            \
       printf("Failed the call to: %s. Returned code: %d\n", #call, ret);       \
-      exit(1);                                                                 \
+      exit(callerRet);                                                         \
     }                                                                          \
     waitForCallback();                                                         \
   } while (0)

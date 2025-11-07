@@ -39,7 +39,7 @@ proc runLibP2P(ctx: ptr LibP2PContext) {.async.} =
   while true:
     await ctx.reqSignal.wait()
 
-    if ctx.running.load == false:
+    if not ctx.running.load:
       break
 
     # Trying to get a request from the libp2p requestor thread

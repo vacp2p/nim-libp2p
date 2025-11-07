@@ -49,7 +49,7 @@ proc buildSample(filename: string, run = false, extraFlags = "") =
     exec "./examples/" & filename.toExe
   rmFile "examples/" & filename.toExe
 
-proc buildLibrary(libType: string, params = "") =
+proc buildCBindings(libType: string, params = "") =
   if not dirExists "build":
     mkDir "build"
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
@@ -158,10 +158,10 @@ task unpin, "Restore global package use":
   rmDir("nimbledeps")
 
 task libDynamic, "Generate dynamic bindings":
-  buildLibrary "dynamic", ""
+  buildCBindings "dynamic", ""
 
 task libStatic, "Generate static bindings":
-  buildLibrary "static", ""
+  buildCBindings "static", ""
 
 task examples, "Build and run examples":
   exec "nimble install -y nimpng"
@@ -170,6 +170,6 @@ task examples, "Build and run examples":
 
   buildSample("examples_run", true)
 
-  buildLibrary "static", ""
+  buildCBindings "static", ""
   exec "g++ -o build/cbindings ./examples/cbindings.c ./build/libp2p.a -pthread"
   exec "./build/cbindings"
