@@ -9,7 +9,7 @@
 
 {.used.}
 
-import std/tables
+import std/[tables, sets, sequtils]
 from std/times import now, utc
 import chronos, chronicles
 import ../../libp2p/[protocols/kademlia, switch, builders, multicodec]
@@ -233,3 +233,39 @@ suite "KadDHT - ProviderManager":
       not kad1.providerManager.providedKeys.hasKey(cid1)
       kad2.providerManager.providerRecords.len() == 1
       keyBefore != keyAfter
+
+  asyncTest "Get providers":
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+
+    await kad2.bootstrap(@[switch1.peerInfo, switch3.peerInfo])
+
+    discard await kad2.findNode(kad1.rtable.selfId)
+    discard await kad2.findNode(kad3.rtable.selfId)
+
+    let
+      key1 = kad1.rtable.selfId
+      key2 = kad2.rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    kad2.dataTable.insert(key1, value, $times.now().utc)
+    await kad2.startProviding(key1.toCid())
+
+    kad3.dataTable.insert(key2, value, $times.now().utc)
+    await kad3.startProviding(key2.toCid())
+
+    # kad1 <-> kad2 <-> kad3
+    #          key1     key2
+
+    # check if kad1 can get key1 from kad2 (directly connected)
+    let providers = (await kad1.getProviders(key1)).toSeq()
+    check providers[0].id == kad2.rtable.selfId
+
+    # check if kad1 can get key2 from kad3 (indirectly connected)
+    let providers2 = (await kad1.getProviders(key2)).toSeq()
+    check providers2[0].id == kad3.rtable.selfId
+
+    # TODO: use three kads kad1 - kad2 - kad3 and check if kad3 can get provider kad1

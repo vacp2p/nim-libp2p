@@ -175,7 +175,7 @@ proc handleAddProvider*(
 
 proc dispatchGetProviders(
     switch: Switch, peer: PeerId, key: Key
-): Future[Providers] {.
+): Future[HashSet[Provider]] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
 .} =
   let conn = await switch.dial(peer, KadCodec)
@@ -188,29 +188,59 @@ proc dispatchGetProviders(
     error "GetProviders reply decode fail", error = error, conn = conn
     return
 
-  var providers: Providers
+  var providers: HashSet[Provider]
   for peer in reply.providerPeers:
     let p = PeerId.init(peer.id).valueOr:
       debug "Invalid peer id received", peerId = peer.id, error = error
       continue
-    providers.incl(p)
+    providers.incl(peer)
 
   return providers
 
 proc getProviders*(
     kad: KadDHT, key: Key
-): Future[Providers] {.async: (raises: [CancelledError]), gcsafe.} =
+): Future[HashSet[Provider]] {.async: (raises: [CancelledError]), gcsafe.} =
   ## Get providers for a given `key` from the nodes closest to that `key`.
 
-  var allProviders: Providers
+  var allProviders: HashSet[Provider]
 
   for chunk in (await kad.findNode(key)).toChunks(kad.config.alpha):
-    let futures = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
+    let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
     try:
-      for providers in (await futures.allFutures().wait(kad.config.timeout)):
-        allProviders.incl(providers)
+      await rpcBatch.allFutures().wait(kad.config.timeout)
+      for fut in rpcBatch:
+        if not fut.failed():
+          try:
+            allProviders.incl(fut.read())
+          except CatchableError:
+            continue
     except AsyncTimeoutError:
       debug "Some GetProviders requests timed out", key = key
       discard # Timeouts are expected; proceed with what we have
 
   allProviders
+
+proc handleGetProviders*(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let cid = msg.key.toCid()
+
+  var providers =
+    kad.providerManager.knownKeys.getOrDefault(cid, initHashSet[Provider]())
+
+  # check if we are providing the key as well
+  if kad.providerManager.providedKeys.provided.hasKey(cid):
+    providers.incl(kad.switch.peerInfo.toPeer())
+
+  try:
+    await conn.writeLp(
+      Message(
+        msgType: MessageType.getProviders,
+        key: msg.key,
+        closerPeers: kad.findClosestPeers(msg.key),
+        providerPeers: providers.toSeq(),
+      ).encode().buffer
+    )
+  except LPStreamError as exc:
+    debug "Failed to send get-providers RPC reply", conn = conn, err = exc.msg
+    return

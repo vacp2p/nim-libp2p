@@ -170,8 +170,6 @@ type
     buckets*: seq[Bucket]
     config*: RoutingTableConfig
 
-  Providers* = HashSet[PeerId]
-
   Provider* = Peer
 
   ProviderRecord* = object
