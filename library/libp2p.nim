@@ -133,7 +133,7 @@ proc libp2p_new(
     userData,
   )
 
-  if retCode == RET_ERR:
+  if retCode != RET_OK:
     return nil
 
   return ctx
