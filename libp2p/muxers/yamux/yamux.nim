@@ -35,6 +35,10 @@ when defined(libp2p_yamux_metrics):
     "message recv queue length (in byte)",
     buckets = [0.0, 100.0, 250.0, 1000.0, 2000.0, 3200.0, 6400.0, 25600.0, 256000.0]
 
+when defined(libp2p_network_protocols_metrics):
+  declareCounter libp2p_yamux_protocols_bytes,
+    "total sent or received bytes over yamux", ["protocol", "direction"]
+
 type
   YamuxError* = object of MuxerError
 
@@ -313,6 +317,13 @@ method readOnce*(
   # We made some room in the recv buffer let the peer know
   await channel.updateRecvWindow()
   channel.activity = true
+
+  when defined(libp2p_network_protocols_metrics):
+    if channel.protocol.len > 0:
+      libp2p_yamux_protocols_bytes.inc(
+        consumed.int64, labelValues = [channel.protocol, "in"]
+      )
+
   return consumed
 
 proc gotDataFromRemote(
@@ -387,6 +398,12 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
     try:
       await channel.conn.write(sendBuffer)
       channel.sendWindow.dec(inBuffer)
+
+      when defined(libp2p_network_protocols_metrics):
+        if channel.protocol.len > 0:
+          libp2p_yamux_protocols_bytes.inc(
+            sendBuffer.len.int64, labelValues = [channel.protocol, "out"]
+          )
     except CancelledError:
       ## Just for compiler. This should never happen as sendLoop is started by asyncSpawn.
       ## Therefore, no one owns that sendLoop's future and no one can cancel it.
