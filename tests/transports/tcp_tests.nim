@@ -24,18 +24,16 @@ import ./utils
 
 const
   message = "No Backdoors. No Masters. No Silence."
-  zeroMultiaddressStrIP4 = "/ip4/0.0.0.0/tcp/0"
-  zeroMultiaddressStrIP6 = "/ip6/::/tcp/0"
+  zeroMAStrIP4 = "/ip4/0.0.0.0/tcp/0"
+  zeroMAStrIP6 = "/ip6/::/tcp/0"
   zeroAddrIP4 = "0.0.0.0:0"
   zeroAddrIP6 = "[::]:0"
 
-template tcpListenerIPTests(suiteName: string, address: string) =
+template tcpListenerIPTests(suiteName: string, listenMA: MultiAddress) =
   block:
-    let serverListenAddr = @[MultiAddress.init(address).tryGet()]
-
     asyncTest suiteName & ":listener: handle write":
-      let server = TcpTransport.new()
-      await server.start(serverListenAddr)
+      let server = TcpTransport.new(upgrade = Upgrade())
+      await server.start(@[listenMA])
 
       proc serverHandler() {.async.} =
         let conn = await server.accept()
@@ -53,8 +51,8 @@ template tcpListenerIPTests(suiteName: string, address: string) =
       await server.stop()
 
     asyncTest suiteName & ":listener: handle read":
-      let server = TcpTransport.new()
-      await server.start(serverListenAddr)
+      let server = TcpTransport.new(upgrade = Upgrade())
+      await server.start(@[listenMA])
 
       proc serverHandler() {.async.} =
         let conn = await server.accept()
@@ -85,12 +83,11 @@ template tcpDialerIPTest(suiteName: string, address: string) =
         await transp.closeWait()
         handlerFut.complete()
 
-      let listenAddr = initTAddress(address)
-      var server = createStreamServer(listenAddr, serverHandler, {ReuseAddr})
+      var server = createStreamServer(initTAddress(address), serverHandler, {ReuseAddr})
       server.start()
 
-      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
-      let client = TcpTransport.new()
+      let ma = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
+      let client = TcpTransport.new(upgrade = Upgrade())
       let conn = await client.dial(ma)
 
       var msg = newSeq[byte](message.len)
@@ -115,12 +112,11 @@ template tcpDialerIPTest(suiteName: string, address: string) =
         await transp.closeWait()
         handlerFut.complete()
 
-      let listenAddr = initTAddress(address)
-      var server = createStreamServer(listenAddr, serveClient, {ReuseAddr})
+      var server = createStreamServer(initTAddress(address), serveClient, {ReuseAddr})
       server.start()
 
-      let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
-      let client = TcpTransport.new()
+      let ma = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
+      let client = TcpTransport.new(upgrade = Upgrade())
       let conn = await client.dial(ma)
       await conn.write(message)
 
@@ -132,30 +128,29 @@ template tcpDialerIPTest(suiteName: string, address: string) =
       await server.join()
 
 template tcpTests*() =
-  tcpListenerIPTests("ipv4", zeroMultiaddressStrIP4)
-  tcpListenerIPTests("ipv6", zeroMultiaddressStrIP6)
+  tcpListenerIPTests("ipv4", MultiAddress.init(zeroMAStrIP4).tryGet())
+  tcpListenerIPTests("ipv6", MultiAddress.init(zeroMAStrIP6).tryGet())
   tcpDialerIPTest("ipv4", zeroAddrIP4)
   tcpDialerIPTest("ipv6", zeroAddrIP6)
 
   block:
-    let zeroMultiaddress = MultiAddress.init(zeroMultiaddressStrIP4).tryGet()
+    let listenMA = MultiAddress.init(zeroMAStrIP4).tryGet()
 
     asyncTest "starting with duplicate but zero ports addresses must NOT fail":
-      let transport = TcpTransport.new()
+      let transport = TcpTransport.new(upgrade = Upgrade())
 
-      let ma = @[zeroMultiaddress, zeroMultiaddress]
-      await transport.start(ma)
+      await transport.start(@[listenMA, listenMA])
       await transport.stop()
 
     asyncTest "bind to listening port when not reachable":
-      let transport1 = TcpTransport.new()
-      await transport1.start(@[zeroMultiaddress])
+      let transport1 = TcpTransport.new(upgrade = Upgrade())
+      await transport1.start(@[listenMA])
 
-      let transport2 = TcpTransport.new()
-      await transport2.start(@[zeroMultiaddress])
+      let transport2 = TcpTransport.new(upgrade = Upgrade())
+      await transport2.start(@[listenMA])
 
-      let transport3 = TcpTransport.new()
-      await transport3.start(@[zeroMultiaddress])
+      let transport3 = TcpTransport.new(upgrade = Upgrade())
+      await transport3.start(@[listenMA])
 
       let listeningPortTransport1 = transport1.addrs[0][multiCodec("tcp")].get()
 
@@ -174,9 +169,9 @@ template tcpTests*() =
       await allFutures(transport1.stop(), transport2.stop(), transport3.stop())
 
     asyncTest "custom timeout":
-      let server: TcpTransport =
+      let server =
         TcpTransport.new(upgrade = Upgrade(), connectionsTimeout = 1.milliseconds)
-      await server.start(@[zeroMultiaddress])
+      await server.start(@[listenMA])
 
       proc serverHandler() {.async.} =
         let conn = await server.accept()
