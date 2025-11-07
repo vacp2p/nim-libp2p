@@ -83,8 +83,6 @@ template tcpDialerIPTest(suiteName: string, address: string) =
         await wstream.finish()
         await wstream.closeWait()
         await transp.closeWait()
-        server.stop()
-        server.close()
         handlerFut.complete()
 
       let listenAddr = initTAddress(address)
@@ -115,8 +113,6 @@ template tcpDialerIPTest(suiteName: string, address: string) =
 
         await rstream.closeWait()
         await transp.closeWait()
-        server.stop()
-        server.close()
         handlerFut.complete()
 
       let listenAddr = initTAddress(address)
