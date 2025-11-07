@@ -26,8 +26,8 @@ const
   message = "No Backdoors. No Masters. No Silence."
   zeroMAStrIP4 = "/ip4/0.0.0.0/tcp/0"
   zeroMAStrIP6 = "/ip6/::/tcp/0"
-  zeroTAIP4 = "0.0.0.0:0"
-  zeroTAIP6 = "[::]:0"
+  zeroTAStrIP4 = "0.0.0.0:0"
+  zeroTAStrIP6 = "[::]:0"
 
 template tcpListenerIPTests(suiteName: string, listenMA: MultiAddress) =
   block:
@@ -130,8 +130,8 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
 template tcpTests*() =
   tcpListenerIPTests("ipv4", MultiAddress.init(zeroMAStrIP4).tryGet())
   tcpListenerIPTests("ipv6", MultiAddress.init(zeroMAStrIP6).tryGet())
-  tcpDialerIPTest("ipv4", initTAddress(zeroTAIP4))
-  tcpDialerIPTest("ipv6", initTAddress(zeroTAIP6))
+  tcpDialerIPTest("ipv4", initTAddress(zeroTAStrIP4))
+  tcpDialerIPTest("ipv6", initTAddress(zeroTAStrIP6))
 
   block:
     let listenMA = MultiAddress.init(zeroMAStrIP4).tryGet()
