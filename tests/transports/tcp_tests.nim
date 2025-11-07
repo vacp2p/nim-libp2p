@@ -29,15 +29,13 @@ const
   zeroAddrIP4 = "0.0.0.0:0"
   zeroAddrIP6 = "[::]:0"
 
-proc transportProvider(): TcpTransport =
-  TcpTransport.new(upgrade = Upgrade())
 
 template tcpListenerIPTests(suiteName: string, address: string) =
   block:
     let serverListenAddr = @[MultiAddress.init(address).tryGet()]
 
     asyncTest suiteName & ":listener: handle write":
-      let server = transportProvider()
+      let server = TcpTransport.new()
       await server.start(serverListenAddr)
 
       proc serverHandler() {.async.} =
@@ -56,7 +54,7 @@ template tcpListenerIPTests(suiteName: string, address: string) =
       await server.stop()
 
     asyncTest suiteName & ":listener: handle read":
-      let server = transportProvider()
+      let server = TcpTransport.new()
       await server.start(serverListenAddr)
 
       proc serverHandler() {.async.} =
@@ -95,7 +93,7 @@ template tcpDialerIPTest(suiteName: string, address: string) =
       server.start()
 
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
-      let client = transportProvider()
+      let client = TcpTransport.new()
       let conn = await client.dial(ma)
 
       var msg = newSeq[byte](message.len)
@@ -127,7 +125,7 @@ template tcpDialerIPTest(suiteName: string, address: string) =
       server.start()
 
       let ma: MultiAddress = MultiAddress.init(server.sock.getLocalAddress()).tryGet()
-      let client = transportProvider()
+      let client = TcpTransport.new()
       let conn = await client.dial(ma)
       await conn.write(message)
 
@@ -148,20 +146,20 @@ template tcpTests*() =
     let zeroMultiaddress = MultiAddress.init(zeroMultiaddressStrIP4).tryGet()
 
     asyncTest "starting with duplicate but zero ports addresses must NOT fail":
-      let transport = transportProvider()
+      let transport = TcpTransport.new()
 
       let ma = @[zeroMultiaddress, zeroMultiaddress]
       await transport.start(ma)
       await transport.stop()
 
     asyncTest "bind to listening port when not reachable":
-      let transport1 = transportProvider()
+      let transport1 = TcpTransport.new()
       await transport1.start(@[zeroMultiaddress])
 
-      let transport2 = transportProvider()
+      let transport2 = TcpTransport.new()
       await transport2.start(@[zeroMultiaddress])
 
-      let transport3 = transportProvider()
+      let transport3 = TcpTransport.new()
       await transport3.start(@[zeroMultiaddress])
 
       let listeningPortTransport1 = transport1.addrs[0][multiCodec("tcp")].get()
