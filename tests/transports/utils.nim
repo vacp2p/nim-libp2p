@@ -173,7 +173,6 @@ proc clientRunSingleStream*(
     let conn = await client.dial("", server.addrs[0])
     let muxer = streamProvider(client, conn)
     let muxerTask = muxer.handle()
-    asyncSpawn muxerTask
 
     let stream = await muxer.newStream()
     await handler(stream)
