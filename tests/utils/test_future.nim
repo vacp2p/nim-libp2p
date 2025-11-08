@@ -10,8 +10,8 @@
 {.used.}
 
 import chronos
-import ../libp2p/utils/future
-import ./tools/[unittest]
+import ../../libp2p/utils/future
+import ../tools/[unittest]
 
 suite "Future":
   asyncTest "anyCompleted must complete with first completed future":
