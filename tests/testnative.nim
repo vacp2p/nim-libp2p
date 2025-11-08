@@ -11,23 +11,18 @@
 
 import ./tools/test_all
 import ./crypto/test_all
+import ./stream/test_all
 import ./transports/test_all
 import ./discovery/test_all
 import ./kademlia/test_all
 import ./mix/test_all
 
 import
-  testvarint, testconnection, testbridgestream, testminprotobuf, testsemaphore,
-  testheartbeat, testfuture, testzeroqueue, testbytesview
-
-import
-  testmultibase, testmultihash, testmultiaddress, testipaddr, testcid, testpeerid,
-  testsigned_envelope, testrouting_record
-
-import
-  testnameresolve, testmultistream, testbufferstream, testidentify,
-  testobservedaddrmanager, testconnmngr, testswitch, testnoise, testpeerinfo,
-  testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
+  testvarint, testminprotobuf, testsemaphore, testheartbeat, testfuture, testzeroqueue,
+  testbytesview, testmultibase, testmultihash, testmultiaddress, testipaddr, testcid,
+  testpeerid, testsigned_envelope, testrouting_record, testnameresolve, testmultistream,
+  testidentify, testobservedaddrmanager, testconnmngr, testswitch, testnoise,
+  testpeerinfo, testpeerstore, testping, testmplex, testrelayv1, testrelayv2, testyamux,
   testyamuxheader, testautonat, testautonatservice, testautonatv2, testautonatv2service,
   testautorelay, testdcutr, testhpservice, testutility, testwildcardresolverservice,
   testperf
