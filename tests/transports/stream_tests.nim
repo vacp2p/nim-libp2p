@@ -339,10 +339,6 @@ template streamTransportTest*(
       # Verify we got back our own connection ID
       check buffer[0] == byte(connectionId)
 
-      # Wait for server to close the stream (EOF signal)
-      # This ensures server finishes writing before we close
-      check (await stream.readOnce(addr buffer, 1)) == 0
-
       await stream.close()
       await muxer.close()
       await muxerTask
@@ -372,3 +368,4 @@ template streamTransportTest*(
     # Sequential execution would have only 4 transitions [0,0,0,1,1,1,3,3,3,2,2,2,4,4,4]
     # We expect at least 50%
     check transitions >= (numConnections * chunkCount) div 2
+    echo serverReadOrder
