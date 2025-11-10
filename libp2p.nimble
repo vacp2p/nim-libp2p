@@ -10,7 +10,7 @@ skipDirs = @["tests", "examples", "Nim", "tools", "scripts", "docs"]
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
-  "websock >= 0.2.1", "unittest2", "results", "quic >= 0.5.2",
+  "websock >= 0.2.1", "unittest2", "results", "quic >= 0.5.2", "taskpools >= 0.1.0",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
@@ -23,7 +23,7 @@ let cfg =
   (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
   " --threads:on --opt:speed"
 
-import hashes, strutils
+import hashes, strutils, os
 
 proc runTest(filename: string, moreoptions: string = "") =
   var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags
@@ -48,6 +48,30 @@ proc buildSample(filename: string, run = false, extraFlags = "") =
   if run:
     exec "./examples/" & filename.toExe
   rmFile "examples/" & filename.toExe
+
+proc buildCBindings(libType: string, params = "") =
+  if not dirExists "build":
+    mkDir "build"
+  # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
+  var extra_params = params
+  for i in 2 ..< paramCount():
+    extra_params &= " " & paramStr(i)
+
+  let ext =
+    if libType == "static":
+      "a"
+    else:
+      when defined(windows):
+        "dll"
+      elif defined(macosx):
+        "dylib"
+      else:
+        "so"
+  let app = if libType == "static": "staticlib" else: "lib"
+
+  exec nimc & " " & lang & " --out:build/libp2p." & ext & " --threads:on --app:" & app &
+    " --opt:size --noMain --mm:refc --header --undef:metrics --nimMainPrefix:libp2p --nimcache:nimcache -d:asyncTimer=system " &
+    cfg & " " & flags & " cbind/libp2p.nim"
 
 proc tutorialToMd(filename: string) =
   let markdown = gorge "cat " & filename & " | " & nimc & " " & lang &
@@ -85,13 +109,6 @@ task website, "Build the website":
   tutorialToMd("examples/tutorial_6_game.nim")
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
-
-task examples, "Build and run examples":
-  exec "nimble install -y nimpng"
-  exec "nimble install -y nico --passNim=--skipParentCfg"
-  buildSample("examples_build", false, "--styleCheck:off") # build only
-
-  buildSample("examples_run", true)
 
 # pin system
 # while nimble lockfile
@@ -136,3 +153,20 @@ task install_pinned, "Reads the lockfile":
 
 task unpin, "Restore global package use":
   rmDir("nimbledeps")
+
+task libDynamic, "Generate dynamic bindings":
+  buildCBindings "dynamic", ""
+
+task libStatic, "Generate static bindings":
+  buildCBindings "static", ""
+
+task examples, "Build and run examples":
+  exec "nimble install -y nimpng"
+  exec "nimble install -y nico --passNim=--skipParentCfg"
+  buildSample("examples_build", false, "--styleCheck:off") # build only
+
+  buildSample("examples_run", true)
+
+  buildCBindings "static", ""
+  exec "g++ -o build/cbindings ./examples/cbindings.c ./build/libp2p.a -pthread"
+  exec "./build/cbindings"
