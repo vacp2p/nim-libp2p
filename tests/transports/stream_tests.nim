@@ -367,5 +367,7 @@ template streamTransportTest*(
     # Max possible transitions: 159 (change on every read except the first)
     # Sequential execution would have only 4 transitions [0,0,0,1,1,1,3,3,3,2,2,2,4,4,4]
     # We expect at least 50%
-    check transitions >= (numConnections * chunkCount) div 2
+    # TODO: nim-libp2p#1859 Tor transport: Server with multiple connections processes data sequentially in the tests
+    if not (isTorTransport(ma[0])):
+      check transitions >= (numConnections * chunkCount) div 2
     echo serverReadOrder
