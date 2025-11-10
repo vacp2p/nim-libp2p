@@ -93,9 +93,6 @@ task testnative, "Runs libp2p native tests":
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/test_all", "-d:libp2p_gossipsub_1_4")
 
-task testfilter, "Run PKI filter test":
-  runTest("testpkifilter")
-
 task testintegration, "Runs integraion tests":
   runTest("testintegration")
 
