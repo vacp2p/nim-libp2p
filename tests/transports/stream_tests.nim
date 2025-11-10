@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, stew/byteutils
+import chronos, stew/byteutils, std/random
 import ../../libp2p/[stream/connection, transports/transport, muxers/muxer]
 import ../tools/[stream]
 import ./utils
@@ -265,7 +265,11 @@ template streamTransportTest*(
 
   asyncTest "server with multiple parallel connections":
     let ma = @[MultiAddress.init(address).tryGet()]
+    const messageSize = 2 * 1024
+    const chunkSize = 64
+    const chunkCount = 32
     const numConnections = 5
+    var serverReadOrder: seq[byte] = @[]
 
     # Track when stream handlers complete
     var serverStreamHandlerFuts: array[numConnections, Future[void]]
@@ -283,17 +287,25 @@ template streamTransportTest*(
         proc setupConnection(conn: Connection, muxer: Muxer, handlerIndex: int) =
           muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
             noExceptionWithStreamClose(stream):
-              var buffer: array[1, byte]
-              await stream.readExactly(addr buffer, 1)
-              await stream.write(@buffer)
+              # Read data in chunks with random delay
+              var receivedData: seq[byte] = @[]
+              while receivedData.len < messageSize:
+                var chunk = newSeq[byte](chunkSize)
+                let bytesRead = await stream.readOnce(addr chunk[0], chunkSize)
+                if bytesRead == 0:
+                  break
+                receivedData.add(chunk[0 ..< bytesRead])
+                serverReadOrder.add(chunk[0])
+                # Random delay between reads (20-100ms)
+                await sleepAsync(rand(20 .. 100).milliseconds)
+
+              await stream.write(@[byte(receivedData[0])])
 
               # Signal that this stream handler is done
               serverStreamHandlerFuts[handlerIndex].complete()
 
           let startStreamHandlerAndCleanup = proc() {.async.} =
-            let muxerTask = muxer.handle()
-
-            await muxerTask
+            await muxer.handle()
 
             # Wait for the stream handler to complete before closing
             await serverStreamHandlerFuts[handlerIndex]
@@ -313,7 +325,13 @@ template streamTransportTest*(
       let muxerTask = muxer.handle()
 
       let stream = await muxer.newStream()
-      await stream.write(@[byte(connectionId)])
+
+      # Write data in chunks with random delay
+      let message = newData(chunkSize, byte(connectionId))
+      for i in 0 ..< chunkCount:
+        await stream.write(message)
+        # Random delay between writes (20-100ms)
+        await sleepAsync(rand(20 .. 100).milliseconds)
 
       var buffer: array[1, byte]
       await stream.readExactly(addr buffer, 1)
@@ -342,3 +360,15 @@ template streamTransportTest*(
     await allFutures(clientFuts)
     await serverTask
     await server.stop()
+
+    # Assert parallelism by counting transitions between different connection IDs
+    var transitions = 0
+    for i in 1 ..< serverReadOrder.len:
+      if serverReadOrder[i] != serverReadOrder[i - 1]:
+        transitions += 1
+
+    # Total reads: 5 connections × 32 chunks = 160
+    # Max possible transitions: 159 (change on every read except the first)
+    # Sequential execution would have only 4 transitions [0,0,0,1,1,1,3,3,3,2,2,2,4,4,4]
+    # We expect at least 50%
+    check transitions >= (numConnections * chunkCount) div 2
