@@ -52,9 +52,7 @@ jobs:
       - name: Run test suite with coverage flags
         run: |
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
-          nimble testnative
-          nimble testpubsub
-          nimble testfilter
+          nimble test
 
       - name: Run coverage
         run: |
@@ -66,5 +64,8 @@ jobs:
           genhtml coverage/coverage.f.info --output-directory coverage/output
 
       - name: Upload coverage to codecov
-        run: |
-          bash <(curl -s https://codecov.io/bash) -f coverage/coverage.f.info || echo "Codecov did not collect coverage reports"
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage/coverage.f.info
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
