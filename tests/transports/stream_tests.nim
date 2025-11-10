@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, stew/byteutils
+import chronos, stew/byteutils, std/random
 import ../../libp2p/[stream/connection, transports/transport, muxers/muxer]
 import ../tools/[stream]
 import ./utils
@@ -27,7 +27,7 @@ template streamTransportTest*(
     let ma = @[MultiAddress.init(address).tryGet()]
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
+      noExceptionWithStreamClose(stream):
         var buffer: array[clientMessage.len, byte]
         await stream.readExactly(addr buffer, clientMessage.len)
         check string.fromBytes(buffer) == clientMessage
@@ -35,7 +35,7 @@ template streamTransportTest*(
         await stream.write(serverMessage)
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
+      noExceptionWithStreamClose(stream):
         await stream.write(clientMessage)
 
         var buffer: array[serverMessage.len, byte]
@@ -50,12 +50,12 @@ template streamTransportTest*(
     let ma = @[MultiAddress.init(address).tryGet()]
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
+      noExceptionWithStreamClose(stream):
         check (await stream.readLp(100)) == fromHex("1234")
         await stream.writeLp(fromHex("5678"))
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
+      noExceptionWithStreamClose(stream):
         await stream.writeLp(fromHex("1234"))
         check (await stream.readLp(100)) == fromHex("5678")
 
@@ -65,21 +65,10 @@ template streamTransportTest*(
 
   asyncTest "EOF handling - first readOnce at EOF + repeated reads":
     let ma = @[MultiAddress.init(address).tryGet()]
+    var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
-        var initData: array[1, byte]
-        await stream.readExactly(addr initData, 1)
-        await stream.write(serverMessage)
-
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
-        # Quic does not signal the server about new stream
-        # The peer can only accept the stream after data
-        # has been sent to the stream, so we send a "hello"
-        # just so the server handlers is triggered
-        await stream.write(newData(1))
-
+      noExceptionWithStreamClose(stream):
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
         check string.fromBytes(buffer) == serverMessage
@@ -96,6 +85,14 @@ template streamTransportTest*(
         expect LPStreamRemoteClosedError:
           await stream.readExactly(addr buffer, 1)
 
+        serverHandlerDone.complete()
+
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(serverMessage)
+        await stream.closeWrite()
+        await serverHandlerDone
+
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
@@ -108,7 +105,7 @@ template streamTransportTest*(
       let conn = await server.accept()
       let muxer = streamProvider(server, conn)
       muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        noException(stream):
+        noExceptionWithStreamClose(stream):
           var initData: array[1, byte]
           await stream.readExactly(addr initData, 1)
           # Custom pattern: closes muxer/connection inside the stream handler to force immediate shutdown.
@@ -120,7 +117,7 @@ template streamTransportTest*(
       serverMuxerTask = muxer.handle()
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
+      noExceptionWithStreamClose(stream):
         # Quic does not signal the server about new stream
         # The peer can only accept the stream after data
         # has been sent to the stream, so we send a "hello"
@@ -147,21 +144,10 @@ template streamTransportTest*(
 
   asyncTest "incomplete read":
     let ma = @[MultiAddress.init(address).tryGet()]
+    var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
-        var initData: array[1, byte]
-        await stream.readExactly(addr initData, 1)
-        await stream.write(serverMessage)
-
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
-        # Quic does not signal the server about new stream
-        # The peer can only accept the stream after data
-        # has been sent to the stream, so we send a "hello"
-        # just so the server handlers is triggered
-        await stream.write(newData(1))
-
+      noExceptionWithStreamClose(stream):
         var buffer: array[2 * serverMessage.len, byte]
 
         expect LPStreamIncompleteError:
@@ -170,35 +156,23 @@ template streamTransportTest*(
         # Verify that partial data was read before EOF
         check string.fromBytes(buffer[0 ..< serverMessage.len]) == serverMessage
 
+        serverHandlerDone.complete()
+
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(serverMessage)
+        await stream.closeWrite()
+        await serverHandlerDone
+
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
-  asyncTest "server closeWrite - client can still write":
+  asyncTest "client closeWrite - server can still write":
     let ma = @[MultiAddress.init(address).tryGet()]
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
-        var initData: array[1, byte]
-        await stream.readExactly(addr initData, 1)
-
-        # Server sends data and closes its write side
-        await stream.write(serverMessage)
-        await stream.closeWrite()
-
-        # Server should still be able to read from client
-        var buffer: array[clientMessage.len, byte]
-        await stream.readExactly(addr buffer, clientMessage.len)
-        check string.fromBytes(buffer) == clientMessage
-
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
-        # Quic does not signal the server about new stream
-        # The peer can only accept the stream after data
-        # has been sent to the stream, so we send a "hello"
-        # just so the server handlers is triggered
-        await stream.write(newData(1))
-
+      noExceptionWithStreamClose(stream):
         # Client reads server data
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
@@ -211,6 +185,17 @@ template streamTransportTest*(
         # Client should still be able to write back to server
         await stream.write(clientMessage)
 
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        # Server sends data and closes its write side
+        await stream.write(serverMessage)
+        await stream.closeWrite()
+
+        # Server should still be able to read from client
+        var buffer: array[clientMessage.len, byte]
+        await stream.readExactly(addr buffer, clientMessage.len)
+        check string.fromBytes(buffer) == clientMessage
+
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
@@ -220,25 +205,178 @@ template streamTransportTest*(
     const messageSize = 2048
     const chunkSize = 256
     let message = newData(messageSize)
+    var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
-        var initData: array[1, byte]
-        await stream.readExactly(addr initData, 1)
-        await stream.write(message)
-
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noException(stream):
-        # Quic does not signal the server about new stream
-        # The peer can only accept the stream after data
-        # has been sent to the stream, so we send a "hello"
-        # just so the server handlers is triggered
-        await stream.write(newData(1))
-
+      noExceptionWithStreamClose(stream):
         let receivedData =
           await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
         check receivedData == message
+        serverHandlerDone.complete()
+
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(message)
+        await serverHandlerDone
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
+
+  asyncTest "stream with multiple parallel writes":
+    let ma = @[MultiAddress.init(address).tryGet()]
+    const messageSize = 2 * 1024 * 1024
+    const chunkSize = 256 * 1024
+    const parallelWrites = 10
+    let message = newData(messageSize)
+    var serverHandlerDone = newFuture[void]()
+
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        const expectedSize = messageSize * parallelWrites
+        let receivedData =
+          await readStreamByChunkTillEOF(stream, chunkSize, expectedSize)
+        check receivedData.len == expectedSize
+
+        # each task sends unique data, but the arrival order is unpredictable.
+        # we verify that all consecutive segments of the data stream contain identical values.
+        # example: valid → `aaaaabbbbbccccc`; invalid → `aaabbbbbccaaccc`
+        for i in 0 ..< parallelWrites:
+          let offset = i * messageSize
+          let expectedValue = receivedData[offset]
+          # all elements of same data have to be the same
+          for j in 0 ..< messageSize:
+            check receivedData[offset + j] == expectedValue
+            if receivedData[offset + j] != expectedValue:
+              break # stop on first mismatch (not to pollute stdout)
+
+        serverHandlerDone.complete()
+
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        var writeFuts: seq[Future[void]] = @[]
+        for i in 0 ..< parallelWrites:
+          # each write has to have unique data
+          let message = newData(messageSize, uint8(i + 1))
+          let fut = stream.write(message)
+          writeFuts.add(fut)
+        await allFutures(writeFuts)
+        await serverHandlerDone
+
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+    )
+
+  asyncTest "server with multiple parallel connections":
+    let ma = @[MultiAddress.init(address).tryGet()]
+    const chunkSize = 64
+    const chunkCount = 32
+    const messageSize = chunkSize * chunkCount
+    const numConnections = 5
+    var serverReadOrder: seq[byte] = @[]
+
+    # Track when stream handlers complete
+    var serverStreamHandlerFuts: array[numConnections, Future[void]]
+    for i in 0 ..< numConnections:
+      serverStreamHandlerFuts[i] = newFuture[void]()
+
+    proc serverHandler(server: Transport) {.async.} =
+      # Accept multiple connections and handle them
+      var futs: seq[Future[void]]
+      for i in 0 ..< numConnections:
+        let conn = await server.accept()
+        let muxer = streamProvider(server, conn)
+
+        # Use a proc to properly capture loop index
+        proc setupConnection(conn: Connection, muxer: Muxer, handlerIndex: int) =
+          muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+            noExceptionWithStreamClose(stream):
+              # Read data in chunks with random delay
+              var receivedData: seq[byte] = @[]
+              while receivedData.len < messageSize:
+                var chunk = newSeq[byte](chunkSize)
+                let bytesRead = await stream.readOnce(addr chunk[0], chunkSize)
+                if bytesRead == 0:
+                  break
+                receivedData.add(chunk[0 ..< bytesRead])
+                serverReadOrder.add(chunk[0])
+                # Random delay between reads (20-100ms)
+                # Will block current future (stream handler) and give opportunity to next future to execute. 
+                # Doing this improves likelihood of parallel data transition on the connections.
+                await sleepAsync(rand(20 .. 100).milliseconds)
+
+              check receivedData == newData(messageSize, byte(handlerIndex))
+
+              # Send back ID
+              await stream.write(@[byte(receivedData[0])])
+
+              # Signal that this stream handler is done
+              serverStreamHandlerFuts[handlerIndex].complete()
+
+          let startStreamHandlerAndCleanup = proc() {.async.} =
+            await muxer.handle()
+
+            # Wait for the stream handler to complete before closing
+            await serverStreamHandlerFuts[handlerIndex]
+
+            await muxer.close()
+            await conn.close()
+
+          futs.add(startStreamHandlerAndCleanup())
+
+        setupConnection(conn, muxer, i)
+      await allFutures(futs)
+
+    proc runClient(server: Transport, connectionId: int) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial(server.addrs[0])
+      let muxer = streamProvider(client, conn)
+      let muxerTask = muxer.handle()
+
+      let stream = await muxer.newStream()
+
+      # Write data in chunks with random delay
+      let message = newData(chunkSize, byte(connectionId))
+      for i in 0 ..< chunkCount:
+        await stream.write(message)
+        # Random delay between writes (20-100ms)
+        await sleepAsync(rand(20 .. 100).milliseconds)
+
+      var buffer: array[1, byte]
+      await stream.readExactly(addr buffer, 1)
+
+      # Verify we got back our own connection ID
+      check buffer[0] == byte(connectionId)
+
+      await stream.close()
+      await muxer.close()
+      await muxerTask
+      await conn.close()
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverTask = serverHandler(server)
+
+    # Start multiple concurrent clients
+    var clientFuts: seq[Future[void]]
+    for i in 0 ..< numConnections:
+      clientFuts.add(runClient(server, i))
+
+    await allFutures(clientFuts)
+    await serverTask
+    await server.stop()
+
+    # Assert parallelism by counting transitions between different connection IDs
+    var transitions = 0
+    for i in 1 ..< serverReadOrder.len:
+      if serverReadOrder[i] != serverReadOrder[i - 1]:
+        transitions += 1
+
+    # Total reads: 5 connections × 32 chunks = 160
+    # Max possible transitions: 159 (change on every read except the first)
+    # Sequential execution would have only 4 transitions [0,0,0,1,1,1,3,3,3,2,2,2,4,4,4]
+    # We expect at least 50%
+    # TODO: nim-libp2p#1859 Tor transport: Server with multiple connections processes data sequentially in the tests
+    if not (isTorTransport(ma[0])):
+      check transitions >= (numConnections * chunkCount) div 2
+    echo serverReadOrder

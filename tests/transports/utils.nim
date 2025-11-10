@@ -138,7 +138,7 @@ proc extractPort*(ma: MultiAddress): int =
   let port = int(fromBytesBE(uint16, portBytes))
   port
 
-template noException*(stream: Connection, body) =
+template noExceptionWithStreamClose*(stream: Connection, body) =
   try:
     body
   except CatchableError as exc:
@@ -173,7 +173,6 @@ proc clientRunSingleStream*(
     let conn = await client.dial("", server.addrs[0])
     let muxer = streamProvider(client, conn)
     let muxerTask = muxer.handle()
-    asyncSpawn muxerTask
 
     let stream = await muxer.newStream()
     await handler(stream)
