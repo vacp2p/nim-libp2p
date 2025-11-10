@@ -229,6 +229,7 @@ template streamTransportTest*(
     const chunkSize = 256 * 1024
     const parallelWrites = 10
     let message = newData(messageSize)
+    var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -249,6 +250,8 @@ template streamTransportTest*(
             if receivedData[offset + j] != expectedValue:
               break # stop on first mismatch (not to pollute stdout)
 
+        serverHandlerDone.complete()
+
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         var writeFuts: seq[Future[void]] = @[]
@@ -258,6 +261,7 @@ template streamTransportTest*(
           let fut = stream.write(message)
           writeFuts.add(fut)
         await allFutures(writeFuts)
+        await serverHandlerDone
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
