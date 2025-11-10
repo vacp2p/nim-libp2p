@@ -265,9 +265,9 @@ template streamTransportTest*(
 
   asyncTest "server with multiple parallel connections":
     let ma = @[MultiAddress.init(address).tryGet()]
-    const messageSize = 2 * 1024
     const chunkSize = 64
     const chunkCount = 32
+    const messageSize = chunkSize * chunkCount
     const numConnections = 5
     var serverReadOrder: seq[byte] = @[]
 
@@ -297,8 +297,13 @@ template streamTransportTest*(
                 receivedData.add(chunk[0 ..< bytesRead])
                 serverReadOrder.add(chunk[0])
                 # Random delay between reads (20-100ms)
+                # Will block current future (stream handler) and give opportunity to next future to execute. 
+                # Doing this improves likelihood of parallel data transition on the connections.
                 await sleepAsync(rand(20 .. 100).milliseconds)
 
+              check receivedData == newData(messageSize, byte(handlerIndex))
+
+              # Send back ID
               await stream.write(@[byte(receivedData[0])])
 
               # Signal that this stream handler is done
