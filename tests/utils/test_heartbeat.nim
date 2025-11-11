@@ -13,8 +13,8 @@
 # (up to 7 ms), so we skip test there
 when not defined(macosx):
   import chronos
-  import ../libp2p/utils/heartbeat
-  import ./tools/[unittest]
+  import ../../libp2p/utils/heartbeat
+  import ../tools/[unittest]
 
   suite "Heartbeat":
     asyncTest "simple heartbeat":

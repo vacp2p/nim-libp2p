@@ -9,8 +9,8 @@
 
 {.used.}
 
-import ../libp2p/utils/zeroqueue
-import ./tools/[unittest]
+import ../../libp2p/utils/zeroqueue
+import ../tools/[unittest]
 
 proc toSeq(p: pointer, length: int): seq[byte] =
   let b = cast[ptr UncheckedArray[byte]](p)
