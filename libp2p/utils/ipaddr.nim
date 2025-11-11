@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import net, strutils
+import net, chronicles, strutils
 
 import ../switch, ../multiaddress, ../multicodec
 
@@ -39,25 +39,15 @@ proc hasPublicIPAddress*(): bool {.raises: [].} =
   let ip =
     try:
       getPrimaryIPAddr()
-    except CatchableError:
+    except CatchableError as e:
+      error "Unable to get primary ip address", description = e.msg
       return false
   return ip.isIPv4() and ip.isPublic()
 
 proc getPublicIPAddress*(): IpAddress {.raises: [OSError, ValueError].} =
-  let ip =
-    try:
-      getPrimaryIPAddr()
-    except OSError as exc:
-      raise exc
-    except ValueError as exc:
-      raise exc
-    except Exception as exc:
-      raise newException(OSError, "Could not get primary IP address")
-  if not ip.isIPv4():
-    raise newException(ValueError, "Host does not have an IPv4 address")
-  if not ip.isPublic():
+  if not hasPublicIPAddress():
     raise newException(ValueError, "Host does not have a public IPv4 address")
-  ip
+  return getPrimaryIPAddr()
 
 proc ipAddrMatches*(
     lookup: MultiAddress, addrs: seq[MultiAddress], ip4: bool = true
