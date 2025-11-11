@@ -10,8 +10,8 @@
 {.used.}
 
 import chronos
-import ../libp2p/[stream/connection, stream/bufferstream]
-import ./tools/[unittest]
+import ../../libp2p/[stream/connection, stream/bufferstream]
+import ../tools/[unittest]
 
 suite "Connection":
   asyncTest "close":
