@@ -267,6 +267,101 @@ template streamTransportTest*(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
+  asyncTest "connection with multiple parallel streams":
+    let ma = @[MultiAddress.init(address).tryGet()]
+    const chunkSize = 64
+    const chunkCount = 32
+    const messageSize = chunkSize * chunkCount
+    const numStreams = 5
+    var serverReadOrder: seq[byte] = @[]
+    var serverHandlerDone = newFuture[void]()
+    var completedStreams = 0
+
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        var receivedData: seq[byte] = @[]
+
+        while receivedData.len < messageSize:
+          var chunk = newSeq[byte](chunkSize)
+          let bytesRead = await stream.readOnce(addr chunk[0], chunkSize)
+          if bytesRead == 0:
+            break
+          receivedData.add(chunk[0 ..< bytesRead])
+          serverReadOrder.add(chunk[0])
+          # Random delay between reads to allow parallel data transition between streams.
+          await sleepAsync(rand(20 .. 100).milliseconds)
+
+        check receivedData.len == messageSize
+
+        # Send back the stream ID (first byte of received data)
+        await stream.write(@[byte(receivedData[0])])
+
+        completedStreams += 1
+        if completedStreams == numStreams:
+          serverHandlerDone.complete()
+
+    proc runClient(server: Transport) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial(server.addrs[0])
+      let muxer = streamProvider(client, conn)
+      let muxerTask = muxer.handle()
+
+      var futs: seq[Future[void]]
+      for i in 0 ..< numStreams:
+        let stream = await muxer.newStream()
+        let chunkMessage = newData(chunkSize, byte(i))
+
+        # Use a capturing proc to properly bind loop variables
+        proc startWriteAndClose(
+            stream: Connection, chunkMessage: seq[byte], streamId: int
+        ): Future[void] {.async.} =
+          # Write data in chunks with random delays
+          for j in 0 ..< chunkCount:
+            await stream.write(chunkMessage)
+            await sleepAsync(rand(20 .. 100).milliseconds)
+
+          # Read response from server to verify stream independence
+          var buffer: array[1, byte]
+          await stream.readExactly(addr buffer, 1)
+
+          # Verify we got back our own stream ID
+          check buffer[0] == byte(streamId)
+
+          await stream.close()
+
+        futs.add(startWriteAndClose(stream, chunkMessage, i))
+
+      await allFutures(futs)
+
+      # Wait for server to process all streams before closing muxer
+      await serverHandlerDone
+
+      await muxer.close()
+      await muxerTask
+      await conn.close()
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+    await runClient(server)
+    await serverTask
+    await server.stop()
+
+    # Assert parallelism by counting transitions between different stream IDs
+    var transitions = 0
+    for i in 1 ..< serverReadOrder.len:
+      if serverReadOrder[i] != serverReadOrder[i - 1]:
+        transitions += 1
+
+    # Total reads: 5 streams × 32 chunks = 160
+    # Max possible transitions: 159 (change on every read except the first)
+    # Sequential execution would have only 4 transitions [0,0,0,1,1,1,3,3,3,2,2,2,4,4,4]
+    # We expect at least 50%
+    check transitions >= (numStreams * chunkCount) div 2
+    echo serverReadOrder
+
   asyncTest "server with multiple parallel connections":
     let ma = @[MultiAddress.init(address).tryGet()]
     const chunkSize = 64
