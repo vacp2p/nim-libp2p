@@ -10,8 +10,8 @@
 {.used.}
 
 import chronos, random
-import ../libp2p/utils/semaphore
-import ./tools/[unittest]
+import ../../libp2p/utils/semaphore
+import ../tools/[unittest]
 
 randomize()
 

@@ -10,8 +10,8 @@
 {.used.}
 
 import chronos, stew/byteutils
-import ./tools/[unittest]
-import ../libp2p/stream/bridgestream
+import ../../libp2p/stream/bridgestream
+import ../tools/[unittest]
 
 suite "BridgeStream":
   asyncTest "send-receive":
