@@ -92,7 +92,5 @@ jobs:
         run: |
           nim --version
           nimble --version
-
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          nimble testintegration
+          nim r -d:libp2p_autotls_support -d:chronicles_log_level=DEBUG tests/testintegration.nim
 
