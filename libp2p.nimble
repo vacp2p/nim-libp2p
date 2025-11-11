@@ -38,7 +38,7 @@ proc runTest(filename: string, moreoptions: string = "") =
   # step 1: compile test binary
   exec compileCmd & " tests/" & filename
   # step 2: run binary
-  exec "./tests/" & filename.toExe & " --output-level=VERBOSE"
+  exec "./tests/" & filename.toExe & " --output-level=VERBOSE --nocapture"
   # step 3: remove binary
   rmFile "tests/" & filename.toExe
 
