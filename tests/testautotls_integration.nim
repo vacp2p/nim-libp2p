@@ -76,7 +76,7 @@ when defined(linux) and defined(amd64):
 
     asyncTest "AutotlsService correctly downloads challenges":
       if not hasPublicIPAddress():
-        skip() # host doesn't have public IPv4 address
+        skip()
         return
 
       let switch = SwitchBuilder

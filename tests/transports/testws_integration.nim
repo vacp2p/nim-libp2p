@@ -35,8 +35,8 @@ suite "WebSocket transport integration":
     var ipAddress: IpAddress
     try:
       ipAddress = getPublicIPAddress()
-    except:
-      skip() # host doesn't have public IPv4 address
+    except CatchableError:
+      skip()
       return
 
     let switch1 = SwitchBuilder
