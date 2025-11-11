@@ -200,6 +200,61 @@ template streamTransportTest*(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
+  asyncTest "closing session should close all streams":
+    let ma = @[MultiAddress.init(address).tryGet()]
+    const numStreams = 20
+    const numIncomplete = 10
+    const numComplete = numStreams - numIncomplete
+    var successfulReadsFut = newFuture[void]()
+    var successfulReadsCount = 0
+
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        try:
+          var buffer: array[clientMessage.len, byte]
+          await stream.readExactly(addr buffer[0], clientMessage.len)
+          check string.fromBytes(buffer) == clientMessage
+
+          successfulReadsCount += 1
+          if successfulReadsCount == numComplete:
+            successfulReadsFut.complete()
+        except LPStreamIncompleteError:
+          discard
+
+    proc runClient(server: Transport) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial(server.addrs[0])
+      let muxer = streamProvider(client, conn)
+      let muxerTask = muxer.handle()
+
+      # 10 streams: send incomplete messages (will block)
+      for i in 0 ..< numIncomplete:
+        let stream = await muxer.newStream()
+        await stream.write(clientMessage[0 ..< 10])
+
+      # 10 streams: send complete messages (will finish successfully)
+      for i in 0 ..< numComplete:
+        let stream = await muxer.newStream()
+        await stream.write(clientMessage)
+
+      # Wait for all 10 complete handlers to finish
+      await successfulReadsFut
+
+      # Will cause EOF on the 10 waiting handlers 
+      # Intentionally do not close streams, they should be closed with muxer
+      await muxer.close()
+      await muxerTask
+      await conn.close()
+
+    let server = transportProvider()
+    await server.start(ma)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
+
+    await runClient(server)
+    await serverTask
+    await server.stop()
+
   asyncTest "stream caching with multiple partial reads":
     let ma = @[MultiAddress.init(address).tryGet()]
     const messageSize = 2048
