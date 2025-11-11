@@ -194,84 +194,83 @@ suite "Mix Protocol":
 
       check response != 0.seconds
 
-  when defined(libp2p_mix_experimental_exit_is_dest):
-    asyncTest "length-prefixed protocol - verify readLp fix":
-      ## This test verifies the fix for the length prefix bug where responses
-      ## from protocols using readLp() were losing their length prefix when
-      ## flowing back through the mix network.
-      const TestCodec = "/lengthprefix/test/1.0.0"
-      const readLen = 1024
+  asyncTest "length-prefixed protocol - verify readLp fix":
+    ## This test verifies the fix for the length prefix bug where responses
+    ## from protocols using readLp() were losing their length prefix when
+    ## flowing back through the mix network.
+    const TestCodec = "/lengthprefix/test/1.0.0"
+    const readLen = 1024
 
-      # Test message that will be sent and received
-      let testMessage =
-        "Privacy for everyone and transparency for people in power is one way to reduce corruption"
-      let testPayload = testMessage.toBytes()
+    # Test message that will be sent and received
+    let testMessage =
+      "Privacy for everyone and transparency for people in power is one way to reduce corruption"
+    let testPayload = testMessage.toBytes()
 
-      # Future to capture received message at destination
-      var receivedAtDest = newFuture[seq[byte]]()
+    # Future to capture received message at destination
+    var receivedAtDest = newFuture[seq[byte]]()
 
-      # Protocol handler at destination that uses writeLp
-      type LengthPrefixTestProtocol = ref object of LPProtocol
+    # Protocol handler at destination that uses writeLp
+    type LengthPrefixTestProtocol = ref object of LPProtocol
 
-      proc newLengthPrefixTestProtocol(): LengthPrefixTestProtocol =
-        let proto = LengthPrefixTestProtocol()
+    proc newLengthPrefixTestProtocol(): LengthPrefixTestProtocol =
+      let proto = LengthPrefixTestProtocol()
 
-        proc handle(
-            conn: Connection, proto: string
-        ) {.async: (raises: [CancelledError]).} =
-          try:
-            # Read the request with readLp
-            let request = await conn.readLp(1024)
-            receivedAtDest.complete(request)
+      proc handle(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          # Read the request with readLp
+          let request = await conn.readLp(1024)
+          receivedAtDest.complete(request)
 
-            # Send response with writeLp (adds length prefix)
-            let response = "Response: " & string.fromBytes(request)
-            await conn.writeLp(response.toBytes())
-          except CatchableError as e:
-            raiseAssert "Unexpected error: " & e.msg
+          # Send response with writeLp (adds length prefix)
+          let response = "Response: " & string.fromBytes(request)
+          await conn.writeLp(response.toBytes())
+        except CatchableError as e:
+          raiseAssert "Unexpected error: " & e.msg
 
-        proto.handler = handle
-        proto.codec = TestCodec
-        return proto
+      proto.handler = handle
+      proto.codec = TestCodec
+      return proto
 
-      var mixProto: seq[MixProtocol] = @[]
-      for index, _ in enumerate(switches):
-        let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-            "should have initialized mix protocol"
-          )
-        # Register with readLp behavior - this should preserve length prefix
-        proto.registerDestReadBehavior(TestCodec, readLp(readLen))
-        mixProto.add(proto)
-        switches[index].mount(proto)
-
-      let destNode = switches[^1]
-      let testProto = newLengthPrefixTestProtocol()
-      destNode.mount(testProto)
-
-      # Start all nodes
-      await switches.mapIt(it.start()).allFutures()
-
-      let conn = mixProto[0]
-        .toConnection(
-          MixDestination.exitNode(destNode.peerInfo.peerId),
-          TestCodec,
-          MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
+    var mixProto: seq[MixProtocol] = @[]
+    for index, _ in enumerate(switches):
+      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
+          "should have initialized mix protocol"
         )
-        .expect("could not build connection")
+      # Register with readLp behavior - this should preserve length prefix
+      proto.registerDestReadBehavior(TestCodec, readLp(readLen))
+      mixProto.add(proto)
+      switches[index].mount(proto)
 
-      # Send request
-      await conn.writeLp(testPayload)
+    let destNode = switches[^1]
+    let testProto = newLengthPrefixTestProtocol()
+    destNode.mount(testProto)
 
-      # Verify destination received the message correctly
-      check (await receivedAtDest.wait(5.seconds)) == testPayload
+    # Start all nodes
+    await switches.mapIt(it.start()).allFutures()
 
-      # Read response - this should work correctly with the length prefix fix
-      let response = await conn.readLp(readLen)
-      await conn.close()
+    let conn = mixProto[0]
+      .toConnection(
+        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        TestCodec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
+      )
+      .expect("could not build connection")
 
-      # Verify the response was read correctly
-      let expectedResponse = "Response: " & testMessage
-      check string.fromBytes(response) == expectedResponse
+    # Send request
+    await conn.writeLp(testPayload)
+
+    # Verify destination received the message correctly
+    check (await receivedAtDest.wait(5.seconds)) == testPayload
+
+    # Read response - this should work correctly with the length prefix fix
+    let response = await conn.readLp(readLen)
+    await conn.close()
+
+    # Verify the response was read correctly
+    let expectedResponse = "Response: " & testMessage
+    check string.fromBytes(response) == expectedResponse
 
   asyncTest "skip and remove nodes with invalid multiaddress from pool":
     # This test validates that nodes with invalid multiaddrs are:
