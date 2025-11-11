@@ -79,13 +79,13 @@ jobs:
         run: |
           nimble install -y --depsOnly
 
-      # - name: Run tests
-      #   run: |
-      #     nim --version
-      #     nimble --version
+      - name: Run tests
+        run: |
+          nim --version
+          nimble --version
 
-      #     export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-      #     nimble test
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          nimble test
 
       - name: Run integration tests
         if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}

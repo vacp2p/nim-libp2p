@@ -31,14 +31,13 @@ proc runTest(filename: string, moreoptions: string = "") =
     compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
   compileCmd &= " -d:libp2p_autotls_support"
   compileCmd &= " -d:libp2p_mix_experimental_exit_is_dest"
-  compileCmd &= " -d:chronicles_log_level=DEBUG"
   compileCmd &= " -d:libp2p_gossipsub_1_4"
   compileCmd &= " " & moreoptions & " "
 
   # step 1: compile test binary
   exec compileCmd & " tests/" & filename
   # step 2: run binary
-  exec "./tests/" & filename.toExe & " --output-level=VERBOSE --nocapture"
+  exec "./tests/" & filename.toExe & " --output-level=VERBOSE"
   # step 3: remove binary
   rmFile "tests/" & filename.toExe
 
