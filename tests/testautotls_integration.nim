@@ -75,14 +75,10 @@ when defined(linux) and defined(amd64):
         challenge.dns01.token.len > 0
 
     asyncTest "AutotlsService correctly downloads challenges":
-      echo "1"
-      try:
-        discard getPublicIPAddress()
-      except CatchableError:
+      if not hasPublicIPAddress():
         skip() # host doesn't have public IPv4 address
         return
 
-      echo "2"
       let switch = SwitchBuilder
         .new()
         .withRng(newRng())
@@ -97,12 +93,10 @@ when defined(linux) and defined(amd64):
         .withNoise()
         .build()
 
-      echo "3"
       await switch.start()
       defer:
         await switch.stop()
 
-      echo "4"
       # find autotls service in switch
       var autotls: AutotlsService = nil
       for service in switch.services:
@@ -110,58 +104,43 @@ when defined(linux) and defined(amd64):
           autotls = AutotlsService(service)
           break
 
-      echo "5"
       if autotls.isNil():
         raiseAssert "No Autotls service in switch"
 
-      echo "6"
       # wait for cert to be ready
       await autotls.certReady.wait()
 
-      echo "7"
       # clear since we'll use it again for renewal
       autotls.certReady.clear()
 
-      echo "8"
       let dnsResolver = DnsResolver.new(DefaultDnsServers)
-      echo "9"
       let base36PeerId = encodePeerId(switch.peerInfo.peerId)
-      echo "10"
       let dnsTXTRecord = (
         await dnsResolver.resolveTxt(
           "_acme-challenge." & base36PeerId & "." & AutoTLSDNSServer
         )
       )[0]
-      echo "11"
 
       # check if DNS TXT record is set
       check dnsTXTRecord.len > 0
-      echo "12"
 
       # certificate was downloaded and parsed
       let certBefore = autotls.cert.valueOr:
         raiseAssert "certificate not found"
-      echo "13"
 
       # invalidate certificate
       let invalidCert =
         AutotlsCert.new(certBefore.cert, certBefore.privkey, Moment.now - 2.hours)
-      echo "14"
       autotls.cert = Opt.some(invalidCert)
-      echo "15"
 
       # wait for cert to be renewed
       await autotls.certReady.wait()
-      echo "16"
 
       # certificate was indeed renewed
       let certAfter = autotls.cert.valueOr:
         raiseAssert "certificate not found"
-      echo "17"
 
       check certBefore.cert != certAfter.cert
-      echo "18"
 
       # cert is valid
       check certAfter.expiry > Moment.now
-      echo "19"

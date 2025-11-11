@@ -17,19 +17,31 @@ proc isIPv4*(ip: IpAddress): bool =
 proc isIPv6*(ip: IpAddress): bool =
   ip.family == IpAddressFamily.IPv6
 
-proc isPrivate*(ip: string): bool {.raises: [ValueError].} =
-  ip.startsWith("10.") or
-    (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
-    ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
+proc isPrivate*(ip: string): bool {.raises: [].} =
+  try:
+    return
+      ip.startsWith("10.") or
+      (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
+      ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
+  except ValueError:
+    return false
 
-proc isPrivate*(ip: IpAddress): bool {.raises: [ValueError].} =
+proc isPrivate*(ip: IpAddress): bool {.raises: [].} =
   isPrivate($ip)
 
-proc isPublic*(ip: string): bool {.raises: [ValueError].} =
+proc isPublic*(ip: string): bool {.raises: [].} =
   not isPrivate(ip)
 
-proc isPublic*(ip: IpAddress): bool {.raises: [ValueError].} =
+proc isPublic*(ip: IpAddress): bool {.raises: [].} =
   isPublic($ip)
+
+proc hasPublicIPAddress*(): bool {.raises: [].} =
+  let ip =
+    try:
+      getPrimaryIPAddr()
+    except CatchableError:
+      return false
+  return ip.isIPv4() and ip.isPublic()
 
 proc getPublicIPAddress*(): IpAddress {.raises: [OSError, ValueError].} =
   let ip =
