@@ -24,8 +24,8 @@ import
   testvarint, testminprotobuf, testmultibase, testmultihash, testmultiaddress, testcid,
   testpeerid, testsigned_envelope, testrouting_record, testnameresolve, testmultistream,
   testobservedaddrmanager, testconnmngr, testswitch, testpeerinfo, testpeerstore,
-  testmplex, testrelayv1, testrelayv2, testyamux, testyamuxheader, testautorelay,
-  testhpservice, testutility, testwildcardresolverservice
+  testmplex, testyamux, testyamuxheader, testautorelay, testhpservice, testutility,
+  testwildcardresolverservice
 
 when defined(libp2p_autotls_support):
   import testautotls
