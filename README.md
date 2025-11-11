@@ -76,13 +76,19 @@ nimble install -dy
 ```
 You can use `nix develop` to start a shell with Nim and Nimble.
 
-nimble 0.20.1 is required for running `testnative`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
+nimble 0.20.1 is required for running `nimble test`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
 
 ### Testing
 Run unit tests:
 ```sh
 # run all the unit tests
 nimble test
+
+# run unit tests in specific package
+nim c -r ./tests/mix/test_all
+nim c -r ./tests/kademlia/test_all
+nim c -r ./tests/pubsub/test_all
+# etc ...
 ```
 
 For a list of all available test suites, use:
