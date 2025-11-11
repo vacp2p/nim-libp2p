@@ -9,8 +9,8 @@
 
 {.used.}
 
-import ../libp2p/utils/bytesview
-import ./tools/[unittest]
+import ../../libp2p/utils/bytesview
+import ../tools/[unittest]
 
 suite "BytesView":
   test "basics":

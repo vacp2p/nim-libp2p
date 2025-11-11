@@ -10,8 +10,8 @@
 {.used.}
 
 import chronos, std/options
-import ../libp2p/[multiaddress, utils/ipaddr]
-import ./tools/[unittest]
+import ../../libp2p/[multiaddress, utils/ipaddr]
+import ../tools/[unittest]
 
 suite "IpAddr Utils":
   teardown:
