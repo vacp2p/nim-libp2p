@@ -11,7 +11,7 @@
 
 import std/options, chronos
 import
-  ../libp2p/[
+  ../../libp2p/[
     transports/tcptransport,
     upgrademngrs/upgrade,
     builders,
@@ -20,7 +20,7 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import ./tools/[unittest]
+import ../tools/[unittest]
 
 proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder

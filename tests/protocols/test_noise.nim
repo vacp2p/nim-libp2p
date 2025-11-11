@@ -11,7 +11,7 @@
 
 import chronos, stew/byteutils, chronicles
 import
-  ../libp2p/[
+  ../../libp2p/[
     switch,
     errors,
     multistream,
@@ -32,7 +32,7 @@ import
     upgrademngrs/muxedupgrade,
     connmanager,
   ]
-import ./tools/[unittest, crypto, futures]
+import ../tools/[unittest, crypto, futures]
 
 const TestCodec = "/test/proto/1.0.0"
 
