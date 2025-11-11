@@ -161,14 +161,13 @@ proc clientRunSingleStream*(
     let client = transportProvider()
     let conn = await client.dial("", server.addrs[0])
     let muxer = streamProvider(client, conn)
-    let muxerTask = muxer.handle()
+    discard muxer.handle()
 
     let stream = await muxer.newStream()
     await handler(stream)
 
     await muxer.close()
     await conn.close()
-    await muxerTask
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 

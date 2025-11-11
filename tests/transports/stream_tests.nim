@@ -97,48 +97,35 @@ template streamTransportTest*(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
     )
 
-  asyncTest "client writes after EOF":
+  asyncTest "server writes after EOF":
     let ma = @[MultiAddress.init(address).tryGet()]
-    var serverMuxerTask: Future[void]
+    var clientHandlerDone = newFuture[void]()
 
-    proc serverHandler(server: Transport) {.async.} =
-      let conn = await server.accept()
-      let muxer = streamProvider(server, conn)
-      muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
-        noExceptionWithStreamClose(stream):
-          var initData: array[1, byte]
-          await stream.readExactly(addr initData, 1)
-          # Custom pattern: closes muxer/connection inside the stream handler to force immediate shutdown.
-          # Using serverHandlerSingleStream would deadlock: client waits for server task,
-          # but muxer.handle() blocks reading messages until client closes its connection.
-          await stream.write(serverMessage)
-          await muxer.close()
-          await conn.close()
-      serverMuxerTask = muxer.handle()
-
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
-        # Quic does not signal the server about new stream
-        # The peer can only accept the stream after data
-        # has been sent to the stream, so we send a "hello"
-        # just so the server handlers is triggered
-        await stream.write(newData(1))
-
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
         check string.fromBytes(buffer) == serverMessage
-        await serverMuxerTask
+
+        await clientHandlerDone
 
         expect LPStreamEOFError:
           await stream.write(clientMessage)
 
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(serverMessage)
+
     let server = transportProvider()
     await server.start(ma)
-    let serverTask = serverHandler(server)
+    let serverTask =
+      serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
     await clientRunSingleStream(
       server, transportProvider, streamProvider, clientStreamHandler
     )
+    clientHandlerDone.complete()
+
     await serverTask
     await server.stop()
 
@@ -226,7 +213,7 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
+      discard muxer.handle()
 
       # Send incomplete messages (will block)
       const incompleteClientMessage = clientMessage[0 ..< 10]
@@ -245,7 +232,6 @@ template streamTransportTest*(
       # Will cause EOF on the waiting handlers 
       # Intentionally do not close streams, they should be closed with muxer
       await muxer.close()
-      await muxerTask
       await conn.close()
 
     let server = transportProvider()
@@ -477,7 +463,7 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
+      discard muxer.handle()
 
       let stream = await muxer.newStream()
 
@@ -496,7 +482,6 @@ template streamTransportTest*(
 
       await stream.close()
       await muxer.close()
-      await muxerTask
       await conn.close()
 
     let server = transportProvider()
