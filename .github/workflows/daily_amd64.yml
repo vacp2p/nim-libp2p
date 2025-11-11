@@ -12,7 +12,7 @@ jobs:
     with:
       nim: "[
           {'ref': 'v2.0.16', 'memory_management': 'refc'},
-          {'ref': 'v2.2.4', 'memory_management': 'refc'},
+          {'ref': 'v2.2.6', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
       cpu: "['amd64']"
@@ -23,7 +23,7 @@ jobs:
       pinned_deps: true
       nim: "[
           {'ref': 'v2.0.16', 'memory_management': 'refc'},
-          {'ref': 'v2.2.4', 'memory_management': 'refc'},
+          {'ref': 'v2.2.6', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
       cpu: "['amd64']"
