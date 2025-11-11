@@ -87,14 +87,8 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_contentids_exts=../tests/multiformat_exts/contentids_exts.nim "
   runTest("multiformat_exts/test_all", opts)
 
-task testnative, "Runs libp2p native tests":
-  runTest("testnative")
-
 task testpubsub, "Runs pubsub tests":
   runTest("pubsub/test_all", "-d:libp2p_gossipsub_1_4")
-
-task testfilter, "Run PKI filter test":
-  runTest("testpkifilter")
 
 task testintegration, "Runs integraion tests":
   runTest("testintegration")

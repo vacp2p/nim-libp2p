@@ -10,8 +10,8 @@
 {.used.}
 
 import chronos, stew/byteutils
-import ../libp2p/stream/bufferstream, ../libp2p/stream/lpstream
-import ./tools/[unittest, futures]
+import ../../libp2p/stream/[bufferstream, lpstream]
+import ../tools/[unittest, futures]
 
 suite "BufferStream":
   teardown:
