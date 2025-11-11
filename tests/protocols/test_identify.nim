@@ -25,11 +25,11 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ../tools/[unittest, crypto]
+import ./tools/[unittest, crypto, multiaddress]
 
 const
-  IPv4 = mapAnd(IP4, mapEq("tcp"))
-  IPv6 = mapAnd(IP6, mapEq("tcp"))
+  IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
+  IPv6Tcp = mapAnd(IP6, mapEq("tcp"))
 
 suite "Identify":
   teardown:
@@ -199,14 +199,10 @@ suite "Identify":
 
       check:
         # ensure both IPv4 and IPv6 addresses are used in switch.
-        IPv4.match(switch1.peerInfo.addrs[0]) == true
-        IPv4.match(switch1.peerInfo.addrs[1]) == true
-        IPv6.match(switch1.peerInfo.addrs[2]) == true
-        IPv6.match(switch1.peerInfo.addrs[3]) == true
-        IPv4.match(switch2.peerInfo.addrs[0]) == true
-        IPv4.match(switch2.peerInfo.addrs[1]) == true
-        IPv6.match(switch2.peerInfo.addrs[2]) == true
-        IPv6.match(switch2.peerInfo.addrs[3]) == true
+        countAddressesWithPattern(switch1.peerInfo.addrs, IPv4Tcp) > 1
+        countAddressesWithPattern(switch1.peerInfo.addrs, IPv6Tcp) > 1
+        countAddressesWithPattern(switch2.peerInfo.addrs, IPv4Tcp) > 1
+        countAddressesWithPattern(switch2.peerInfo.addrs, IPv6Tcp) > 1
 
         # ensure all addresses are advertized.
         # that is, peer store will have all address of other peer

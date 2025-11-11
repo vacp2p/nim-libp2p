@@ -1,4 +1,3 @@
-# Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
 #  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
@@ -9,4 +8,11 @@
 
 {.used.}
 
-import test_multiaddress, test_unittest
+import ../../libp2p/[multiaddress]
+
+proc countAddressesWithPattern*(addrs: seq[MultiAddress], pattern: MaPattern): int =
+  var count: int = 0
+  for a in addrs:
+    if pattern.match(a):
+      count.inc
+  count
