@@ -25,7 +25,7 @@ jobs:
             cpu: i386
           - os: linux-gcc-14
             cpu: amd64
-          - os: macos-14
+          - os: macos-15
             cpu: arm64
           - os: windows
             cpu: amd64
@@ -44,8 +44,8 @@ jobs:
             builder: ubuntu-24.04
             shell: bash
           - platform:
-              os: macos-14
-            builder: macos-14
+              os: macos-15
+            builder: macos-15
             shell: bash
           - platform:
               os: windows
