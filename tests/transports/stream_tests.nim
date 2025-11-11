@@ -219,6 +219,7 @@ template streamTransportTest*(
           if successfulReadsCount == numComplete:
             successfulReadsFut.complete()
         except LPStreamIncompleteError:
+          # Error is expected when muxer is closed while waiting in readExactly
           discard
 
     proc runClient(server: Transport) {.async.} =
@@ -227,20 +228,21 @@ template streamTransportTest*(
       let muxer = streamProvider(client, conn)
       let muxerTask = muxer.handle()
 
-      # 10 streams: send incomplete messages (will block)
+      # Send incomplete messages (will block)
+      const incompleteClientMessage = clientMessage[0 ..< 10]
       for i in 0 ..< numIncomplete:
         let stream = await muxer.newStream()
-        await stream.write(clientMessage[0 ..< 10])
+        await stream.write(incompleteClientMessage)
 
-      # 10 streams: send complete messages (will finish successfully)
+      # Send complete messages (will finish successfully)
       for i in 0 ..< numComplete:
         let stream = await muxer.newStream()
         await stream.write(clientMessage)
 
-      # Wait for all 10 complete handlers to finish
+      # Wait for all complete handlers to finish
       await successfulReadsFut
 
-      # Will cause EOF on the 10 waiting handlers 
+      # Will cause EOF on the waiting handlers 
       # Intentionally do not close streams, they should be closed with muxer
       await muxer.close()
       await muxerTask
@@ -359,19 +361,19 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(client, conn)
-      let muxerTask = muxer.handle()
+      discard muxer.handle()
 
       var futs: seq[Future[void]]
       for i in 0 ..< numStreams:
         let stream = await muxer.newStream()
-        let chunkMessage = newData(chunkSize, byte(i))
 
         # Use a capturing proc to properly bind loop variables
         proc startWriteAndClose(
-            stream: Connection, chunkMessage: seq[byte], streamId: int
+            stream: Connection, streamId: int
         ): Future[void] {.async.} =
           # Write data in chunks with random delays
           for j in 0 ..< chunkCount:
+            let chunkMessage = newData(chunkSize, byte(streamId))
             await stream.write(chunkMessage)
             await sleepAsync(rand(20 .. 100).milliseconds)
 
@@ -384,7 +386,7 @@ template streamTransportTest*(
 
           await stream.close()
 
-        futs.add(startWriteAndClose(stream, chunkMessage, i))
+        futs.add(startWriteAndClose(stream, i))
 
       await allFutures(futs)
 
@@ -392,7 +394,6 @@ template streamTransportTest*(
       await serverHandlerDone
 
       await muxer.close()
-      await muxerTask
       await conn.close()
 
     let server = transportProvider()
@@ -405,16 +406,11 @@ template streamTransportTest*(
     await server.stop()
 
     # Assert parallelism by counting transitions between different stream IDs
-    var transitions = 0
-    for i in 1 ..< serverReadOrder.len:
-      if serverReadOrder[i] != serverReadOrder[i - 1]:
-        transitions += 1
-
     # Total reads: 5 streams × 32 chunks = 160
     # Max possible transitions: 159 (change on every read except the first)
     # Sequential execution would have only 4 transitions [0,0,0,1,1,1,3,3,3,2,2,2,4,4,4]
     # We expect at least 50%
-    check transitions >= (numStreams * chunkCount) div 2
+    check countTransitions(serverReadOrder) >= (numStreams * chunkCount) div 2
     echo serverReadOrder
 
   asyncTest "server with multiple parallel connections":
@@ -517,16 +513,11 @@ template streamTransportTest*(
     await server.stop()
 
     # Assert parallelism by counting transitions between different connection IDs
-    var transitions = 0
-    for i in 1 ..< serverReadOrder.len:
-      if serverReadOrder[i] != serverReadOrder[i - 1]:
-        transitions += 1
-
     # Total reads: 5 connections × 32 chunks = 160
     # Max possible transitions: 159 (change on every read except the first)
     # Sequential execution would have only 4 transitions [0,0,0,1,1,1,3,3,3,2,2,2,4,4,4]
     # We expect at least 50%
     # TODO: nim-libp2p#1859 Tor transport: Server with multiple connections processes data sequentially in the tests
     if not (isTorTransport(ma[0])):
-      check transitions >= (numConnections * chunkCount) div 2
+      check countTransitions(serverReadOrder) >= (numConnections * chunkCount) div 2
     echo serverReadOrder

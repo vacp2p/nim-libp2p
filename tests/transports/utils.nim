@@ -200,3 +200,10 @@ proc runSingleStreamScenario*(
   )
   await serverTask
   await server.stop()
+
+proc countTransitions*(readOrder: seq[byte]): int =
+  var transitions = 0
+  for i in 1 ..< readOrder.len:
+    if readOrder[i] != readOrder[i - 1]:
+      transitions += 1
+  transitions
