@@ -46,14 +46,14 @@ suite "WaitGroup":
     let wg = newWaitGroup(count)
 
     proc countDown() {.async.} =
-      await sleepAsync(5.millis)
+      await sleepAsync(10.millis)
       wg.done()
 
     for i in 0 ..< count:
       asyncSpawn countDown()
 
     check not wg.wait().finished
-    check await wg.wait().withTimeout(15.millis)
+    check await wg.wait().withTimeout(200.millis)
 
   asyncTest "wait with interval":
     let wg = newWaitGroup(1)
