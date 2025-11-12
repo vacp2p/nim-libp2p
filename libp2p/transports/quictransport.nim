@@ -12,6 +12,7 @@ import chronos
 import chronicles
 import metrics
 import quic
+import quic/transport/stream
 import results
 import ../multiaddress
 import ../multicodec
@@ -109,6 +110,13 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
   except CancelledError, QuicError:
     discard
   await procCall P2PConnection(stream).closeImpl()
+
+method resetImpl*(stream: QuicStream) {.async: (raises: []).} =
+  try:
+    quic.Stream(stream.stream).reset()
+  except CatchableError as exc:
+    discard
+  await procCall P2PConnection(stream).resetImpl()
 
 # Session
 type QuicSession* = ref object of P2PConnection

@@ -40,6 +40,7 @@ type
     closeEvent*: AsyncEvent
     isClosed*: bool
     isEof*: bool
+    isReset*: bool
     objName*: string
     oid*: Oid
     dir*: Direction
@@ -54,7 +55,7 @@ type
   #        X        |           Read            |         Write
   #   Local close   |           Works           |  LPStreamClosedError
   #   Remote close  | LPStreamRemoteClosedError |         Works
-  #   Local reset   |    LPStreamClosedError    |  LPStreamClosedError
+  #   Local reset   |    LPStreamResetError     |  LPStreamResetError
   #   Remote reset  |    LPStreamResetError     |  LPStreamResetError
   # Connection down |     LPStreamConnDown      | LPStreamConnDownError
   LPStreamResetError* = object of LPStreamEOFError
@@ -333,3 +334,17 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []), public.} =
     trace "Expected EOF came", s, description = e.msg
   except LPStreamError as exc:
     debug "Unexpected error while waiting for EOF", s, description = exc.msg
+
+method resetImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.} =
+  ## Implementation of reset - called only once
+  let fut = newFuture[void]()
+  fut.complete()
+  fut
+
+method reset*(s: LPStream): Future[void] {.async: (raises: []), base, public.} =
+  if s.isReset:
+    trace "Already reset"
+    return
+  s.isReset = true
+  await s.resetImpl()
+  await s.closeImpl()
