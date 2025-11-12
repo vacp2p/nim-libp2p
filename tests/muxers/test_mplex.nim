@@ -1,5 +1,3 @@
-{.used.}
-
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,9 +7,11 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 import strformat, random, sequtils, chronos, nimcrypto/utils, chronicles, stew/byteutils
 import
-  ../libp2p/[
+  ../../libp2p/[
     errors,
     stream/connection,
     stream/bufferstream,
@@ -25,7 +25,7 @@ import
     vbuffer,
     varint,
   ]
-import ./tools/[unittest, trackers, futures, bufferstream, compare]
+import ../tools/[unittest, trackers, futures, bufferstream, compare]
 
 suite "Mplex":
   teardown:
