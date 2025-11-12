@@ -199,26 +199,19 @@ proc dispatchGetProviders(
 
 proc getProviders*(
     kad: KadDHT, key: Key
-): Future[HashSet[Provider]] {.async: (raises: [CancelledError]), gcsafe.} =
+): Future[HashSet[Provider]] {.
+    async: (raises: [LPStreamError, DialFailedError, CancelledError]), gcsafe
+.} =
   ## Get providers for a given `key` from the nodes closest to that `key`.
 
   var allProviders: HashSet[Provider]
 
   for chunk in (await kad.findNode(key)).toChunks(kad.config.alpha):
     let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
-    try:
-      await rpcBatch.allFutures().wait(kad.config.timeout)
-      for fut in rpcBatch:
-        if not fut.failed():
-          try:
-            allProviders.incl(fut.read())
-          except CatchableError:
-            continue
-    except AsyncTimeoutError:
-      debug "Some GetProviders requests timed out", key = key
-      discard # Timeouts are expected; proceed with what we have
+    for res in await rpcBatch.collectCompleted(kad.config.timeout):
+      allProviders.incl(res)
 
-  allProviders
+  return allProviders
 
 proc handleGetProviders*(
     kad: KadDHT, conn: Connection, msg: Message
@@ -243,4 +236,3 @@ proc handleGetProviders*(
     )
   except LPStreamError as exc:
     debug "Failed to send get-providers RPC reply", conn = conn, err = exc.msg
-    return
