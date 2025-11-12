@@ -11,7 +11,7 @@
 
 import chronos
 import
-  ../libp2p/[
+  ../../libp2p/[
     protocols/ping,
     multiaddress,
     peerinfo,
@@ -23,7 +23,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ./tools/[unittest]
+import ../tools/[unittest]
 
 suite "Ping":
   var

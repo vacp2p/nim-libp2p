@@ -10,10 +10,16 @@
 {.used.}
 
 import chronos
-import ../libp2p
 import
-  ../libp2p/[switch, protocols/perf/client, protocols/perf/server, protocols/perf/core]
-import ./tools/[unittest]
+  ../../libp2p/
+    [
+      builders,
+      switch,
+      protocols/perf/client,
+      protocols/perf/server,
+      protocols/perf/core,
+    ]
+import ../tools/[unittest]
 
 proc createSwitch(
     isServer: bool = false,
