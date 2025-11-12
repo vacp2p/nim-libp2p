@@ -47,36 +47,25 @@ proc isQuicTransport*(ma: MultiAddress): bool =
   ma.contains(multiCodec("udp")).get(false)
 
 proc createServerAcceptConn*(
-    server: QuicTransport, isStreamIncompleteExpected: bool = false
+    server: QuicTransport
 ): proc(): Future[void] {.
   async: (raises: [transport.TransportError, LPStreamError, CancelledError])
 .} =
   proc handler() {.
       async: (raises: [transport.TransportError, LPStreamError, CancelledError])
   .} =
-    while true:
-      let conn =
-        try:
-          await server.accept()
-        except QuicTransportAcceptStopped:
-          return # Transport is stopped
-      if conn == nil:
-        continue
+    let conn = await server.accept()
+    if conn == nil:
+      return
 
-      let stream = await getStream(QuicSession(conn), Direction.In)
-      defer:
-        await stream.close()
+    let stream = await getStream(QuicSession(conn), Direction.In)
+    defer:
+      await stream.close()
 
-      try:
-        var resp: array[6, byte]
-        await stream.readExactly(addr resp, 6)
-        check string.fromBytes(resp) == "client"
-        await stream.write("server")
-      except LPStreamIncompleteError as exc:
-        if isStreamIncompleteExpected:
-          discard
-        else:
-          raise exc
+    var resp: array[6, byte]
+    await stream.readExactly(addr resp, 6)
+    check string.fromBytes(resp) == "client"
+    await stream.write("server")
 
   return handler
 
@@ -172,14 +161,13 @@ proc clientRunSingleStream*(
     let client = transportProvider()
     let conn = await client.dial("", server.addrs[0])
     let muxer = streamProvider(client, conn)
-    let muxerTask = muxer.handle()
+    discard muxer.handle()
 
     let stream = await muxer.newStream()
     await handler(stream)
 
     await muxer.close()
     await conn.close()
-    await muxerTask
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 
@@ -200,3 +188,10 @@ proc runSingleStreamScenario*(
   )
   await serverTask
   await server.stop()
+
+proc countTransitions*(readOrder: seq[byte]): int =
+  var transitions = 0
+  for i in 1 ..< readOrder.len:
+    if readOrder[i] != readOrder[i - 1]:
+      transitions += 1
+  transitions
