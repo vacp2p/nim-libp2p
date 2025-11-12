@@ -9,7 +9,7 @@
 
 {.used.}
 
-import options
+import options, chronos
 import ../libp2p/utility
 import ./tools/[unittest]
 
@@ -83,6 +83,23 @@ suite "Utility":
     check not (compiles do:
       result:
         uint = safeConvert[int](11.uint))
+
+  asyncTest "collectCompleted collects all futures that have finished":
+    proc futFinishes(): Future[int] {.async: (raises: [CancelledError]).} =
+      await sleepAsync(1.millis)
+      return 1
+
+    proc futStalls(): Future[int] {.async: (raises: [CancelledError]).} =
+      await sleepAsync(3.seconds)
+      return 2
+
+    let
+      f1 = futFinishes()
+      f2 = futFinishes()
+      f3 = futStalls()
+      futs = @[f1, f2, f3]
+
+    check (await futs.collectCompleted(10.millis)) == @[1, 1]
 
 suite "withValue and valueOr templates":
   type TestObj = ref object

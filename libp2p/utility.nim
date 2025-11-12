@@ -11,7 +11,7 @@
 
 import std/[sets, options, macros]
 import stew/byteutils
-import results
+import results, chronos, sequtils
 
 export results
 
@@ -167,3 +167,17 @@ proc toChunks*[T](data: seq[T], size: int): seq[seq[T]] {.raises: [].} =
     result.add(data[i ..< endIndex])
     i = endIndex
   return result
+
+proc collectCompleted*[T, E](
+    futs: seq[InternalRaisesFuture[T, E]], timeout: chronos.Duration
+): Future[seq[T]] {.async: (raises: [CancelledError]).} =
+  ## Wait up to `timeout`; collect only successfully completed futures.
+  ## Ignore results from futures throwing errors
+  try:
+    await futs.allFutures().wait(timeout)
+  except AsyncTimeoutError:
+    # Some futures didn’t finish in time, ignore
+    discard
+
+  # Collect only successful results
+  return futs.filterIt(it.completed()).mapIt(it.value())
