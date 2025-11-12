@@ -9,4 +9,4 @@
 
 {.used.}
 
-import test_sync, test_multiaddress, test_unittest
+import test_mplex, test_yamux_header, test_yamux

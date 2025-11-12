@@ -13,7 +13,7 @@ import chronos, std/[sequtils, enumerate], stew/byteutils, sugar, chronicles
 import
   ../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, timedcache, rpc/message]
-import ../../tools/[unittest, futures]
+import ../../tools/[unittest, futures, sync]
 import ../utils
 
 const MsgIdSuccess = "msg id gen success"
@@ -456,10 +456,8 @@ suite "GossipSub Integration - Message Handling":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    var cRelayed: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
-    var bFinished: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
+    let cRelayed = newWaitGroup(1)
+    let bFinished = newWaitGroup(1)
     var
       aReceived = 0
       cReceived = 0
@@ -473,7 +471,7 @@ suite "GossipSub Integration - Message Handling":
     proc handlerC(topic: string, data: seq[byte]) {.async.} =
       inc cReceived
       check cReceived < 2
-      cRelayed.complete()
+      cRelayed.done()
 
     nodes[0].subscribe("foobar", handlerA)
     nodes[1].subscribe("foobar", handlerB)
@@ -488,7 +486,7 @@ suite "GossipSub Integration - Message Handling":
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
       try:
-        await cRelayed
+        await cRelayed.wait()
         # Empty A & C caches to detect duplicates
         gossip1.seen = TimedCache[SaltedId].init()
         gossip3.seen = TimedCache[SaltedId].init()
@@ -500,7 +498,7 @@ suite "GossipSub Integration - Message Handling":
             false
         )
         result = ValidationResult.Accept
-        bFinished.complete()
+        bFinished.done()
       except CancelledError:
         raiseAssert "err on slowValidator"
 
@@ -512,7 +510,7 @@ suite "GossipSub Integration - Message Handling":
       gossip3.mesh.getOrDefault("foobar").len == 2
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 2
 
-    await bFinished
+    await bFinished.wait()
 
   asyncTest "GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()

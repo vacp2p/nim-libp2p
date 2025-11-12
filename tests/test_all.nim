@@ -13,6 +13,7 @@ import ./tools/test_all
 import ./utils/test_all
 import ./crypto/test_all
 import ./stream/test_all
+import ./muxers/test_all
 import ./transports/test_all
 import ./discovery/test_all
 import ./kademlia/test_all
@@ -24,8 +25,7 @@ import
   testvarint, testminprotobuf, testmultibase, testmultihash, testmultiaddress, testcid,
   testpeerid, testsigned_envelope, testrouting_record, testnameresolve, testmultistream,
   testobservedaddrmanager, testconnmngr, testswitch, testpeerinfo, testpeerstore,
-  testmplex, testyamux, testyamuxheader, testautorelay, testhpservice, testutility,
-  testwildcardresolverservice
+  testautorelay, testhpservice, testutility, testwildcardresolverservice
 
 when defined(libp2p_autotls_support):
   import testautotls

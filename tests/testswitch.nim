@@ -36,7 +36,7 @@ import
     transports/wstransport,
     transports/quictransport,
   ]
-import ./tools/[unittest, trackers, futures, crypto]
+import ./tools/[unittest, trackers, futures, crypto, sync]
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -47,8 +47,7 @@ suite "Switch":
     checkTrackers()
 
   asyncTest "e2e use switch dial proto string":
-    let done: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
+    let handleFinished = newWaitGroup(1)
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
@@ -58,7 +57,7 @@ suite "Switch":
         raiseAssert "Unexpected LPStreamError in protocol handler"
       finally:
         await conn.close()
-        done.complete()
+        handleFinished.done()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
@@ -82,14 +81,15 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(done.wait(5.seconds), switch1.stop(), switch2.stop())
+    await allFuturesThrowing(
+      handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
+    )
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use switch dial proto string with custom matcher":
-    let done: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
+    let handleFinished = newWaitGroup(1)
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
@@ -99,7 +99,7 @@ suite "Switch":
         raiseAssert "Unexpected LPStreamError in custom matcher protocol handler"
       finally:
         await conn.close()
-        done.complete()
+        handleFinished.done()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
@@ -128,14 +128,15 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(done.wait(5.seconds), switch1.stop(), switch2.stop())
+    await allFuturesThrowing(
+      handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
+    )
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e should not leak bufferstreams and connections on channel close":
-    let done: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
+    let handleFinished = newWaitGroup(1)
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
@@ -145,7 +146,7 @@ suite "Switch":
         raiseAssert "Unexpected LPStreamError in bufferstream leak test handler"
       finally:
         await conn.close()
-        done.complete()
+        handleFinished.done()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
@@ -169,7 +170,9 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(done.wait(5.seconds), switch1.stop(), switch2.stop())
+    await allFuturesThrowing(
+      handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
+    )
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -567,19 +570,18 @@ suite "Switch":
       peerInfo = PeerInfo.new(privateKey)
 
     var switches: seq[Switch]
-    var done: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
-    var onConnect: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
+    let onDisconnect = newWaitGroup(1)
+    let onConnect = newWaitGroup(1)
+
     proc hook(peerId: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
       try:
         case event.kind
         of ConnEventKind.Connected:
-          await onConnect
+          await onConnect.wait()
           await switches[0].disconnect(peerInfo.peerId) # trigger disconnect
         of ConnEventKind.Disconnected:
           check not switches[0].isConnected(peerInfo.peerId)
-          done.complete()
+          onDisconnect.done()
       except DialFailedError:
         raiseAssert "Unexpected DialFailedError in connection event hook"
 
@@ -591,9 +593,9 @@ suite "Switch":
 
     switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
     await switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
-    onConnect.complete()
+    onConnect.done()
 
-    await done
+    await onDisconnect.wait()
 
     await allFuturesThrowing(switches.mapIt(it.stop()))
 
@@ -603,21 +605,15 @@ suite "Switch":
 
     var conns = 0
     var switches: seq[Switch]
-    let done: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
-    let allConnected = newAsyncEvent()
+    let allDisconnected = newWaitGroup(5)
+    let allConnected = newWaitGroup(5)
 
     proc hook(peerId2: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
       case event.kind
       of ConnEventKind.Connected:
-        conns.inc
-        if conns == 5:
-          allConnected.fire()
+        allConnected.done()
       of ConnEventKind.Disconnected:
-        conns.dec
-        if conns == 0:
-          check not switches[0].isConnected(peerInfo.peerId)
-          done.complete()
+        allDisconnected.done()
 
     # Start first switch
     switches.add(newStandardSwitch(maxConnsPerPeer = 10, rng = rng))
@@ -639,7 +635,8 @@ suite "Switch":
     await switches[0].disconnect(peerInfo.peerId)
 
     # Wait until all disconnected
-    await done
+    await allDisconnected.wait()
+    check not switches[0].isConnected(peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
     checkTracker(SecureConnTrackerName)
@@ -829,8 +826,7 @@ suite "Switch":
     await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
 
   asyncTest "e2e peer store":
-    let done: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
+    let handleFinished = newWaitGroup(1)
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         let msg = string.fromBytes(await conn.readLp(1024))
@@ -840,7 +836,7 @@ suite "Switch":
         raiseAssert "Unexpected LPStreamError in peer store test handler"
       finally:
         await conn.close()
-        done.complete()
+        handleFinished.done()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
@@ -864,7 +860,9 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(done.wait(5.seconds), switch1.stop(), switch2.stop())
+    await allFuturesThrowing(
+      handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
+    )
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
