@@ -124,6 +124,8 @@ template streamTransportTest*(
       await muxer.close()
       await conn.close()
 
+      await sleepAsync(20.milliseconds)
+
       clientHandlerDone.complete()
 
     let server = transportProvider()
