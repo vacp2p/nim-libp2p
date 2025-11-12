@@ -42,6 +42,9 @@ proc hasPublicIPAddress*(): bool {.raises: [].} =
     except CatchableError as e:
       error "Unable to get primary ip address", description = e.msg
       return false
+    except Exception as e:
+      error "Unable to get primary ip address", description = e.msg
+      return false
   debug "Primary IP address", ip = ip, isIPv4 = ip.isIPv4(), isPublic = ip.isPublic()
 
   return ip.isIPv4() and ip.isPublic()
