@@ -11,7 +11,7 @@
 
 import chronos, metrics, std/[options, sequtils]
 import
-  ../libp2p/[
+  ../../libp2p/[
     builders,
     switch,
     protocols/connectivity/autonat/client,
@@ -19,8 +19,8 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import stubs/autonatclientstub
-import ./tools/[unittest, futures]
+import ../stubs/autonatclientstub
+import ../tools/[unittest, futures]
 
 proc createSwitch(
     autonatSvc: Service = nil,

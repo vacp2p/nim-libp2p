@@ -11,7 +11,7 @@
 
 import options, chronos, chronicles
 import
-  ../libp2p/[
+  ../../libp2p/[
     protocols/identify,
     multiaddress,
     peerinfo,
@@ -25,7 +25,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ./tools/[unittest, crypto]
+import ../tools/[unittest, crypto]
 
 suite "Identify":
   teardown:
