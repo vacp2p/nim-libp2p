@@ -249,6 +249,7 @@ suite "KadDHT - ProviderManager":
     let
       key1 = kad1.rtable.selfId
       key2 = kad2.rtable.selfId
+      key3 = kad3.rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
     kad2.dataTable.insert(key1, value, $times.now().utc)
@@ -268,4 +269,6 @@ suite "KadDHT - ProviderManager":
     let providers2 = (await kad1.getProviders(key2)).toSeq()
     check providers2[0].id == kad3.rtable.selfId
 
-    # TODO: use three kads kad1 - kad2 - kad3 and check if kad3 can get provider kad1
+    # check if timeout is handled
+    let providers3 = (await kad1.getProviders(key3)).toSeq()
+    check providers3.len == 0
