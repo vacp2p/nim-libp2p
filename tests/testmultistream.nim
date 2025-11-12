@@ -19,7 +19,7 @@ import
   ../libp2p/transports/tcptransport,
   ../libp2p/protocols/protocol,
   ../libp2p/upgrademngrs/upgrade
-import ./tools/[unittest]
+import ./tools/[unittest, sync]
 
 {.push raises: [].}
 
@@ -327,8 +327,7 @@ suite "Multistream select":
 
   asyncTest "e2e - streams limit":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-    let blocker: Future[void].Raising([]) =
-      cast[Future[void].Raising([])](newFuture[void]())
+    let blocker = newWaitGroup(1)
 
     # Start 5 streams which are blocked by `blocker`
     # Try to start a new one, which should fail
@@ -337,7 +336,7 @@ suite "Multistream select":
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       try:
-        await blocker
+        await blocker.wait()
         await conn.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "LPStreamError while handling connection"
@@ -392,7 +391,7 @@ suite "Multistream select":
       (await dialers[0].withTimeout(10.milliseconds)) == false
 
     # unblock the dialers
-    blocker.complete()
+    blocker.done()
     await allFutures(dialers)
 
     # now must work
