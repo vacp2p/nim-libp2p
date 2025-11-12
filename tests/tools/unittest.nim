@@ -141,6 +141,6 @@ template finalCheckTrackers*(): untyped =
 
   unittest2.suite "Final checkTrackers":
     test "test":
-      # checkTrackers must be executed within a suite or test; # otherwise, 
+      # checkTrackers must be executed within a suite or test. otherwise, 
       # its output won't appear on stdout.
       checkTrackers()
