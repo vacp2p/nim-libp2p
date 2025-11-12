@@ -7,7 +7,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-from ../../tests/tools/unittest import finalCheckTrackers
 import ./test_node
 import ./utils
 import chronos
@@ -22,4 +21,10 @@ let transportType =
 
 waitFor(baseTest(scenarioName, transportType))
 
+
+# finalCheckTrackers is perfromned here instead in scenario tests to 
+# avoid libp2p dependency thus keeping compile time short.
+# docker container will have libp2p dependency installed, making this
+# functionality available here.
+from ../../tests/tools/unittest import finalCheckTrackers
 finalCheckTrackers()
