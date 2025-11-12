@@ -132,3 +132,15 @@ macro checkUntilTimeout*(code: untyped): untyped =
   ##   ```
   result = quote:
     checkUntilTimeoutCustom(30.seconds, 50.milliseconds, `code`)
+
+template finalCheckTrackers*(): untyped =
+  # finalCheckTrackers is a utility used for performing a final tracker check 
+  # outside the test suite. It should be called at the very end of a test file 
+  # (typically containing a bundle of tests) to ensure that no tests have left 
+  # any trackers open.
+
+  unittest2.suite "Final checkTrackers":
+    test "test":
+      # checkTrackers must be executed within a suite or test. otherwise, 
+      # its output won't appear on stdout.
+      checkTrackers()
