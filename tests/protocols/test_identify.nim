@@ -25,7 +25,11 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ../tools/[unittest, crypto]
+import ../tools/[unittest, crypto, multiaddress]
+
+const
+  IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
+  IPv6Tcp = mapAnd(IP6, mapEq("tcp"))
 
 suite "Identify":
   teardown:
@@ -47,7 +51,11 @@ suite "Identify":
       conn {.threadvar.}: Connection
 
     asyncSetup:
-      ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      ma =
+        @[
+          MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
+          MultiAddress.init("/ip6/::/tcp/0").get(),
+        ]
       remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
       remotePeerInfo =
         PeerInfo.new(remoteSecKey, ma, ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
@@ -160,9 +168,15 @@ suite "Identify":
       identifyPush1 {.threadvar.}: IdentifyPush
       identifyPush2 {.threadvar.}: IdentifyPush
       conn {.threadvar.}: Connection
+
     asyncSetup:
-      switch1 = newStandardSwitch(sendSignedPeerRecord = true)
-      switch2 = newStandardSwitch(sendSignedPeerRecord = true)
+      let ma =
+        @[
+          MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
+          MultiAddress.init("/ip6/::/tcp/0").get(),
+        ]
+      switch1 = newStandardSwitch(sendSignedPeerRecord = true, addrs = ma)
+      switch2 = newStandardSwitch(sendSignedPeerRecord = true, addrs = ma)
 
       proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
@@ -184,6 +198,14 @@ suite "Identify":
       )
 
       check:
+        # ensure both IPv4 and IPv6 addresses are used in switch.
+        countAddressesWithPattern(switch1.peerInfo.addrs, IPv4Tcp) > 1
+        countAddressesWithPattern(switch1.peerInfo.addrs, IPv6Tcp) > 1
+        countAddressesWithPattern(switch2.peerInfo.addrs, IPv4Tcp) > 1
+        countAddressesWithPattern(switch2.peerInfo.addrs, IPv6Tcp) > 1
+
+        # ensure all addresses are advertized.
+        # that is, peer store will have all address of other peer
         switch1.peerStore[AddressBook][switch2.peerInfo.peerId] == switch2.peerInfo.addrs
         switch2.peerStore[AddressBook][switch1.peerInfo.peerId] == switch1.peerInfo.addrs
 
