@@ -49,7 +49,10 @@ proc hasPublicIPAddress*(): bool {.raises: [].} =
 proc getPublicIPAddress*(): IpAddress {.raises: [OSError, ValueError].} =
   if not hasPublicIPAddress():
     raise newException(ValueError, "Host does not have a public IPv4 address")
-  return getPrimaryIPAddr()
+  try:
+    return getPrimaryIPAddr()
+  except Exception as e:
+    raise newException(OSError, e.msg)
 
 proc ipAddrMatches*(
     lookup: MultiAddress, addrs: seq[MultiAddress], ip4: bool = true
