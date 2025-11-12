@@ -31,7 +31,7 @@ when defined(libp2p_autotls_support):
   import testautotls
 
 # Run final trackers check. 
-# After all tests are executed final trackers check is prefromed to ensure that 
+# After all tests are executed final trackers check is performed to ensure that 
 # there isn't anything left open. 
 # This can usually happen when last imported/executed tests do not call checkTrackers.
 from ./tools/unittest import finalCheckTrackers
