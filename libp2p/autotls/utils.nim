@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2025 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -56,6 +56,7 @@ when defined(libp2p_autotls_support):
       baseDomain: api.Domain,
       keyAuth: KeyAuthorization,
       retries: int = DefaultDnsRetries,
+      retryTime: Duration = DefaultDnsRetryTime,
   ): Future[bool] {.async: (raises: [AutoTLSError, CancelledError]).} =
     # if my ip address is 100.10.10.3 then the ip4Domain will be:
     #     100-10-10-3.{peerIdBase36}.libp2p.direct
@@ -77,6 +78,6 @@ when defined(libp2p_autotls_support):
         error "Failed to resolve IP", description = exc.msg # retry
     if txt.len > 0 and txt[0] == keyAuth and ip4.len > 0:
       return true
-    await sleepAsync(DefaultDnsRetryTime)
+    await sleepAsync(retryTime)
 
     return false

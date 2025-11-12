@@ -1,7 +1,7 @@
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,14 +9,10 @@
 
 {.used.}
 
-import unittest2
-import chronos
-import stew/byteutils
+import chronos, stew/byteutils
+import ../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
+import ../../tools/[unittest, futures]
 import ../utils
-import ../../../libp2p/protocols/pubsub/[gossipsub, pubsub]
-import ../../../libp2p/protocols/pubsub/rpc/[messages]
-import ../../helpers
-import ../../utils/futures
 
 suite "GossipSub Integration - Signature Flags":
   const
@@ -112,7 +108,7 @@ suite "GossipSub Integration - Signature Flags":
     receiverConfig: NodeConfig
     shouldWork: bool
 
-  let scenarios: seq[Scenario] =
+  const scenarios: seq[Scenario] =
     @[
       # valid combos
       # S default, R default
@@ -180,22 +176,25 @@ suite "GossipSub Integration - Signature Flags":
     ]
 
   for scenario in scenarios:
-    let title = "Compatibility matrix: " & $scenario
+    let
+      title = "Compatibility matrix: " & $scenario
+      # Create a copy to avoid lent iterator capture issue
+      localScenario = scenario
     asyncTest title:
       let
         sender = generateNodes(
           1,
           gossip = true,
-          sign = scenario.senderConfig.sign,
-          verifySignature = scenario.senderConfig.verify,
-          anonymize = scenario.senderConfig.anonymize,
+          sign = localScenario.senderConfig.sign,
+          verifySignature = localScenario.senderConfig.verify,
+          anonymize = localScenario.senderConfig.anonymize,
         )[0]
         receiver = generateNodes(
           1,
           gossip = true,
-          sign = scenario.receiverConfig.sign,
-          verifySignature = scenario.receiverConfig.verify,
-          anonymize = scenario.receiverConfig.anonymize,
+          sign = localScenario.receiverConfig.sign,
+          verifySignature = localScenario.receiverConfig.verify,
+          anonymize = localScenario.receiverConfig.anonymize,
         )[0]
         nodes = @[sender, receiver]
 
@@ -211,7 +210,7 @@ suite "GossipSub Integration - Signature Flags":
 
       let messageReceived = await waitForState(messageReceivedFut, HEARTBEAT_TIMEOUT)
       check:
-        if scenario.shouldWork:
+        if localScenario.shouldWork:
           messageReceived.isCompleted(true)
         else:
           messageReceived.isCancelled()

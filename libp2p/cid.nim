@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2023-2024 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -13,7 +13,7 @@
 {.used.}
 
 import tables, hashes
-import multibase, multicodec, multihash, vbuffer, varint, results
+import multibase, multicodec, multihash, vbuffer, varint, results, utility
 import stew/base58
 import ./utils/sequninit
 
@@ -37,6 +37,8 @@ type
     mcodec*: MultiCodec
     hpos*: int
     data*: VBuffer
+
+const libp2p_contentids_exts* {.strdefine.} = ""
 
 const ContentIdsList = [
   multiCodec("raw"),
@@ -69,11 +71,21 @@ const ContentIdsList = [
   multiCodec("ed25519-pub"),
 ]
 
-proc initCidCodeTable(): Table[int, MultiCodec] {.compileTime.} =
-  for item in ContentIdsList:
-    result[int(item)] = item
+proc initCidCodeTable(
+    codecs: openArray[MultiCodec]
+): Table[int, MultiCodec] {.compileTime.} =
+  var res: Table[int, MultiCodec]
 
-const CodeContentIds = initCidCodeTable()
+  for codec in codecs:
+    res[codec.int] = codec
+
+  return res
+
+when libp2p_contentids_exts != "":
+  includeFile(libp2p_contentids_exts)
+  const CodeContentIds = initCidCodeTable(@ContentIdsList & @ContentIdsExts)
+else:
+  const CodeContentIds = initCidCodeTable(@ContentIdsList)
 
 template orError*(exp: untyped, err: untyped): untyped =
   exp.mapErr do(_: auto) -> auto:

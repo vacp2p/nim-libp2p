@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -152,6 +152,7 @@ method init*(p: Identify) =
       trace "handling identify request", conn
       var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
       await conn.writeLp(pb.buffer)
+      debug "identify: info sent", conn, info = p.peerInfo
     except CancelledError as exc:
       trace "cancelled identify handler"
       raise exc
@@ -180,7 +181,7 @@ proc identify*(
 
   var info = decodeMsg(message).valueOr:
     raise newException(IdentityInvalidMsgError, "Incorrect message received!")
-  debug "identify: decoded message", conn, info
+  debug "identify: info received", conn, info
   let
     pubkey = info.pubkey.valueOr:
       raise newException(IdentityInvalidMsgError, "No pubkey in identify")
@@ -217,7 +218,7 @@ proc init*(p: IdentifyPush) =
 
       var identInfo = decodeMsg(message).valueOr:
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
-      debug "identify push: decoded message", conn, identInfo
+      debug "identify push: info received", conn, identInfo
 
       identInfo.pubkey.withValue(pubkey):
         let receivedPeerId = PeerId.init(pubkey).tryGet()

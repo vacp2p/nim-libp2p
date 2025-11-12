@@ -1,23 +1,18 @@
-{.used.}
-import unittest2
-import chronos
-import chronicles
-import std/[sequtils, enumerate]
-import ../../libp2p/[switch, builders]
-import ../../libp2p/protocols/kademlia/[kademlia, routingtable, keys]
-import ../helpers
-import ../utils/async_tests
-import ./utils.nim
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
 
-proc createSwitch(): Switch =
-  SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .build()
+{.used.}
+
+import chronicles, chronos, std/[sequtils, enumerate]
+import ../../libp2p/[protocols/kademlia, switch, builders]
+import ../tools/[unittest]
+import ./utils.nim
 
 proc hasKey(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
@@ -34,31 +29,22 @@ suite "KadDHT - FindNode":
     let swarmSize = 3
     var switches: seq[Switch]
     var kads: seq[KadDHT]
-    # every node needs a switch, and an assosciated kad mounted to it
     for i in 0 ..< swarmSize:
-      switches.add(createSwitch())
-      kads.add(KadDHT.new(switches[i], PermissiveValidator(), CandSelector()))
-      switches[i].mount(kads[i])
+      var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector())
+      switches.add(switch)
+      kads.add(kad)
 
-    # Once the the creation/mounting of switches are done, we can start
-    await switches.mapIt(it.start()).allFutures()
-
-    # Now we can activate the network
-    # Needs to be done sequentially, hence the deterministic ordering of completion
+    # Bootstrapping needs to be done sequentially
     for i in 1 ..< swarmSize:
       await kads[i].bootstrap(@[switches[0].peerInfo])
 
-    # TODO: see how other impls do their tests.
-    # Similarly, refer to the mathematical properties according to the spec, and systematically cover all possible states.
     var entries = @[kads[0].rtable.selfId]
 
-    #  All the nodes that bootstropped off kad[0] has exactly 1 of each previous nodes, + kads[0], in their buckets
+    #  All the nodes that bootstropped off kad[0] have exactly 1 of each previous nodes, + kads[0], in their buckets
     for i, kad in enumerate(kads[1 ..^ 1]):
       for id in entries:
         check kad.hasKey(id)
       entries.add(kad.rtable.selfId)
-
-    trace "Simple findNode precondition asserted"
 
     discard await kads[1].findNode(kads[2].rtable.selfId)
 
@@ -71,111 +57,60 @@ suite "KadDHT - FindNode":
     await switches.mapIt(it.stop()).allFutures()
 
   asyncTest "Relay find node":
-    let parentSwitch = createSwitch()
-    let parentKad = KadDHT.new(parentSwitch, PermissiveValidator(), CandSelector())
-    parentSwitch.mount(parentKad)
-    await parentSwitch.start()
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch4, kad4) = setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    let broSwitch = createSwitch()
-    let broKad = KadDHT.new(broSwitch, PermissiveValidator(), CandSelector())
-    broSwitch.mount(broKad)
-    await broSwitch.start()
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
-    let sisSwitch = createSwitch()
-    let sisKad = KadDHT.new(sisSwitch, PermissiveValidator(), CandSelector())
-    sisSwitch.mount(sisKad)
-    await sisSwitch.start()
-
-    let neiceSwitch = createSwitch()
-    let neiceKad = KadDHT.new(neiceSwitch, PermissiveValidator(), CandSelector())
-    neiceSwitch.mount(neiceKad)
-    await neiceSwitch.start()
-
-    await broKad.bootstrap(@[parentSwitch.peerInfo])
-    # Bro and parent know each other
+    await kad2.bootstrap(@[switch1.peerInfo])
     check:
-      broKad.hasKey(parentKad.rtable.selfId)
-      parentKad.hasKey(broKad.rtable.selfId)
+      kad1.hasKey(kad2.rtable.selfId)
+      kad2.hasKey(kad1.rtable.selfId)
 
-    await sisKad.bootstrap(@[parentSwitch.peerInfo])
-
-    # Sis and parent know each other...
+    await kad3.bootstrap(@[switch1.peerInfo])
     check:
-      sisKad.hasKey(parentKad.rtable.selfId)
-      parentKad.hasKey(sisKad.rtable.selfId)
+      kad1.hasKey(kad3.rtable.selfId)
+      kad3.hasKey(kad1.rtable.selfId)
 
-    # But has been informed of bro by parent during bootstrap
-    check sisKad.hasKey(broKad.rtable.selfId)
+    # kad3 knows about kad2 through kad1
+    check kad3.hasKey(kad2.rtable.selfId)
 
-    await neiceKad.bootstrap(@[sisSwitch.peerInfo])
-    # Neice and sis know each other:
+    await kad4.bootstrap(@[switch3.peerInfo])
     check:
-      neiceKad.hasKey(sisKad.rtable.selfId)
-      sisKad.hasKey(neiceKad.rtable.selfId)
+      kad3.hasKey(kad4.rtable.selfId)
+      kad4.hasKey(kad3.rtable.selfId)
 
-    # But Neice has also been informed of those that Sis knows of:
+    # kad 4 knows all peers of kad 3 too
     check:
-      neiceKad.hasKey(parentKad.rtable.selfId)
-      neiceKad.hasKey(broKad.rtable.selfId)
+      kad4.hasKey(kad1.rtable.selfId)
+      kad4.hasKey(kad2.rtable.selfId)
 
-    # Now let's make sure that when Bro is trying to find neice, it's an "I know someone,
-    # who knows someone, who knows the one I'm looking for, so forcing the routing table 
-    # to look like this scenario
-    for b in broKad.rtable.buckets.mitems:
-      for p in b.peers:
-        echo p.nodeId
-      b.peers = b.peers.filterIt(
-        it.nodeId != sisKad.rtable.selfId and it.nodeId != neiceKad.rtable.selfId
-      )
+    # force kad2 forget kad3 and kad4
+    for b in kad2.rtable.buckets.mitems:
+      b.peers = b.peers.filterIt(it.nodeId == kad1.rtable.selfId)
 
-    for b in broKad.rtable.buckets.mitems:
-      echo b.peers.len
+    discard await kad2.findNode(kad4.rtable.selfId)
 
+    # kad2 relearns about kad 3 and 4
     check:
-      broKad.hasKey(parentKad.rtable.selfId)
-      not broKad.hasKey(sisKad.rtable.selfId)
-      not broKad.hasKey(neiceKad.rtable.selfId)
-
-    discard await broKad.findNode(neiceKad.rtable.selfId)
-
-    # Bro should now know of sis and neice as well
-    check:
-      broKad.hasKey(parentKad.rtable.selfId)
-      broKad.hasKey(sisKad.rtable.selfId)
-      broKad.hasKey(neiceKad.rtable.selfId)
-
-    await parentSwitch.stop()
-    await broSwitch.stop()
-    await sisSwitch.stop()
-    await neiceSwitch.stop()
+      kad2.hasKey(kad3.rtable.selfId)
+      kad2.hasKey(kad4.rtable.selfId)
 
   asyncTest "Find peer":
-    let aliceSwitch = createSwitch()
-    let aliceKad = KadDHT.new(aliceSwitch, PermissiveValidator(), CandSelector())
-    aliceSwitch.mount(aliceKad)
-    await aliceSwitch.start()
+    var (switch1, _) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
 
-    let bobSwitch = createSwitch()
-    let bobKad = KadDHT.new(bobSwitch, PermissiveValidator(), CandSelector())
-    bobSwitch.mount(bobKad)
-    await bobSwitch.start()
+    await kad2.bootstrap(@[switch1.peerInfo])
+    await kad3.bootstrap(@[switch1.peerInfo])
 
-    let charlieSwitch = createSwitch()
-    let charlieKad = KadDHT.new(charlieSwitch, PermissiveValidator(), CandSelector())
-    charlieSwitch.mount(charlieKad)
-    await charlieSwitch.start()
+    let res1 = await kad2.findPeer(switch3.peerInfo.peerId)
+    check res1.get().peerId == switch3.peerInfo.peerId
 
-    await bobKad.bootstrap(@[aliceSwitch.peerInfo])
-    await charlieKad.bootstrap(@[aliceSwitch.peerInfo])
-
-    let peerInfoRes = await bobKad.findPeer(charlieSwitch.peerInfo.peerId)
-    check:
-      peerInfoRes.isOk
-      peerInfoRes.get().peerId == charlieSwitch.peerInfo.peerId
-
-    let peerInfoRes2 = await bobKad.findPeer(PeerId.random(newRng()).get())
-    check peerInfoRes2.isErr
-
-    await aliceSwitch.stop()
-    await bobSwitch.stop()
-    await charlieSwitch.stop()
+    let res2 = await kad2.findPeer(PeerId.random(newRng()).get())
+    check res2.isErr()

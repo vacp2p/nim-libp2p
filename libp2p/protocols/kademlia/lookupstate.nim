@@ -1,11 +1,16 @@
-import sequtils
-import ./consts
-import ./protobuf
-import ./xordistance
-import ./keys
-import ../../[peerid, peerinfo]
-import algorithm
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+import algorithm, sequtils
 import chronicles
+import ../../[peerid, peerinfo]
+import ./[protobuf, types]
 
 type
   LookupNode* = object
@@ -20,7 +25,7 @@ type
     shortlist: seq[LookupNode] # current known closest node
     activeQueries*: int # how many queries in flight
     alpha: int # parallelism level
-    repliCount: int ## aka `k` in the spec: number of closest nodes to find
+    replication: int ## aka `k`: number of closest nodes to find
     done*: bool # has lookup converged
 
 proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
@@ -29,24 +34,22 @@ proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
 proc updateShortlist*(
     state: var LookupState,
     msg: Message,
-    onInsert: proc(p: PeerInfo) {.gcsafe.},
+    onInsert: proc(p: PeerInfo) {.gcsafe, raises: [].},
     hasher: Opt[XorDHasher],
-) =
+) {.raises: [].} =
   for newPeer in msg.closerPeers.filterIt(not alreadyInShortlist(state, it)):
     let peerInfo = PeerInfo(peerId: PeerId.init(newPeer.id).get(), addrs: newPeer.addrs)
-    try:
-      onInsert(peerInfo)
-      state.shortlist.add(
-        LookupNode(
-          peerId: peerInfo.peerId,
-          distance: xorDistance(peerInfo.peerId, state.targetId, hasher),
-          queried: false,
-          pending: false,
-          failed: false,
-        )
+    onInsert(peerInfo)
+
+    state.shortlist.add(
+      LookupNode(
+        peerId: peerInfo.peerId,
+        distance: xorDistance(peerInfo.peerId, state.targetId, hasher),
+        queried: false,
+        pending: false,
+        failed: false,
       )
-    except Exception as exc:
-      debug "could not update shortlist", err = exc.msg
+    )
 
   state.shortlist.sort(
     proc(a, b: LookupNode): int =
@@ -84,6 +87,8 @@ proc init*(
     T: type LookupState,
     targetId: Key,
     initialPeers: seq[PeerId],
+    alpha: int,
+    replication: int,
     hasher: Opt[XorDHasher],
 ): T =
   var res = LookupState(
@@ -91,7 +96,7 @@ proc init*(
     shortlist: @[],
     activeQueries: 0,
     alpha: alpha,
-    repliCount: DefaultReplic,
+    replication: replication,
     done: false,
   )
   for p in initialPeers:
@@ -115,6 +120,6 @@ proc selectClosestK*(state: LookupState): seq[PeerId] =
   var res: seq[PeerId] = @[]
   for p in state.shortlist.filterIt(not it.failed):
     res.add(p.peerId)
-    if res.len >= state.repliCount:
+    if res.len >= state.replication:
       break
   return res

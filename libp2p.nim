@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -52,6 +52,7 @@ else:
       stream/connection,
       transports/transport,
       transports/tcptransport,
+      transports/quictransport,
       protocols/secure/noise,
       cid,
       multihash,
@@ -69,8 +70,4 @@ else:
   export
     minprotobuf, switch, peerid, peerinfo, connection, multiaddress, crypto, lpstream,
     bufferstream, muxer, mplex, transport, tcptransport, noise, errors, cid, multihash,
-    multicodec, builders, pubsub
-
-  when defined(libp2p_quic_support):
-    import libp2p/transports/quictransport
-    export quictransport
+    multicodec, builders, pubsub, quictransport

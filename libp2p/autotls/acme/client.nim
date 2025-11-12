@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2025 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -65,6 +65,8 @@ when defined(libp2p_autotls_support):
       domain: api.Domain,
       certKeyPair: KeyPair,
       challenge: ACMEChallengeResponseWrapper,
+      acmeRetries: int = 10,
+      finalizeRetries: int = 10,
   ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =
     let chalURL = parseUri(challenge.dns01.url)
     let orderURL = parseUri(challenge.order)
@@ -76,7 +78,7 @@ when defined(libp2p_autotls_support):
 
     trace "Checking for completed challenge"
     let completed = await self.api.checkChallengeCompleted(
-      chalURL, self.key, await self.getOrInitKid()
+      chalURL, self.key, await self.getOrInitKid(), acmeRetries
     )
     if not completed:
       raise newException(
@@ -85,7 +87,13 @@ when defined(libp2p_autotls_support):
 
     trace "Waiting for certificate to be finalized"
     let finalized = await self.api.certificateFinalized(
-      domain, finalizeURL, orderURL, certKeyPair, self.key, await self.getOrInitKid()
+      domain,
+      finalizeURL,
+      orderURL,
+      certKeyPair,
+      self.key,
+      await self.getOrInitKid(),
+      finalizeRetries,
     )
     if not finalized:
       raise

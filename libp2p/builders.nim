@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -23,7 +23,7 @@ import
   stream/connection,
   multiaddress,
   crypto/crypto,
-  transports/[transport, tcptransport, wstransport, memorytransport],
+  transports/[transport, tcptransport, wstransport, quictransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
   protocols/[identify, secure/secure, secure/noise, rendezvous],
   protocols/connectivity/[
@@ -232,14 +232,11 @@ proc withWsTransport*(
       )
   )
 
-when defined(libp2p_quic_support):
-  import transports/quictransport
-
-  proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
-    b.withTransport(
-      proc(config: TransportConfig): Transport =
-        QuicTransport.new(config.upgr, config.privateKey)
-    )
+proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  b.withTransport(
+    proc(config: TransportConfig): Transport =
+      QuicTransport.new(config.upgr, config.privateKey)
+  )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.withTransport(
@@ -325,10 +322,12 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
   b.circuitRelay = Opt.some(r)
   b
 
-proc withRendezVous*(
-    b: SwitchBuilder, rdv: RendezVous = RendezVous.new()
-): SwitchBuilder =
-  b.rdv = Opt.some(rdv)
+proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
+  var lrdv = rdv
+  if rdv.isNil():
+    lrdv = RendezVous.new()
+
+  b.rdv = Opt.some(lrdv)
   b
 
 proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
@@ -373,7 +372,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms)
 
   b.autotls.withValue(autotlsService):
-    b.services.insert(autotlsService, 0)
+    b.services.add(autotlsService)
 
   let transports = block:
     var transports: seq[Transport]
@@ -398,7 +397,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
       PeerStore.new(identify)
 
   if b.enableWildcardResolver:
-    b.services.insert(WildcardAddressResolverService.new(), 0)
+    b.services.add(WildcardAddressResolverService.new())
 
   if not isNil(b.autonatV2Client):
     b.services.add(
@@ -490,12 +489,9 @@ proc newStandardSwitchBuilder*(
 
   case transport
   of TransportType.QUIC:
-    when defined(libp2p_quic_support):
-      if addrs.len == 0:
-        addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
-      b = b.withQuicTransport().withAddresses(addrs)
-    else:
-      raiseAssert "QUIC not supported in this build"
+    if addrs.len == 0:
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
+    b = b.withQuicTransport().withAddresses(addrs)
   of TransportType.TCP:
     if addrs.len == 0:
       addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]

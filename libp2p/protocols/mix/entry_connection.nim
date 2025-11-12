@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import hashes, chronos, results, chronicles
 import ../../stream/connection
 import ../../varint
@@ -40,21 +49,26 @@ method readOnce*(
   if s.isEof:
     raise newLPStreamEOFError()
 
-  try:
-    await s.replyReceivedFut
-    if s.cached.len == 0:
-      s.isEof = true
-      raise newLPStreamEOFError()
-  except CancelledError as exc:
-    raise exc
-  except LPStreamEOFError as exc:
-    raise exc
-  except CatchableError as exc:
-    raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
+  # Only wait for reply if cache is empty
+  if s.cached.len == 0:
+    try:
+      await s.replyReceivedFut
+      if s.cached.len == 0:
+        # No data received - this is EOF
+        s.isEof = true
+        raise newLPStreamEOFError()
+    except CancelledError as exc:
+      raise exc
+    except LPStreamEOFError as exc:
+      raise exc
+    except CatchableError as exc:
+      raise (ref LPStreamError)(msg: "error in readOnce: " & exc.msg, parent: exc)
 
+  # We have data in cache, return what we can
   let toRead = min(nbytes, s.cached.len)
   copyMem(pbytes, addr s.cached[0], toRead)
   s.cached = s.cached[toRead ..^ 1]
+
   return toRead
 
 method write*(

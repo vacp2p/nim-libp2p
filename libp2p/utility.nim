@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -143,3 +143,27 @@ template filterIt*[T](set: HashSet[T], condition: untyped): HashSet[T] =
       if condition:
         filtered.incl(it)
   filtered
+
+macro includeFile*(file: static[string]): untyped =
+  let res = newStmtList()
+
+  try:
+    res.add(nnkIncludeStmt.newTree(newLit(file)))
+  except ValueError as e:
+    raiseAssert("Failed to include file: " & file & ", error: " & e.msg)
+
+  return res
+
+proc toChunks*[T](data: seq[T], size: int): seq[seq[T]] {.raises: [].} =
+  ## Splits `data` into chunks of length `size`.
+  ## The last chunk may be smaller if data.len is not divisible by size.
+  if size <= 0:
+    return @[]
+
+  var result: seq[seq[T]] = @[]
+  var i = 0
+  while i < data.len:
+    let endIndex = min(i + size, data.len)
+    result.add(data[i ..< endIndex])
+    i = endIndex
+  return result

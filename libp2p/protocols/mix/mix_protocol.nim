@@ -1,4 +1,13 @@
-import chronicles, chronos, sequtils, strutils, os, results, sets
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+import chronicles, chronos, sequtils, os, results, sets
 import std/[strformat, tables], metrics
 import
   ./[
@@ -9,7 +18,7 @@ import stew/endians2
 import ../protocol
 import ../../utils/sequninit
 import ../../stream/[connection, lpstream]
-import ../../[switch, multicodec, peerinfo]
+import ../../[switch, multicodec, peerinfo, varint]
 
 when defined(enable_mix_benchmarks):
   import ./benchmark
@@ -44,15 +53,16 @@ type MixProtocol* = ref object of LPProtocol
   rng: ref HmacDrbgContext
   # TODO: verify if this requires cleanup for cases in which response never arrives (and connection is closed)
   connCreds: Table[SURBIdentifier, ConnCreds]
-  destReadBehavior: TableRef[string, destReadBehaviorCb]
+  destReadBehavior: TableRef[string, DestReadBehavior]
+  connPool: Table[PeerId, Connection]
 
 proc hasDestReadBehavior*(mixProto: MixProtocol, codec: string): bool =
   return mixProto.destReadBehavior.hasKey(codec)
 
 proc registerDestReadBehavior*(
-    mixProto: MixProtocol, codec: string, fwdBehavior: destReadBehaviorCb
+    mixProto: MixProtocol, codec: string, behavior: DestReadBehavior
 ) =
-  mixProto.destReadBehavior[codec] = fwdBehavior
+  mixProto.destReadBehavior[codec] = behavior
 
 proc loadAllButIndexMixPubInfo*(
     index, numNodes: int, pubInfoFolderPath: string = "./pubInfo"
@@ -72,21 +82,61 @@ proc cryptoRandomInt(rng: ref HmacDrbgContext, max: int): Result[int, string] =
   let res = rng[].generate(uint64) mod uint64(max)
   ok(res.int)
 
-proc handleMixNodeConnection(
-    mixProto: MixProtocol, conn: Connection
-) {.async: (raises: [LPStreamError, CancelledError]).} =
-  when defined(enable_mix_benchmarks):
-    let metadataBytes = newSeqUninit[byte](MetadataSize)
-    await conn.readExactly(addr metadataBytes[0], MetadataSize)
+proc removeClosedConnections(
+    mixProto: MixProtocol, pid: PeerId
+) {.async: (raises: []).} =
+  var peersToGC = mixProto.connPool
+    .keys()
+    .toSeq()
+    .filterIt(not mixProto.switch.isConnected(it))
+    .toHashSet()
+  peersToGC.incl(pid)
 
-  let receivedBytes =
+  for p in peersToGC:
     try:
-      await conn.readLp(PacketSize)
-    except CancelledError as exc:
-      raise exc
-    finally:
-      await conn.close()
+      await mixProto.connPool[pid].close()
+      mixProto.connPool.del(pid)
+    except KeyError:
+      raiseAssert "checked with hasKey"
 
+proc getConn(
+    mixProto: MixProtocol,
+    pid: PeerId,
+    addrs: seq[MultiAddress],
+    codecs: seq[string],
+    forceNewStream: bool = false,
+): Future[Connection] {.async: (raises: [DialFailedError, CancelledError]).} =
+  if forceNewStream:
+    # GC all expired connections including the one used for `pid`
+    await mixProto.removeClosedConnections(pid)
+  try:
+    return mixProto.connPool[pid]
+  except KeyError:
+    let c = await mixProto.switch.dial(pid, addrs, codecs)
+    mixProto.connPool[pid] = c
+    return c
+
+proc writeLp(
+    mixProto: MixProtocol,
+    pid: PeerId,
+    addrs: seq[MultiAddress],
+    codecs: seq[string],
+    payload: seq[byte],
+) {.async: (raises: [DialFailedError, LPStreamError, CancelledError]).} =
+  let c = await mixProto.getConn(pid, addrs, codecs)
+  try:
+    await c.writeLp(payload)
+  except LPStreamClosedError, LPStreamResetError, LPStreamRemoteClosedError,
+      LPStreamConnDownError:
+    let c = await mixProto.getConn(pid, addrs, codecs, forceNewStream = true)
+    await c.writeLp(payload)
+
+proc handleMixMessages(
+    mixProto: MixProtocol,
+    fromPeerId: PeerId,
+    receivedBytes: sink seq[byte],
+    metadataBytes: sink seq[byte],
+) {.async: (raises: [LPStreamError, CancelledError]).} =
   when defined(enable_mix_benchmarks):
     let startTime = getTime()
 
@@ -147,7 +197,7 @@ proc handleMixNodeConnection(
         mixProto.switch.peerInfo.peerId,
         startTime,
         metadata,
-        Opt.some(conn.peerId),
+        Opt.some(fromPeerId),
         Opt.none(PeerId)
 
     await mixProto.exitLayer.onMessage(
@@ -199,7 +249,7 @@ proc handleMixNodeConnection(
         mixProto.switch.peerInfo.peerId,
         startTime,
         metadata,
-        Opt.some(conn.peerId),
+        Opt.some(fromPeerId),
         Opt.none(PeerId)
 
     await connCred.incoming.put(deserialized.message)
@@ -213,7 +263,7 @@ proc handleMixNodeConnection(
     let nextHopBytes = processedSP.nextHop.get()
 
     let (nextPeerId, nextAddr) = bytesToMultiAddr(nextHopBytes).valueOr:
-      error "Failed to convert bytes to multiaddress", err = error
+      trace "Failed to convert bytes to multiaddress", err = error
       mix_messages_error.inc(labelValues = ["Intermediate", "INVALID_DEST"])
       return
 
@@ -222,19 +272,15 @@ proc handleMixNodeConnection(
         mixProto.switch.peerInfo.peerId,
         startTime,
         metadata,
-        Opt.some(conn.peerId),
+        Opt.some(fromPeerId),
         Opt.some(peerId)
 
     try:
-      let nextHopConn =
-        await mixProto.switch.dial(nextPeerId, @[nextAddr], MixProtocolID)
-      defer:
-        await nextHopConn.close()
-
       when defined(enable_mix_benchmarks):
-        await nextHopConn.write(metadataBytes)
-
-      await nextHopConn.writeLp(processedSP.serializedSphinxPacket)
+        await mixProto.writeLp(nextPeerId, @[nextAddr], @[MixProtocolID], metadataBytes)
+      await mixProto.writeLp(
+        nextPeerId, @[nextAddr], @[MixProtocolID], processedSP.serializedSphinxPacket
+      )
       mix_messages_forwarded.inc(labelValues = ["Intermediate"])
     except CancelledError as exc:
       raise exc
@@ -248,6 +294,21 @@ proc handleMixNodeConnection(
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "DUPLICATE"])
   of InvalidMAC:
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "INVALID_MAC"])
+
+proc handleMixNodeConnection(
+    mixProto: MixProtocol, conn: Connection
+) {.async: (raises: [LPStreamError, CancelledError]).} =
+  defer:
+    await conn.close()
+
+  while not conn.atEof:
+    var metadataBytes = newSeqUninit[byte](0)
+    when defined(enable_mix_benchmarks):
+      metadataBytes = newSeqUninit[byte](MetadataSize)
+      await conn.readExactly(addr metadataBytes[0], MetadataSize)
+
+    let receivedBytes = await conn.readLp(PacketSize)
+    asyncSpawn mixProto.handleMixMessages(conn.peerId, receivedBytes, metadataBytes)
 
 proc getMaxMessageSizeForCodec*(
     codec: string, numberOfSurbs: uint8 = 0
@@ -380,15 +441,13 @@ proc sendPacket(
         Opt.some(peerId)
 
   try:
-    let nextHopConn =
-      await mixProto.switch.dial(peerId, @[multiAddress], @[MixProtocolID])
-    defer:
-      await nextHopConn.close()
-
     when defined(enable_mix_benchmarks):
-      await nextHopConn.writeLp(logConfig.metadata.serialize())
-
-    await nextHopConn.writeLp(sphinxPacket.serialize())
+      await mixProto.writeLp(
+        peerId, @[multiAddress], @[MixProtocolID], logConfig.metadata.serialize()
+      )
+    await mixProto.writeLp(
+      peerId, @[multiAddress], @[MixProtocolID], sphinxPacket.serialize()
+    )
   except DialFailedError as exc:
     mix_messages_error.inc(labelValues = [label, "SEND_FAILED"])
     return err(fmt"Failed to dial to next hop ({peerId}, {multiAddress}): {exc.msg}")
@@ -502,7 +561,11 @@ proc anonymizeLocalProtocolSend*(
 
   var nextHopAddr: MultiAddress
   var nextHopPeerId: PeerId
-  for i in 0 ..< PathLength:
+  while hop.len < PathLength:
+    if availableIndices.len == 0:
+      mix_messages_error.inc(labelValues = ["Entry", "LOW_MIX_POOL"])
+      return err("Ran out of available mix nodes while constructing path")
+
     let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
       mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
       return err(fmt"Failed to generate random number: {error}")
@@ -515,7 +578,7 @@ proc anonymizeLocalProtocolSend*(
       continue
 
     # Last hop will be the exit node that will forward the request
-    if i == PathLength - 1:
+    if hop.len == PathLength - 1:
       case destination.kind
       of ForwardAddr:
         # Last hop will be the exit node that will fwd the request
@@ -525,28 +588,33 @@ proc anonymizeLocalProtocolSend*(
         exitPeerId = destination.peerId
         randPeerId = destination.peerId
 
-    debug "Selected mix node: ", indexInPath = i, peerId = randPeerId
+    debug "Selected mix node: ", indexInPath = hop.len, peerId = randPeerId
 
     # Extract multiaddress, mix public key, and hop
     let (peerId, multiAddr, mixPubKey, _) =
       mixProto.pubNodeInfo.getOrDefault(randPeerId).get()
 
+    # Validate multiaddr before committing this node to the path
+    let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
+      mix_messages_error.inc(labelValues = ["Entry", "INVALID_MIX_INFO"])
+      trace "Failed to convert multiaddress to bytes, skipping and removing node from pool",
+        error = error, peerId = peerId, multiAddr = multiAddr
+      # Remove this node from the pool to prevent future selection
+      mixProto.pubNodeInfo.del(randPeerId)
+      # Skip this node with invalid multiaddr and try another
+      # in future lookup in peerStore to see if there is any other valida multiaddr for this peer and use that.
+      continue
+
+    # Only add to path after validation succeeds
     publicKeys.add(mixPubKey)
 
-    if i == 0:
+    if hop.len == 0:
       nextHopAddr = multiAddr
       nextHopPeerId = peerId
 
-    let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
-      mix_messages_error.inc(labelValues = ["Entry", "INVALID_MIX_INFO"])
-      return err(fmt"Failed to convert multiaddress to bytes: {error}")
-      #TODO: should we skip and pick a different node here??
-
-    hop.add(Hop.init(multiAddrBytes))
-
     # Compute delay
     let delayMillisec =
-      if i != PathLength - 1:
+      if hop.len != PathLength - 1:
         cryptoRandomInt(mixProto.rng, 3).valueOr:
           mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
           return err(fmt"Failed to generate random number: {error}")
@@ -554,6 +622,8 @@ proc anonymizeLocalProtocolSend*(
         0 # Last hop does not require a delay
 
     delay.add(@(delayMillisec.uint16.toBytesBE()))
+
+    hop.add(Hop.init(multiAddrBytes))
 
   # Encode destination
   let destHop =
@@ -614,7 +684,7 @@ proc init*(
   mixProto.pubNodeInfo = pubNodeInfo
   mixProto.switch = switch
   mixProto.tagManager = tagManager
-  mixProto.destReadBehavior = newTable[string, destReadBehaviorCb]()
+  mixProto.destReadBehavior = newTable[string, DestReadBehavior]()
 
   let onReplyDialer = proc(
       surb: SURB, message: seq[byte]

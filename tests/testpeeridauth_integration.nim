@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,12 +9,9 @@
 
 {.push raises: [].}
 
-import json, uri
-import chronos
-import chronos/apps/http/httpclient
+import json, uri, chronos, chronos/apps/http/httpclient
 import ../libp2p/[stream/connection, upgrademngrs/upgrade, peeridauth/client, wire]
-
-import ./helpers
+import ./tools/[unittest, crypto]
 
 when defined(linux) and defined(amd64):
   {.used.}
@@ -32,7 +29,6 @@ suite "PeerID Auth":
     checkTrackers()
 
   asyncSetup:
-    let rng = newRng()
     client = PeerIDAuthClient.new(rng)
     peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng[]).get())
 

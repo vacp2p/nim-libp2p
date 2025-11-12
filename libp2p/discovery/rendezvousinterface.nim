@@ -1,7 +1,7 @@
 # Nim-LibP2P
-# Copyright (c) 2023 Status Research & Development GmbH
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import chronos
-import ./discoverymngr, ../protocols/rendezvous, ../peerid
+import ./discoverymngr, ../protocols/rendezvous, ../peerid, ../routing_record
 
 type
   RendezVousInterface* = ref object of DiscoveryInterface
@@ -38,7 +38,9 @@ method request*(
       # unhandled type
       return
   while true:
-    for pr in await self.rdv.request(namespace):
+    let peerRecords: seq[PeerRecord] =
+      await self.rdv.request(namespace, Opt.none(int), Opt.none(seq[PeerId]))
+    for pr in peerRecords:
       var peer: PeerAttributes
       peer.add(pr.peerId)
       for address in pr.addresses:
@@ -66,7 +68,7 @@ method advertise*(
     self.advertisementUpdated.clear()
     for toAdv in toAdvertise:
       try:
-        await self.rdv.advertise(toAdv, self.ttl)
+        await self.rdv.advertise(toAdv, Opt.some(self.ttl))
       except CatchableError as error:
         debug "RendezVous advertise error: ", description = error.msg
 

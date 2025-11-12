@@ -1,5 +1,24 @@
-import hashes, random, tables, sets, sequtils
-import chronos, results, stew/byteutils, chronos/ratelimit
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+import
+  chronicles,
+  metrics,
+  hashes,
+  random,
+  tables,
+  sets,
+  sequtils,
+  chronos,
+  results,
+  stew/byteutils,
+  chronos/ratelimit
 import
   ../../libp2p/[
     builders,
@@ -12,9 +31,7 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../helpers
-import chronicles
-import metrics
+import ../tools/[unittest, crypto, bufferstream, futures]
 
 export builders
 
@@ -52,7 +69,9 @@ proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).}
 proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =
   discard
 
-proc voidPeerHandler(peer: PubSubPeer, data: seq[byte]) {.async: (raises: []).} =
+proc voidPeerHandler(
+    peer: PubSubPeer, data: sink seq[byte]
+) {.async: (raises: [CancelledError]).} =
   discard
 
 proc randomPeerId*(): PeerId =
@@ -192,10 +211,14 @@ proc generateNodes*(
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
     disconnectBadPeers: bool = false,
+    transport: TransportType =
+      if defined(macosx): TransportType.TCP else: TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
-      secureManagers = secureManagers, sendSignedPeerRecord = sendSignedPeerRecord
+      secureManagers = secureManagers,
+      sendSignedPeerRecord = sendSignedPeerRecord,
+      transport = transport,
     )
     let pubsub =
       if gossip:
@@ -534,10 +557,10 @@ proc baseTestProcedure*(
 
   block setup:
     for i in 0 ..< 50:
-      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == 19:
+      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == nodes.len - 1:
         break setup
-      await sleepAsync(10.milliseconds)
-    check false
+      await sleepAsync(200.milliseconds)
+    raiseAssert "Failed to publish message to peers"
 
   check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
   check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg

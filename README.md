@@ -17,17 +17,20 @@
 </p>
 
 # Table of Contents
-- [Background](#background)
-- [Install](#install)
-- [Getting Started](#getting-started)
-- [Development](#development)
-  - [Contribute](#contribute)
-  - [Contributors](#contributors)
-  - [Core Maintainers](#core-maintainers)
-- [Modules](#modules)
-- [Users](#users)
-- [Stability](#stability)
-- [License](#license)
+- [Table of Contents](#table-of-contents)
+  - [Background](#background)
+  - [Install](#install)
+  - [Getting Started](#getting-started)
+  - [Development](#development)
+    - [Testing](#testing)
+    - [Contribute](#contribute)
+    - [Contributors](#contributors)
+    - [Core Maintainers](#core-maintainers)
+    - [Compile time flags](#compile-time-flags)
+  - [Modules](#modules)
+  - [Users](#users)
+  - [Stability](#stability)
+  - [License](#license)
 
 ## Background
 libp2p is a [Peer-to-Peer](https://en.wikipedia.org/wiki/Peer-to-peer) networking stack, with [implementations](https://github.com/libp2p/libp2p#implementations) in multiple languages derived from the same [specifications.](https://github.com/libp2p/specs)
@@ -73,13 +76,19 @@ nimble install -dy
 ```
 You can use `nix develop` to start a shell with Nim and Nimble.
 
-nimble 0.20.1 is required for running `testnative`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
+nimble 0.20.1 is required for running `nimble test`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
 
 ### Testing
 Run unit tests:
 ```sh
 # run all the unit tests
 nimble test
+
+# run unit tests in specific package
+nim c -r ./tests/mix/test_all
+nim c -r ./tests/kademlia/test_all
+nim c -r ./tests/pubsub/test_all
+# etc ...
 ```
 
 For a list of all available test suites, use:
@@ -94,7 +103,7 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 - **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs.
 - **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](tests/).
 - **Small PRs**. Try to keep PRs atomic and digestible. This makes the review process and pinpointing bugs easier.
-- **Code format**. Code should be formatted with [nph](https://github.com/arnetheduck/nph) and follow the [Status Nim Style Guide](https://status-im.github.io/nim-style-guide/).
+- **Code format**. See [Coding Style](CODING_STYLE.md).
 - **Join the Conversation**. Connect with other contributors in our [community channel](https://discord.com/channels/1204447718093750272/1351621032263417946). Ask questions, share ideas, get support, and stay informed about the latest updates from the maintainers.
 
 ### Contributors
@@ -112,11 +121,6 @@ The libp2p implementation in Nim is a work in progress. We welcome contributors 
 </table>
 
 ### Compile time flags
-
-Enable quic transport support
-```bash
-nim c -d:libp2p_quic_support some_file.nim
-```
 
 Enable autotls support
 ```bash
@@ -138,6 +142,33 @@ Specify gossipsub specific topics to measure in the metrics:
 nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
 ```
 
+Extend `MultiFormats`:
+| Multi format   | Compiler flag<br>(path to extensions file) | Expected definition in extension file |
+|----------------|--------------------------------------------|-------------------------------|
+| `MultiCodec`   | `-d:libp2p_multicodec_exts`                | `const CodecExts = []`        |
+| `MultiHash`    | `-d:libp2p_multihash_exts`                 | `const HashExts = []`         |
+| `MultiAddress` | `-d:libp2p_multiaddress_exts`              | `const AddressExts = []`      |
+| `MultiBase`    | `-d:libp2p_multibase_exts`                 | `const BaseExts = []`         |
+| `ContentIds`   | `-d:libp2p_contentids_exts`                | `const ContentIdsExts = []`   |
+
+For example, a file called `multihash_exts.nim` could be created and contain `MultiHash` extensions:
+```nim
+proc coder1(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+proc coder2(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+proc sha2_256_override(data: openArray[byte], output: var openArray[byte]) =
+  copyMem(addr output[0], unsafeAddr data[0], len(output))
+
+const HashExts = [
+  MHash(mcodec: multiCodec("codec_mc1"), size: 0, coder: coder1),
+  MHash(mcodec: multiCodec("codec_mc2"), size: 6, coder: coder2),
+  MHash(mcodec: multiCodec("sha2-256"), size: 6, coder: sha2_256_override),
+]
+```
+These `MultiHashes` will be available at compile time when the binary is compiled with `-d:libp2p_multihash_exts=multihash_exts.nim`.
 
 ## Modules
 List of packages modules implemented in nim-libp2p:

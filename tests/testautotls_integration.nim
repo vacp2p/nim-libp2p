@@ -1,37 +1,34 @@
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-{.push raises: [].}
-
-import chronos
-import chronos/apps/http/httpclient
-import
-  ../libp2p/[
-    stream/connection,
-    upgrademngrs/upgrade,
-    autotls/acme/api,
-    autotls/acme/client,
-    autotls/service,
-    autotls/utils,
-    multiaddress,
-    switch,
-    builders,
-    nameresolving/dnsresolver,
-    wire,
-  ]
-
-import ./helpers
+{.used.}
 
 when defined(linux) and defined(amd64):
-  {.used.}
+  {.push raises: [].}
 
-  import ../libp2p/utils/ipaddr
+  import chronos, chronos/apps/http/httpclient
+  import
+    ../libp2p/[
+      stream/connection,
+      upgrademngrs/upgrade,
+      autotls/acme/api,
+      autotls/acme/client,
+      autotls/service,
+      autotls/utils,
+      multiaddress,
+      utils/ipaddr,
+      switch,
+      builders,
+      nameresolving/dnsresolver,
+      wire,
+    ]
+  import ./tools/[unittest]
 
   suite "AutoTLS Integration":
     asyncTeardown:
@@ -81,7 +78,7 @@ when defined(linux) and defined(amd64):
       let ip =
         try:
           getPublicIPAddress()
-        except:
+        except CatchableError:
           skip() # host doesn't have public IPv4 address
           return
 
@@ -103,20 +100,18 @@ when defined(linux) and defined(amd64):
       defer:
         await switch.stop()
 
-      # find autotls in list of services
+      # find autotls service in switch
       var autotls: AutotlsService = nil
       for service in switch.services:
-        try:
+        if service of AutotlsService:
           autotls = AutotlsService(service)
-          break
-        except:
-          continue
-
       if autotls.isNil():
-        raiseAssert "autotls service not found in switch"
+        raiseAssert "No Autotls service in switch"
+        return
 
       # wait for cert to be ready
       await autotls.certReady.wait()
+
       # clear since we'll use it again for renewal
       autotls.certReady.clear()
 

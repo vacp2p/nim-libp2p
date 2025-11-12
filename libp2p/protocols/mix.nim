@@ -1,3 +1,12 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
 import ./mix/[mix_protocol, mix_node, entry_connection, exit_layer]
 import ../stream/connection
 import chronos
@@ -19,26 +28,32 @@ export deletePubInfoFolder
 export MixDestination
 export MixParameters
 export destReadBehaviorCb
+export DestReadBehavior
 export registerDestReadBehavior
 export MixNodes
 export initMixMultiAddrByIndex
 
-proc readLp*(maxSize: int): destReadBehaviorCb =
-  ## create callback to read length prefixed msg, with the length encoded as a varint
-  return proc(
+proc readLp*(maxSize: int): DestReadBehavior =
+  ## Create a read behavior that reads length-prefixed messages (varint-encoded length).
+  ## The exit layer will automatically restore the length prefix for the reply.
+  let callback = proc(
       conn: Connection
   ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
     await conn.readLp(maxSize)
 
-proc readExactly*(nBytes: int): destReadBehaviorCb =
-  ## create callback that waits for `nbytes` to be available, then read
-  ## them and return them
-  return proc(
+  DestReadBehavior(callback: callback, usesLengthPrefix: true)
+
+proc readExactly*(nBytes: int): DestReadBehavior =
+  ## Create a read behavior that reads exactly nBytes without any length prefix.
+  ## The exit layer will not add a length prefix to the reply.
+  let callback = proc(
       conn: Connection
   ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
     let buf = newSeqUninit[byte](nBytes)
     await conn.readExactly(addr buf[0], nBytes)
     return buf
+
+  DestReadBehavior(callback: callback, usesLengthPrefix: false)
 
 when defined(libp2p_mix_experimental_exit_is_dest):
   export exitNode

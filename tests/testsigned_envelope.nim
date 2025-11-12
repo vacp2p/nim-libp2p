@@ -1,22 +1,21 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2
+{.used.}
+
 import stew/byteutils
 import ../libp2p/[signed_envelope]
+import ./tools/[unittest, crypto]
 
 suite "Signed envelope":
   test "Encode -> decode -> encode -> decode test":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
       envelope =
         Envelope.init(privKey, @[byte 12, 0], "payload".toBytes(), "domain").tryGet()
@@ -77,9 +76,7 @@ proc payloadType*(T: typedesc[DummyPayload]): seq[byte] =
 suite "Signed payload":
   test "Simple encode -> decode":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
-
       dummyPayload = DummyPayload(awesome: 12.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
       encoded = signed.encode().tryGet()
@@ -91,22 +88,20 @@ suite "Signed payload":
 
   test "Invalid payload":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
-
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = SignedDummy.init(privKey, dummyPayload).tryGet()
       encoded = signed.encode().tryGet()
+
     check SignedDummy.decode(encoded).error == EnvelopeInvalidSignature
 
   test "Invalid payload type":
     let
-      rng = newRng()
       privKey = PrivateKey.random(rng[]).tryGet()
-
       dummyPayload = DummyPayload(awesome: 30.byte)
       signed = Envelope
         .init(privKey, @[55.byte], dummyPayload.encode(), DummyPayload.payloadDomain)
         .tryGet()
       encoded = signed.encode().tryGet()
+
     check SignedDummy.decode(encoded).error == EnvelopeWrongType

@@ -1,7 +1,7 @@
-# Nim-Libp2p
-# Copyright (c) 2025 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -36,7 +36,7 @@ const
       initTAddress("[2606:4700:4700::1111]:53"),
     ]
   DefaultRenewCheckTime* = 1.hours
-  DefaultRenewBufferTime = 1.hours
+  DefaultRenewBufferTime* = 1.hours
 
   DefaultIssueRetries = 3
   DefaultIssueRetryTime = 1.seconds
@@ -65,6 +65,14 @@ type AutotlsConfig* = ref object
   renewBufferTime*: Duration
   issueRetries*: int
   issueRetryTime*: Duration
+  brokerURL*: string
+  dnsServerURL*: string
+  dnsRetries*: int
+  dnsRetryTime*: Duration
+  acmeRetries*: int
+  acmeRetryTime*: Duration
+  finalizeRetries*: int
+  finalizeRetryTime*: Duration
 
 type AutotlsService* = ref object of Service
   acmeClient*: ACMEClient
@@ -112,6 +120,14 @@ when defined(libp2p_autotls_support):
       renewBufferTime: Duration = DefaultRenewBufferTime,
       issueRetries: int = DefaultIssueRetries,
       issueRetryTime: Duration = DefaultIssueRetryTime,
+      brokerURL: string = AutoTLSBroker,
+      dnsServerURL: string = AutoTLSDNSServer,
+      dnsRetries: int = 10,
+      dnsRetryTime: Duration = 1.seconds,
+      acmeRetries: int = 10,
+      acmeRetryTime: Duration = 1.seconds,
+      finalizeRetries: int = 10,
+      finalizeRetryTime: Duration = 1.seconds,
   ): T =
     T(
       nameResolver: DnsResolver.new(nameServers),
@@ -121,6 +137,14 @@ when defined(libp2p_autotls_support):
       renewBufferTime: renewBufferTime,
       issueRetries: issueRetries,
       issueRetryTime: issueRetryTime,
+      brokerURL: brokerURL,
+      dnsServerURL: dnsServerURL,
+      dnsRetries: dnsRetries,
+      dnsRetryTime: dnsRetryTime,
+      acmeRetries: acmeRetries,
+      acmeRetryTime: acmeRetryTime,
+      finalizeRetries: finalizeRetries,
+      finalizeRetryTime: finalizeRetryTime,
     )
 
   proc new*(
@@ -129,8 +153,9 @@ when defined(libp2p_autotls_support):
       config: AutotlsConfig = AutotlsConfig.new(),
   ): T =
     T(
-      acmeClient:
-        ACMEClient.new(api = ACMEApi.new(acmeServerURL = config.acmeServerURL)),
+      acmeClient: ACMEClient.new(
+        api = ACMEApi.new(acmeServerURL = config.acmeServerURL), rng = rng
+      ),
       brokerClient: PeerIDAuthClient.new(),
       bearer: Opt.none(BearerToken),
       cert: Opt.none(AutotlsCert),
@@ -171,9 +196,9 @@ when defined(libp2p_autotls_support):
       error "Cannot issue new certificate: peerInfo not set"
       return false
 
-    # generate autotls domain string: "*.{peerID}.libp2p.direct"
+    # generate autotls domain string: "*.{peerID}.{dnsServerURL}"
     let baseDomain =
-      api.Domain(encodePeerId(self.peerInfo.peerId) & "." & AutoTLSDNSServer)
+      api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.dnsServerURL)
     let domain = api.Domain("*." & baseDomain)
 
     let acmeClient = self.acmeClient
@@ -190,7 +215,8 @@ when defined(libp2p_autotls_support):
 
     let strMultiaddresses: seq[string] = addrs.mapIt($it)
     let payload = %*{"value": keyAuth, "addresses": strMultiaddresses}
-    let registrationURL = parseUri("https://" & AutoTLSBroker & "/v1/_acme-challenge")
+    let registrationURL =
+      parseUri("https://" & self.config.brokerURL & "/v1/_acme-challenge")
 
     trace "Sending challenge to AutoTLS broker"
     let (bearer, response) =
@@ -199,7 +225,8 @@ when defined(libp2p_autotls_support):
       # save bearer token for future
       self.bearer = Opt.some(bearer)
     if response.status != HttpOk:
-      error "Failed to authenticate with AutoTLS Broker at " & AutoTLSBroker
+      error "Failed to authenticate with AutoTLS Broker",
+        brokerURL = self.config.brokerURL
       debug "Broker message",
         body = bytesToString(response.body), peerinfo = self.peerInfo
       return false
@@ -209,7 +236,12 @@ when defined(libp2p_autotls_support):
     let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
     debug "Waiting for DNS record to be set", ip = ip4Domain, acme = acmeChalDomain
     let dnsSet = await checkDNSRecords(
-      self.config.nameResolver, self.config.ipAddress.get(), baseDomain, keyAuth
+      self.config.nameResolver,
+      self.config.ipAddress.get(),
+      baseDomain,
+      keyAuth,
+      self.config.dnsRetries,
+      self.config.dnsRetryTime,
     )
     if not dnsSet:
       error "DNS records not set"
@@ -218,13 +250,15 @@ when defined(libp2p_autotls_support):
     trace "Notifying challenge completion to ACME and downloading cert"
     let certKeyPair = KeyPair.random(PKScheme.RSA, self.rng[]).get()
 
-    let certificate =
-      await acmeClient.getCertificate(domain, certKeyPair, dns01Challenge)
+    let certificate = await acmeClient.getCertificate(
+      domain, certKeyPair, dns01Challenge, self.config.acmeRetries,
+      self.config.finalizeRetries,
+    )
 
     let derPrivKey = certKeyPair.seckey.rsakey.getBytes.valueOr:
       raise newException(AutoTLSError, "Unable to get TLS private key")
     let pemPrivKey: string = derPrivKey.pemEncode("PRIVATE KEY")
-    debug "autotls cert", pemPrivKey = pemPrivKey, cert = certificate.rawCertificate
+    debug "Autotls cert", pemPrivKey = pemPrivKey, cert = certificate.rawCertificate
 
     trace "Installing certificate"
     let newCert =
@@ -275,7 +309,9 @@ when defined(libp2p_autotls_support):
         await self.tryIssueCertificate()
 
       # AutotlsService will renew the cert 1h before it expires
-      let cert = self.cert.get
+      let cert = self.cert.valueOr:
+        error "Could not issue certificate"
+        return
       let waitTime = cert.expiry - Moment.now - self.config.renewBufferTime
       if waitTime <= self.config.renewBufferTime:
         await self.tryIssueCertificate()

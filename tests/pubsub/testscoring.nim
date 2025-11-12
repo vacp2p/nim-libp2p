@@ -1,7 +1,7 @@
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
@@ -9,15 +9,12 @@
 
 {.used.}
 
-import chronos
-import math
-import std/[options, tables, sets]
-import utils
+import chronos, math, std/[options, tables, sets], utils
 import ../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../libp2p/protocols/pubsub/gossipsub/[types, scoring]
 import ../../libp2p/muxers/muxer
 import ../../libp2p/[multiaddress, peerid]
-import ../helpers
+import ../tools/[unittest]
 
 suite "GossipSub Scoring":
   const topic = "foobar"

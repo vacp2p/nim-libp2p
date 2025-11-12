@@ -1,17 +1,17 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import unittest2
+{.used.}
+
 import nimcrypto/utils
-import ../libp2p/multihash
+import ../libp2p/[multicodec, multihash]
+import ./tools/[unittest]
 
 const RustTestVectors = [
   ["sha1", "beep boop", "11147C8357577F51D4F0A8D393AA1AAAFB28863D9421"],
@@ -80,3 +80,7 @@ suite "MultiHash test suite":
         hex(mh1) == stripSpaces(item[2])
         hex(mh1) == hex(mh2)
         mh1 == mh2
+
+  test "gets digest size":
+    let mcodec = MultiCodec.codec("sha2-256")
+    check mcodec.digestSize.get == sha256.sizeDigest

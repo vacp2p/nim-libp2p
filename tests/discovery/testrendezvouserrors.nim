@@ -1,29 +1,26 @@
-{.used.}
-
-# Nim-Libp2p
-# Copyright (c) 2023 Status Research & Development GmbH
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 #  * MIT license ([LICENSE-MIT](LICENSE-MIT))
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import sequtils
-import strformat
-import strutils
-import chronos
+{.used.}
+
+import sequtils, strformat, strutils, chronos
 import
   ../../libp2p/[
     protocols/rendezvous,
     protocols/rendezvous/protobuf,
+    discovery/discoverymngr,
     peerinfo,
     switch,
     routing_record,
     crypto/crypto,
   ]
-import ../../libp2p/discovery/discoverymngr
-import ../helpers
+import ../tools/[unittest]
 import ./utils
 
 suite "RendezVous Errors":
@@ -31,27 +28,27 @@ suite "RendezVous Errors":
     checkTrackers()
 
   asyncTest "Various local error":
-    let rdv = RendezVous.new(minDuration = 1.minutes, maxDuration = 72.hours)
+    let rdv = RendezVous.new(
+      minDuration = MinimumAcceptedDuration, maxDuration = MaximumDuration
+    )
     expect AdvertiseError:
-      discard await rdv.request(Opt.some("A".repeat(300)))
+      discard await rendezvous.request(
+        rdv, Opt.some("A".repeat(300)), Opt.none(int), Opt.none(seq[PeerId])
+      )
     expect AdvertiseError:
-      discard await rdv.request(Opt.some("A"), -1)
+      discard await rendezvous.request(
+        rdv, Opt.some("A"), Opt.some(-1), Opt.none(seq[PeerId])
+      )
     expect AdvertiseError:
-      discard await rdv.request(Opt.some("A"), 3000)
+      discard await rendezvous.request(
+        rdv, Opt.some("A"), Opt.some(3000), Opt.none(seq[PeerId])
+      )
     expect AdvertiseError:
       await rdv.advertise("A".repeat(300))
     expect AdvertiseError:
-      await rdv.advertise("A", 73.hours)
+      await rdv.advertise("A", Opt.some(73.hours))
     expect AdvertiseError:
-      await rdv.advertise("A", 30.seconds)
-
-  test "Various config error":
-    expect RendezVousError:
-      discard RendezVous.new(minDuration = 30.seconds)
-    expect RendezVousError:
-      discard RendezVous.new(maxDuration = 73.hours)
-    expect RendezVousError:
-      discard RendezVous.new(minDuration = 15.minutes, maxDuration = 10.minutes)
+      await rdv.advertise("A", Opt.some(30.seconds))
 
   let testCases =
     @[
