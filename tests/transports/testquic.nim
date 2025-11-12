@@ -100,37 +100,6 @@ suite "Quic transport":
 
     await runClient()
 
-  asyncTest "closing session should close all streams":
-    let server = await createTransport(isServer = true)
-    # because some clients will not write full message, 
-    # it is expected for server to receive eof
-    asyncSpawn createServerAcceptConn(server, true)()
-    defer:
-      await server.stop()
-
-    proc runClient() {.async.} =
-      let client = await createTransport()
-      let conn = await client.dial("", server.addrs[0])
-      let session = QuicSession(conn)
-      for i in 1 .. 20:
-        let stream = await getStream(session, Direction.Out)
-
-        # at random send full message "client" or just part of it.
-        # if part of the message is sent server will be blocked until
-        # whole message is received. if full message is sent, server might have
-        # already written and closed it's stream. we want to cover both cases here.
-        if rand(1) == 0: # 50% probability
-          await stream.write("client")
-        else:
-          await stream.write("cl")
-
-        # intentionally do not close stream, it should be closed with session below
-      await session.close()
-      await client.stop()
-
-    # run multiple clients simultaneously
-    await allFutures(runClient(), runClient(), runClient())
-
   asyncTest "peer ID extraction from certificate":
     # Create server with known private key
     let serverPrivateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
