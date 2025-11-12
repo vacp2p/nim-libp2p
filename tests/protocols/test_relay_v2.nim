@@ -10,15 +10,16 @@
 {.used.}
 
 import bearssl, chronos, options, std/times, stew/byteutils
-import ../libp2p
 import
-  ../libp2p/[
+  ../../libp2p/[
+    builders,
+    switch,
     protocols/connectivity/relay/relay,
     protocols/connectivity/relay/messages,
     protocols/connectivity/relay/utils,
     protocols/connectivity/relay/client,
   ]
-import ./tools/[unittest]
+import ../tools/[unittest]
 
 proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   var builder = SwitchBuilder

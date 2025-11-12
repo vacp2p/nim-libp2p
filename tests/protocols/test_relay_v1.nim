@@ -11,7 +11,7 @@
 
 import options, bearssl, chronos, stew/byteutils
 import
-  ../libp2p/[
+  ../../libp2p/[
     protocols/connectivity/relay/relay,
     protocols/connectivity/relay/client,
     protocols/connectivity/relay/messages,
@@ -28,7 +28,7 @@ import
     upgrademngrs/upgrade,
     varint,
   ]
-import ./tools/[unittest]
+import ../tools/[unittest]
 
 proc new(T: typedesc[RelayTransport], relay: Relay): T =
   T.new(relay = relay, upgrader = relay.switch.transports[0].upgrader)
