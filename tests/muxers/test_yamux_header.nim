@@ -9,10 +9,10 @@
 
 {.used.}
 
-import ../libp2p/[stream/bufferstream, stream/lpstream, muxers/yamux/yamux]
-import ./tools/[unittest]
+import ../../libp2p/[stream/bufferstream, stream/lpstream, muxers/yamux/yamux]
+import ../tools/[unittest]
 
-include ../libp2p/muxers/yamux/yamux
+include ../../libp2p/muxers/yamux/yamux
 
 proc readBytes(bytes: array[12, byte]): Future[YamuxHeader] {.async.} =
   let bs = BufferStream.new()

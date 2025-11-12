@@ -29,7 +29,7 @@ jobs:
       - name: Build image
         run: docker buildx build --load -t nim-libp2p-transport-head -f interop/transport/Dockerfile .
       - name: Run tests
-        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
+        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@f58b7472d85aa053ce2ba8e9135bcc126a6fed3e
         with:
           test-filter: nim-libp2p-transport-head
           # without suffix action fails because "hole-punching-interop" artifacts have 
