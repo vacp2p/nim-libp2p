@@ -112,20 +112,26 @@ template streamTransportTest*(
         expect LPStreamEOFError:
           await stream.write(clientMessage)
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        await stream.write(serverMessage)
+    proc runClient(server: Transport) {.async.} =
+      let client = transportProvider()
+      let conn = await client.dial("", server.addrs[0])
+      let muxer = streamProvider(client, conn)
+      discard muxer.handle()
+
+      let stream = await muxer.newStream()
+      await stream.write(serverMessage)
+      await stream.close()
+      await muxer.close()
+      await conn.close()
+
+      clientHandlerDone.complete()
 
     let server = transportProvider()
     await server.start(ma)
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-    await clientRunSingleStream(
-      server, transportProvider, streamProvider, clientStreamHandler
-    )
-    clientHandlerDone.complete()
-
+    await runClient(server)
     await serverTask
     await server.stop()
 
