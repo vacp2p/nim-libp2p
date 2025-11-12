@@ -21,7 +21,6 @@ let transportType =
 
 waitFor(baseTest(scenarioName, transportType))
 
-
 # finalCheckTrackers is performed here instead in scenario tests to 
 # avoid libp2p dependency thus keeping compile time short.
 # Docker container will have libp2p dependency installed, making this
