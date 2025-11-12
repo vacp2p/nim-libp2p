@@ -11,7 +11,7 @@
 
 import chronos, stew/byteutils, std/random
 import ../../libp2p/[stream/connection, transports/transport, muxers/muxer]
-import ../tools/[stream]
+import ../tools/[stream, sync]
 import ./utils
 
 template streamTransportTest*(
@@ -200,8 +200,7 @@ template streamTransportTest*(
     const numStreams = 20
     const numIncomplete = 10
     const numComplete = numStreams - numIncomplete
-    var successfulReadsFut = newFuture[void]()
-    var successfulReadsCount = 0
+    let successfulReadsWG = newWaitGroup(numComplete)
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -210,9 +209,7 @@ template streamTransportTest*(
           await stream.readExactly(addr buffer[0], clientMessage.len)
           check string.fromBytes(buffer) == clientMessage
 
-          successfulReadsCount += 1
-          if successfulReadsCount == numComplete:
-            successfulReadsFut.complete()
+          successfulReadsWG.done()
         except LPStreamIncompleteError:
           # Error is expected when muxer is closed while waiting in readExactly
           discard
@@ -235,7 +232,7 @@ template streamTransportTest*(
         await stream.write(clientMessage)
 
       # Wait for all complete handlers to finish
-      await successfulReadsFut
+      await successfulReadsWG.wait()
 
       # Will cause EOF on the waiting handlers 
       # Intentionally do not close streams, they should be closed with muxer
@@ -325,8 +322,7 @@ template streamTransportTest*(
     const messageSize = chunkSize * chunkCount
     const numStreams = 5
     var serverReadOrder: seq[byte] = @[]
-    var serverHandlerDone = newFuture[void]()
-    var completedStreams = 0
+    let serverHandlerWG = newWaitGroup(numStreams)
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -347,9 +343,7 @@ template streamTransportTest*(
         # Send back the stream ID (first byte of received data)
         await stream.write(@[byte(receivedData[0])])
 
-        completedStreams += 1
-        if completedStreams == numStreams:
-          serverHandlerDone.complete()
+        serverHandlerWG.done()
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
@@ -385,7 +379,7 @@ template streamTransportTest*(
       await allFutures(futs)
 
       # Wait for server to process all streams before closing muxer
-      await serverHandlerDone
+      await serverHandlerWG.wait()
 
       await muxer.close()
       await conn.close()
