@@ -10,10 +10,10 @@
 {.used.}
 
 import sugar, chronos
-import ../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux]
-import ./tools/[unittest, futures]
+import ../../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux]
+import ../tools/[unittest, futures]
 
-include ../libp2p/muxers/yamux/yamux
+include ../../libp2p/muxers/yamux/yamux
 
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
   newFuture[void]()
