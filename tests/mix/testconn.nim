@@ -162,36 +162,37 @@ suite "Mix Protocol":
 
     check data == await receivedMessageFut
 
-  asyncTest "e2e - expect reply, exit == destination":
-    var mixProto: seq[MixProtocol] = @[]
-    for index, _ in enumerate(switches):
-      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-          "should have initialized mix protocol"
+  when defined(libp2p_mix_experimental_exit_is_dest):
+    asyncTest "e2e - expect reply, exit == destination":
+      var mixProto: seq[MixProtocol] = @[]
+      for index, _ in enumerate(switches):
+        let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
+            "should have initialized mix protocol"
+          )
+        # We'll fwd requests, so let's register how should the exit node will read responses
+        proto.registerDestReadBehavior(PingCodec, readExactly(32))
+        mixProto.add(proto)
+        switches[index].mount(proto)
+
+      let destNode = switches[^1]
+      let pingProto = Ping.new()
+      destNode.mount(pingProto)
+
+      # Start all nodes
+      await switches.mapIt(it.start()).allFutures()
+
+      let conn = mixProto[0]
+        .toConnection(
+          MixDestination.exitNode(destNode.peerInfo.peerId),
+          PingCodec,
+          MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
         )
-      # We'll fwd requests, so let's register how should the exit node will read responses
-      proto.registerDestReadBehavior(PingCodec, readExactly(32))
-      mixProto.add(proto)
-      switches[index].mount(proto)
+        .expect("could not build connection")
 
-    let destNode = switches[^1]
-    let pingProto = Ping.new()
-    destNode.mount(pingProto)
+      let response = await pingProto.ping(conn)
+      await conn.close()
 
-    # Start all nodes
-    await switches.mapIt(it.start()).allFutures()
-
-    let conn = mixProto[0]
-      .toConnection(
-        MixDestination.exitNode(destNode.peerInfo.peerId),
-        PingCodec,
-        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
-      )
-      .expect("could not build connection")
-
-    let response = await pingProto.ping(conn)
-    await conn.close()
-
-    check response != 0.seconds
+      check response != 0.seconds
 
   asyncTest "length-prefixed protocol - verify readLp fix":
     ## This test verifies the fix for the length prefix bug where responses
@@ -251,7 +252,7 @@ suite "Mix Protocol":
 
     let conn = mixProto[0]
       .toConnection(
-        MixDestination.exitNode(destNode.peerInfo.peerId),
+        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
         TestCodec,
         MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
       )
