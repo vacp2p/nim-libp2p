@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-from ../../tests/tools/unittest import checkTrackers
+from ../../tests/tools/unittest import finalCheckTrackers
 import ./test_node
 import ./utils
 import chronos
@@ -22,4 +22,4 @@ let transportType =
 
 waitFor(baseTest(scenarioName, transportType))
 
-checkTrackers()
+finalCheckTrackers()
