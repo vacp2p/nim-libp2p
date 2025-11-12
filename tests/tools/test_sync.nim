@@ -53,7 +53,7 @@ suite "WaitGroup":
     check not wg.wait().finished
     check await wg.wait().withTimeout(15.millis)
 
-  asyncTest "wait with intervae":
+  asyncTest "wait with interval":
     let wg = newWaitGroup(1)
     expect AsyncTimeoutError:
       await wg.wait(10.millis)
