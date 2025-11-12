@@ -133,7 +133,7 @@ macro checkUntilTimeout*(code: untyped): untyped =
   result = quote:
     checkUntilTimeoutCustom(30.seconds, 50.milliseconds, `code`)
 
-template finalCheckTrackers*(): untyped = 
+template finalCheckTrackers*(): untyped =
   unittest2.suite "Final checkTrackers":
     teardown:
       # checkTrackers must be excuted inside suite because outputs will not be visible. 
