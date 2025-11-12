@@ -11,7 +11,7 @@
 
 import chronos, std/options, net
 import
-  ../libp2p/[
+  ../../libp2p/[
     switch,
     transports/tcptransport,
     upgrademngrs/upgrade,
@@ -22,7 +22,7 @@ import
     protocols/connectivity/autonatv2/client,
     protocols/connectivity/autonatv2/mockserver,
   ]
-import ./tools/[unittest]
+import ../tools/[unittest]
 
 proc setupAutonat(
     srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
