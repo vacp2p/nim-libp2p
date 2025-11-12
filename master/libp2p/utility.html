@@ -157,6 +157,14 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#capLen%2Cseq%5BT%5D%2CNatural" title="capLen[T](s: var seq[T]; length: Natural)">capLen[T](s: var seq[T]; length: Natural)</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">collectCompleted
+  <li><a class="reference" href="#collectCompleted%2Cseq%5BInternalRaisesFuture%5BT%2CE%5D%5D%2C" title="collectCompleted[T, E](futs: seq[InternalRaisesFuture[T, E]];
+                       timeout: chronos.Duration): InternalRaisesFuture[seq[T],
+    (CancelledError,)]">collectCompleted[T, E](futs: seq[InternalRaisesFuture[T, E]];
+                       timeout: chronos.Duration): InternalRaisesFuture[seq[T],
+    (CancelledError,)]</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">safeConvert
   <li><a class="reference" href="#safeConvert%2CSomeOrdinal" title="safeConvert[T: SomeInteger](value: SomeOrdinal): T">safeConvert[T: SomeInteger](value: SomeOrdinal): T</a></li>
 
@@ -249,6 +257,22 @@ window.addEventListener("DOMContentLoaded", main2);
 
 <a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utility.nim#L73" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
 <a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utility.nim#L73" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="collectCompleted-procs-all">
+  <div id="collectCompleted,seq[InternalRaisesFuture[T,E]]," class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#collectCompleted%2Cseq%5BInternalRaisesFuture%5BT%2CE%5D%5D%2C"><span class="Identifier">collectCompleted</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <span class="Identifier">E</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">futs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <span class="Identifier">E</span><span class="Other">]</span><span class="Other">]</span><span class="Other">;</span>
+                            <span class="Identifier">timeout</span><span class="Other">:</span> <span class="Identifier">chronos</span><span class="Other">.</span><span class="Identifier">Duration</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span><span class="Other">)</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
+                                 <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Wait up to <tt class="docutils literal"><span class="pre"><span class="Identifier">timeout</span></span></tt>; collect only successfully completed futures. Ignore results from futures throwing errors
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utility.nim#L173" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utility.nim#L173" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -460,7 +484,7 @@ Splits <tt class="docutils literal"><span class="pre"><span class="Identifier">d
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-11-12 19:18:37 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-11-12 20:02:21 UTC</small>
       </div>
     </div>
   </div>
