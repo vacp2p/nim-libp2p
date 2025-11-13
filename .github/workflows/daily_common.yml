@@ -42,7 +42,7 @@ jobs:
             builder: ubuntu-22.04
             shell: bash
           - os: macos
-            builder: macos-13
+            builder: macos-15
             shell: bash
           - os: windows
             builder: windows-2022
@@ -92,7 +92,5 @@ jobs:
         run: |
           nim --version
           nimble --version
-
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          nimble testintegration
+          nim r -d:libp2p_autotls_support -d:chronicles_log_level=DEBUG tests/testintegration.nim
 

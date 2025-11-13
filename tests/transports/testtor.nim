@@ -37,7 +37,7 @@ suite "Tor transport":
   proc torTransProvider(): Transport =
     TorTransport.new(torServer, {ReuseAddr}, Upgrade())
 
-  proc streamProvider(_: Transport, conn: Connection): Muxer =
+  proc streamProvider(conn: Connection): Muxer =
     Mplex.new(conn)
 
   const
