@@ -56,11 +56,12 @@ proc createServerAcceptConn*(
     if conn == nil:
       return
 
-    let stream = 
+    let stream =
       try:
         await getStream(QuicSession(conn), Direction.In)
       except QuicTransportError:
-        return # TODO: should it be a diff error? this is raised if the connection is closed too
+        return
+          # TODO: should it be a diff error? this is raised if the connection is closed too
     defer:
       await stream.close()
 

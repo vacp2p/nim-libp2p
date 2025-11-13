@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos#, random, stew/byteutils
+import chronos, random, stew/byteutils
 import lsquic/lsquic_ffi
 import
   ../../libp2p/
@@ -50,7 +50,7 @@ suite "Quic transport":
     checkTrackers()
 
   basicTransportTest(quicTransProvider, address, validAddresses, invalidAddresses)
-  #streamTransportTest(quicTransProvider, address, streamProvider)
+  streamTransportTest(quicTransProvider, address, streamProvider)
 
   asyncTest "transport e2e - invalid cert - server":
     let server = await createTransport(isServer = true, withInvalidCert = true)
