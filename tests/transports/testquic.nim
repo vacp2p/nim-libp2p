@@ -24,7 +24,7 @@ proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
-proc streamProvider(_: Transport, conn: Connection): Muxer {.raises: [].} =
+proc streamProvider(conn: Connection): Muxer {.raises: [].} =
   try:
     return QuicMuxer.new(conn)
   except CatchableError:

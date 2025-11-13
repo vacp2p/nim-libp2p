@@ -115,7 +115,7 @@ template streamTransportTest*(
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
-      let muxer = streamProvider(client, conn)
+      let muxer = streamProvider(conn)
       discard muxer.handle()
 
       let stream = await muxer.newStream()
@@ -217,7 +217,7 @@ template streamTransportTest*(
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
-      let muxer = streamProvider(client, conn)
+      let muxer = streamProvider(conn)
       discard muxer.handle()
 
       # Send incomplete messages (will block)
@@ -348,7 +348,7 @@ template streamTransportTest*(
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
-      let muxer = streamProvider(client, conn)
+      let muxer = streamProvider(conn)
       discard muxer.handle()
 
       var futs: seq[Future[void]]
@@ -419,7 +419,7 @@ template streamTransportTest*(
       var futs: seq[Future[void]]
       for i in 0 ..< numConnections:
         let conn = await server.accept()
-        let muxer = streamProvider(server, conn)
+        let muxer = streamProvider(conn)
 
         # Use a proc to properly capture loop index
         proc setupConnection(conn: Connection, muxer: Muxer, handlerIndex: int) =
@@ -464,7 +464,7 @@ template streamTransportTest*(
     proc runClient(server: Transport, connectionId: int) {.async.} =
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
-      let muxer = streamProvider(client, conn)
+      let muxer = streamProvider(conn)
       discard muxer.handle()
 
       let stream = await muxer.newStream()
