@@ -159,13 +159,10 @@ proc new*(
     _: type QuicMuxer, conn: P2PConnection, peerId: Opt[PeerId] = Opt.none(PeerId)
 ): QuicMuxer {.raises: [CertificateParsingError, LPError].} =
   let session = QuicSession(conn)
-  session.peerId =
-    if peerId.isSome:
-      peerId.get()
-    else:
-      let certificates = session.connection.certificates()
-      let cert = parse(certificates[0])
-      cert.peerId()
+  session.peerId = peerId.valueOr:
+    let certificates = session.connection.certificates()
+    let cert = parse(certificates[0])
+    cert.peerId()
   QuicMuxer(session: session, connection: conn)
 
 when defined(libp2p_agents_metrics):
