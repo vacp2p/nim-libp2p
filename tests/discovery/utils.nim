@@ -29,7 +29,7 @@ proc createSwitch*(): Switch =
   .withRng(newRng())
   .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
   .withMemoryTransport()
-  .withMplex()
+  .withYamux()
   .withNoise()
   .build()
 
@@ -43,7 +43,7 @@ proc createSwitch*(rdv: RendezVous): Switch =
   .withRng(newRng())
   .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
   .withMemoryTransport()
-  .withMplex()
+  .withYamux()
   .withNoise()
   .withRendezVous(lrdv)
   .build()

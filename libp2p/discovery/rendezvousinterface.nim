@@ -10,7 +10,10 @@
 {.push raises: [].}
 
 import chronos
-import ./discoverymngr, ../protocols/rendezvous, ../peerid, ../routing_record
+import ./discoverymngr
+import ../protocols/rendezvous
+import ../utils/heartbeat
+import ../[peerid, routing_record]
 
 type
   RendezVousInterface* = ref object of DiscoveryInterface
@@ -19,38 +22,35 @@ type
     timeToAdvertise: Duration
     ttl: Duration
 
-  RdvNamespace* = distinct string
-
-proc `==`*(a, b: RdvNamespace): bool {.borrow.}
+  RdvNamespace* = string
 
 method request*(
     self: RendezVousInterface, pa: PeerAttributes
 ) {.async: (raises: [DiscoveryError, CancelledError]).} =
   var namespace = Opt.none(string)
+
   for attr in pa:
     if attr.ofType(RdvNamespace):
       namespace = Opt.some(string attr.to(RdvNamespace))
-    elif attr.ofType(DiscoveryService):
-      namespace = Opt.some(string attr.to(DiscoveryService))
     elif attr.ofType(PeerId):
       namespace = Opt.some($attr.to(PeerId))
-    else:
-      # unhandled type
-      return
-  while true:
+
+  if namespace.isNone():
+    # unhandled type
+    return
+
+  heartbeat "Requesting peer attributes", self.timeToRequest:
     let peerRecords: seq[PeerRecord] =
       await self.rdv.request(namespace, Opt.none(int), Opt.none(seq[PeerId]))
+
     for pr in peerRecords:
       var peer: PeerAttributes
       peer.add(pr.peerId)
       for address in pr.addresses:
         peer.add(address.address)
 
-      peer.add(DiscoveryService(namespace.get()))
       peer.add(RdvNamespace(namespace.get()))
       self.onPeerFound(peer)
-
-    await sleepAsync(self.timeToRequest)
 
 method advertise*(
     self: RendezVousInterface
@@ -60,8 +60,6 @@ method advertise*(
     for attr in self.toAdvertise:
       if attr.ofType(RdvNamespace):
         toAdvertise.add string attr.to(RdvNamespace)
-      elif attr.ofType(DiscoveryService):
-        toAdvertise.add string attr.to(DiscoveryService)
       elif attr.ofType(PeerId):
         toAdvertise.add $attr.to(PeerId)
 
