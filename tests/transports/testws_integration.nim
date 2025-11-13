@@ -32,12 +32,11 @@ suite "WebSocket transport integration":
     checkTrackers()
 
   asyncTest "switch successfully dials over wss using autotls certificate":
-    var ipAddress: IpAddress
-    try:
-      ipAddress = getPublicIPAddress()
-    except:
-      skip() # host doesn't have public IPv4 address
+    if not hasPublicIPAddress():
+      skip()
       return
+
+    let ip = getPublicIPAddress()
 
     let switch1 = SwitchBuilder
       .new()
@@ -77,7 +76,7 @@ suite "WebSocket transport integration":
 
     # generate the domain for the peer
     # dashed-ip-add-ress.base36peerid.libp2p.direct
-    let dashedIpAddr = ($ipAddress).replace(".", "-")
+    let dashedIpAddr = ($ip).replace(".", "-")
     let serverDns =
       dashedIpAddr & "." & encodePeerId(switch2.peerInfo.peerId) & "." & AutoTLSDNSServer
 
