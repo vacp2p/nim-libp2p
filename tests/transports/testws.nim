@@ -83,7 +83,7 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
   except TLSStreamProtocolError:
     raiseAssert "should not happen"
 
-proc streamProvider(_: Transport, conn: Connection): Muxer =
+proc streamProvider(conn: Connection): Muxer =
   Mplex.new(conn)
 
 const

@@ -108,8 +108,7 @@ proc createTransport*(
 
 type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
 
-type StreamProvider* =
-  proc(transport: Transport, conn: Connection): Muxer {.gcsafe, raises: [].}
+type StreamProvider* = proc(conn: Connection): Muxer {.gcsafe, raises: [].}
 
 type StreamHandler* = proc(stream: Connection) {.async: (raises: []).}
 
@@ -140,7 +139,7 @@ proc serverHandlerSingleStream*(
 ) {.async: (raises: []).} =
   try:
     let conn = await server.accept()
-    let muxer = streamProvider(server, conn)
+    let muxer = streamProvider(conn)
     muxer.streamHandler = handler
 
     let muxerTask = muxer.handle()
@@ -160,7 +159,7 @@ proc clientRunSingleStream*(
   try:
     let client = transportProvider()
     let conn = await client.dial("", server.addrs[0])
-    let muxer = streamProvider(client, conn)
+    let muxer = streamProvider(conn)
     discard muxer.handle()
 
     let stream = await muxer.newStream()
