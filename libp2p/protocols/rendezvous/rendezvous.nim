@@ -174,7 +174,7 @@ proc save*[E](
     rdv.namespaces[nsSalted].add(rdv.registered.high)
   #    rdv.registerEvent.fire()
   except exceptions.KeyError as e:
-    doAssert false, "Should have key: " & e.msg
+    raiseAssert "Should have key: " & e.msg
 
 proc register*[E](
     rdv: GenericRendezVous[E], conn: Connection, r: Register, peerRecord: E
