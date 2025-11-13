@@ -7,11 +7,16 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/sequtils
+import std/[sequtils, sets]
 import chronos
 import chronicles
 import metrics
-import quic
+import lsquic/api
+import lsquic/listener
+import lsquic/tlsconfig
+import lsquic/connection as lsconn
+import lsquic/certificateverifier
+import lsquic/stream
 import results
 import ../multiaddress
 import ../multicodec
@@ -19,6 +24,7 @@ import ../stream/connection
 import ../wire
 import ../muxers/muxer
 import ../upgrademngrs/upgrade
+import ../utility
 import ./transport
 import tls/certificate
 
@@ -32,12 +38,14 @@ logScope:
 
 type
   P2PConnection = connection.Connection
-  QuicConnection = quic.Connection
+  QuicConnection = lsconn.Connection
   QuicTransportError* = object of transport.TransportError
   QuicTransportDialError* = object of transport.TransportDialError
   QuicTransportAcceptStopped* = object of QuicTransportError
 
 const alpn = "libp2p"
+
+initializeLsquic()
 
 # Stream
 type QuicStream* = ref object of P2PConnection
@@ -71,7 +79,7 @@ method readOnce*(
       if stream.cached.len == 0:
         stream.isEof = true
         return 0
-    except QuicError as e:
+    except StreamError as e:
       raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
 
   stream.activity = true
@@ -89,36 +97,35 @@ method write*(
   try:
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
-  except quic.ClosedStreamError:
+  except StreamError:
     raise newLPStreamRemoteClosedError()
-  except QuicError as e:
-    raise (ref LPStreamError)(msg: "error in quic stream write: " & e.msg, parent: e)
 
 {.pop.}
 
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
   try:
-    await stream.stream.closeWrite()
-  except CancelledError, QuicError:
+    await stream.stream.close()
+  except CancelledError, StreamError:
     discard
 
 method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
   try:
     await stream.stream.close()
-  except CancelledError, QuicError:
+  except CancelledError, StreamError:
     discard
   await procCall P2PConnection(stream).closeImpl()
 
 # Session
 type QuicSession* = ref object of P2PConnection
-  connection: QuicConnection
+  connection*: QuicConnection
   streams: seq[QuicStream]
 
 method close*(session: QuicSession) {.async: (raises: []).} =
   for s in session.streams:
     await s.close()
-  safeClose(session.connection)
+  if session != nil:
+    session.connection.close()
   await procCall P2PConnection(session).close()
 
 proc getStream*(
@@ -133,7 +140,7 @@ proc getStream*(
       stream = await session.connection.openStream()
   except CancelledError as exc:
     raise (ref QuicTransportError)(msg: "cancelled getStream: " & exc.msg, parent: exc)
-  except QuicError as exc:
+  except ConnectionError as exc:
     raise (ref QuicTransportError)(msg: "error in getStream: " & exc.msg, parent: exc)
 
   let qs =
@@ -278,8 +285,9 @@ proc makeConfig(self: QuicTransport): TLSConfig =
     return
 
   let cert = self.certGenerator(KeyPair(seckey: self.privateKey, pubkey: pubkey))
-  let tlsConfig = TLSConfig.init(
-    cert.certificate, cert.privateKey, @[alpn], Opt.some(makeCertificateVerifier())
+  let certVerifier = makeCertificateVerifier()
+  let tlsConfig = TLSConfig.new(
+    cert.certificate, cert.privateKey, @[alpn].toHashSet(), Opt.some(certVerifier)
   )
   return tlsConfig
 
@@ -300,10 +308,11 @@ method start*(
   # TODO(#1663): handle multiple addr
 
   try:
-    let server = QuicServer.init(self.makeConfig(), self.getRng())
+    let server = QuicServer.new(self.makeConfig())
     self.listener = server.listen(initTAddress(addrs[0]).tryGet)
     let listenMA = @[toMultiAddress(self.listener.localAddress())]
     await procCall Transport(self).start(listenMA)
+    self.addrs = listenMA
   except QuicConfigError as exc:
     raiseAssert "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
@@ -328,8 +337,10 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
       await transport.listener.stop()
     except CatchableError as exc:
       trace "Error shutting down Quic transport", description = exc.msg
-    transport.listener.destroy()
     transport.listener = nil
+
+  transport.client.withValue(client):
+    await noCancel client.stop()
 
   transport.client = Opt.none(QuicClient)
   await procCall Transport(transport).stop()
@@ -382,6 +393,8 @@ method accept*(
     return self.wrapConnection(connection, Direction.In)
   except QuicError as exc:
     debug "Quic Error", description = exc.msg
+  except common.TransportError as exc:
+    debug "Transport Error", description = exc.msg
   except TransportOsError as exc:
     debug "OS Error", description = exc.msg
 
@@ -403,7 +416,7 @@ method dial*(
 
   try:
     if not self.client.isSome:
-      self.client = Opt.some(QuicClient.init(self.makeConfig(), self.getRng()))
+      self.client = Opt.some(QuicClient.new(self.makeConfig()))
 
     let client = self.client.get()
     let quicConnection = await client.dial(taAddress)
@@ -417,6 +430,8 @@ method dial*(
       QuicTransportDialError, "error in quic dial: tls certificate error:" & e.msg, e
     )
   except TransportOsError as e:
+    raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
+  except DialError as e:
     raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
   except QuicError as e:
     raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
