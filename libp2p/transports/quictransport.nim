@@ -161,6 +161,8 @@ proc new*(
   let session = QuicSession(conn)
   session.peerId = peerId.valueOr:
     let certificates = session.connection.certificates()
+    if certificates.len != 1:
+      raise (ref QuicTransportError)(msg: "expected one certificate in connection")
     let cert = parse(certificates[0])
     cert.peerId()
   QuicMuxer(session: session, connection: conn)
