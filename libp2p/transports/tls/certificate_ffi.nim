@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import ngtcp2
+import lsquic/lsquic_ffi
 import strutils
 import results
 import ../../utils/sequninit
