@@ -113,6 +113,8 @@ proc new*(
         await kad.handleGetValue(conn, msg)
       of MessageType.addProvider:
         await kad.handleAddProvider(conn, msg)
+      of MessageType.getProviders:
+        await kad.handleGetProviders(conn, msg)
       of MessageType.ping:
         await kad.handlePing(conn, msg)
       else:
