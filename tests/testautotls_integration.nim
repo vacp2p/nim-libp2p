@@ -75,12 +75,9 @@ when defined(linux) and defined(amd64):
         challenge.dns01.token.len > 0
 
     asyncTest "AutotlsService correctly downloads challenges":
-      let ip =
-        try:
-          getPublicIPAddress()
-        except CatchableError:
-          skip() # host doesn't have public IPv4 address
-          return
+      if not hasPublicIPAddress():
+        skip()
+        return
 
       let switch = SwitchBuilder
         .new()
@@ -105,9 +102,10 @@ when defined(linux) and defined(amd64):
       for service in switch.services:
         if service of AutotlsService:
           autotls = AutotlsService(service)
+          break
+
       if autotls.isNil():
         raiseAssert "No Autotls service in switch"
-        return
 
       # wait for cert to be ready
       await autotls.certReady.wait()

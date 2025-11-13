@@ -7,17 +7,13 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import algorithm
+{.used.}
 
-proc unorderedCompare*[T](a, b: seq[T]): bool =
-  if a == b:
-    return true
-  if a.len != b.len:
-    return false
+import ../../libp2p/[multiaddress]
 
-  var aSorted = a
-  var bSorted = b
-  aSorted.sort()
-  bSorted.sort()
-
-  return aSorted == bSorted
+proc countAddressesWithPattern*(addrs: seq[MultiAddress], pattern: MaPattern): int =
+  var count: int = 0
+  for a in addrs:
+    if pattern.match(a):
+      count.inc
+  count

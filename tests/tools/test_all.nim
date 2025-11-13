@@ -9,4 +9,4 @@
 
 {.used.}
 
-import test_unittest
+import test_sync, test_multiaddress, test_unittest

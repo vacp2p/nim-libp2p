@@ -7,17 +7,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import algorithm
+{.used.}
 
-proc unorderedCompare*[T](a, b: seq[T]): bool =
-  if a == b:
-    return true
-  if a.len != b.len:
-    return false
-
-  var aSorted = a
-  var bSorted = b
-  aSorted.sort()
-  bSorted.sort()
-
-  return aSorted == bSorted
+import test_mplex, test_yamux_header, test_yamux

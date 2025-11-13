@@ -151,14 +151,26 @@ method getWrapped*(self: QuicSession): P2PConnection =
   self
 
 # Muxer
-type QuicMuxer = ref object of Muxer
-  quicSession: QuicSession
+type QuicMuxer* = ref object of Muxer
+  session: QuicSession
   handleFut: Future[void]
+
+proc new*(
+    _: type QuicMuxer, conn: P2PConnection, peerId: Opt[PeerId] = Opt.none(PeerId)
+): QuicMuxer {.raises: [CertificateParsingError, LPError].} =
+  let session = QuicSession(conn)
+  session.peerId = peerId.valueOr:
+    let certificates = session.connection.certificates()
+    if certificates.len != 1:
+      raise (ref QuicTransportError)(msg: "expected one certificate in connection")
+    let cert = parse(certificates[0])
+    cert.peerId()
+  QuicMuxer(session: session, connection: conn)
 
 when defined(libp2p_agents_metrics):
   method setShortAgent*(m: QuicMuxer, shortAgent: string) =
-    m.quicSession.shortAgent = shortAgent
-    for s in m.quicSession.streams:
+    m.session.shortAgent = shortAgent
+    for s in m.session.streams:
       s.shortAgent = shortAgent
     m.connection.shortAgent = shortAgent
 
@@ -168,7 +180,7 @@ method newStream*(
     async: (raises: [CancelledError, LPStreamError, MuxerError])
 .} =
   try:
-    return await m.quicSession.getStream(Direction.Out)
+    return await m.session.getStream(Direction.Out)
   except QuicTransportError as exc:
     raise newException(MuxerError, "error in newStream: " & exc.msg, exc)
 
@@ -181,16 +193,17 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     doAssert(chann.closed, "connection not closed by handler!")
 
   try:
-    while not m.quicSession.atEof:
-      let stream = await m.quicSession.getStream(Direction.In)
+    while not m.session.atEof:
+      let stream = await m.session.getStream(Direction.In)
       asyncSpawn handleStream(stream)
   except QuicTransportError as exc:
     trace "Exception in quic handler", msg = exc.msg
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
-    await m.quicSession.close()
-    m.handleFut.cancelSoon()
+    await m.session.close()
+    if not isNil(m.handleFut):
+      m.handleFut.cancelSoon()
   except CatchableError as exc:
     discard
 
@@ -411,16 +424,7 @@ method dial*(
 method upgrade*(
     self: QuicTransport, conn: P2PConnection, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
-  let qs = QuicSession(conn)
-  qs.peerId =
-    if peerId.isSome:
-      peerId.get()
-    else:
-      let certificates = qs.connection.certificates()
-      let cert = parse(certificates[0])
-      cert.peerId()
-
-  let muxer = QuicMuxer(quicSession: qs, connection: conn)
+  let muxer = QuicMuxer.new(conn, peerId)
   muxer.streamHandler = proc(conn: P2PConnection) {.async: (raises: []).} =
     trace "Starting stream handler"
     try:

@@ -34,7 +34,7 @@ proc dispatchGetVal(
 
   for peer in reply.closerPeers:
     let p = PeerId.init(peer.id).valueOr:
-      debug "Invalid peer id received", error = error
+      debug "Invalid peer id received", peerId = peer.id, error = error
       continue
     candidates[].incl(p)
 

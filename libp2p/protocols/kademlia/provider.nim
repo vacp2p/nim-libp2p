@@ -172,3 +172,67 @@ proc handleAddProvider*(
         key: msg.key.toCid(),
       )
     )
+
+proc dispatchGetProviders(
+    switch: Switch, peer: PeerId, key: Key
+): Future[HashSet[Provider]] {.
+    async: (raises: [CancelledError, DialFailedError, LPStreamError])
+.} =
+  let conn = await switch.dial(peer, KadCodec)
+  defer:
+    await conn.close()
+  let msg = Message(msgType: MessageType.getProviders, key: key)
+  await conn.writeLp(msg.encode().buffer)
+
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+    error "GetProviders reply decode fail", error = error, conn = conn
+    return
+
+  var providers: HashSet[Provider]
+  for peer in reply.providerPeers:
+    let p = PeerId.init(peer.id).valueOr:
+      debug "Invalid peer id received", peerId = peer.id, error = error
+      continue
+    providers.incl(peer)
+
+  return providers
+
+proc getProviders*(
+    kad: KadDHT, key: Key
+): Future[HashSet[Provider]] {.
+    async: (raises: [LPStreamError, DialFailedError, CancelledError]), gcsafe
+.} =
+  ## Get providers for a given `key` from the nodes closest to that `key`.
+
+  var allProviders: HashSet[Provider]
+
+  for chunk in (await kad.findNode(key)).toChunks(kad.config.alpha):
+    let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
+    for res in await rpcBatch.collectCompleted(kad.config.timeout):
+      allProviders.incl(res)
+
+  return allProviders
+
+proc handleGetProviders*(
+    kad: KadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let cid = msg.key.toCid()
+
+  var providers =
+    kad.providerManager.knownKeys.getOrDefault(cid, initHashSet[Provider]())
+
+  # check if we are providing the key as well
+  if kad.providerManager.providedKeys.provided.hasKey(cid):
+    providers.incl(kad.switch.peerInfo.toPeer())
+
+  try:
+    await conn.writeLp(
+      Message(
+        msgType: MessageType.getProviders,
+        key: msg.key,
+        closerPeers: kad.findClosestPeers(msg.key),
+        providerPeers: providers.toSeq(),
+      ).encode().buffer
+    )
+  except LPStreamError as exc:
+    debug "Failed to send get-providers RPC reply", conn = conn, err = exc.msg
