@@ -334,9 +334,8 @@ method start*(
     )
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
-  let conns = transport.connections[0 .. ^1]
-  for c in conns:
-    await c.close()
+  let futs = transport.connections.mapIt(it.close())
+  await noCancel allFutures(futs)
 
   if not transport.listener.isNil:
     try:
