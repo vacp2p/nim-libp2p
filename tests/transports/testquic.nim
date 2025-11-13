@@ -24,11 +24,11 @@ proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
-proc streamProvider(transport: Transport, conn: Connection): Muxer {.raises: [].} =
+proc streamProvider(conn: Connection): Muxer {.raises: [].} =
   try:
-    waitFor transport.upgrade(conn, Opt.none(PeerId))
-  except CatchableError as exc:
-    raiseAssert "should not fail: " & exc.msg
+    return QuicMuxer.new(conn)
+  except CatchableError:
+    raiseAssert "should not happen"
 
 const
   address = "/ip4/127.0.0.1/udp/0/quic-v1"

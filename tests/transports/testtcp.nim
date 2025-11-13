@@ -27,7 +27,7 @@ import ./tcp_tests
 proc tcpTransProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
 
-proc streamProvider(_: Transport, conn: Connection): Muxer =
+proc streamProvider(conn: Connection): Muxer =
   Mplex.new(conn)
 
 const
