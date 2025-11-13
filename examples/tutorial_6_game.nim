@@ -125,7 +125,7 @@ proc mainLoop(g: Game, peer: Connection) {.async.} =
 proc draw(g: Game) =
   for pos, color in g.gameMap:
     setColor(color)
-    boxFill(pos mod 32 * 4, pos div 32 * 4, 4, 4)
+    boxfill(pos mod 32 * 4, pos div 32 * 4, 4, 4)
   let text =
     if not (g.peerFound.finished()):
       "Matchmaking.."
@@ -155,7 +155,7 @@ proc draw(g: Game) =
 proc new(T: typedesc[GameProto], g: Game): T =
   proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     defer:
-      await conn.closeWithEof()
+      await conn.closeWithEOF()
     try:
       if g.peerFound.finished or g.hasCandidate:
         await conn.close()
@@ -259,7 +259,7 @@ proc networking(g: Game) {.async.} =
   # We now wait for someone to connect to us (or for us to connect to someone)
   let peerConn = await g.peerFound
   defer:
-    await peerConn.closeWithEof()
+    await peerConn.closeWithEOF()
 
   await g.mainLoop(peerConn)
 

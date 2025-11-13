@@ -23,6 +23,10 @@ type
   PeerAttributes* = object
     attributes: seq[BaseAttr]
 
+  DiscoveryService* = distinct string
+
+proc `==`*(a, b: DiscoveryService): bool {.borrow.}
+
 proc ofType*[T](f: BaseAttr, _: type[T]): bool =
   return f of Attribute[T]
 
@@ -138,14 +142,18 @@ template forEach*(query: DiscoveryQuery, code: untyped) =
   ## peer attritubtes are available through the variable
   ## `peer`
 
-  asyncSpawn proc() {.async: (raises: [CancelledError, DiscoveryError]).} =
+  proc forEachInternal(
+      q: DiscoveryQuery
+  ) {.async: (raises: [CancelledError, DiscoveryError]).} =
     while true:
       let peer {.inject.} =
         try:
-          await query.getPeer()
+          await q.getPeer()
         except DiscoveryFinished:
           return
       code
+
+  asyncSpawn forEachInternal(query)
 
 proc stop*(query: DiscoveryQuery) =
   query.finished = true

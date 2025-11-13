@@ -34,10 +34,9 @@ method request*(
       namespace = Opt.some(string attr.to(RdvNamespace))
     elif attr.ofType(PeerId):
       namespace = Opt.some($attr.to(PeerId))
-
-  if namespace.isNone():
-    # unhandled type
-    return
+    else:
+      # unhandled type
+      return
 
   heartbeat "Requesting peer attributes", self.timeToRequest:
     let peerRecords: seq[PeerRecord] =
