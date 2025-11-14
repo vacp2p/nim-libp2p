@@ -629,13 +629,13 @@ suite "Switch":
       await switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
 
     # Wait until all 5 are connected
-    await allConnected.wait()
+    await allConnected.wait(5.seconds)
 
     # Trigger disconnect safely
     await switches[0].disconnect(peerInfo.peerId)
 
     # Wait until all disconnected
-    await allDisconnected.wait()
+    await allDisconnected.wait(5.seconds)
     check not switches[0].isConnected(peerInfo.peerId)
 
     checkTracker(LPChannelTrackerName)
@@ -1051,6 +1051,68 @@ suite "Switch":
 
     await destSwitch.stop()
     await srcSwitch.stop()
+
+  asyncTest "e2e multiple transports coexistence":
+    let
+      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+      wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
+      quicAddress = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+
+      destSwitch = SwitchBuilder
+        .new()
+        .withAddresses(@[tcpAddress, wsAddress, quicAddress])
+        .withRng(rng)
+        .withMplex()
+        .withTransport(
+          proc(config: TransportConfig): Transport =
+            WsTransport.new(config.upgr)
+        )
+        .withTcpTransport()
+        .withQuicTransport()
+        .withNoise()
+        .build()
+
+      srcTcpSwitch =
+        newStandardSwitch(addrs = tcpAddress, transport = TransportType.TCP)
+      srcWsSwitch = SwitchBuilder
+        .new()
+        .withAddress(wsAddress)
+        .withRng(rng)
+        .withMplex()
+        .withTransport(
+          proc(config: TransportConfig): Transport =
+            WsTransport.new(config.upgr)
+        )
+        .withNoise()
+        .build()
+      srcQuicSwitch =
+        newStandardSwitch(addrs = quicAddress, transport = TransportType.QUIC)
+
+    let switches = @[destSwitch, srcTcpSwitch, srcWsSwitch, srcQuicSwitch]
+    await allFutures(switches.mapIt(it.start()))
+    defer:
+      await allFutures(switches.mapIt(it.stop()))
+
+    # Verify all three transport types are available in destSwitch
+    check destSwitch.peerInfo.addrs.len == 3
+
+    # Test TCP transport connection
+    await srcTcpSwitch.connect(
+      destSwitch.peerInfo.peerId, @[destSwitch.peerInfo.addrs[0]]
+    )
+    check srcTcpSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    # Test WebSocket transport connection
+    await srcWsSwitch.connect(
+      destSwitch.peerInfo.peerId, @[destSwitch.peerInfo.addrs[1]]
+    )
+    check srcWsSwitch.isConnected(destSwitch.peerInfo.peerId)
+
+    # Test QUIC transport connection
+    await srcQuicSwitch.connect(
+      destSwitch.peerInfo.peerId, @[destSwitch.peerInfo.addrs[2]]
+    )
+    check srcQuicSwitch.isConnected(destSwitch.peerInfo.peerId)
 
   asyncTest "mount unstarted protocol":
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =

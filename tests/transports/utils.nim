@@ -26,25 +26,23 @@ import ../tools/[unittest]
 
 proc isTcpTransport*(ma: MultiAddress): bool =
   # Check if this is a pure TCP transport (not WebSocket or Tor)
-  ma.contains(multiCodec("tcp")).get(false) and
-    not ma.contains(multiCodec("ws")).get(false) and
-    not ma.contains(multiCodec("wss")).get(false) and
-    not ma.contains(multiCodec("onion3")).get(false)
+  TCP.match(ma)
 
 # TOR
 
 proc isTorTransport*(ma: MultiAddress): bool =
-  ma.contains(multiCodec("onion3")).get(false)
+  # Tor transport handles both pure Onion3 addresses and TcpOnion3 addresses
+  Onion3.match(ma) or TcpOnion3.match(ma)
 
 # WS
 
 proc isWsTransport*(ma: MultiAddress): bool =
-  ma.contains(multiCodec("ws")).get(false) or ma.contains(multiCodec("wss")).get(false)
+  WebSockets.match(ma)
 
 # QUIC
 
 proc isQuicTransport*(ma: MultiAddress): bool =
-  ma.contains(multiCodec("udp")).get(false)
+  QUIC_V1.match(ma)
 
 proc createServerAcceptConn*(
     server: QuicTransport
