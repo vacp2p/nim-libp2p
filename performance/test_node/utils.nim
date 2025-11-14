@@ -225,7 +225,6 @@ proc getLatencyStats*(latencies: seq[float]): LatencyStats =
     avgLatencyMs = sumLatency / float(latencies.len)
 
     # Calculate 95th percentile instead of max to filter out outliers
-    # This makes the chart more readable while still showing high latency values
     var sortedLatencies = latencies
     sortedLatencies.sort()
     let p95Index = int(float(sortedLatencies.len) * 0.95)
