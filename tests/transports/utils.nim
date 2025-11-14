@@ -142,9 +142,8 @@ proc serverHandlerSingleStream*(
     let muxer = streamProvider(conn)
     muxer.streamHandler = handler
 
-    let muxerTask = muxer.handle()
+    await muxer.handle()
 
-    await muxerTask
     await muxer.close()
     await conn.close()
   except CatchableError as exc:
@@ -165,8 +164,10 @@ proc clientRunSingleStream*(
     let stream = await muxer.newStream()
     await handler(stream)
 
+    await stream.close()
     await muxer.close()
     await conn.close()
+    await client.stop()
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 
