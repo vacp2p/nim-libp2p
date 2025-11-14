@@ -22,6 +22,7 @@ import
     switch,
     builders,
     transports/tcptransport,
+    transports/quictransport,
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
@@ -283,3 +284,39 @@ suite "Identify":
       check:
         switch1.peerStore[ProtoBook][oldPeerId] != switch2.peerInfo.protocols
         switch1.peerStore[AddressBook][oldPeerId] != switch2.peerInfo.addrs
+
+  asyncTest "identify exposes QUIC transport addresses":
+    let
+      quicAddress = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
+      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+
+      # Server switch with both QUIC and TCP
+      server = SwitchBuilder
+        .new()
+        .withAddresses(@[quicAddress, tcpAddress])
+        .withRng(rng)
+        .withMplex()
+        .withTcpTransport()
+        .withQuicTransport()
+        .withNoise()
+        .build()
+
+      # Client switch to dial and identify
+      client = newStandardSwitch(addrs = @[tcpAddress], rng = rng)
+
+    await server.start()
+    await client.start()
+    defer:
+      await server.stop()
+      await client.stop()
+
+    check:
+      countAddressesWithPattern(server.peerInfo.addrs, IPv4Tcp) == 1
+      countAddressesWithPattern(server.peerInfo.addrs, QUIC_V1) == 1
+
+    # Connect and request identify
+    await client.connect(server.peerInfo.peerId, server.peerInfo.addrs)
+
+    # The client's peerStore should now have the server's info including addresses via identify
+    let storedAddrs = client.peerStore[AddressBook][server.peerInfo.peerId]
+    check countAddressesWithPattern(storedAddrs, QUIC_V1) == 1

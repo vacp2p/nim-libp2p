@@ -186,10 +186,55 @@ template streamTransportTest*(
         await stream.write(serverMessage)
         await stream.closeWrite()
 
+        # Verify that write after closeWrite fails
+        expect LPStreamEOFError:
+          await stream.write("should fail")
+
         # Server should still be able to read from client
         var buffer: array[clientMessage.len, byte]
         await stream.readExactly(addr buffer, clientMessage.len)
         check string.fromBytes(buffer) == clientMessage
+
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+    )
+
+  asyncTest "multiple empty writes before closeWrite":
+    let ma = @[MultiAddress.init(address).tryGet()]
+
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        # Even with multiple empty writes, reading should eventually get EOF
+        var buffer: array[1, byte]
+        let bytesRead = await stream.readOnce(addr buffer[0], 1)
+        check bytesRead == 0 # Should get EOF
+
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        # Multiple empty writes
+        await stream.write(@[])
+        await stream.write(@[])
+        await stream.write(@[])
+        await stream.closeWrite()
+
+    await runSingleStreamScenario(
+      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+    )
+
+  asyncTest "closeWrite immediately after newStream":
+    let ma = @[MultiAddress.init(address).tryGet()]
+
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        # Should get EOF immediately
+        var buffer: array[1, byte]
+        let bytesRead = await stream.readOnce(addr buffer[0], 1)
+        check bytesRead == 0
+
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        # Close write immediately without any data
+        await stream.closeWrite()
 
     await runSingleStreamScenario(
       ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
