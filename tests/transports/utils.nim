@@ -60,8 +60,8 @@ proc createServerAcceptConn*(
       try:
         await getStream(QuicSession(conn), Direction.In)
       except QuicTransportError:
-        return
-          # TODO: should it be a diff error? this is raised if the connection is closed too
+        # TODO: should it be a diff error? this is raised if the connection is closed too
+        raiseAssert "could not get quic stream"
     defer:
       await stream.close()
 
