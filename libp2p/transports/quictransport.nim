@@ -8,23 +8,16 @@
 # those terms.
 
 import std/[sequtils, sets]
-import chronos
-import chronicles
-import metrics
-import lsquic/api
-import lsquic/listener
-import lsquic/tlsconfig
-import lsquic/connection as lsconn
-import lsquic/certificateverifier
-import lsquic/stream
-import results
-import ../multiaddress
-import ../multicodec
-import ../stream/connection
-import ../wire
-import ../muxers/muxer
-import ../upgrademngrs/upgrade
-import ../utility
+import chronos, chronicles, metrics, results
+import
+  lsquic/[api, listener, tlsconfig, connection as lsconn, certificateverifier, stream]
+import
+  ../wire,
+  ../multiaddress,
+  ../multicodec,
+  ../muxers/muxer,
+  ../stream/connection,
+  ../upgrademngrs/upgrade
 import ./transport
 import tls/certificate
 
@@ -318,7 +311,6 @@ method start*(
     self.listener = server.listen(initTAddress(addrs[0]).tryGet)
     let listenMA = @[toMultiAddress(self.listener.localAddress())]
     await procCall Transport(self).start(listenMA)
-    self.addrs = listenMA
   except QuicConfigError as exc:
     raiseAssert "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
