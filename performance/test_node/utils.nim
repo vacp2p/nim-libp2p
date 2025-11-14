@@ -7,6 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+import algorithm
 import chronos
 import hashes
 import json
@@ -220,9 +221,15 @@ proc getLatencyStats*(latencies: seq[float]): LatencyStats =
 
   if latencies.len > 0:
     minLatencyMs = latencies.min
-    maxLatencyMs = latencies.max
     let sumLatency = foldl(latencies, a + b, 0.0)
     avgLatencyMs = sumLatency / float(latencies.len)
+
+    # Calculate 95th percentile instead of max to filter out outliers
+    # This makes the chart more readable while still showing high latency values
+    var sortedLatencies = latencies
+    sortedLatencies.sort()
+    let p95Index = int(float(sortedLatencies.len) * 0.95)
+    maxLatencyMs = sortedLatencies[p95Index]
 
   return LatencyStats(
     minLatencyMs: minLatencyMs, maxLatencyMs: maxLatencyMs, avgLatencyMs: avgLatencyMs
