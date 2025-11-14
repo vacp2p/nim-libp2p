@@ -125,7 +125,7 @@ template streamTransportTest*(
       await conn.close()
 
       await sleepAsync(20.milliseconds)
-      await client.stop
+      await client.stop()
 
       clientHandlerDone.complete()
 
