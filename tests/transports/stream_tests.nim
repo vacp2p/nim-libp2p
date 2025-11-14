@@ -206,8 +206,8 @@ template streamTransportTest*(
       noExceptionWithStreamClose(stream):
         # Even with multiple empty writes, reading should eventually get EOF
         var buffer: array[1, byte]
-        let data = await stream.readOnce(addr buffer[0], 1)
-        check data == 0 # Should get EOF
+        let bytesRead = await stream.readOnce(addr buffer[0], 1)
+        check bytesRead == 0 # Should get EOF
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -228,8 +228,8 @@ template streamTransportTest*(
       noExceptionWithStreamClose(stream):
         # Should get EOF immediately
         var buffer: array[1, byte]
-        let data = await stream.readOnce(addr buffer[0], 1)
-        check data == 0
+        let bytesRead = await stream.readOnce(addr buffer[0], 1)
+        check bytesRead == 0
 
     proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):

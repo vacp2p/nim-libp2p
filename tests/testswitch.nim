@@ -1088,23 +1088,10 @@ suite "Switch":
       srcQuicSwitch =
         newStandardSwitch(addrs = quicAddress, transport = TransportType.QUIC)
 
-    await allFutures(
-      @[
-        destSwitch.start(),
-        srcTcpSwitch.start(),
-        srcWsSwitch.start(),
-        srcQuicSwitch.start(),
-      ]
-    )
+    let switches = @[destSwitch, srcTcpSwitch, srcWsSwitch, srcQuicSwitch]
+    await allFutures(switches.mapIt(it.start()))
     defer:
-      await allFutures(
-        @[
-          destSwitch.stop(),
-          srcTcpSwitch.stop(),
-          srcWsSwitch.stop(),
-          srcQuicSwitch.stop(),
-        ]
-      )
+      await allFutures(switches.mapIt(it.stop()))
 
     # Verify all three transport types are available in destSwitch
     check destSwitch.peerInfo.addrs.len == 3

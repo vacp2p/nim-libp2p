@@ -9,7 +9,7 @@
 
 {.used.}
 
-import options, chronos, chronicles, sequtils
+import options, chronos, chronicles
 import
   ../../libp2p/[
     protocols/identify,
@@ -310,11 +310,13 @@ suite "Identify":
       await server.stop()
       await client.stop()
 
-    check server.peerInfo.addrs.len == 2
+    check:
+      countAddressesWithPattern(server.peerInfo.addrs, IPv4Tcp) == 1
+      countAddressesWithPattern(server.peerInfo.addrs, QUIC_V1) == 1
 
     # Connect and request identify
     await client.connect(server.peerInfo.peerId, server.peerInfo.addrs)
 
     # The client's peerStore should now have the server's info including addresses via identify
     let storedAddrs = client.peerStore[AddressBook][server.peerInfo.peerId]
-    check storedAddrs.anyIt(it.contains(multiCodec("quic-v1")).tryGet())
+    check countAddressesWithPattern(storedAddrs, QUIC_V1) == 1
