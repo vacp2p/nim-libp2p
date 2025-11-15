@@ -125,6 +125,7 @@ template streamTransportTest*(
       await conn.close()
 
       await sleepAsync(20.milliseconds)
+      await client.stop()
 
       clientHandlerDone.complete()
 
@@ -283,6 +284,7 @@ template streamTransportTest*(
       # Intentionally do not close streams, they should be closed with muxer
       await muxer.close()
       await conn.close()
+      await client.stop()
 
     let server = transportProvider()
     await server.start(ma)
@@ -428,6 +430,7 @@ template streamTransportTest*(
 
       await muxer.close()
       await conn.close()
+      await client.stop()
 
     let server = transportProvider()
     await server.start(ma)
@@ -530,6 +533,7 @@ template streamTransportTest*(
       await stream.close()
       await muxer.close()
       await conn.close()
+      await client.stop()
 
     let server = transportProvider()
     await server.start(ma)

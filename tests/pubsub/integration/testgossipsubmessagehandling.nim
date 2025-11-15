@@ -403,7 +403,7 @@ suite "GossipSub Integration - Message Handling":
     # Send message that will be accepted by the receiver's validator
     tryPublish await nodes[0].publish("foo", "Hello!".toBytes()), 1
 
-    check:
+    checkUntilTimeout:
       recvCounter == 1
       validatedCounter == 1
       sendCounter == 1

@@ -56,7 +56,12 @@ proc createServerAcceptConn*(
     if conn == nil:
       return
 
-    let stream = await getStream(QuicSession(conn), Direction.In)
+    let stream =
+      try:
+        await getStream(QuicSession(conn), Direction.In)
+      except QuicTransportError:
+        # TODO: should it be a diff error? this is raised if the connection is closed too
+        raiseAssert "could not get quic stream"
     defer:
       await stream.close()
 
@@ -165,6 +170,7 @@ proc clientRunSingleStream*(
 
     await muxer.close()
     await conn.close()
+    await client.stop()
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 
