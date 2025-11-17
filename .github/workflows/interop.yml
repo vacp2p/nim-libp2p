@@ -91,6 +91,7 @@ jobs:
           cd go-libp2p
           git apply ../disable-filtering-of-private-ip-addresses.patch
           cd ..
+          go mod tidy
           go run testautonatv2.go &
           cd ../nim-peer
           nim r src/nim_peer.nim $(cat ../go-peer/peer.id)
