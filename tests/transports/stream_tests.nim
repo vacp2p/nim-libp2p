@@ -116,7 +116,6 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
       let muxer = streamProvider(conn)
-      discard muxer.handle()
 
       let stream = await muxer.newStream()
       await stream.write(serverMessage)
@@ -263,7 +262,6 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(conn)
-      discard muxer.handle()
 
       # Send incomplete messages (will block)
       const incompleteClientMessage = clientMessage[0 ..< 10]
@@ -394,7 +392,6 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(conn)
-      discard muxer.handle()
 
       var futs: seq[Future[void]]
       for i in 0 ..< numStreams:
@@ -463,11 +460,9 @@ template streamTransportTest*(
       # Accept multiple connections and handle them
       var futs: seq[Future[void]]
       for i in 0 ..< numConnections:
-        let conn = await server.accept()
-        let muxer = streamProvider(conn)
-
         # Use a proc to properly capture loop index
-        proc setupConnection(conn: Connection, muxer: Muxer, handlerIndex: int) =
+        proc setupConnection(conn: Connection, handlerIndex: int) =
+          let muxer = streamProvider(conn, false)
           muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
             noExceptionWithStreamClose(stream):
               # Read data in chunks with random delay
@@ -503,14 +498,14 @@ template streamTransportTest*(
 
           futs.add(startStreamHandlerAndCleanup())
 
-        setupConnection(conn, muxer, i)
+        let conn = await server.accept()
+        setupConnection(conn, i)
       await allFutures(futs)
 
     proc runClient(server: Transport, connectionId: int) {.async.} =
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(conn)
-      discard muxer.handle()
 
       let stream = await muxer.newStream()
 

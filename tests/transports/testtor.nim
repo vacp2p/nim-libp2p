@@ -37,8 +37,11 @@ suite "Tor transport":
   proc torTransProvider(): Transport =
     TorTransport.new(torServer, {ReuseAddr}, Upgrade())
 
-  proc streamProvider(conn: Connection): Muxer =
-    Mplex.new(conn)
+  proc streamProvider(conn: Connection, handle: bool = true): Muxer =
+    let muxer = Mplex.new(conn)
+    if handle:
+      asyncSpawn muxer.handle()
+    muxer
 
   const
     address =
