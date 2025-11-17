@@ -15,7 +15,6 @@ import ./crypto/test_all
 import ./stream/test_all
 import ./muxers/test_all
 import ./transports/test_all
-import ./discovery/test_all
 import ./kademlia/test_all
 import ./mix/test_all
 import ./protocols/test_all
@@ -30,9 +29,9 @@ import
 when defined(libp2p_autotls_support):
   import testautotls
 
-# Run final trackers check. 
-# After all tests are executed final trackers check is performed to ensure that 
-# there isn't anything left open. 
+# Run final trackers check.
+# After all tests are executed final trackers check is performed to ensure that
+# there isn't anything left open.
 # This can usually happen when last imported/executed tests do not call checkTrackers.
 from ./tools/unittest import finalCheckTrackers
 finalCheckTrackers()
