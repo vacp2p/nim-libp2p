@@ -460,11 +460,9 @@ template streamTransportTest*(
       # Accept multiple connections and handle them
       var futs: seq[Future[void]]
       for i in 0 ..< numConnections:
-        let conn = await server.accept()
-        let muxer = streamProvider(conn)
-
         # Use a proc to properly capture loop index
-        proc setupConnection(conn: Connection, muxer: Muxer, handlerIndex: int) =
+        proc setupConnection(conn: Connection, handlerIndex: int) =
+          let muxer = streamProvider(conn, false)
           muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
             noExceptionWithStreamClose(stream):
               # Read data in chunks with random delay
@@ -500,7 +498,8 @@ template streamTransportTest*(
 
           futs.add(startStreamHandlerAndCleanup())
 
-        setupConnection(conn, muxer, i)
+        let conn = await server.accept()
+        setupConnection(conn, i)
       await allFutures(futs)
 
     proc runClient(server: Transport, connectionId: int) {.async.} =
