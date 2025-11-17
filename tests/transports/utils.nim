@@ -106,7 +106,8 @@ proc createTransport*(
 
 type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
 
-type StreamProvider* = proc(conn: Connection, handle: bool = true): Muxer {.gcsafe, raises: [].}
+type StreamProvider* =
+  proc(conn: Connection, handle: bool = true): Muxer {.gcsafe, raises: [].}
 
 type StreamHandler* = proc(stream: Connection) {.async: (raises: []).}
 
