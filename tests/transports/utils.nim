@@ -50,7 +50,8 @@ proc createServerAcceptConn*(
   async: (raises: [transport.TransportError, LPError, LPStreamError, CancelledError])
 .} =
   proc handler() {.
-      async: (raises: [transport.TransportError, LPError, LPStreamError, CancelledError])
+      async:
+        (raises: [transport.TransportError, LPError, LPStreamError, CancelledError])
   .} =
     let conn = await server.accept()
     if conn == nil:

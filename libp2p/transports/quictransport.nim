@@ -188,16 +188,16 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     doAssert(chann.closed, "connection not closed by handler!")
 
   while not m.session.atEof:
-    let stream = 
+    let stream =
       try:
         await m.session.getStream(Direction.In)
       except CancelledError:
         # keep handling, until connection is closed
-        continue 
+        continue
       except QuicError as exc:
         if exc.msg == "connection closed":
           # stop handling, connection was closed
-          break 
+          break
         else:
           # keep handling, until connection is closed. 
           # this stream failed but we need to keep handling for other streams.
