@@ -116,7 +116,6 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial("", server.addrs[0])
       let muxer = streamProvider(conn)
-      discard muxer.handle()
 
       let stream = await muxer.newStream()
       await stream.write(serverMessage)
@@ -263,7 +262,6 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(conn)
-      discard muxer.handle()
 
       # Send incomplete messages (will block)
       const incompleteClientMessage = clientMessage[0 ..< 10]
@@ -394,7 +392,6 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(conn)
-      discard muxer.handle()
 
       var futs: seq[Future[void]]
       for i in 0 ..< numStreams:
@@ -510,7 +507,6 @@ template streamTransportTest*(
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
       let muxer = streamProvider(conn)
-      discard muxer.handle()
 
       let stream = await muxer.newStream()
 

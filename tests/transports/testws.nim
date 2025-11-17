@@ -83,8 +83,11 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
   except TLSStreamProtocolError:
     raiseAssert "should not happen"
 
-proc streamProvider(conn: Connection): Muxer =
-  Mplex.new(conn)
+proc streamProvider(conn: Connection, handle: bool = true): Muxer =
+  let muxer = Mplex.new(conn)
+  if handle:
+    asyncSpawn muxer.handle()
+  muxer
 
 const
   wsAddress = "/ip4/127.0.0.1/tcp/0/ws"

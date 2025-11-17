@@ -106,7 +106,7 @@ proc createTransport*(
 
 type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
 
-type StreamProvider* = proc(conn: Connection): Muxer {.gcsafe, raises: [].}
+type StreamProvider* = proc(conn: Connection, handle: bool = true): Muxer {.gcsafe, raises: [].}
 
 type StreamHandler* = proc(stream: Connection) {.async: (raises: []).}
 
@@ -137,12 +137,11 @@ proc serverHandlerSingleStream*(
 ) {.async: (raises: []).} =
   try:
     let conn = await server.accept()
-    let muxer = streamProvider(conn)
+    let muxer = streamProvider(conn, false)
     muxer.streamHandler = handler
 
-    let muxerTask = muxer.handle()
+    await muxer.handle()
 
-    await muxerTask
     await muxer.close()
     await conn.close()
   except CatchableError as exc:
@@ -158,7 +157,6 @@ proc clientRunSingleStream*(
     let client = transportProvider()
     let conn = await client.dial("", server.addrs[0])
     let muxer = streamProvider(conn)
-    discard muxer.handle()
 
     let stream = await muxer.newStream()
     await handler(stream)
@@ -180,10 +178,10 @@ proc runSingleStreamScenario*(
   let serverTask =
     serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
-  await clientRunSingleStream(
+  let clientTask = clientRunSingleStream(
     server, transportProvider, streamProvider, clientStreamHandler
   )
-  await serverTask
+  await allFutures(clientTask, serverTask)
   await server.stop()
 
 proc countTransitions*(readOrder: seq[byte]): int =

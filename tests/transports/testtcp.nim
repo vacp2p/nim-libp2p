@@ -27,8 +27,11 @@ import ./tcp_tests
 proc tcpTransProvider(): Transport =
   TcpTransport.new(upgrade = Upgrade())
 
-proc streamProvider(conn: Connection): Muxer =
-  Mplex.new(conn)
+proc streamProvider(conn: Connection, handle: bool = true): Muxer =
+  let muxer = Mplex.new(conn)
+  if handle:
+    asyncSpawn muxer.handle()
+  muxer
 
 const
   addressIP4 = "/ip4/127.0.0.1/tcp/0"
