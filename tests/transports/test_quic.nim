@@ -81,9 +81,7 @@ suite "Quic transport":
       # validates the certificate, it will close the connection
       # hence why a sleep is necessary
       await sleepAsync(100.milliseconds)
-      let isClosed = (cast[QuicSession](conn)).connection.isClosed
-      check:
-        isClosed
+      check (cast[QuicSession](conn)).closed()
       await client.stop()
 
     await runClient()
