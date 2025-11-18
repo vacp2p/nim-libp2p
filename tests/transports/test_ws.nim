@@ -22,11 +22,10 @@ import
     muxers/muxer,
     muxers/mplex/mplex,
   ]
-import ../tools/[unittest]
+import ../tools/[crypto, unittest]
 import ./basic_tests
 import ./connection_tests
 import ./stream_tests
-import ./utils
 
 proc wsTransProvider(): Transport =
   WsTransport.new(Upgrade())

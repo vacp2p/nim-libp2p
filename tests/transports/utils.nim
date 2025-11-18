@@ -14,7 +14,6 @@ import
   ../../libp2p/[
     transports/quictransport,
     transports/transport,
-    transports/wstransport,
     transports/tls/certificate,
     upgrademngrs/upgrade,
     multiaddress,
@@ -39,21 +38,6 @@ proc isTorTransport*(ma: MultiAddress): bool =
 
 proc isWsTransport*(ma: MultiAddress): bool =
   WebSockets.match(ma)
-
-proc tlsCertGenerator*(
-    kp: Opt[KeyPair] = Opt.none(KeyPair)
-): (TLSPrivateKey, TLSCertificate) {.gcsafe, raises: [].} =
-  try:
-    let keyPair = kp.valueOr:
-      KeyPair.random(PKScheme.RSA, newRng()[]).get()
-    let certX509 = generateX509(keyPair, encodingFormat = EncodingFormat.PEM)
-
-    let secureKey = TLSPrivateKey.init(string.fromBytes(certX509.privateKey))
-    let secureCert = TLSCertificate.init(string.fromBytes(certX509.certificate))
-
-    (secureKey, secureCert)
-  except TLSStreamProtocolError, TLSCertificateError:
-    raiseAssert "should not happen"
 
 # QUIC
 
