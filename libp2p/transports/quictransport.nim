@@ -111,14 +111,16 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
 
 # Session
 type QuicSession* = ref object of P2PConnection
-  connection*: QuicConnection
+  connection: QuicConnection
   streams: seq[QuicStream]
+
+method closed*(session: QuicSession): bool {.raises: [].} =
+  procCall P2PConnection(session).isClosed or session.connection.isClosed
 
 method close*(session: QuicSession) {.async: (raises: []).} =
   for s in session.streams:
     await s.close()
-  if session != nil:
-    session.connection.close()
+  session.connection.close()
   await procCall P2PConnection(session).close()
 
 proc getStream(
@@ -187,7 +189,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     trace "finished handling stream"
     doAssert(stream.closed, "connection not closed by handler!")
 
-  while not (m.session.atEof or m.session.connection.isClosed):
+  while not (m.session.atEof or m.session.closed):
     try:
       let stream = await m.session.getStream(Direction.In)
       asyncSpawn handleStream(stream)
