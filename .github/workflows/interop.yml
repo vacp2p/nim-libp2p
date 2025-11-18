@@ -95,3 +95,37 @@ jobs:
           go run testautonatv2.go &
           cd ../nim-peer
           nim r src/nim_peer.nim $(cat ../go-peer/peer.id)
+
+  run-kad-interop:
+    name: Run Kademlia DHT interoperability tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: "stable"
+
+      - name: Set up Rust
+        uses: actions/setup-rust@v1
+        with:
+          rust-version: stable
+
+      - name: Run Go, Rust and Nim together
+        run: |
+          nimble install
+          cd interop/kad/go-peer
+          go mod tidy
+          go run testkad.go &
+
+          cd interop/kad/rust-peer
+          cargo run testkad.rs &
+
+          cd ../nim-peer
+          nim r src/testkad.nim $(cat ../go-peer/peer.id) $(cat ../rust-peer/peer.id)
