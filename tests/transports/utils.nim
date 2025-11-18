@@ -40,9 +40,12 @@ proc isTorTransport*(ma: MultiAddress): bool =
 proc isWsTransport*(ma: MultiAddress): bool =
   WebSockets.match(ma)
 
-proc tlsCertGenerator*(): (TLSPrivateKey, TLSCertificate) {.gcsafe, raises: [].} =
+proc tlsCertGenerator*(
+    kp: Opt[KeyPair] = Opt.none(KeyPair)
+): (TLSPrivateKey, TLSCertificate) {.gcsafe, raises: [].} =
   try:
-    let keyPair = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+    let keyPair = kp.valueOr:
+      KeyPair.random(PKScheme.RSA, newRng()[]).get()
     let certX509 = generateX509(keyPair, encodingFormat = EncodingFormat.PEM)
 
     let secureKey = TLSPrivateKey.init(string.fromBytes(certX509.privateKey))
