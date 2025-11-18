@@ -22,66 +22,27 @@ import
     muxers/muxer,
     muxers/mplex/mplex,
   ]
-import ../tools/[unittest]
+import ../tools/[crypto, unittest]
 import ./basic_tests
 import ./connection_tests
 import ./stream_tests
 
-const
-  SecureKey =
-    """
------BEGIN PRIVATE KEY-----
-MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAP0yH7F7FtGunC91
-IPkU+u8B4gdxiwYW0J3PrixtB1Xz3e4dfjwQqhIJlG6BxQ4myCxmSPjxP/eOOYp+
-8/+A9nikbnc7H3OV8fNJhsSmPu8j8W2FsNVJzJnUQaE2yimrFR8NnvQ4MKvMBSgb
-lHTLbP1aAFp+K6KPPE7pkRMUdlqFAgMBAAECgYBl0eli4yALFI/kmdK3uBMtWHGA
-Es4YlcYxIFpnrTS9AQPnhN7F4uGxvT5+rhsDlN780+lWixXxRLWpF2KiBkeW8ayT
-kPeWvpSy6z+4LXw633ZLfCO1r6brpqSXNWxA0q7IgzYQEfMpnkaQrE3PVP5xkmTT
-k159ev138J23VfNgRQJBAP768qHOCnplKIe69SVUWlsQ5nnnybDBMq2YVATbombz
-KD57iufzBgND1clIEEuC6PK2C5gzTk4HZQioJ/juOFcCQQD+NVlb1HLoK7rHXZFO
-Tg3O+bwRZdo67J4pt//ijF7tLlZU/q6Kp9wHrXe1yhRV+Tow0BzBVHkc5eUM0/n7
-cOqDAkAedrECb/GEig17mfSsDxX0h2Jh8jWArrR1VRvEsNEIZ8jJHk2MRNbVEQe7
-0qZPv0ZBqUpdVtPmMq/5hs2vyhZlAkEA1cZ1fCUf8KD9tLS6AnjfYeRgRN07dXwQ
-0hKbTKAxIBJspZN7orzg60/0sNrc2SP6zJvm4qowI54tTelhexMNEwJBAOZz72xn
-EFUXKYQBbetiejnBBzFYmdA/QKmZ7kbQfDBOwG9wDPFmvnNSvSZws/bP1zcM95rq
-NABr5ec1FxuJa/8=
------END PRIVATE KEY-----
-"""
-
-  SecureCert =
-    """
------BEGIN CERTIFICATE-----
-MIICjDCCAfWgAwIBAgIURjeiJmkNbBVktqXvnXh44DKx364wDQYJKoZIhvcNAQEL
-BQAwVzELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoM
-GEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEQMA4GA1UEAwwHd3MudGVzdDAgFw0y
-MTA5MTQxMTU2NTZaGA8yMDgyMDgzMDExNTY1NlowVzELMAkGA1UEBhMCQVUxEzAR
-BgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdpdHMgUHR5
-IEx0ZDEQMA4GA1UEAwwHd3MudGVzdDCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkC
-gYEA/TIfsXsW0a6cL3Ug+RT67wHiB3GLBhbQnc+uLG0HVfPd7h1+PBCqEgmUboHF
-DibILGZI+PE/9445in7z/4D2eKRudzsfc5Xx80mGxKY+7yPxbYWw1UnMmdRBoTbK
-KasVHw2e9Dgwq8wFKBuUdMts/VoAWn4roo88TumRExR2WoUCAwEAAaNTMFEwHQYD
-VR0OBBYEFHaV2ief8/Que1wxcZ8ACfdW7NUNMB8GA1UdIwQYMBaAFHaV2ief8/Qu
-e1wxcZ8ACfdW7NUNMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADgYEA
-XvDtaDLShrjS9huhRVoEdUtoBdhonmFpV3HXqRs7NdTuUWooXiph9a66GVSIfUCR
-iEaNOKF6OM0n7GLSDIrBeIWAxL9Ra/dFFwCxl+9wxg8yyzEJDBkAhXkrfp2b4Sx6
-wdK6xU2VOAxI0GUzwzjcyNl7RDFA3ayFaGl+9+oppWM=
------END CERTIFICATE-----
-"""
-
 proc wsTransProvider(): Transport =
   WsTransport.new(Upgrade())
 
+# Generate cert only once to reduce execution time
+var secureKey {.threadvar.}: TLSPrivateKey
+var secureCert {.threadvar.}: TLSCertificate
+(secureKey, secureCert) = tlsCertGenerator()
+
 proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
-  try:
-    return WsTransport.new(
-      Upgrade(),
-      TLSPrivateKey.init(SecureKey),
-      TLSCertificate.init(SecureCert),
-      Opt.none(AutotlsService),
-      {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
-    )
-  except TLSStreamProtocolError:
-    raiseAssert "should not happen"
+  WsTransport.new(
+    Upgrade(),
+    secureKey,
+    secureCert,
+    Opt.none(AutotlsService),
+    {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
+  )
 
 proc streamProvider(conn: Connection, handle: bool = true): Muxer =
   let muxer = Mplex.new(conn)
@@ -130,10 +91,16 @@ suite "WebSocket transport":
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
+
+    # Generate cert with known keypair so we can derive the PeerId (used as CN in cert)
+    let testKeyPair = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+    let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
+    let (secureKey, secureCert) = tlsCertGenerator(Opt.some(testKeyPair))
+
     let transport1 = WsTransport.new(
       Upgrade(),
-      TLSPrivateKey.init(SecureKey),
-      TLSCertificate.init(SecureCert),
+      secureKey,
+      secureCert,
       Opt.none(AutotlsService),
       {TLSFlags.NoVerifyHost},
     )
@@ -153,9 +120,8 @@ suite "WebSocket transport":
     defer:
       await handlerWait.cancelAndWait()
 
-    # ws.test is in certificate
-    let conn = await transport1.dial("ws.test", transport1.addrs[0])
-
+    # PeerId is used as CN in the certificate, so it should work as hostname
+    let conn = await transport1.dial($expectedPeerId, transport1.addrs[0])
     await conn.close()
 
     expect TransportDialError:
@@ -180,21 +146,14 @@ suite "WebSocket transport":
     await transport1.stop()
 
 when defined(libp2p_autotls_support):
-  import bearssl/pem
-  import ../../libp2p/[autotls/service, autotls/mockservice, transports/tls/certificate]
-
-  proc generateCertAndKey(key: KeyPair): (TLSPrivateKey, TLSCertificate) =
-    let certDer = generateX509(key, encodingFormat = DER).certificate
-    let certPem = pemEncode(certDer, "CERTIFICATE")
-    let keyPem = pemEncode(key.seckey.getRawBytes().get(), "PRIVATE KEY")
-    (TLSPrivateKey.init(keyPem), TLSCertificate.init(certPem))
+  import ../../libp2p/[autotls/service, autotls/mockservice]
 
   suite "WebSocket transport with autotls":
     asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
       let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
-      let (privkey, cert) = generateCertAndKey(key)
+      let (privkey, cert) = tlsCertGenerator(Opt.some(key))
       let autotls = MockAutotlsService.new()
       autotls.mockedKey = privkey
       autotls.mockedCert = cert
@@ -221,17 +180,17 @@ when defined(libp2p_autotls_support):
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
       let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
-      let (privkey, cert) = generateCertAndKey(key)
+      let (privkey, cert) = tlsCertGenerator(Opt.some(key))
       let autotls = MockAutotlsService.new()
       autotls.mockedKey = privkey
       autotls.mockedCert = cert
       await autotls.setup()
 
-      let secureKey = TLSPrivateKey.init(SecureKey)
-      let secureCert = TLSCertificate.init(SecureCert)
+      # Use different cert from autotls to verify manual cert is preferred
+      let (manualKey, manualCert) = tlsCertGenerator()
 
       let wstransport = WsTransport.new(
-        Upgrade(), secureKey, secureCert, Opt.some(AutotlsService(autotls))
+        Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls))
       )
       await wstransport.start(ma)
       defer:
@@ -240,9 +199,9 @@ when defined(libp2p_autotls_support):
       # TLSPrivateKey and TLSCertificate should be set
       check wstransport.secure
 
-      # autotls should be ignored
-      check wstransport.tlsCertificate == secureCert
-      check wstransport.tlsPrivateKey == secureKey
+      # autotls should be ignored - manual cert should be used
+      check wstransport.tlsCertificate == manualCert
+      check wstransport.tlsPrivateKey == manualKey
 
     asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
