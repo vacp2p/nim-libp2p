@@ -94,7 +94,8 @@ suite "Quic transport":
       # client should be able to write even when server has not accepted
       let client = await createTransport()
       let conn = await client.dial("", server.addrs[0])
-      let stream = await getStream(QuicSession(conn), Direction.Out)
+      let muxer = QuicMuxer.new(conn)
+      let stream = await muxer.newStream()
       await stream.write("client")
       await client.stop()
 
