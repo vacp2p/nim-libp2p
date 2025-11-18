@@ -17,6 +17,8 @@ examples/*.md
 nimble.develop
 nimble.paths
 go-libp2p-daemon/
+*.id
+interop/kad/rust-peer/target/
 
 # Ignore all test build files in tests folder (auto generated when running tests).
 # First rule (`tests/**/test*[^.]*`) will ignore all binaries: has prefix test +  does not have dot in name.
