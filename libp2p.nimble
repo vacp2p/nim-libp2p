@@ -102,8 +102,6 @@ task website, "Build the website":
   tutorialToMd("examples/tutorial_2_customproto.nim")
   tutorialToMd("examples/tutorial_3_protobuf.nim")
   tutorialToMd("examples/tutorial_4_gossipsub.nim")
-  tutorialToMd("examples/tutorial_5_discovery.nim")
-  tutorialToMd("examples/tutorial_6_game.nim")
   tutorialToMd("examples/circuitrelay.nim")
   exec "mkdocs build"
 

@@ -15,6 +15,7 @@ import ./crypto/test_all
 import ./stream/test_all
 import ./muxers/test_all
 import ./transports/test_all
+import ./discovery/test_all
 import ./kademlia/test_all
 import ./mix/test_all
 import ./protocols/test_all
