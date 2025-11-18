@@ -7,8 +7,8 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import stew/byteutils
-import ../../libp2p/[crypto/crypto, transports/wstransport, transports/tls/certificate]
+import chronos/streams/tlsstream, stew/byteutils
+import ../../libp2p/[crypto/crypto, transports/tls/certificate]
 
 type RngWrap = object
   rng: ref HmacDrbgContext
