@@ -9,5 +9,5 @@
 
 {.used.}
 
-import testmemory, testquic, testtcp, testtor, testws
-import tls/testcertificate
+import test_memory, test_quic, test_tcp, test_tor, test_ws
+import tls/test_certificate
