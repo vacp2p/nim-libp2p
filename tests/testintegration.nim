@@ -13,4 +13,4 @@ when defined(linux) and defined(amd64):
 when defined(libp2p_autotls_support):
   import testpeeridauth_integration, testautotls_integration
 
-  import transports/testws_integration
+  import transports/test_ws_integration
