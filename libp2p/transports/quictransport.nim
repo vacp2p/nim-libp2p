@@ -121,20 +121,15 @@ method close*(session: QuicSession) {.async: (raises: []).} =
   safeClose(session.connection)
   await procCall P2PConnection(session).close()
 
-proc getStream*(
+proc getStream(
     session: QuicSession, direction = Direction.In
-): Future[QuicStream] {.async: (raises: [QuicTransportError]).} =
+): Future[QuicStream] {.async: (raises: [CancelledError, QuicError]).} =
   var stream: Stream
-  try:
-    case direction
-    of Direction.In:
-      stream = await session.connection.incomingStream()
-    of Direction.Out:
-      stream = await session.connection.openStream()
-  except CancelledError as exc:
-    raise (ref QuicTransportError)(msg: "cancelled getStream: " & exc.msg, parent: exc)
-  except QuicError as exc:
-    raise (ref QuicTransportError)(msg: "error in getStream: " & exc.msg, parent: exc)
+  case direction
+  of Direction.In:
+    stream = await session.connection.incomingStream()
+  of Direction.Out:
+    stream = await session.connection.openStream()
 
   let qs =
     QuicStream.new(stream, session.observedAddr, session.localAddr, session.peerId)
@@ -181,7 +176,7 @@ method newStream*(
 .} =
   try:
     return await m.session.getStream(Direction.Out)
-  except QuicTransportError as exc:
+  except QuicError as exc:
     raise newException(MuxerError, "error in newStream: " & exc.msg, exc)
 
 method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
@@ -192,19 +187,30 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
     trace "finished handling stream"
     doAssert(chann.closed, "connection not closed by handler!")
 
-  try:
-    while not m.session.atEof:
-      let stream = await m.session.getStream(Direction.In)
-      asyncSpawn handleStream(stream)
-  except QuicTransportError as exc:
-    trace "Exception in quic handler", msg = exc.msg
+  while not m.session.atEof:
+    let stream =
+      try:
+        await m.session.getStream(Direction.In)
+      except CancelledError:
+        # keep handling, until connection is closed
+        continue
+      except QuicError as exc:
+        if exc.msg == "connection closed":
+          # stop handling, connection was closed
+          break
+        else:
+          # keep handling, until connection is closed. 
+          # this stream failed but we need to keep handling for other streams.
+          trace "QuicMuxer.handler got error while opening stream", msg = exc.msg
+          continue
+    asyncSpawn handleStream(stream)
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
     await m.session.close()
     if not isNil(m.handleFut):
       m.handleFut.cancelSoon()
-  except CatchableError as exc:
+  except CatchableError:
     discard
 
 # Transport

@@ -47,18 +47,21 @@ proc isQuicTransport*(ma: MultiAddress): bool =
 proc createServerAcceptConn*(
     server: QuicTransport
 ): proc(): Future[void] {.
-  async: (raises: [transport.TransportError, LPStreamError, CancelledError])
+  async: (raises: [transport.TransportError, LPError, LPStreamError, CancelledError])
 .} =
   proc handler() {.
-      async: (raises: [transport.TransportError, LPStreamError, CancelledError])
+      async:
+        (raises: [transport.TransportError, LPError, LPStreamError, CancelledError])
   .} =
     let conn = await server.accept()
     if conn == nil:
       return
 
-    let stream = await getStream(QuicSession(conn), Direction.In)
+    let muxer = QuicMuxer.new(conn)
+    let stream = await muxer.newStream()
     defer:
       await stream.close()
+      await muxer.close()
 
     var resp: array[6, byte]
     await stream.readExactly(addr resp, 6)
