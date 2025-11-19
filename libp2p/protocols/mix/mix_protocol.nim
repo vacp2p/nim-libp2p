@@ -216,7 +216,7 @@ proc handleMixMessages(
     try:
       connCred = mixProto.connCreds[processedSP.id]
     except KeyError:
-      doAssert false, "checked with hasKey"
+      raiseAssert "checked with hasKey"
 
     let reply = processReply(
       connCred.surbKey, connCred.surbSecret, processedSP.delta_prime
