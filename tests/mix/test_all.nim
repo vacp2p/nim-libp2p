@@ -10,5 +10,6 @@
 {.used.}
 
 import
-  testcrypto, testcurve25519, testtagmanager, testseqnogenerator, testserialization,
-  testmixmessage, testsphinx, testmultiaddr, testfragmentation, testmixnode, testconn
+  test_conn, test_crypto, test_curve25519, test_fragmentation, test_mix_message,
+  test_mix_node, test_multiaddr, test_seq_no_generator, test_serialization, test_sphinx,
+  test_tag_manager
