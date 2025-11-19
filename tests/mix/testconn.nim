@@ -62,7 +62,7 @@ const NoReplyProtocolCodec = "/test/1.0.0"
 type NoReplyProtocol* = ref object of LPProtocol
 
 proc newNoReplyProtocol*(
-    switch: Switch, receivedMessageFut: Future[seq[byte]]
+    switch: Switch, receivedMessages: AsyncQueue[seq[byte]]
 ): NoReplyProtocol =
   let nrProto = NoReplyProtocol()
 
@@ -75,7 +75,7 @@ proc newNoReplyProtocol*(
       discard
 
     await conn.close()
-    receivedMessageFut.complete(buffer)
+    await receivedMessages.put(buffer)
 
   nrProto.handler = handler
   nrProto.codec = NoReplyProtocolCodec
@@ -141,8 +141,8 @@ suite "Mix Protocol":
     defer:
       await destNode.stop()
 
-    let receivedMessageFut = newFuture[seq[byte]]()
-    let nrProto = newNoReplyProtocol(destNode, receivedMessageFut)
+    let receivedMessages = newAsyncQueue[seq[byte]]()
+    let nrProto = newNoReplyProtocol(destNode, receivedMessages)
     destNode.mount(nrProto)
 
     # Start all nodes
@@ -160,7 +160,7 @@ suite "Mix Protocol":
     await conn.writeLp(data)
     await conn.close()
 
-    check data == await receivedMessageFut
+    check data == await receivedMessages.get()
 
   when defined(libp2p_mix_experimental_exit_is_dest):
     asyncTest "e2e - expect reply, exit == destination":
@@ -324,8 +324,8 @@ suite "Mix Protocol":
     check mixProto[0].getNodePoolSize() == validNodesCount + 1
 
     # Setup destination node
-    let receivedMessage = newFuture[seq[byte]]()
-    switches[1].mount(newNoReplyProtocol(switches[1], receivedMessage))
+    let receivedMessages = newAsyncQueue[seq[byte]]()
+    switches[1].mount(newNoReplyProtocol(switches[1], receivedMessages))
 
     # Start all switches - they're needed as intermediate nodes in the mix path
     # even though only sender (0) and destination (1) are doing protocol work
@@ -352,7 +352,7 @@ suite "Mix Protocol":
         break
 
       await conn.get().writeLp(testPayload)
-      discard await receivedMessage.wait(5.seconds)
+      discard await receivedMessages.get().wait(5.seconds)
       await conn.get().close()
 
       # Check if invalid node was removed
