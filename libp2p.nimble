@@ -10,7 +10,8 @@ skipDirs = @["cbind", "examples", "interop", "performance", "tests", "tools"]
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
-  "websock >= 0.2.1", "unittest2", "results", "quic >= 0.5.2", "taskpools >= 0.1.0",
+  "websock >= 0.2.1", "unittest2", "results", "taskpools >= 0.1.0",
+  "https://github.com/vacp2p/nim-lsquic#d526be3461c3d3a233733ab6eee386a4caa74ccf",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
