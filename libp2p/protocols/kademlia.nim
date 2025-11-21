@@ -18,9 +18,11 @@ export routingtable, protobuf, types, find, get, put, provider, ping
 logScope:
   topics = "kad-dht"
 
-proc bootstrapNode(
+proc bootstrapNode*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError]).} =
+  ## Uses node with `peerId` and `addrs` as a bootstrap node
+
   try:
     await kad.switch.connect(peerId, addrs)
     debug "Connected to bootstrap peer", peerId = peerId

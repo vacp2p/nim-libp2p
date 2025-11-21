@@ -328,7 +328,6 @@ proc new*(
 
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
-  bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
   rng*: ref HmacDrbgContext
   rtable*: RoutingTable
   maintenanceLoop*: Future[void]
