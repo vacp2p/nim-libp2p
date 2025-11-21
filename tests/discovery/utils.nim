@@ -12,8 +12,6 @@ import
   ../../libp2p/[
     builders,
     crypto/crypto,
-    discovery/discoverymngr,
-    discovery/rendezvousinterface,
     peerid,
     protobuf/minprotobuf,
     protocols/rendezvous,
@@ -148,27 +146,3 @@ proc prepareDiscoverMessage*(
     msgType: MessageType.Discover,
     discover: Opt.some(Discover(ns: ns, limit: limit, cookie: cookie)),
   )
-
-proc setupDiscMngrNodes*(count: int): (seq[DiscoveryManager], seq[RendezVous]) =
-  doAssert(count > 0, "Count must be greater than 0")
-
-  var dms: seq[DiscoveryManager] = @[]
-  var nodes: seq[RendezVous] = @[]
-
-  for x in 0 ..< count:
-    let node = RendezVous.new()
-    let switch = createSwitch(node)
-    nodes.add(node)
-
-    let dm = DiscoveryManager()
-    dm.add(
-      RendezVousInterface.new(node, ttr = 100.milliseconds, tta = 100.milliseconds)
-    )
-    dms.add(dm)
-
-  return (dms, nodes)
-
-template deferStop*(dms: seq[DiscoveryManager]) =
-  defer:
-    for dm in dms:
-      dm.stop()
