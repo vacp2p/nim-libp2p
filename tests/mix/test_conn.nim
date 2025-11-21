@@ -60,11 +60,12 @@ proc setupSwitches(numNodes: int): seq[Switch] =
 const NoReplyProtocolCodec = "/test/1.0.0"
 
 type NoReplyProtocol* = ref object of LPProtocol
+  receivedMessages*: AsyncQueue[seq[byte]]
 
-proc newNoReplyProtocol*(
-    switch: Switch, receivedMessages: AsyncQueue[seq[byte]]
-): NoReplyProtocol =
+
+proc newNoReplyProtocol*(): NoReplyProtocol =
   let nrProto = NoReplyProtocol()
+  nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
 
   proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     var buffer: seq[byte]
@@ -141,8 +142,7 @@ suite "Mix Protocol":
     defer:
       await destNode.stop()
 
-    let receivedMessages = newAsyncQueue[seq[byte]]()
-    let nrProto = newNoReplyProtocol(destNode, receivedMessages)
+    let nrProto = newNoReplyProtocol()
     destNode.mount(nrProto)
 
     # Start all nodes
@@ -160,7 +160,7 @@ suite "Mix Protocol":
     await conn.writeLp(data)
     await conn.close()
 
-    check data == await receivedMessages.get()
+    check data == await nrProto.receivedMessages.get()
 
   when defined(libp2p_mix_experimental_exit_is_dest):
     asyncTest "e2e - expect reply, exit == destination":
@@ -324,8 +324,8 @@ suite "Mix Protocol":
     check mixProto[0].getNodePoolSize() == validNodesCount + 1
 
     # Setup destination node
-    let receivedMessages = newAsyncQueue[seq[byte]]()
-    switches[1].mount(newNoReplyProtocol(switches[1], receivedMessages))
+    let nrProto = newNoReplyProtocol()
+    switches[1].mount(nrProto)
 
     # Start all switches - they're needed as intermediate nodes in the mix path
     # even though only sender (0) and destination (1) are doing protocol work
@@ -352,7 +352,7 @@ suite "Mix Protocol":
         break
 
       await conn.get().writeLp(testPayload)
-      discard await receivedMessages.get().wait(5.seconds)
+      discard await nrProto.receivedMessages.get().wait(5.seconds)
       await conn.get().close()
 
       # Check if invalid node was removed
