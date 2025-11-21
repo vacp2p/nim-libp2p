@@ -88,6 +88,7 @@ type
     autotls: Opt[AutotlsService]
     circuitRelay: Opt[Relay]
     rdv: Opt[RendezVous]
+    kad: Opt[KadDHTConfig, seq[(PeerInfo, seq[MultiAddress])]]
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
@@ -111,6 +112,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     autotls: Opt.none(AutotlsService),
     circuitRelay: Opt.none(Relay),
     rdv: Opt.none(RendezVous),
+    kad: Opt.none((KadDHTConfig, seq[(PeerInfo, seq[MultiAddress])])),
     enableWildcardResolver: true,
   )
 
@@ -330,6 +332,14 @@ proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
   b.rdv = Opt.some(lrdv)
   b
 
+proc withKademlia*(
+    b: SwitchBuilder,
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])],
+    config: KadDHTConfig = KadDHTConfig.new(),
+): SwitchBuilder =
+  b.kad = Opt.some((config, bootstrapNodes))
+  b
+
 proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
   b.services = services
   b
@@ -438,6 +448,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   b.rdv.withValue(rdvService):
     rdvService.setup(switch)
     switch.mount(rdvService)
+
+  b.kad.withValue((config, bootstrapNodes)):
+    let kad = KadDHT.new(switch, bootstrapNodes, config = config)
+    switch.mount(kad)
 
   return switch
 

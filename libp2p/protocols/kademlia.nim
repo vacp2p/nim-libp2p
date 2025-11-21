@@ -77,6 +77,7 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 proc new*(
     T: typedesc[KadDHT],
     switch: Switch,
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
@@ -87,6 +88,7 @@ proc new*(
   let kad = T(
     rng: rng,
     switch: switch,
+    bootstrapNodes: bootstrapNodes,
     rtable: rtable,
     config: config,
     providerManager:
