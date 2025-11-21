@@ -9,6 +9,4 @@
 
 {.used.}
 
-import
-  testdiscoverymngr, testrendezvous, testrendezvouserrors, testrendezvousprotobuf,
-  testrendezvousinterface
+import testrendezvous, testrendezvouserrors, testrendezvousprotobuf
