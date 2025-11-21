@@ -75,7 +75,7 @@ proc newNoReplyProtocol*(): NoReplyProtocol =
       discard
 
     await conn.close()
-    await receivedMessages.put(buffer)
+    await nrProto.receivedMessages.put(buffer)
 
   nrProto.handler = handler
   nrProto.codec = NoReplyProtocolCodec
