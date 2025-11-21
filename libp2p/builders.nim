@@ -25,7 +25,7 @@ import
   crypto/crypto,
   transports/[transport, tcptransport, wstransport, quictransport, memorytransport],
   muxers/[muxer, mplex/mplex, yamux/yamux],
-  protocols/[identify, secure/secure, secure/noise, rendezvous],
+  protocols/[identify, secure/secure, secure/noise, rendezvous, kademlia],
   protocols/connectivity/[
     autonat/server,
     autonatv2/server,
@@ -65,6 +65,10 @@ type
   SecureProtocol* {.pure.} = enum
     Noise
 
+  KadInfo = object
+    config*: KadDHTConfig
+    bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
+
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
     addresses: seq[MultiAddress]
@@ -88,7 +92,7 @@ type
     autotls: Opt[AutotlsService]
     circuitRelay: Opt[Relay]
     rdv: Opt[RendezVous]
-    kad: Opt[KadDHTConfig, seq[(PeerInfo, seq[MultiAddress])]]
+    kad: Opt[KadInfo]
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
@@ -112,7 +116,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     autotls: Opt.none(AutotlsService),
     circuitRelay: Opt.none(Relay),
     rdv: Opt.none(RendezVous),
-    kad: Opt.none((KadDHTConfig, seq[(PeerInfo, seq[MultiAddress])])),
+    kad: Opt.none(KadInfo),
     enableWildcardResolver: true,
   )
 
@@ -334,10 +338,10 @@ proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
 
 proc withKademlia*(
     b: SwitchBuilder,
-    bootstrapNodes: seq[(PeerId, seq[MultiAddress])],
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
 ): SwitchBuilder =
-  b.kad = Opt.some((config, bootstrapNodes))
+  b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes))
   b
 
 proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
@@ -449,8 +453,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     rdvService.setup(switch)
     switch.mount(rdvService)
 
-  b.kad.withValue((config, bootstrapNodes)):
-    let kad = KadDHT.new(switch, bootstrapNodes, config = config)
+  b.kad.withValue(kadInfo):
+    let kad = KadDHT.new(
+      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = kadInfo.config
+    )
     switch.mount(kad)
 
   return switch

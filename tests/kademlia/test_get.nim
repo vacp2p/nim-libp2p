@@ -10,7 +10,7 @@
 {.used.}
 
 from std/times import now, utc
-import chronos, chronicles
+import chronos
 import ../../libp2p/[protocols/kademlia, switch, builders]
 import ../tools/[unittest]
 import ./utils.nim
