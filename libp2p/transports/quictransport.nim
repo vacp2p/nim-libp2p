@@ -36,25 +36,34 @@ type
   QuicTransportDialError* = object of transport.TransportDialError
   QuicTransportAcceptStopped* = object of QuicTransportError
 
+  QuicStream* = ref object of P2PConnection
+    session: QuicSession
+    stream: Stream
+
+  QuicSession* = ref object of P2PConnection
+    connection: QuicConnection
+    streams: seq[QuicStream]
+
 const alpn = "libp2p"
 
 initializeLsquic()
-
-# Stream
-type QuicStream* = ref object of P2PConnection
-  stream: Stream
-  cached: seq[byte]
 
 proc new(
     _: type QuicStream,
     stream: Stream,
     dir: Direction,
+    session: QuicSession,
     oaddr: Opt[MultiAddress],
     laddr: Opt[MultiAddress],
     peerId: PeerId,
 ): QuicStream =
-  let quicstream =
-    QuicStream(stream: stream, observedAddr: oaddr, localAddr: laddr, peerId: peerId)
+  let quicstream = QuicStream(
+    session: session,
+    stream: stream,
+    observedAddr: oaddr,
+    localAddr: laddr,
+    peerId: peerId,
+  )
   quicstream.objName = "QuicStream"
   quicstream.dir = dir
   procCall P2PConnection(quicstream).initStream()
@@ -69,22 +78,19 @@ method readOnce*(
   if stream.atEof:
     raise newLPStreamRemoteClosedError()
 
-  if stream.cached.len == 0:
+  let readLen =
     try:
-      stream.cached = await stream.stream.read()
-      if stream.cached.len == 0:
-        stream.isEof = true
-        return 0
+      await stream.stream.readInto(cast[ptr byte](pbytes), nbytes)
     except StreamError as e:
       raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
 
-  stream.activity = true
+  if readLen == 0:
+    stream.isEof = true
+    return 0
 
-  let toRead = min(nbytes, stream.cached.len)
-  copyMem(pbytes, addr stream.cached[0], toRead)
-  stream.cached = stream.cached[toRead ..^ 1]
-  libp2p_network_bytes.inc(toRead.int64, labelValues = ["in"])
-  return toRead
+  stream.activity = true
+  libp2p_network_bytes.inc(readLen.int64, labelValues = ["in"])
+  return readLen
 
 {.push warning[LockLevel]: off.}
 method write*(
@@ -110,13 +116,11 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
     await stream.stream.close()
   except CancelledError, StreamError:
     discard
+  if not stream.session.isNil:
+    stream.session.streams.keepItIf(it != stream)
   await procCall P2PConnection(stream).closeImpl()
 
 # Session
-type QuicSession* = ref object of P2PConnection
-  connection: QuicConnection
-  streams: seq[QuicStream]
-
 method closed*(session: QuicSession): bool {.raises: [].} =
   procCall P2PConnection(session).isClosed or session.connection.isClosed
 
@@ -137,7 +141,7 @@ proc getStream(
     stream = await session.connection.openStream()
 
   let qs = QuicStream.new(
-    stream, direction, session.observedAddr, session.localAddr, session.peerId
+    stream, direction, session, session.observedAddr, session.localAddr, session.peerId
   )
   when defined(libp2p_agents_metrics):
     qs.shortAgent = session.shortAgent
