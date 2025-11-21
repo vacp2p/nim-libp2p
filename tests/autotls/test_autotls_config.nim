@@ -12,8 +12,8 @@
 {.push raises: [].}
 
 import chronos, uri
-import ../libp2p/[autotls/service, autotls/acme/api, autotls/acme/client, wire]
-import ./tools/[unittest]
+import ../../libp2p/[autotls/service, autotls/acme/api, autotls/acme/client, wire]
+import ../tools/[unittest]
 
 suite "AutoTLS Configuration Tests":
   asyncTeardown:

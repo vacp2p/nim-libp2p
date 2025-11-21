@@ -14,7 +14,7 @@ when defined(linux) and defined(amd64):
 
   import chronos, chronos/apps/http/httpclient
   import
-    ../libp2p/[
+    ../../libp2p/[
       stream/connection,
       upgrademngrs/upgrade,
       autotls/acme/api,
@@ -28,7 +28,7 @@ when defined(linux) and defined(amd64):
       nameresolving/dnsresolver,
       wire,
     ]
-  import ./tools/[unittest]
+  import ../tools/[unittest]
 
   suite "AutoTLS Integration":
     asyncTeardown:

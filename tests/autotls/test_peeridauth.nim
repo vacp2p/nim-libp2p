@@ -12,7 +12,7 @@
 
 import chronos, chronos/apps/http/httpclient, uri, base64, times
 import
-  ../libp2p/
+  ../../libp2p/
     [
       stream/connection,
       upgrademngrs/upgrade,
@@ -20,7 +20,7 @@ import
       wire,
       crypto/crypto,
     ]
-import ./tools/[unittest]
+import ../tools/[unittest, crypto]
 
 suite "PeerID Auth Client":
   var client {.threadvar.}: MockPeerIDAuthClient
