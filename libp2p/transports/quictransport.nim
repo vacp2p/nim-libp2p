@@ -48,12 +48,19 @@ type QuicStream* = ref object of P2PConnection
 proc new(
     _: type QuicStream,
     stream: Stream,
+    dir: Direction,
     oaddr: Opt[MultiAddress],
     laddr: Opt[MultiAddress],
     peerId: PeerId,
 ): QuicStream =
-  let quicstream =
-    QuicStream(stream: stream, observedAddr: oaddr, localAddr: laddr, peerId: peerId)
+  let quicstream = QuicStream(
+    stream: stream,
+    observedAddr: oaddr,
+    localAddr: laddr,
+    peerId: peerId,
+    objName: "QuicStream",
+    dir: dir,
+  )
   procCall P2PConnection(quicstream).initStream()
   quicstream
 
@@ -133,8 +140,9 @@ proc getStream(
   of Direction.Out:
     stream = await session.connection.openStream()
 
-  let qs =
-    QuicStream.new(stream, session.observedAddr, session.localAddr, session.peerId)
+  let qs = QuicStream.new(
+    stream, direction, session.observedAddr, session.localAddr, session.peerId
+  )
   when defined(libp2p_agents_metrics):
     qs.shortAgent = session.shortAgent
 
@@ -352,6 +360,8 @@ proc wrapConnection(
 
   let session = QuicSession(
     connection: connection,
+    objName: "QuicSession",
+    dir: transportDir,
     observedAddr: Opt.some(observedAddr),
     localAddr: Opt.some(localAddr),
   )
