@@ -62,10 +62,13 @@ proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool {.raises: [].}
 proc containsNoData*(kad: KadDHT, key: Key): bool {.raises: [].} =
   not containsData(kad, key, @[])
 
-template setupKadSwitch*(validator: untyped, selector: untyped): untyped =
+template setupKadSwitch*(
+    validator: untyped, selector: untyped, bootstrapNodes: untyped = @[]
+): untyped =
   let switch = createSwitch()
   let kad = KadDHT.new(
     switch,
+    bootstrapNodes,
     config = KadDHTConfig.new(
       validator,
       selector,
