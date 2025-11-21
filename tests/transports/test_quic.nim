@@ -124,3 +124,10 @@ suite "Quic transport":
 
     await client.stop()
     await server.stop()
+
+  asyncTest "accept on stopped transport":
+    let server = await createTransport(isServer = true)
+    await server.stop()
+
+    expect QuicTransportAcceptStopped:
+      discard await server.accept()
