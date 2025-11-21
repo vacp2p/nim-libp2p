@@ -14,8 +14,7 @@ var rngSingleton {.threadvar.}: ref HmacDrbgContext
 rngSingleton = newRng()
 
 proc getRng(): ref HmacDrbgContext =
-  {.gcsafe.}:
-    rngSingleton
+  rngSingleton
 
 template rng*(): ref HmacDrbgContext =
   getRng()
