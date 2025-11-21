@@ -62,7 +62,6 @@ const NoReplyProtocolCodec = "/test/1.0.0"
 type NoReplyProtocol* = ref object of LPProtocol
   receivedMessages*: AsyncQueue[seq[byte]]
 
-
 proc newNoReplyProtocol*(): NoReplyProtocol =
   let nrProto = NoReplyProtocol()
   nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
