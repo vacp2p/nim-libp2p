@@ -14,7 +14,6 @@ import
   ../../libp2p/[
     protocols/rendezvous,
     protocols/rendezvous/protobuf,
-    discovery/discoverymngr,
     peerinfo,
     switch,
     routing_record,
