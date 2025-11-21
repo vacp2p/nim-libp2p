@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, chronicles, results
+import chronos, chronicles, results, sequtils
 import ../utils/heartbeat
 import ../[peerid, switch, multihash]
 import ./protocol
@@ -19,25 +19,25 @@ logScope:
   topics = "kad-dht"
 
 proc bootstrap*(
-    kad: KadDHT, bootstrapNodes: seq[PeerInfo]
+    kad: KadDHT, bootstrapNodes: seq[(PeerId, seq[MultiAddress])]
 ) {.async: (raises: [CancelledError]).} =
-  for b in bootstrapNodes:
+  for (peerId, addrs) in bootstrapNodes:
     try:
-      await kad.switch.connect(b.peerId, b.addrs)
-      debug "Connected to bootstrap peer", peerId = b.peerId
+      await kad.switch.connect(peerId, addrs)
+      debug "Connected to bootstrap peer", peerId = peerId
     except DialFailedError as exc:
       # at some point will want to bubble up a Result[void, SomeErrorEnum]
-      error "failed to dial to bootstrap peer", peerId = b.peerId, error = exc.msg
+      error "failed to dial to bootstrap peer", peerId = peerId, error = exc.msg
       continue
 
     let msg =
       try:
-        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(
+        await kad.sendFindNode(peerId, addrs, kad.rtable.selfId).wait(
           kad.config.timeout
         )
       except CatchableError as exc:
         debug "Send find node exception during bootstrap",
-          target = b.peerId, addrs = b.addrs, err = exc.msg
+          target = peerId, addrs = addrs, err = exc.msg
         continue
     for peer in msg.closerPeers:
       let p = PeerId.init(peer.id).valueOr:
@@ -48,13 +48,18 @@ proc bootstrap*(
       kad.switch.peerStore[AddressBook][p] = peer.addrs
 
     # bootstrap node replied succesfully. Adding to routing table
-    discard kad.rtable.insert(b.peerId)
+    discard kad.rtable.insert(peerId)
 
   let key = PeerId.random(kad.rng).valueOr:
     doAssert(false, "this should never happen")
     return
   discard await kad.findNode(key.toKey())
   info "Bootstrap lookup complete"
+
+proc bootstrap*(
+    kad: KadDHT, bootstrapNodes: seq[PeerInfo]
+) {.async: (raises: [CancelledError]).} =
+  await kad.bootstrap(bootstrapNodes.mapIt((it.peerId, it.addrs)))
 
 proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   for i in 0 ..< kad.rtable.buckets.len:
