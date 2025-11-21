@@ -14,14 +14,14 @@ when defined(libp2p_autotls_support):
 
   import sequtils, json, uri, chronos, chronos/apps/http/httpclient
   import
-    ../libp2p/[
+    ../../libp2p/[
       stream/connection,
       upgrademngrs/upgrade,
       autotls/acme/mockapi,
       autotls/acme/client,
       wire,
     ]
-  import ./tools/[unittest]
+  import ../tools/[unittest]
 
   suite "AutoTLS ACME API":
     var api {.threadvar.}: MockACMEApi

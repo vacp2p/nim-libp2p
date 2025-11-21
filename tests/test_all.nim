@@ -11,6 +11,7 @@
 
 import ./tools/test_all
 import ./utils/test_all
+import ./autotls/test_all
 import ./crypto/test_all
 import ./stream/test_all
 import ./muxers/test_all
@@ -26,9 +27,6 @@ import
   testpeerid, testsigned_envelope, testrouting_record, testnameresolve, testmultistream,
   testobservedaddrmanager, testconnmngr, testswitch, testpeerinfo, testpeerstore,
   testautorelay, testhpservice, testutility, testwildcardresolverservice
-
-when defined(libp2p_autotls_support):
-  import testautotls
 
 # Run final trackers check.
 # After all tests are executed final trackers check is performed to ensure that
