@@ -1,0 +1,109 @@
+networks:
+  monitor:
+
+services:
+  # observability ui
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:11.1.0
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    env_file:
+      - ./grafana/provisioning/grafana-plugins.env
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards/:z
+    ports:
+      - "3000:3000" # browse on http://localhost:3000
+    networks: [monitor]
+    depends_on:
+      - prometheus
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v2.55.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks: [monitor]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitor
+
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379" # optional; intra-network works without publishing
+    networks: [monitor]
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  quic:
+    image: nim-libp2p/quic:latest
+    networks: [monitor]
+    deploy:
+      replicas: ${NUM_LIBP2P_NODES:-10}
+    command: []
+    cap_add:
+      - NET_ADMIN # REQUIRED for tc
+    environment:
+      NETEM: "delay 100ms 10ms distribution normal"
+      NUM_LIBP2P_NODES: ${NUM_LIBP2P_NODES:-10}
+      TRANSPORT: ${TRANSPORT:-QUIC}
+      CONNECTTO: ${CONNECTTO:-10}
+    ports:
+      - target: 5000 # app
+        published: 0
+        protocol: udp
+      - target: 8008 # prometheus
+        published: 0
+        protocol: tcp
+    volumes:
+      - ./vg-logs:/node/vg-logs
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+    command: ["-config.file=/etc/loki/config.yml"]
+    ports:
+      - "3100:3100"
+    networks: [monitor]
+    user: "0:0" # root
+    tmpfs:
+      - /loki
+    volumes:
+      - ./loki-config.yml:/etc/loki/config.yml:ro
+
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: promtail
+    command: ["-config.file=/etc/promtail/config.yml"]
+    networks: [monitor]
+    depends_on:
+      - loki
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
