@@ -76,6 +76,7 @@ proc new*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
+    client: bool = false,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
@@ -92,40 +93,41 @@ proc new*(
   )
 
   kad.codec = KadCodec
-  kad.handler = proc(
-      conn: Connection, proto: string
-  ) {.async: (raises: [CancelledError]).} =
-    defer:
-      await conn.close()
-    while not conn.atEof:
-      let buf =
-        try:
-          await conn.readLp(MaxMsgSize)
-        except LPStreamEOFError:
+  if not client:
+    kad.handler = proc(
+        conn: Connection, proto: string
+    ) {.async: (raises: [CancelledError]).} =
+      defer:
+        await conn.close()
+      while not conn.atEof:
+        let buf =
+          try:
+            await conn.readLp(MaxMsgSize)
+          except LPStreamEOFError:
+            return
+          except LPStreamError as exc:
+            debug "Read error when handling kademlia RPC", conn = conn, err = exc.msg
+            return
+        let msg = Message.decode(buf).valueOr:
+          debug "Failed to decode message", err = error
           return
-        except LPStreamError as exc:
-          debug "Read error when handling kademlia RPC", conn = conn, err = exc.msg
-          return
-      let msg = Message.decode(buf).valueOr:
-        debug "Failed to decode message", err = error
-        return
 
-      case msg.msgType
-      of MessageType.findNode:
-        await kad.handleFindNode(conn, msg)
-      of MessageType.putValue:
-        await kad.handlePutValue(conn, msg)
-      of MessageType.getValue:
-        await kad.handleGetValue(conn, msg)
-      of MessageType.addProvider:
-        await kad.handleAddProvider(conn, msg)
-      of MessageType.getProviders:
-        await kad.handleGetProviders(conn, msg)
-      of MessageType.ping:
-        await kad.handlePing(conn, msg)
-      else:
-        error "Unhandled kad-dht message type", msg = msg
-        return
+        case msg.msgType
+        of MessageType.findNode:
+          await kad.handleFindNode(conn, msg)
+        of MessageType.putValue:
+          await kad.handlePutValue(conn, msg)
+        of MessageType.getValue:
+          await kad.handleGetValue(conn, msg)
+        of MessageType.addProvider:
+          await kad.handleAddProvider(conn, msg)
+        of MessageType.getProviders:
+          await kad.handleGetProviders(conn, msg)
+        of MessageType.ping:
+          await kad.handlePing(conn, msg)
+        else:
+          error "Unhandled kad-dht message type", msg = msg
+          return
   return kad
 
 method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
