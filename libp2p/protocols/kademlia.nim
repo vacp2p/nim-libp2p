@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, chronicles, results
+import chronos, chronicles, results, sequtils
 import ../utils/heartbeat
 import ../[peerid, switch, multihash]
 import ./protocol
@@ -61,6 +61,11 @@ proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   discard await kad.findNode(key.toKey())
 
   info "Bootstrap lookup complete"
+
+proc bootstrap*(
+    kad: KadDHT, bootstrapNodes: seq[PeerInfo]
+) {.async: (raises: [CancelledError]).} =
+  await kad.bootstrap(bootstrapNodes.mapIt((it.peerId, it.addrs)))
 
 proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   for i in 0 ..< kad.rtable.buckets.len:
