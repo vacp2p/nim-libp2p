@@ -20,12 +20,14 @@ suite "KadDHT - Ping":
 
   asyncTest "Simple ping":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
 
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-
-    await kad2.bootstrap(@[switch1.peerInfo])
 
     check:
       await kad1.ping(switch2.peerInfo.peerId, switch2.peerInfo.addrs)

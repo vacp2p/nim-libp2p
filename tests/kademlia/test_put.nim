@@ -20,11 +20,13 @@ suite "KadDHT - PutVal":
 
   asyncTest "Simple put":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-
-    await kad2.bootstrap(@[switch1.peerInfo])
 
     discard await kad1.findNode(kad2.rtable.selfId)
     discard await kad2.findNode(kad1.rtable.selfId)
@@ -43,11 +45,14 @@ suite "KadDHT - PutVal":
 
   asyncTest "Change Validator":
     var (switch1, kad1) = setupKadSwitch(RestrictiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(RestrictiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      RestrictiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
 
-    await kad2.bootstrap(@[switch1.peerInfo])
     check kad1.dataTable.len == 0
     let key = kad1.rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -69,11 +74,13 @@ suite "KadDHT - PutVal":
 
   asyncTest "Good Time":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-    await kad2.bootstrap(@[switch1.peerInfo])
-
     let key = kad1.rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
     discard await kad2.putValue(key, value)
@@ -89,11 +96,13 @@ suite "KadDHT - PutVal":
 
   asyncTest "Reselect":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), OthersSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), OthersSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      OthersSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-    await kad2.bootstrap(@[switch1.peerInfo])
-
     let key = kad1.rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
 
