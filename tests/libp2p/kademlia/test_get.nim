@@ -15,19 +15,25 @@ import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
 
+<<<<<<<< HEAD:tests/libp2p/kademlia/test_get_val.nim
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT - GetVal":
+========
+suite "KadDHT Get":
+>>>>>>>> 539d365e0 (chore(kad): bootstrap does not need peerinfo (#1903)):tests/libp2p/kademlia/test_get.nim
   teardown:
     checkTrackers()
 
   asyncTest "Get from peer":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-
-    await kad2.bootstrap(@[switch1.peerInfo])
 
     discard await kad1.findNode(kad2.rtable.selfId)
     discard await kad2.findNode(kad1.rtable.selfId)
@@ -51,11 +57,13 @@ suite "KadDHT - GetVal":
 
   asyncTest "Get value that is locally present":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-
-    await kad2.bootstrap(@[switch1.peerInfo])
 
     discard await kad1.findNode(kad2.rtable.selfId)
     discard await kad2.findNode(kad1.rtable.selfId)
@@ -78,8 +86,6 @@ suite "KadDHT - GetVal":
       containsData(kad2, key, value)
 
   asyncTest "Divergent getVal responses from peers":
-    var (switch1, kad1) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch2, kad2) =
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch3, kad3) =
@@ -88,15 +94,21 @@ suite "KadDHT - GetVal":
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch5, kad5) =
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch1, kad1) = setupKadSwitch(
+      DefaultEntryValidator(),
+      DefaultEntrySelector(),
+      @[
+        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
+        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
+        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
+        (switch5.peerInfo.peerId, switch5.peerInfo.addrs),
+      ],
+    )
 
     defer:
       await allFutures(
         switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
       )
-
-    await kad1.bootstrap(
-      @[switch2.peerInfo, switch3.peerInfo, switch4.peerInfo, switch5.peerInfo]
-    )
 
     discard await kad1.findNode(kad2.rtable.selfId)
     discard await kad1.findNode(kad3.rtable.selfId)
@@ -132,8 +144,6 @@ suite "KadDHT - GetVal":
       containsData(kad5, key, bestValue)
 
   asyncTest "Could not achieve quorum":
-    var (switch1, kad1) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch2, kad2) =
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch3, kad3) =
@@ -142,15 +152,20 @@ suite "KadDHT - GetVal":
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch5, kad5) =
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-
+    var (switch1, kad1) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[
+        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
+        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
+        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
+        (switch5.peerInfo.peerId, switch5.peerInfo.addrs),
+      ],
+    )
     defer:
       await allFutures(
         switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
       )
-
-    await kad1.bootstrap(
-      @[switch2.peerInfo, switch3.peerInfo, switch4.peerInfo, switch5.peerInfo]
-    )
 
     discard await kad1.findNode(kad2.rtable.selfId)
     discard await kad1.findNode(kad3.rtable.selfId)
@@ -175,8 +190,6 @@ suite "KadDHT - GetVal":
     check getValueRes.error() == "Not enough valid records to achieve quorum"
 
   asyncTest "Update peers with empty values":
-    var (switch1, kad1) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch2, kad2) =
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch3, kad3) =
@@ -185,15 +198,20 @@ suite "KadDHT - GetVal":
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch5, kad5) =
       setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-
+    var (switch1, kad1) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[
+        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
+        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
+        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
+        (switch5.peerInfo.peerId, switch5.peerInfo.addrs),
+      ],
+    )
     defer:
       await allFutures(
         switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
       )
-
-    await kad1.bootstrap(
-      @[switch2.peerInfo, switch3.peerInfo, switch4.peerInfo, switch5.peerInfo]
-    )
 
     discard await kad1.findNode(kad2.rtable.selfId)
     discard await kad1.findNode(kad3.rtable.selfId)
