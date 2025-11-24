@@ -9,4 +9,4 @@
 
 {.used.}
 
-import test_multiaddress, test_multibase, test_multihash
+import test_cid, test_multiaddress, test_multibase, test_multihash

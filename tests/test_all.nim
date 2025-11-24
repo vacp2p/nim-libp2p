@@ -25,9 +25,9 @@ import ./transports/test_all
 import ./utils/test_all
 
 import
-  testvarint, testminprotobuf, testcid, testpeerid, testsigned_envelope,
-  testrouting_record, testnameresolve, testmultistream, testobservedaddrmanager,
-  testconnmngr, testswitch, testpeerinfo, testpeerstore, testutility
+  testvarint, testminprotobuf, testpeerid, testsigned_envelope, testrouting_record,
+  testnameresolve, testmultistream, testobservedaddrmanager, testconnmngr, testswitch,
+  testpeerinfo, testpeerstore, testutility
 
 # Run final trackers check.
 # After all tests are executed final trackers check is performed to ensure that
