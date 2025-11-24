@@ -55,6 +55,7 @@ scrape_configs:
           - nim-libp2p-quic-48:8008
           - nim-libp2p-quic-49:8008
           - nim-libp2p-quic-50:8008
+          - nim-libp2p-quic-publisher-1:8008
   - job_name: "cadvisor"
     static_configs:
       - targets: ["cadvisor:8080"]

@@ -1,5 +1,5 @@
 import stew/endians2, stew/byteutils, tables, strutils, os, redis, sequtils
-import chronos, chronos/apps/http/httpserver
+import chronos, chronos/apps/http/httpserver, lsquic/lsquic_ffi
 import ./env
 import std/hashes
 import ./libp2p, ./libp2p/[muxers/mplex/lpchannel, crypto/secp, multiaddress]
@@ -9,6 +9,15 @@ import ./libp2p/multiaddress
 import math, metrics, metrics/chronos_httpserver
 from times import getTime, Time, toUnix, fromUnix, `-`, initTime, `$`, inMilliseconds
 from nativesockets import getHostname
+
+proc logging(ctx: pointer, buf: cstring, len: csize_t): cint {.cdecl.} =
+  echo $buf
+  return 0
+
+let logger = struct_lsquic_logger_if(log_buf: logging)
+discard lsquic_set_log_level("debug")
+discard lsquic_logger_lopt("engine=debug,conn=debug,stream=debug")
+lsquic_logger_init(addr logger, nil, LLTS_HHMMSSUS)
 
 proc msgIdProvider(m: Message): Result[MessageId, ValidationResult] =
   return ok(($m.data.hash).toBytes())
@@ -126,6 +135,7 @@ proc main() {.async.} =
     gossipSub = initializeGossipsub(switch, true)
 
   subscribGossipsubTopic(gossipSub, "test")
+
   switch.mount(gossipSub)
   await switch.start()
 

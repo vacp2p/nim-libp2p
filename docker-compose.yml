@@ -60,7 +60,7 @@ services:
     image: nim-libp2p/quic:latest
     networks: [monitor]
     deploy:
-      replicas: ${NUM_LIBP2P_NODES:-10}
+      replicas: 10
     command: []
     cap_add:
       - NET_ADMIN # REQUIRED for tc
