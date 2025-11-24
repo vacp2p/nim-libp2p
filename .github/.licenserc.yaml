@@ -14,5 +14,4 @@ header:
   - "**/*.nim"
   paths-ignore:
   - "examples/**"
-  - "tests/multiformat_exts/*_exts.nim"
   comment: on-failure
