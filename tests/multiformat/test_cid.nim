@@ -9,8 +9,8 @@
 
 {.used.}
 
-import ../libp2p/[cid, multihash, multicodec]
-import ./tools/[unittest]
+import ../../libp2p/[cid, multihash, multicodec]
+import ../tools/[unittest]
 
 suite "Content identifier CID test suite":
   test "CIDv0 test vector":
