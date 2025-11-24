@@ -11,7 +11,8 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p/stream/connection
-import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer, rpc/messages]
+import
+  ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer, rpc/messages]
 import ../../../tools/[unittest]
 import ../utils
 
