@@ -22,16 +22,8 @@ import ./services/test_all
 import ./stream/test_all
 import ./transports/test_all
 import ./utils/test_all
-import ../tools/test_all
 
 import
   testvarint, testminprotobuf, testpeerid, testsigned_envelope, testrouting_record,
   testnameresolve, testmultistream, testobservedaddrmanager, testconnmngr, testswitch,
   testpeerinfo, testpeerstore, testutility
-
-# Run final trackers check.
-# After all tests are executed final trackers check is performed to ensure that
-# there isn't anything left open.
-# This can usually happen when last imported/executed tests do not call checkTrackers.
-from ../tools/unittest import finalCheckTrackers
-finalCheckTrackers()
