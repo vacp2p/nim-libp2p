@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, chronicles, results, sequtils
+import chronos, chronicles, results
 import ../utils/heartbeat
 import ../[peerid, switch, multihash]
 import ./protocol
@@ -18,48 +18,49 @@ export routingtable, protobuf, types, find, get, put, provider, ping
 logScope:
   topics = "kad-dht"
 
-proc bootstrap*(
-    kad: KadDHT, bootstrapNodes: seq[(PeerId, seq[MultiAddress])]
+proc bootstrapNode*(
+    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError]).} =
-  for (peerId, addrs) in bootstrapNodes:
+  ## Uses node with `peerId` and `addrs` as a bootstrap node
+
+  try:
+    await kad.switch.connect(peerId, addrs)
+    debug "Connected to bootstrap peer", peerId = peerId
+  except DialFailedError as exc:
+    # at some point will want to bubble up a Result[void, SomeErrorEnum]
+    error "failed to dial to bootstrap peer", peerId = peerId, error = exc.msg
+    return
+
+  let msg =
     try:
-      await kad.switch.connect(peerId, addrs)
-      debug "Connected to bootstrap peer", peerId = peerId
-    except DialFailedError as exc:
-      # at some point will want to bubble up a Result[void, SomeErrorEnum]
-      error "failed to dial to bootstrap peer", peerId = peerId, error = exc.msg
-      continue
+      await kad.sendFindNode(peerId, addrs, kad.rtable.selfId).wait(kad.config.timeout)
+    except CatchableError as exc:
+      debug "Send find node exception during bootstrap",
+        target = peerId, addrs = addrs, err = exc.msg
+      return
 
-    let msg =
-      try:
-        await kad.sendFindNode(peerId, addrs, kad.rtable.selfId).wait(
-          kad.config.timeout
-        )
-      except CatchableError as exc:
-        debug "Send find node exception during bootstrap",
-          target = peerId, addrs = addrs, err = exc.msg
-        continue
-    for peer in msg.closerPeers:
-      let p = PeerId.init(peer.id).valueOr:
-        debug "Invalid peer id received", error = error
-        continue
-      discard kad.rtable.insert(p)
+  for peer in msg.closerPeers:
+    let p = PeerId.init(peer.id).valueOr:
+      debug "Invalid peer id received", error = error
+      return
+    discard kad.rtable.insert(p)
 
-      kad.switch.peerStore[AddressBook][p] = peer.addrs
+    kad.switch.peerStore[AddressBook][p] = peer.addrs
 
-    # bootstrap node replied succesfully. Adding to routing table
-    discard kad.rtable.insert(peerId)
+  # bootstrap node replied succesfully, add to routing table
+  discard kad.rtable.insert(peerId)
+
+proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  for (peerId, addrs) in kad.bootstrapNodes:
+    await kad.bootstrapNode(peerId, addrs)
 
   let key = PeerId.random(kad.rng).valueOr:
     doAssert(false, "this should never happen")
     return
-  discard await kad.findNode(key.toKey())
-  info "Bootstrap lookup complete"
 
-proc bootstrap*(
-    kad: KadDHT, bootstrapNodes: seq[PeerInfo]
-) {.async: (raises: [CancelledError]).} =
-  await kad.bootstrap(bootstrapNodes.mapIt((it.peerId, it.addrs)))
+  discard await kad.findNode(key.toKey())
+
+  info "Bootstrap lookup complete"
 
 proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   for i in 0 ..< kad.rtable.buckets.len:
@@ -74,6 +75,7 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 proc new*(
     T: typedesc[KadDHT],
     switch: Switch,
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
 ): T {.raises: [].} =
@@ -84,6 +86,7 @@ proc new*(
   let kad = T(
     rng: rng,
     switch: switch,
+    bootstrapNodes: bootstrapNodes,
     rtable: rtable,
     config: config,
     providerManager:
@@ -135,6 +138,8 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
+
+  await kad.bootstrap()
 
   kad.started = true
 
