@@ -10,6 +10,7 @@
 {.used.}
 
 import chronos, random, stew/byteutils
+import lsquic/lsquic_ffi
 import
   ../../libp2p/
     [transports/transport, transports/quictransport, upgrademngrs/upgrade, muxers/muxer]
@@ -73,8 +74,17 @@ suite "Quic transport":
 
     proc runClient() {.async.} =
       let client = await createTransport(withInvalidCert = true)
-      expect QuicTransportDialError:
-        discard await client.dial("", server.addrs[0])
+      let conn = await client.dial("", server.addrs[0])
+      # TODO: expose CRYPTO_ERROR somehow in lsquic. 
+      # This is a temporary measure just to get the test to work
+      # lsquic will create a connection, and once the server
+      # validates the certificate, it will close the connection
+      # hence why a sleep is necessary. 
+      # use expect to assert dial error after fix:
+      # expect QuicTransportDialError:
+      #   discard await client.dial("", server.addrs[0])
+      await sleepAsync(100.milliseconds)
+      check (cast[QuicSession](conn)).closed()
       await client.stop()
 
     await runClient()

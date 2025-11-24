@@ -489,6 +489,7 @@ method handleConn*(
       trace "peer rate limit exceeded in peerHandler",
         description = e.msg, conn, peer = peer
       # loop needs to stop. we are doing this by closing connection
+      echo "PEER RATE LIMIT ERROR ", e.msg
       await conn.closeWithEOF()
 
   let peer = p.getOrCreatePeer(conn.peerId, @[], proto)
@@ -497,8 +498,10 @@ method handleConn*(
     peer.handler = peerHandler
     await peer.runHandleLoop(conn)
   except CancelledError as exc:
+    echo "CANCELLED"
     raise exc
   finally:
+    echo "CLOSE WITH EOF"
     await conn.closeWithEOF()
 
 method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
