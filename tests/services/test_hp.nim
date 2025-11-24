@@ -12,12 +12,13 @@
 {.push raises: [].}
 
 import chronos
-import ../libp2p/[builders, switch, wire, services/hpservice, services/autorelayservice]
-import ../libp2p/protocols/connectivity/relay/[relay, client]
-import ../libp2p/protocols/connectivity/autonat/[service]
-import ../libp2p/nameresolving/[nameresolver, mockresolver]
-import ./stubs/[autonatclientstub, switchstub]
-import ./tools/[unittest, futures, resolver]
+import
+  ../../libp2p/[builders, switch, wire, services/hpservice, services/autorelayservice]
+import ../../libp2p/protocols/connectivity/relay/[relay, client]
+import ../../libp2p/protocols/connectivity/autonat/[service]
+import ../../libp2p/nameresolving/[nameresolver, mockresolver]
+import ../stubs/[autonatclientstub, switchstub]
+import ../tools/[unittest, futures, resolver]
 
 proc createSwitch(
     r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil

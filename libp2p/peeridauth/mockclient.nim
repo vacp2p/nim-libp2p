@@ -34,7 +34,9 @@ method post*(
 
 method get*(
     self: MockPeerIDAuthClient, uri: Uri
-): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]).} =
+): Future[PeerIDAuthResponse] {.
+    async: (raises: [PeerIDAuthError, HttpError, CancelledError])
+.} =
   PeerIDAuthResponse(
     status: self.mockedStatus, headers: self.mockedHeaders, body: self.mockedBody
   )

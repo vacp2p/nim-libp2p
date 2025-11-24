@@ -10,8 +10,8 @@
 {.used.}
 
 import results
-import ../libp2p/multibase
-import ./tools/[unittest]
+import ../../libp2p/multibase
+import ../tools/[unittest]
 
 const GoTestVectors = [
   ["identity", "\x00Decentralize everything!!!", "Decentralize everything!!!"],

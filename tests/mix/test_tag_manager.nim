@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronicles, results
+import results
 import ../../libp2p/protocols/mix/[curve25519, tag_manager]
 import ../tools/[unittest]
 

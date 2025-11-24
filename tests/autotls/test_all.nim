@@ -9,7 +9,7 @@
 
 {.used.}
 
-import
-  test_conn, test_crypto, test_curve25519, test_fragmentation, test_mix_message,
-  test_mix_node, test_multiaddr, test_seq_no_generator, test_serialization, test_sphinx,
-  test_tag_manager
+import test_autotls_config, test_peeridauth
+
+when defined(libp2p_autotls_support):
+  import test_autotls
