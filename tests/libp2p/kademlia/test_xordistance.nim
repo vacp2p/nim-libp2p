@@ -13,7 +13,7 @@ import chronos
 import ../../../libp2p/protocols/kademlia
 import ../../tools/[unittest]
 
-suite "xor distance":
+suite "KadDHT XOR Distance":
   test "countLeadingZeroBits works":
     check countLeadingZeroBits(0b00000000'u8) == 8
     check countLeadingZeroBits(0b10000000'u8) == 0

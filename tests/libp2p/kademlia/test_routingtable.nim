@@ -18,7 +18,7 @@ proc testKey*(x: byte): Key =
   buf[31] = x
   return @buf
 
-suite "routing table":
+suite "KadDHT Routing Table":
   const TargetBucket = 6
 
   test "inserts single key in correct bucket":
