@@ -80,18 +80,18 @@ proc tutorialToMd(filename: string) =
 
 task testmultiformatexts, "Run multiformat extensions tests":
   let opts =
-    "-d:libp2p_multicodec_exts=../tests/multiformat_exts/multicodec_exts.nim " &
-    "-d:libp2p_multiaddress_exts=../tests/multiformat_exts/multiaddress_exts.nim " &
-    "-d:libp2p_multihash_exts=../tests/multiformat_exts/multihash_exts.nim " &
-    "-d:libp2p_multibase_exts=../tests/multiformat_exts/multibase_exts.nim " &
-    "-d:libp2p_contentids_exts=../tests/multiformat_exts/contentids_exts.nim "
-  runTest("multiformat_exts/test_all", opts)
+    "-d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim " &
+    "-d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim " &
+    "-d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim " &
+    "-d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim " &
+    "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim "
+  runTest("libp2p/multiformat_exts/test_all", opts)
 
 task testpubsub, "Runs pubsub tests":
-  runTest("pubsub/test_all", "-d:libp2p_gossipsub_1_4")
+  runTest("libp2p/pubsub/test_all", "-d:libp2p_gossipsub_1_4")
 
-task testintegration, "Runs integraion tests":
-  runTest("testintegration")
+task testintegration, "Runs integration tests":
+  runTest("integration/test_all")
 
 task test, "Runs the test suite":
   runTest("test_all")
