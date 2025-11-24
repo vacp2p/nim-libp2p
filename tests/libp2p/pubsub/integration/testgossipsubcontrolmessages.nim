@@ -15,7 +15,6 @@ when defined(libp2p_gossipsub_1_4):
   import ../../../../libp2p/protocols/pubsub/gossipsub/preamblestore
 import ../../../tools/[unittest]
 import ../utils
- 
 suite "GossipSub Integration - Control Messages":
   teardown:
     checkTrackers()
