@@ -10,8 +10,8 @@
 {.used.}
 
 import nimcrypto/utils
-import ../libp2p/[multicodec, multihash]
-import ./tools/[unittest]
+import ../../libp2p/[multicodec, multihash]
+import ../tools/[unittest]
 
 const RustTestVectors = [
   ["sha1", "beep boop", "11147C8357577F51D4F0A8D393AA1AAAFB28863D9421"],

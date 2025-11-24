@@ -10,8 +10,8 @@
 {.used.}
 
 import std/sequtils, stew/byteutils
-import ../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
-import ./tools/[unittest]
+import ../../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
+import ../tools/[unittest]
 
 {.push raises: [].}
 

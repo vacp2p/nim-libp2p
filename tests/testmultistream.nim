@@ -11,14 +11,16 @@
 
 import chronos, strformat, stew/byteutils
 import
-  ../libp2p/multistream,
-  ../libp2p/stream/bufferstream,
-  ../libp2p/stream/connection,
-  ../libp2p/multiaddress,
-  ../libp2p/transports/transport,
-  ../libp2p/transports/tcptransport,
-  ../libp2p/protocols/protocol,
-  ../libp2p/upgrademngrs/upgrade
+  ../libp2p/[
+    multistream,
+    stream/bufferstream,
+    stream/connection,
+    multiaddress,
+    transports/transport,
+    transports/tcptransport,
+    protocols/protocol,
+    upgrademngrs/upgrade,
+  ]
 import ./tools/[unittest, sync]
 
 {.push raises: [].}
