@@ -94,7 +94,7 @@ task testintegration, "Runs integration tests":
   runTest("integration/test_all")
 
 task test, "Runs the test suite":
-  runTest("libp2p/test_all")
+  runTest("test_all")
   testmultiformatextsTask()
 
 task website, "Build the website":
