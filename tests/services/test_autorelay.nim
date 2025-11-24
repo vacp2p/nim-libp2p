@@ -10,15 +10,16 @@
 {.used.}
 
 import chronos, options
-import ../libp2p
 import
-  ../libp2p/[
+  ../../libp2p/[
+    builders,
+    switch,
     crypto/crypto,
     protocols/connectivity/relay/relay,
     protocols/connectivity/relay/client,
     services/autorelayservice,
   ]
-import ./tools/[unittest]
+import ../tools/[unittest]
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
   var builder = SwitchBuilder

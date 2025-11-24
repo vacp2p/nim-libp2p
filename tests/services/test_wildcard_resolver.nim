@@ -11,9 +11,9 @@
 
 import std/options, chronos, metrics
 import
-  ../libp2p/
+  ../../libp2p/
     [builders, switch, services/wildcardresolverservice, multiaddress, multicodec]
-import ./tools/[unittest]
+import ../tools/[unittest]
 
 proc getAddressesMock(
     addrFamily: AddressFamily
