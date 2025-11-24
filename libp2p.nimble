@@ -90,8 +90,8 @@ task testmultiformatexts, "Run multiformat extensions tests":
 task testpubsub, "Runs pubsub tests":
   runTest("libp2p/pubsub/test_all", "-d:libp2p_gossipsub_1_4")
 
-task testintegration, "Runs integraion tests":
-  runTest("testintegration")
+task testintegration, "Runs integration tests":
+  runTest("integration/test_all")
 
 task test, "Runs the test suite":
   runTest("libp2p/test_all")

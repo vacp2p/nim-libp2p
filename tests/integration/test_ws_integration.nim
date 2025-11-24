@@ -12,7 +12,7 @@
 
 import chronos, chronos/apps/http/httpclient
 import
-  ../../../libp2p/[
+  ../../libp2p/[
     stream/connection,
     upgrademngrs/upgrade,
     nameresolving/dnsresolver,
@@ -25,7 +25,7 @@ import
     wire,
     utils/ipaddr,
   ]
-import ../../tools/[unittest]
+import ../tools/[unittest]
 
 suite "WebSocket transport integration":
   teardown:

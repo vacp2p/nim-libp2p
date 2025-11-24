@@ -92,4 +92,4 @@ jobs:
         run: |
           nim --version
           nimble --version
-          nim r -d:libp2p_autotls_support -d:chronicles_log_level=DEBUG tests/autotls/test_integration.nim
+          nim r -d:libp2p_autotls_support -d:chronicles_log_level=DEBUG tests/integration/test_all.nim
