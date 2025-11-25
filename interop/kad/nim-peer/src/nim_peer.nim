@@ -35,9 +35,9 @@ proc main() {.async.} =
     .build()
 
   let
-    rustPeerId = PeerId.init(readFile("../rust-peer/peer.id")).get()
-    rustMa = MultiAddress.init("/ip4/127.0.0.1/tcp/4141").get()
-    kad = KadDHT.new(switch, bootstrapNodes = @[(rustPeerId, @[rustMa])])
+    goPeerId = PeerId.init(readFile("../go-peer/peer.id")).get()
+    goMa = MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()
+    kad = KadDHT.new(switch, bootstrapNodes = @[(goPeerId, @[goMa])])
 
   switch.mount(kad)
   await sleepAsync(5.seconds)
@@ -56,7 +56,7 @@ proc main() {.async.} =
 
   await sleepAsync(2.seconds)
 
-  if not fileExists("../rust-peer/success"):
+  if not fileExists("../go-peer/success"):
     quit(1)
   # TODO: check for success file contents
   # TODO: go peer
