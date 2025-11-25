@@ -14,7 +14,7 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../../tools/[unittest]
 import ../utils
 
-suite "GossipSub Integration - Heartbeat":
+suite "GossipSub Component - Heartbeat":
   teardown:
     checkTrackers()
 

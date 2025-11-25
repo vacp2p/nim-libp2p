@@ -14,7 +14,7 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsub
 import ../../../tools/[unittest, futures]
 import ../utils
 
-suite "GossipSub Integration - Mesh Management":
+suite "GossipSub Component - Mesh Management":
   teardown:
     checkTrackers()
 
