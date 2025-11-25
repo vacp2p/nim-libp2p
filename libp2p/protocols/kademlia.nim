@@ -23,14 +23,6 @@ proc bootstrapNode*(
 ) {.async: (raises: [CancelledError]).} =
   ## Uses node with `peerId` and `addrs` as a bootstrap node
 
-  try:
-    await kad.switch.connect(peerId, addrs)
-    debug "Connected to bootstrap peer", peerId = peerId
-  except DialFailedError as exc:
-    # at some point will want to bubble up a Result[void, SomeErrorEnum]
-    error "failed to dial to bootstrap peer", peerId = peerId, error = exc.msg
-    return
-
   let msg =
     try:
       await kad.sendFindNode(peerId, addrs, kad.rtable.selfId).wait(kad.config.timeout)
@@ -44,7 +36,11 @@ proc bootstrapNode*(
       return
     except ValueError as e:
       debug "Wrong reply message type from bootstrap node",
-        target = peerId, addrs = addrs, msg = msg, description = e.msg
+        target = peerId, addrs = addrs, description = e.msg
+      return
+    except AsyncTimeoutError as e:
+      debug "Timeout error when dialing bootstrap node",
+        target = peerId, addrs = addrs, description = e.msg
       return
 
   for peer in msg.closerPeers:
