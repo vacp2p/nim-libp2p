@@ -34,9 +34,17 @@ proc bootstrapNode*(
   let msg =
     try:
       await kad.sendFindNode(peerId, addrs, kad.rtable.selfId).wait(kad.config.timeout)
-    except CatchableError as exc:
-      debug "Send find node exception during bootstrap",
-        target = peerId, addrs = addrs, err = exc.msg
+    except DialFailedError as e:
+      debug "Failed to dial bootstrap node",
+        target = peerId, addrs = addrs, description = e.msg
+      return
+    except LPStreamError as e:
+      debug "LPStreamError when dialing bootstrap node",
+        target = peerId, addrs = addrs, description = e.msg
+      return
+    except ValueError as e:
+      debug "Wrong reply message type from bootstrap node",
+        target = peerId, addrs = addrs, msg = msg, description = e.msg
       return
 
   for peer in msg.closerPeers:
