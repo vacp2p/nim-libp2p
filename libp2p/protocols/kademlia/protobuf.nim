@@ -143,7 +143,7 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
 
   m.msgType = msgType
 
-  ?pb.getRequiredField(2, m.key)
+  discard ?pb.getField(2, m.key)
 
   if ?pb.getField(3, recPb):
     m.record = Opt.some(?Record.decode(initProtoBuffer(recPb)))
