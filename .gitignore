@@ -25,3 +25,4 @@ go-libp2p-daemon/
 tests/**/test*[^.]* 
 !tests/**/*.*
 !tests/**/Dockerfile
+tests/*.xml

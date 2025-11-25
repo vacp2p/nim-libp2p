@@ -56,7 +56,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }}
 
-    name: '${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }})'
+    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }})"
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
@@ -87,7 +87,7 @@ jobs:
           nimble install_pinned
 
       - name: Use gcc 14
-        if : ${{ matrix.platform.os == 'linux-gcc-14'}}
+        if: ${{ matrix.platform.os == 'linux-gcc-14'}}
         run: |
           # Add GCC-14 to alternatives
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
@@ -103,3 +103,16 @@ jobs:
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" 
           nimble test
+
+      - name: Fix xml newlines
+        if: ${{ !cancelled() }}
+        run: |
+          nim c -r tests/tools/fix_xml_newlines.nim
+
+      - name: Test Report
+        uses: dorny/test-reporter@v2
+        if: ${{ !cancelled() }}
+        with:
+          name: Test Report
+          path: tests/results_*.xml
+          reporter: jest-junit
