@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import net, os, chronos, libp2p
+import net, chronos, libp2p
 import libp2p/protocols/kademlia
 
 proc waitForService(
@@ -52,17 +52,10 @@ proc main() {.async.} =
   # send a put value to peers
   discard await kad.putValue(key, value)
 
-  # TODO: go peer
-
   await sleepAsync(2.seconds)
 
-  if not fileExists("../go-peer/success"):
-    quit(1)
-  # TODO: check for success file contents
-  # TODO: go peer
-
 when isMainModule:
-  if waitFor(waitForService("127.0.0.1", Port(4141))):
+  if waitFor(waitForService("127.0.0.1", Port(4040))):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)

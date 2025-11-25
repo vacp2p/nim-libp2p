@@ -7,7 +7,6 @@ import (
     "io/ioutil"
     "log"
     "os"
-    "time"
 
     libp2p "github.com/libp2p/go-libp2p"
     crypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -20,6 +19,25 @@ const (
     privKeyFile = "peer.key"
     peerIDFile  = "peer.id"
 )
+
+type MyValidator struct{}
+
+// Runs when a PUT_VALUE arrives
+func (v *MyValidator) Validate(key string, value []byte) error {
+    fmt.Println("=== RECEIVED PUT_VALUE ===")
+    fmt.Println("Key:", key)
+    fmt.Println("Value:", string(value))
+
+    // Write the success file
+    ioutil.WriteFile("successful", []byte("ok\n"), 0644)
+
+    return nil // accept record
+}
+
+func (v *MyValidator) Select(best [][]byte) (int, error) {
+    // Always select first (not important here)
+    return 0, nil
+}
 
 func loadOrCreateIdentity() (crypto.PrivKey, peer.ID, error) {
     if _, err := os.Stat(privKeyFile); err == nil {
@@ -82,32 +100,15 @@ func main() {
     }
 
     // Create Kademlia DHT
-    kad, err := dht.New(ctx, host,
-        dht.Mode(dht.ModeAuto),
-        dht.ProtocolPrefix("/ipfs"), // match Rust libp2p protocol
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
+	kad, err := dht.New(ctx, host, dht.Mode(dht.ModeServer), dht.ProtocolPrefix("/ipfs"))
+	if err != nil { log.Fatal(err) }
+	routed := rhost.Wrap(host, kad)
+	fmt.Println("Peer ID:", pid)
+	fmt.Println("Listen addresses:", routed.Addrs())
+	fmt.Println("Go Kademlia DHT node started")
 
-    // Wrap host so all routing goes via DHT
-    routed := rhost.Wrap(host, kad)
+	// Keep running
 
-    // Force DHT to bootstrap (to itself)
-    go func() {
-        time.Sleep(time.Second)
-        fmt.Println("Bootstrapping DHT...")
-
-        if err := kad.Bootstrap(ctx); err != nil {
-            fmt.Println("Bootstrap error:", err)
-        }
-    }()
-
-    fmt.Println("Peer ID:", pid)
-    fmt.Println("Listen addresses:", routed.Addrs())
-    fmt.Println("Go Kademlia DHT node started")
-
-    // Keep running
-    select {}
+	select {}
 }
 
