@@ -11,11 +11,18 @@ import std/[os, xmlparser, xmltree, streams, strutils]
 
 proc processNode(node: var XmlNode) =
   if node.kind == xnElement and node.tag == "failure":
-    let message = node.attr("message")
+    let message = node.attr("message").replace("\n", " | ")
     let details = node.innerText.replace("\n", " | ")
 
+    let combined =
+      if details.len > 0:
+        details & " | " & message
+      else:
+        message
+
+    node.attrs = toXmlAttributes()
     node.clear()
-    node.add(newText(details & " | " & message))
+    node.add(newText(combined))
 
   for i in 0 ..< node.len:
     processNode(node[i])
@@ -25,4 +32,3 @@ for file in walkFiles("tests/results_*.xml"):
   processNode(xml)
 
   writeFile(file, $xml)
-  echo readFile(file)
