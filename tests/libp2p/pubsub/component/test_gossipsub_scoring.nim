@@ -16,7 +16,7 @@ import
 import ../../../tools/[unittest, futures]
 import ../utils
 
-suite "GossipSub Integration - Scoring":
+suite "GossipSub Component - Scoring":
   const topic = "foobar"
 
   teardown:

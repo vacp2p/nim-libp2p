@@ -16,7 +16,7 @@ import
 import ../../../tools/[unittest]
 import ../utils
 
-suite "GossipSub Integration - Message Cache":
+suite "GossipSub Component - Message Cache":
   teardown:
     checkTrackers()
 

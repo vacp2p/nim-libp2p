@@ -14,7 +14,7 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
 import ../../../tools/[unittest, futures]
 import ../utils
 
-suite "GossipSub Integration - Signature Flags":
+suite "GossipSub Component - Signature Flags":
   const
     topic = "foobar"
     testData = "test message".toBytes()
