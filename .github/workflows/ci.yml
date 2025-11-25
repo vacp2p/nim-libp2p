@@ -107,7 +107,7 @@ jobs:
       - name: Fix xml newlines
         if: ${{ !cancelled() }}
         run: |
-          nim c -r tests/tools/fix_xml_newlines.nim
+          nim c -r tools/fix_xml_newlines.nim
 
       - name: Test Report
         uses: dorny/test-reporter@v2
