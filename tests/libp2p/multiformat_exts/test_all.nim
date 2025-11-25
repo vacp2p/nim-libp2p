@@ -8,5 +8,5 @@
 # those terms.
 
 import
-  test_multicodec_exts, test_multihash_exts, test_multiaddress_exts, test_multibase_exts,
-  test_contentids_exts
+  test_multicodec_exts, test_multihash_exts, test_multiaddress_exts,
+  test_multibase_exts, test_contentids_exts
