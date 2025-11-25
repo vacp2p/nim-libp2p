@@ -14,7 +14,7 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
 import ../../../tools/[unittest]
 import ../utils
 
-suite "GossipSub Integration - Fanout Management":
+suite "GossipSub Component - Fanout Management":
   teardown:
     checkTrackers()
 

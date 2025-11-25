@@ -10,5 +10,5 @@
 {.used.}
 
 import
-  testcrypto, testecnist, tested25519, testminasn1, testpkifilter, testrsa,
-  testsecp256k1
+  test_crypto, test_ecnist, test_ed25519, test_minasn1, test_pki_filter, test_rsa,
+  test_secp256k1

@@ -24,6 +24,7 @@ import ./transports/test_all
 import ./utils/test_all
 
 import
-  testvarint, testminprotobuf, testpeerid, testsigned_envelope, testrouting_record,
-  testnameresolve, testmultistream, testobservedaddrmanager, testconnmngr, testswitch,
-  testpeerinfo, testpeerstore, testutility
+  test_conn_manager, test_dialer, test_min_protobuf, test_multistream,
+  test_name_resolve, test_observed_addr_manager, test_peer_id, test_peer_info,
+  test_peer_store, test_routing_record, test_signed_envelope, test_switch, test_utility,
+  test_varint, test_wire

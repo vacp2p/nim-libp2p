@@ -9,7 +9,7 @@
 
 {.used.}
 
-import test_autotls_config, test_peeridauth
+import test_autotls_config, test_peer_id_auth
 
 when defined(libp2p_autotls_support):
   import test_autotls

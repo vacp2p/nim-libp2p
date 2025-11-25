@@ -29,7 +29,7 @@ proc new*(T: typedesc[DummyConnection]): DummyConnection =
   let instance = T()
   instance
 
-suite "GossipSub Integration - Custom Connection Support":
+suite "GossipSub Component - Custom Connection Support":
   teardown:
     checkTrackers()
 

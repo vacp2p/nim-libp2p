@@ -30,7 +30,7 @@ proc waitSub(sender, receiver: auto, key: string) {.async.} =
   checkUntilTimeout:
     fsub.floodsub.hasKey(key) and fsub.floodsub.hasPeerId(key, receiver.peerInfo.peerId)
 
-suite "FloodSub Integration":
+suite "FloodSub Component":
   teardown:
     checkTrackers()
 

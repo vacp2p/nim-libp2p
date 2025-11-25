@@ -70,7 +70,7 @@ proc createMessages(
 
   return (iwantMessageIds, sentMessages)
 
-suite "GossipSub Integration - Message Handling":
+suite "GossipSub Component - Message Handling":
   teardown:
     checkTrackers()
 
