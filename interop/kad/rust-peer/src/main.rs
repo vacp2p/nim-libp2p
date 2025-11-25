@@ -19,7 +19,7 @@ use std::{error::Error, fs};
 use tracing_subscriber::{filter::EnvFilter, fmt};
 fn init_tracing() {
     // Read RUST_LOG from environment, fallback to "info"
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")); // "debug" prints everything
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
     fmt().with_env_filter(filter).init();
 }
 
@@ -54,17 +54,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     loop {
         match swarm.select_next_some().await {
-            SwarmEvent::Behaviour(kad::Event::OutboundQueryProgressed { result, .. }) => {
-                if let kad::QueryResult::PutRecord(res) = result {
-                    if res?.key.as_ref() == b"rust-peer" {
-                        println!("Received PUT_VALUE for rust-peer!");
-                        fs::File::create("success")?;
-                    }
-                }
-            }
-            SwarmEvent::NewListenAddr { address, .. } => {
-                println!("Listening on {address}");
-            }
+            // SwarmEvent::Behaviour(kad::Event::OutboundQueryProgressed { result, .. }) => {
+            //     if let kad::QueryResult::PutRecord(res) = result {
+            //         if res?.key.as_ref() == b"rust-peer" {
+            //             println!("Received PUT_VALUE for rust-peer!");
+            //             fs::File::create("success")?;
+            //         }
+            //     }
+            // }
+            // SwarmEvent::NewListenAddr { address, .. } => {
+            //     println!("Listening on {address}");
+            // }
             _ => {}
         }
     }
