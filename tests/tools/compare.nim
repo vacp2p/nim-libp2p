@@ -20,7 +20,4 @@ proc unorderedCompare*[T](a, b: seq[T]): bool =
   aSorted.sort()
   bSorted.sort()
 
-  if aSorted == bSorted:
-    return true
-
-  return false
+  return aSorted == bSorted

@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import net, strutils
+import net, chronicles, strutils
 
 import ../switch, ../multiaddress, ../multicodec
 
@@ -17,35 +17,45 @@ proc isIPv4*(ip: IpAddress): bool =
 proc isIPv6*(ip: IpAddress): bool =
   ip.family == IpAddressFamily.IPv6
 
-proc isPrivate*(ip: string): bool {.raises: [ValueError].} =
-  ip.startsWith("10.") or
-    (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
-    ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
+proc isPrivate*(ip: string): bool {.raises: [].} =
+  try:
+    return
+      ip.startsWith("10.") or
+      (ip.startsWith("172.") and parseInt(ip.split(".")[1]) in 16 .. 31) or
+      ip.startsWith("192.168.") or ip.startsWith("127.") or ip.startsWith("169.254.")
+  except ValueError:
+    return false
 
-proc isPrivate*(ip: IpAddress): bool {.raises: [ValueError].} =
+proc isPrivate*(ip: IpAddress): bool {.raises: [].} =
   isPrivate($ip)
 
-proc isPublic*(ip: string): bool {.raises: [ValueError].} =
+proc isPublic*(ip: string): bool {.raises: [].} =
   not isPrivate(ip)
 
-proc isPublic*(ip: IpAddress): bool {.raises: [ValueError].} =
+proc isPublic*(ip: IpAddress): bool {.raises: [].} =
   isPublic($ip)
 
-proc getPublicIPAddress*(): IpAddress {.raises: [OSError, ValueError].} =
+proc hasPublicIPAddress*(): bool {.raises: [].} =
   let ip =
     try:
       getPrimaryIPAddr()
-    except OSError as exc:
-      raise exc
-    except ValueError as exc:
-      raise exc
-    except Exception as exc:
-      raise newException(OSError, "Could not get primary IP address")
-  if not ip.isIPv4():
-    raise newException(ValueError, "Host does not have an IPv4 address")
-  if not ip.isPublic():
+    except CatchableError as e:
+      error "Unable to get primary ip address", description = e.msg
+      return false
+    except Exception as e:
+      error "Unable to get primary ip address", description = e.msg
+      return false
+  debug "Primary IP address", ip = ip, isIPv4 = ip.isIPv4(), isPublic = ip.isPublic()
+
+  return ip.isIPv4() and ip.isPublic()
+
+proc getPublicIPAddress*(): IpAddress {.raises: [OSError, ValueError].} =
+  if not hasPublicIPAddress():
     raise newException(ValueError, "Host does not have a public IPv4 address")
-  ip
+  try:
+    return getPrimaryIPAddr()
+  except Exception as e:
+    raise newException(OSError, e.msg)
 
 proc ipAddrMatches*(
     lookup: MultiAddress, addrs: seq[MultiAddress], ip4: bool = true

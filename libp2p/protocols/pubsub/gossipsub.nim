@@ -225,7 +225,7 @@ method init*(g: GossipSub) =
     try:
       await g.handleConn(conn, proto)
     except CancelledError as exc:
-      trace "Unexpected cancellation in gossipsub handler", conn, description = exc.msg
+      trace "gossipsub handler cancelled", conn
       raise exc
 
   g.handler = handler
@@ -631,7 +631,7 @@ proc rateLimit*(
         )
 
 method rpcHandler*(
-    g: GossipSub, peer: PubSubPeer, data: seq[byte]
+    g: GossipSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
   let msgSize = data.len
   var rpcMsg = decodeRpcMsg(data).valueOr:

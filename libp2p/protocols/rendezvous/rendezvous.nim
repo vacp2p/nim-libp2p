@@ -22,8 +22,7 @@ import
   ../../utils/heartbeat,
   ../../stream/connection,
   ../../utils/offsettedseq,
-  ../../utils/semaphore,
-  ../../discovery/discoverymngr
+  ../../utils/semaphore
 
 export chronicles, offsettedseq
 
@@ -53,7 +52,8 @@ type PeerRecordValidator*[E] =
   proc(_: E, spr: seq[byte], peerId: PeerId): Result[void, string] {.gcsafe.}
 
 type
-  RendezVousError* = object of DiscoveryError
+  AdvertiseError* = object of LPError
+  RendezVousError* = object of LPError
   RegisteredData* = object
     expiration*: Moment
     peerId*: PeerId
@@ -406,7 +406,7 @@ proc requestPeer[E](
 
 proc request*[E](
     rdv: GenericRendezVous[E], ns: Opt[string], lt: Opt[int], peersOpt: Opt[seq[PeerId]]
-): Future[seq[E]] {.async: (raises: [DiscoveryError, CancelledError]).} =
+): Future[seq[E]] {.async: (raises: [LPError, CancelledError]).} =
   var
     s: Table[PeerId, (E, Register)]
     limit: uint64

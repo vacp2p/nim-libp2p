@@ -353,7 +353,7 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
         libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
 
 method rpcHandler*(
-    p: PubSub, peer: PubSubPeer, data: seq[byte]
+    p: PubSub, peer: PubSubPeer, data: sink seq[byte]
 ): Future[void] {.
     base, async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError])
 .} =
@@ -384,11 +384,17 @@ method getOrCreatePeer*(
       peer[].codec = protoNegotiated
     return peer[]
 
+  let protos =
+    if protoNegotiated != "":
+      @[protoNegotiated]
+    else:
+      protosToDial
+
   proc getConn(): Future[Connection] {.
       async: (raises: [CancelledError, GetConnDialError])
   .} =
     try:
-      return await p.switch.dial(peerId, protosToDial)
+      return await p.switch.dial(peerId, protos)
     except CancelledError as exc:
       raise exc
     except DialFailedError as e:
@@ -470,22 +476,28 @@ method handleConn*(
   ##    that we're interested in
   ##
 
-  proc handler(
-      peer: PubSubPeer, data: seq[byte]
-  ): Future[void] {.async: (raises: []).} =
-    # call pubsub rpc handler
-    p.rpcHandler(peer, data)
+  proc peerHandler(
+      peer: PubSubPeer, data: sink seq[byte]
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    try:
+      await p.rpcHandler(peer, data)
+    except PeerMessageDecodeError as e:
+      trace "failed to decode message in peerHandler",
+        description = e.msg, conn, peer = peer
+      # loop continues and invalid messages are swallowed
+    except PeerRateLimitError as e:
+      trace "peer rate limit exceeded in peerHandler",
+        description = e.msg, conn, peer = peer
+      # loop needs to stop. we are doing this by closing connection
+      await conn.closeWithEOF()
 
   let peer = p.getOrCreatePeer(conn.peerId, @[], proto)
 
   try:
-    peer.handler = handler
-    await peer.handle(conn) # spawn peer read loop
-    trace "pubsub peer handler ended", conn
+    peer.handler = peerHandler
+    await peer.runHandleLoop(conn)
   except CancelledError as exc:
     raise exc
-  except PeerMessageDecodeError as exc:
-    trace "exception ocurred in pubsub handle", description = exc.msg, conn
   finally:
     await conn.closeWithEOF()
 
