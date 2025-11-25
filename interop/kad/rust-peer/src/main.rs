@@ -19,7 +19,14 @@ use std::{error::Error, fs};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let local_key = identity::Keypair::generate_ed25519();
+    let local_key = if let Ok(bytes) = std::fs::read("rust.key") {
+        identity::Keypair::from_protobuf_encoding(&bytes)?
+    } else {
+        let k = identity::Keypair::generate_ed25519();
+        std::fs::write("rust.key", k.to_protobuf_encoding()?)?;
+        k
+    };
+
     let local_peer_id = PeerId::from(local_key.public());
     println!("Local PeerId: {local_peer_id}");
 
@@ -35,7 +42,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_behaviour(|_| kad::Behaviour::new(local_peer_id, MemoryStore::new(local_peer_id)))?
         .build();
 
-    let listen_addr: Multiaddr = "/ip4/0.0.0.0/tcp/4141".parse()?;
+    let listen_addr: Multiaddr = "/ip4/127.0.0.1/tcp/4141".parse()?;
     swarm.listen_on(listen_addr)?;
 
     loop {

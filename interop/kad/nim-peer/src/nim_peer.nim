@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import net, os, chronos, chronicles, libp2p
+import net, os, chronos, libp2p
 import libp2p/protocols/kademlia
 
 proc waitForService(
@@ -25,30 +25,21 @@ proc waitForService(
   return false
 
 proc main() {.async.} =
-  if paramCount() != 1:
-    quit("Usage: nim r src/nim_peer.nim <rust-peerid>", 1)
-
-  # ensure peers are started
-  await sleepAsync(3.seconds)
-
   var switch = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/3131").tryGet()])
+    .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/3131").tryGet()])
     .withTcpTransport()
     .withYamux()
     .withNoise()
     .build()
 
   let
-    (rustPeerId, rustMa) = parseFullAddress(
-        MultiAddress.init("/ip4/127.0.0.1/4141/p2p/" & paramStr(1))
-      )
-      .get()
-    kad = KadDHT.new(switch)
+    rustPeerId = PeerId.init(readFile("../rust-peer/peer.id")).get()
+    rustMa = MultiAddress.init("/ip4/127.0.0.1/tcp/4141").get()
+    kad = KadDHT.new(switch, bootstrapNodes = @[(rustPeerId, @[rustMa])])
 
   switch.mount(kad)
-  await kad.bootstrap(@[rustPeerInfo])
 
   await switch.start()
   defer:
@@ -58,13 +49,16 @@ proc main() {.async.} =
   let value = @[1.byte, 2, 3, 4, 5]
 
   # send a put value to peers
-  discard await kad2.putValue(key, value)
+  discard await kad.putValue(key, value)
 
   # TODO: go peer
 
   await sleepAsync(2.seconds)
 
-  # TODO: check if success file is present
+  if not fileExists("../rust-peer/success"):
+    quit(1)
+  # TODO: check for success file contents
+  # TODO: go peer
 
 when isMainModule:
   if waitFor(waitForService("127.0.0.1", Port(4141))):
