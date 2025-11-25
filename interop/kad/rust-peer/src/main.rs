@@ -16,9 +16,16 @@ use libp2p::{
     tcp, yamux, Multiaddr, PeerId,
 };
 use std::{error::Error, fs};
+use tracing_subscriber::{filter::EnvFilter, fmt};
+fn init_tracing() {
+    // Read RUST_LOG from environment, fallback to "info"
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug")); // "debug" prints everything
+    fmt().with_env_filter(filter).init();
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    init_tracing();
     let local_key = if let Ok(bytes) = std::fs::read("rust.key") {
         identity::Keypair::from_protobuf_encoding(&bytes)?
     } else {
