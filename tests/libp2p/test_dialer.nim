@@ -9,7 +9,7 @@
 
 import std/options, chronos, sequtils
 import ../../libp2p/[builders, switch]
-import ../tools/[unittest]
+import ../tools/[unittest, futures]
 
 suite "Dialer":
   teardown:
