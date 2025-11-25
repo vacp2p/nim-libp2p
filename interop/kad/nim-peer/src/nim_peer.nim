@@ -40,7 +40,7 @@ proc main() {.async.} =
     kad = KadDHT.new(switch, bootstrapNodes = @[(rustPeerId, @[rustMa])])
 
   switch.mount(kad)
-  await sleepAsync(2.seconds)
+  await sleepAsync(5.seconds)
 
   await switch.start()
   defer:

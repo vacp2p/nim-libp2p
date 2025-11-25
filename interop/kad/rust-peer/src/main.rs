@@ -10,7 +10,7 @@
 use libp2p::{
     futures::StreamExt,
     identity,
-    kad::{self, store::MemoryStore},
+    kad::{self, store::MemoryStore, Mode},
     noise,
     swarm::{NetworkBehaviour, StreamProtocol, SwarmEvent},
     tcp, yamux, Multiaddr, PeerId, SwarmBuilder,
@@ -23,7 +23,6 @@ fn init_tracing() {
     fmt().with_env_filter(filter).init();
 }
 
-// Define a combined NetworkBehaviour
 #[derive(NetworkBehaviour)]
 struct MyBehaviour {
     kademlia: libp2p::kad::Behaviour<MemoryStore>,
@@ -53,7 +52,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let store = MemoryStore::new(local_peer_id);
     let kademlia = libp2p::kad::Behaviour::with_config(local_peer_id, store, kad_cfg);
 
-    // Build Identify behaviour
     let identify = libp2p::identify::Behaviour::new(libp2p::identify::Config::new(
         "/ipfs/id/1.0.0".to_string(),
         local_key.public(),
@@ -71,6 +69,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         )?
         .with_behaviour(|_| behaviour)?
         .build();
+
+    swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
 
     // Listen on local address
     let listen_addr: Multiaddr = "/ip4/127.0.0.1/tcp/4141".parse()?;
