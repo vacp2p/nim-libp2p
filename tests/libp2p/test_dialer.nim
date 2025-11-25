@@ -7,7 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/options, chronos, sequtils
+{.used.}
+
+import chronos, sequtils
 import ../../libp2p/[builders, switch]
 import ../tools/[unittest, futures]
 

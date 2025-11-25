@@ -10,10 +10,10 @@
 {.used.}
 
 import
-  testbehavior, testgossipsub, testgossipsubparams, testmcache, testmessage,
-  testscoring, testtimedcache, testpreamblestore
+  test_behavior, test_gossipsub, test_gossipsub_params, test_mcache, test_message,
+  test_scoring, test_timed_cache, test_preamble_store
 
 import ./integration/test_all
 
 when defined(libp2p_gossipsub_1_4):
-  import testpreamblebehavior
+  import test_preamble_behavior

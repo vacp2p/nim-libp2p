@@ -9,4 +9,4 @@
 
 {.used.}
 
-import testrendezvous, testrendezvouserrors, testrendezvousprotobuf
+import test_rendezvous, test_rendezvous_errors, test_rendezvous_protobuf
