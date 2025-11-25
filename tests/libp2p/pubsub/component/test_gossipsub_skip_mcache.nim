@@ -14,7 +14,7 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
 import ../../../tools/[unittest]
 import ../utils
 
-suite "GossipSub Integration - Skip MCache Support":
+suite "GossipSub Component - Skip MCache Support":
   teardown:
     checkTrackers()
 

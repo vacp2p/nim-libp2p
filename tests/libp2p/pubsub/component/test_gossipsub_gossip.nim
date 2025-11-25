@@ -14,7 +14,7 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, rpc/me
 import ../../../tools/[unittest, futures]
 import ../utils
 
-suite "GossipSub Integration - Gossip Protocol":
+suite "GossipSub Component - Gossip Protocol":
   teardown:
     checkTrackers()
 
