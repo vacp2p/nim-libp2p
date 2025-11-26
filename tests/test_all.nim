@@ -12,7 +12,9 @@
 import std/os
 import ./imports
 
-importTests(currentSourcePath().parentDir() / "libp2p", @["tests/libp2p/multiformat_exts"])
+importTests(
+  currentSourcePath().parentDir() / "libp2p", @["tests/libp2p/multiformat_exts"]
+)
 importTests(currentSourcePath().parentDir() / "tools")
 
 # Run final trackers check.
@@ -21,4 +23,3 @@ importTests(currentSourcePath().parentDir() / "tools")
 # This can usually happen when last imported/executed tests do not call checkTrackers.
 from ./tools/unittest import finalCheckTrackers
 finalCheckTrackers()
- 
