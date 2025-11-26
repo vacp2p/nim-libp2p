@@ -23,3 +23,5 @@ importTests(currentSourcePath().parentDir() / "tools")
 # This can usually happen when last imported/executed tests do not call checkTrackers.
 from ./tools/unittest import finalCheckTrackers
 finalCheckTrackers()
+
+{.warning[UnusedImport]: off.}
