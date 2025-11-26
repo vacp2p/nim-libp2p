@@ -112,7 +112,7 @@ jobs:
         with:
           nim-version: "stable"
 
-      - name: Run Go and Rust together
+      - name: Run Nim and Rust together
         run: |
           nimble install
           cd interop/kad/rust-peer
