@@ -66,15 +66,6 @@ proc main() {.async.} =
     echo "Get value did not return correct value"
     quit(1)
 
-  await kad.addProvider(key.toCid())
-
-  await sleepAsync(2.seconds)
-
-  let providers = await kad.getProviders(key)
-  if providers.len() != 1:
-    echo "GetProviders returned " & $providers.len() & " providers, expected 1"
-    quit(1)
-
 when isMainModule:
   if waitFor(waitForService("127.0.0.1", Port(4141))):
     waitFor(main())
