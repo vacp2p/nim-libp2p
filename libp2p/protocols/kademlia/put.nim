@@ -33,18 +33,16 @@ proc dispatchPutVal*(
     key: key,
     record: Opt.some(Record(key: key, value: Opt.some(value))),
   )
-  debug "sending putvalue"
   await conn.writeLp(msg.encode().buffer)
-  debug "waiting for reply"
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
-    debug "got reply error"
     error "PutValue reply decode fail", error = error, conn = conn
     return
-  debug "got reply"
+
   if reply != msg:
     error "Unexpected change between msg and reply: ",
       msg = msg, reply = reply, conn = conn
+
   debug "Got PutValue reply", msg = msg, reply = reply, conn = conn
 
 proc putValue*(
