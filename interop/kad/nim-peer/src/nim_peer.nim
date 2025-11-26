@@ -63,10 +63,16 @@ proc main() {.async.} =
 
   # try to get the inserted value from peer
   if (await kad.getValue(key)).get().value != value:
+    echo "Get value did not return correct value"
     quit(1)
 
   await kad.addProvider(key.toCid())
-  if (await kad.getProviders(key)).len() != 1:
+
+  await sleepAsync(2.seconds)
+
+  let providers = await kad.getProviders(key)
+  if providers.len() != 1:
+    echo "GetProviders returned " & $providers.len() & " providers, expected 1"
     quit(1)
 
 when isMainModule:
