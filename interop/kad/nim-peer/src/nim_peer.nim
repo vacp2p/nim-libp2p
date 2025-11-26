@@ -35,13 +35,12 @@ proc main() {.async.} =
     .build()
 
   let
-    goPeerId = PeerId.init(readFile("../go-peer/peer.id")).get()
-    goMa = MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()
+    peerId = PeerId.init(readFile("../rust-peer/peer.id")).get()
+    peerMa = MultiAddress.init("/ip4/127.0.0.1/tcp/4141").get()
     kad = KadDHT.new(
       switch,
-      bootstrapNodes = @[(goPeerId, @[goMa])],
+      bootstrapNodes = @[(peerId, @[peerMa])],
       config = KadDHTConfig.new(quorum = 1),
-      codec = "/test/kad/1.0.0",
     )
 
   switch.mount(kad)
@@ -67,7 +66,7 @@ proc main() {.async.} =
     quit(1)
 
 when isMainModule:
-  if waitFor(waitForService("127.0.0.1", Port(4040))):
+  if waitFor(waitForService("127.0.0.1", Port(4141))):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)

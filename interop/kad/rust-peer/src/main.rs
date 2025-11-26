@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fs};
 
 use futures::stream::StreamExt;
 use libp2p::{
@@ -14,7 +14,10 @@ use tracing_subscriber::EnvFilter;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("debug,libp2p=debug")),
+        )
         .try_init();
 
     // We create a custom network behaviour that combines Kademlia and mDNS.
@@ -44,6 +47,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             })
         })?
         .build();
+
+    let peer_id = *swarm.local_peer_id();
+    fs::write("peer.id", peer_id.to_string())?;
+    println!("Local PeerId: {peer_id}");
 
     swarm.behaviour_mut().kademlia.set_mode(Some(Mode::Server));
 
