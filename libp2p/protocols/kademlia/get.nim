@@ -65,7 +65,10 @@ proc bestValidRecord(
       validRecords.add(record)
 
   if validRecords.len() < kad.config.quorum:
-    return err("Not enough valid records to achieve quorum")
+    return err(
+      "Not enough valid records to achieve quorum, needed " & $kad.config.quorum &
+        " got " & $validRecords.len()
+    )
 
   let selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
     return err("Could not select best value")

@@ -8,36 +8,19 @@ import (
     "log"
     "os"
 
-    libp2p "github.com/libp2p/go-libp2p"
-    crypto "github.com/libp2p/go-libp2p/core/crypto"
-    peer "github.com/libp2p/go-libp2p/core/peer"
+    "github.com/libp2p/go-libp2p"
     dht "github.com/libp2p/go-libp2p-kad-dht"
-    rhost "github.com/libp2p/go-libp2p/p2p/host/routed"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/routing"
+    "github.com/libp2p/go-libp2p/core/crypto"
+    "github.com/libp2p/go-libp2p/core/peer"
+	log2 "github.com/ipfs/go-log/v2"
 )
 
 const (
     privKeyFile = "peer.key"
     peerIDFile  = "peer.id"
 )
-
-type MyValidator struct{}
-
-// Runs when a PUT_VALUE arrives
-func (v *MyValidator) Validate(key string, value []byte) error {
-    fmt.Println("=== RECEIVED PUT_VALUE ===")
-    fmt.Println("Key:", key)
-    fmt.Println("Value:", string(value))
-
-    // Write the success file
-    ioutil.WriteFile("successful", []byte("ok\n"), 0644)
-
-    return nil // accept record
-}
-
-func (v *MyValidator) Select(best [][]byte) (int, error) {
-    // Always select first (not important here)
-    return 0, nil
-}
 
 func loadOrCreateIdentity() (crypto.PrivKey, peer.ID, error) {
     if _, err := os.Stat(privKeyFile); err == nil {
@@ -82,7 +65,21 @@ func loadOrCreateIdentity() (crypto.PrivKey, peer.ID, error) {
     return priv, pid, nil
 }
 
+type myValidator struct {}
+
+func (v myValidator) Validate(key string, value []byte) error {
+	return nil
+}
+
+func (v myValidator) Select(key string, values [][]byte) (int, error) {
+	if len(values) == 0 {
+		return -1, fmt.Errorf("no values provided")
+	}
+	return 0, nil
+}
+
 func main() {
+	_ = log2.SetLogLevel("*", "debug")
     ctx := context.Background()
 
     priv, pid, err := loadOrCreateIdentity()
@@ -90,21 +87,28 @@ func main() {
         log.Fatal(err)
     }
 
+	var idht *dht.IpfsDHT
+
     // Create main libp2p host
-    host, err := libp2p.New(
+    h, err := libp2p.New(
         libp2p.Identity(priv),
         libp2p.ListenAddrStrings("/ip4/0.0.0.0/tcp/4040"),
+		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+			dhtOpts := []dht.Option{
+				dht.Mode(dht.ModeServer),
+				dht.ProtocolPrefix("/test"),
+				dht.Validator(myValidator{}),
+			}
+			idht, err = dht.New(ctx, h, dhtOpts...)
+			return idht, err
+		}),
     )
     if err != nil {
         log.Fatal(err)
     }
 
-    // Create Kademlia DHT
-	kad, err := dht.New(ctx, host, dht.Mode(dht.ModeServer), dht.ProtocolPrefix("/ipfs"))
-	if err != nil { log.Fatal(err) }
-	routed := rhost.Wrap(host, kad)
 	fmt.Println("Peer ID:", pid)
-	fmt.Println("Listen addresses:", routed.Addrs())
+	fmt.Println("Listen addresses:", h.Addrs())
 	fmt.Println("Go Kademlia DHT node started")
 
 	// Keep running

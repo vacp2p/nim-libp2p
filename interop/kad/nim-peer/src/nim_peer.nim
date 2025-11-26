@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import net, chronos, libp2p
+import net, chronos, libp2p, sequtils
 import libp2p/protocols/kademlia
 
 proc waitForService(
@@ -37,7 +37,12 @@ proc main() {.async.} =
   let
     goPeerId = PeerId.init(readFile("../go-peer/peer.id")).get()
     goMa = MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()
-    kad = KadDHT.new(switch, bootstrapNodes = @[(goPeerId, @[goMa])])
+    kad = KadDHT.new(
+      switch,
+      bootstrapNodes = @[(goPeerId, @[goMa])],
+      config = KadDHTConfig.new(quorum = 1),
+      codec = "/test/kad/1.0.0",
+    )
 
   switch.mount(kad)
   await sleepAsync(5.seconds)
@@ -46,13 +51,20 @@ proc main() {.async.} =
   defer:
     await switch.stop()
 
-  let key = kad.rtable.selfId
+  let key: Key = "key".mapIt(byte(it))
+
   let value = @[1.byte, 2, 3, 4, 5]
 
-  # send a put value to peers
-  discard await kad.putValue(key, value)
+  let res = await kad.putValue(key, value)
+  if res.isErr():
+    echo "putValue failed: ", res.error
+    quit(1)
 
   await sleepAsync(2.seconds)
+
+  # try to get the inserted value from peer
+  if (await kad.getValue(key)).get().value != value:
+    quit(1)
 
 when isMainModule:
   if waitFor(waitForService("127.0.0.1", Port(4040))):

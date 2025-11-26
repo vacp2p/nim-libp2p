@@ -83,6 +83,7 @@ proc new*(
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
     client: bool = false,
+    codec: string = KadCodec,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
@@ -98,7 +99,7 @@ proc new*(
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
   )
 
-  kad.codec = KadCodec
+  kad.codec = codec
   if not client:
     kad.handler = proc(
         conn: Connection, proto: string

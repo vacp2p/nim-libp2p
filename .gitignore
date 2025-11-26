@@ -19,6 +19,7 @@ nimble.paths
 go-libp2p-daemon/
 *.id
 *.key
+interop/kad/rust-peer/target/*
 interop/kad/nim-peer/src/nim_peer
 
 # Ignore all test build files in tests folder (auto generated when running tests).
