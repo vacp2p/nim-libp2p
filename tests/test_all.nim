@@ -9,8 +9,11 @@
 
 {.used.}
 
-import ./libp2p/test_all
-import ./tools/test_all
+import std/os
+import ./imports
+
+importTests(currentSourcePath().parentDir() / "libp2p", @["tests/libp2p/multiformat_exts"])
+importTests(currentSourcePath().parentDir() / "tools")
 
 # Run final trackers check.
 # After all tests are executed final trackers check is performed to ensure that
@@ -18,3 +21,4 @@ import ./tools/test_all
 # This can usually happen when last imported/executed tests do not call checkTrackers.
 from ./tools/unittest import finalCheckTrackers
 finalCheckTrackers()
+ 
