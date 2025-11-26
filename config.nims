@@ -4,7 +4,7 @@ if dirExists("nimbledeps/pkgs"):
 if dirExists("nimbledeps/pkgs2"):
   switch("NimblePath", "nimbledeps/pkgs2")
 
-switch("warningAsError", "UnusedImport:on")
+switch("warningAsError", "UnusedImport:off")
 switch("warningAsError", "UseBase:on")
 switch("warning", "CaseTransition:off")
 switch("warning", "ObservableStores:off")
