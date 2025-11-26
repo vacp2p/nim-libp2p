@@ -49,7 +49,7 @@ proc sendFindNode*(
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
   if reply.msgType != MessageType.findNode:
-    raise newException(ValueError, "Unexpected message type in reply: " & $reply)
+    raise newException(ValueError, "Unexpected reply message type: " & $reply.msgType)
 
   return reply
 

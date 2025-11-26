@@ -10,5 +10,5 @@
 {.used.}
 
 import
-  test_encoding, test_routing_table, test_find_node, test_put_val, test_get_val,
-  test_provider, test_ping
+  test_encoding, test_routingtable, test_find, test_put, test_get, test_provider,
+  test_ping, test_xordistance, test_builder
