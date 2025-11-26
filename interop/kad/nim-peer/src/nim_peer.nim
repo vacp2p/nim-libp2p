@@ -65,6 +65,10 @@ proc main() {.async.} =
   if (await kad.getValue(key)).get().value != value:
     quit(1)
 
+  await kad.addProvider(key.toCid())
+  if (await kad.getProviders(key)).len() != 1:
+    quit(1)
+
 when isMainModule:
   if waitFor(waitForService("127.0.0.1", Port(4141))):
     waitFor(main())
