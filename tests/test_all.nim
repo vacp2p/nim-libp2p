@@ -12,9 +12,7 @@
 import std/os
 import ./imports
 
-importTests(
-  currentSourcePath().parentDir() / "libp2p", @["tests/libp2p/multiformat_exts"]
-)
+importTests(currentSourcePath().parentDir() / "libp2p", @["multiformat_exts"])
 importTests(currentSourcePath().parentDir() / "tools")
 
 # Run final trackers check.
