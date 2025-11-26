@@ -112,20 +112,12 @@ jobs:
         with:
           nim-version: "stable"
 
-      - name: Set up Rust
-        uses: actions/setup-rust@v1
-        with:
-          rust-version: stable
-
-      - name: Run Go, Rust and Nim together
+      - name: Run Go and Nim together
         run: |
           nimble install
           cd interop/kad/go-peer
           go mod tidy
-          go run testkad.go &
-
-          cd interop/kad/rust-peer
-          cargo run testkad.rs &
+          go run go_peer.go &
 
           cd ../nim-peer
-          nim r src/testkad.nim $(cat ../go-peer/peer.id) $(cat ../rust-peer/peer.id)
+          nim r src/nim_peer.nim $(cat ../go-peer/peer.id)
