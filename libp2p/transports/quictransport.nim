@@ -80,7 +80,7 @@ method readOnce*(
 
   let readLen =
     try:
-      await stream.stream.readInto(cast[ptr byte](pbytes), nbytes)
+      await stream.stream.readOnce(cast[ptr byte](pbytes), nbytes)
     except StreamError as e:
       raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
 
