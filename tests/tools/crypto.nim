@@ -10,19 +10,11 @@
 import chronos/streams/tlsstream, stew/byteutils
 import ../../libp2p/[crypto/crypto, transports/tls/certificate]
 
-type RngWrap = object
-  rng: ref HmacDrbgContext
-
-var rngVar: RngWrap
+var rngSingleton {.threadvar.}: ref HmacDrbgContext
+rngSingleton = newRng()
 
 proc getRng(): ref HmacDrbgContext =
-  # TODO if `rngVar` is a threadvar like it should be, there are random and
-  #      spurious compile failures on mac - this is not gcsafe but for the
-  #      purpose of the tests, it's ok as long as we only use a single thread
-  {.gcsafe.}:
-    if rngVar.rng.isNil:
-      rngVar.rng = newRng()
-    rngVar.rng
+  rngSingleton
 
 template rng*(): ref HmacDrbgContext =
   getRng()
