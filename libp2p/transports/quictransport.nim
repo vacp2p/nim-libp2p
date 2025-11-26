@@ -80,7 +80,7 @@ method readOnce*(
 
   let readLen =
     try:
-      await stream.stream.readInto(cast[ptr byte](pbytes), nbytes)
+      await stream.stream.readOnce(cast[ptr byte](pbytes), nbytes)
     except StreamError as e:
       raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
 
@@ -116,8 +116,6 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
     await stream.stream.close()
   except CancelledError, StreamError:
     discard
-  if not stream.session.isNil:
-    stream.session.streams.keepItIf(it != stream)
   await procCall P2PConnection(stream).closeImpl()
 
 # Session
