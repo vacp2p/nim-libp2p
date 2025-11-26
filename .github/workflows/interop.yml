@@ -102,22 +102,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: "1.25"
+          toolchain: stable
 
       - name: Set up Nim
         uses: jiro4989/setup-nim-action@v1
         with:
           nim-version: "stable"
 
-      - name: Run Go and Nim together
+      - name: Run Go and Rust together
         run: |
           nimble install
-          cd interop/kad/go-peer
-          go mod tidy
-          go run go_peer.go &
+          cd interop/kad/rust-peer
+          cargo run &
 
           cd ../nim-peer
-          nim r src/nim_peer.nim $(cat ../go-peer/peer.id)
+          nim r src/nim_peer.nim $(cat ../rust-peer/peer.id)
