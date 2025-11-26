@@ -81,13 +81,16 @@ nimble 0.20.1 is required for running `nimble test`. At time of writing, this is
 ### Testing
 Run unit tests:
 ```sh
-# run all the unit tests
+# run all the unit tests in repository
 nimble test
 
-# run unit tests in specific package
-nim c -r ./tests/mix/test_all
-nim c -r ./tests/kademlia/test_all
-nim c -r ./tests/pubsub/test_all
+# run all unit tests for libp2p library
+nim c -r ./tests/libp2p/test_all
+
+# run unit tests of specific package
+nim c -r ./tests/libp2p/mix/test_all
+nim c -r ./tests/libp2p/kademlia/test_all
+nim c -r ./tests/libp2p/pubsub/test_all
 # etc ...
 ```
 
