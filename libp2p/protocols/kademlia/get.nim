@@ -48,9 +48,9 @@ proc dispatchGetVal(
     return
 
   let time = record.timeReceived.valueOr:
-    debug "GetValue returned record with no timeReceived",
+    debug "GetValue returned record with no timeReceived, using current time instead",
       msg = msg, reply = reply, conn = conn
-    return
+    TimeStamp($times.now().utc)
 
   received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
