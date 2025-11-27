@@ -88,11 +88,12 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim " &
     "-d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim " &
-    "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim "
-  runTest("libp2p/multiformat_exts/test_all", opts)
+    "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim " &
+    "-d:test_path=multiformat_exts"
+  runTest("test_path", opts)
 
 task testpubsub, "Runs pubsub tests":
-  runTest("libp2p/pubsub/test_all", "-d:libp2p_gossipsub_1_4")
+  runTest("test_path", "-d:libp2p_gossipsub_1_4 -d:test_path=pubsub")
 
 task testintegration, "Runs integration tests":
   runTest("integration/test_all")
