@@ -1,21 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import std/[sequtils, sets]
 import chronos, chronicles, results
-import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
-import ../protocol
-import ../kademlia/[types, find, get, protobuf]
-import ./[types]
+import ../../[peerid, switch, multihash]
+import ../kademlia/[types, find, get]
+import ./types
 
-logScope:
-  topics = "ext-kad-dht random records"
-
-proc randomRecords*(
+proc findRandom*(
     disco: KademliaDiscovery
-): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  ## Return all peer records on the path towards a random target ID.
-
+): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
   let randomPeerId = PeerId.random(disco.rng).valueOr:
     debug "cannot generate random peer id", error
     return @[]
@@ -70,3 +63,28 @@ proc lookup*(
   let records = await disco.randomRecords()
 
   return records.filterByServices(@[service].toHashSet())
+  let peerIds = await disco.findNode(randomKey)
+
+  var getFutures: seq[Future[Result[EntryRecord, string]]] = @[]
+  for pid in peerIds:
+    getFutures.add(disco.getValue(pid.toKey()))
+
+  var records: seq[SignedPeerRecord] = @[]
+  await allFutures(getFutures)
+
+  for fut in getFutures:
+    if fut.failed:
+      trace "future failed", error = fut.error
+      continue
+
+    let entry = fut.read().valueOr:
+      trace "cannot read future", error
+      continue
+
+    let spr = SignedPeerRecord.decode(entry.value).valueOr:
+      debug "cannot decode signed peer record", error
+      continue
+
+    records.add(spr)
+
+  return records
