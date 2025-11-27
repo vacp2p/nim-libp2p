@@ -92,9 +92,6 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:test_path=multiformat_exts"
   runTest("test_path", opts)
 
-task testpubsub, "Runs pubsub tests":
-  runTest("test_path", "-d:libp2p_gossipsub_1_4 -d:test_path=pubsub")
-
 task testintegration, "Runs integration tests":
   runTest("integration/test_all")
 
@@ -116,7 +113,6 @@ task testpath, "Run tests matching a specific path":
     echo "Error: Please provide a test path argument"
     echo "Usage: nimble testpath <path>"
     echo "Example: nimble testpath quic"
-    echo "Example: nimble testpath transports/testws"
     quit(1)
 
   runTest("test_path", "-d:test_path=" & testPathArg)

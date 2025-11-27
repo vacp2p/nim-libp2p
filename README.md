@@ -86,13 +86,11 @@ nimble test
 
 # run tests matching a specific path
 nimble testpath quic
-nimble testpath transports/testws
-nimble testpath pubsub
+nimble testpath transports/test_ws
 nimble testpath mix
 # etc ...
 
 # run specific test suites
-nimble testpubsub
 nimble testmultiformatexts
 nimble testintegration
 ```
