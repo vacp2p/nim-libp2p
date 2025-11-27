@@ -14,11 +14,13 @@ when not defined(nimscript):
   when defined(chronicles_runtime_filtering):
     setLogLevel(INFO)
 
-  when defaultChroniclesStream.outputs.type.arity == 1:
-    # Hide the json logs, they're just here to check if we compile
-    proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
-      discard
+  # Suppress the json[dynamic] output to prevent "Log message not delivered" warnings
+  # The config defines two outputs: textlines[stdout] and json[dynamic]
+  # We only suppress the dynamic one since stdout is the actual test output we want
+  proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
+    discard
 
-    defaultChroniclesStream.outputs[0].writer = noOutput
+  when defaultChroniclesStream.outputs.type.arity == 2:
+    defaultChroniclesStream.outputs[1].writer = noOutput
 
 {.used.}
