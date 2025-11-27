@@ -9,7 +9,7 @@
 
 {.used.}
 
-import std/[times, tables], chronos, chronicles
+import std/[times, tables], chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
