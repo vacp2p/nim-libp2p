@@ -84,14 +84,20 @@ Run unit tests:
 # run all the unit tests
 nimble test
 
-# run unit tests in specific package
-nim c -r ./tests/mix/test_all
-nim c -r ./tests/kademlia/test_all
-nim c -r ./tests/pubsub/test_all
+# run tests matching a specific path
+nimble testpath quic
+nimble testpath transports/testws
+nimble testpath pubsub
+nimble testpath mix
 # etc ...
+
+# run specific test suites
+nimble testpubsub
+nimble testmultiformatexts
+nimble testintegration
 ```
 
-For a list of all available test suites, use:
+For a list of all available test tasks, use:
 ```
 nimble tasks
 ```
