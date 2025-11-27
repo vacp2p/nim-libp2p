@@ -9,14 +9,8 @@
 {.used.}
 
 import nimcrypto, results
-import
-  ../../../libp2p/[
-    multiaddress,
-    peerid,
-    protobuf/minprotobuf,
-    protocols/kademlia,
-    protocols/kademlia/protobuf,
-  ]
+import ../../../libp2p/[multiaddress, peerid, protobuf/minprotobuf, protocols/kademlia]
+import ../../../libp2p/protocols/kademlia/protobuf as kadproto
 import ../../tools/unittest
 
 template checkEncodeDecode(obj: untyped) =
@@ -28,7 +22,7 @@ suite "kademlia protobuffers":
   test "encode/decode":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
     checkEncodeDecode(
-      Record(
+      kadproto.Record(
         key: @[1'u8, 2, 3],
         value: Opt.some(@[4'u8, 5, 6]),
         timeReceived: Opt.some("2025-05-12T12:00:00Z"),
@@ -43,7 +37,9 @@ suite "kademlia protobuffers":
         msgType: MessageType.findNode,
         key: @[1'u8],
         record: Opt.some(
-          Record(key: @[1'u8], value: Opt.some(@[2'u8]), timeReceived: Opt.some("t"))
+          kadproto.Record(
+            key: @[1'u8], value: Opt.some(@[2'u8]), timeReceived: Opt.some("t")
+          )
         ),
         closerPeers: @[Peer(id: @[9'u8], addrs: maddrs, connection: canConnect)],
         providerPeers: @[Peer(id: @[9'u8], addrs: maddrs, connection: canConnect)],
@@ -53,7 +49,7 @@ suite "kademlia protobuffers":
   test "decode record with missing fields":
     var pb = initProtoBuffer()
     # no fields written
-    check Record.decode(pb).isErr()
+    check decode(kadproto.Record, pb).isErr()
 
   test "decode peer with missing id (invalid)":
     var pb = initProtoBuffer()
@@ -99,7 +95,7 @@ suite "kademlia protobuffers":
     let msg = Message(
       msgType: MessageType.ping,
       key: @[7'u8],
-      record: Opt.none(Record),
+      record: Opt.none(kadproto.Record),
       closerPeers: @[],
       providerPeers: @[],
     )

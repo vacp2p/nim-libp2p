@@ -12,8 +12,15 @@
 import std/os
 import ./imports
 
-importTests(currentSourcePath().parentDir() / "libp2p", @["multiformat_exts"])
-importTests(currentSourcePath().parentDir() / "tools")
+const test_path {.strdefine.} = ""
+
+when test_path == "":
+  {.
+    error:
+      "Please specify test_path via -d:test_path=\"path/to/test\" (e.g., -d:test_path=\"quic\")"
+  .}
+
+importTestsMatching(currentSourcePath().parentDir(), test_path)
 
 # Run final trackers check.
 # After all tests are executed final trackers check is performed to ensure that
