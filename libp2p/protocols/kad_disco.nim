@@ -78,3 +78,14 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
 
   disco.selfSignedLoop.cancelSoon()
   disco.selfSignedLoop = nil
+
+  disco.maintenanceLoop.cancelSoon()
+  disco.maintenanceLoop = nil
+
+  disco.republishLoop.cancelSoon()
+  disco.republishLoop = nil
+
+  disco.expiredLoop.cancelSoon()
+  disco.expiredLoop = nil
+
+  disco.started = false
