@@ -9,13 +9,7 @@
 {.used.}
 
 import nimcrypto, results
-import
-  ../../../libp2p/[
-    multiaddress,
-    peerid,
-    protobuf/minprotobuf,
-    protocols/kademlia,
-  ]
+import ../../../libp2p/[multiaddress, peerid, protobuf/minprotobuf, protocols/kademlia]
 import ../../../libp2p/protocols/kademlia/protobuf as kadproto
 import ../../tools/unittest
 
@@ -43,7 +37,9 @@ suite "kademlia protobuffers":
         msgType: MessageType.findNode,
         key: @[1'u8],
         record: Opt.some(
-          kadproto.Record(key: @[1'u8], value: Opt.some(@[2'u8]), timeReceived: Opt.some("t"))
+          kadproto.Record(
+            key: @[1'u8], value: Opt.some(@[2'u8]), timeReceived: Opt.some("t")
+          )
         ),
         closerPeers: @[Peer(id: @[9'u8], addrs: maddrs, connection: canConnect)],
         providerPeers: @[Peer(id: @[9'u8], addrs: maddrs, connection: canConnect)],
