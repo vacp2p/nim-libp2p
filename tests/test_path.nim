@@ -15,7 +15,10 @@ import ./imports
 const test_path {.strdefine.} = ""
 
 when test_path == "":
-  {.error: "Please specify test_path via -d:test_path=\"path/to/test\" (e.g., -d:test_path=\"quic\" or -d:test_path=\"transports/testws\")".}
+  {.
+    error:
+      "Please specify test_path via -d:test_path=\"path/to/test\" (e.g., -d:test_path=\"quic\" or -d:test_path=\"transports/testws\")"
+  .}
 
 importTestsMatching(currentSourcePath().parentDir(), test_path)
 

@@ -12,7 +12,9 @@ import std/os
 import std/strutils
 import std/sequtils
 
-proc buildImports(dir: string, ignorePaths: seq[string] = @[], matchPath: string = ""): NimNode =
+proc buildImports(
+    dir: string, ignorePaths: seq[string] = @[], matchPath: string = ""
+): NimNode =
   let imports = newStmtList()
   for file in walkDirRec(dir):
     let (path, name, ext) = splitFile(file)
