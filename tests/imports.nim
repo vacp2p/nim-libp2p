@@ -12,15 +12,16 @@ import std/os
 import std/strutils
 import std/sequtils
 
-proc buildImports(dir: string, ignorePaths: seq[string]): NimNode =
+proc buildImports(dir: string, ignorePaths: seq[string] = @[], matchPath: string = ""): NimNode =
   let imports = newStmtList()
   for file in walkDirRec(dir):
     let (path, name, ext) = splitFile(file)
     let isTestFile = name.startsWith("test_") and not name.startsWith("test_all")
     let isNimFile = ext == ".nim"
     let isIgnored = ignorePaths.len > 0 and ignorePaths.anyIt(path.contains(it))
+    let isMatched = matchPath.len == 0 or file.contains(matchPath)
 
-    if isTestFile and isNimFile and not isIgnored:
+    if isTestFile and isNimFile and not isIgnored and isMatched:
       imports.add(newNimNode(nnkImportStmt).add(newLit(file)))
   imports
 
@@ -35,3 +36,9 @@ macro importTests*(dir: static string, ignorePaths: static seq[string]): untyped
   ## starts with "test_" and ends in ".nim"
   ## ignores test_all files and any paths listed in ignorePaths
   buildImports(dir, ignorePaths)
+
+macro importTestsMatching*(dir: static string, singlePath: static string): untyped =
+  ## imports only files in the specified directory whose path contains singlePath
+  ## and whose filename starts with "test_" and ends in ".nim"
+  ## ignores test_all files
+  buildImports(dir, @[], singlePath)

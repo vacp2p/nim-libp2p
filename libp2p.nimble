@@ -101,6 +101,25 @@ task test, "Runs the test suite":
   runTest("test_all")
   testmultiformatextsTask()
 
+task testpath, "Run tests matching a specific path":
+  var testPathArg = ""
+
+  # Extract arguments after task name
+  let params = commandLineParams()
+  let taskIdx = params.find("testpath")
+
+  if taskIdx >= 0 and taskIdx < params.len - 1:
+    testPathArg = params[taskIdx + 1]
+
+  if testPathArg == "":
+    echo "Error: Please provide a test path argument"
+    echo "Usage: nimble testpath <path>"
+    echo "Example: nimble testpath quic"
+    echo "Example: nimble testpath transports/testws"
+    quit(1)
+
+  runTest("test_path", "-d:test_path=" & testPathArg)
+
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
   tutorialToMd("examples/tutorial_2_customproto.nim")
