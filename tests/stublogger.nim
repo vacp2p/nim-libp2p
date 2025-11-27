@@ -14,13 +14,13 @@ when not defined(nimscript):
   when defined(chronicles_runtime_filtering):
     setLogLevel(INFO)
 
-  # Suppress the json[dynamic] output to prevent "Log message not delivered" warnings
-  # The config defines two outputs: textlines[stdout] and json[dynamic]
-  # We only suppress the dynamic one since stdout is the actual test output we want
+  # Suppress dynamic log outputs to prevent "Log message not delivered" warnings
   proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
     discard
 
-  when defaultChroniclesStream.outputs.type.arity == 2:
+  when defaultChroniclesStream.outputs.type.arity == 1:
+    defaultChroniclesStream.outputs[0].writer = noOutput
+  elif defaultChroniclesStream.outputs.type.arity == 2:
     defaultChroniclesStream.outputs[1].writer = noOutput
 
 {.used.}
