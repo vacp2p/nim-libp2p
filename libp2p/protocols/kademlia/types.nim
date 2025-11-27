@@ -20,6 +20,7 @@ const
   DefaultMaxBuckets* = 256
   DefaultTimeout* = 5.seconds
   DefaultBucketRefreshTime* = 10.minutes
+  DefaultSelfSPRRereshTime* = 10.minutes
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -71,7 +72,8 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
         if switch.isConnected(peer):
           ConnectionType.connected
         else:
-          ConnectionType.notConnected,
+          ConnectionType.notConnected
+      ,
     )
   )
 
@@ -250,6 +252,27 @@ method isValid*(
 ): bool {.raises: [], gcsafe.} =
   return true
 
+type LogosEntryValidator* = ref object of EntryValidator
+method isValid*(
+    self: LogosEntryValidator, key: Key, record: EntryRecord
+): bool {.raises: [], gcsafe.} =
+  let sprRes = SignedPeerRecord.decode(record.value)
+
+  if sprRes.isErr:
+    return false
+
+  let spr = sprRes.get()
+
+  let expectedPeerIdRes = key.toPeerId()
+
+  if expectedPeerIdRes.isErr:
+    return false
+
+  if spr.data.peerId != expectedPeerIdRes.get():
+    return false
+
+  return true
+
 type DefaultEntrySelector* = ref object of EntrySelector
 method select*(
     self: DefaultEntrySelector, key: Key, records: seq[EntryRecord]
@@ -278,11 +301,37 @@ method select*(
 
   return ok(bestIdx)
 
+type LogosEntrySelector* = ref object of EntrySelector
+method select*(
+    self: LogosEntrySelector, key: Key, records: seq[EntryRecord]
+): Result[int, string] {.raises: [], gcsafe.} =
+  if records.len == 0:
+    return err("No records to choose from")
+
+  var maxSeqNo: uint64 = 0
+  var bestIdx: int = -1
+
+  for i, rec in records:
+    let sprRes = SignedPeerRecord.decode(rec.value)
+    if sprRes.isErr:
+      continue
+
+    let seqNo = sprRes.get().data.seqNo
+    if seqNo > maxSeqNo or bestIdx == -1:
+      maxSeqNo = seqNo
+      bestIdx = i
+
+  if bestIdx == -1:
+    return err("No valid records")
+
+  return ok(bestIdx)
+
 type KadDHTConfig* = ref object
   validator*: EntryValidator
   selector*: EntrySelector
   timeout*: chronos.Duration
   bucketRefreshTime*: chronos.Duration
+  selfSignedPeerRecordRefreshTime*: chronos.Duration
   retries*: int
   replication*: int
   alpha*: int
@@ -296,10 +345,11 @@ type KadDHTConfig* = ref object
 
 proc new*(
     T: typedesc[KadDHTConfig],
-    validator: EntryValidator = DefaultEntryValidator(),
-    selector: EntrySelector = DefaultEntrySelector(),
+    validator: EntryValidator = LogosEntryValidator(),
+    selector: EntrySelector = LogosEntrySelector(),
     timeout: chronos.Duration = DefaultTimeout,
     bucketRefreshTime: chronos.Duration = DefaultBucketRefreshTime,
+    selfSignedPeerRecordRefreshTime: chronos.Duration = DefaultSelfSPRRereshTime,
     retries: int = DefaultRetries,
     replication: int = DefaultReplication,
     alpha: int = DefaultAlpha,
@@ -315,6 +365,7 @@ proc new*(
     selector: selector,
     timeout: timeout,
     bucketRefreshTime: bucketRefreshTime,
+    selfSignedPeerRecordRefreshTime: selfSignedPeerRecordRefreshTime,
     retries: retries,
     replication: replication,
     alpha: alpha,
@@ -330,6 +381,7 @@ type KadDHT* = ref object of LPProtocol
   switch*: Switch
   rng*: ref HmacDrbgContext
   rtable*: RoutingTable
+  selfSignedLoop*: Future[void]
   maintenanceLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
