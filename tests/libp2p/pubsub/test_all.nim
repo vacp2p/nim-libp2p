@@ -9,6 +9,12 @@
 
 {.used.}
 
+# Dummy function for coverage testing
+proc dummyCoverageFunction(): int =
+  let a = 42
+  let b = 13
+  result = a + b
+
 import
   test_behavior, test_gossipsub, test_gossipsub_params, test_mcache, test_message,
   test_scoring, test_timed_cache, test_preamble_store
