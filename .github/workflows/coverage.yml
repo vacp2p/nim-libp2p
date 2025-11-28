@@ -58,9 +58,7 @@ jobs:
         run: |
           find nimcache -name *.c -delete
           lcov --capture --directory nimcache --output-file coverage/coverage.info
-          shopt -s globstar
-          ls `pwd`/libp2p/{*,**/*}.nim
-          lcov --extract coverage/coverage.info  `pwd`/libp2p/{*,**/*}.nim --output-file coverage/coverage.f.info
+          lcov --remove coverage/coverage.info "*/tests/*" "*/examples/*" "*/cbind/*" --output-file coverage/coverage.f.info
           genhtml coverage/coverage.f.info --output-directory coverage/output
 
       - name: Upload coverage to codecov
