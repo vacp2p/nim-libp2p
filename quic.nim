@@ -10,14 +10,15 @@ import math, metrics, metrics/chronos_httpserver
 from times import getTime, Time, toUnix, fromUnix, `-`, initTime, `$`, inMilliseconds
 from nativesockets import getHostname
 
-proc logging(ctx: pointer, buf: cstring, len: csize_t): cint {.cdecl.} =
-  echo $buf
-  return 0
+when defined(LSQUIC_LOGGER):
+  proc logging(ctx: pointer, buf: cstring, len: csize_t): cint {.cdecl.} =
+    echo $buf
+    return 0
 
-let logger = struct_lsquic_logger_if(log_buf: logging)
-discard lsquic_set_log_level("debug")
-discard lsquic_logger_lopt("engine=debug,conn=debug,stream=debug")
-lsquic_logger_init(addr logger, nil, LLTS_HHMMSSUS)
+  let logger = struct_lsquic_logger_if(log_buf: logging)
+  discard lsquic_set_log_level("debug")
+  discard lsquic_logger_lopt("engine=debug,conn=debug,stream=debug")
+  lsquic_logger_init(addr logger, nil, LLTS_HHMMSSUS)
 
 proc msgIdProvider(m: Message): Result[MessageId, ValidationResult] =
   return ok(($m.data.hash).toBytes())
@@ -26,7 +27,7 @@ proc createMessageHandler(): proc(topic: string, data: seq[byte]) {.async, gcsaf
   var messagesChunks: CountTable[uint64]
 
   return proc(topic: string, data: seq[byte]) {.async, gcsafe.} =
-    echo "RECV: ", data.len
+    discard
     #[
     let sentUint = uint64.fromBytesLE(data)
     # warm-up
@@ -167,7 +168,7 @@ proc main() {.async.} =
       quit(1)
 
     let target = parseInt(getEnv("NUM_LIBP2P_NODES", "10"))
-    if members.len == target:
+    if members.len >= target:
       info "Got all members", hostname, members
       break
     else:

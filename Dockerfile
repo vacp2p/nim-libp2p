@@ -6,12 +6,17 @@ COPY . .
 
 RUN git config --global http.sslVerify false
 
+#    --passL:"./libtcmalloc.so" \
+#     --gc:orc -d:useMalloc \
+
 RUN nim c \
      -d:chronicles_sinks=json \
     --threads:on \  
-    --passL:"./libtcmalloc.so" \
-    --gc:orc -d:useMalloc \
-    -d:metrics -d:libp2p_network_protocols_metrics -d:release \
+    --mm:refc \
+    -d:metrics \
+    -d:libp2p_network_protocols_metrics \
+    -d:pubsubpeer_queue_metrics \
+    -d:release \
     quic.nim
 
 FROM nimlang/nim:2.2.6-ubuntu-regular
