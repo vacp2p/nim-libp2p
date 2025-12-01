@@ -562,6 +562,7 @@ template streamTransportTest*(
     var clientFuts: seq[Future[void]]
     for i in 0 ..< numConnections:
       clientFuts.add(runClient(server, i))
+      await sleepAsync(300.millis)
 
     echo "[DEBUG] await allFutures(clientFuts)"
     await allFutures(clientFuts)
