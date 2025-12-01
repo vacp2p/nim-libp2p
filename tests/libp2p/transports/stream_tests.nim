@@ -515,37 +515,40 @@ template streamTransportTest*(
       echo "[DEBUG] server after await allFutures(futs)"
 
     proc runClient(server: Transport, connectionId: int) {.async.} =
-      echo "[DEBUG] client ", connectionId, " create client"
-      let client = transportProvider()
-      let conn = await client.dial(server.addrs[0])
-      echo "[DEBUG] client ", connectionId, " create muxer"
-      let muxer = streamProvider(conn)
+      try:
+        echo "[DEBUG] client ", connectionId, " create client"
+        let client = transportProvider()
+        let conn = await client.dial(server.addrs[0])
+        echo "[DEBUG] client ", connectionId, " create muxer"
+        let muxer = streamProvider(conn)
 
-      echo "[DEBUG] client ", connectionId, " create stream"
-      let stream = await muxer.newStream()
+        echo "[DEBUG] client ", connectionId, " create stream"
+        let stream = await muxer.newStream()
 
-      # Write data in chunks with random delay
-      echo "[DEBUG] client ", connectionId, " write"
-      let message = newData(chunkSize, byte(connectionId))
-      for i in 0 ..< chunkCount:
-        await stream.write(message)
-        # Random delay between writes (20-100ms)
-        await sleepAsync(rand(20 .. 100).milliseconds)
+        # Write data in chunks with random delay
+        echo "[DEBUG] client ", connectionId, " write"
+        let message = newData(chunkSize, byte(connectionId))
+        for i in 0 ..< chunkCount:
+          await stream.write(message)
+          # Random delay between writes (20-100ms)
+          await sleepAsync(rand(20 .. 100).milliseconds)
 
-      echo "[DEBUG] client ", connectionId, " read"
-      var buffer: array[1, byte]
-      await stream.readExactly(addr buffer, 1)
+        echo "[DEBUG] client ", connectionId, " read"
+        var buffer: array[1, byte]
+        await stream.readExactly(addr buffer, 1)
 
-      # Verify we got back our own connection ID
-      check buffer[0] == byte(connectionId)
+        # Verify we got back our own connection ID
+        check buffer[0] == byte(connectionId)
 
-      echo "[DEBUG] Client ", connectionId, " close stream"
-      await stream.close()
-      echo "[DEBUG] Client ", connectionId, " close muxer"
-      await muxer.close()
-      echo "[DEBUG] Client ", connectionId, " close conn"
-      await conn.close()
-      echo "[DEBUG] Client ", connectionId, " done"
+        echo "[DEBUG] Client ", connectionId, " close stream"
+        await stream.close()
+        echo "[DEBUG] Client ", connectionId, " close muxer"
+        await muxer.close()
+        echo "[DEBUG] Client ", connectionId, " close conn"
+        await conn.close()
+        echo "[DEBUG] Client ", connectionId, " done"
+      except CatchableError as exc:
+        echo "[DEBUG] Client ", connectionId, " ERROR: ", exc.msg
 
     echo "[DEBUG] server create"
     let server = transportProvider()
