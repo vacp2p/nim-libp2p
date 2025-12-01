@@ -355,6 +355,9 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     if not isNil(self.acceptLoop):
       await self.acceptLoop.cancelAndWait()
 
+    for server in self.httpservers:
+      server.stop()
+
     var toWait: seq[Future[void]]
     for fut in self.acceptFuts:
       if not fut.finished:
@@ -363,7 +366,6 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
         toWait.add(fut.read().stream.closeWait())
 
     for server in self.httpservers:
-      server.stop()
       toWait.add(server.closeWait())
 
     await allFutures(toWait)
