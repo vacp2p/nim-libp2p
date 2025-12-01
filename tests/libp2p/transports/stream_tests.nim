@@ -457,14 +457,17 @@ template streamTransportTest*(
       serverStreamHandlerFuts[i] = newFuture[void]()
 
     proc serverHandler(server: Transport) {.async.} =
+      echo "[DEBUG] serverHandler start"
       # Accept multiple connections and handle them
       var futs: seq[Future[void]]
       for i in 0 ..< numConnections:
         # Use a proc to properly capture loop index
         proc setupConnection(conn: Connection, handlerIndex: int) =
+          echo "[DEBUG] serverHandler setupConnection ", handlerIndex
           let muxer = streamProvider(conn, false)
           muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
             noExceptionWithStreamClose(stream):
+              echo "[DEBUG] serverHandler handler start ", handlerIndex
               # Read data in chunks with random delay
               var receivedData: seq[byte] = @[]
               while receivedData.len < messageSize:
@@ -482,62 +485,88 @@ template streamTransportTest*(
               check receivedData == newData(messageSize, byte(handlerIndex))
 
               # Send back ID
+              echo "[DEBUG] serverHandler handler write ", handlerIndex
               await stream.write(@[byte(receivedData[0])])
 
               # Signal that this stream handler is done
+              echo "[DEBUG] serverHandler handler complete ", handlerIndex
               serverStreamHandlerFuts[handlerIndex].complete()
 
           let startStreamHandlerAndCleanup = proc() {.async.} =
+            echo "[DEBUG] serverHandler before muxer handle ", handlerIndex
             await muxer.handle()
+            echo "[DEBUG] serverHandler after muxer handle ", handlerIndex
 
             # Wait for the stream handler to complete before closing
             await serverStreamHandlerFuts[handlerIndex]
+            echo "[DEBUG] serverHandler after await serverStreamHandlerFuts ", handlerIndex
 
             await muxer.close()
+            echo "[DEBUG] serverHandler after muxer close ", handlerIndex
             await conn.close()
+            echo "[DEBUG] serverHandler after conn close ", handlerIndex
 
           futs.add(startStreamHandlerAndCleanup())
 
         let conn = await server.accept()
         setupConnection(conn, i)
+      echo "[DEBUG] server before await allFutures(futs)"
       await allFutures(futs)
+      echo "[DEBUG] server after await allFutures(futs)"
 
     proc runClient(server: Transport, connectionId: int) {.async.} =
+      echo "[DEBUG] client ", connectionId, " create client"
       let client = transportProvider()
       let conn = await client.dial(server.addrs[0])
+      echo "[DEBUG] client ", connectionId, " create muxer"
       let muxer = streamProvider(conn)
 
+      echo "[DEBUG] client ", connectionId, " create stream"
       let stream = await muxer.newStream()
 
       # Write data in chunks with random delay
+      echo "[DEBUG] client ", connectionId, " write"
       let message = newData(chunkSize, byte(connectionId))
       for i in 0 ..< chunkCount:
         await stream.write(message)
         # Random delay between writes (20-100ms)
         await sleepAsync(rand(20 .. 100).milliseconds)
 
+      echo "[DEBUG] client ", connectionId, " read"
       var buffer: array[1, byte]
       await stream.readExactly(addr buffer, 1)
 
       # Verify we got back our own connection ID
       check buffer[0] == byte(connectionId)
 
+      echo "[DEBUG] Client ", connectionId, " close stream"
       await stream.close()
+      echo "[DEBUG] Client ", connectionId, " close muxer"
       await muxer.close()
+      echo "[DEBUG] Client ", connectionId, " close conn"
       await conn.close()
+      echo "[DEBUG] Client ", connectionId, " done"
 
+    echo "[DEBUG] server create"
     let server = transportProvider()
+    echo "[DEBUG] server start"
     await server.start(ma)
+    echo "[DEBUG] serverTask"
     let serverTask = serverHandler(server)
 
     # Start multiple concurrent clients
+    echo "[DEBUG] creating ", numConnections, " clients"
     var clientFuts: seq[Future[void]]
     for i in 0 ..< numConnections:
       clientFuts.add(runClient(server, i))
 
+    echo "[DEBUG] await allFutures(clientFuts)"
     await allFutures(clientFuts)
+    echo "[DEBUG] clientFuts finished"
     await serverTask
+    echo "[DEBUG] serverTask finished"
     await server.stop()
+    echo "[DEBUG] server stopped"
 
     # Assert parallelism by counting transitions between different connection IDs
     # Total reads: 5 connections × 32 chunks = 160

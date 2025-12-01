@@ -340,38 +340,56 @@ method start*(
 method stop*(self: WsTransport) {.async: (raises: []).} =
   ## stop the transport
   ##
-
+  echo "[DEBUG WSTRANSPORT] WsTransport.stop"
   self.running = false # mark stopped as soon as possible
 
   try:
     trace "Stopping WS transport"
+    echo "[DEBUG WSTRANSPORT] stop transport"
     await procCall Transport(self).stop() # call base
 
+    echo "[DEBUG WSTRANSPORT] allfinished connections"
     discard await allFinished(
       self.connections[Direction.In].mapIt(it.close()) &
         self.connections[Direction.Out].mapIt(it.close())
     )
 
     if not isNil(self.acceptLoop):
+      echo "[DEBUG WSTRANSPORT] stop dispatcher"
       await self.acceptLoop.cancelAndWait()
+      echo "[DEBUG WSTRANSPORT] stopped dispatcher"
 
-    for server in self.httpservers:
+    for i, server in self.httpservers:
+      echo "[DEBUG WSTRANSPORT] stop server ", i
       server.stop()
+      echo "[DEBUG WSTRANSPORT] stopped server ", i
 
     var toWait: seq[Future[void]]
-    for fut in self.acceptFuts:
+    echo "[DEBUG WSTRANSPORT] self acceptfuts loop count=", self.acceptFuts.len
+    for i, fut in self.acceptFuts:
       if not fut.finished:
+        if i <= 3:
+          echo "[DEBUG WSTRANSPORT] toWait add cancelAndWait ", i
         toWait.add(fut.cancelAndWait())
+        if i <= 3:
+          echo "[DEBUG WSTRANSPORT] toWait add cancelAndWait done ", i
       elif fut.completed:
+        echo "[DEBUG WSTRANSPORT] toWait add stream closeWait ", i
         toWait.add(fut.read().stream.closeWait())
+        echo "[DEBUG WSTRANSPORT] toWait add stream closeWait done ", i
 
-    for server in self.httpservers:
+    for i, server in self.httpservers:
+      echo "[DEBUG WSTRANSPORT] server closewait ", i
       toWait.add(server.closeWait())
+      echo "[DEBUG WSTRANSPORT] server closewait done ", i
 
+    echo "[DEBUG WSTRANSPORT] await allFutures"
     await allFutures(toWait)
+    echo "[DEBUG WSTRANSPORT] await allFutures done"
 
     self.httpservers = @[]
     trace "Transport stopped"
+    echo "[DEBUG WSTRANSPORT] wstransport stopped"
   except CatchableError as exc:
     trace "Error shutting down ws transport", description = exc.msg
 
