@@ -62,38 +62,9 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       let randomKey = randomKeyInBucketRange(kad.rtable.selfId, i, kad.rng)
       discard await kad.findNode(randomKey)
 
-proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+proc maintainBuckets*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh buckets", kad.config.bucketRefreshTime:
     await kad.refreshBuckets()
-
-proc refreshSelfSignedPeerRecord(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  let peerInfo = kad.switch.peerInfo
-  let peerRecord = PeerRecord.init(peerInfo.peerId, peerInfo.addrs)
-  let privKey = kad.switch.privKey
-
-  let signedRecordRes = SignedPeerRecord.init(privKey, peerRecord)
-  if signedRecordRes.isErr:
-    error "Failed to sign peer record", err = $signedRecordRes.error
-    return
-
-  let signedRecord = signedRecordRes.get()
-
-  let valueRes = signedRecord.encode()
-  if valueRes.isErr:
-    error "Failed to encode signed peer record", err = $valueRes.error
-    return
-
-  let value = valueRes.get()
-  let key = peerInfo.peerId.toKey()
-
-  let putRes = await kad.putValue(key, value)
-  if putRes.isErr:
-    error "Failed to put signed peer record", err = putRes.error
-
-proc maintainSelfSignedPeerRecord(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh self signed peer record",
-    kad.config.selfSignedPeerRecordRefreshTime:
-    await kad.refreshSelfSignedPeerRecord()
 
 proc new*(
     T: typedesc[KadDHT],
@@ -156,7 +127,6 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
-  kad.selfSignedLoop = kad.maintainSelfSignedPeerRecord()
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
@@ -170,9 +140,6 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
     return
 
   kad.started = false
-
-  kad.selfSignedLoop.cancelSoon()
-  kad.selfSignedLoop = nil
 
   kad.maintenanceLoop.cancelSoon()
   kad.maintenanceLoop = nil

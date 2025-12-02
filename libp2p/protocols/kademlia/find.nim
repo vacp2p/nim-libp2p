@@ -53,41 +53,6 @@ proc sendFindNode*(
 
   return reply
 
-proc findRandom*(
-    kad: KadDHT
-): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  let randomPeerIdRes = PeerId.random(kad.rng)
-  if randomPeerIdRes.isErr:
-    return @[]
-
-  let randomKey = randomPeerIdRes.get().toKey()
-  let peerIds = await kad.findNode(randomKey)
-
-  var getFutures: seq[Future[Result[EntryRecord, string]]] = @[]
-  for pid in peerIds:
-    getFutures.add(kad.getValue(pid.toKey()))
-
-  await allFutures(getFutures)
-  var records: seq[SignedPeerRecord] = @[]
-
-  for fut in getFutures:
-    if fut.failed:
-      continue
-
-    let res = fut.read()
-    if res.isErr:
-      continue
-
-    let entry = res.get()
-
-    let decodeRes = SignedPeerRecord.decode(entry.value)
-    if decodeRes.isErr:
-      continue
-
-    records.add(decodeRes.get())
-
-  return records
-
 proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
