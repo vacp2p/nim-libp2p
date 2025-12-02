@@ -13,4 +13,3 @@ coverage:
         base: auto
 ignore:
   - "tests/**"
-  - "examples/**"
