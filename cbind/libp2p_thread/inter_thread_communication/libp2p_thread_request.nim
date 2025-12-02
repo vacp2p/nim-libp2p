@@ -17,13 +17,12 @@ import std/json, results
 import chronos, chronos/threadsync
 import
   ../../[ffi_types, types],
-  ./requests/[libp2p_lifecycle_requests, libp2p_hello_requests],
+  ./requests/[libp2p_lifecycle_requests, libp2p_peer_manager_requests],
   ../../../libp2p
 
-# TODO: Add new request categories as needed
 type RequestType* {.pure.} = enum
   LIFECYCLE
-  HELLO
+  PEER_MANAGER
 
 ## Central request object passed to the LibP2P thread
 type LibP2PThreadRequest* = object
@@ -84,8 +83,8 @@ proc process*(
     case request[].reqType
     of RequestType.LIFECYCLE:
       cast[ptr LifecycleRequest](request[].reqContent).process(libp2p)
-    of RequestType.Hello:
-      cast[ptr HelloRequest](request[].reqContent).process(libp2p)
+    of RequestType.PEER_MANAGER:
+      cast[ptr PeerManagementRequest](request[].reqContent).process(libp2p)
 
   handleRes(await retFut, request)
 
