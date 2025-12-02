@@ -11,3 +11,5 @@ coverage:
         target: auto
         threshold: 5%
         base: auto
+ignore:
+  - "tests/**"
