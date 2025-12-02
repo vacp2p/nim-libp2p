@@ -8,7 +8,6 @@
 # those terms.
 
 import algorithm, sequtils
-import chronicles
 import ../../[peerid, peerinfo]
 import ./[protobuf, types]
 

@@ -22,7 +22,7 @@ import ../../tools/unittest
 template checkEncodeDecode(obj: untyped) =
   check obj == decode(typeof(obj), obj.encode()).get()
 
-suite "kademlia protobuffers":
+suite "KadDHT Protobuffers":
   const invalidType = uint32(999)
 
   test "encode/decode":
