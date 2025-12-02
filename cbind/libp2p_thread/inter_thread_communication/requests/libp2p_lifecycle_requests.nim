@@ -21,14 +21,17 @@ import ../../../../libp2p
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
+  START_NODE
+  STOP_NODE
 
 type LifecycleRequest* = object
   operation: LifecycleMsgType
   appCallbacks: AppCallbacks
 
 proc createLibp2p(appCallbacks: AppCallbacks): LibP2P =
-  # TODO: implement
-  LibP2P()
+  # TODO: switch options
+  let switch = newStandardSwitch()
+  LibP2P(switch: switch)
 
 proc createShared*(
     T: type LifecycleRequest, op: LifecycleMsgType, appCallbacks: AppCallbacks = nil
@@ -51,9 +54,15 @@ proc process*(
   defer:
     destroyShared(self)
 
-  # TODO: Implement the request logic for your new operation types
   case self.operation
   of CREATE_LIBP2P:
     libp2p[] = createLibp2p(self.appCallbacks)
+  of START_NODE:
+    try:
+      await libp2p.switch.start()
+    except LPError:
+      return err(getCurrentExceptionMsg())
+  of STOP_NODE:
+    await libp2p.switch.stop()
 
   return ok("")

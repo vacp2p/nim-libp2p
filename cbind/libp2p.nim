@@ -20,7 +20,7 @@ import
   ./[ffi_types, types],
   ./libp2p_thread/inter_thread_communication/libp2p_thread_request,
   ./libp2p_thread/inter_thread_communication/requests/
-    [libp2p_lifecycle_requests, libp2p_hello_requests],
+    [libp2p_lifecycle_requests, libp2p_peer_manager_requests],
   ../libp2p
 ################################################################################
 ### Not-exported components
@@ -173,17 +173,75 @@ proc libp2p_set_event_callback(
   ctx[].eventCallback = cast[pointer](callback)
   ctx[].eventUserData = userData
 
-proc libp2p_hello(
+proc libp2p_start(
     ctx: ptr LibP2PContext, callback: Libp2pCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  ## This is just to demonstrate how FFI works
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
   handleRequest(
     ctx,
-    RequestType.HELLO,
-    HelloRequest.createShared(HelloMsgType.HELLO),
+    RequestType.LIFECYCLE,
+    LifecycleRequest.createShared(LifecycleMsgType.START_NODE),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_stop(
+    ctx: ptr LibP2PContext, callback: Libp2pCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.LIFECYCLE,
+    LifecycleRequest.createShared(LifecycleMsgType.STOP_NODE),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_connect(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    multiaddrs: ptr cstring,
+    multiaddrsLen: csize_t,
+    timeoutMs: int64,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PEER_MANAGER,
+    PeerManagementRequest.createShared(
+      PeerManagementMsgType.CONNECT,
+      peerId,
+      multiaddrs,
+      multiaddrsLen,
+      if timeoutMs <= 0:
+        InfiniteDuration
+      else:
+        chronos.milliseconds(timeoutMs),
+    ),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_disconnect(
+    ctx: ptr LibP2PContext, peerId: cstring, callback: Libp2pCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PEER_MANAGER,
+    PeerManagementRequest.createShared(
+      PeerManagementMsgType.DISCONNECT, peerId = peerId
+    ),
     callback,
     userData,
   ).cint
