@@ -89,8 +89,8 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim " &
     "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim " &
-    "-d:test_path=multiformat_exts"
-  runTest("test_path", opts)
+    "-d:path=libp2p/multiformat_exts"
+  runTest("test_all", opts)
 
 task testintegration, "Runs integration tests":
   runTest("integration/test_all")
@@ -115,7 +115,7 @@ task testpath, "Run tests matching a specific path":
     echo "Example: nimble testpath quic"
     quit(1)
 
-  runTest("test_path", "-d:test_path=" & testPathArg)
+  runTest("test_all", "-d:path=" & testPathArg)
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")

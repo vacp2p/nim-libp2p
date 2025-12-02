@@ -12,35 +12,47 @@ import std/os
 import std/strutils
 import std/sequtils
 
-proc buildImports(
-    dir: string, ignorePaths: seq[string] = @[], matchPath: string = ""
-): NimNode =
+proc printImportSummary(importedFiles: seq[string], baseDir: string) =
+  ## Prints a summary of imported test files at compile time
+  echo "\n"
+  echo "=================================="
+  echo "Dynamic test import"
+  echo "Imported ", importedFiles.len, " files."
+  echo ""
+  for file in importedFiles:
+    # Compute relative path from the base directory
+    let relPath = file.replace(baseDir & DirSep, "")
+    echo relPath
+  echo "=================================="
+  echo "\n"
+
+macro importTests*(
+    dir: static string, ignorePaths: static seq[string], matchPath: static string
+): untyped =
+  ## Recursively imports test files matching "test_*.nim" (excluding "test_all.nim").
+  ##
+  ## - `dir`: Root directory to scan
+  ## - `ignorePaths`: Path substrings to exclude (e.g., @["transports"])
+  ## - `matchPath`: Path substring to match (e.g., "quic")
+  ##
+  ## **Behavior changes based on `matchPath`:**
+  ## - When `matchPath == ""`: imports ALL matching tests (filtered only by `ignorePaths`)
+  ## - When `matchPath != ""`: imports ONLY tests whose path contains `matchPath` substring
+  ##
+  ## Example: `importTests("tests", @[], "quic")` imports only QUIC-related tests
   let imports = newStmtList()
+  var importedFiles: seq[string] = @[]
+
   for file in walkDirRec(dir):
     let (path, name, ext) = splitFile(file)
-    let isTestFile = name.startsWith("test_") and not name.startsWith("test_all")
-    let isNimFile = ext == ".nim"
+    let isTestFile = name.startsWith("test_") and name != "test_all" and ext == ".nim"
     let isIgnored = ignorePaths.len > 0 and ignorePaths.anyIt(path.contains(it))
     let isMatched = matchPath.len == 0 or file.contains(matchPath)
 
-    if isTestFile and isNimFile and not isIgnored and isMatched:
+    if isTestFile and not isIgnored and isMatched:
       imports.add(newNimNode(nnkImportStmt).add(newLit(file)))
+      importedFiles.add(file)
+
+  printImportSummary(importedFiles, dir)
+
   imports
-
-macro importTests*(dir: static string): untyped =
-  ## imports all files in the specified directory whose filename
-  ## starts with "test_" and ends in ".nim"
-  ## ignores test_all files
-  buildImports(dir, @[])
-
-macro importTests*(dir: static string, ignorePaths: static seq[string]): untyped =
-  ## imports all files in the specified directory whose filename
-  ## starts with "test_" and ends in ".nim"
-  ## ignores test_all files and any paths listed in ignorePaths
-  buildImports(dir, ignorePaths)
-
-macro importTestsMatching*(dir: static string, singlePath: static string): untyped =
-  ## imports only files in the specified directory whose path contains singlePath
-  ## and whose filename starts with "test_" and ends in ".nim"
-  ## ignores test_all files
-  buildImports(dir, @[], singlePath)
