@@ -36,7 +36,7 @@ proc runTest(filename: string, moreoptions: string = "") =
 
   var runnerArgs = " --output-level=VERBOSE"
   runnerArgs &= " --console"
-  runnerArgs &= " --xml:tests/results_" & filename.replace("/", "_") & ".xml"
+  runnerArgs &= " --xml:tests/results_" & $hash(filename & $compileCmd) & ".xml"
 
   # step 1: compile test binary
   exec compileCmd & " tests/" & filename
