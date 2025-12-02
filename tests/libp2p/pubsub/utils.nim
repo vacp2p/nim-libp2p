@@ -425,10 +425,6 @@ template tryPublish*(
   while pubs < require and Moment.now() < expiration:
     pubs = pubs + call
     await sleepAsync(wait)
-    echo "===================================================================="
-
-  if pubs == require:
-    echo "==================================================================== OOOOOOOOOOOOK"
 
   doAssert pubs >= require, "Failed to publish!"
 
