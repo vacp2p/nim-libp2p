@@ -16,8 +16,8 @@ const path {.strdefine.} = ""
 
 when path == "":
   # Run all tests in libp2p and tools
-  importTests(currentSourcePath().parentDir() / "libp2p", @["multiformat_exts"], "")
-  importTests(currentSourcePath().parentDir() / "tools", @[], "")
+  importTests(currentSourcePath().parentDir() / "libp2p", @["multiformat_exts"])
+  importTests(currentSourcePath().parentDir() / "tools", @[])
 else:
   # Run tests that match specific path substring
   importTests(currentSourcePath().parentDir(), @[], path)

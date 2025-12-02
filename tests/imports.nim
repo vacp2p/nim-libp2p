@@ -27,7 +27,7 @@ proc printImportSummary(importedFiles: seq[string], baseDir: string) =
   echo "\n"
 
 macro importTests*(
-    dir: static string, ignorePaths: static seq[string], matchPath: static string
+    dir: static string, ignorePaths: static seq[string], matchPath: static string = ""
 ): untyped =
   ## Recursively imports test files matching "test_*.nim" (excluding "test_all.nim").
   ##
