@@ -52,7 +52,19 @@ int main(int argc, char **argv) {
   ctx = libp2p_new(event_handler, NULL);
   waitForCallback();
 
-  libp2p_hello(ctx, event_handler, NULL);
+  libp2p_start(ctx, event_handler, NULL);
+  waitForCallback();
+
+  // TODO: start another node and dial that node address once
+  // libp2p_peerinfo(ctx) is implemented
+
+  const char *multiaddrs[] = {
+      "/dns4/boot-01.do-ams3.status.staging.status.im/tcp/30303"};
+
+  libp2p_connect(ctx, "16Uiu2HAmQE7FXQc6iZHdBzYfw3qCSDa9dLc1wsBJKoP4aZvztq2d",
+                 multiaddrs, 1, 0, event_handler, NULL);
+
+  libp2p_stop(ctx, event_handler, NULL);
   waitForCallback();
 
   libp2p_destroy(ctx, event_handler, NULL);
