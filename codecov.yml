@@ -14,4 +14,3 @@ coverage:
 ignore:
   - "tests/**"
   - "examples/**"
-  - "cbind/**"
