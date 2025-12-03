@@ -167,5 +167,5 @@ task examples, "Build and run examples":
   buildSample("examples_run", true)
 
   buildCBindings "static", ""
-  exec "g++ -o build/cbindings ./examples/cbindings.c ./build/libp2p.a -pthread"
+  exec "g++ -o build/cbindings ./examples/cbindings/main.c ./build/libp2p.a -pthread"
   exec "./build/cbindings"
