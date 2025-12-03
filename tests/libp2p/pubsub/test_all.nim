@@ -11,9 +11,6 @@
 
 import
   test_behavior, test_gossipsub, test_gossipsub_params, test_mcache, test_message,
-  test_scoring, test_timed_cache, test_preamble_store
+  test_preamble_store, test_preamble_behavior, test_scoring, test_timed_cache
 
 import ./component/test_all
-
-when defined(libp2p_gossipsub_1_4):
-  import test_preamble_behavior
