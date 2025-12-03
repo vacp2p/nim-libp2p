@@ -37,6 +37,8 @@ export builders
 
 randomize()
 
+const connectWarmup = 200.milliseconds
+  # the delay needed for node to open all streams, start handlers after connecting it to other node
 const TEST_GOSSIPSUB_HEARTBEAT_INTERVAL* = 60.milliseconds
 const HEARTBEAT_TIMEOUT* = # TEST_GOSSIPSUB_HEARTBEAT_INTERVAL + 20%
   int64(float64(TEST_GOSSIPSUB_HEARTBEAT_INTERVAL.milliseconds) * 1.2).milliseconds
@@ -89,7 +91,7 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
     except CancelledError as exc:
       raise exc
     except DialFailedError as e:
-      raise (ref GetConnDialError)(parent: e)
+      raise (ref GetConnDialError)(parent: e, msg: e.msg)
 
   let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec_12, 1024 * 1024)
   debug "created new pubsub peer", peerId
@@ -303,12 +305,50 @@ proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
   doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not connect same peer"
   await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
+  await sleepAsync(connectWarmup)
+
+proc connectNodesChain*[T: PubSub](nodes: seq[T]) {.async.} =
+  ## Chain: 1-2-3-4-5
+  ## 
+  var futs: seq[Future[void]]
+
+  for i in 0 ..< nodes.len - 1:
+    futs.add(connectNodes(nodes[i], nodes[i + 1]))
+
+  await allFuturesThrowing(futs)
+
+proc connectNodesRing*[T: PubSub](nodes: seq[T]) {.async.} =
+  ## Ring: 1-2-3-4-5-1
+  ## 
+  var futs: seq[Future[void]]
+
+  for i in 0 ..< nodes.len - 1:
+    futs.add(connectNodes(nodes[i], nodes[i + 1]))
+  futs.add(connectNodes(nodes[nodes.len - 1], nodes[0]))
+
+  await allFuturesThrowing(futs)
+
+proc connectNodesHub*[T: PubSub](hub: T, nodes: seq[T]) {.async.} =
+  ## Hub: hub-1, hub-2, hub-3,...
+  ## 
+  var futs: seq[Future[void]]
+
+  for i in 0 ..< nodes.len:
+    futs.add(connectNodes(hub, nodes[i]))
+
+  await allFuturesThrowing(futs)
 
 proc connectNodesStar*[T: PubSub](nodes: seq[T]) {.async.} =
+  ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
+  ## 
+  var futs: seq[Future[void]]
+
   for dialer in nodes:
     for node in nodes:
       if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
-        await connectNodes(dialer, node)
+        futs.add(connectNodes(dialer, node))
+
+  await allFuturesThrowing(futs)
 
 proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
   if nodes.len < degree:
@@ -394,17 +434,37 @@ template startNodesAndDeferStop*[T: PubSub](nodes: seq[T]): untyped =
   defer:
     await stopNodes(nodes)
 
-proc subscribeAllNodes*[T: PubSub](
-    nodes: seq[T], topic: string, topicHandler: TopicHandler
-) =
+template waitForSubscribe*[T: PubSub](nodes: seq[T], topic: string): untyped =
+  for node in nodes:
+    let n = node
+    checkUntilTimeout:
+      topic in n.mesh
+
+template waitForNotSubscribed*[T: PubSub](nodes: seq[T], topic: string): untyped =
+  for node in nodes:
+    let n = node
+    checkUntilTimeout:
+      topic notin n.topics
+      topic notin n.mesh
+      topic notin n.gossipsub
+
+template subscribeAllNodes*[T: PubSub](
+    nodes: seq[T], topic: string, topicHandler: TopicHandler, wait: bool = true
+): untyped =
   for node in nodes:
     node.subscribe(topic, topicHandler)
 
-proc unsubscribeAllNodes*[T: PubSub](
-    nodes: seq[T], topic: string, topicHandler: TopicHandler
+  if wait:
+    waitForSubscribe(nodes, topic)
+
+template unsubscribeAllNodes*[T: PubSub](
+    nodes: seq[T], topic: string, topicHandler: TopicHandler, wait: bool = true
 ) =
   for node in nodes:
     node.unsubscribe(topic, topicHandler)
+
+  if wait:
+    waitForNotSubscribed(nodes, topic)
 
 proc subscribeAllNodes*[T: PubSub](
     nodes: seq[T], topic: string, topicHandlers: seq[TopicHandler]
@@ -587,9 +647,14 @@ proc addDirectPeer*[T: PubSub](node: T, target: T) {.async.} =
   doAssert node.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not add same peer"
   await node.addDirectPeer(target.switch.peerInfo.peerId, target.switch.peerInfo.addrs)
+  await sleepAsync(connectWarmup)
 
 proc addDirectPeerStar*[T: PubSub](nodes: seq[T]) {.async.} =
+  var futs: seq[Future[void]]
+
   for node in nodes:
     for target in nodes:
       if node.switch.peerInfo.peerId != target.switch.peerInfo.peerId:
-        await addDirectPeer(node, target)
+        futs.add(addDirectPeer(node, target))
+
+  await allFuturesThrowing(futs)

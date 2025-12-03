@@ -31,8 +31,7 @@ suite "GossipSub Component - Scoring":
     startNodesAndDeferStop(nodes)
 
     # Nodes 1 and 2 are connected to node 0
-    await connectNodes(nodes[0], nodes[1])
-    await connectNodes(nodes[0], nodes[2])
+    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     let (handlerFut1, handler1) = createCompleteHandler()
     let (handlerFut2, handler2) = createCompleteHandler()
@@ -52,10 +51,9 @@ suite "GossipSub Component - Scoring":
     tryPublish await nodes[0].publish(topic, message), 1
 
     # Then only node 1 should receive the message
-    let results = await waitForStates(@[handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
-    check:
-      results[0].isCompleted(true)
-      results[1].isPending()
+    checkUntilTimeout:
+      handlerFut1.finished() == true
+      handlerFut2.finished() == false
 
   asyncTest "Should not rate limit decodable messages below the size allowed":
     let
@@ -73,14 +71,12 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     nodes[0].broadcast(
       nodes[0].mesh[topic],
       RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](10))]),
       isHighPriority = true,
     )
-    await waitForHeartbeat()
 
     checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits
@@ -93,7 +89,6 @@ suite "GossipSub Component - Scoring":
       RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](12))]),
       isHighPriority = true,
     )
-    await waitForHeartbeat()
 
     checkUntilTimeout:
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == true
@@ -115,15 +110,13 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     # Simulate sending an undecodable message
     await nodes[1].peers[nodes[0].switch.peerInfo.peerId].sendEncoded(
       newSeqWith(33, 1.byte), isHighPriority = true
     )
-    await waitForHeartbeat()
 
-    check:
+    checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == true
 
@@ -153,7 +146,6 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     let msg = RPCMsg(
       control: some(
@@ -170,9 +162,8 @@ suite "GossipSub Component - Scoring":
       )
     )
     nodes[0].broadcast(nodes[0].mesh[topic], msg, isHighPriority = true)
-    await waitForHeartbeat()
 
-    check:
+    checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == true
 
@@ -214,7 +205,6 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     proc execValidator(
         topic: string, message: messages.Message
@@ -225,11 +215,9 @@ suite "GossipSub Component - Scoring":
     nodes[1].addValidator(topic, execValidator)
 
     let msg = RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](40))])
-
     nodes[0].broadcast(nodes[0].mesh[topic], msg, isHighPriority = true)
-    await waitForHeartbeat()
 
-    check:
+    checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == true
 
@@ -270,9 +258,8 @@ suite "GossipSub Component - Scoring":
     tryPublish await nodes[0].publish(topic, toBytes("hellow")), 1
 
     # Without directPeers, this would fail
-    var futResult = await waitForState(handlerFut)
-    check:
-      futResult.isCompleted(true)
+    checkUntilTimeout:
+      handlerFut.finished() == true
 
   asyncTest "Peers disconnections mechanics":
     const numberOfNodes = 10
@@ -358,12 +345,12 @@ suite "GossipSub Component - Scoring":
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handler)
+    await waitForHeartbeat()
 
     tryPublish await nodes[0].publish(topic, toBytes("hello")), 1
 
-    var futResult = await waitForState(handlerFut)
-    check:
-      futResult.isCompleted(true)
+    checkUntilTimeout:
+      handlerFut.finished() == true
 
     nodes[0].peerStats[nodes[1].peerInfo.peerId].topicInfos[topic].meshMessageDeliveries =
       100
@@ -405,8 +392,7 @@ suite "GossipSub Component - Scoring":
     startNodesAndDeferStop(nodes)
 
     # And Node 0 is center node, connected to others
-    await connectNodes(nodes[0], nodes[1]) # center to Node 1 (valid messages)
-    await connectNodes(nodes[0], nodes[2]) # center to Node 2 (invalid messages) 
+    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     nodes.subscribeAllNodes(topic, voidTopicHandler)
 
@@ -501,7 +487,8 @@ suite "GossipSub Component - Scoring":
     startNodesAndDeferStop(nodes)
 
     # And Nodes are connected and subscribed to the topic
-    await connectNodes(nodes[0], nodes[1])
+    await connectNodesStar(nodes)
+
     nodes.subscribeAllNodes(topic, voidTopicHandler)
 
     # When scoring heartbeat occurs

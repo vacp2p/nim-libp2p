@@ -398,7 +398,7 @@ method getOrCreatePeer*(
     except CancelledError as exc:
       raise exc
     except DialFailedError as e:
-      raise (ref GetConnDialError)(parent: e)
+      raise (ref GetConnDialError)(parent: e, msg: e.msg)
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)

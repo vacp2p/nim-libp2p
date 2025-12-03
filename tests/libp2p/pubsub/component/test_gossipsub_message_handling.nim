@@ -23,12 +23,10 @@ proc setupTest(): Future[
       gossip0: GossipSub, gossip1: GossipSub, receivedMessages: ref HashSet[seq[byte]]
     ]
 ] {.async.} =
-  let nodes = generateNodes(2, gossip = true, verifySignature = false)
-  discard await allFinished(nodes[0].switch.start(), nodes[1].switch.start())
+  let nodes = generateNodes(2, gossip = true, verifySignature = false).toGossipSub()
+  await allFuturesThrowing(nodes[0].switch.start(), nodes[1].switch.start())
 
-  await nodes[1].switch.connect(
-    nodes[0].switch.peerInfo.peerId, nodes[0].switch.peerInfo.addrs
-  )
+  await connectNodes(nodes[1], nodes[0])
 
   var receivedMessages = new(HashSet[seq[byte]])
 
@@ -42,10 +40,7 @@ proc setupTest(): Future[
   nodes[1].subscribe("foobar", handlerB)
   await waitSubGraph(nodes, "foobar")
 
-  var gossip0: GossipSub = GossipSub(nodes[0])
-  var gossip1: GossipSub = GossipSub(nodes[1])
-
-  return (gossip0, gossip1, receivedMessages)
+  return (nodes[0], nodes[1], receivedMessages)
 
 proc teardownTest(gossip0: GossipSub, gossip1: GossipSub) {.async.} =
   await allFuturesThrowing(gossip0.switch.stop(), gossip1.switch.stop())
@@ -122,7 +117,6 @@ suite "GossipSub Component - Message Handling":
       isHighPriority = false,
     )
 
-    await sleepAsync(300.milliseconds)
     checkUntilTimeout:
       receivedMessages[].len == 0
 
@@ -203,9 +197,7 @@ suite "GossipSub Component - Message Handling":
     let (handlerFut2, handler2) = createCompleteHandler()
 
     # Nodes are connected in a ring
-    await connectNodes(nodes[0], nodes[1])
-    await connectNodes(nodes[1], nodes[2])
-    await connectNodes(nodes[2], nodes[0])
+    await connectNodesRing(nodes)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
@@ -269,7 +261,6 @@ suite "GossipSub Component - Message Handling":
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
-
     await waitSubGraph(nodes, "foobar")
 
     let gossip1 = GossipSub(nodes[0])

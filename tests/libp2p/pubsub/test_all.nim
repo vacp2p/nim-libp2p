@@ -14,6 +14,3 @@ import
   test_scoring, test_timed_cache, test_preamble_store
 
 import ./component/test_all
-
-when defined(libp2p_gossipsub_1_4):
-  import test_preamble_behavior
