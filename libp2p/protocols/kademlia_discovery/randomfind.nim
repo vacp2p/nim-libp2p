@@ -10,20 +10,21 @@
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../kademlia/[types, find, get]
+import ./types
 
 proc findRandom*(
-    kad: KadDHT
+    disco: KademliaDiscovery
 ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  let randomPeerId = PeerId.random(kad.rng).valueOr:
+  let randomPeerId = PeerId.random(disco.rng).valueOr:
     debug "cannot generate random peer id", error
     return @[]
 
   let randomKey = randomPeerId.toKey()
-  let peerIds = await kad.findNode(randomKey)
+  let peerIds = await disco.findNode(randomKey)
 
   var getFutures: seq[Future[Result[EntryRecord, string]]] = @[]
   for pid in peerIds:
-    getFutures.add(kad.getValue(pid.toKey()))
+    getFutures.add(disco.getValue(pid.toKey()))
 
   var records: seq[SignedPeerRecord] = @[]
   await allFutures(getFutures)
