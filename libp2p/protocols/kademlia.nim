@@ -13,7 +13,7 @@ import ../[peerid, switch, multihash]
 import ./protocol
 import ./kademlia/[routingtable, protobuf, types, find, get, put, provider, ping]
 
-export routingtable, protobuf, types, find, get, put, provider, ping, chronicles
+export routingtable, protobuf, types, find, get, put, provider, ping
 
 logScope:
   topics = "kad-dht"

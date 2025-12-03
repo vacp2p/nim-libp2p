@@ -9,10 +9,12 @@
 
 {.used.}
 
-import chronos, std/[sequtils, enumerate]
+import chronicles, chronos, std/[sequtils, enumerate]
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
+
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 proc hasKey(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
