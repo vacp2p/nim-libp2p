@@ -33,10 +33,10 @@ suite "GossipSub Component - Heartbeat":
     startNodesAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(node0, nodes[i])
+    await connectNodesHub(node0, nodes[1 .. ^1])
+    
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-
+    
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == numberOfNodes - 1
 
@@ -83,8 +83,7 @@ suite "GossipSub Component - Heartbeat":
     startNodesAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(node0, nodes[i])
+    await connectNodesHub(node0, nodes[1 .. ^1])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
 
     checkUntilTimeout:
@@ -128,10 +127,8 @@ suite "GossipSub Component - Heartbeat":
     startNodesAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(node0, nodes[i])
+    await connectNodesHub(node0, nodes[1 .. ^1])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat(heartbeatInterval)
 
     # Keep track of initial mesh of Node0
     let startingMesh = node0.mesh[topic].toSeq()
@@ -250,8 +247,8 @@ suite "GossipSub Component - Heartbeat":
     startNodesAndDeferStop(nodes)
 
     await connectNodes(nodes[0], nodes[1])
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat(heartbeatInterval)
+    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    await waitSub(nodes[0], nodes[1], topic)
 
     # Get Node0 as Peer of Node1 
     let peer = nodes[1].mesh[topic].toSeq()[0]
@@ -307,10 +304,9 @@ suite "GossipSub Component - Heartbeat":
 
     startNodesAndDeferStop(nodes)
 
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat(heartbeatInterval)
+    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    await waitSub(nodes[0], nodes[1], topic)
 
     # Find Peer outside of mesh to which Node 0 will send IHave
     let peerOutsideMesh =

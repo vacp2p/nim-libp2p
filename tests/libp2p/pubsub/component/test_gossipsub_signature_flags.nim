@@ -24,8 +24,9 @@ suite "GossipSub Component - Signature Flags":
 
   asyncTest "Default - messages are signed when sign=true and contain fromPeer and seqno when anonymize=false":
     let nodes = generateNodes(
-      2, gossip = true, sign = true, verifySignature = true, anonymize = false
-    )
+        2, gossip = true, sign = true, verifySignature = true, anonymize = false
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -50,8 +51,9 @@ suite "GossipSub Component - Signature Flags":
 
   asyncTest "Sign flag - messages are not signed when sign=false":
     let nodes = generateNodes(
-      2, gossip = true, sign = false, verifySignature = false, anonymize = false
-    )
+        2, gossip = true, sign = false, verifySignature = false, anonymize = false
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -74,8 +76,9 @@ suite "GossipSub Component - Signature Flags":
 
   asyncTest "Anonymize flag - messages are anonymous when anonymize=true":
     let nodes = generateNodes(
-      2, gossip = true, sign = true, verifySignature = true, anonymize = true
-    ) # anonymize = true takes precedence
+        2, gossip = true, sign = true, verifySignature = true, anonymize = true
+      )
+      .toGossipSub() # anonymize = true takes precedence
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
@@ -188,14 +191,16 @@ suite "GossipSub Component - Signature Flags":
           sign = localScenario.senderConfig.sign,
           verifySignature = localScenario.senderConfig.verify,
           anonymize = localScenario.senderConfig.anonymize,
-        )[0]
+        )
+        .toGossipSub()[0]
         receiver = generateNodes(
           1,
           gossip = true,
           sign = localScenario.receiverConfig.sign,
           verifySignature = localScenario.receiverConfig.verify,
           anonymize = localScenario.receiverConfig.anonymize,
-        )[0]
+        )
+        .toGossipSub()[0]
         nodes = @[sender, receiver]
 
       startNodesAndDeferStop(nodes)
@@ -203,14 +208,15 @@ suite "GossipSub Component - Signature Flags":
 
       let (messageReceivedFut, handler) = createCompleteHandler()
 
-      nodes.subscribeAllNodes(topic, handler)
-      await waitForHeartbeat()
+      receiver.subscribe(topic, handler)
+      await waitSub(sender, receiver, topic)
 
-      discard await sender.publish(topic, testData)
+      tryPublish await sender.publish(topic, testData), 1
 
-      let messageReceived = await waitForState(messageReceivedFut, HEARTBEAT_TIMEOUT)
-      check:
-        if localScenario.shouldWork:
-          messageReceived.isCompleted(true)
-        else:
-          messageReceived.isCancelled()
+      if localScenario.shouldWork:
+        checkUntilTimeout:
+          messageReceivedFut.finished() == true
+      else:
+        await waitForHeartbeat()
+        check:
+          messageReceivedFut.finished() == false
