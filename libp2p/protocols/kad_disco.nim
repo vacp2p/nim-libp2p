@@ -7,9 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, chronicles, results
+import chronos, chronicles, results, options
 import ../utils/heartbeat
-import ../[peerid, switch, multihash]
+import ../[peerid, switch, multihash, peerinfo]
 import ./kademlia
 import ./kademlia_discovery/[randomfind, types]
 
@@ -18,22 +18,19 @@ export randomfind, types
 logScope:
   topics = "kad-disco"
 
-proc refreshSelfSignedPeerRecord(
-    disco: KademliaDiscovery
+proc refreshSelfSignedPeerRecord*(
+    disco: KademliaDiscovery, prOpt: Option[LogosPeerRecord]
 ) {.async: (raises: [CancelledError]).} =
-  let peerInfo = disco.switch.peerInfo
-  let peerRecord = PeerRecord.init(peerInfo.peerId, peerInfo.addrs)
-  let privKey = disco.switch.peerInfo.privateKey
+  let logosPeerRecord = prOpt.valueOr:
+    await disco.switch.peerInfo.update()
 
-  let signedRecord = SignedPeerRecord.init(privKey, peerRecord).valueOr:
-    error "Failed to sign peer record", error
-    return
+    LogosPeerRecord.init(disco.switch.peerInfo)
 
-  let encodedSR = signedRecord.encode().valueOr:
+  let encodedSR = logosPeerRecord.encode().valueOr:
     error "Failed to encode signed peer record", error
     return
 
-  let key = peerInfo.peerId.toKey()
+  let key = disco.switch.peerInfo.peerId.toKey()
 
   let putRes = await disco.putValue(key, encodedSR)
   if putRes.isErr:
