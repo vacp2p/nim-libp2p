@@ -246,5 +246,19 @@ proc libp2p_disconnect(
     userData,
   ).cint
 
+proc libp2p_peerinfo(
+    ctx: ptr LibP2PContext, callback: Libp2pCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PEER_MANAGER,
+    PeerManagementRequest.createShared(PeerManagementMsgType.PEER_INFO),
+    callback,
+    userData,
+  ).cint
+
 ### End of exported procs
 ################################################################################

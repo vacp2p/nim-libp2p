@@ -50,7 +50,7 @@ proc destroyShared(self: ptr LifecycleRequest) =
 
 proc process*(
     self: ptr LifecycleRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async.} =
+): Future[Result[Opt[string], string]] {.async.} =
   defer:
     destroyShared(self)
 
@@ -65,4 +65,4 @@ proc process*(
   of STOP_NODE:
     await libp2p.switch.stop()
 
-  return ok("")
+  return ok(Opt.none(string))
