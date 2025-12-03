@@ -18,7 +18,7 @@ proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe
   let noNew = state.selectAlphaPeers().filterIt(me != it).len == 0
   return ready and noNew
 
-proc waitRepliesOrTimeouts(
+proc waitRepliesOrTimeouts*(
     pendingFutures: Table[PeerId, Future[Message]]
 ): Future[(seq[Message], seq[PeerId])] {.async: (raises: [CancelledError]).} =
   await allFutures(pendingFutures.values.toSeq())
