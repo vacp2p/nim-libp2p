@@ -245,6 +245,8 @@ proc runHandleLoop*(
     let data =
       try:
         await conn.readLp(p.maxMessageSize)
+      except LPStreamRemoteClosedError:
+        return
       except LPStreamError as e:
         debug "Exception occurred reading message PubSubPeer.handle",
           conn, peer = p, closed = conn.closed, description = e.msg
@@ -416,6 +418,10 @@ proc sendMsg(
     if not f.completed():
       sendMsgContinue(conn, f)
     else:
+      if f.failed():
+        trace "sending encoded msg to peer failed", description = f.error.msg
+      else:
+        trace "sent pubsub message to remote", conn
       f
   else:
     trace "sending encoded msg to peer via slow path"
