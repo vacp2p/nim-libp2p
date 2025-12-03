@@ -34,9 +34,9 @@ suite "GossipSub Component - Heartbeat":
 
     # Nodes are connected to Node0
     await connectNodesHub(node0, nodes[1 .. ^1])
-    
+
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    
+
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == numberOfNodes - 1
 

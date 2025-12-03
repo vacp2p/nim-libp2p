@@ -243,9 +243,8 @@ suite "GossipSub Component - Mesh Management":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
-    checkUntilTimeout: # wait for subscribe
-      topic in nodes[0].mesh and
-      nodes[0].mesh[topic].len == numberOfNodes - 1
+    checkUntilTimeout:
+      topic in nodes[0].mesh and nodes[0].mesh[topic].len == numberOfNodes - 1
 
     # When Node0 unsubscribes from the topic
     nodes[0].unsubscribe(topic, voidTopicHandler)
@@ -292,11 +291,10 @@ suite "GossipSub Component - Mesh Management":
 
     # Nodes are connected to Node0
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
-    
+
     subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
-    checkUntilTimeout: # wait for subscribe
-      topic in nodes[0].mesh and
-      nodes[0].mesh[topic].len == numberOfNodes - 1
+    checkUntilTimeout:
+      topic in nodes[0].mesh and nodes[0].mesh[topic].len == numberOfNodes - 1
 
     # When DValues of Node0 are updated to lower than initial dValues
     const newDValues = some(
