@@ -12,7 +12,7 @@ export randomfind, types
 logScope:
   topics = "kad-disco"
 
-proc refreshSelfSignedPeerRecord(
+proc refreshSelfSignedPeerRecord*(
     disco: KademliaDiscovery
 ) {.async: (raises: [CancelledError]).} =
   await disco.switch.peerInfo.update()
