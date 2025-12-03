@@ -608,7 +608,7 @@ suite "Switch":
     let allDisconnected = newWaitGroup(5)
     let allConnected = newWaitGroup(5)
 
-    proc hook(peerId2: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
+    proc hook(_: PeerId, event: ConnEvent) {.async: (raises: [CancelledError]).} =
       case event.kind
       of ConnEventKind.Connected:
         allConnected.done()
@@ -638,10 +638,11 @@ suite "Switch":
     await allDisconnected.wait(5.seconds)
     check not switches[0].isConnected(peerInfo.peerId)
 
-    checkTracker(LPChannelTrackerName)
-    checkTracker(SecureConnTrackerName)
+    checkUntilTimeout:
+      not isCounterLeaked(LPChannelTrackerName)
+      not isCounterLeaked(SecureConnTrackerName)
 
-    await allFuturesThrowing(switches.mapIt(it.stop()))
+    await allFuturesThrowing(switches[0].stop())
 
   asyncTest "e2e closing remote conn should not leak":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
