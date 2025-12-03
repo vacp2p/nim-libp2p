@@ -15,6 +15,7 @@ import ../../../../libp2p
 type PeerManagementMsgType* = enum
   CONNECT
   DISCONNECT
+  PEER_INFO
 
 type PeerManagementRequest* = object
   operation: PeerManagementMsgType
@@ -44,7 +45,7 @@ proc destroyShared(self: ptr PeerManagementRequest) =
 
 proc process*(
     self: ptr PeerManagementRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[Opt[string], string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -67,5 +68,14 @@ proc process*(
     let peerId = PeerId.init($self[].peerId).valueOr:
       return err($error)
     await libp2p.switch.disconnect(peerId)
+  of PEER_INFO:
+    return ok(
+      Opt.some(
+        $ %*{
+          "peerId": $libp2p.switch.peerInfo.peerId,
+          "addrs": libp2p.switch.peerInfo.addrs.mapIt($it),
+        }
+      )
+    )
 
-  return ok("")
+  return ok(Opt.none(string))
