@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, stew/byteutils, chronicles
+import chronos, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
 import ../../../tools/[unittest]
 import ../utils
@@ -19,13 +19,12 @@ suite "GossipSub Component - Fanout Management":
     checkTrackers()
 
   asyncTest "GossipSub send over fanout A -> B":
-    let (passed, handler) = createCompleteHandler()
-
-    let nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
+    let (passed, handler) = createCompleteHandler()
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
@@ -45,49 +44,41 @@ suite "GossipSub Component - Fanout Management":
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
-    var gossip1: GossipSub = GossipSub(nodes[0])
-    var gossip2: GossipSub = GossipSub(nodes[1])
+    discard await passed.wait(2.seconds)
 
     check:
-      "foobar" in gossip1.gossipsub
-      gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
-      not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
-
-    discard await passed.wait(2.seconds)
+      "foobar" in nodes[0].gossipsub
+      nodes[0].fanout.hasPeerId("foobar", nodes[1].peerInfo.peerId)
+      not nodes[0].mesh.hasPeerId("foobar", nodes[1].peerInfo.peerId)
 
     check observed == 2
 
   asyncTest "GossipSub send over fanout A -> B for subscribed topic":
-    let (passed, handler) = createCompleteHandler()
+    let nodes =
+      generateNodes(2, gossip = true, unsubscribeBackoff = 10.minutes).toGossipSub()
 
-    let nodes = generateNodes(2, gossip = true, unsubscribeBackoff = 10.minutes)
+    nodes[1].parameters.d = 0
+    nodes[1].parameters.dHigh = 0
+    nodes[1].parameters.dLow = 0
 
     startNodesAndDeferStop(nodes)
-
-    GossipSub(nodes[1]).parameters.d = 0
-    GossipSub(nodes[1]).parameters.dHigh = 0
-    GossipSub(nodes[1]).parameters.dLow = 0
-
     await connectNodesStar(nodes)
 
-    nodes[0].subscribe("foobar", handler)
+    let (passed, handler) = createCompleteHandler()
     nodes[1].subscribe("foobar", handler)
+    await waitSub(nodes[0], nodes[1], "foobar")
 
-    let gsNode = GossipSub(nodes[1])
     checkUntilTimeout:
-      gsNode.mesh.getOrDefault("foobar").len == 0
-      GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0
+      nodes[0].mesh.getOrDefault("foobar").len == 0
+      nodes[1].mesh.getOrDefault("foobar").len == 0
       (
-        GossipSub(nodes[0]).gossipsub.getOrDefault("foobar").len == 1 or
-        GossipSub(nodes[0]).fanout.getOrDefault("foobar").len == 1
+        nodes[0].gossipsub.getOrDefault("foobar").len == 1 or
+        nodes[0].fanout.getOrDefault("foobar").len == 1
       )
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
-    check:
-      GossipSub(nodes[0]).fanout.getOrDefault("foobar").len > 0
-      GossipSub(nodes[0]).mesh.getOrDefault("foobar").len == 0
-
     discard await passed.wait(2.seconds)
-
-    trace "test done, stopping..."
+    check:
+      nodes[0].mesh.getOrDefault("foobar").len == 0
+      nodes[0].fanout.getOrDefault("foobar").len == 1
