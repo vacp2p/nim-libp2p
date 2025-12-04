@@ -223,7 +223,7 @@ suite "GossipSub Component - Message Cache":
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, voidTopicHandler)
     await allFuturesThrowing(
-      waitSub(nodes[0], nodes[1], topic),
+      waitSub(nodes[0], nodes[1], topic), #
       waitSub(nodes[1], nodes[0], topic),
     )
 
