@@ -38,7 +38,8 @@ proc setupTest(): Future[
 
   nodes[0].subscribe("foobar", handlerA)
   nodes[1].subscribe("foobar", handlerB)
-  await waitSubGraph(nodes, "foobar")
+  checkUntilTimeout:
+    nodes.allIt(it.gossipsub.getOrDefault("foobar").len == nodes.len - 1)
 
   return (nodes[0], nodes[1], receivedMessages)
 
@@ -201,7 +202,6 @@ suite "GossipSub Component - Message Handling":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
-
     checkUntilTimeout:
       nodes.allIt(it.mesh.getOrDefault(topic).len == numberOfNodes - 1)
 
@@ -223,19 +223,15 @@ suite "GossipSub Component - Message Handling":
       check topic == "foobar"
       handlerFut.complete(true)
 
-    let nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
-
-    var subs: seq[Future[void]]
-    subs &= waitSub(nodes[1], nodes[0], "foobar")
-    subs &= waitSub(nodes[0], nodes[1], "foobar")
-
-    await allFuturesThrowing(subs)
+    checkUntilTimeout:
+      nodes.allIt(it.mesh.getOrDefault("foobar").len == nodes.len - 1)
 
     var validatorFut = newFuture[bool]()
     proc validator(
@@ -254,21 +250,19 @@ suite "GossipSub Component - Message Handling":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       raiseAssert "Handler should not be called when validation rejects message"
 
-    let nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
-    await waitSubGraph(nodes, "foobar")
-
-    let gossip1 = GossipSub(nodes[0])
-    let gossip2 = GossipSub(nodes[1])
+    checkUntilTimeout:
+      nodes.allIt(it.mesh.getOrDefault("foobar").len == nodes.len - 1)
 
     check:
-      gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
-      gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+      nodes[0].mesh["foobar"].len == 1 and "foobar" notin nodes[0].fanout
+      nodes[1].mesh["foobar"].len == 1 and "foobar" notin nodes[1].fanout
 
     var validatorFut = newFuture[bool]()
     proc validator(
@@ -286,22 +280,19 @@ suite "GossipSub Component - Message Handling":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       raiseAssert "Handler should not be called when validation ignores message"
 
-    let nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
-
-    await waitSubGraph(nodes, "foobar")
-
-    let gossip1 = GossipSub(nodes[0])
-    let gossip2 = GossipSub(nodes[1])
+    checkUntilTimeout:
+      nodes.allIt(it.mesh.getOrDefault("foobar").len == nodes.len - 1)
 
     check:
-      gossip1.mesh["foobar"].len == 1 and "foobar" notin gossip1.fanout
-      gossip2.mesh["foobar"].len == 1 and "foobar" notin gossip2.fanout
+      nodes[0].mesh["foobar"].len == 1 and "foobar" notin nodes[0].fanout
+      nodes[1].mesh["foobar"].len == 1 and "foobar" notin nodes[1].fanout
 
     var validatorFut = newFuture[bool]()
     proc validator(
@@ -321,7 +312,7 @@ suite "GossipSub Component - Message Handling":
       check topic == "foo"
       handlerFut.complete(true)
 
-    let nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -347,14 +338,11 @@ suite "GossipSub Component - Message Handling":
 
     check ((await passed) and (await failed) and (await handlerFut))
 
-    let gossip1 = GossipSub(nodes[0])
-    let gossip2 = GossipSub(nodes[1])
-
     check:
-      "foo" notin gossip1.mesh and gossip1.fanout["foo"].len == 1
-      "foo" notin gossip2.mesh and "foo" notin gossip2.fanout
-      "bar" notin gossip1.mesh and gossip1.fanout["bar"].len == 1
-      "bar" notin gossip2.mesh and "bar" notin gossip2.fanout
+      "foo" notin nodes[0].mesh and nodes[0].fanout["foo"].len == 1
+      "foo" notin nodes[1].mesh and "foo" notin nodes[1].fanout
+      "bar" notin nodes[0].mesh and nodes[0].fanout["bar"].len == 1
+      "bar" notin nodes[1].mesh and "bar" notin nodes[1].fanout
 
   asyncTest "GossipSub's observers should run after message is sent, received and validated":
     var
@@ -413,36 +401,34 @@ suite "GossipSub Component - Message Handling":
       check topic == "foobar"
       passed.complete(true)
 
-    let nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    checkUntilTimeout:
+      nodes.allIt(it.mesh.getOrDefault("foobar").len == nodes.len - 1)
 
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
 
     check await passed
 
-    var gossip1: GossipSub = GossipSub(nodes[0])
-    var gossip2: GossipSub = GossipSub(nodes[1])
-
     check:
-      "foobar" in gossip1.gossipsub
-      "foobar" in gossip2.gossipsub
-      gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
-      not gossip1.fanout.hasPeerId("foobar", gossip2.peerInfo.peerId)
-      gossip2.mesh.hasPeerId("foobar", gossip1.peerInfo.peerId)
-      not gossip2.fanout.hasPeerId("foobar", gossip1.peerInfo.peerId)
+      "foobar" in nodes[0].gossipsub
+      "foobar" in nodes[1].gossipsub
+      nodes[0].mesh.hasPeerId("foobar", nodes[1].peerInfo.peerId)
+      not nodes[0].fanout.hasPeerId("foobar", nodes[1].peerInfo.peerId)
+      nodes[1].mesh.hasPeerId("foobar", nodes[0].peerInfo.peerId)
+      not nodes[1].fanout.hasPeerId("foobar", nodes[0].peerInfo.peerId)
 
   asyncTest "GossipSub should not send to source & peers who already seen":
     # 3 nodes: A, B, C
     # A publishes, C relays, B is having a long validation
     # so B should not send to anyone
 
-    let nodes = generateNodes(3, gossip = true)
+    let nodes = generateNodes(3, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -467,11 +453,8 @@ suite "GossipSub Component - Message Handling":
     nodes[0].subscribe("foobar", handlerA)
     nodes[1].subscribe("foobar", handlerB)
     nodes[2].subscribe("foobar", handlerC)
-    await waitSubGraph(nodes, "foobar")
-
-    var gossip1: GossipSub = GossipSub(nodes[0])
-    var gossip2: GossipSub = GossipSub(nodes[1])
-    var gossip3: GossipSub = GossipSub(nodes[2])
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault("foobar").len == nodes.len - 1)
 
     proc slowValidator(
         topic: string, message: Message
@@ -479,12 +462,12 @@ suite "GossipSub Component - Message Handling":
       try:
         await cRelayed.wait()
         # Empty A & C caches to detect duplicates
-        gossip1.seen = TimedCache[SaltedId].init()
-        gossip3.seen = TimedCache[SaltedId].init()
-        let msgId = toSeq(gossip2.validationSeen.keys)[0]
+        nodes[0].seen = TimedCache[SaltedId].init()
+        nodes[2].seen = TimedCache[SaltedId].init()
+        let msgId = toSeq(nodes[1].validationSeen.keys)[0]
         checkUntilTimeout(
           try:
-            gossip2.validationSeen[msgId].len > 0
+            nodes[1].validationSeen[msgId].len > 0
           except KeyError:
             false
         )
@@ -496,9 +479,9 @@ suite "GossipSub Component - Message Handling":
     nodes[1].addValidator("foobar", slowValidator)
 
     checkUntilTimeout:
-      gossip1.mesh.getOrDefault("foobar").len == 2
-      gossip2.mesh.getOrDefault("foobar").len == 2
-      gossip3.mesh.getOrDefault("foobar").len == 2
+      nodes[0].mesh.getOrDefault("foobar").len == 2
+      nodes[1].mesh.getOrDefault("foobar").len == 2
+      nodes[2].mesh.getOrDefault("foobar").len == 2
     tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 2
 
     await bFinished.wait()
@@ -509,18 +492,15 @@ suite "GossipSub Component - Message Handling":
       check topic == "foobar"
       passed.complete(true)
 
-    let nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
-    var gossip1: GossipSub = GossipSub(nodes[0])
-    gossip1.parameters.floodPublish = true
-    var gossip2: GossipSub = GossipSub(nodes[1])
-    gossip2.parameters.floodPublish = true
+    nodes[0].parameters.floodPublish = true
+    nodes[1].parameters.floodPublish = true
 
     await connectNodesStar(nodes)
 
-    # nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
     await waitSub(nodes[0], nodes[1], "foobar")
 
@@ -529,9 +509,9 @@ suite "GossipSub Component - Message Handling":
     check await passed.wait(10.seconds)
 
     check:
-      "foobar" in gossip1.gossipsub
-      "foobar" notin gossip2.gossipsub
-      not gossip1.mesh.hasPeerId("foobar", gossip2.peerInfo.peerId)
+      "foobar" in nodes[0].gossipsub
+      "foobar" notin nodes[1].gossipsub
+      not nodes[0].mesh.hasPeerId("foobar", nodes[1].peerInfo.peerId)
 
   asyncTest "GossipSub floodPublish limit":
     let
@@ -559,9 +539,9 @@ suite "GossipSub Component - Message Handling":
     await baseTestProcedure(nodes, gossip1, nodes.len - 1, nodes.len - 1)
 
   asyncTest "GossipSub with multiple peers":
-    var runs = 10
+    const runs = 10
 
-    let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+    let nodes = generateNodes(runs, gossip = true, triggerSelf = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -595,15 +575,12 @@ suite "GossipSub Component - Message Handling":
         v >= 1
 
     for node in nodes:
-      var gossip = GossipSub(node)
-
       check:
-        "foobar" in gossip.gossipsub
+        "foobar" in node.gossipsub
 
   asyncTest "GossipSub with multiple peers (sparse)":
-    var runs = 10
-
-    let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+    const runs = 10
+    let nodes = generateNodes(runs, gossip = true, triggerSelf = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesSparse(nodes)
@@ -643,11 +620,10 @@ suite "GossipSub Component - Message Handling":
         v >= 1
 
     for node in nodes:
-      var gossip = GossipSub(node)
       check:
-        "foobar" in gossip.gossipsub
-        gossip.fanout.len == 0
-        gossip.mesh["foobar"].len > 0
+        "foobar" in node.gossipsub
+        node.fanout.len == 0
+        node.mesh["foobar"].len > 0
 
   asyncTest "GossipSub with multiple peers - control deliver (sparse)":
     var runs = 10

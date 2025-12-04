@@ -434,12 +434,6 @@ template startNodesAndDeferStop*[T: PubSub](nodes: seq[T]): untyped =
   defer:
     await stopNodes(nodes)
 
-template waitForSubscribe*[T: PubSub](nodes: seq[T], topic: string): untyped =
-  for node in nodes:
-    let n = node
-    checkUntilTimeout:
-      topic in n.mesh
-
 template waitForNotSubscribed*[T: PubSub](nodes: seq[T], topic: string): untyped =
   for node in nodes:
     let n = node
@@ -449,13 +443,10 @@ template waitForNotSubscribed*[T: PubSub](nodes: seq[T], topic: string): untyped
       topic notin n.gossipsub
 
 template subscribeAllNodes*[T: PubSub](
-    nodes: seq[T], topic: string, topicHandler: TopicHandler, wait: bool = true
+    nodes: seq[T], topic: string, topicHandler: TopicHandler
 ): untyped =
   for node in nodes:
     node.subscribe(topic, topicHandler)
-
-  if wait:
-    waitForSubscribe(nodes, topic)
 
 template unsubscribeAllNodes*[T: PubSub](
     nodes: seq[T], topic: string, topicHandler: TopicHandler, wait: bool = true
