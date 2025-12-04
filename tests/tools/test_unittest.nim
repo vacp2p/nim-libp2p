@@ -85,28 +85,28 @@ suite "checkUntilTimeout helpers - failed":
     checkUntilTimeoutCustom(100.milliseconds, 10.milliseconds):
       false
 
-suite "waitUntilTimeout helpers":
-  asyncTest "waitUntilTimeout should pass after few attempts":
+suite "untilTimeout helpers":
+  asyncTest "untilTimeout should pass after few attempts":
     let a = 2
     var b = 0
 
-    waitUntilTimeout:
+    untilTimeout:
       pre:
         b.inc
       check:
         a == b
 
-    # final check ensures that waitUntilTimeout is actually called
+    # final check ensures that untilTimeout is actually called
     check:
       a == b
 
-  asyncTest "waitUntilTimeout should pass after few attempts: multi condition":
+  asyncTest "untilTimeout should pass after few attempts: multi condition":
     let goal1 = 2
     let goal2 = 4
     var val1 = 0
     var val2 = 0
 
-    waitUntilTimeout:
+    untilTimeout:
       pre:
         val1.inc
         val2.inc
@@ -115,7 +115,7 @@ suite "waitUntilTimeout helpers":
         val1 == goal1
         val2 == goal2
 
-    # final check ensures that waitUntilTimeout is actually called
+    # final check ensures that untilTimeout is actually called
     check:
       val1 == goal1
       val2 == goal2

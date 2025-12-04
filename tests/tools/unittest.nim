@@ -66,7 +66,7 @@ const
   timeoutDefault: Duration = 30.seconds
   sleepIntervalDefault: Duration = 50.milliseconds
 
-macro waitUntilTimeout*(args: untyped): untyped =
+macro untilTimeout*(args: untyped): untyped =
   ## Periodically checks a given condition until it is true or a timeout occurs.
   ## 
   ## `pre`: untyped - Any logic that needs to be updated before calling `check`.
@@ -75,13 +75,13 @@ macro waitUntilTimeout*(args: untyped): untyped =
   ## Examples:
   ##   ```nim
   ##   # Example 1:
-  ##   waitUntilTimeout:
+  ##   untilTimeout:
   ##     pre:
   ##       let value = getLatestValue()
   ##     check:
   ##       value == 3
   if args.kind != nnkStmtList:
-    error "waitUntilTimeout requires a block with check: and pre:"
+    error "untilTimeout requires a block with check: and pre:"
 
   var checkBlock: NimNode = nil
   var preconditionBlock: NimNode = nil
@@ -93,7 +93,7 @@ macro waitUntilTimeout*(args: untyped): untyped =
       preconditionBlock = stmt[1]
 
   if checkBlock.isNil or preconditionBlock.isNil:
-    error "waitUntilTimeout block must contain both `check:` and `pre:` sections."
+    error "untilTimeout block must contain both `check:` and `pre:` sections."
 
   let combinedBoolExpr = buildAndExpr(checkBlock)
 
