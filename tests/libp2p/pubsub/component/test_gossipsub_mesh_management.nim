@@ -90,8 +90,10 @@ suite "GossipSub Component - Mesh Management":
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[1], nodes[0], "foobar")
-    await waitSub(nodes[0], nodes[1], "foobar")
+    await allFuturesThrowing( # wait for subscribe
+      waitSub(nodes[1], nodes[0], "foobar"), #
+      waitSub(nodes[0], nodes[1], "foobar"),
+    )
 
     check:
       "foobar" in nodes[0].topics
@@ -174,11 +176,12 @@ suite "GossipSub Component - Mesh Management":
     # When all of them are connected and subscribed to the same topic
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
     # Then mesh and gossipsub should be populated
-    for n in nodes:
-      let node = n
-      checkUntilTimeout:
+    for node in nodes:
+      check:
         node.topics.contains(topic)
         node.gossipsub.hasKey(topic)
         node.gossipsub[topic].len() == numberOfNodes - 1
@@ -245,7 +248,7 @@ suite "GossipSub Component - Mesh Management":
     # Nodes are connected to Node0
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
-    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     checkUntilTimeout:
       topic in nodes[0].mesh and nodes[0].mesh[topic].len == numberOfNodes - 1
 
@@ -295,7 +298,7 @@ suite "GossipSub Component - Mesh Management":
     # Nodes are connected to Node0
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
-    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     checkUntilTimeout:
       topic in nodes[0].mesh and nodes[0].mesh[topic].len == numberOfNodes - 1
 
@@ -335,8 +338,9 @@ suite "GossipSub Component - Mesh Management":
     await connectNodes(nodes[0], nodes[1]) # Out
     await connectNodes(nodes[0], nodes[2]) # Out
     await connectNodes(nodes[3], nodes[0]) # In
-    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
-    await allFuturesThrowing(
+
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await allFuturesThrowing( # wait for subscribe
       waitSub(nodes[0], nodes[1], topic),
       waitSub(nodes[0], nodes[2], topic),
       waitSub(nodes[3], nodes[0], topic),
