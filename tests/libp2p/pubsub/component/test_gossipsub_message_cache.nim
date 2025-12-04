@@ -30,7 +30,6 @@ suite "GossipSub Component - Message Cache":
 
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -57,7 +56,6 @@ suite "GossipSub Component - Message Cache":
 
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -74,7 +72,7 @@ suite "GossipSub Component - Message Cache":
 
     # Then history is cleared when the position with the message is reached again
     # And message is removed
-    check:
+    checkUntilTimeout:
       nodes[1].mcache.window(topic).len == 0
       not nodes[1].mcache.contains(messageId)
 
@@ -98,10 +96,10 @@ suite "GossipSub Component - Message Cache":
 
     startNodesAndDeferStop(nodes)
 
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+
+    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    await waitSub(nodes[0], nodes[1], topic)
 
     # Add observer to NodeOutsideMesh for received IHave messages
     var (receivedIHaves, checkForIHaves) = createCheckForIHave()
@@ -122,7 +120,7 @@ suite "GossipSub Component - Message Cache":
     await waitForHeartbeat(2 * historyGossip)
 
     # Then nodeInsideMesh receives 3 (historyGossip) IHave messages
-    check:
+    checkUntilTimeout:
       receivedIHaves[].len == historyGossip
 
   asyncTest "Message is retrieved from cache when handling IWant and relayed to a peer outside the mesh":
@@ -145,10 +143,10 @@ suite "GossipSub Component - Message Cache":
 
     startNodesAndDeferStop(nodes)
 
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+
+    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    await waitSub(nodes[0], nodes[1], topic)
 
     # Add observer to Node0 for received IWant messages
     var (receivedIWantsNode0, checkForIWant) = createCheckForIWant()
@@ -196,7 +194,6 @@ suite "GossipSub Component - Message Cache":
 
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -225,7 +222,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodes(nodes[0], nodes[1])
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitSub(nodes[0], nodes[1], topic)
 
     # When Node0 publishes two messages to the topic
     tryPublish await nodes[0].publish(topic, "Hello".toBytes()), 1
@@ -246,7 +243,7 @@ suite "GossipSub Component - Message Cache":
     # When Node2 connects with Node0 and subscribes to the topic
     await connectNodes(nodes[0], nodes[2])
     nodes[2].subscribe(topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitSub(nodes[0], nodes[2], topic)
 
     # And messageIds are added to node0PeerNode2 sentIHaves to allow processing IWant
     # let node0PeerNode2 =
@@ -269,9 +266,8 @@ suite "GossipSub Component - Message Cache":
     await waitForHeartbeat()
 
     # Then Node2 receives only messageId2 and messageId1 is dropped
-    check:
-      nodes[2].mcache.window(topic).len == 1
-      nodes[2].mcache.window(topic).toSeq()[0] == messageId2
+    checkUntilTimeout:
+      nodes[2].mcache.window(topic).toSeq() == @[messageId2]
 
   asyncTest "Published messages are dropped if they are already in seen cache":
     func customMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
@@ -289,7 +285,6 @@ suite "GossipSub Component - Message Cache":
 
     await connectNodesStar(nodes)
     nodes.subscribeAllNodes(topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     # Given Node0 has msgId already in seen cache
     let data = "Hello".toBytes()

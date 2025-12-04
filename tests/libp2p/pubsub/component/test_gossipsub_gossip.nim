@@ -56,11 +56,12 @@ suite "GossipSub Component - Gossip Protocol":
         dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(0)
       )
       nodes = generateNodes(
-        numberOfNodes,
-        gossip = true,
-        dValues = some(dValues),
-        gossipFactor = some(0.float),
-      )
+          numberOfNodes,
+          gossip = true,
+          dValues = some(dValues),
+          gossipFactor = some(0.float),
+        )
+        .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -68,16 +69,14 @@ suite "GossipSub Component - Gossip Protocol":
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
+    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    await waitSub(nodes[0], nodes[1], topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
-    await waitForHeartbeat()
 
     # None of the nodes should have received an iHave message
     let receivedIHaves = messages[].mapIt(it[].len)
@@ -105,11 +104,11 @@ suite "GossipSub Component - Gossip Protocol":
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
+    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    await waitSub(nodes[0], nodes[1], topic)
 
     checkUntilTimeout:
       nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
@@ -145,11 +144,11 @@ suite "GossipSub Component - Gossip Protocol":
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    for i in 1 ..< numberOfNodes:
-      await connectNodes(nodes[0], nodes[i])
+    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    await waitSub(nodes[0], nodes[1], topic)
 
     checkUntilTimeout:
       nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
@@ -175,9 +174,8 @@ suite "GossipSub Component - Gossip Protocol":
     # All nodes are checking for iDontWant messages
     var messages = addIDontWantObservers(nodes)
 
-    # And are connected in a line
-    await connectNodes(nodes[0], nodes[1])
-    await connectNodes(nodes[1], nodes[2])
+    # And are connected in a chain
+    await connectNodesChain(nodes)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -213,7 +211,6 @@ suite "GossipSub Component - Gossip Protocol":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubAllNodes(nodes, topic)
 
     # Setup record handlers for all nodes
     var

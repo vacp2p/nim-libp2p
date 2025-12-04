@@ -15,12 +15,12 @@ when defined(libp2p_gossipsub_1_4):
   import ../../../../libp2p/protocols/pubsub/gossipsub/preamblestore
 import ../../../tools/[unittest]
 import ../utils
+
 suite "GossipSub Component - Control Messages":
   teardown:
     checkTrackers()
 
   asyncTest "GRAFT messages correctly add peers to mesh":
-    # Given 2 nodes
     let
       topic = "foobar"
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
@@ -40,11 +40,11 @@ suite "GossipSub Component - Control Messages":
     await connectNodesStar(nodes)
 
     # And both subscribe to the topic
-    subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, voidTopicHandler)
 
     # Because of the hack-ish dValues, the peers are added to gossipsub but not GRAFTed to mesh
-    check:
+    checkUntilTimeout:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
       n1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId)
       not n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
@@ -78,7 +78,6 @@ suite "GossipSub Component - Control Messages":
       n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
   asyncTest "Received GRAFT for non-subscribed topic":
-    # Given 2 nodes
     let
       topic = "foo"
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
@@ -95,7 +94,7 @@ suite "GossipSub Component - Control Messages":
 
     # And only node0 subscribes to the topic
     nodes[0].subscribe(topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitSub(n1, n0, topic)
 
     check:
       n0.topics.hasKey(topic)
@@ -108,10 +107,9 @@ suite "GossipSub Component - Control Messages":
     # When a GRAFT message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
-    await waitForHeartbeat()
 
     # Then the peer is not GRAFTed
-    check:
+    checkUntilTimeout:
       n0.topics.hasKey(topic)
       not n1.topics.hasKey(topic)
       not n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -120,7 +118,6 @@ suite "GossipSub Component - Control Messages":
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
   asyncTest "PRUNE messages correctly removes peers from mesh":
-    # Given 2 nodes
     let
       topic = "foo"
       backoff = 1
@@ -140,7 +137,6 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -151,10 +147,9 @@ suite "GossipSub Component - Control Messages":
     # When a PRUNE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await waitForHeartbeat()
 
     # Then the peer is PRUNEd
-    check:
+    checkUntilTimeout:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
       n1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId)
       n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
@@ -163,17 +158,15 @@ suite "GossipSub Component - Control Messages":
     # When another PRUNE message is sent
     let p0 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_12])
     n1.broadcast(@[p0], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await waitForHeartbeat()
 
     # Then the peer is PRUNEd
-    check:
+    checkUntilTimeout:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
       n1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId)
       not n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
   asyncTest "Received PRUNE for non-subscribed topic":
-    # Given 2 nodes
     let
       topic = "foo"
       pruneMessage =
@@ -191,7 +184,7 @@ suite "GossipSub Component - Control Messages":
 
     # And only node0 subscribes to the topic 
     n0.subscribe(topic, voidTopicHandler)
-    await waitForHeartbeat()
+    await waitSub(n1, n0, topic)
 
     check:
       n0.topics.hasKey(topic)
@@ -204,10 +197,9 @@ suite "GossipSub Component - Control Messages":
     # When a PRUNE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
     n0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
-    await waitForHeartbeat()
 
     # Then the peer is not PRUNEd
-    check:
+    checkUntilTimeout:
       n0.topics.hasKey(topic)
       not n1.topics.hasKey(topic)
       not n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -216,7 +208,6 @@ suite "GossipSub Component - Control Messages":
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
   asyncTest "IHAVE messages correctly advertise message ID to peers":
-    # Given 2 nodes
     let
       topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
@@ -239,7 +230,6 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -250,16 +240,12 @@ suite "GossipSub Component - Control Messages":
     n0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
 
     # Wait until IHAVE response is received
-    checkUntilTimeout:
-      receivedIHaves[].len == 1
-
     # Then the peer has exactly one IHAVE message with the correct message ID
-    check:
-      receivedIHaves[].len == 1
-      receivedIHaves[0] == ControlIHave(topicID: topic, messageIDs: @[messageID])
+    checkUntilTimeout:
+      receivedIHaves[].len == 1 and
+        receivedIHaves[0] == ControlIHave(topicID: topic, messageIDs: @[messageID])
 
   asyncTest "IWANT messages correctly request messages by their IDs":
-    # Given 2 nodes
     let
       topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
@@ -281,7 +267,6 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -292,16 +277,12 @@ suite "GossipSub Component - Control Messages":
     n0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
 
     # Wait until IWANT response is received
-    checkUntilTimeout:
-      receivedIWants[].len == 1
-
     # Then the peer has exactly one IWANT message with the correct message ID
-    check:
-      receivedIWants[].len == 1
-      receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
+    checkUntilTimeout:
+      receivedIWants[].len == 1 and
+        receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IHAVE for message not held by peer triggers IWANT response to sender":
-    # Given 2 nodes
     let
       topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
@@ -331,24 +312,20 @@ suite "GossipSub Component - Control Messages":
     n0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
 
     # Wait until IWANT response is received
-    checkUntilTimeout:
-      receivedIWants[].len == 1
-
     # Then node0 should receive exactly one IWANT message from node1
-    check:
-      receivedIWants[].len == 1
-      receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
+    checkUntilTimeout:
+      receivedIWants[].len == 1 and
+        receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IDONTWANT":
-    # 3 nodes: A <=> B <=> C (A & C are NOT connected) 
     let
       topic = "foobar"
       nodes = generateNodes(3, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
-    await connectNodes(nodes[1], nodes[2])
+    # Nodes in chain connection
+    await connectNodesChain(nodes)
 
     let (bFinished, handlerB) = createCompleteHandler()
 
@@ -387,7 +364,6 @@ suite "GossipSub Component - Control Messages":
       toSeq(nodes[0].mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
 
   asyncTest "IDONTWANT is broadcasted on publish":
-    # 2 nodes: A <=> B
     let
       topic = "foobar"
       nodes =
@@ -395,7 +371,7 @@ suite "GossipSub Component - Control Messages":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connectNodesStar(nodes)
 
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, voidTopicHandler)
@@ -410,12 +386,10 @@ suite "GossipSub Component - Control Messages":
 
   when defined(libp2p_gossipsub_1_4):
     asyncTest "emit IMReceiving while handling preamble control msg":
-      # Given GossipSub node with 1 peer
       let
         topic = "foobar"
         totalPeers = 2
-
-      let
+        messageID = @[1.byte, 2, 3, 4]
         nodes = generateNodes(totalPeers, gossip = true).toGossipSub()
         n0 = nodes[0]
         n1 = nodes[1]
@@ -427,14 +401,12 @@ suite "GossipSub Component - Control Messages":
 
       # And both subscribe to the topic
       subscribeAllNodes(nodes, topic, voidTopicHandler)
-      await waitForHeartbeat()
 
-      let msgId = @[1.byte, 2, 3, 4]
       let preambles =
         @[
           ControlPreamble(
             topicID: topic,
-            messageID: msgId,
+            messageID: messageID,
             messageLength: preambleMessageSizeThreshold + 1,
           )
         ]
@@ -447,11 +419,9 @@ suite "GossipSub Component - Control Messages":
 
       check:
         p1.preambleBudget == PreamblePeerBudget - 1 # Preamble budget should decrease
-        p1.heIsSendings.hasKey(msgId)
-        n0.ongoingReceives.hasKey(msgId)
-
-      await waitForHeartbeat()
+        p1.heIsSendings.hasKey(messageID)
+        n0.ongoingReceives.hasKey(messageID)
 
       let p2 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_14])
-      check:
-        p2.heIsReceivings.hasKey(msgId)
+      checkUntilTimeout:
+        p2.heIsReceivings.hasKey(messageID)

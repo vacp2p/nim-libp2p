@@ -20,10 +20,8 @@ type DummyConnection* = ref object of Connection
 
 method write*(
     self: DummyConnection, msg: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
-  let fut = newFuture[void]()
-  fut.complete()
-  return fut
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
+  discard
 
 proc new*(T: typedesc[DummyConnection]): DummyConnection =
   let instance = T()
@@ -85,14 +83,9 @@ suite "GossipSub Component - Custom Connection Support":
     nodes[1].subscribe(topic, voidTopicHandler)
     await waitSub(nodes[0], nodes[1], topic)
 
-    var raised = false
-    try:
+    expect AssertionDefect:
       discard await nodes[0].publish(
         topic,
         "hello".toBytes(),
         publishParams = some(PublishParams(useCustomConn: true)),
       )
-    except Defect:
-      raised = true
-
-    check raised
