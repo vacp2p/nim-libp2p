@@ -96,6 +96,7 @@ suite "waitUntilTimeout helpers":
       check:
         a == b
 
+    # final check ensures that waitUntilTimeout is actually called
     check:
       a == b
 
@@ -114,6 +115,7 @@ suite "waitUntilTimeout helpers":
         val1 == goal1
         val2 == goal2
 
+    # final check ensures that waitUntilTimeout is actually called
     check:
       val1 == goal1
       val2 == goal2
