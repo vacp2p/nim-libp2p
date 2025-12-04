@@ -18,8 +18,8 @@ import chronos, results
 
 import ../../../[types]
 import ../../../../libp2p
-import ../../../../libp2p/nameresolving/dnsresolver
-import ../../../../libp2p/nameresolving/nameresolver
+import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
+import ../../../../libp2p/protocols/pubsub/gossipsub
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -35,7 +35,12 @@ proc createLibp2p(appCallbacks: AppCallbacks): LibP2P =
   let dnsResolver =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress("1.1.1.1:53")])))
   let switch = newStandardSwitch(nameResolver = dnsResolver)
-  LibP2P(switch: switch)
+
+  # TODO: this should be optional depending on parameters
+  let gossipSub = GossipSub.init(switch = switch, triggerSelf = true)
+  switch.mount(gossipSub)
+
+  LibP2P(switch: switch, gossipSub: gossipSub)
 
 proc createShared*(
     T: type LifecycleRequest, op: LifecycleMsgType, appCallbacks: AppCallbacks = nil
