@@ -57,10 +57,10 @@ proc createSwitches(n: int): seq[Switch] =
   switches
 
 proc startAll(switches: seq[Switch]) {.async.} =
-  await allFuturesThrowing(switches.mapIt(it.start()))
+  await allFuturesDiscarding(switches.mapIt(it.start()))
 
 proc stopAll(switches: seq[Switch]) {.async.} =
-  await allFuturesThrowing(switches.mapIt(it.stop()))
+  await allFuturesDiscarding(switches.mapIt(it.stop()))
 
 proc startAndConnect(switch: Switch, switches: seq[Switch]) {.async.} =
   await switch.start()
@@ -335,7 +335,7 @@ suite "AutonatV2 Service":
     await awaiter
     check service.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
     let
@@ -400,7 +400,7 @@ suite "AutonatV2 Service":
     check service2.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop(), switch3.stop())
 
   asyncTest "Must work for one peer when two peers ask each other at the same time with max 1 conn per peer":
     let
@@ -454,7 +454,7 @@ suite "AutonatV2 Service":
     # Make sure remote peer can't create a connection to us
     check switch1.connManager.connCount(switch2.peerInfo.peerId) == 1
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "Must work with low maxConnections":
     let (service, client) = newService(
@@ -524,4 +524,4 @@ suite "AutonatV2 Service":
 
     await sleepAsync(250.milliseconds)
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())

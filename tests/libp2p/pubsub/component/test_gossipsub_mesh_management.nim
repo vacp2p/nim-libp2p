@@ -338,9 +338,8 @@ suite "GossipSub Component - Mesh Management":
     await connectNodes(nodes[0], nodes[1]) # Out
     await connectNodes(nodes[0], nodes[2]) # Out
     await connectNodes(nodes[3], nodes[0]) # In
-
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await allFuturesThrowing( # wait for subscribe
+    await allFuturesDiscarding(
       waitSub(nodes[0], nodes[1], topic),
       waitSub(nodes[0], nodes[2], topic),
       waitSub(nodes[3], nodes[0], topic),

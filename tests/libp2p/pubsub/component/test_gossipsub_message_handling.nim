@@ -24,7 +24,7 @@ proc setupTest(): Future[
     ]
 ] {.async.} =
   let nodes = generateNodes(2, gossip = true, verifySignature = false).toGossipSub()
-  await allFuturesThrowing(nodes[0].switch.start(), nodes[1].switch.start())
+  await allFuturesDiscarding(nodes[0].switch.start(), nodes[1].switch.start())
 
   await connectNodes(nodes[1], nodes[0])
 
@@ -44,7 +44,7 @@ proc setupTest(): Future[
   return (nodes[0], nodes[1], receivedMessages)
 
 proc teardownTest(gossip0: GossipSub, gossip1: GossipSub) {.async.} =
-  await allFuturesThrowing(gossip0.switch.stop(), gossip1.switch.stop())
+  await allFuturesDiscarding(gossip0.switch.stop(), gossip1.switch.stop())
 
 proc createMessages(
     gossip0: GossipSub, gossip1: GossipSub, size1: int, size2: int

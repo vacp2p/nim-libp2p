@@ -151,7 +151,7 @@ suite "BufferStream":
           let x = await buff.readOnce(addr data[0], data.len)
           str2 &= string.fromBytes(data[0 ..< x])
 
-    await allFuturesThrowing(allFinished(reader(), writer()))
+    await allFuturesDiscarding(allFinished(reader(), writer()))
     check str == str2
     await buff.close()
 

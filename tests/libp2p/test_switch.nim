@@ -81,7 +81,7 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
+    await allFuturesDiscarding(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
     )
 
@@ -128,7 +128,7 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
+    await allFuturesDiscarding(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
     )
 
@@ -170,7 +170,7 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
+    await allFuturesDiscarding(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
     )
 
@@ -210,7 +210,7 @@ suite "Switch":
     let msg = string.fromBytes(await conn.readLp(1024))
     check "Hello!" == msg
 
-    await allFuturesThrowing(conn.close(), switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(conn.close(), switch1.stop(), switch2.stop())
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -241,7 +241,7 @@ suite "Switch":
 
     await switch2.disconnect(switch1.peerInfo.peerId)
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "e2e connect to peer with known PeerId":
     let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
@@ -271,7 +271,7 @@ suite "Switch":
 
     await switch2.disconnect(switch1.peerInfo.peerId)
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should not leak on peer disconnect":
     let switch1 = newStandardSwitch()
@@ -306,7 +306,7 @@ suite "Switch":
           switch2.connManager.inSema.count, switch2.connManager.outSema.count,
         ]
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger connection events (remote)":
     let switch1 = newStandardSwitch()
@@ -354,7 +354,7 @@ suite "Switch":
     check:
       kinds == {ConnEventKind.Connected, ConnEventKind.Disconnected}
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger connection events (local)":
     let switch1 = newStandardSwitch()
@@ -402,7 +402,7 @@ suite "Switch":
     check:
       kinds == {ConnEventKind.Connected, ConnEventKind.Disconnected}
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events (remote)":
     let switch1 = newStandardSwitch()
@@ -451,7 +451,7 @@ suite "Switch":
     check:
       kinds == {PeerEventKind.Joined, PeerEventKind.Left}
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events (local)":
     let switch1 = newStandardSwitch()
@@ -500,7 +500,7 @@ suite "Switch":
     check:
       kinds == {PeerEventKind.Joined, PeerEventKind.Left}
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events only once per peer":
     let switch1 = newStandardSwitch()
@@ -561,7 +561,7 @@ suite "Switch":
     check:
       kinds == {PeerEventKind.Joined, PeerEventKind.Left}
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop(), switch3.stop())
 
   asyncTest "e2e should allow dropping peer from connection events":
     # use same private keys to emulate two connection from same peer
@@ -597,7 +597,7 @@ suite "Switch":
 
     await onDisconnect.wait()
 
-    await allFuturesThrowing(switches.mapIt(it.stop()))
+    await allFuturesDiscarding(switches.mapIt(it.stop()))
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
     let privateKey = PrivateKey.random(rng[]).tryGet()
@@ -642,7 +642,7 @@ suite "Switch":
       not isCounterLeaked(LPChannelTrackerName)
       not isCounterLeaked(SecureConnTrackerName)
 
-    await allFuturesThrowing(switches[0].stop())
+    await allFuturesDiscarding(switches[0].stop())
 
   asyncTest "e2e closing remote conn should not leak":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
@@ -669,7 +669,7 @@ suite "Switch":
     checkTracker(SecureConnTrackerName)
     checkTracker(ChronosStreamTrackerName)
 
-    await allFuturesThrowing(transport.stop(), switch.stop())
+    await allFuturesDiscarding(transport.stop(), switch.stop())
 
   asyncTest "e2e calling closeWithEOF on the same stream should not assert":
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
@@ -699,7 +699,7 @@ suite "Switch":
     for i in 0 .. 10:
       readers.add(closeReader())
 
-    await allFuturesThrowing(readers)
+    await allFuturesDiscarding(readers)
     await switch2.stop() #Otherwise this leaks
     checkUntilTimeout:
       not switch1.isConnected(switch2.peerInfo.peerId)
@@ -746,7 +746,7 @@ suite "Switch":
       )
     )
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesDiscarding(allFutures(switches.mapIt(it.stop())))
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
@@ -771,7 +771,7 @@ suite "Switch":
     switches.add(srcSwitch)
     switches.add(dstSwitch)
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesDiscarding(allFutures(switches.mapIt(it.stop())))
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
@@ -799,7 +799,7 @@ suite "Switch":
       )
     )
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesDiscarding(allFutures(switches.mapIt(it.stop())))
 
   asyncTest "e2e max outgoing connection limits":
     var switches: seq[Switch]
@@ -824,7 +824,7 @@ suite "Switch":
     switches.add(srcSwitch)
     switches.add(dstSwitch)
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesDiscarding(allFutures(switches.mapIt(it.stop())))
 
   asyncTest "e2e peer store":
     let handleFinished = newWaitGroup(1)
@@ -861,7 +861,7 @@ suite "Switch":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(
+    await allFuturesDiscarding(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
     )
 
@@ -912,7 +912,7 @@ suite "Switch":
     let switch3 =
       newStandardSwitch(addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
 
-    await allFuturesThrowing(switch1.start(), switch2.start(), switch3.start())
+    await allFuturesDiscarding(switch1.start(), switch2.start(), switch3.start())
 
     check IP4.matchPartial(switch1.peerInfo.addrs[0])
     check IP6.matchPartial(switch1.peerInfo.addrs[1])
@@ -939,7 +939,7 @@ suite "Switch":
     check "Hello!" == string.fromBytes(await connv6.readLp(1024))
     await connv6.close()
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop())
+    await allFuturesDiscarding(switch1.stop(), switch2.stop(), switch3.stop())
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -1166,4 +1166,4 @@ suite "Switch":
     await switch.start()
     await switch.start()
 
-    await allFuturesThrowing(switch.stop())
+    await allFuturesDiscarding(switch.stop())

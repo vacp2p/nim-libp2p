@@ -171,7 +171,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-    await allFuturesThrowing(allFutures(muxs.mapIt(it.close())))
+    await allFuturesDiscarding(allFutures(muxs.mapIt(it.close())))
 
   asyncTest "expect connection from peer":
     # FIXME This should be 1 instead of 0, it will get fixed soon
@@ -208,7 +208,7 @@ suite "Connection Manager":
     checkUntilTimeout:
       waitedConn3.cancelled()
 
-    await allFuturesThrowing(allFutures(muxs.mapIt(it.close())))
+    await allFuturesDiscarding(allFutures(muxs.mapIt(it.close())))
 
   asyncTest "cleanup on connection close":
     let connMngr = ConnManager.new()
@@ -373,7 +373,7 @@ suite "Connection Manager":
 
     check (await incomingSlot.withTimeout(10.millis)) == false
 
-    await allFuturesThrowing(allFutures(muxs.mapIt(it.close())))
+    await allFuturesDiscarding(allFutures(muxs.mapIt(it.close())))
 
     check await incomingSlot.withTimeout(10.millis)
 
