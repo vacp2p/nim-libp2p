@@ -8,6 +8,7 @@
 # those terms.
 
 import ../libp2p
+import ../libp2p/protocols/pubsub/gossipsub
 
 # TODO: remove and implement custom event callbacks if needed
 # Example:
@@ -19,3 +20,4 @@ type AppCallbacks* = ref object
 
 type LibP2P* = ref object
   switch*: Switch
+  gossipSub*: GossipSub
