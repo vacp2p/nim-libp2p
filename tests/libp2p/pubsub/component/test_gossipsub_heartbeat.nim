@@ -225,12 +225,10 @@ suite "GossipSub Component - Heartbeat":
 
     # Then Node0 fanout peers are replenished during heartbeat
     # expecting 10[numberOfNodes] - 1[Node0] - (6[maxFanoutPeers] - 1[first peer not disconnected]) = 4
-    waitUntilTimeout:
-      pre:
-        let expectedLen = numberOfNodes - 1 - (maxFanoutPeers - 1)
-      check:
-        node0.fanout[topic].len == expectedLen
-        node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
+    let expectedLen = numberOfNodes - 1 - (maxFanoutPeers - 1)
+    checkUntilTimeout:
+      node0.fanout[topic].len == expectedLen
+      node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
     const
