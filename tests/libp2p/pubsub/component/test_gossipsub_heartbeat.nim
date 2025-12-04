@@ -147,35 +147,36 @@ suite "GossipSub Component - Heartbeat":
         expectedGrafts &= peer
 
     # Then during heartbeat Peers with lower than median scores are pruned and max 2 Peers are grafted
-    await waitForHeartbeat(heartbeatInterval)
 
-    let actualGrafts = node0.mesh[topic].toSeq().filterIt(it notin startingMesh)
-    check:
-      actualGrafts.len == MaxOpportunisticGraftPeers
-      actualGrafts.allIt(it in expectedGrafts)
+    untilTimeout:
+      pre:
+        let actualGrafts = node0.mesh[topic].toSeq().filterIt(it notin startingMesh)
+      check:
+        actualGrafts.len == MaxOpportunisticGraftPeers
+        actualGrafts.allIt(it in expectedGrafts)
 
   asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
     const
       numberOfNodes = 10
       topic = "foobar"
       heartbeatInterval = 200.milliseconds
-    let nodes = generateNodes(
-        numberOfNodes,
-        gossip = true,
-        fanoutTTL = 60.milliseconds,
-        heartbeatInterval = heartbeatInterval,
-      )
-      .toGossipSub()
+    let
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          fanoutTTL = 60.milliseconds,
+          heartbeatInterval = heartbeatInterval,
+        )
+        .toGossipSub()
+      node0 = nodes[0]
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     # All nodes but Node0 are subscribed to the topic
-    for node in nodes[1 .. ^1]:
-      node.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes[1 .. ^1], topic, voidTopicHandler)
     await waitForHeartbeat(heartbeatInterval)
 
-    let node0 = nodes[0]
     checkUntilTimeout:
       node0.gossipsub.hasKey(topic)
 
@@ -207,8 +208,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesStar(nodes)
 
     # All nodes but Node0 are subscribed  to the topic
-    for node in nodes[1 .. ^1]:
-      node.subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes[1 .. ^1], topic, voidTopicHandler)
     await waitForHeartbeat(heartbeatInterval)
 
     # When Node0 sends a message to the topic

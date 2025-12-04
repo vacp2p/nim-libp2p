@@ -11,7 +11,7 @@
 
 import chronos, std/[sequtils]
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
-import ../../../tools/[unittest]
+import ../../../tools/[unittest, futures]
 import ../utils
 
 suite "GossipSub Component - Mesh Management":
@@ -176,21 +176,24 @@ suite "GossipSub Component - Mesh Management":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
 
     # Then mesh and gossipsub should be populated
-    for node in nodes:
-      check node.topics.contains(topic)
-      check node.gossipsub.hasKey(topic)
-      check node.gossipsub[topic].len() == numberOfNodes - 1
-      check node.mesh.hasKey(topic)
-      check node.mesh[topic].len() == numberOfNodes - 1
+    for n in nodes:
+      let node = n
+      checkUntilTimeout:
+        node.topics.contains(topic)
+        node.gossipsub.hasKey(topic)
+        node.gossipsub[topic].len() == numberOfNodes - 1
+        node.mesh.hasKey(topic)
+        node.mesh[topic].len() == numberOfNodes - 1
 
     # When all nodes unsubscribe from the topic
     unsubscribeAllNodes(nodes, topic, voidTopicHandler)
 
     # Then the topic should be removed from mesh and gossipsub
     for node in nodes:
-      check topic notin node.topics
-      check topic notin node.mesh
-      check topic notin node.gossipsub
+      check:
+        topic notin node.topics
+        topic notin node.mesh
+        topic notin node.gossipsub
 
   asyncTest "handle subscribe and unsubscribe for multiple topics":
     let
@@ -333,6 +336,11 @@ suite "GossipSub Component - Mesh Management":
     await connectNodes(nodes[0], nodes[2]) # Out
     await connectNodes(nodes[3], nodes[0]) # In
     subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
+    await allFuturesThrowing(
+      waitSub(nodes[0], nodes[1], topic),
+      waitSub(nodes[0], nodes[2], topic),
+      waitSub(nodes[3], nodes[0], topic),
+    )
 
     checkUntilTimeout:
       nodes[0].mesh.outboundPeers(topic) == 2
