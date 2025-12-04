@@ -120,4 +120,5 @@ jobs:
           list-suites: 'failed'
           list-tests: 'failed'
           fail-on-error: 'false'
+          only-summary: 'true'
           use-actions-summary: ${{ steps.run-tests.outcome == 'failure' }}
