@@ -39,7 +39,8 @@ suite "GossipSub Component - Scoring":
     # Nodes are subscribed to the same topic
     nodes[1].subscribe(topic, handler1)
     nodes[2].subscribe(topic, handler2)
-    await waitForHeartbeat()
+    await waitSub(nodes[0], nodes[1], topic)
+    await waitSub(nodes[0], nodes[2], topic)
 
     # Given node 2's score is below the threshold
     for peer in g0.gossipsub.getOrDefault(topic):
@@ -245,7 +246,7 @@ suite "GossipSub Component - Scoring":
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handler)
-    await waitForHeartbeat()
+    await waitSub(nodes[0], nodes[1], topic)
 
     nodes[1].updateScores()
 
@@ -345,7 +346,7 @@ suite "GossipSub Component - Scoring":
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handler)
-    await waitForHeartbeat()
+    await waitSub(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(topic, toBytes("hello")), 1
 
