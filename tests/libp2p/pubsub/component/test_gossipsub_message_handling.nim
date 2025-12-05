@@ -732,7 +732,7 @@ suite "GossipSub Component - Message Handling":
     node1.addObserver(PubSubObserver(onRecv: observer1))
 
     # Connect them as direct peers
-    await allFuturesThrowing(
+    await allFuturesDiscarding(
       node0.addDirectPeer(node1.peerInfo.peerId, node1.peerInfo.addrs),
       node1.addDirectPeer(node0.peerInfo.peerId, node0.peerInfo.addrs),
     )

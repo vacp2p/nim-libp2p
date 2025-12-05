@@ -90,7 +90,7 @@ suite "GossipSub Component - Mesh Management":
 
     nodes[0].subscribe("foobar", handler)
     nodes[1].subscribe("foobar", handler)
-    await allFuturesThrowing( # wait for subscribe
+    await allFuturesDiscarding( # wait for subscribe
       waitSub(nodes[1], nodes[0], "foobar"), #
       waitSub(nodes[0], nodes[1], "foobar"),
     )
