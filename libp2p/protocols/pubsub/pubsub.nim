@@ -130,7 +130,7 @@ type
   TopicHandler* {.public.} =
     proc(topic: string, data: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
-  ValidatorHandler* {.public, size: sizeof(uint32).} = proc(
+  ValidatorHandler* {.public.} = proc(
     topic: string, message: Message
   ): Future[ValidationResult] {.gcsafe, raises: [].}
 

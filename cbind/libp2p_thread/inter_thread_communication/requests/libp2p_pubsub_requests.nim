@@ -33,7 +33,7 @@ proc createShared*(
     topic: cstring = "",
     topicHandler: pointer = nil,
     topics: ptr cstring = nil,
-    topicsLen: csize_t,
+    topicsLen: csize_t = 0,
     hook: pointer = nil,
     timeout = InfiniteDuration,
 ): ptr type T =
