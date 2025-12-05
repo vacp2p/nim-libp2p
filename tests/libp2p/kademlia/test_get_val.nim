@@ -10,10 +10,12 @@
 {.used.}
 
 from std/times import now, utc
-import chronos
+import chronos, chronicles
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
+
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT - GetVal":
   teardown:
