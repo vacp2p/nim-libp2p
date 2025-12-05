@@ -55,4 +55,4 @@ suite "Dialer":
       1000.millis
     )
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesThrowing(switches.mapIt(it.stop()))

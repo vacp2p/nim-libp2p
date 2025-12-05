@@ -16,9 +16,9 @@ proc completedFuture*(): Future[void] =
 
 proc allFuturesThrowing*(args: varargs[FutureBase]): Future[void] =
   # This proc is only meant for use in tests / not suitable for general use.
-  # - Swallowing errors arbitrarily instead of aggregating them is bad design
-  # - It raises `CatchableError` instead of the union of the `futs` errors,
-  #   inflating the caller's `raises` list unnecessarily. `macro` could fix it
+  # Swallowing errors arbitrarily instead of aggregating them is bad design
+  # It raises `CatchableError` instead of the union of the `futs` errors,
+  # inflating the caller's `raises` list unnecessarily. `macro` could fix it.
   let futs = @args
   (
     proc() {.async: (raises: [CatchableError]).} =
