@@ -7,9 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import net, os, chronos, libp2p
-import libp2p/protocols/connectivity/autonatv2/service
-import libp2p/protocols/connectivity/autonatv2/types
+import net, os, chronos
+import ../../../../libp2p
+import ../../../../libp2p/protocols/connectivity/autonatv2/[service, types]
 
 proc waitForService(
     host: string, port: Port, retries: int = 20, delay: Duration = 500.milliseconds

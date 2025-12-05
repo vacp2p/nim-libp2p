@@ -1,4 +1,4 @@
-#include "../cbind/libp2p.h"
+#include "libp2p.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
