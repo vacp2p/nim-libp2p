@@ -223,6 +223,7 @@ suite "GossipSub Component - Signature Flags":
         checkUntilTimeout:
           messageReceivedFut.finished() == true
       else:
-        await waitForHeartbeat()
+        # wait some time before asserting that messages is not received
+        await sleepAsync(300.milliseconds)
         check:
           messageReceivedFut.finished() == false

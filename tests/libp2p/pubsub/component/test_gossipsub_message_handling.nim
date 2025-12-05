@@ -74,6 +74,8 @@ suite "GossipSub Component - Message Handling":
     # This test checks if two messages, each below the maxSize, are correctly split when their combined size exceeds maxSize.
     # Expected: Both messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest()
+    defer:
+      await teardownTest(gossip0, gossip1)
 
     let messageSize = gossip1.maxMessageSize div 2 + 1
     let (iwantMessageIds, sentMessages) =
@@ -93,14 +95,13 @@ suite "GossipSub Component - Message Handling":
 
     checkUntilTimeout:
       receivedMessages[] == sentMessages
-    check receivedMessages[].len == 2
-
-    await teardownTest(gossip0, gossip1)
 
   asyncTest "Discard IWANT replies when both messages individually exceed maxSize":
     # This test checks if two messages, each exceeding the maxSize, are discarded and not sent.
     # Expected: No messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest()
+    defer:
+      await teardownTest(gossip0, gossip1)
 
     let messageSize = gossip1.maxMessageSize + 10
     let (bigIWantMessageIds, sentMessages) =
@@ -121,12 +122,12 @@ suite "GossipSub Component - Message Handling":
     checkUntilTimeout:
       receivedMessages[].len == 0
 
-    await teardownTest(gossip0, gossip1)
-
   asyncTest "Process IWANT replies when both messages are below maxSize":
     # This test checks if two messages, both below the maxSize, are correctly processed and sent.
     # Expected: Both messages should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest()
+    defer:
+      await teardownTest(gossip0, gossip1)
     let size1 = gossip1.maxMessageSize div 2
     let size2 = gossip1.maxMessageSize div 3
     let (bigIWantMessageIds, sentMessages) =
@@ -146,14 +147,13 @@ suite "GossipSub Component - Message Handling":
 
     checkUntilTimeout:
       receivedMessages[] == sentMessages
-    check receivedMessages[].len == 2
-
-    await teardownTest(gossip0, gossip1)
 
   asyncTest "Split IWANT replies when one message is below maxSize and the other exceeds maxSize":
     # This test checks if, when given two messages where one is below maxSize and the other exceeds it, only the smaller message is processed and sent.
     # Expected: Only the smaller message should be received.
     let (gossip0, gossip1, receivedMessages) = await setupTest()
+    defer:
+      await teardownTest(gossip0, gossip1)
     let maxSize = gossip1.maxMessageSize
     let size1 = maxSize div 2
     let size2 = maxSize + 10
@@ -181,9 +181,6 @@ suite "GossipSub Component - Message Handling":
 
     checkUntilTimeout:
       receivedMessages[] == smallestSet
-    check receivedMessages[].len == 1
-
-    await teardownTest(gossip0, gossip1)
 
   asyncTest "messages are not sent back to source or forwarding peer":
     let
@@ -207,15 +204,12 @@ suite "GossipSub Component - Message Handling":
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
-    await waitForHeartbeat()
 
     # Nodes 1 and 2 should receive the message, but node 0 shouldn't receive it back
-    let results =
-      await waitForStates(@[handlerFut0, handlerFut1, handlerFut2], HEARTBEAT_TIMEOUT)
-    check:
-      results[0].isPending()
-      results[1].isCompleted()
-      results[2].isCompleted()
+    checkUntilTimeout:
+      handlerFut0.finished() == false
+      handlerFut1.finished() == true
+      handlerFut2.finished() == true
 
   asyncTest "GossipSub validation should succeed":
     var handlerFut = newFuture[bool]()
@@ -713,11 +707,9 @@ suite "GossipSub Component - Message Handling":
     # Given 2 nodes
     let
       numberOfNodes = 2
-      nodes = generateNodes(numberOfNodes, gossip = true)
+      nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
       node0 = nodes[0]
       node1 = nodes[1]
-      g0 = GossipSub(node0)
-      g1 = GossipSub(node1)
 
     startNodesAndDeferStop(nodes)
 
@@ -740,16 +732,18 @@ suite "GossipSub Component - Message Handling":
     node1.addObserver(PubSubObserver(onRecv: observer1))
 
     # Connect them as direct peers
-    await g0.addDirectPeer(node1.peerInfo.peerId, node1.peerInfo.addrs)
-    await g1.addDirectPeer(node0.peerInfo.peerId, node0.peerInfo.addrs)
+    await allFuturesThrowing(
+      node0.addDirectPeer(node1.peerInfo.peerId, node1.peerInfo.addrs),
+      node1.addDirectPeer(node0.peerInfo.peerId, node0.peerInfo.addrs),
+    )
 
     # When node 0 sends a message
-    let message = "Hello!".toBytes()
-    let publishResult = await node0.publish("foobar", message)
+    let publishResult = await node0.publish("foobar", "Hello!".toBytes())
+    check publishResult == 0
 
     # None should receive the message as they are not subscribed to the topic
-    let results = await waitForStates(@[messageReceived0, messageReceived1])
+    # Wait some time before asserting that messages is not received
+    await sleepAsync(300.milliseconds)
     check:
-      publishResult == 0
-      results[0].isPending()
-      results[1].isPending()
+      messageReceived0.finished() == false
+      messageReceived1.finished() == false

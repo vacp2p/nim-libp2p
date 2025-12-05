@@ -73,9 +73,6 @@ suite "GossipSub Component - Message Cache":
     let messageId = nodes[1].mcache.window(topic).toSeq()[0]
 
     # When heartbeat happens, circular history shifts to the next position
-    # Waiting for 5(historyLength) heartbeats
-    await waitForHeartbeat(historyLength)
-
     # Then history is cleared when the position with the message is reached again
     # And message is removed
     checkUntilTimeout:
@@ -125,7 +122,6 @@ suite "GossipSub Component - Message Cache":
     # On heartbeat, Node0 mcache advances to the next position (rotating the message cache window)
     # Node0 will gossip about messages from the last few positions, depending on the mcache window size (historyGossip)
     # By waiting more than 'historyGossip' (2x3 = 6) heartbeats, we ensure Node0 does not send IHave messages for messages older than the window size
-    await waitForHeartbeat(2 * historyGossip)
 
     # Then nodeInsideMesh receives 3 (historyGossip) IHave messages
     checkUntilTimeout:
@@ -188,11 +184,13 @@ suite "GossipSub Component - Message Cache":
 
     # When Node0 handles the IWant message, it retrieves the message from its message cache using the MessageId
     # Then Node0 relays the original message to NodeOutsideMesh
-    checkUntilTimeout:
-      messageId in
-        receivedMessagesNodeOutsideMesh[].mapIt(
+    untilTimeout:
+      pre:
+        let messages = receivedMessagesNodeOutsideMesh[].mapIt(
           nodeOutsideMesh.msgIdProvider(it).value()
         )
+      check:
+        messageId in messages
 
   asyncTest "Published and received messages are added to the seen cache":
     const
@@ -259,7 +257,9 @@ suite "GossipSub Component - Message Cache":
     # When Node2 connects with Node0 and subscribes to the topic
     await connectNodes(nodes[0], nodes[2])
     nodes[2].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[2], topic)
+    checkUntilTimeout:
+      nodes[0].gossipsub.hasPeerId(topic, nodes[2].peerInfo.peerId)
+      nodes[2].gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId)
 
     # And messageIds are added to node0PeerNode2 sentIHaves to allow processing IWant
     let node0PeerNode2 = nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId)
@@ -269,13 +269,17 @@ suite "GossipSub Component - Message Cache":
     # And messageId1 is added to seen messages cache of Node2
     check:
       not nodes[2].addSeen(nodes[2].salt(messageId1))
+      not nodes[2].hasSeen(nodes[2].salt(messageId2))
 
     # And Node2 sends IWant to Node0 requesting both messages
-    let iWantMessage =
-      ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageId1, messageId2])])
-    let node2PeerNode0 = nodes[2].getPeerByPeerId(topic, nodes[0].peerInfo.peerId)
     nodes[2].broadcast(
-      @[node2PeerNode0], RPCMsg(control: some(iWantMessage)), isHighPriority = false
+      @[nodes[2].getPeerByPeerId(topic, nodes[0].peerInfo.peerId)],
+      RPCMsg(
+        control: some(
+          ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageId1, messageId2])])
+        )
+      ),
+      isHighPriority = false,
     )
 
     # Then Node2 receives only messageId2 and messageId1 is dropped
