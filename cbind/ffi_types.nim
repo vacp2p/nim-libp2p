@@ -19,6 +19,15 @@ type Libp2pCallback* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
 
+type Libp2pPeerInfo* = object
+  peerId*: cstring
+  addrs*: ptr cstring
+  addrsLen*: csize_t
+
+type PeerInfoCallback* = proc(
+  callerRet: cint, info: ptr Libp2pPeerInfo, msg: ptr cchar, len: csize_t, userData: pointer
+) {.cdecl, gcsafe, raises: [].}
+
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
   RET_ERR = 1

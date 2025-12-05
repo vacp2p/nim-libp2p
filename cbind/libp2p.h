@@ -30,6 +30,18 @@ typedef void (*Libp2pCallback)(int callerRet, const char *msg, size_t len,
                                void *userData);
 
 typedef struct {
+  char *peerId;
+  const char **addrs;
+  size_t addrsLen;
+} Libp2pPeerInfo;
+
+// PeerInfoCallback receives ownership of a Libp2pPeerInfo for the duration of
+// the call. The data is freed immediately after the callback returns; copy it
+// if you need it later.
+typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
+                                 const char *msg, size_t len, void *userData);
+
+typedef struct {
   uint8_t *data;
   size_t data_len;
 
@@ -77,7 +89,7 @@ int libp2p_connect(void *ctx, const char *peerId, const char **multiaddrs,
 int libp2p_disconnect(void *ctx, const char *peerId, Libp2pCallback callback,
                       void *userData);
 
-int libp2p_peerinfo(void *ctx, Libp2pCallback callback, void *userData);
+int libp2p_peerinfo(void *ctx, PeerInfoCallback callback, void *userData);
 
 // TODO: pubsub parameters
 // TODO: gossipsub parameters

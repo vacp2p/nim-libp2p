@@ -9,7 +9,7 @@
 
 import std/[json, sequtils]
 import chronos, results
-import ../../../[alloc, types]
+import ../../../[alloc, ffi_types, types]
 import ../../../../libp2p
 
 type PeerManagementMsgType* = enum
@@ -22,6 +22,23 @@ type PeerManagementRequest* = object
   peerId: cstring
   multiaddrs: SharedSeq[cstring]
   timeout: Duration
+
+proc deallocPeerInfo*(info: ptr Libp2pPeerInfo) =
+  if info.isNil():
+    return
+
+  if not info[].peerId.isNil():
+    deallocShared(info[].peerId)
+
+  if not info[].addrs.isNil():
+    let addrsArr = cast[ptr UncheckedArray[cstring]](info[].addrs)
+    for i in 0 ..< int(info[].addrsLen):
+      let a = addrsArr[i]
+      if not a.isNil():
+        deallocShared(a)
+    deallocShared(addrsArr)
+
+  deallocShared(info)
 
 proc createShared*(
     T: type PeerManagementRequest,
@@ -69,11 +86,31 @@ proc process*(
       return err($error)
     await libp2p.switch.disconnect(peerId)
   of PEER_INFO:
-    return ok(
-      $ %*{
-        "peerId": $libp2p.switch.peerInfo.peerId,
-        "addrs": libp2p.switch.peerInfo.addrs.mapIt($it),
-      }
-    )
+    raiseAssert "unsupported path, use processPeerInfo"
 
   return ok("")
+
+proc processPeerInfo*(
+    self: ptr PeerManagementRequest, libp2p: ptr LibP2P
+): Future[Result[ptr Libp2pPeerInfo, string]] {.async.} =
+  defer:
+    destroyShared(self)
+
+  let infoPtr = cast[ptr Libp2pPeerInfo](createShared(Libp2pPeerInfo, 1))
+  try:
+    infoPtr[].peerId = ($libp2p.switch.peerInfo.peerId).alloc()
+
+    let addrs = libp2p.switch.peerInfo.addrs.mapIt($it)
+    infoPtr[].addrsLen = addrs.len.csize_t
+    if addrs.len > 0:
+      infoPtr[].addrs = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
+      let addrsArr = cast[ptr UncheckedArray[cstring]](infoPtr[].addrs)
+      for i, addrStr in addrs:
+        addrsArr[i] = addrStr.alloc()
+    else:
+      infoPtr[].addrs = nil
+  except CatchableError as exc:
+    deallocPeerInfo(infoPtr)
+    return err(exc.msg)
+
+  return ok(infoPtr)
