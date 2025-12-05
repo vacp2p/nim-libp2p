@@ -29,6 +29,9 @@ extern "C" {
 typedef void (*Libp2pCallback)(int callerRet, const char *msg, size_t len,
                                void *userData);
 
+typedef void (*PubsubTopicHandler)(const char *topic, uint8_t *data,
+                                   size_t len);
+
 typedef struct {
   char *peerId;
   const char **addrs;
@@ -41,6 +44,7 @@ typedef struct {
 typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
                                  const char *msg, size_t len, void *userData);
 
+/*
 typedef struct {
   uint8_t *data;
   size_t data_len;
@@ -68,6 +72,7 @@ enum {
 };
 
 typedef ValidationResult ValidatorHandler(const char *topic, Message msg);
+*/
 
 typedef void TopicHandler(const char *topic, uint8_t *data, size_t len);
 
@@ -109,14 +114,15 @@ int libp2p_gossipsub_unsubscribe(void *ctx, const char *topic,
                                  TopicHandler topicHandler,
                                  Libp2pCallback callback, void *userData);
 
+/*
 int libp2p_gossipsub_add_validator(void *ctx, const char **topics,
-                                   size_t topicsLen, ValidatorHandler hook,
-                                   Libp2pCallback callback, void *userData);
+  size_t topicsLen, ValidatorHandler hook,
+  Libp2pCallback callback, void *userData);
 
 int libp2p_gossipsub_remove_validator(void *ctx, const char **topics,
-                                      size_t topicsLen, ValidatorHandler hook,
-                                      Libp2pCallback callback, void *userData);
-
+     size_t topicsLen, ValidatorHandler hook,
+     Libp2pCallback callback, void *userData);
+*/
 #ifdef __cplusplus
 }
 #endif
