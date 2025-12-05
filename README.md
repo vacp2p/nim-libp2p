@@ -84,14 +84,34 @@ Run unit tests:
 # run all the unit tests
 nimble test
 
-# run unit tests in specific package
-nim c -r ./tests/mix/test_all
-nim c -r ./tests/kademlia/test_all
-nim c -r ./tests/pubsub/test_all
+# run tests matching a path substring:
+# - Directory name: "transports" matches all tests in transports/
+# - Partial filename: "quic" matches test_quic.nim, test_quic_stream.nim, etc.
+# - Exact filename: "test_ws.nim" matches only that specific file
+# - Full path: "libp2p/transports/test_tcp" matches libp2p/transports/test_tcp.nim
+nimble testpath quic
+nimble testpath transports/test_ws
+nimble testpath mix
 # etc ...
+
+# run specific test suites
+nimble testmultiformatexts
+nimble testintegration
 ```
 
-For a list of all available test suites, use:
+For faster iteration during development, you can bypass nimble overhead by compiling the test file directly:
+
+```sh
+# compile and run all tests
+nim c -r tests/test_all.nim
+
+# compile and run tests matching a path substring
+nim c -r -d:path=quic tests/test_all.nim
+nim c -r -d:path=transports/test_ws tests/test_all.nim
+nim c -r -d:path=mix tests/test_all.nim
+```
+
+For a list of all available test tasks, use:
 ```
 nimble tasks
 ```
