@@ -47,9 +47,7 @@ task libDynamic, "Generate dynamic bindings":
 task libStatic, "Generate static bindings":
   buildCBindings "static", ""
 
-task example, "Build and run C bindings example":
+task examples, "Build and run C bindings examples":
   buildCBindings "static", ""
-  let buildDir = "../build"
-  exec "g++ -I. -o " & buildDir & "/cbindings ./examples/cbindings.c " & buildDir &
-    "/libp2p.a -pthread"
-  exec buildDir & "/cbindings"
+  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a -pthread"
+  exec "../build/cbindings"
