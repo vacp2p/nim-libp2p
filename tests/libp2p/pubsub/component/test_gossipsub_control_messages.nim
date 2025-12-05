@@ -137,6 +137,8 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -230,6 +232,8 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -267,6 +271,8 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -305,7 +311,8 @@ suite "GossipSub Component - Control Messages":
 
     # And both nodes subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitForHeartbeat()
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
     # When an IHAVE message is sent from node0
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
@@ -388,9 +395,9 @@ suite "GossipSub Component - Control Messages":
     asyncTest "emit IMReceiving while handling preamble control msg":
       let
         topic = "foobar"
-        totalPeers = 2
+        numberOfNodes = 2
         messageID = @[1.byte, 2, 3, 4]
-        nodes = generateNodes(totalPeers, gossip = true).toGossipSub()
+        nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
         n0 = nodes[0]
         n1 = nodes[1]
 
@@ -401,6 +408,8 @@ suite "GossipSub Component - Control Messages":
 
       # And both subscribe to the topic
       subscribeAllNodes(nodes, topic, voidTopicHandler)
+      checkUntilTimeout:
+        nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
       let preambles =
         @[

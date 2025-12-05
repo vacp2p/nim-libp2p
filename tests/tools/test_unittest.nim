@@ -84,3 +84,38 @@ suite "checkUntilTimeout helpers - failed":
   asyncTest "checkUntilTimeoutCustom should timeout if condition is never true":
     checkUntilTimeoutCustom(100.milliseconds, 10.milliseconds):
       false
+
+suite "untilTimeout helpers":
+  asyncTest "untilTimeout should pass after few attempts":
+    let a = 2
+    var b = 0
+
+    untilTimeout:
+      pre:
+        b.inc
+      check:
+        a == b
+
+    # final check ensures that untilTimeout is actually called
+    check:
+      a == b
+
+  asyncTest "untilTimeout should pass after few attempts: multi condition":
+    let goal1 = 2
+    let goal2 = 4
+    var val1 = 0
+    var val2 = 0
+
+    untilTimeout:
+      pre:
+        val1.inc
+        val2.inc
+        val2.inc
+      check:
+        val1 == goal1
+        val2 == goal2
+
+    # final check ensures that untilTimeout is actually called
+    check:
+      val1 == goal1
+      val2 == goal2

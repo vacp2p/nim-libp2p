@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, stew/byteutils
+import chronos, stew/byteutils, std/sequtils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
 import ../../../tools/[unittest]
 import ../utils
@@ -31,7 +31,9 @@ suite "GossipSub Component - Signature Flags":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
@@ -58,7 +60,9 @@ suite "GossipSub Component - Signature Flags":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
@@ -82,7 +86,9 @@ suite "GossipSub Component - Signature Flags":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
