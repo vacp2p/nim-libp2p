@@ -57,4 +57,4 @@ jobs:
           gcc --version
 
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
-          nimble examples
+          cd examples && nimble examples

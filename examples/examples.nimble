@@ -24,8 +24,6 @@ proc buildSample(filename: string, run = false, extraFlags = "") =
   rmFile filename.toExe
 
 task examples, "Build and run all examples":
-  exec "nimble install -y nimpng"
-  exec "nimble install -y nico --passNim=--skipParentCfg"
   buildSample("examples_build", false, "--styleCheck:off")
   buildSample("examples_run", true)
 
