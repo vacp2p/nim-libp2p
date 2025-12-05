@@ -80,7 +80,7 @@ suite "Hole Punching":
     let peerSwitch = createSwitch()
     let switchRelay = createSwitch(Relay.new())
 
-    await allFuturesDiscarding(
+    await allFuturesThrowing(
       switchRelay.start(),
       privatePeerSwitch.start(),
       publicPeerSwitch.start(),
@@ -110,7 +110,7 @@ suite "Hole Punching":
         privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection
       )
 
-    await allFuturesDiscarding(
+    await allFuturesThrowing(
       privatePeerSwitch.stop(),
       publicPeerSwitch.stop(),
       switchRelay.stop(),
@@ -141,7 +141,7 @@ suite "Hole Punching":
     let peerSwitch = createSwitch()
     let switchRelay = createSwitch(Relay.new())
 
-    await allFuturesDiscarding(
+    await allFuturesThrowing(
       switchRelay.start(),
       privatePeerSwitch.start(),
       publicPeerSwitch.start(),
@@ -171,7 +171,7 @@ suite "Hole Punching":
         privatePeerSwitch.connManager.selectMuxer(publicPeerSwitch.peerInfo.peerId).connection
       )
 
-    await allFuturesDiscarding(
+    await allFuturesThrowing(
       privatePeerSwitch.stop(),
       publicPeerSwitch.stop(),
       switchRelay.stop(),
@@ -223,7 +223,7 @@ suite "Hole Punching":
 
     var awaiter = newFuture[void]()
 
-    await allFuturesDiscarding(
+    await allFuturesThrowing(
       switchRelay.start(),
       privatePeerSwitch1.start(),
       privatePeerSwitch2.start(),
@@ -271,7 +271,7 @@ suite "Hole Punching":
     # wait for hole punching to finish in the background
     await sleepAsync(300.millis)
 
-    await allFuturesDiscarding(
+    await allFuturesThrowing(
       privatePeerSwitch1.stop(),
       privatePeerSwitch2.stop(),
       switchRelay.stop(),

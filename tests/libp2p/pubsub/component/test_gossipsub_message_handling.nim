@@ -24,7 +24,7 @@ proc setupTest(): Future[
     ]
 ] {.async.} =
   let nodes = generateNodes(2, gossip = true, verifySignature = false).toGossipSub()
-  await allFuturesDiscarding(nodes[0].switch.start(), nodes[1].switch.start())
+  await allFuturesThrowing(nodes[0].switch.start(), nodes[1].switch.start())
 
   await connectNodes(nodes[1], nodes[0])
 
@@ -44,7 +44,7 @@ proc setupTest(): Future[
   return (nodes[0], nodes[1], receivedMessages)
 
 proc teardownTest(gossip0: GossipSub, gossip1: GossipSub) {.async.} =
-  await allFuturesDiscarding(gossip0.switch.stop(), gossip1.switch.stop())
+  await allFuturesThrowing(gossip0.switch.stop(), gossip1.switch.stop())
 
 proc createMessages(
     gossip0: GossipSub, gossip1: GossipSub, size1: int, size2: int
@@ -732,7 +732,7 @@ suite "GossipSub Component - Message Handling":
     node1.addObserver(PubSubObserver(onRecv: observer1))
 
     # Connect them as direct peers
-    await allFuturesDiscarding(
+    await allFuturesThrowing(
       node0.addDirectPeer(node1.peerInfo.peerId, node1.peerInfo.addrs),
       node1.addDirectPeer(node0.peerInfo.peerId, node0.peerInfo.addrs),
     )
