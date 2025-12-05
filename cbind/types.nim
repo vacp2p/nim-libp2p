@@ -8,6 +8,8 @@
 # those terms.
 
 import ../libp2p
+import ../libp2p/protocols/pubsub/gossipsub
+import ffi_types
 
 # TODO: remove and implement custom event callbacks if needed
 # Example:
@@ -17,5 +19,9 @@ import ../libp2p
 #        $JsonMyEvent.new(msg)
 type AppCallbacks* = ref object
 
+type PubsubTopicPair* = tuple[topic: string, handler: PubsubTopicHandler]
+
 type LibP2P* = ref object
   switch*: Switch
+  gossipSub*: GossipSub
+  topicHandlers*: Table[PubsubTopicPair, TopicHandler]
