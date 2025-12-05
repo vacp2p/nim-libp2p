@@ -3,7 +3,7 @@ FROM nimlang/nim:latest as builder
 
 WORKDIR /workspace
 
-COPY .pinned libp2p.nimble nim-libp2p/
+COPY .pinned libp2p.nimble common.nims nim-libp2p/
 
 RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y libssl-dev
 

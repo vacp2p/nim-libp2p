@@ -3,7 +3,7 @@ FROM nimlang/nim:2.2.4-alpine-regular AS build
 
 WORKDIR /node
 
-COPY libp2p.nimble config.nims ./
+COPY libp2p.nimble common.nims config.nims ./
 RUN apk add --no-cache pkgconfig
 RUN nimble install -y
 
