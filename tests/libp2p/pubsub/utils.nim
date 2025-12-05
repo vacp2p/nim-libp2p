@@ -40,14 +40,6 @@ randomize()
 const connectWarmup = 200.milliseconds
   # the delay needed for node to open all streams, start handlers after connecting it to other node
 const TEST_GOSSIPSUB_HEARTBEAT_INTERVAL* = 60.milliseconds
-const HEARTBEAT_TIMEOUT* = # TEST_GOSSIPSUB_HEARTBEAT_INTERVAL + 20%
-  int64(float64(TEST_GOSSIPSUB_HEARTBEAT_INTERVAL.milliseconds) * 1.2).milliseconds
-
-proc waitForHeartbeat*(multiplier: int = 1) {.async.} =
-  await sleepAsync(HEARTBEAT_TIMEOUT * multiplier)
-
-proc waitForHeartbeat*(timeout: Duration) {.async.} =
-  await sleepAsync(timeout)
 
 proc waitForHeartbeatByEvent*[T: PubSub](node: T, multiplier: int = 1) {.async.} =
   for _ in 0 ..< multiplier:
