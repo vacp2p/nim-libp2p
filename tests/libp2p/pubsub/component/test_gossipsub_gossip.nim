@@ -36,7 +36,6 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-
     checkUntilTimeout:
       nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
@@ -72,16 +71,19 @@ suite "GossipSub Component - Gossip Protocol":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
-    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
-    await waitSub(nodes[0], nodes[1], topic)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
 
     # None of the nodes should have received an iHave message
-    let receivedIHaves = messages[].mapIt(it[].len)
-    check:
-      filterIt(receivedIHaves, it > 0).len == 0
+    untilTimeout:
+      pre:
+        let receivedIHaves = messages[].mapIt(it[].len)
+      check:
+        filterIt(receivedIHaves, it > 0).len == 0
 
   asyncTest "adaptive gossip dissemination, with gossipFactor priority":
     let
@@ -107,21 +109,20 @@ suite "GossipSub Component - Gossip Protocol":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
-    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
-    await waitSub(nodes[0], nodes[1], topic)
-
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     checkUntilTimeout:
       nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
-    await waitForHeartbeat(2)
 
     # At least 8 of the nodes should have received an iHave message
     # That's because the gossip factor is 0.5 over 16 available nodes
-    let receivedIHaves = messages[].mapIt(it[].len)
-    check:
-      filterIt(receivedIHaves, it > 0).len >= 8
+    untilTimeout:
+      pre:
+        let receivedIHaves = messages[].mapIt(it[].len)
+      check:
+        filterIt(receivedIHaves, it > 0).len >= 8
 
   asyncTest "adaptive gossip dissemination, with dLazy priority":
     let
@@ -147,21 +148,20 @@ suite "GossipSub Component - Gossip Protocol":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
-    subscribeAllNodes(nodes, topic, voidTopicHandler, wait = false)
-    await waitSub(nodes[0], nodes[1], topic)
-
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
     checkUntilTimeout:
       nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
-    await waitForHeartbeat(2)
 
     # At least 6 of the nodes should have received an iHave message
     # That's because the dLazy is 6
-    let receivedIHaves = messages[].mapIt(it[].len)
-    check:
-      filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
+    untilTimeout:
+      pre:
+        let receivedIHaves = messages[].mapIt(it[].len)
+      check:
+        filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
 
   asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
     let
@@ -179,7 +179,6 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-
     checkUntilTimeout:
       nodes[0].gossipsub.getOrDefault(topic).len == 1
       nodes[1].gossipsub.getOrDefault(topic).len == 2
@@ -211,9 +210,11 @@ suite "GossipSub Component - Gossip Protocol":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
     # Setup record handlers for all nodes
-    var
+    let
       passed0: Future[void] = newFuture[void]()
       passed2: Future[void] = newFuture[void]()
     nodes[0].routingRecordsHandler.add(
@@ -240,8 +241,6 @@ suite "GossipSub Component - Gossip Protocol":
     # Unsubscribe from the topic 
     nodes[1].unsubscribe(topic, voidTopicHandler)
 
-    # Then verify what nodes receive the PX
-    let results = await waitForStates(@[passed0, passed2], HEARTBEAT_TIMEOUT)
-    check:
-      results[0].isCompleted()
-      results[1].isCompleted()
+    checkUntilTimeout:
+      passed0.finished() == true
+      passed2.finished() == true

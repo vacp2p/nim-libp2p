@@ -39,7 +39,8 @@ suite "GossipSub Component - Scoring":
     # Nodes are subscribed to the same topic
     nodes[1].subscribe(topic, handler1)
     nodes[2].subscribe(topic, handler2)
-    await waitForHeartbeat()
+    await waitSub(nodes[0], nodes[1], topic)
+    await waitSub(nodes[0], nodes[2], topic)
 
     # Given node 2's score is below the threshold
     for peer in g0.gossipsub.getOrDefault(topic):
@@ -71,6 +72,8 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
     nodes[0].broadcast(
       nodes[0].mesh[topic],
@@ -110,6 +113,8 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
     # Simulate sending an undecodable message
     await nodes[1].peers[nodes[0].switch.peerInfo.peerId].sendEncoded(
@@ -146,6 +151,8 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
     let msg = RPCMsg(
       control: some(
@@ -205,6 +212,8 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
     proc execValidator(
         topic: string, message: messages.Message
@@ -245,7 +254,7 @@ suite "GossipSub Component - Scoring":
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handler)
-    await waitForHeartbeat()
+    await waitSub(nodes[0], nodes[1], topic)
 
     nodes[1].updateScores()
 
@@ -345,7 +354,7 @@ suite "GossipSub Component - Scoring":
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handler)
-    await waitForHeartbeat()
+    await waitSub(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(topic, toBytes("hello")), 1
 
@@ -394,7 +403,10 @@ suite "GossipSub Component - Scoring":
     # And Node 0 is center node, connected to others
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
-    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
+      nodes[1 ..^ 1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
 
     # And center node has message validator: accept from node 1, reject from node 2
     var validatedMessageCount = 0
@@ -489,7 +501,9 @@ suite "GossipSub Component - Scoring":
     # And Nodes are connected and subscribed to the topic
     await connectNodesStar(nodes)
 
-    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
 
     # When scoring heartbeat occurs
     # Then Peer has negative score due to active meshMessageDeliveries deficit

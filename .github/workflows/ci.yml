@@ -96,6 +96,7 @@ jobs:
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
       - name: Run tests
+        id: run-tests
         run: |
           nim --version
           nimble --version
@@ -105,14 +106,17 @@ jobs:
           nimble test
 
       - name: Fix xml newlines
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
         run: |
           nim c -r tools/fix_xml_newlines.nim
 
       - name: Test Report
         uses: dorny/test-reporter@v2
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'failure' }}
         with:
           name: Test Report
           path: tests/results_*.xml
           reporter: jest-junit
+          list-suites: 'failed'
+          list-tests: 'failed'
+          fail-on-error: 'false'
