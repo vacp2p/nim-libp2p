@@ -50,14 +50,12 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Setup nimble paths
-        run: nimble setup
-
       - name: Build and run examples
         run: |
           nim --version
           nimble --version
           gcc --version
 
+          nimble setup
           NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
           cd examples && nimble examples
