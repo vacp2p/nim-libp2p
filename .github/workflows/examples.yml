@@ -50,6 +50,9 @@ jobs:
         run: |
           nimble install_pinned
 
+      - name: Setup nimble paths
+        run: nimble setup
+
       - name: Build and run examples
         run: |
           nim --version
