@@ -503,9 +503,10 @@ suite "GossipSub Behavior":
     gossipSub.handlePrune(peer, @[msg])
 
     # Then handler is not triggered
-    let result = await waitForState(routingRecordsFut, HEARTBEAT_TIMEOUT)
+    # Wait some time before asserting
+    await sleepAsync(300.milliseconds)
     check:
-      result.isCancelled()
+      routingRecordsFut.finished() == false
 
   asyncTest "handleGraft - peer joins mesh for subscribed topic":
     # Given a GossipSub instance with one peer
