@@ -9,6 +9,11 @@
 
 import chronos/futures, chronos, sequtils
 
+proc completedFuture*(): Future[void] =
+  let f = newFuture[void]()
+  f.complete()
+  f
+
 proc allFuturesThrowing*(args: varargs[FutureBase]): Future[void] =
   # This proc is only meant for use in tests / not suitable for general use.
   # - Swallowing errors arbitrarily instead of aggregating them is bad design
