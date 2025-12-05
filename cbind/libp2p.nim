@@ -20,15 +20,13 @@ import
   ./[ffi_types, types],
   ./libp2p_thread/inter_thread_communication/libp2p_thread_request,
   ./libp2p_thread/inter_thread_communication/requests/
-    [libp2p_lifecycle_requests, libp2p_peer_manager_requests],#, libp2p_pubsub_requests],
+    [libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests],
   ../libp2p
 ################################################################################
 ### Not-exported components
 ################################################################################
 
-template checkLibParams*(
-    ctx: ptr LibP2PContext, callback: pointer, userData: pointer
-) =
+template checkLibParams*(ctx: ptr LibP2PContext, callback: pointer, userData: pointer) =
   ## This template checks common parameters passed to exported functions
   ctx[].userData = userData
 
@@ -266,7 +264,7 @@ proc libp2p_peerinfo(
   return RET_OK.cint
 
 # TODO: instead of returning a ctx, return a libp2p_t
-#[
+
 proc libp2p_gossipsub_publish(
     ctx: ptr LibP2PContext,
     topic: cstring,
@@ -282,7 +280,9 @@ proc libp2p_gossipsub_publish(
   handleRequest(
     ctx,
     RequestType.PUBSUB,
-    PubSubRequest.createShared(PubSubMsgType.PUBLISH),
+    PubSubRequest.createShared(
+      PubSubMsgType.PUBLISH, topic, data = data, dataLen = dataLen
+    ),
     callback,
     userData,
   ).cint
@@ -323,6 +323,7 @@ proc libp2p_gossipsub_unsubscribe(
     userData,
   ).cint
 
+#[
 proc libp2p_gossipsub_add_validator(
     ctx: ptr LibP2PContext,
     topics: ptr cstring,

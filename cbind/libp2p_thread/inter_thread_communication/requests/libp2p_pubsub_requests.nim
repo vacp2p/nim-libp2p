@@ -7,9 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+import std/tables
 import chronos, results
-
-import ../../../[types, alloc]
+import ../../../[types, ffi_types, alloc]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 
 type PubSubMsgType* = enum
@@ -22,8 +22,9 @@ type PubSubMsgType* = enum
 type PubSubRequest* = object
   operation: PubSubMsgType
   topic: cstring
-  topicHandler: pointer
+  topicHandler: PubsubTopicHandler
   topics: SharedSeq[cstring]
+  data: SharedSeq[byte]
   hook: pointer
   timeout: Duration
 
@@ -31,9 +32,11 @@ proc createShared*(
     T: type PubSubRequest,
     op: PubSubMsgType,
     topic: cstring = "",
-    topicHandler: pointer = nil,
+    topicHandler: PubsubTopicHandler = nil,
     topics: ptr cstring = nil,
     topicsLen: csize_t = 0,
+    data: ptr byte = nil,
+    dataLen: csize_t = 0,
     hook: pointer = nil,
     timeout = InfiniteDuration,
 ): ptr type T =
@@ -41,27 +44,57 @@ proc createShared*(
   ret[].operation = op
   ret[].topic = topic.alloc()
   ret[].topics = allocSharedSeqFromCArray(topics, topicsLen.int)
+  ret[].data = allocSharedSeqFromCArray(data, dataLen.int)
   ret[].topicHandler = topicHandler
   ret[].hook = hook
   ret[].timeout = timeout
+  ret
 
 proc destroyShared(self: ptr PubSubRequest) =
   deallocShared(self[].topic)
   deallocSharedSeq(self[].topics)
+  deallocSharedSeq(self[].data)
   deallocShared(self)
 
 proc process*(
     self: ptr PubSubRequest, libp2p: ptr LibP2P
-): Future[Result[Opt[string], string]] {.async.} =
+): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
-  # TODO:
   case self.operation
-  of SUBSCRIBE: discard
-  of UNSUBSCRIBE: discard
-  of PUBLISH: discard
-  of ADD_VALIDATOR: discard
-  of REMOVE_VALIDATOR: discard
+  of SUBSCRIBE:
+    let pubsubTopicHandler = self.topicHandler
+    let tpair = (topic: $self.topic, handler: pubsubTopicHandler)
+    if not libp2p[].topicHandlers.hasKey(tpair):
+      let topicHandler = proc(topic: string, data: seq[byte]): Future[void] {.async.} =
+        pubsubTopicHandler(
+          topic.cstring,
+          if data.len > 0:
+            data[0].addr
+          else:
+            nil,
+          data.len.csize_t,
+        )
+      libp2p[].topicHandlers[tpair] = topicHandler
+      libp2p[].gossipSub.subscribe($self.topic, topicHandler)
+  of UNSUBSCRIBE:
+    let tpair = (topic: $self.topic, handler: self.topicHandler)
+    if libp2p[].topicHandlers.hasKey(tpair):
+      let topicHandler =
+        try:
+          libp2p[].topicHandlers[tpair]
+        except KeyError:
+          raiseAssert "checked with hasKey"
+      libp2p[].topicHandlers.del(tpair)
+      libp2p[].gossipSub.unsubscribe($self.topic, topicHandler)
+  of PUBLISH:
+    discard await libp2p[].gossipSub.publish($self.topic, self.data.toSeq())
+  of ADD_VALIDATOR:
+    # TODO:
+    discard
+  of REMOVE_VALIDATOR:
+    # TODO:
+    discard
 
-  return ok(Opt.none(string))
+  return ok("")

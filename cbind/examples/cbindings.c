@@ -1,5 +1,4 @@
 #include "../../cbind/libp2p.h"
-#include "jsmn.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,13 +17,12 @@ typedef struct {
 } PeerInfo;
 
 static void waitForCallback(void);
-static int jsoneq(const char *json, jsmntok_t *tok, const char *s);
 static void free_peerinfo(PeerInfo *pi);
-static int parse_peerinfo(const char *json, PeerInfo *out);
 static void event_handler(int callerRet, const char *msg, size_t len,
                           void *userData);
-static void peerinfo_handler(int callerRet, const char *msg, size_t len,
-                             void *userData);
+static void topic_handler(const char *topic, uint8_t *data, size_t len);
+static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
+                             const char *msg, size_t len, void *userData);
 
 // libp2p Context
 void *ctx1;
@@ -32,7 +30,6 @@ void *ctx2;
 
 int main(int argc, char **argv) {
   int status = 1;
-  char *peerinfo = NULL;
   PeerInfo pi = {0};
 
   ctx1 = libp2p_new(event_handler, NULL);
@@ -47,23 +44,30 @@ int main(int argc, char **argv) {
   libp2p_start(ctx2, event_handler, NULL);
   waitForCallback();
 
-  libp2p_peerinfo(ctx2, peerinfo_handler, &peerinfo);
+  libp2p_peerinfo(ctx2, peerinfo_handler, &pi);
   waitForCallback();
-
-  if (parse_peerinfo(peerinfo, &pi) != 0) {
-    printf("Missing peerId or addresses in peerinfo\n");
-    goto cleanup;
-  }
 
   libp2p_connect(ctx1, pi.peerId, pi.addrs, pi.addrCount, 0, event_handler,
                  NULL);
+  waitForCallback();
+
+  libp2p_gossipsub_subscribe(ctx1, "test", topic_handler, event_handler, NULL);
+  waitForCallback();
+
+  libp2p_gossipsub_subscribe(ctx2, "test", topic_handler, event_handler, NULL);
+  waitForCallback();
+
+  sleep(2);
+
+  const char *msg = "Hello World";
+  libp2p_gossipsub_publish(ctx1, "test", (uint8_t *)msg, strlen(msg), 0,
+                           event_handler, NULL);
   waitForCallback();
 
   sleep(5);
   status = 0;
 
 cleanup:
-  free(peerinfo);
   free_peerinfo(&pi);
 
   libp2p_stop(ctx1, event_handler, NULL);
@@ -97,24 +101,52 @@ static void event_handler(int callerRet, const char *msg, size_t len,
   pthread_mutex_unlock(&mutex);
 }
 
-static void peerinfo_handler(int callerRet, const char *msg, size_t len,
-                             void *userData) {
-  char **result = (char **)userData;
+static void topic_handler(const char *topic, uint8_t *data, size_t len) {
+  const char *resolved_topic = topic != NULL ? topic : "(null topic)";
+  const char *payload = (const char *)data;
+  printf("Topic '%s' received (%zu bytes): %.*s\n", resolved_topic, len,
+         (int)len, payload != NULL ? payload : "");
+}
 
-  if (callerRet != RET_OK) {
-    printf("Error(%d): %s\n", callerRet, msg);
+static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
+                             const char *msg, size_t len, void *userData) {
+  PeerInfo *pi = (PeerInfo *)userData;
+
+  if (callerRet != RET_OK || info == NULL) {
+    if (msg != NULL && len > 0) {
+      printf("Error(%d): %.*s\n", callerRet, (int)len, msg);
+    } else {
+      printf("Error(%d): peerinfo callback failed\n", callerRet);
+    }
     exit(1);
   }
 
-  if (result != NULL) {
-    free(*result);
-    *result = (char *)malloc(len + 1);
-    if (*result != NULL) {
-      memcpy(*result, msg, len);
-      (*result)[len] = '\0';
-    } else {
-      printf("Error: malloc failed in peerinfo_handler\n");
+  free_peerinfo(pi);
+
+  if (info->peerId != NULL) {
+    strncpy(pi->peerId, info->peerId, sizeof(pi->peerId) - 1);
+    pi->peerId[sizeof(pi->peerId) - 1] = '\0';
+  }
+
+  pi->addrCount = info->addrsLen;
+  if (info->addrsLen > 0 && info->addrs != NULL) {
+    pi->addrs = (const char **)calloc(info->addrsLen, sizeof(char *));
+    if (pi->addrs == NULL) {
+      printf("Error: out of memory copying peerinfo addrs\n");
       exit(1);
+    }
+    for (size_t i = 0; i < info->addrsLen; i++) {
+      const char *addr = info->addrs[i];
+      if (addr != NULL) {
+        size_t len = strlen(addr);
+        char *buf = (char *)malloc(len + 1);
+        if (buf == NULL) {
+          printf("Error: out of memory copying peerinfo addr\n");
+          exit(1);
+        }
+        memcpy(buf, addr, len + 1);
+        pi->addrs[i] = buf;
+      }
     }
   }
 
@@ -133,14 +165,6 @@ static void waitForCallback(void) {
   pthread_mutex_unlock(&mutex);
 }
 
-static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
-  if (tok->type == JSMN_STRING && (int)strlen(s) == tok->end - tok->start &&
-      strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
-    return 0;
-  }
-  return -1;
-}
-
 static void free_peerinfo(PeerInfo *pi) {
   if (pi == NULL)
     return;
@@ -151,65 +175,4 @@ static void free_peerinfo(PeerInfo *pi) {
   pi->addrs = NULL;
   pi->addrCount = 0;
   pi->peerId[0] = '\0';
-}
-
-static int parse_peerinfo(const char *json, PeerInfo *out) {
-  jsmn_parser parser;
-  jsmntok_t tokens[64];
-  jsmn_init(&parser);
-
-  out->addrCount = 0;
-  out->addrs = NULL;
-  out->peerId[0] = '\0';
-
-  int r = jsmn_parse(&parser, json, strlen(json), tokens, 64);
-  if (r < 0 || tokens[0].type != JSMN_OBJECT) {
-    return -1;
-  }
-
-  int addrsSize = 0;
-  for (int i = 1; i < r; i++) {
-    if (jsoneq(json, &tokens[i], "addrs") == 0 && i + 1 < r) {
-      addrsSize = tokens[i + 1].size;
-      break;
-    }
-  }
-  if (addrsSize > 0) {
-    out->addrs = (const char **)calloc(addrsSize, sizeof(char *));
-    if (out->addrs == NULL) {
-      return -1;
-    }
-  }
-
-  for (int i = 1; i < r; i++) {
-    if (jsoneq(json, &tokens[i], "peerId") == 0 && i + 1 < r) {
-      size_t len = tokens[i + 1].end - tokens[i + 1].start;
-      if (len >= sizeof(out->peerId))
-        len = sizeof(out->peerId) - 1;
-      memcpy(out->peerId, json + tokens[i + 1].start, len);
-      out->peerId[len] = '\0';
-      i++;
-    } else if (jsoneq(json, &tokens[i], "addrs") == 0 && i + 1 < r) {
-      int arraySize = tokens[i + 1].size;
-      int j = i + 2;
-      for (int k = 0; k < arraySize && j < r; k++, j++) {
-        size_t len = tokens[j].end - tokens[j].start;
-        char *buf = (char *)malloc(len + 1);
-        if (buf != NULL) {
-          memcpy(buf, json + tokens[j].start, len);
-          buf[len] = '\0';
-          out->addrs[out->addrCount] = buf;
-          out->addrCount++;
-        }
-      }
-      i = j - 1;
-    }
-  }
-
-  if (out->peerId[0] != '\0' && out->addrCount > 0) {
-    return 0;
-  }
-
-  free_peerinfo(out);
-  return -1;
 }

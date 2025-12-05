@@ -117,7 +117,6 @@ proc destroyLibP2PThread*(ctx: ptr LibP2PContext): Result[void, string] =
 
   return ok()
 
-
 proc sendRequestInternal(
     ctx: ptr LibP2PContext, req: ptr LibP2PThreadRequest
 ): Result[void, string] =
@@ -151,7 +150,6 @@ proc sendRequestInternal(
   # Notice that in case of "ok", the deallocShared(req) is performed by the LibP2P Thread in the
   # process proc.
   ok()
-
 
 proc sendRequestToLibP2PThread*(
     ctx: ptr LibP2PContext,
