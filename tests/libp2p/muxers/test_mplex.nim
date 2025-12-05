@@ -408,14 +408,15 @@ suite "Mplex":
         await chann.readExactly(addr data[0], 1)
         await chann.readExactly(addr data[0], 1)
 
-      let rw = @[writer(), reader()]
+      let readerFut = reader()
+      let writerFut = writer()
 
       await chann.close()
       check await chann.reset()
       # this would hang
       .withTimeout(100.millis)
 
-      check await allFuturesDiscarding(allFinished(rw)).withTimeout(100.millis)
+      check await allFuturesDiscarding(readerFut, writerFut).withTimeout(100.millis)
 
       await conn.close()
 
