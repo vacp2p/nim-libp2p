@@ -7,5 +7,4 @@ bin = @["nim_peer"]
 
 # Dependencies
 
-requires "nim >= 2.3.1"
-# libp2p is resolved via nimble.paths from the project root
+requires "nim >= 2.3.1", "libp2p"
