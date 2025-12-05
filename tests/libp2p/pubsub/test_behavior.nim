@@ -13,7 +13,7 @@ import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles
 import ../../../libp2p/[routing_record, crypto/crypto, multiaddress]
 import
   ../../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, rpc/message]
-import ../../tools/[unittest, futures]
+import ../../tools/[unittest]
 
 suite "GossipSub Behavior":
   const
