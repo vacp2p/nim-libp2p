@@ -16,6 +16,8 @@ import ../../../libp2p/[protocols/kademlia, switch, builders, multicodec]
 import ../../tools/[unittest]
 import ./utils.nim
 
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+
 suite "KadDHT - ProviderManager":
   teardown:
     checkTrackers()

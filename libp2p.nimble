@@ -36,7 +36,7 @@ proc runTest(filename: string, moreoptions: string = "") =
 
   var runnerArgs = " --output-level=VERBOSE"
   runnerArgs &= " --console"
-  runnerArgs &= " --xml:tests/results_" & filename.replace("/", "_") & ".xml"
+  runnerArgs &= " --xml:tests/results_" & $hash(filename & $compileCmd) & ".xml"
 
   # step 1: compile test binary
   exec compileCmd & " tests/" & filename
@@ -88,11 +88,9 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim " &
     "-d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim " &
-    "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim "
-  runTest("libp2p/multiformat_exts/test_all", opts)
-
-task testpubsub, "Runs pubsub tests":
-  runTest("libp2p/pubsub/test_all", "-d:libp2p_gossipsub_1_4")
+    "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim " &
+    "-d:path=libp2p/multiformat_exts"
+  runTest("test_all", opts)
 
 task testintegration, "Runs integration tests":
   runTest("integration/test_all")
@@ -100,6 +98,24 @@ task testintegration, "Runs integration tests":
 task test, "Runs the test suite":
   runTest("test_all")
   testmultiformatextsTask()
+
+task testpath, "Run tests matching a specific path":
+  var testPathArg = ""
+
+  # Extract arguments after task name
+  let params = commandLineParams()
+  let taskIdx = params.find("testpath")
+
+  if taskIdx >= 0 and taskIdx < params.len - 1:
+    testPathArg = params[taskIdx + 1]
+
+  if testPathArg == "":
+    echo "Error: Please provide a test path argument"
+    echo "Usage: nimble testpath <path>"
+    echo "Example: nimble testpath quic"
+    quit(1)
+
+  runTest("test_all", "-d:path=" & testPathArg)
 
 task website, "Build the website":
   tutorialToMd("examples/tutorial_1_connect.nim")
