@@ -67,9 +67,7 @@ proc createMessages(
   return (iwantMessageIds, sentMessages)
 
 proc floodPublishBaseTest*(
-    nodes: seq[GossipSub],
-    numPeersFirstMsg: int,
-    numPeersSecondMsg: int,
+    nodes: seq[GossipSub], numPeersFirstMsg: int, numPeersSecondMsg: int
 ) {.async.} =
   block setup:
     for i in 0 ..< 50:
@@ -537,7 +535,7 @@ suite "GossipSub Component - Message Handling":
     nodes[0].parameters.floodPublish = true
     nodes[0].parameters.heartbeatInterval = milliseconds(700)
 
-    startNodesAndDeferStop(nodes)    
+    startNodesAndDeferStop(nodes)
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)

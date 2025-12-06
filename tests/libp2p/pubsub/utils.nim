@@ -355,7 +355,7 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
     for listener in nodes:
       if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
         futs.add(connectNodes(dialer, listener))
-  
+
   await allFuturesThrowing(futs)
 
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
