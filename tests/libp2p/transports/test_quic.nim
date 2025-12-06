@@ -10,7 +10,6 @@
 {.used.}
 
 import chronos, random, stew/byteutils
-import lsquic/lsquic_ffi
 import
   ../../../libp2p/
     [transports/transport, transports/quictransport, upgrademngrs/upgrade, muxers/muxer]
