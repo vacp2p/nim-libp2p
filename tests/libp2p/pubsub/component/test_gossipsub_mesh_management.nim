@@ -206,29 +206,29 @@ suite "GossipSub Component - Mesh Management":
 
     startNodesAndDeferStop(nodes)
 
-    # When nodes subscribe to multiple topics
     await connectNodesStar(nodes)
-    for topic in topics:
-      let t = topic
-      subscribeAllNodes(nodes, t, voidTopicHandler)
+
+    # When nodes subscribe to multiple topics
+    for t in topics:
+      let topic = t
+      subscribeAllNodes(nodes, topic, voidTopicHandler)
 
     # Then all nodes should be subscribed to the topics initially
-    for i in 0 ..< topics.len:
-      let topic = topics[i]
+    for t in topics:
+      let topic = t
       checkUntilTimeout:
         nodes.allIt(it.topics.contains(topic))
         nodes.allIt(it.gossipsub.getOrDefault(topic).len() == numberOfNodes - 1)
         nodes.allIt(it.mesh.getOrDefault(topic).len() == numberOfNodes - 1)
 
     # When they unsubscribe from all topics
-    for topic in topics:
-      let t = topic
-      unsubscribeAllNodes(nodes, t, voidTopicHandler)
+    for t in topics:
+      let topic = t
+      unsubscribeAllNodes(nodes, topic, voidTopicHandler)
 
     # Then topics should be removed from mesh and gossipsub
-    for i in 0 ..< topics.len:
-      let topic = topics[i]
-      checkUntilTimeout:
+    for topic in topics:
+      check:
         nodes.allIt(not it.topics.contains(topic))
         nodes.allIt(topic notin it.gossipsub)
         nodes.allIt(topic notin it.mesh)
