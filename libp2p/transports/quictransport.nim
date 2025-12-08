@@ -92,7 +92,6 @@ method readOnce*(
   libp2p_network_bytes.inc(readLen.int64, labelValues = ["in"])
   return readLen
 
-{.push warning[LockLevel]: off.}
 method write*(
     stream: QuicStream, bytes: seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -101,8 +100,6 @@ method write*(
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
   except StreamError:
     raise newLPStreamRemoteClosedError()
-
-{.pop.}
 
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
