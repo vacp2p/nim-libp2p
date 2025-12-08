@@ -281,7 +281,6 @@ method handles*(transport: QuicTransport, address: MultiAddress): bool {.raises:
 proc makeConfig(self: QuicTransport): TLSConfig =
   let pubkey = self.privateKey.getPublicKey().valueOr:
     raiseAssert "could not obtain public key"
-    return
 
   let cert = self.certGenerator(KeyPair(seckey: self.privateKey, pubkey: pubkey))
   let certVerifier = makeCertificateVerifier()
