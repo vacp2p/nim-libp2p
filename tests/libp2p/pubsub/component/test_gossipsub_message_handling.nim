@@ -34,7 +34,7 @@ proc setupTest(): Future[
     receivedMessages[].incl(data)
 
   proc handlerB(topic: string, data: seq[byte]) {.async.} =
-    discard
+    raiseAssert "should not be called"
 
   nodes[0].subscribe("foobar", handlerA)
   nodes[1].subscribe("foobar", handlerB)
