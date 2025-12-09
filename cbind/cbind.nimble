@@ -6,8 +6,8 @@ author = "Status Research & Development GmbH"
 description = "C bindings for LibP2P implementation"
 license = "MIT"
 
-# Dependencies are inherited from parent libp2p.nimble via nimble.paths
-# We don't need `requires` here since we run tasks, not build a package
+# The rest of dependencies is inherited from parent libp2p.nimble via nimble.paths
+requires "taskpools >= 0.1.0"
 
 proc getLibExt(libType: string): string =
   if libType == "static":
