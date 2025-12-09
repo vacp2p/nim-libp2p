@@ -21,6 +21,9 @@ static void free_peerinfo(PeerInfo *pi);
 static void event_handler(int callerRet, const char *msg, size_t len,
                           void *userData);
 static void topic_handler(const char *topic, uint8_t *data, size_t len);
+static void connected_peers_handler(int callerRet, const char **peerIds,
+                                    size_t peerIdsLen, const char *msg,
+                                    size_t len, void *userData);
 static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userData);
 
@@ -49,6 +52,9 @@ int main(int argc, char **argv) {
 
   libp2p_connect(ctx1, pi.peerId, pi.addrs, pi.addrCount, 0, event_handler,
                  NULL);
+  waitForCallback();
+
+  libp2p_connected_peers(ctx1, Direction_Out, connected_peers_handler, NULL);
   waitForCallback();
 
   libp2p_gossipsub_subscribe(ctx1, "test", topic_handler, event_handler, NULL);
@@ -106,6 +112,26 @@ static void topic_handler(const char *topic, uint8_t *data, size_t len) {
   const char *payload = (const char *)data;
   printf("Topic '%s' received (%zu bytes): %.*s\n", resolved_topic, len,
          (int)len, payload != NULL ? payload : "");
+}
+
+static void connected_peers_handler(int callerRet, const char **peerIds,
+                                    size_t peerIdsLen, const char *msg,
+                                    size_t len, void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Error(%d): %.*s\n", callerRet, (int)len, msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  printf("Connected peers (%zu):\n", peerIdsLen);
+  for (size_t i = 0; i < peerIdsLen; i++) {
+    const char *peer = peerIds != NULL ? peerIds[i] : "(null peer)";
+    printf("  %s\n", peer != NULL ? peer : "(null peer)");
+  }
+
+  pthread_mutex_lock(&mutex);
+  callback_executed = 1;
+  pthread_cond_signal(&cond);
+  pthread_mutex_unlock(&mutex);
 }
 
 static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,

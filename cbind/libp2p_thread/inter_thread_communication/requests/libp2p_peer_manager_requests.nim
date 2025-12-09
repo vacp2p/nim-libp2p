@@ -16,12 +16,18 @@ type PeerManagementMsgType* = enum
   CONNECT
   DISCONNECT
   PEER_INFO
+  CONNECTED_PEERS
 
 type PeerManagementRequest* = object
   operation: PeerManagementMsgType
   peerId: cstring
   multiaddrs: SharedSeq[cstring]
   timeout: Duration
+  direction: Direction
+
+type ConnectedPeersList* = object
+  peerIds*: ptr cstring
+  peerIdsLen*: csize_t
 
 proc deallocPeerInfo*(info: ptr Libp2pPeerInfo) =
   if info.isNil():
@@ -47,18 +53,33 @@ proc createShared*(
     multiaddrs: ptr cstring = nil,
     multiaddrsLen: csize_t = 0,
     timeout = InfiniteDuration, # not all ops need a timeout
+    direction: Direction = Direction.In,
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
   ret[].peerId = peerId.alloc()
   ret[].multiaddrs = allocSharedSeqFromCArray(multiaddrs, multiaddrsLen.int)
   ret[].timeout = timeout
+  ret[].direction = direction
   return ret
 
 proc destroyShared(self: ptr PeerManagementRequest) =
   deallocShared(self[].peerId)
   deallocSharedSeq(self[].multiaddrs)
   deallocShared(self)
+
+proc deallocConnectedPeers*(peers: ptr ConnectedPeersList) =
+  if peers.isNil():
+    return
+
+  if not peers[].peerIds.isNil():
+    let peersArr = cast[ptr UncheckedArray[cstring]](peers[].peerIds)
+    for i in 0 ..< int(peers[].peerIdsLen):
+      if not peersArr[i].isNil():
+        deallocShared(peersArr[i])
+    deallocShared(peersArr)
+
+  deallocShared(peers)
 
 proc process*(
     self: ptr PeerManagementRequest, libp2p: ptr LibP2P
@@ -87,6 +108,8 @@ proc process*(
     await libp2p.switch.disconnect(peerId)
   of PEER_INFO:
     raiseAssert "unsupported path, use processPeerInfo"
+  of CONNECTED_PEERS:
+    raiseAssert "unsupported path, use processConnectedPeers"
 
   return ok("")
 
@@ -114,3 +137,28 @@ proc processPeerInfo*(
     return err(exc.msg)
 
   return ok(infoPtr)
+
+proc processConnectedPeers*(
+    self: ptr PeerManagementRequest, libp2p: ptr LibP2P
+): Future[Result[ptr ConnectedPeersList, string]] {.async.} =
+  defer:
+    destroyShared(self)
+
+  let peersPtr = cast[ptr ConnectedPeersList](createShared(ConnectedPeersList, 1))
+  let peers = libp2p.switch.connectedPeers(self[].direction)
+  peersPtr[].peerIdsLen = peers.len.csize_t
+
+  if peers.len == 0:
+    peersPtr[].peerIds = nil
+    return ok(peersPtr)
+
+  peersPtr[].peerIds = cast[ptr cstring](allocShared(sizeof(cstring) * peers.len))
+  let peersArr = cast[ptr UncheckedArray[cstring]](peersPtr[].peerIds)
+  try:
+    for i, peer in peers:
+      peersArr[i] = ($peer).alloc()
+  except CatchableError as exc:
+    deallocConnectedPeers(peersPtr)
+    return err(exc.msg)
+
+  return ok(peersPtr)
