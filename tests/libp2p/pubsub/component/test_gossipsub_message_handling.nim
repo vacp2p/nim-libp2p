@@ -34,7 +34,7 @@ proc setupTest(): Future[
     receivedMessages[].incl(data)
 
   proc handlerB(topic: string, data: seq[byte]) {.async.} =
-    discard
+    raiseAssert "should not be called"
 
   nodes[0].subscribe("foobar", handlerA)
   nodes[1].subscribe("foobar", handlerB)
@@ -65,6 +65,26 @@ proc createMessages(
     peer.sentIHaves[^1].incl(iwantMessageId)
 
   return (iwantMessageIds, sentMessages)
+
+proc floodPublishBaseTest*(
+    nodes: seq[GossipSub], numPeersFirstMsg: int, numPeersSecondMsg: int
+) {.async.} =
+  block setup:
+    for i in 0 ..< 50:
+      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == nodes.len - 1:
+        break setup
+      await sleepAsync(100.milliseconds)
+    raiseAssert "Failed to publish message to peers"
+
+  check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
+  check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg
+
+  # Now try with a mesh
+  checkUntilTimeout:
+    nodes[0].mesh.peers("foobar") > 5
+
+  # use a different length so that the message is not equal to the last
+  check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg
 
 suite "GossipSub Component - Message Handling":
   teardown:
@@ -509,28 +529,40 @@ suite "GossipSub Component - Message Handling":
 
   asyncTest "GossipSub floodPublish limit":
     let
-      nodes = setupNodes(20)
-      gossip1 = GossipSub(nodes[0])
+      topic = "foobar"
+      nodes = generateNodes(20, gossip = true).toGossipSub()
 
-    gossip1.parameters.floodPublish = true
-    gossip1.parameters.heartbeatInterval = milliseconds(700)
+    nodes[0].parameters.floodPublish = true
+    nodes[0].parameters.heartbeatInterval = milliseconds(700)
 
     startNodesAndDeferStop(nodes)
-    await connectNodes(nodes[1 ..^ 1], nodes[0])
-    await baseTestProcedure(nodes, gossip1, gossip1.parameters.dLow, 17)
+    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == nodes.len - 1
+      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+
+    await floodPublishBaseTest(nodes, nodes[0].parameters.dHigh, 17)
 
   asyncTest "GossipSub floodPublish limit with bandwidthEstimatebps = 0":
     let
-      nodes = setupNodes(20)
-      gossip1 = GossipSub(nodes[0])
+      topic = "foobar"
+      nodes = generateNodes(20, gossip = true).toGossipSub()
 
-    gossip1.parameters.floodPublish = true
-    gossip1.parameters.heartbeatInterval = milliseconds(700)
-    gossip1.parameters.bandwidthEstimatebps = 0
+    nodes[0].parameters.floodPublish = true
+    nodes[0].parameters.heartbeatInterval = milliseconds(700)
+    nodes[0].parameters.bandwidthEstimatebps = 0
 
     startNodesAndDeferStop(nodes)
-    await connectNodes(nodes[1 ..^ 1], nodes[0])
-    await baseTestProcedure(nodes, gossip1, nodes.len - 1, nodes.len - 1)
+    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == nodes.len - 1
+      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+
+    await floodPublishBaseTest(nodes, nodes.len - 1, nodes.len - 1)
 
   asyncTest "GossipSub with multiple peers":
     const runs = 10
