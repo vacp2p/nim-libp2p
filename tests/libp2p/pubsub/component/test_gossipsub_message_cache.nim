@@ -228,7 +228,7 @@ suite "GossipSub Component - Message Cache":
         numberOfNodes,
         gossip = true,
         heartbeatInterval = 300.milliseconds,
-          # Becasue default heartbeat interval in tests is small (60ms) and vary close to `checkUntilTimeout` 
+          # Becasue default heartbeat interval in tests is small (60ms) and very close to `checkUntilTimeout` 
           # check interval (50ms). It can happen that two heartbeats happen before asserting.
           # To prevent this from happeing, `heartbeatInterval` interval is increased here to ensure that only
           # one heartbeat interval is happeing beofre assertion.
