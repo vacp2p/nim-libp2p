@@ -53,7 +53,7 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim " &
     "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim " &
-    "-d:path=libp2p/multiformat_exts"
+    "-d:path=multiformat_exts"
   runTest("test_all", opts)
 
 task testintegration, "Runs integration tests":

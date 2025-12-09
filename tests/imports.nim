@@ -20,8 +20,9 @@ proc printImportSummary(importedFiles: seq[string], baseDir: string) =
   echo "Imported ", importedFiles.len, " files."
   echo ""
   for file in importedFiles:
-    # Compute relative path from the base directory
-    let relPath = file.replace(baseDir & DirSep, "")
+    # Compute relative path
+    let parentDir = baseDir.parentDir()
+    let relPath = file.replace(parentDir & DirSep, "")
     echo relPath
   echo "=================================="
   echo "\n"

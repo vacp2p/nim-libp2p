@@ -242,7 +242,7 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "iDontWants history - last element is pruned during heartbeat":
     const
       topic = "foobar"
-      heartbeatInterval = 200.milliseconds
+      heartbeatInterval = 300.milliseconds
       historyLength = 3
     let nodes = generateNodes(
         2,
@@ -255,10 +255,11 @@ suite "GossipSub Component - Heartbeat":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connectNodesChain(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
 
     # Get Node0 as Peer of Node1 
     let peer = nodes[1].mesh[topic].toSeq()[0]
@@ -273,7 +274,7 @@ suite "GossipSub Component - Heartbeat":
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # Then Node1 receives 5 iDontWant messages from Node0
-    checkUntilTimeoutCustom(3.seconds, 50.milliseconds):
+    checkUntilTimeout:
       peer.iDontWants[0].len == msgCount
 
     for i in 0 ..< historyLength:
@@ -298,7 +299,7 @@ suite "GossipSub Component - Heartbeat":
     const
       numberOfNodes = 3
       topic = "foobar"
-      heartbeatInterval = 200.milliseconds
+      heartbeatInterval = 300.milliseconds
       historyLength = 3
       gossipThreshold = -100.0
     let nodes = generateNodes(
