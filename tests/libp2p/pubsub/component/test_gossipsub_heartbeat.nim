@@ -218,7 +218,7 @@ suite "GossipSub Component - Heartbeat":
     subscribeAllNodes(nodes[1 .. ^1], topic, voidTopicHandler)
     checkUntilTimeout:
       node0.gossipsub.hasKey(topic)
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len >= 1)
+      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 2)
 
     # When Node0 sends a message to the topic
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1

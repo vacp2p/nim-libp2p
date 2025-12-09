@@ -138,6 +138,9 @@ suite "GossipSub Component - Message Cache":
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
+        heartbeatInterval = 300.milliseconds,
+          # A larger heartbeat interval is required because `checkUntilTimeout` may skip over
+          # the current heartbeat’s condition which is waited on
         historyGossip = historyGossip,
         historyLength = historyLength,
         dValues =
@@ -177,7 +180,9 @@ suite "GossipSub Component - Message Cache":
       nodes[0].mcache.window(topic).len == 1
     let messageId = nodes[0].mcache.window(topic).toSeq()[0]
 
-    # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat
+    # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat.
+    # (Happening in the background...)
+
     # Then NodeOutsideMesh responds with an IWant message to Node0
     checkUntilTimeout:
       receivedIWantsNode0[].anyIt(messageId in it.messageIDs)
@@ -226,7 +231,14 @@ suite "GossipSub Component - Message Cache":
     const
       numberOfNodes = 3
       topic = "foobar"
-    let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+    let nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        heartbeatInterval = 300.milliseconds,
+          # A larger heartbeat interval is required because `checkUntilTimeout` may skip over
+          # the current heartbeat’s condition which is waited on
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -257,9 +269,10 @@ suite "GossipSub Component - Message Cache":
     # When Node2 connects with Node0 and subscribes to the topic
     await connectNodes(nodes[0], nodes[2])
     nodes[2].subscribe(topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.hasPeerId(topic, nodes[2].peerInfo.peerId)
-      nodes[2].gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId)
+    await allFuturesThrowing(
+      waitSub(nodes[0], nodes[2], topic), #
+      waitSub(nodes[2], nodes[0], topic),
+    )
 
     # And messageIds are added to node0PeerNode2 sentIHaves to allow processing IWant
     let node0PeerNode2 = nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId)
