@@ -49,6 +49,7 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
+          nimble setup
 
       - name: Build and run c bindings examples
         run: |
@@ -56,5 +57,6 @@ jobs:
           nimble --version
           gcc --version
 
+          cd cbind
           nimble setup
-          cd cbind && nimble examples
+          nimble examples
