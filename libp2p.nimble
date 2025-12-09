@@ -13,17 +13,17 @@ requires "nim >= 2.0.0",
   "websock >= 0.2.1", "unittest2", "results", "quic >= 0.5.2",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
-let nimc* = getEnv("NIMC", "nim") # Which nim compiler to use
-let lang* = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
-let flags* = getEnv("NIMFLAGS", "") # Extra flags for the compiler
-let verbose* = getEnv("V", "") notin ["", "0"]
+let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
+let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
+let flags = getEnv("NIMFLAGS", "") # Extra flags for the compiler
+let verbose = getEnv("V", "") notin ["", "0"]
 
-let cfg* =
+let cfg =
   " --styleCheck:usages --styleCheck:error" &
-  (if verbose: "" else: " --verbosity:0 --hints:off") &
-  " --skipUserCfg -f --threads:on --opt:speed"
+  (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
+  " --threads:on --opt:speed"
 
-import hashes, os, strutils
+import hashes, strutils, os
 
 proc runTest(filename: string, moreoptions: string = "") =
   var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags
