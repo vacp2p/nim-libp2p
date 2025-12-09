@@ -14,7 +14,16 @@ requires "nim >= 2.0.0",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 import hashes, os, strutils
-include "common.nims"
+
+let nimc* = getEnv("NIMC", "nim") # Which nim compiler to use
+let lang* = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
+let flags* = getEnv("NIMFLAGS", "") # Extra flags for the compiler
+let verbose* = getEnv("V", "") notin ["", "0"]
+
+let cfg* =
+  " --styleCheck:usages --styleCheck:error" &
+  (if verbose: "" else: " --verbosity:0 --hints:off") &
+  " --skipUserCfg -f --threads:on --opt:speed"
 
 proc runTest(filename: string, moreoptions: string = "") =
   var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags

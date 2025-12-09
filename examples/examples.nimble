@@ -9,14 +9,9 @@ license = "MIT"
 # Dependencies are inherited from parent libp2p.nimble via nimble.paths
 # We don't need `requires` here since we run tasks, not build a package
 
-include "../common.nims"
-
-# Add parent directory to search path for libp2p imports
-let parentPath = " -p:../"
-
-proc buildSample(filename: string, run = false, extraFlags = "") =
-  var excstr =
-    nimc & " " & lang & " " & cfg & " " & flags & parentPath & " " & extraFlags
+proc buildSample(filename: string, run = false) =
+  # Add parent directory to search path for libp2p imports  
+  var excstr = "nim c -p:../"
   excstr.add(" " & filename)
   exec excstr
   if run:
@@ -24,13 +19,13 @@ proc buildSample(filename: string, run = false, extraFlags = "") =
   rmFile filename.toExe
 
 task examples, "Build and run all examples":
-  buildSample("examples_build", false, "--styleCheck:off")
+  buildSample("examples_build", false)
   buildSample("examples_run", true)
 
 task tutorials, "Generate tutorial markdown files":
   proc tutorialToMd(filename: string) =
-    let markdown = gorge "cat " & filename & " | " & nimc & " " & lang &
-      " -r --verbosity:0 --hints:off ../tools/markdown_builder.nim "
+    let markdown = gorge "cat " & filename &
+      " | nim c -r --verbosity:0 --hints:off ../tools/markdown_builder.nim "
     writeFile(filename.replace(".nim", ".md"), markdown)
 
   tutorialToMd("tutorial_1_connect.nim")

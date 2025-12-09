@@ -9,8 +9,6 @@ license = "MIT"
 # Dependencies are inherited from parent libp2p.nimble via nimble.paths
 # We don't need `requires` here since we run tasks, not build a package
 
-include "../common.nims"
-
 proc getLibExt(libType: string): string =
   if libType == "static":
     "a"
@@ -35,11 +33,9 @@ proc buildCBindings(libType: string, params = "") =
   let ext = getLibExt(libType)
   let app = if libType == "static": "staticlib" else: "lib"
 
-  exec nimc & " " & lang & " --out:" & buildDir & "/libp2p." & ext &
-    " --threads:on --app:" & app &
+  exec "nim c --out:" & buildDir & "/libp2p." & ext & " --threads:on --app:" & app &
     " --opt:size --noMain --mm:refc --header --undef:metrics" &
-    " --nimMainPrefix:libp2p --nimcache:nimcache" & " -d:asyncTimer=system " & cfg & " " &
-    flags & " libp2p.nim"
+    " --nimMainPrefix:libp2p --nimcache:nimcache" & " -d:asyncTimer=system libp2p.nim"
 
 task libDynamic, "Generate dynamic bindings":
   buildCBindings "dynamic", ""
