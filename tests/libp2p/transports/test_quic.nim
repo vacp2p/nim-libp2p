@@ -82,8 +82,8 @@ suite "Quic transport":
       # use expect to assert dial error after fix:
       # expect QuicTransportDialError:
       #   discard await client.dial("", server.addrs[0])
-      await sleepAsync(100.milliseconds)
-      check (cast[QuicSession](conn)).closed()
+      checkUntilTimeout:
+        (cast[QuicSession](conn)).closed() == true
       await client.stop()
 
     await runClient()
