@@ -133,13 +133,9 @@ suite "GossipSub Component - Message Cache":
     const
       numberOfNodes = 3
       topic = "foobar"
-      historyGossip = 3 # mcache window
-      historyLength = 5
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
-        historyGossip = historyGossip,
-        historyLength = historyLength,
         dValues =
           some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
       )
@@ -177,7 +173,9 @@ suite "GossipSub Component - Message Cache":
       nodes[0].mcache.window(topic).len == 1
     let messageId = nodes[0].mcache.window(topic).toSeq()[0]
 
-    # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat
+    # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat.
+    # (Happening in the background...)
+
     # Then NodeOutsideMesh responds with an IWant message to Node0
     checkUntilTimeout:
       receivedIWantsNode0[].anyIt(messageId in it.messageIDs)
@@ -226,7 +224,16 @@ suite "GossipSub Component - Message Cache":
     const
       numberOfNodes = 3
       topic = "foobar"
-    let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+    let nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        heartbeatInterval = 300.milliseconds,
+          # Becasue default heartbeat interval in tests is small (60ms) and very close to `checkUntilTimeout` 
+          # check interval (50ms). It can happen that two heartbeats happen before asserting.
+          # To prevent this from happening, `heartbeatInterval` interval is increased here to ensure that only
+          # one heartbeat interval is happening before assertion.
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -257,9 +264,10 @@ suite "GossipSub Component - Message Cache":
     # When Node2 connects with Node0 and subscribes to the topic
     await connectNodes(nodes[0], nodes[2])
     nodes[2].subscribe(topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.hasPeerId(topic, nodes[2].peerInfo.peerId)
-      nodes[2].gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId)
+    await allFuturesThrowing(
+      waitSub(nodes[0], nodes[2], topic), #
+      waitSub(nodes[2], nodes[0], topic),
+    )
 
     # And messageIds are added to node0PeerNode2 sentIHaves to allow processing IWant
     let node0PeerNode2 = nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId)
