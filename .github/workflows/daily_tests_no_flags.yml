@@ -1,0 +1,62 @@
+name: Daily without feature flags
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  tests-no-flags:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+
+    defaults:
+      run:
+        shell: bash
+
+    name: "Build and run"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          shell: bash
+          os: linux
+          cpu: amd64
+          nim_ref: v2.2.6
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v3
+        with:
+          path: nimbledeps
+          key: nimbledeps-${{ hashFiles('.pinned') }}
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Build and run tests without feature flags
+        run: |
+          nim c -r tests/test_all.nim
+  
+  notify-on-failure:
+    name: Notify Discord on Failure
+    needs: tests-no-flags
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Discord notification
+        uses: ./.github/actions/discord_notify
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
