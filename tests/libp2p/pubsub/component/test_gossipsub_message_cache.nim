@@ -231,7 +231,7 @@ suite "GossipSub Component - Message Cache":
           # Becasue default heartbeat interval in tests is small (60ms) and very close to `checkUntilTimeout` 
           # check interval (50ms). It can happen that two heartbeats happen before asserting.
           # To prevent this from happeing, `heartbeatInterval` interval is increased here to ensure that only
-          # one heartbeat interval is happeing beofre assertion.
+          # one heartbeat interval is happening before assertion.
       )
       .toGossipSub()
 
