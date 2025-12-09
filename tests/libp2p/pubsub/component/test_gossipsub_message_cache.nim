@@ -133,16 +133,9 @@ suite "GossipSub Component - Message Cache":
     const
       numberOfNodes = 3
       topic = "foobar"
-      historyGossip = 3 # mcache window
-      historyLength = 5
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
-        heartbeatInterval = 300.milliseconds,
-          # A larger heartbeat interval is required because `checkUntilTimeout` may skip over
-          # the current heartbeat’s condition which is waited on
-        historyGossip = historyGossip,
-        historyLength = historyLength,
         dValues =
           some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
       )
@@ -235,8 +228,10 @@ suite "GossipSub Component - Message Cache":
         numberOfNodes,
         gossip = true,
         heartbeatInterval = 300.milliseconds,
-          # A larger heartbeat interval is required because `checkUntilTimeout` may skip over
-          # the current heartbeat’s condition which is waited on
+          # Becasue default heartbeat interval in tests is small (60ms) and vary close to `checkUntilTimeout` 
+          # check interval (50ms). It can happen that two heartbeats happen before asserting.
+          # To prevent this from happeing, `heartbeatInterval` interval is increased here to ensure that only
+          # one heartbeat interval is happeing beofre assertion.
       )
       .toGossipSub()
 
