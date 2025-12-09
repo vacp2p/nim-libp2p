@@ -1,4 +1,4 @@
-name: Examples
+name: C bindings examples
 
 on:
   push:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  examples:
+  c-bindings:
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -22,7 +22,7 @@ jobs:
       run:
         shell: bash
 
-    name: "Build Examples"
+    name: "Build C bindings"
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -50,11 +50,11 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Build and run examples
+      - name: Build and run c bindings examples
         run: |
           nim --version
           nimble --version
           gcc --version
 
           nimble setup
-          cd examples && nimble examples
+          cd cbind && nimble examples
