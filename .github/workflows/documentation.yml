@@ -77,7 +77,7 @@ jobs:
           nim-version: 'stable'
 
       - name: Generate website
-        run: pip install mkdocs-material && nimble -y website
+        run: pip install mkdocs-material && cd examples && nimble -y website
 
       - name: Clone the gh-pages branch
         uses: actions/checkout@v4

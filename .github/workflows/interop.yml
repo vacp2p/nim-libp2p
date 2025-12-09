@@ -85,7 +85,7 @@ jobs:
 
       - name: Run Go and Nim together
         run: |
-          nimble install
+          nimble setup
           cd interop/autonatv2/go-peer
           git clone https://github.com/libp2p/go-libp2p
           cd go-libp2p
