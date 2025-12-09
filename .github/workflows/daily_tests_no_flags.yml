@@ -1,4 +1,4 @@
-name: Daily tests without feature flags
+name: Daily without feature flags
 
 on:
   schedule:
