@@ -13,6 +13,8 @@ requires "nim >= 2.0.0",
   "websock >= 0.2.1", "unittest2", "results", "quic >= 0.5.2",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
+import hashes, os, sequtils, strutils
+
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
 let flags = getEnv("NIMFLAGS", "") # Extra flags for the compiler
@@ -22,8 +24,6 @@ let cfg =
   " --styleCheck:usages --styleCheck:error" &
   (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
   " --threads:on --opt:speed"
-
-import hashes, strutils, os
 
 proc runTest(filename: string, moreoptions: string = "") =
   var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags
@@ -91,7 +91,6 @@ task pin, "Create a lockfile":
   # a command in a nimscript
   exec nimc & " c -r tools/pinner.nim"
 
-import sequtils
 task install_pinned, "Reads the lockfile":
   let toInstall = readFile(PinFile).splitWhitespace().mapIt(
       (it.split(";", 1)[0], it.split(";", 1)[1])
