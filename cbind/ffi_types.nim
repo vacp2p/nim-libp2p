@@ -32,10 +32,28 @@ type PeerInfoCallback* = proc(
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
-type ConnectedPeersCallback* = proc(
+type PeersCallback* = proc(
   callerRet: cint,
   peerIds: ptr cstring,
   peerIdsLen: csize_t,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
+type GetValueCallback* = proc(
+  callerRet: cint,
+  value: ptr byte,
+  valueLen: csize_t,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
+type GetProvidersCallback* = proc(
+  callerRet: cint,
+  providers: ptr Libp2pPeerInfo,
+  providersLen: csize_t,
   msg: ptr cchar,
   len: csize_t,
   userData: pointer,

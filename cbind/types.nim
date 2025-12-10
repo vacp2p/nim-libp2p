@@ -10,6 +10,7 @@
 import std/tables
 import ../libp2p
 import ../libp2p/protocols/pubsub/gossipsub
+import ../libp2p/protocols/kademlia
 import ffi_types
 
 # TODO: remove and implement custom event callbacks if needed
@@ -26,4 +27,5 @@ type TopicHandlerEntry* = tuple[handler: TopicHandler, userData: pointer]
 type LibP2P* = ref object
   switch*: Switch
   gossipSub*: GossipSub
+  kad*: KadDHT
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
