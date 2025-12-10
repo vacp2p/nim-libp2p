@@ -388,9 +388,8 @@ suite "GossipSub Component - Message Handling":
     nodes[1].addObserver(obs1)
     nodes[1].subscribe(topicFoo, voidTopicHandler)
     nodes[1].subscribe(topicBar, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topicFoo).len == 1
-      nodes[0].gossipsub.getOrDefault(topicBar).len == 1
+    waitSubscribe(nodes[0], nodes[1], topicFoo)
+    waitSubscribe(nodes[0], nodes[1], topicBar)
 
     proc validator(
         topic: string, message: Message
