@@ -41,7 +41,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # Because of the hack-ish dValues, the peers are added to gossipsub but not GRAFTed to mesh
     checkUntilTimeout:
@@ -135,7 +135,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -229,7 +229,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -267,7 +267,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -306,7 +306,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both nodes subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # When an IHAVE message is sent from node0
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
@@ -333,7 +333,7 @@ suite "GossipSub Component - Control Messages":
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handlerB)
     nodes[2].subscribe(topic, voidTopicHandler)
-    await waitSubscribeChain(nodes, topic)
+    waitSubscribeChain(nodes, topic)
 
     check:
       nodes[2].mesh.peers(topic) == 1
@@ -375,7 +375,7 @@ suite "GossipSub Component - Control Messages":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # When A sends a message to the topic
     tryPublish await nodes[0].publish(topic, newSeq[byte](10000)), 1
@@ -401,7 +401,7 @@ suite "GossipSub Component - Control Messages":
 
       # And both subscribe to the topic
       subscribeAllNodes(nodes, topic, voidTopicHandler)
-      await waitSubscribeStar(nodes, topic)
+      waitSubscribeStar(nodes, topic)
 
       let preambles =
         @[

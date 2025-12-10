@@ -31,7 +31,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -59,7 +59,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -100,7 +100,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # Add observer to NodeOutsideMesh for received IHave messages
     var (receivedIHaves, checkForIHaves) = createCheckForIHave()
@@ -142,7 +142,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # Add observer to Node0 for received IWant messages
     var (receivedIWantsNode0, checkForIWant) = createCheckForIWant()
@@ -194,7 +194,7 @@ suite "GossipSub Component - Message Cache":
 
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -304,7 +304,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # Given Node0 has msgId already in seen cache
     let data = "Hello".toBytes()

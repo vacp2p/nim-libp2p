@@ -32,7 +32,7 @@ suite "GossipSub Component - Signature Flags":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
@@ -60,7 +60,7 @@ suite "GossipSub Component - Signature Flags":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
@@ -85,7 +85,7 @@ suite "GossipSub Component - Signature Flags":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
@@ -212,7 +212,7 @@ suite "GossipSub Component - Signature Flags":
       let (messageReceivedFut, handler) = createCompleteHandler()
 
       subscribeAllNodes(nodes, topic, handler)
-      await waitSubscribeStar(nodes, topic)
+      waitSubscribeStar(nodes, topic)
 
       tryPublish await sender.publish(topic, testData), 1
 

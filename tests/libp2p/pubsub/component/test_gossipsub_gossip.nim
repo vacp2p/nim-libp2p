@@ -36,7 +36,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -71,7 +71,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
@@ -108,7 +108,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
@@ -146,7 +146,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
@@ -175,7 +175,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeChain(nodes, topic)
+    waitSubscribeChain(nodes, topic)
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)
@@ -203,7 +203,7 @@ suite "GossipSub Component - Gossip Protocol":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # Setup record handlers for all nodes
     let

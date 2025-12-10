@@ -46,7 +46,7 @@ suite "GossipSub Component - Compatibility":
 
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     checkUntilTimeout:
       node0.getPeerByPeerId(topic, node1PeerId).codec == GossipSubCodec_11
@@ -77,7 +77,7 @@ suite "GossipSub Component - Compatibility":
     await connectNodesHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11], topic)
+    waitSubscribeHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11], topic)
 
     # When A sends a message to the topic
     tryPublish await nodeSender.publish(topic, newSeq[byte](10000)), 1

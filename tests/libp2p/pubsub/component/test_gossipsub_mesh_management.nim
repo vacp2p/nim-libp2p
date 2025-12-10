@@ -94,7 +94,7 @@ suite "GossipSub Component - Mesh Management":
 
     nodes[0].subscribe(topic, handler)
     nodes[1].subscribe(topic, handler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     check:
       topic in nodes[0].topics
@@ -180,7 +180,7 @@ suite "GossipSub Component - Mesh Management":
     # When all of them are connected and subscribed to the same topic
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # Then mesh and gossipsub should be populated
     for node in nodes:
@@ -219,7 +219,7 @@ suite "GossipSub Component - Mesh Management":
     # Then all nodes should be subscribed to the topics initially
     for t in topics:
       let topic = t
-      await waitSubscribeStar(nodes, topic)
+      waitSubscribeStar(nodes, topic)
 
     # When they unsubscribe from all topics
     for t in topics:
@@ -249,7 +249,7 @@ suite "GossipSub Component - Mesh Management":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When Node0 unsubscribes from the topic
     nodes[0].unsubscribe(topic, voidTopicHandler)
@@ -298,7 +298,7 @@ suite "GossipSub Component - Mesh Management":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When DValues of Node0 are updated to lower than initial dValues
     const newDValues = some(

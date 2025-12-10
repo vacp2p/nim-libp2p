@@ -72,7 +72,7 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     nodes[0].broadcast(
       nodes[0].mesh[topic],
@@ -112,7 +112,7 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # Simulate sending an undecodable message
     await nodes[1].peers[nodes[0].switch.peerInfo.peerId].sendEncoded(
@@ -149,7 +149,7 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     let msg = RPCMsg(
       control: some(
@@ -209,7 +209,7 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     proc execValidator(
         topic: string, message: messages.Message
@@ -350,7 +350,7 @@ suite "GossipSub Component - Scoring":
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     tryPublish await nodes[0].publish(topic, toBytes("hello")), 1
 
@@ -400,7 +400,7 @@ suite "GossipSub Component - Scoring":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # And center node has message validator: accept from node 1, reject from node 2
     var validatedMessageCount = 0
@@ -496,7 +496,7 @@ suite "GossipSub Component - Scoring":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     # When scoring heartbeat occurs
     # Then Peer has negative score due to active meshMessageDeliveries deficit

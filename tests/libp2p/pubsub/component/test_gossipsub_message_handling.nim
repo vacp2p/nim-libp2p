@@ -219,7 +219,7 @@ suite "GossipSub Component - Message Handling":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
-    await waitSubscribeRing(nodes, topic)
+    waitSubscribeRing(nodes, topic)
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2
@@ -243,7 +243,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     var validatorFut = newFuture[bool]()
     proc validator(
@@ -269,7 +269,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     check:
       nodes[0].mesh[topic].len == 1 and topic notin nodes[0].fanout
@@ -298,7 +298,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     check:
       nodes[0].mesh[topic].len == 1 and topic notin nodes[0].fanout
@@ -426,7 +426,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
@@ -470,7 +470,7 @@ suite "GossipSub Component - Message Handling":
     nodes[0].subscribe(topic, handlerA)
     nodes[1].subscribe(topic, handlerB)
     nodes[2].subscribe(topic, handlerC)
-    await waitSubscribeStar(nodes, topic)
+    waitSubscribeStar(nodes, topic)
 
     proc slowValidator(
         topic: string, message: Message
@@ -542,7 +542,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     await floodPublishBaseTest(nodes, nodes[0].parameters.dHigh, 17)
 
@@ -559,7 +559,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     await floodPublishBaseTest(nodes, nodes.len - 1, nodes.len - 1)
 
