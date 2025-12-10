@@ -15,6 +15,7 @@ import ../../../../libp2p
 type PeerManagementMsgType* = enum
   CONNECT
   DISCONNECT
+  PEER_INFO
 
 type PeerManagementRequest* = object
   operation: PeerManagementMsgType
@@ -67,5 +68,12 @@ proc process*(
     let peerId = PeerId.init($self[].peerId).valueOr:
       return err($error)
     await libp2p.switch.disconnect(peerId)
+  of PEER_INFO:
+    return ok(
+      $ %*{
+        "peerId": $libp2p.switch.peerInfo.peerId,
+        "addrs": libp2p.switch.peerInfo.addrs.mapIt($it),
+      }
+    )
 
   return ok("")

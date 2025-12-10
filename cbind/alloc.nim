@@ -44,7 +44,7 @@ proc alloc*(str: string): cstring =
 proc allocSharedSeq*[T](s: seq[T]): SharedSeq[T] =
   let data = allocShared(sizeof(T) * s.len)
   if s.len != 0:
-    copyMem(data, unsafeAddr s[0], s.len)
+    copyMem(data, s[0].addr, s.len)
   return (cast[ptr UncheckedArray[T]](data), s.len)
 
 proc deallocSharedSeq*[T](s: var SharedSeq[T]) =
