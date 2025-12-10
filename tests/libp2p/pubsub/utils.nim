@@ -379,6 +379,12 @@ proc waitSubscribeHub*[T: PubSub](hub: T, nodes: seq[T], topic: string) {.async.
     hub.gossipsub.getOrDefault(topic).len == nodes.len
     nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
 
+proc waitSubscribeStar*[T: PubSub](nodes: seq[T], topic: string) {.async.} =
+  ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
+  ## 
+  checkUntilTimeout:
+    nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
     return

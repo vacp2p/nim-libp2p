@@ -40,13 +40,11 @@ suite "GossipSub Component - Control Messages":
     await connectNodesStar(nodes)
 
     # And both subscribe to the topic
-    nodes[0].subscribe(topic, voidTopicHandler)
-    nodes[1].subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitSubscribeStar(nodes, topic)
 
     # Because of the hack-ish dValues, the peers are added to gossipsub but not GRAFTed to mesh
     checkUntilTimeout:
-      n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
-      n1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId)
       not n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
@@ -137,8 +135,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -232,8 +229,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -271,8 +267,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -311,8 +306,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both nodes subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     # When an IHAVE message is sent from node0
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
@@ -380,9 +374,8 @@ suite "GossipSub Component - Control Messages":
 
     await connectNodesStar(nodes)
 
-    nodes[0].subscribe(topic, voidTopicHandler)
-    nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSubGraph(nodes, topic)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    await waitSubscribeStar(nodes, topic)
 
     # When A sends a message to the topic
     tryPublish await nodes[0].publish(topic, newSeq[byte](10000)), 1
@@ -408,8 +401,7 @@ suite "GossipSub Component - Control Messages":
 
       # And both subscribe to the topic
       subscribeAllNodes(nodes, topic, voidTopicHandler)
-      checkUntilTimeout:
-        nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+      await waitSubscribeStar(nodes, topic)
 
       let preambles =
         @[

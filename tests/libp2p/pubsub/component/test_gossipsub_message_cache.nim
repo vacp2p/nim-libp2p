@@ -31,8 +31,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -60,8 +59,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -196,8 +194,7 @@ suite "GossipSub Component - Message Cache":
 
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -307,8 +304,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     # Given Node0 has msgId already in seen cache
     let data = "Hello".toBytes()

@@ -46,8 +46,7 @@ suite "GossipSub Component - Compatibility":
 
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+    await waitSubscribeStar(nodes, topic)
 
     checkUntilTimeout:
       node0.getPeerByPeerId(topic, node1PeerId).codec == GossipSubCodec_11

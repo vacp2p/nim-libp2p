@@ -36,8 +36,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeStar(nodes, topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -204,8 +203,7 @@ suite "GossipSub Component - Gossip Protocol":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+    await waitSubscribeStar(nodes, topic)
 
     # Setup record handlers for all nodes
     let
