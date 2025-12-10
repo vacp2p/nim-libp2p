@@ -86,6 +86,7 @@ when not declared(chronos.AsyncSemaphore):
         s.availableSlots.dec
         fut.complete()
         break
+
 else:
   # this hack fixes "unsed imports" errors, when this file is imported
   # but chornos has AsyncSemaphore defined.
