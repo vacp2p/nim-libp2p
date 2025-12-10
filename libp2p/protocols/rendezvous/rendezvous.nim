@@ -21,8 +21,7 @@ import
   ../../routing_record,
   ../../utils/heartbeat,
   ../../stream/connection,
-  ../../utils/offsettedseq,
-  ../../utils/semaphore
+  ../../utils/offsettedseq
 
 export chronicles, offsettedseq
 
@@ -285,7 +284,10 @@ proc advertisePeer[E](
     except CatchableError as exc:
       trace "exception in the advertise", description = exc.msg
     finally:
-      rdv.sema.release()
+      try:
+        rdv.sema.release()
+      except AsyncSemaphoreError:
+        raiseAssert "semaphore released without acquire"
 
   await rdv.sema.acquire()
   await advertiseWrap()

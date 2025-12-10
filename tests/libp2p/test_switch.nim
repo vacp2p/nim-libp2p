@@ -31,7 +31,6 @@ import
     nameresolving/mockresolver,
     nameresolving/nameresolver,
     stream/chronosstream,
-    utils/semaphore,
     transports/tcptransport,
     transports/wstransport,
     transports/quictransport,
@@ -281,8 +280,8 @@ suite "Switch":
 
     let startCounts =
       @[
-        switch1.connManager.inSema.count, switch1.connManager.outSema.count,
-        switch2.connManager.inSema.count, switch2.connManager.outSema.count,
+        switch1.connManager.inSema.availableSlots, switch1.connManager.outSema.availableSlots,
+        switch2.connManager.inSema.availableSlots, switch2.connManager.outSema.availableSlots,
       ]
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
@@ -302,8 +301,8 @@ suite "Switch":
     checkUntilTimeout:
       startCounts ==
         @[
-          switch1.connManager.inSema.count, switch1.connManager.outSema.count,
-          switch2.connManager.inSema.count, switch2.connManager.outSema.count,
+          switch1.connManager.inSema.availableSlots, switch1.connManager.outSema.availableSlots,
+          switch2.connManager.inSema.availableSlots, switch2.connManager.outSema.availableSlots,
         ]
 
     await allFuturesThrowing(switch1.stop(), switch2.stop())
@@ -775,7 +774,7 @@ suite "Switch":
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(maxIn = 3)
+    let destSwitch = newStandardSwitch(maxIn = 3, maxOut = 1)
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -807,7 +806,7 @@ suite "Switch":
       switches.add(newStandardSwitch())
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(maxOut = 3)
+    let srcSwitch = newStandardSwitch(maxOut = 3, maxIn = 1)
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()

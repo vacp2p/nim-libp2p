@@ -27,7 +27,6 @@ import
   protocols/protocol,
   protocols/secure/secure,
   peerinfo,
-  utils/semaphore,
   ./muxers/muxer,
   connmanager,
   nameresolving/nameresolver,
@@ -257,21 +256,28 @@ proc upgradeMonitor(
   finally:
     if (not upgradeSuccessful) and (not isNil(conn)):
       await conn.close()
-    upgrades.release()
+    try:
+      upgrades.release()
+    except AsyncSemaphoreError:
+      raiseAssert "semaphore released without acquire"
 
 proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
-
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
+
   while transport.running:
+    try:
+      await upgrades.acquire() # first wait for an upgrade slot to become available
+    except CancelledError:
+      return
+
     var conn: Connection
     try:
       debug "About to accept incoming connection"
       # remember to always release the slot when
       # the upgrade succeeds or fails, this is
       # currently done by the `upgradeMonitor`
-      await upgrades.acquire() # first wait for an upgrade slot to become available
       let slot = await s.connManager.getIncomingSlot()
       conn =
         try:
@@ -283,14 +289,15 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
           slot.release()
           raise
             newException(CatchableError, "failed to accept connection: " & exc.msg, exc)
-      slot.trackConnection(conn)
       if isNil(conn):
         # A nil connection means that we might have hit a
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
         debug "Unable to get a connection"
-        upgrades.release()
+        slot.release()
         continue
+
+      slot.trackConnection(conn)
 
       # set the direction of this bottom level transport
       # in order to be able to consume this information in gossipsub if required
@@ -299,15 +306,20 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
 
       debug "Accepted an incoming connection", conn
       asyncSpawn s.upgradeMonitor(transport, conn, upgrades)
-    except CancelledError as exc:
-      trace "releasing semaphore on cancellation"
-      upgrades.release() # always release the slot
+    except CancelledError:
+      try:
+        upgrades.release()
+      except AsyncSemaphoreError:
+        raiseAssert "semaphore released without acquire"
       return
     except CatchableError as exc:
       error "Exception in accept loop, exiting", description = exc.msg
-      upgrades.release() # always release the slot
       if not isNil(conn):
         await conn.close()
+      try:
+        upgrades.release()
+      except AsyncSemaphoreError:
+        raiseAssert "semaphore released without acquire"
       return
 
 proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
