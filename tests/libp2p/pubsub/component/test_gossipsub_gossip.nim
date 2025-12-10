@@ -10,7 +10,7 @@
 {.used.}
 
 import chronos, std/[sequtils], stew/byteutils
-import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, rpc/message]
+import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, rpc/message]
 import ../../../tools/unittest
 import ../utils
 

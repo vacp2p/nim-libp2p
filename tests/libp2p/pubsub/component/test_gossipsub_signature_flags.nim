@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, stew/byteutils, std/sequtils
+import chronos, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
 import ../../../tools/[unittest]
 import ../utils
