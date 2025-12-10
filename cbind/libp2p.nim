@@ -20,15 +20,13 @@ import
   ./[ffi_types, types],
   ./libp2p_thread/inter_thread_communication/libp2p_thread_request,
   ./libp2p_thread/inter_thread_communication/requests/
-    [libp2p_lifecycle_requests, libp2p_peer_manager_requests],
+    [libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests],
   ../libp2p
 ################################################################################
 ### Not-exported components
 ################################################################################
 
-template checkLibParams*(
-    ctx: ptr LibP2PContext, callback: Libp2pCallback, userData: pointer
-) =
+template checkLibParams*(ctx: ptr LibP2PContext, callback: pointer, userData: pointer) =
   ## This template checks common parameters passed to exported functions
   ctx[].userData = userData
 
@@ -247,18 +245,129 @@ proc libp2p_disconnect(
   ).cint
 
 proc libp2p_peerinfo(
-    ctx: ptr LibP2PContext, callback: Libp2pCallback, userData: pointer
+    ctx: ptr LibP2PContext, callback: PeerInfoCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.PEER_MANAGER,
+    PeerManagementRequest.createShared(PeerManagementMsgType.PEER_INFO),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+# TODO: instead of returning a ctx, return a libp2p_t
+
+proc libp2p_gossipsub_publish(
+    ctx: ptr LibP2PContext,
+    topic: cstring,
+    data: ptr byte,
+    dataLen: csize_t,
+    timeoutMs: int64,
+    callback: Libp2pCallback,
+    userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
   handleRequest(
     ctx,
-    RequestType.PEER_MANAGER,
-    PeerManagementRequest.createShared(PeerManagementMsgType.PEER_INFO),
+    RequestType.PUBSUB,
+    PubSubRequest.createShared(
+      PubSubMsgType.PUBLISH, topic, data = data, dataLen = dataLen
+    ),
     callback,
     userData,
   ).cint
 
+proc libp2p_gossipsub_subscribe(
+    ctx: ptr LibP2PContext,
+    topic: cstring,
+    topicHandler: PubsubTopicHandler,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PUBSUB,
+    PubSubRequest.createShared(PubSubMsgType.SUBSCRIBE, topic, topicHandler),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_gossipsub_unsubscribe(
+    ctx: ptr LibP2PContext,
+    topic: cstring,
+    topicHandler: PubsubTopicHandler,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PUBSUB,
+    PubSubRequest.createShared(PubSubMsgType.UNSUBSCRIBE, topic, topicHandler),
+    callback,
+    userData,
+  ).cint
+
+#[
+proc libp2p_gossipsub_add_validator(
+    ctx: ptr LibP2PContext,
+    topics: ptr cstring,
+    topicsLen: csize_t,
+    hook: PubsubValidatorHandler,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PUBSUB,
+    PubSubRequest.createShared(
+      PubSubMsgType.ADD_VALIDATOR, topics = topics, topicsLen = topicsLen, hook = hook
+    ),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_gossipsub_remove_validator(
+    ctx: ptr LibP2PContext,
+    topics: ptr cstring,
+    topicsLen: csize_t,
+    hook: PubsubValidatorHandler,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PUBSUB,
+    PubSubRequest.createShared(
+      PubSubMsgType.REMOVE_VALIDATOR,
+      topics = topics,
+      topicsLen = topicsLen,
+      hook = hook,
+    ),
+    callback,
+    userData,
+  ).cint
+]#
 ### End of exported procs
 ################################################################################
