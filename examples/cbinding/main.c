@@ -57,7 +57,6 @@ int main(int argc, char **argv) {
 
   libp2p_connect(ctx1, pi.peerId, pi.addrs, pi.addrCount, 0, event_handler,
                  NULL);
-  waitForCallback();
 
   sleep(5);
   status = 0;
@@ -84,7 +83,7 @@ cleanup:
 static void event_handler(int callerRet, const char *msg, size_t len,
                           void *userData) {
   if (callerRet == RET_OK) {
-    if (msg != NULL && len != 0)
+    if (msg != NULL)
       printf("Receiving event: %s\n", msg);
   } else {
     printf("Error(%d): %s\n", callerRet, msg);
@@ -112,9 +111,6 @@ static void peerinfo_handler(int callerRet, const char *msg, size_t len,
     if (*result != NULL) {
       memcpy(*result, msg, len);
       (*result)[len] = '\0';
-    } else {
-      printf("Error: malloc failed in peerinfo_handler\n");
-      exit(1);
     }
   }
 
