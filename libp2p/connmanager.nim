@@ -340,6 +340,8 @@ proc getOutgoingSlot*(
     c: ConnManager, forceDial = false
 ): ConnectionSlot {.raises: [TooManyConnectionsError].} =
   if forceDial:
+    # force dial by not blocking/waiting on acquire and 
+    # still calling acquire to track this connection.
     discard c.outSema.acquire()
   elif not c.outSema.tryAcquire():
     trace "Too many outgoing connections!",
