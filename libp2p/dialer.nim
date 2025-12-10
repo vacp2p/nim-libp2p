@@ -221,12 +221,13 @@ proc internalConnect(
       raise newException(
         DialFailedError, "failed dialAndUpgrade in internalConnect: " & exc.msg, exc
       )
-
-  slot.trackMuxer(muxed)
   if isNil(muxed): # None of the addresses connected
+    slot.release()
     raise newException(
       DialFailedError, "Unable to establish outgoing link in internalConnect"
     )
+
+  slot.trackMuxer(muxed)
 
   try:
     self.connManager.storeMuxer(muxed)

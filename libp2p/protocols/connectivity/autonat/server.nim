@@ -102,7 +102,10 @@ proc tryDial(
     debug "Dial timeout", addrs, description = exc.msg
     await conn.sendResponseError(DialError, "Dial timeout")
   finally:
-    autonat.sem.release()
+    try:
+      autonat.sem.release()
+    except AsyncSemaphoreError:
+      raiseAssert "semaphore released without acquire"
     for f in futs:
       if not f.finished():
         f.cancelSoon()
