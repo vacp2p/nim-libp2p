@@ -219,8 +219,7 @@ suite "GossipSub Component - Message Handling":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
-    checkUntilTimeout:
-      nodes.allIt(it.mesh.getOrDefault(topic).len == numberOfNodes - 1)
+    await waitSubscribeRing(nodes, topic)
 
     # When node 0 sends a message
     check (await nodes[0].publish(topic, "Hello!".toBytes())) == 2

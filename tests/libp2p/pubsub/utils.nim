@@ -366,6 +366,12 @@ proc waitSubscribeChain*[T: PubSub](nodes: seq[T], topic: string) {.async.} =
     nodes[1 .. ^2].allIt(it.gossipsub.getOrDefault(topic).len == 2)
     nodes[^1].gossipsub.getOrDefault(topic).len == 1
 
+proc waitSubscribeRing*[T: PubSub](nodes: seq[T], topic: string) {.async.} =
+  ## Ring: 1-2-3-4-5-1
+  ## 
+  checkUntilTimeout:
+    nodes.allIt(it.gossipsub.getOrDefault(topic).len == 2)
+
 proc waitSubscribeHub*[T: PubSub](hub: T, nodes: seq[T], topic: string) {.async.} =
   ## Hub: hub-1, hub-2, hub-3,...
   ## 
