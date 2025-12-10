@@ -27,7 +27,7 @@ suite "GossipSub Component - Skip MCache Support":
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     let publishData = "hello".toBytes()
 
@@ -47,7 +47,7 @@ suite "GossipSub Component - Skip MCache Support":
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     let publishData = "hello".toBytes()
 

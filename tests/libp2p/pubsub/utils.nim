@@ -264,6 +264,9 @@ proc generateNodes*(
     switch.mount(pubsub)
     result.add(pubsub)
 
+proc toFloodSub*(nodes: seq[PubSub]): seq[FloodSub] =
+  return nodes.mapIt(FloodSub(it))
+
 proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
   return nodes.mapIt(GossipSub(it))
 
@@ -385,18 +388,21 @@ template waitSubscribeStar*[T: PubSub](nodes: seq[T], topic: string): untyped =
   checkUntilTimeout:
     nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
 
-proc waitSub*(sender, receiver: auto, key: string) {.async.} =
-  if sender == receiver:
+template waitSubscribe*[T: PubSub](dialer, receiver: T, topic: string): untyped =
+  if dialer.switch.peerInfo.peerId == receiver.switch.peerInfo.peerId:
     return
-  let fsub = GossipSub(sender)
   let peerId = receiver.peerInfo.peerId
-
-  # this is for testing purposes only
-  # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  checkUntilTimeout:
-    (fsub.gossipsub.hasKey(key) and fsub.gossipsub.hasPeerId(key, peerId)) or
-      (fsub.mesh.hasKey(key) and fsub.mesh.hasPeerId(key, peerId)) or
-      (fsub.fanout.hasKey(key) and fsub.fanout.hasPeerId(key, peerId))
+ 
+  when T is GossipSub:
+    checkUntilTimeout:
+      dialer.gossipsub.hasKey(topic)
+      dialer.gossipsub.hasPeerId(topic, peerId)
+  elif T is FloodSub:
+    checkUntilTimeout:
+      dialer.floodsub.hasKey(topic)
+      dialer.floodsub.hasPeerId(topic, peerId)
+  else:
+    {.error: "waitSubscribe not implemented for this PubSub type".}
 
 proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
   proc isGraphConnected(): bool =

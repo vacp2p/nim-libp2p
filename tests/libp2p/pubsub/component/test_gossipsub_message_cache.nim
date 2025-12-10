@@ -13,7 +13,7 @@ import chronos, std/[sequtils], stew/byteutils
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, floodsub, rpc/messages, rpc/message]
-import ../../../tools/[unittest, futures]
+import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Message Cache":
@@ -233,10 +233,8 @@ suite "GossipSub Component - Message Cache":
     await connectNodes(nodes[0], nodes[1])
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, voidTopicHandler)
-    await allFuturesThrowing(
-      waitSub(nodes[0], nodes[1], topic), #
-      waitSub(nodes[1], nodes[0], topic),
-    )
+    waitSubscribe(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[1], nodes[0], topic)
 
     # When Node0 publishes two messages to the topic
     tryPublish await nodes[0].publish(topic, "Hello".toBytes()), 1
@@ -257,10 +255,8 @@ suite "GossipSub Component - Message Cache":
     # When Node2 connects with Node0 and subscribes to the topic
     await connectNodes(nodes[0], nodes[2])
     nodes[2].subscribe(topic, voidTopicHandler)
-    await allFuturesThrowing(
-      waitSub(nodes[0], nodes[2], topic), #
-      waitSub(nodes[2], nodes[0], topic),
-    )
+    waitSubscribe(nodes[0], nodes[2], topic)
+    waitSubscribe(nodes[2], nodes[0], topic)
 
     # And messageIds are added to node0PeerNode2 sentIHaves to allow processing IWant
     let node0PeerNode2 = nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId)

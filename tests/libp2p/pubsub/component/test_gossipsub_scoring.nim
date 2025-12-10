@@ -25,8 +25,7 @@ suite "GossipSub Component - Scoring":
   asyncTest "Flood publish to all peers with score above threshold, regardless of subscription":
     let
       numberOfNodes = 3
-      nodes = generateNodes(numberOfNodes, gossip = true, floodPublish = true)
-      g0 = GossipSub(nodes[0])
+      nodes = generateNodes(numberOfNodes, gossip = true, floodPublish = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -39,13 +38,13 @@ suite "GossipSub Component - Scoring":
     # Nodes are subscribed to the same topic
     nodes[1].subscribe(topic, handler1)
     nodes[2].subscribe(topic, handler2)
-    await waitSub(nodes[0], nodes[1], topic)
-    await waitSub(nodes[0], nodes[2], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[2], topic)
 
     # Given node 2's score is below the threshold
-    for peer in g0.gossipsub.getOrDefault(topic):
+    for peer in nodes[0].gossipsub.getOrDefault(topic):
       if peer.peerId == nodes[2].peerInfo.peerId:
-        peer.score = (g0.parameters.publishThreshold - 1)
+        peer.score = (nodes[0].parameters.publishThreshold - 1)
 
     # When node 0 publishes a message to topic "foo"
     let message = "Hello!".toBytes()
@@ -250,7 +249,7 @@ suite "GossipSub Component - Scoring":
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     nodes[1].updateScores()
 

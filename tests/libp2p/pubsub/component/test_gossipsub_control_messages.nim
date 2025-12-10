@@ -92,7 +92,7 @@ suite "GossipSub Component - Control Messages":
 
     # And only node0 subscribes to the topic
     nodes[0].subscribe(topic, voidTopicHandler)
-    await waitSub(n1, n0, topic)
+    waitSubscribe(n1, n0, topic)
 
     check:
       n0.topics.hasKey(topic)
@@ -183,7 +183,7 @@ suite "GossipSub Component - Control Messages":
 
     # And only node0 subscribes to the topic 
     n0.subscribe(topic, voidTopicHandler)
-    await waitSub(n1, n0, topic)
+    waitSubscribe(n1, n0, topic)
 
     check:
       n0.topics.hasKey(topic)

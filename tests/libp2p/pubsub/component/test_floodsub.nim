@@ -15,7 +15,6 @@ import
   ../../../../libp2p/[
     switch,
     stream/connection,
-    crypto/crypto,
     protocols/pubsub/pubsub,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
@@ -24,11 +23,6 @@ import
   ]
 import ../../../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../../../tools/[unittest, futures]
-
-proc waitSub(sender, receiver: auto, key: string) {.async.} =
-  let fsub = cast[FloodSub](sender)
-  checkUntilTimeout:
-    fsub.floodsub.hasKey(key) and fsub.floodsub.hasPeerId(key, receiver.peerInfo.peerId)
 
 suite "FloodSub Component":
   teardown:
@@ -40,13 +34,13 @@ suite "FloodSub Component":
       check topic == "foobar"
       completionFut.complete(true)
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    waitSubscribe(nodes[0], nodes[1], "foobar")
 
     check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
     check (await completionFut.wait(5.seconds)) == true
@@ -65,13 +59,13 @@ suite "FloodSub Component":
       check topic == "foobar"
       completionFut.complete(true)
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[0].subscribe("foobar", handler)
-    await waitSub(nodes[1], nodes[0], "foobar")
+    waitSubscribe(nodes[1], nodes[0], "foobar")
 
     check (await nodes[1].publish("foobar", "Hello!".toBytes())) > 0
     check (await completionFut.wait(5.seconds)) == true
@@ -82,13 +76,13 @@ suite "FloodSub Component":
       check topic == "foobar"
       handlerFut.complete(true)
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    waitSubscribe(nodes[0], nodes[1], "foobar")
 
     var validatorFut = newFuture[bool]()
     proc validator(
@@ -107,13 +101,13 @@ suite "FloodSub Component":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       raiseAssert "Handler should not be called when validation fails"
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    waitSubscribe(nodes[0], nodes[1], "foobar")
 
     var validatorFut = newFuture[bool]()
     proc validator(
@@ -132,15 +126,15 @@ suite "FloodSub Component":
       check topic == "foo"
       handlerFut.complete(true)
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[1].subscribe("foo", handler)
-    await waitSub(nodes[0], nodes[1], "foo")
+    waitSubscribe(nodes[0], nodes[1], "foo")
     nodes[1].subscribe("bar", handler)
-    await waitSub(nodes[0], nodes[1], "bar")
+    waitSubscribe(nodes[0], nodes[1], "bar")
 
     proc validator(
         topic: string, message: Message
@@ -176,7 +170,7 @@ suite "FloodSub Component":
           counter,
         )
 
-    let nodes = generateNodes(runs, triggerSelf = false)
+    let nodes = generateNodes(runs, triggerSelf = false).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -184,12 +178,10 @@ suite "FloodSub Component":
     for i in 0 ..< runs:
       nodes[i].subscribe("foobar", futs[i][1])
 
-    var subs: seq[Future[void]]
     for i in 0 ..< runs:
       for y in 0 ..< runs:
         if y != i:
-          subs &= waitSub(nodes[i], nodes[y], "foobar")
-    await allFuturesThrowing(subs)
+          waitSubscribe(nodes[i], nodes[y], "foobar")
 
     var pubs: seq[Future[int]]
     for i in 0 ..< runs:
@@ -219,7 +211,7 @@ suite "FloodSub Component":
           counter,
         )
 
-    let nodes = generateNodes(runs, triggerSelf = true)
+    let nodes = generateNodes(runs, triggerSelf = true).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -227,12 +219,10 @@ suite "FloodSub Component":
     for i in 0 ..< runs:
       nodes[i].subscribe("foobar", futs[i][1])
 
-    var subs: seq[Future[void]]
     for i in 0 ..< runs:
       for y in 0 ..< runs:
         if y != i:
-          subs &= waitSub(nodes[i], nodes[y], "foobar")
-    await allFuturesThrowing(subs)
+          waitSubscribe(nodes[i], nodes[y], "foobar")
 
     var pubs: seq[Future[int]]
     for i in 0 ..< runs:
@@ -259,15 +249,15 @@ suite "FloodSub Component":
       inc(messageReceived)
 
     let
-      bigNode = generateNodes(1)
-      smallNode = generateNodes(1, maxMessageSize = 200)
+      bigNode = generateNodes(1).toFloodSub()
+      smallNode = generateNodes(1, maxMessageSize = 200).toFloodSub()
 
     startNodesAndDeferStop(bigNode & smallNode)
     await connectNodesStar(bigNode & smallNode)
 
     bigNode[0].subscribe("foo", handler)
     smallNode[0].subscribe("foo", handler)
-    await waitSub(bigNode[0], smallNode[0], "foo")
+    waitSubscribe(bigNode[0], smallNode[0], "foo")
 
     let
       bigMessage = newSeq[byte](1000)
@@ -290,14 +280,14 @@ suite "FloodSub Component":
       inc(messageReceived)
 
     let
-      bigNode1 = generateNodes(1, maxMessageSize = 20000000)
-      bigNode2 = generateNodes(1, maxMessageSize = 20000000)
+      bigNode1 = generateNodes(1, maxMessageSize = 20000000).toFloodSub()
+      bigNode2 = generateNodes(1, maxMessageSize = 20000000).toFloodSub()
 
     startNodesAndDeferStop(bigNode1 & bigNode2)
     await connectNodesStar(bigNode1 & bigNode2)
 
     bigNode2[0].subscribe("foo", handler)
-    await waitSub(bigNode1[0], bigNode2[0], "foo")
+    waitSubscribe(bigNode1[0], bigNode2[0], "foo")
 
     let bigMessage = newSeq[byte](19000000)
 
