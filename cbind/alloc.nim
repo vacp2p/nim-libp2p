@@ -69,16 +69,19 @@ proc toSeq*[T](s: SharedSeq[T]): seq[T] =
   if s.len == 0:
     return newSeq[T]()
 
-  var ret = newSeqUninit[T](s.len)
-  copyMem(addr ret[0], addr s[0], s.len)
-  return ret
+  when T is Natural:
+    var ret = newSeqUninit[T](s.len)
+    copyMem(addr ret[0], addr s.data[0], s.len * sizeof(T))
+    return ret
+
+  return @(s.data.toOpenArray(0, s.len - 1))
 
 proc allocSharedSeqFromCArray*[T](arr: ptr T, len: int): SharedSeq[T] =
   ## Creates a SharedSeq[T] from a C array pointer and length.
   ## The data is copied to shared memory.
   ## There should be a corresponding manual deallocation with deallocSharedSeq!
   if arr.isNil() or len <= 0:
-    return (nil, 0)
+    return SharedSeq[T](data: nil, len: 0)
 
   when T is cstring:
     # Special handling for arrays of cstrings
@@ -89,9 +92,9 @@ proc allocSharedSeqFromCArray*[T](arr: ptr T, len: int): SharedSeq[T] =
       # Use the existing alloc proc to properly allocate each cstring
       data[i] = cstrArr[i].alloc()
 
-    return (data, len)
+    return SharedSeq[T](data: data, len: len)
   else:
     # Original handling for non-cstring types
     let data = allocShared(sizeof(T) * len)
     copyMem(data, arr, sizeof(T) * len)
-    return (cast[ptr UncheckedArray[T]](data), len)
+    return SharedSeq[T](data: cast[ptr UncheckedArray[T]](data), len: len)

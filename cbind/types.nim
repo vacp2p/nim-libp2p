@@ -18,4 +18,4 @@ import ../libp2p
 type AppCallbacks* = ref object
 
 type LibP2P* = ref object
-  switch: Switch
+  switch*: Switch

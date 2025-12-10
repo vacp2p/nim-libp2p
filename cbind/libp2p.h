@@ -36,7 +36,16 @@ int libp2p_destroy(void *ctx, Libp2pCallback callback, void *userData);
 void libp2p_set_event_callback(void *ctx, Libp2pCallback callback,
                                void *userData);
 
-int libp2p_hello(void *ctx, Libp2pCallback callback, void *userData);
+int libp2p_start(void *ctx, Libp2pCallback callback, void *userData);
+
+int libp2p_stop(void *ctx, Libp2pCallback callback, void *userData);
+
+int libp2p_connect(void *ctx, const char *peerId, const char **multiaddrs,
+                   size_t multiaddrsLen, int64_t timeoutMs,
+                   Libp2pCallback callback, void *userData);
+
+int libp2p_disconnect(void *ctx, const char *peerId, Libp2pCallback callback,
+                      void *userData);
 
 #ifdef __cplusplus
 }

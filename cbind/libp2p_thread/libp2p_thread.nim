@@ -37,7 +37,7 @@ type LibP2PContext* = object
   eventUserData*: pointer
   running: Atomic[bool] # Used to stop the LibP2P thread loop
 
-proc runLibP2P(ctx: ptr LibP2PContext) {.async.} =
+proc runLibP2P(ctx: ptr LibP2PContext) {.async: (raises: [CancelledError]).} =
   ## Main async loop of the LibP2P thread, processes incoming requests
 
   # This is the worker body. This runs the LibP2P instance
@@ -46,7 +46,11 @@ proc runLibP2P(ctx: ptr LibP2PContext) {.async.} =
   var libp2p: LibP2P
 
   while true:
-    await ctx.reqSignal.wait()
+    try:
+      await ctx.reqSignal.wait()
+    except AsyncError as exc:
+      error "libp2p thread async error", err = $exc.msg
+      continue
 
     if not ctx.running.load:
       break
