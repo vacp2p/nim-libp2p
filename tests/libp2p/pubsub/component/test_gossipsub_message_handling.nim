@@ -247,9 +247,9 @@ suite "GossipSub Component - Message Handling":
 
     var validatorFut = newFuture[bool]()
     proc validator(
-        topic: string, message: Message
+        validatorTopic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      check topic == topic
+      check validatorTopic == topic
       validatorFut.complete(true)
       result = ValidationResult.Accept
 

@@ -125,8 +125,8 @@ suite "GossipSub Component - Mesh Management":
     nodes[0].subscribe(topic, handler)
 
     let invalidDetected = newFuture[void]()
-    nodes[0].subscriptionValidator = proc(topic: string): bool =
-      if topic == topic:
+    nodes[0].subscriptionValidator = proc(subTopic: string): bool =
+      if subTopic == topic:
         try:
           invalidDetected.complete()
         except:
