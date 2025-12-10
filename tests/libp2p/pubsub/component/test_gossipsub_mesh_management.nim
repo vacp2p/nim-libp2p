@@ -340,11 +340,9 @@ suite "GossipSub Component - Mesh Management":
     )
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await allFuturesThrowing( # wait for subscribe
-      waitSub(nodes[0], nodes[1], topic),
-      waitSub(nodes[0], nodes[2], topic),
-      waitSub(nodes[3], nodes[0], topic),
-    )
+    waitSubscribe(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[2], topic)
+    waitSubscribe(nodes[3], nodes[0], topic)
 
     checkUntilTimeout:
       nodes[0].mesh.outboundPeers(topic) == 2

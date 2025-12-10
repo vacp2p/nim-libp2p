@@ -15,7 +15,6 @@ import
   ../../../../libp2p/[
     switch,
     stream/connection,
-    crypto/crypto,
     protocols/pubsub/pubsub,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
@@ -25,31 +24,24 @@ import
 import ../../../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../../../tools/[unittest, futures]
 
-proc waitSub(sender, receiver: auto, key: string) {.async.} =
-  let fsub = cast[FloodSub](sender)
-  checkUntilTimeout:
-    fsub.floodsub.hasKey(key) and fsub.floodsub.hasPeerId(key, receiver.peerInfo.peerId)
-
 suite "FloodSub Component":
   teardown:
     checkTrackers()
 
   asyncTest "FloodSub basic publish/subscribe A -> B":
-    var completionFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      completionFut.complete(true)
+    const topic = "foobar"
+    let (handlerFut, handler) = createCompleteHandler()
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    nodes[1].subscribe(topic, handler)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
-    check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
-    check (await completionFut.wait(5.seconds)) == true
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
+    check (await handlerFut.wait(5.seconds)) == true
 
     when defined(libp2p_agents_metrics):
       let
@@ -60,60 +52,57 @@ suite "FloodSub Component":
         agentB == "nim-libp2p"
 
   asyncTest "FloodSub basic publish/subscribe B -> A":
-    var completionFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      completionFut.complete(true)
+    const topic = "foobar"
+    let (handlerFut, handler) = createCompleteHandler()
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[0].subscribe("foobar", handler)
-    await waitSub(nodes[1], nodes[0], "foobar")
+    nodes[0].subscribe(topic, handler)
+    waitSubscribe(nodes[1], nodes[0], topic)
 
-    check (await nodes[1].publish("foobar", "Hello!".toBytes())) > 0
-    check (await completionFut.wait(5.seconds)) == true
+    check (await nodes[1].publish(topic, "Hello!".toBytes())) > 0
+    check (await handlerFut.wait(5.seconds)) == true
 
   asyncTest "FloodSub validation should succeed":
-    var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
-      handlerFut.complete(true)
+    const topic = "foobar"
+    let (handlerFut, handler) = createCompleteHandler()
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    nodes[1].subscribe(topic, handler)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     var validatorFut = newFuture[bool]()
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      check topic == "foobar"
+      check topic == topic
       validatorFut.complete(true)
       result = ValidationResult.Accept
 
-    nodes[1].addValidator("foobar", validator)
+    nodes[1].addValidator(topic, validator)
 
-    check (await nodes[0].publish("foobar", "Hello!".toBytes())) > 0
+    check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
     check (await handlerFut) == true
 
   asyncTest "FloodSub validation should fail":
+    const topic = "foobar"
     proc handler(topic: string, data: seq[byte]) {.async.} =
       raiseAssert "Handler should not be called when validation fails"
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    nodes[1].subscribe(topic, handler)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     var validatorFut = newFuture[bool]()
     proc validator(
@@ -122,44 +111,49 @@ suite "FloodSub Component":
       validatorFut.complete(true)
       result = ValidationResult.Reject
 
-    nodes[1].addValidator("foobar", validator)
+    nodes[1].addValidator(topic, validator)
 
-    discard await nodes[0].publish("foobar", "Hello!".toBytes())
+    discard await nodes[0].publish(topic, "Hello!".toBytes())
 
   asyncTest "FloodSub validation one fails and one succeeds":
+    const
+      topicFoo = "foo"
+      topicBar = "bar"
     var handlerFut = newFuture[bool]()
     proc handler(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foo"
+      check topic == topicFoo
       handlerFut.complete(true)
 
-    let nodes = generateNodes(2)
+    let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe("foo", handler)
-    await waitSub(nodes[0], nodes[1], "foo")
-    nodes[1].subscribe("bar", handler)
-    await waitSub(nodes[0], nodes[1], "bar")
+    nodes[1].subscribe(topicFoo, handler)
+    waitSubscribe(nodes[0], nodes[1], topicFoo)
+    nodes[1].subscribe(topicBar, handler)
+    waitSubscribe(nodes[0], nodes[1], topicBar)
 
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      if topic == "foo":
+      if topic == topicFoo:
         result = ValidationResult.Accept
       else:
         result = ValidationResult.Reject
 
-    nodes[1].addValidator("foo", "bar", validator)
+    nodes[1].addValidator(topicFoo, topicBar, validator)
 
-    check (await nodes[0].publish("foo", "Hello!".toBytes())) > 0
-    check (await nodes[0].publish("bar", "Hello!".toBytes())) > 0
+    check (await nodes[0].publish(topicFoo, "Hello!".toBytes())) > 0
+    check (await nodes[0].publish(topicBar, "Hello!".toBytes())) > 0
 
   asyncTest "FloodSub multiple peers, no self trigger":
-    var runs = 10
+    const
+      topic = "foobar"
+      numberOfNodes = 10
 
-    var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
-    for i in 0 ..< runs:
+    var futs = newSeq[(Future[void], TopicHandler, ref int)](numberOfNodes)
+    for i in 0 ..< numberOfNodes:
       closureScope:
         var
           fut = newFuture[void]()
@@ -167,42 +161,37 @@ suite "FloodSub Component":
         futs[i] = (
           fut,
           (
-            proc(topic: string, data: seq[byte]) {.async.} =
-              check topic == "foobar"
+            proc(handlerTopic: string, data: seq[byte]) {.async.} =
+              check handlerTopic == topic
               inc counter[]
-              if counter[] == runs - 1:
+              if counter[] == numberOfNodes - 1:
                 fut.complete()
           ),
           counter,
         )
 
-    let nodes = generateNodes(runs, triggerSelf = false)
+    let nodes = generateNodes(numberOfNodes, triggerSelf = false).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    for i in 0 ..< runs:
-      nodes[i].subscribe("foobar", futs[i][1])
-
-    var subs: seq[Future[void]]
-    for i in 0 ..< runs:
-      for y in 0 ..< runs:
-        if y != i:
-          subs &= waitSub(nodes[i], nodes[y], "foobar")
-    await allFuturesThrowing(subs)
+    subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
+    waitSubscribeStar(nodes, topic)
 
     var pubs: seq[Future[int]]
-    for i in 0 ..< runs:
-      pubs &= nodes[i].publish("foobar", ("Hello!" & $i).toBytes())
+    for i in 0 ..< numberOfNodes:
+      pubs &= nodes[i].publish(topic, ("Hello!" & $i).toBytes())
     await allFuturesThrowing(pubs)
 
     await allFuturesThrowing(futs.mapIt(it[0]))
 
   asyncTest "FloodSub multiple peers, with self trigger":
-    var runs = 10
+    const
+      topic = "foobar"
+      numberOfNodes = 10
 
-    var futs = newSeq[(Future[void], TopicHandler, ref int)](runs)
-    for i in 0 ..< runs:
+    var futs = newSeq[(Future[void], TopicHandler, ref int)](numberOfNodes)
+    for i in 0 ..< numberOfNodes:
       closureScope:
         var
           fut = newFuture[void]()
@@ -210,33 +199,26 @@ suite "FloodSub Component":
         futs[i] = (
           fut,
           (
-            proc(topic: string, data: seq[byte]) {.async.} =
-              check topic == "foobar"
+            proc(handlerTopic: string, data: seq[byte]) {.async.} =
+              check handlerTopic == topic
               inc counter[]
-              if counter[] == runs - 1:
+              if counter[] == numberOfNodes - 1:
                 fut.complete()
           ),
           counter,
         )
 
-    let nodes = generateNodes(runs, triggerSelf = true)
+    let nodes = generateNodes(numberOfNodes, triggerSelf = true).toFloodSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    for i in 0 ..< runs:
-      nodes[i].subscribe("foobar", futs[i][1])
-
-    var subs: seq[Future[void]]
-    for i in 0 ..< runs:
-      for y in 0 ..< runs:
-        if y != i:
-          subs &= waitSub(nodes[i], nodes[y], "foobar")
-    await allFuturesThrowing(subs)
+    subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
+    waitSubscribeStar(nodes, topic)
 
     var pubs: seq[Future[int]]
-    for i in 0 ..< runs:
-      pubs &= nodes[i].publish("foobar", ("Hello!" & $i).toBytes())
+    for i in 0 ..< numberOfNodes:
+      pubs &= nodes[i].publish(topic, ("Hello!" & $i).toBytes())
     await allFuturesThrowing(pubs)
 
     # wait the test task
@@ -244,30 +226,29 @@ suite "FloodSub Component":
 
     # test calling unsubscribeAll for coverage
     for node in nodes:
-      node.unsubscribeAll("foobar")
+      node.unsubscribeAll(topic)
       let n = node
       checkUntilTimeout:
-        # we keep the peers in table
-        FloodSub(n).floodsub["foobar"].len == 9
-        # remove the topic tho
-        n.topics.len == 0
+        n.floodsub[topic].len == numberOfNodes - 1 # we keep the peers in table
+        n.topics.len == 0 # remove the topic tho
 
   asyncTest "FloodSub message size validation":
+    const topic = "foobar"
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check data.len < 50
       inc(messageReceived)
 
     let
-      bigNode = generateNodes(1)
-      smallNode = generateNodes(1, maxMessageSize = 200)
+      bigNode = generateNodes(1).toFloodSub()[0]
+      smallNode = generateNodes(1, maxMessageSize = 200).toFloodSub()[0]
+      nodes = @[bigNode, smallNode]
 
-    startNodesAndDeferStop(bigNode & smallNode)
-    await connectNodesStar(bigNode & smallNode)
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
-    bigNode[0].subscribe("foo", handler)
-    smallNode[0].subscribe("foo", handler)
-    await waitSub(bigNode[0], smallNode[0], "foo")
+    subscribeAllNodes(nodes, topic, handler)
+    waitSubscribeStar(nodes, topic)
 
     let
       bigMessage = newSeq[byte](1000)
@@ -275,33 +256,36 @@ suite "FloodSub Component":
       smallMessage2 = @[3.byte]
 
     # Need two different messages, otherwise they are the same when anonymized
-    check (await smallNode[0].publish("foo", smallMessage1)) > 0
-    check (await bigNode[0].publish("foo", smallMessage2)) > 0
+    check (await smallNode.publish(topic, smallMessage1)) > 0
+    check (await bigNode.publish(topic, smallMessage2)) > 0
 
     checkUntilTimeout:
       messageReceived == 2
 
-    check (await smallNode[0].publish("foo", bigMessage)) > 0
-    check (await bigNode[0].publish("foo", bigMessage)) > 0
+    check (await smallNode.publish(topic, bigMessage)) > 0
+    check (await bigNode.publish(topic, bigMessage)) > 0
+
+    await sleepAsync(300.milliseconds) # Wait before checking
+    check:
+      messageReceived == 2
 
   asyncTest "FloodSub message size validation 2":
+    const topic = "foobar"
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
       inc(messageReceived)
 
-    let
-      bigNode1 = generateNodes(1, maxMessageSize = 20000000)
-      bigNode2 = generateNodes(1, maxMessageSize = 20000000)
+    let nodes = generateNodes(2, maxMessageSize = 20000000).toFloodSub()
 
-    startNodesAndDeferStop(bigNode1 & bigNode2)
-    await connectNodesStar(bigNode1 & bigNode2)
+    startNodesAndDeferStop(nodes)
+    await connectNodesStar(nodes)
 
-    bigNode2[0].subscribe("foo", handler)
-    await waitSub(bigNode1[0], bigNode2[0], "foo")
+    subscribeAllNodes(nodes, topic, handler)
+    waitSubscribeStar(nodes, topic)
 
     let bigMessage = newSeq[byte](19000000)
 
-    check (await bigNode1[0].publish("foo", bigMessage)) > 0
+    check (await nodes[0].publish(topic, bigMessage)) > 0
 
     checkUntilTimeout:
       messageReceived == 1

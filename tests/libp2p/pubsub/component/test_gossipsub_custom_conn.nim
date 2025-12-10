@@ -62,7 +62,7 @@ suite "GossipSub Component - Custom Connection Support":
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(
       topic, "hello".toBytes(), publishParams = some(PublishParams(useCustomConn: true))
@@ -81,7 +81,7 @@ suite "GossipSub Component - Custom Connection Support":
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     expect AssertionDefect:
       discard await nodes[0].publish(

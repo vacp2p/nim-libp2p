@@ -26,7 +26,7 @@ suite "GossipSub Component - Fanout Management":
 
     let (passed, handler) = createCompleteHandler()
     nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    waitSubscribe(nodes[0], nodes[1], "foobar")
 
     var observed = 0
     let
@@ -66,7 +66,7 @@ suite "GossipSub Component - Fanout Management":
 
     let (passed, handler) = createCompleteHandler()
     nodes[1].subscribe("foobar", handler)
-    await waitSub(nodes[0], nodes[1], "foobar")
+    waitSubscribe(nodes[0], nodes[1], "foobar")
 
     checkUntilTimeout:
       nodes[0].mesh.getOrDefault("foobar").len == 0

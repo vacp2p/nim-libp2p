@@ -379,7 +379,7 @@ suite "GossipSub Component - Message Handling":
     let obs0 = PubSubObserver(onSend: onSend)
     let obs1 = PubSubObserver(onRecv: onRecv, onValidated: onValidated)
 
-    let nodes = generateNodes(2, gossip = true)
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -388,6 +388,8 @@ suite "GossipSub Component - Message Handling":
     nodes[1].addObserver(obs1)
     nodes[1].subscribe(topicFoo, voidTopicHandler)
     nodes[1].subscribe(topicBar, voidTopicHandler)
+    waitSubscribe(nodes[0], nodes[1], topicFoo)
+    waitSubscribe(nodes[0], nodes[1], topicBar)
 
     proc validator(
         topic: string, message: Message
@@ -519,7 +521,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, handler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
@@ -659,7 +661,7 @@ suite "GossipSub Component - Message Handling":
       runs = 10
       topic = "foobar"
 
-    let nodes = generateNodes(runs, gossip = true, triggerSelf = true)
+    let nodes = generateNodes(runs, gossip = true, triggerSelf = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesSparse(nodes)
@@ -668,11 +670,10 @@ suite "GossipSub Component - Message Handling":
     var seenFut = newFuture[void]()
     for i in 0 ..< nodes.len:
       let dialer = nodes[i]
-      let dgossip = GossipSub(dialer)
-      dgossip.parameters.dHigh = 2
-      dgossip.parameters.dLow = 1
-      dgossip.parameters.d = 1
-      dgossip.parameters.dOut = 1
+      dialer.parameters.dHigh = 2
+      dialer.parameters.dLow = 1
+      dialer.parameters.d = 1
+      dialer.parameters.dOut = 1
       var handler: TopicHandler
       closureScope:
         var peerName = $dialer.peerInfo.peerId
@@ -684,7 +685,7 @@ suite "GossipSub Component - Message Handling":
             seenFut.complete()
 
       dialer.subscribe(topic, handler)
-      await waitSub(nodes[0], dialer, topic)
+      waitSubscribe(nodes[0], dialer, topic)
 
     # we want to test ping pong deliveries via control Iwant/Ihave, so we publish just in a tap
     let publishedTo =
@@ -702,20 +703,20 @@ suite "GossipSub Component - Message Handling":
 
   asyncTest "GossipSub directPeers: always forward messages":
     const topic = "foobar"
-    let nodes = generateNodes(3, gossip = true)
+    let nodes = generateNodes(3, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
-    await GossipSub(nodes[0]).addDirectPeer(
+    await nodes[0].addDirectPeer(
       nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
     )
-    await GossipSub(nodes[1]).addDirectPeer(
+    await nodes[1].addDirectPeer(
       nodes[0].switch.peerInfo.peerId, nodes[0].switch.peerInfo.addrs
     )
-    await GossipSub(nodes[1]).addDirectPeer(
+    await nodes[1].addDirectPeer(
       nodes[2].switch.peerInfo.peerId, nodes[2].switch.peerInfo.addrs
     )
-    await GossipSub(nodes[2]).addDirectPeer(
+    await nodes[2].addDirectPeer(
       nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
     )
 
@@ -736,9 +737,9 @@ suite "GossipSub Component - Message Handling":
     await handlerFut.wait(2.seconds)
 
     # peer shouldn't be in our mesh
-    check topic notin GossipSub(nodes[0]).mesh
-    check topic notin GossipSub(nodes[1]).mesh
-    check topic notin GossipSub(nodes[2]).mesh
+    check topic notin nodes[0].mesh
+    check topic notin nodes[1].mesh
+    check topic notin nodes[2].mesh
 
   asyncTest "GossipSub directPeers: send message to unsubscribed direct peer":
     # Given 2 nodes
