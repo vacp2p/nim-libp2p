@@ -11,6 +11,7 @@ import algorithm, sequtils
 import ../../[peerid, peerinfo]
 import ./[protobuf, types]
 
+
 type
   LookupNode* = object
     peerId: PeerId
