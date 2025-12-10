@@ -34,9 +34,9 @@ when not declared(chronos.AsyncSemaphore):
     ## internal available slots set to ``size``.
     doAssert(size > 0, "AsyncSemaphore initial size must be bigger then 0")
     AsyncSemaphore(
-        size: size,
-        availableSlots: size, 
-        waiters: initDeque[Future[void].Raising([CancelledError])](),
+      size: size,
+      availableSlots: size,
+      waiters: initDeque[Future[void].Raising([CancelledError])](),
     )
 
   proc availableSlots*(s: AsyncSemaphore): int =
@@ -46,22 +46,22 @@ when not declared(chronos.AsyncSemaphore):
     ## Attempts to acquire a resource, if successful returns true, otherwise false.
 
     if s.availableSlots > 0:
-        s.availableSlots.dec
-        true
+      s.availableSlots.dec
+      true
     else:
-        false
+      false
 
   proc acquire*(
-        s: AsyncSemaphore
-    ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
+      s: AsyncSemaphore
+  ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
     ## Acquire a resource and decrement the resource counter. 
     ## If no more resources are available, the returned future 
     ## will not complete until the resource count goes above 0.
 
     let fut = newFuture[void]("AsyncSemaphore.acquire")
     if s.tryAcquire():
-        fut.complete()
-        return fut
+      fut.complete()
+      return fut
 
     s.waiters.addLast(fut)
 
@@ -74,7 +74,7 @@ when not declared(chronos.AsyncSemaphore):
     ## internal resource count.
 
     if s.availableSlots == s.size:
-        raise newException(AsyncSemaphoreError, "release called without acquire")
+      raise newException(AsyncSemaphoreError, "release called without acquire")
 
     s.availableSlots.inc
     while s.waiters.len > 0:
