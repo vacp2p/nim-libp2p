@@ -48,9 +48,7 @@ proc createShared*(
 
 # Handles responses of type Result[string, string] or Result[void, string]
 # Converts the result into a C callback invocation with either RET_OK or RET_ERR
-proc handleRes[T: string | void](
-    res: Result[T, string], request: ptr LibP2PThreadRequest
-) =
+proc handleRes(res: Result[string, string], request: ptr LibP2PThreadRequest) =
   ## Handles the Result responses, which can either be Result[string, string] or
   ## Result[void, string].
 
@@ -61,17 +59,18 @@ proc handleRes[T: string | void](
     foreignThreadGc:
       let msg = "libp2p error: handleRes fireSyncRes error: " & $res.error
       request[].callback(
-        RET_ERR.cint, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
+        RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData
       )
     return
 
   foreignThreadGc:
-    var msg: cstring = ""
-    when T is string:
-      msg = res.get().cstring()
-    request[].callback(
-      RET_OK.cint, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
-    )
+    if res.get() == "":
+      request[].callback(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
+    else:
+      var msg: cstring = res.get().cstring
+      request[].callback(
+        RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData
+      )
   return
 
 # Dispatcher for processing the request based on its type

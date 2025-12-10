@@ -47,6 +47,8 @@ int libp2p_connect(void *ctx, const char *peerId, const char **multiaddrs,
 int libp2p_disconnect(void *ctx, const char *peerId, Libp2pCallback callback,
                       void *userData);
 
+int libp2p_peerinfo(void *ctx, Libp2pCallback callback, void *userData);
+
 #ifdef __cplusplus
 }
 #endif
