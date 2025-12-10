@@ -295,6 +295,10 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # we can get one on the next try
         debug "Unable to get a connection"
         slot.release()
+        try:
+          upgrades.release()
+        except AsyncSemaphoreError:
+          raiseAssert "semaphore released without acquire"
         continue
 
       slot.trackConnection(conn)
