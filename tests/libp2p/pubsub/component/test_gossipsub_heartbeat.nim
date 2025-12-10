@@ -252,8 +252,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesChain(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    await waitSubscribeChain(nodes, topic)
 
     # Get Node0 as Peer of Node1 
     let peer = nodes[1].mesh[topic].toSeq()[0]

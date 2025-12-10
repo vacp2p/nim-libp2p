@@ -358,6 +358,14 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
 
   await allFuturesThrowing(futs)
 
+proc waitSubscribeChain*[T: PubSub](nodes: seq[T], topic: string) {.async.} =
+  ## Chain: 1-2-3-4-5
+  ## 
+  checkUntilTimeout:
+    nodes[0].gossipsub.getOrDefault(topic).len == 1
+    nodes[1 .. ^2].allIt(it.gossipsub.getOrDefault(topic).len == 2)
+    nodes[^1].gossipsub.getOrDefault(topic).len == 1
+
 proc waitSubscribeHub*[T: PubSub](hub: T, nodes: seq[T], topic: string) {.async.} =
   ## Hub: hub-1, hub-2, hub-3,...
   ## 

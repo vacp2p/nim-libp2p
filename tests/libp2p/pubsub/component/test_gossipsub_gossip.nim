@@ -176,10 +176,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == 1
-      nodes[1].gossipsub.getOrDefault(topic).len == 2
-      nodes[2].gossipsub.getOrDefault(topic).len == 1
+    await waitSubscribeChain(nodes, topic)
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)

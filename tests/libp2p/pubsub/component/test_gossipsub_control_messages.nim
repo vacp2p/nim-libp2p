@@ -339,7 +339,7 @@ suite "GossipSub Component - Control Messages":
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handlerB)
     nodes[2].subscribe(topic, voidTopicHandler)
-    await waitSubGraph(nodes, topic)
+    await waitSubscribeChain(nodes, topic)
 
     check:
       nodes[2].mesh.peers(topic) == 1
