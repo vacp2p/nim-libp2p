@@ -18,6 +18,8 @@ import chronos, results
 
 import ../../../[types]
 import ../../../../libp2p
+import ../../../../libp2p/nameresolving/dnsresolver
+import ../../../../libp2p/nameresolving/nameresolver
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -30,7 +32,9 @@ type LifecycleRequest* = object
 
 proc createLibp2p(appCallbacks: AppCallbacks): LibP2P =
   # TODO: switch options
-  let switch = newStandardSwitch()
+  let dnsResolver =
+    Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress("1.1.1.1:53")])))
+  let switch = newStandardSwitch(nameResolver = dnsResolver)
   LibP2P(switch: switch)
 
 proc createShared*(
@@ -50,13 +54,18 @@ proc destroyShared(self: ptr LifecycleRequest) =
 
 proc process*(
     self: ptr LifecycleRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async.} =
+): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
   case self.operation
   of CREATE_LIBP2P:
-    libp2p[] = createLibp2p(self.appCallbacks)
+    try:
+      libp2p[] = createLibp2p(self.appCallbacks)
+    except TransportAddressError as exc:
+      return err("could not create libp2p node: " & $exc.msg)
+    except LPError as exc:
+      return err("could not create libp2p node: " & $exc.msg)
   of START_NODE:
     try:
       await libp2p.switch.start()

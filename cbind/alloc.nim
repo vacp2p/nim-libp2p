@@ -71,12 +71,10 @@ proc toSeq*[T](s: SharedSeq[T]): seq[T] =
 
   when T is Natural:
     var ret = newSeqUninit[T](s.len)
-    copyMem(addr ret[0], addr s.data[0], s.len)
+    copyMem(addr ret[0], addr s.data[0], s.len * sizeof(T))
     return ret
-  else:
-    if s.len == 0:
-      return @[]
-    return @(s.data.toOpenArray(0, s.len - 1))
+
+  return @(s.data.toOpenArray(0, s.len - 1))
 
 proc allocSharedSeqFromCArray*[T](arr: ptr T, len: int): SharedSeq[T] =
   ## Creates a SharedSeq[T] from a C array pointer and length.

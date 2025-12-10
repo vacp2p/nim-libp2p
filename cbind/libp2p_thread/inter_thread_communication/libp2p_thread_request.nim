@@ -78,7 +78,7 @@ proc handleRes[T: string | void](
 # Casts reqContent to the correct request struct and runs its `.process()` logic
 proc process*(
     T: type LibP2PThreadRequest, request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
-) {.async.} =
+) {.async: (raises: [CancelledError]).} =
   let retFut =
     case request[].reqType
     of RequestType.LIFECYCLE:

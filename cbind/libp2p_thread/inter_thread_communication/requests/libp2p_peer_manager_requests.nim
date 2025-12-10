@@ -44,18 +44,22 @@ proc destroyShared(self: ptr PeerManagementRequest) =
 
 proc process*(
     self: ptr PeerManagementRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async.} =
+): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
   case self.operation
   of CONNECT:
-    let multiaddresses = self.multiaddrs.toSeq().mapIt(MultiAddress.init($it).tryGet())
+    let multiaddresses =
+      try:
+        self.multiaddrs.toSeq().mapIt(MultiAddress.init($it).tryGet())
+      except LPError:
+        return err("invalid multiaddress")
     let peerId = PeerId.init($self[].peerId).valueOr:
       return err($error)
     try:
       await libp2p.switch.connect(peerId, multiaddresses).wait(self[].timeout)
-    except CancelledError:
+    except AsyncTimeoutError:
       return err("dial timeout")
     except DialFailedError as exc:
       return err($exc.msg)
