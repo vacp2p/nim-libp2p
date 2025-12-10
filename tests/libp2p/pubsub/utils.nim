@@ -358,6 +358,33 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
 
   await allFuturesThrowing(futs)
 
+template waitSubscribeChain*[T: PubSub](nodes: seq[T], topic: string): untyped =
+  ## Chain: 1-2-3-4-5
+  ## 
+  checkUntilTimeout:
+    nodes[0].gossipsub.getOrDefault(topic).len == 1
+    nodes[1 .. ^2].allIt(it.gossipsub.getOrDefault(topic).len == 2)
+    nodes[^1].gossipsub.getOrDefault(topic).len == 1
+
+template waitSubscribeRing*[T: PubSub](nodes: seq[T], topic: string): untyped =
+  ## Ring: 1-2-3-4-5-1
+  ## 
+  checkUntilTimeout:
+    nodes.allIt(it.gossipsub.getOrDefault(topic).len == 2)
+
+template waitSubscribeHub*[T: PubSub](hub: T, nodes: seq[T], topic: string): untyped =
+  ## Hub: hub-1, hub-2, hub-3,...
+  ## 
+  checkUntilTimeout:
+    hub.gossipsub.getOrDefault(topic).len == nodes.len
+    nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
+
+template waitSubscribeStar*[T: PubSub](nodes: seq[T], topic: string): untyped =
+  ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
+  ## 
+  checkUntilTimeout:
+    nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
     return
