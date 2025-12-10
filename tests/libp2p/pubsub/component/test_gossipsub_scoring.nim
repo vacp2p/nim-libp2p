@@ -25,7 +25,8 @@ suite "GossipSub Component - Scoring":
   asyncTest "Flood publish to all peers with score above threshold, regardless of subscription":
     let
       numberOfNodes = 3
-      nodes = generateNodes(numberOfNodes, gossip = true, floodPublish = true).toGossipSub()
+      nodes =
+        generateNodes(numberOfNodes, gossip = true, floodPublish = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 

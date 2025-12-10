@@ -385,14 +385,20 @@ template waitSubscribeHub*[T: PubSub](hub: T, nodes: seq[T], topic: string): unt
 template waitSubscribeStar*[T: PubSub](nodes: seq[T], topic: string): untyped =
   ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
   ## 
-  checkUntilTimeout:
-    nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+  when T is GossipSub:
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+  elif T is FloodSub:
+    checkUntilTimeout:
+      nodes.allIt(it.floodsub.getOrDefault(topic).len == nodes.len - 1)
+  else:
+    {.error: "not implemented for this PubSub type".}
 
 template waitSubscribe*[T: PubSub](dialer, receiver: T, topic: string): untyped =
   if dialer.switch.peerInfo.peerId == receiver.switch.peerInfo.peerId:
     return
   let peerId = receiver.peerInfo.peerId
- 
+
   when T is GossipSub:
     checkUntilTimeout:
       dialer.gossipsub.hasKey(topic)
@@ -402,7 +408,7 @@ template waitSubscribe*[T: PubSub](dialer, receiver: T, topic: string): untyped 
       dialer.floodsub.hasKey(topic)
       dialer.floodsub.hasPeerId(topic, peerId)
   else:
-    {.error: "waitSubscribe not implemented for this PubSub type".}
+    {.error: "not implemented for this PubSub type".}
 
 proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
   proc isGraphConnected(): bool =
