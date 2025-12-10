@@ -317,7 +317,7 @@ suite "GossipSub Component - Message Handling":
     check (await validatorFut) == true
 
   asyncTest "GossipSub validation one fails and one succeeds":
-    const 
+    const
       topicFoo = "foo"
       topicBar = "bar"
 
@@ -359,7 +359,7 @@ suite "GossipSub Component - Message Handling":
       topicBar notin nodes[1].mesh and topicBar notin nodes[1].fanout
 
   asyncTest "GossipSub's observers should run after message is sent, received and validated":
-    const 
+    const
       topicFoo = "foo"
       topicBar = "bar"
     var
@@ -392,7 +392,8 @@ suite "GossipSub Component - Message Handling":
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      result = if topic == topicFoo: ValidationResult.Accept else: ValidationResult.Reject
+      result =
+        if topic == topicFoo: ValidationResult.Accept else: ValidationResult.Reject
 
     nodes[1].addValidator(topicFoo, topicBar, validator)
 
@@ -563,7 +564,7 @@ suite "GossipSub Component - Message Handling":
     await floodPublishBaseTest(nodes, nodes.len - 1, nodes.len - 1)
 
   asyncTest "GossipSub with multiple peers":
-    const 
+    const
       runs = 10
       topic = "foobar"
 
@@ -605,7 +606,7 @@ suite "GossipSub Component - Message Handling":
         topic in node.gossipsub
 
   asyncTest "GossipSub with multiple peers (sparse)":
-    const 
+    const
       runs = 10
       topic = "foobar"
     let nodes = generateNodes(runs, gossip = true, triggerSelf = true).toGossipSub()
@@ -686,9 +687,8 @@ suite "GossipSub Component - Message Handling":
       await waitSub(nodes[0], dialer, topic)
 
     # we want to test ping pong deliveries via control Iwant/Ihave, so we publish just in a tap
-    let publishedTo = nodes[0].publish(
-      topic, toBytes("from node " & $nodes[0].peerInfo.peerId)
-    ).await
+    let publishedTo =
+      nodes[0].publish(topic, toBytes("from node " & $nodes[0].peerInfo.peerId)).await
     check:
       publishedTo != 0
       publishedTo != runs

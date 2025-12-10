@@ -111,7 +111,7 @@ suite "GossipSub Component - Mesh Management":
 
   asyncTest "GossipSub invalid topic subscription":
     const topic = "foobar"
-    
+
     var handlerFut = newFuture[bool]()
     proc handler(handlerTopic: string, data: seq[byte]) {.async.} =
       check handlerTopic == topic
