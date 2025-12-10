@@ -7,12 +7,15 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.warning[UnusedImport]: off.}
+import chronos
+
 # DO NOT MODIFY THIS CODE!!!
 # This code is copy-paste from: https://github.com/status-im/nim-chronos/pull/586/files
 # It must be the same untill new version on chronos is released.
 
 when not declared(chronos.AsyncSemaphore):
-  import chronos, std/deques
+  import std/deques
 
   type AsyncSemaphore* = ref object of RootObj
     ## A semaphore manages an internal number of available slots which is decremented 
@@ -83,3 +86,7 @@ when not declared(chronos.AsyncSemaphore):
         s.availableSlots.dec
         fut.complete()
         break
+else:
+  # this hack fixes "unsed imports" errors, when this file is imported
+  # but chornos has AsyncSemaphore defined.
+  export chronos.AsyncSemaphore
