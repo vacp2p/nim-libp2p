@@ -280,8 +280,10 @@ suite "Switch":
 
     let startCounts =
       @[
-        switch1.connManager.inSema.availableSlots, switch1.connManager.outSema.availableSlots,
-        switch2.connManager.inSema.availableSlots, switch2.connManager.outSema.availableSlots,
+        switch1.connManager.inSema.availableSlots,
+        switch1.connManager.outSema.availableSlots,
+        switch2.connManager.inSema.availableSlots,
+        switch2.connManager.outSema.availableSlots,
       ]
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
@@ -301,8 +303,10 @@ suite "Switch":
     checkUntilTimeout:
       startCounts ==
         @[
-          switch1.connManager.inSema.availableSlots, switch1.connManager.outSema.availableSlots,
-          switch2.connManager.inSema.availableSlots, switch2.connManager.outSema.availableSlots,
+          switch1.connManager.inSema.availableSlots,
+          switch1.connManager.outSema.availableSlots,
+          switch2.connManager.inSema.availableSlots,
+          switch2.connManager.outSema.availableSlots,
         ]
 
     await allFuturesThrowing(switch1.stop(), switch2.stop())
