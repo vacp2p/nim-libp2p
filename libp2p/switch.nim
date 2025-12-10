@@ -27,6 +27,7 @@ import
   protocols/protocol,
   protocols/secure/secure,
   peerinfo,
+  utils/semaphore,
   ./muxers/muxer,
   connmanager,
   nameresolving/nameresolver,

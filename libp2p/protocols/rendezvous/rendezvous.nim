@@ -21,6 +21,7 @@ import
   ../../routing_record,
   ../../utils/heartbeat,
   ../../stream/connection,
+  ../../utils/semaphore,
   ../../utils/offsettedseq
 
 export chronicles, offsettedseq

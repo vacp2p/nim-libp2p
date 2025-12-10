@@ -18,7 +18,7 @@ import
   ../../../multiaddress,
   ../../../multicodec,
   ../../../peerid,
-  ../../../utils/[future],
+  ../../../utils/[semaphore, future],
   ../../../errors
 import types
 
