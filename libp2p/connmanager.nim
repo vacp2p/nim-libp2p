@@ -340,10 +340,11 @@ proc getOutgoingSlot*(
     c: ConnManager, forceDial = false
 ): ConnectionSlot {.raises: [TooManyConnectionsError].} =
   if forceDial:
-    c.outSema.forceAcquire()
+    # force dial by not blocking/waiting on acquire and 
+    # still calling acquire to track this connection.
+    discard c.outSema.acquire()
   elif not c.outSema.tryAcquire():
-    trace "Too many outgoing connections!",
-      available = c.outSema.count, max = c.outSema.size
+    trace "Too many outgoing connections!", available = c.outSema.availableSlots
     raise newTooManyConnectionsError()
   return ConnectionSlot(connManager: c, direction: Out)
 
@@ -351,30 +352,26 @@ func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
   return if dir == In: c.inSema else: c.outSema
 
 proc slotsAvailable*(c: ConnManager, dir: Direction): int =
-  return semaphore(c, dir).count
+  return semaphore(c, dir).availableSlots
 
 proc release*(cs: ConnectionSlot) =
-  semaphore(cs.connManager, cs.direction).release()
+  try:
+    semaphore(cs.connManager, cs.direction).release()
+  except AsyncSemaphoreError:
+    raiseAssert "semaphore released without acquire"
 
 proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
-  if isNil(conn):
-    cs.release()
-    return
-
   proc semaphoreMonitor() {.async: (raises: [CancelledError]).} =
     try:
       await conn.join()
     except CatchableError as exc:
       trace "Exception in semaphore monitor, ignoring", description = exc.msg
-
-    cs.release()
+    finally:
+      cs.release()
 
   asyncSpawn semaphoreMonitor()
 
 proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
-  if isNil(mux):
-    cs.release()
-    return
   cs.trackConnection(mux.connection)
 
 proc getStream*(
