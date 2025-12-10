@@ -102,9 +102,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # Add observer to NodeOutsideMesh for received IHave messages
     var (receivedIHaves, checkForIHaves) = createCheckForIHave()
@@ -146,9 +144,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # Add observer to Node0 for received IWant messages
     var (receivedIWantsNode0, checkForIWant) = createCheckForIWant()

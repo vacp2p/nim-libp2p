@@ -404,9 +404,7 @@ suite "GossipSub Component - Scoring":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 ..^ 1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # And center node has message validator: accept from node 1, reject from node 2
     var validatedMessageCount = 0

@@ -539,9 +539,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == nodes.len - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     await floodPublishBaseTest(nodes, nodes[0].parameters.dHigh, 17)
 
@@ -558,9 +556,7 @@ suite "GossipSub Component - Message Handling":
     await connectNodesHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == nodes.len - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    await waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     await floodPublishBaseTest(nodes, nodes.len - 1, nodes.len - 1)
 

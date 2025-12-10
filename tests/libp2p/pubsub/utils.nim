@@ -358,6 +358,13 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
 
   await allFuturesThrowing(futs)
 
+proc waitSubscribeHub*[T: PubSub](hub: T, nodes: seq[T], topic: string) {.async.} =
+  ## Hub: hub-1, hub-2, hub-3,...
+  ## 
+  checkUntilTimeout:
+    hub.gossipsub.getOrDefault(topic).len == nodes.len
+    nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
+
 proc waitSub*(sender, receiver: auto, key: string) {.async.} =
   if sender == receiver:
     return
