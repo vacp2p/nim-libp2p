@@ -297,7 +297,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track max incoming connection limits":
-    let connMngr = ConnManager.new(maxIn = 3)
+    let connMngr = ConnManager.new(maxIn = 3, maxOut = 1)
 
     for i in 0 ..< 3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
@@ -307,7 +307,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track max outgoing connection limits":
-    let connMngr = ConnManager.new(maxOut = 3)
+    let connMngr = ConnManager.new(maxOut = 3, maxIn = 1)
 
     for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()
@@ -319,10 +319,12 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track incoming max connections limits - fail on incoming":
-    let connMngr = ConnManager.new(maxOut = 3)
+    let connMngr = ConnManager.new(maxOut = 3, maxIn = 1)
 
     for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()
+
+    check await connMngr.getIncomingSlot().withTimeout(10.millis)
 
     # should timeout adding a connection over the limit
     check not (await connMngr.getIncomingSlot().withTimeout(10.millis))
@@ -330,10 +332,12 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track incoming max connections limits - fail on outgoing":
-    let connMngr = ConnManager.new(maxIn = 3)
+    let connMngr = ConnManager.new(maxIn = 3, maxOut = 1)
 
     for i in 0 ..< 3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
+
+    discard connMngr.getOutgoingSlot()
 
     # should throw adding a connection over the limit
     expect TooManyConnectionsError:
