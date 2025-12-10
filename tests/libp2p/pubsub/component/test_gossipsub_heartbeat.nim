@@ -36,9 +36,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      node0.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(node0, nodes[1 .. ^1], topic)
 
     # When DValues of Node0 are updated to lower than defaults
     const
@@ -86,9 +84,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      node0.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(node0, nodes[1 .. ^1], topic)
 
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len >= dLow and
@@ -134,9 +130,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      node0.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(node0, nodes[1 .. ^1], topic)
 
     # Keep track of initial mesh of Node0
     let startingMesh = node0.mesh[topic].toSeq()
@@ -258,8 +252,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesChain(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeChain(nodes, topic)
 
     # Get Node0 as Peer of Node1 
     let peer = nodes[1].mesh[topic].toSeq()[0]
@@ -317,9 +310,7 @@ suite "GossipSub Component - Heartbeat":
 
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # Find Peer outside of mesh to which Node 0 will send IHave
     let peerOutsideMesh =

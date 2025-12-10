@@ -10,7 +10,7 @@
 {.used.}
 
 import chronos, std/[sequtils], stew/byteutils
-import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, rpc/message]
+import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, rpc/message]
 import ../../../tools/unittest
 import ../utils
 
@@ -36,8 +36,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -72,8 +71,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
@@ -110,8 +108,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
@@ -149,8 +146,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When node 0 sends a message
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 3
@@ -179,10 +175,7 @@ suite "GossipSub Component - Gossip Protocol":
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == 1
-      nodes[1].gossipsub.getOrDefault(topic).len == 2
-      nodes[2].gossipsub.getOrDefault(topic).len == 1
+    waitSubscribeChain(nodes, topic)
 
     # When node 0 sends a large message
     let largeMsg = newSeq[byte](1000)
@@ -210,8 +203,7 @@ suite "GossipSub Component - Gossip Protocol":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+    waitSubscribeStar(nodes, topic)
 
     # Setup record handlers for all nodes
     let
