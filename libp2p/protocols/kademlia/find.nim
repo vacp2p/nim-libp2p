@@ -13,7 +13,7 @@ import ../../[peerid, switch, multihash]
 import ../protocol
 import ./[routingtable, lookupstate, protobuf, types]
 
-proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
+proc checkConvergence*(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
   let ready = state.activeQueries == 0
   let noNew = state.selectAlphaPeers().filterIt(me != it).len == 0
   return ready and noNew

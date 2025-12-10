@@ -7,20 +7,20 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[tables, sequtils]
+import std/[sets, tables, sequtils]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
-import ../kademlia/[types, routingtable, lookupstate, protobuf, find]
+import ../kademlia/[types, routingtable, lookupstate, protobuf, find, get, protobuf]
 import ./types
 
 proc findAllNode*(
     disco: KademliaDiscovery, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
-  ## Return all peers on the way to a target ID.
+  ## Return all peerIds on the way to a target ID.
 
   var initialPeers = disco.rtable.findClosestPeerIds(targetId, disco.config.replication)
   var state = LookupState.init(
-    targetId, initialPeers, disco.config.alpha, 100, disco.rtable.config.hasher
+    targetId, initialPeers, disco.config.alpha, high(int), disco.rtable.config.hasher
   )
   var addrTable: Table[PeerId, seq[MultiAddress]]
   for p in initialPeers:
@@ -81,6 +81,8 @@ proc findAllNode*(
 proc findRandom*(
     disco: KademliaDiscovery
 ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+  ## Return all nodes on the path towards a random target ID.
+
   let randomPeerId = PeerId.random(disco.rng).valueOr:
     debug "cannot generate random peer id", error
     return @[]

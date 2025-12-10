@@ -25,7 +25,6 @@ type
     peerId*: PeerId
     seqNo*: uint64
     addresses*: seq[AddressInfo]
-    mixKey*: seq[byte]
 
 proc decode*(
     T: typedesc[PeerRecord], buffer: seq[byte]
@@ -48,8 +47,6 @@ proc decode*(
     if record.addresses.len == 0:
       return err(ProtoError.RequiredFieldMissing)
 
-  ?pb.getField(4, record.mixKey)
-
   ok(record)
 
 proc encode*(record: PeerRecord): seq[byte] =
@@ -62,8 +59,6 @@ proc encode*(record: PeerRecord): seq[byte] =
     var addrPb = initProtoBuffer()
     addrPb.write(1, address.address)
     pb.write(3, addrPb)
-
-  pb.write(4, record.mixKey)
 
   pb.finish()
   pb.buffer
