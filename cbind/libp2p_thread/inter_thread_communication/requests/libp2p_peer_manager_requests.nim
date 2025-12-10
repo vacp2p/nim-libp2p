@@ -45,7 +45,7 @@ proc destroyShared(self: ptr PeerManagementRequest) =
 
 proc process*(
     self: ptr PeerManagementRequest, libp2p: ptr LibP2P
-): Future[Result[Opt[string], string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -70,12 +70,10 @@ proc process*(
     await libp2p.switch.disconnect(peerId)
   of PEER_INFO:
     return ok(
-      Opt.some(
-        $ %*{
-          "peerId": $libp2p.switch.peerInfo.peerId,
-          "addrs": libp2p.switch.peerInfo.addrs.mapIt($it),
-        }
-      )
+      $ %*{
+        "peerId": $libp2p.switch.peerInfo.peerId,
+        "addrs": libp2p.switch.peerInfo.addrs.mapIt($it),
+      }
     )
 
-  return ok(Opt.none(string))
+  return ok("")

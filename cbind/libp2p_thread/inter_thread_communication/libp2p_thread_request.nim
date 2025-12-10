@@ -48,7 +48,7 @@ proc createShared*(
 
 # Handles responses of type Result[string, string] or Result[void, string]
 # Converts the result into a C callback invocation with either RET_OK or RET_ERR
-proc handleRes(res: Result[Opt[string], string], request: ptr LibP2PThreadRequest) =
+proc handleRes(res: Result[string, string], request: ptr LibP2PThreadRequest) =
   ## Handles the Result responses, which can either be Result[string, string] or
   ## Result[void, string].
 
@@ -64,10 +64,10 @@ proc handleRes(res: Result[Opt[string], string], request: ptr LibP2PThreadReques
     return
 
   foreignThreadGc:
-    if res.get().isNone:
-      request[].callback(RET_OK.cint, nil, 0, request[].userData)
+    if res.get() == "":
+      request[].callback(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
     else:
-      var msg: cstring = res.get().value().cstring
+      var msg: cstring = res.get().cstring
       request[].callback(
         RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData
       )
