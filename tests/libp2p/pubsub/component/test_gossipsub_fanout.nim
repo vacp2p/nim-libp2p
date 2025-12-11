@@ -15,11 +15,12 @@ import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Fanout Management":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "GossipSub send over fanout A -> B":
-    const topic = "foobar"
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -55,7 +56,6 @@ suite "GossipSub Component - Fanout Management":
     check observed == 2
 
   asyncTest "GossipSub send over fanout A -> B for subscribed topic":
-    const topic = "foobar"
     let nodes =
       generateNodes(2, gossip = true, unsubscribeBackoff = 10.minutes).toGossipSub()
 

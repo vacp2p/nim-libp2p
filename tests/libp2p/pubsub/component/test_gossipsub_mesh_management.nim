@@ -15,13 +15,14 @@ import ../../../tools/[unittest, futures]
 import ../utils
 
 suite "GossipSub Component - Mesh Management":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "Nodes graft peers according to DValues - numberOfNodes < dHigh":
     let
       numberOfNodes = 5
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -40,7 +41,6 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "Nodes graft peers according to DValues - numberOfNodes > dHigh":
     let
       numberOfNodes = 8
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -64,8 +64,6 @@ suite "GossipSub Component - Mesh Management":
         )
 
   asyncTest "GossipSub should add remote peer topic subscriptions":
-    const topic = "foobar"
-
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
 
@@ -82,8 +80,6 @@ suite "GossipSub Component - Mesh Management":
       nodes[0].gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
   asyncTest "GossipSub should add remote peer topic subscriptions if both peers are subscribed":
-    const topic = "foobar"
-
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
 
@@ -110,8 +106,6 @@ suite "GossipSub Component - Mesh Management":
         nodes[1].mesh.hasPeerId(topic, nodes[0].peerInfo.peerId)
 
   asyncTest "GossipSub invalid topic subscription":
-    const topic = "foobar"
-
     var handlerFut = newFuture[bool]()
     proc handler(handlerTopic: string, data: seq[byte]) {.async.} =
       check handlerTopic == topic
@@ -142,7 +136,6 @@ suite "GossipSub Component - Mesh Management":
     await invalidDetected.wait(10.seconds)
 
   asyncTest "GossipSub test directPeers":
-    const topic = "foobar"
     let nodes = generateNodes(2, gossip = true).toGossipSub()
     startNodesAndDeferStop(nodes)
 
@@ -172,7 +165,6 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "mesh and gossipsub updated when topic subscribed and unsubscribed":
     let
       numberOfNodes = 5
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -236,7 +228,6 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "Unsubscribe backoff":
     const
       numberOfNodes = 3
-      topic = "foobar"
       unsubscribeBackoff = 1.seconds # 1s is the minimum
     let nodes = generateNodes(
         numberOfNodes, gossip = true, unsubscribeBackoff = unsubscribeBackoff
@@ -273,7 +264,6 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "Prune backoff":
     const
       numberOfNodes = 9
-      topic = "foobar"
       pruneBackoff = 1.seconds # 1s is the minimum
       dValues = some(
         DValues(
@@ -328,7 +318,6 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "Outbound peers are marked correctly":
     let
       numberOfNodes = 4
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
