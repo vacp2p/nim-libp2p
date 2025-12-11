@@ -43,6 +43,17 @@ typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
 // Opaque handle for a libp2p instance
 typedef struct libp2p_ctx libp2p_ctx_t;
 
+typedef void (*ConnectedPeersCallback)(int callerRet, const char **peerIds,
+                                       size_t peerIdsLen, const char *msg,
+                                       size_t len, void *userData);
+
+typedef uint32_t Direction;
+
+enum {
+  Direction_In = 0,
+  Direction_Out = 1,
+};
+
 /*
 typedef struct {
   uint8_t *data;
@@ -94,6 +105,9 @@ int libp2p_disconnect(libp2p_ctx_t *ctx, const char *peerId, Libp2pCallback call
                       void *userData);
 
 int libp2p_peerinfo(libp2p_ctx_t *ctx, PeerInfoCallback callback, void *userData);
+
+int libp2p_connected_peers(void *ctx, Direction dir,
+                           ConnectedPeersCallback callback, void *userData);
 
 // TODO: pubsub parameters
 // TODO: gossipsub parameters
