@@ -25,8 +25,8 @@ static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userData);
 
 // libp2p Context
-void *ctx1;
-void *ctx2;
+libp2p_ctx_t *ctx1;
+libp2p_ctx_t *ctx2;
 
 int main(int argc, char **argv) {
   int status = 1;

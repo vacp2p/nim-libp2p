@@ -40,6 +40,8 @@ typedef struct {
 // if you need it later.
 typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
                                  const char *msg, size_t len, void *userData);
+// Opaque handle for a libp2p instance
+typedef struct libp2p_ctx libp2p_ctx_t;
 
 /*
 typedef struct {
@@ -73,25 +75,25 @@ typedef ValidationResult ValidatorHandler(const char *topic, Message msg);
 
 typedef void TopicHandler(const char *topic, uint8_t *data, size_t len);
 
-void *libp2p_new(Libp2pCallback callback, void *userData);
+libp2p_ctx_t *libp2p_new(Libp2pCallback callback, void *userData);
 
-int libp2p_destroy(void *ctx, Libp2pCallback callback, void *userData);
+int libp2p_destroy(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
-void libp2p_set_event_callback(void *ctx, Libp2pCallback callback,
+void libp2p_set_event_callback(libp2p_ctx_t *ctx, Libp2pCallback callback,
                                void *userData);
 
-int libp2p_start(void *ctx, Libp2pCallback callback, void *userData);
+int libp2p_start(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
-int libp2p_stop(void *ctx, Libp2pCallback callback, void *userData);
+int libp2p_stop(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
-int libp2p_connect(void *ctx, const char *peerId, const char **multiaddrs,
+int libp2p_connect(libp2p_ctx_t *ctx, const char *peerId, const char **multiaddrs,
                    size_t multiaddrsLen, int64_t timeoutMs,
                    Libp2pCallback callback, void *userData);
 
-int libp2p_disconnect(void *ctx, const char *peerId, Libp2pCallback callback,
+int libp2p_disconnect(libp2p_ctx_t *ctx, const char *peerId, Libp2pCallback callback,
                       void *userData);
 
-int libp2p_peerinfo(void *ctx, PeerInfoCallback callback, void *userData);
+int libp2p_peerinfo(libp2p_ctx_t *ctx, PeerInfoCallback callback, void *userData);
 
 // TODO: pubsub parameters
 // TODO: gossipsub parameters
@@ -99,24 +101,24 @@ int libp2p_peerinfo(void *ctx, PeerInfoCallback callback, void *userData);
 // TODO: observers
 // TODO: subscription validator
 
-int libp2p_gossipsub_publish(void *ctx, const char *topic, uint8_t *data,
+int libp2p_gossipsub_publish(libp2p_ctx_t *ctx, const char *topic, uint8_t *data,
                              size_t dataLen, unsigned int timeoutMs,
                              Libp2pCallback callback, void *userData);
 
-int libp2p_gossipsub_subscribe(void *ctx, const char *topic,
+int libp2p_gossipsub_subscribe(libp2p_ctx_t *ctx, const char *topic,
                                TopicHandler topicHandler,
                                Libp2pCallback callback, void *userData);
 
-int libp2p_gossipsub_unsubscribe(void *ctx, const char *topic,
+int libp2p_gossipsub_unsubscribe(libp2p_ctx_t *ctx, const char *topic,
                                  TopicHandler topicHandler,
                                  Libp2pCallback callback, void *userData);
 
 /*
-int libp2p_gossipsub_add_validator(void *ctx, const char **topics,
+int libp2p_gossipsub_add_validator(libp2p_ctx_t *ctx, const char **topics,
   size_t topicsLen, ValidatorHandler hook,
   Libp2pCallback callback, void *userData);
 
-int libp2p_gossipsub_remove_validator(void *ctx, const char **topics,
+int libp2p_gossipsub_remove_validator(libp2p_ctx_t *ctx, const char **topics,
      size_t topicsLen, ValidatorHandler hook,
      Libp2pCallback callback, void *userData);
 */
