@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, chronicles, results, options
+import chronos, chronicles, results, sets
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo]
 import ./kademlia
@@ -18,13 +18,13 @@ export randomfind, types
 logScope:
   topics = "kad-disco"
 
-proc refreshSelfSignedPeerRecord*(
-    disco: KademliaDiscovery, prOpt: Option[LogosPeerRecord]
+proc refreshSelfSignedPeerRecord(
+    disco: KademliaDiscovery
 ) {.async: (raises: [CancelledError]).} =
-  let logosPeerRecord = prOpt.valueOr:
-    await disco.switch.peerInfo.update()
+  await disco.switch.peerInfo.update()
 
-    LogosPeerRecord.init(disco.switch.peerInfo)
+  let logosPeerRecord =
+    LogosPeerRecord.init(disco.switch.peerInfo, disco.services.toSeq())
 
   let encodedSR = logosPeerRecord.encode().valueOr:
     error "Failed to encode signed peer record", error
@@ -41,6 +41,16 @@ proc maintainSelfSignedPeerRecord(
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
     await disco.refreshSelfSignedPeerRecord()
+
+proc addService*(disco: KademliaDiscovery, service: ServiceInfo): bool =
+  ## Include this service in the set of services this node provides.
+
+  return disco.services.containsOrIncl(service)
+
+proc removeService*(disco: KademliaDiscovery, service: ServiceInfo): bool =
+  ## Exclude this service from the set of services this node provides.
+
+  return disco.services.missingOrExcl(service)
 
 method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
   if disco.started:

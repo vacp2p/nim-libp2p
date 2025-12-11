@@ -80,8 +80,8 @@ proc findAllNode*(
 
 proc findRandom*(
     disco: KademliaDiscovery
-): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  ## Return all nodes on the path towards a random target ID.
+): Future[seq[LogosPeerRecord]] {.async: (raises: [CancelledError]).} =
+  ## Return all peer records on the path towards a random target ID.
 
   let randomPeerId = PeerId.random(disco.rng).valueOr:
     debug "cannot generate random peer id", error
@@ -95,7 +95,7 @@ proc findRandom*(
   for pid in peerIds:
     getFutures.add(disco.getValue(pid.toKey()))
 
-  var records: seq[SignedPeerRecord] = @[]
+  var records: seq[LogosPeerRecord] = @[]
   await allFutures(getFutures)
 
   for fut in getFutures:
@@ -107,7 +107,7 @@ proc findRandom*(
       trace "cannot read future", error
       continue
 
-    let spr = SignedPeerRecord.decode(entry.value).valueOr:
+    let spr = LogosPeerRecord.decode(entry.value).valueOr:
       debug "cannot decode signed peer record", error
       continue
 

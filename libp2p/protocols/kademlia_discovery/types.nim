@@ -15,18 +15,25 @@ import ../kademlia/types
 
 const DefaultSelfSPRRereshTime* = 10.minutes
 
-#TODO extend
-type LogosPeerRecord* = object
-  peerId*: PeerId
-  seqNo*: uint64
-  addresses*: seq[AddressInfo]
+type
+  ServiceInfo* = object
+    id*: string
+    data*: seq[byte]
 
-#TODO init a LogosPeerRecord from a PeerInfo
-proc init*(T: typedesc[LogosPeerRecord], peerInfo: PeerInfo): T =
+  LogosPeerRecord* = object
+    peerId*: PeerId
+    seqNo*: uint64
+    addresses*: seq[AddressInfo]
+    services*: seq[ServiceInfo]
+
+proc init*(
+    T: typedesc[LogosPeerRecord], peerInfo: PeerInfo, services: seq[ServiceInfo]
+): T =
   LogosPeerRecord(
     peerId: peerInfo.peerId,
     seqNo: getTime().toUnix().uint64,
     addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
+    services,
   )
 
 proc decode*(
@@ -50,6 +57,16 @@ proc decode*(
     if record.addresses.len == 0:
       return err(ProtoError.RequiredFieldMissing)
 
+  var serviceInfos: seq[seq[byte]]
+  if ?pb.getRepeatedField(4, serviceInfos):
+    for service in serviceInfos:
+      var serviceInfo = ServiceInfo()
+      let subProto = initProtoBuffer(service)
+      let f = subProto.getField(1, serviceInfo.id)
+      discard ?subProto.getField(2, serviceInfo.data)
+      if f.get(false):
+        record.services &= serviceInfo
+
   ok(record)
 
 proc encode*(record: LogosPeerRecord): seq[byte] =
@@ -63,17 +80,23 @@ proc encode*(record: LogosPeerRecord): seq[byte] =
     addrPb.write(1, address.address)
     pb.write(3, addrPb)
 
+  for service in record.services:
+    var servPb = initProtoBuffer()
+    servPb.write(1, service.id)
+    if service.data.len > 0:
+      servPb.write(2, service.data)
+    pb.write(4, servPb)
+
   pb.finish()
   pb.buffer
 
 type SignedLogosPeerRecord* = SignedPayload[LogosPeerRecord]
 
 proc payloadDomain*(T: typedesc[LogosPeerRecord]): string =
-  $multiCodec("logos-peer-record")
+  $multiCodec("libp2p-peer-record")
 
-#TODO choose a number
-#[ proc payloadType*(T: typedesc[LogosPeerRecord]): seq[byte] =
-  @[(byte) 0x03, (byte) 0x01] ]#
+proc payloadType*(T: typedesc[LogosPeerRecord]): seq[byte] =
+  "/libp2p/logos-routing-record/".charsToBytes()
 
 proc checkValid*(spr: SignedLogosPeerRecord): Result[void, EnvelopeError] =
   if not spr.data.peerId.match(spr.envelope.publicKey):
@@ -121,4 +144,5 @@ method select*(
   return ok(bestIdx)
 
 type KademliaDiscovery* = ref object of KadDHT
+  services*: HashSet[ServiceInfo]
   selfSignedLoop*: Future[void]
