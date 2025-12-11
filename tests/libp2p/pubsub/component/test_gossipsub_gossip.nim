@@ -15,13 +15,14 @@ import ../../../tools/unittest
 import ../utils
 
 suite "GossipSub Component - Gossip Protocol":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "messages sent to peers not in the mesh are propagated via gossip":
     let
       numberOfNodes = 5
-      topic = "foobar"
       dValues = DValues(dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1))
       nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
         .toGossipSub()
@@ -49,7 +50,6 @@ suite "GossipSub Component - Gossip Protocol":
   asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
     let
       numberOfNodes = 20
-      topic = "foobar"
       dValues = DValues(
         dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(0)
       )
@@ -86,7 +86,6 @@ suite "GossipSub Component - Gossip Protocol":
   asyncTest "adaptive gossip dissemination, with gossipFactor priority":
     let
       numberOfNodes = 20
-      topic = "foobar"
       dValues = DValues(
         dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(4)
       )
@@ -124,7 +123,6 @@ suite "GossipSub Component - Gossip Protocol":
   asyncTest "adaptive gossip dissemination, with dLazy priority":
     let
       numberOfNodes = 20
-      topic = "foobar"
       dValues = DValues(
         dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(6)
       )
@@ -162,7 +160,6 @@ suite "GossipSub Component - Gossip Protocol":
   asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
     let
       numberOfNodes = 3
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -193,11 +190,9 @@ suite "GossipSub Component - Gossip Protocol":
     # PX to A & C
     #
     # C sent his SPR, not A
-    let
-      topic = "foobar"
-      nodes =
-        generateNodes(2, gossip = true, enablePX = true).toGossipSub() &
-        generateNodes(1, gossip = true, sendSignedPeerRecord = true).toGossipSub()
+    let nodes =
+      generateNodes(2, gossip = true, enablePX = true).toGossipSub() &
+      generateNodes(1, gossip = true, sendSignedPeerRecord = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)

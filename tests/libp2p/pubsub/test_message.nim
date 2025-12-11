@@ -23,11 +23,13 @@ import
 import ../../tools/[unittest, crypto as cryptoTools]
 
 suite "Message":
+  const topic = "foobar"
+
   test "signature":
     var seqno = 11'u64
     let
       peer = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
-      msg = Message.init(some(peer), @[], "topic", some(seqno), sign = true)
+      msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)
 
     check verify(msg)
 
@@ -38,7 +40,7 @@ suite "Message":
       pubkey = seckey.getPublicKey().get()
       peer = PeerInfo.new(seckey)
     check peer.peerId.hasPublicKey() == true
-    var msg = Message.init(some(peer), @[], "topic", some(seqno), sign = true)
+    var msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)
     msg.key = @[]
     # get the key from fromPeer field (inlined)
     check verify(msg)
@@ -47,7 +49,7 @@ suite "Message":
     let
       seqno = 11'u64
       peer = PeerInfo.new(PrivateKey.random(RSA, rng[]).get())
-    var msg = Message.init(some(peer), @[], "topic", some(seqno), sign = true)
+    var msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)
     msg.key = @[]
     # shouldn't work since there's no key field
     # and the key is not inlined in peerid (too large)
@@ -64,7 +66,7 @@ suite "Message":
           "valid private key bytes"
         )
       peer = PeerInfo.new(seckey)
-      msg = Message.init(some(peer), @[], "topic", some(seqno), sign = true)
+      msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)
       msgIdResult = msg.defaultMsgIdProvider()
 
     check:
@@ -84,7 +86,7 @@ suite "Message":
         )
       peer = PeerInfo.new(seckey)
 
-    var msg = Message.init(peer.some, @[], "topic", some(seqno), sign = true)
+    var msg = Message.init(peer.some, @[], topic, some(seqno), sign = true)
     msg.fromPeer = PeerId()
     let msgIdResult = msg.defaultMsgIdProvider()
 
@@ -102,7 +104,7 @@ suite "Message":
           "valid private key bytes"
         )
       peer = PeerInfo.new(seckey)
-      msg = Message.init(some(peer), @[], "topic", uint64.none, sign = true)
+      msg = Message.init(some(peer), @[], topic, uint64.none, sign = true)
       msgIdResult = msg.defaultMsgIdProvider()
 
     check:
@@ -175,10 +177,10 @@ suite "Message":
     let message = RPCMsg(
       control: some(
         ControlMessage(
-          ihave: @[ControlIHave(topicID: "foobar", messageIDs: @[id])],
+          ihave: @[ControlIHave(topicID: topic, messageIDs: @[id])],
           iwant: @[ControlIWant(messageIDs: @[id])],
-          graft: @[ControlGraft(topicID: "foobar")],
-          prune: @[ControlPrune(topicID: "foobar", backoff: 10.uint64)],
+          graft: @[ControlGraft(topicID: topic)],
+          prune: @[ControlPrune(topicID: topic, backoff: 10.uint64)],
           idontwant: @[ControlIWant(messageIDs: @[id])],
         )
       )

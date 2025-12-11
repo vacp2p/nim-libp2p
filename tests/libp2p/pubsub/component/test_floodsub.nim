@@ -25,11 +25,12 @@ import ../../../../libp2p/protocols/pubsub/errors as pubsub_errors
 import ../../../tools/[unittest, futures]
 
 suite "FloodSub Component":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "FloodSub basic publish/subscribe A -> B":
-    const topic = "foobar"
     let (handlerFut, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2).toFloodSub()
@@ -52,7 +53,6 @@ suite "FloodSub Component":
         agentB == "nim-libp2p"
 
   asyncTest "FloodSub basic publish/subscribe B -> A":
-    const topic = "foobar"
     let (handlerFut, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2).toFloodSub()
@@ -67,7 +67,6 @@ suite "FloodSub Component":
     check (await handlerFut.wait(5.seconds)) == true
 
   asyncTest "FloodSub validation should succeed":
-    const topic = "foobar"
     let (handlerFut, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2).toFloodSub()
@@ -92,7 +91,6 @@ suite "FloodSub Component":
     check (await handlerFut) == true
 
   asyncTest "FloodSub validation should fail":
-    const topic = "foobar"
     proc handler(topic: string, data: seq[byte]) {.async.} =
       raiseAssert "Handler should not be called when validation fails"
 
@@ -148,9 +146,7 @@ suite "FloodSub Component":
     check (await nodes[0].publish(topicBar, "Hello!".toBytes())) > 0
 
   asyncTest "FloodSub multiple peers, no self trigger":
-    const
-      topic = "foobar"
-      numberOfNodes = 10
+    const numberOfNodes = 10
 
     var futs = newSeq[(Future[void], TopicHandler, ref int)](numberOfNodes)
     for i in 0 ..< numberOfNodes:
@@ -186,9 +182,7 @@ suite "FloodSub Component":
     await allFuturesThrowing(futs.mapIt(it[0]))
 
   asyncTest "FloodSub multiple peers, with self trigger":
-    const
-      topic = "foobar"
-      numberOfNodes = 10
+    const numberOfNodes = 10
 
     var futs = newSeq[(Future[void], TopicHandler, ref int)](numberOfNodes)
     for i in 0 ..< numberOfNodes:
@@ -233,7 +227,6 @@ suite "FloodSub Component":
         n.topics.len == 0 # remove the topic tho
 
   asyncTest "FloodSub message size validation":
-    const topic = "foobar"
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check data.len < 50
@@ -270,7 +263,6 @@ suite "FloodSub Component":
       messageReceived == 2
 
   asyncTest "FloodSub message size validation 2":
-    const topic = "foobar"
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
       inc(messageReceived)

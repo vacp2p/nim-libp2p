@@ -17,13 +17,13 @@ import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Message Cache":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "Received messages are added to the message cache":
-    const
-      numberOfNodes = 2
-      topic = "foobar"
+    const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -43,7 +43,6 @@ suite "GossipSub Component - Message Cache":
   asyncTest "Message cache history shifts on heartbeat and is cleared on shift":
     const
       numberOfNodes = 2
-      topic = "foobar"
       historyGossip = 3 # mcache window
       historyLength = 5
     let nodes = generateNodes(
@@ -82,7 +81,6 @@ suite "GossipSub Component - Message Cache":
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const
       numberOfNodes = 3
-      topic = "foobar"
       historyGossip = 3 # mcache window
       historyLength = 5
     let nodes = generateNodes(
@@ -126,9 +124,7 @@ suite "GossipSub Component - Message Cache":
   asyncTest "Message is retrieved from cache when handling IWant and relayed to a peer outside the mesh":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
-    const
-      numberOfNodes = 3
-      topic = "foobar"
+    const numberOfNodes = 3
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
@@ -185,9 +181,7 @@ suite "GossipSub Component - Message Cache":
         messageId in messages
 
   asyncTest "Published and received messages are added to the seen cache":
-    const
-      numberOfNodes = 2
-      topic = "foobar"
+    const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -214,9 +208,7 @@ suite "GossipSub Component - Message Cache":
 
   asyncTest "Received messages are dropped if they are already in seen cache":
     # 3 Nodes, Node 0 <==> Node 1 and Node 2 not connected and not subscribed yet
-    const
-      numberOfNodes = 3
-      topic = "foobar"
+    const numberOfNodes = 3
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
@@ -287,9 +279,7 @@ suite "GossipSub Component - Message Cache":
     func customMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
       ok("fixed_message_id_string".toBytes())
 
-    const
-      numberOfNodes = 2
-      topic = "foobar"
+    const numberOfNodes = 2
     let nodes = generateNodes(
         numberOfNodes, gossip = true, msgIdProvider = customMsgIdProvider
       )
