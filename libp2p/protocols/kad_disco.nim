@@ -5,14 +5,14 @@ import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./kademlia_discovery/[randomfind, types]
+import ./kademlia_discovery/[randomfind, types, protobuf]
 
-export randomfind, types
+export randomfind, types, protobuf
 
 logScope:
   topics = "kad-disco"
 
-proc refreshSelfSignedPeerRecord*(
+proc refreshSelfSignedPeerRecord(
     disco: KademliaDiscovery
 ) {.async: (raises: [CancelledError]).} =
   await disco.switch.peerInfo.update()

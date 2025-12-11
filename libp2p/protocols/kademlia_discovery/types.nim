@@ -15,9 +15,24 @@ const
 
   ExtendedKademliaDiscoveryCodec* = "/logos/kad/1.0.0"
 
-type KademliaDiscovery* = ref object of KadDHT
-  services*: HashSet[ServiceInfo]
-  selfSignedLoop*: Future[void]
+type
+  ServiceInfo* = object
+    id*: string
+    data*: seq[byte]
+
+  ExtPeerRecord* = object
+    peerId*: PeerId
+    seqNo*: uint64
+    addresses*: seq[AddressInfo]
+    services*: seq[ServiceInfo]
+
+  KademliaDiscovery* = ref object of KadDHT
+    services*: HashSet[ServiceInfo]
+    selfSignedLoop*: Future[void]
+
+# This is for internal use only
+proc hash*(service: ServiceInfo): Hash =
+  return service.id.hash()
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
