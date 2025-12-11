@@ -15,7 +15,7 @@ type RespondedStatus* = enum
   Success
 
 type LookupState* = object
-  kad: KadDHT
+  kad*: KadDHT
   target*: Key
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
