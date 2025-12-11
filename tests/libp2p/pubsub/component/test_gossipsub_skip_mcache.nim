@@ -15,19 +15,19 @@ import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Skip MCache Support":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "publish with skipMCache prevents message from being added to mcache":
-    let
-      topic = "test"
-      nodes = generateNodes(2, gossip = true).toGossipSub()
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     let publishData = "hello".toBytes()
 
@@ -39,15 +39,13 @@ suite "GossipSub Component - Skip MCache Support":
       nodes[0].mcache.msgs.len == 0
 
   asyncTest "publish without skipMCache adds message to mcache":
-    let
-      topic = "test"
-      nodes = generateNodes(2, gossip = true).toGossipSub()
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     let publishData = "hello".toBytes()
 

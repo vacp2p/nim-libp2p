@@ -1,6 +1,6 @@
 bearssl;https://github.com/status-im/nim-bearssl@#34d712933a4e0f91f5e66bc848594a581504a215
 chronicles;https://github.com/status-im/nim-chronicles@#61759a5e8df8f4d68bcd1b4b8c1adab3e72bbd8d
-chronos;https://github.com/status-im/nim-chronos@#2a89d21f7e4f155ee09fbfa7b081995120b768f5
+chronos;https://github.com/status-im/nim-chronos@#40cf92bfdb3e9921bfb9ba16552ffad274ebf0d5
 dnsclient;https://github.com/ba0f3/dnsclient.nim@#23214235d4784d24aceed99bbfe153379ea557c8
 faststreams;https://github.com/status-im/nim-faststreams@#c51315d0ae5eb2594d0bf41181d0e1aca1b3c01d
 httputils;https://github.com/status-im/nim-http-utils@#79cbab1460f4c0cdde2084589d017c43a3d7b4f1
@@ -19,4 +19,3 @@ websock;https://github.com/status-im/nim-websock@#35ae76f1559e835c80f9c1a3943bf9
 zlib;https://github.com/status-im/nim-zlib@#daa8723fd32299d4ca621c837430c29a5a11e19a
 jwt;https://github.com/vacp2p/nim-jwt@#18f8378de52b241f321c1f9ea905456e89b95c6f
 bearssl_pkey_decoder;https://github.com/vacp2p/bearssl_pkey_decoder@#21dd3710df9345ed2ad8bf8f882761e07863b8e0
-taskpools;https://github.com/status-im/nim-taskpools@#9e8ccc754631ac55ac2fd495e167e74e86293edb

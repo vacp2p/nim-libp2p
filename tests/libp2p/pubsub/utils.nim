@@ -264,6 +264,9 @@ proc generateNodes*(
     switch.mount(pubsub)
     result.add(pubsub)
 
+proc toFloodSub*(nodes: seq[PubSub]): seq[FloodSub] =
+  return nodes.mapIt(FloodSub(it))
+
 proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
   return nodes.mapIt(GossipSub(it))
 
@@ -337,44 +340,75 @@ proc connectNodesStar*[T: PubSub](nodes: seq[T]) {.async.} =
   var futs: seq[Future[void]]
 
   for dialer in nodes:
-    for node in nodes:
-      if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
-        futs.add(connectNodes(dialer, node))
+    for listener in nodes:
+      if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
+        futs.add(connectNodes(dialer, listener))
 
   await allFuturesThrowing(futs)
 
 proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
-  if nodes.len < degree:
-    raise
-      (ref CatchableError)(msg: "nodes count needs to be greater or equal to degree!")
+  doAssert nodes.len >= degree, "nodes count needs to be greater or equal to degree"
+
+  var futs: seq[Future[void]]
 
   for i, dialer in nodes:
     if (i mod degree) != 0:
       continue
 
-    for node in nodes:
-      if dialer.switch.peerInfo.peerId != node.switch.peerInfo.peerId:
-        await connectNodes(dialer, node)
+    for listener in nodes:
+      if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
+        futs.add(connectNodes(dialer, listener))
 
-proc waitSub*(sender, receiver: auto, key: string) {.async.} =
-  if sender == receiver:
+  await allFuturesThrowing(futs)
+
+template waitSubscribeChain*[T: PubSub](nodes: seq[T], topic: string): untyped =
+  ## Chain: 1-2-3-4-5
+  ## 
+  checkUntilTimeout:
+    nodes[0].gossipsub.getOrDefault(topic).len == 1
+    nodes[1 .. ^2].allIt(it.gossipsub.getOrDefault(topic).len == 2)
+    nodes[^1].gossipsub.getOrDefault(topic).len == 1
+
+template waitSubscribeRing*[T: PubSub](nodes: seq[T], topic: string): untyped =
+  ## Ring: 1-2-3-4-5-1
+  ## 
+  checkUntilTimeout:
+    nodes.allIt(it.gossipsub.getOrDefault(topic).len == 2)
+
+template waitSubscribeHub*[T: PubSub](hub: T, nodes: seq[T], topic: string): untyped =
+  ## Hub: hub-1, hub-2, hub-3,...
+  ## 
+  checkUntilTimeout:
+    hub.gossipsub.getOrDefault(topic).len == nodes.len
+    nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
+
+template waitSubscribeStar*[T: PubSub](nodes: seq[T], topic: string): untyped =
+  ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
+  ## 
+  when T is GossipSub:
+    checkUntilTimeout:
+      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+  elif T is FloodSub:
+    checkUntilTimeout:
+      nodes.allIt(it.floodsub.getOrDefault(topic).len == nodes.len - 1)
+  else:
+    {.error: "not implemented for this PubSub type".}
+
+template waitSubscribe*[T: PubSub](dialer, receiver: T, topic: string): untyped =
+  if dialer.switch.peerInfo.peerId == receiver.switch.peerInfo.peerId:
     return
-  let fsub = GossipSub(sender)
   let peerId = receiver.peerInfo.peerId
 
-  # this is for testing purposes only
-  # peers can be inside `mesh` and `fanout`, not just `gossipsub`
-  checkUntilTimeout:
-    (fsub.gossipsub.hasKey(key) and fsub.gossipsub.hasPeerId(key, peerId)) or
-      (fsub.mesh.hasKey(key) and fsub.mesh.hasPeerId(key, peerId)) or
-      (fsub.fanout.hasKey(key) and fsub.fanout.hasPeerId(key, peerId))
-
-proc waitSubAllNodes*(nodes: seq[auto], topic: string) {.async.} =
-  let numberOfNodes = nodes.len
-  for x in 0 ..< numberOfNodes:
-    for y in 0 ..< numberOfNodes:
-      if x != y:
-        await waitSub(nodes[x], nodes[y], topic)
+  when T is GossipSub:
+    checkUntilTimeout:
+      dialer.gossipsub.hasKey(topic)
+      dialer.gossipsub.hasPeerId(topic, peerId)
+  elif T is FloodSub:
+    checkUntilTimeout:
+      dialer.floodsub.hasKey(topic)
+      dialer.floodsub.hasPeerId(topic, peerId)
+  else:
+    {.error: "not implemented for this PubSub type".}
 
 proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
   proc isGraphConnected(): bool =
@@ -403,19 +437,6 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
   checkUntilTimeout:
     isGraphConnected()
 
-proc waitForMesh*(
-    sender: auto, receiver: auto, key: string, timeoutDuration = 5.seconds
-) {.async.} =
-  if sender == receiver:
-    return
-
-  let
-    gossipsubSender = GossipSub(sender)
-    receiverPeerId = receiver.peerInfo.peerId
-
-  checkUntilTimeout:
-    gossipsubSender.mesh.hasPeerId(key, receiverPeerId)
-
 proc startNodes*[T: PubSub](nodes: seq[T]) {.async.} =
   await allFuturesThrowing(nodes.mapIt(it.switch.start()))
 
@@ -428,12 +449,10 @@ template startNodesAndDeferStop*[T: PubSub](nodes: seq[T]): untyped =
     await stopNodes(nodes)
 
 template waitForNotSubscribed*[T: PubSub](nodes: seq[T], topic: string): untyped =
-  for node in nodes:
-    let n = node
-    checkUntilTimeout:
-      topic notin n.topics
-      topic notin n.mesh
-      topic notin n.gossipsub
+  checkUntilTimeout:
+    nodes.allIt(topic notin it.topics)
+    nodes.allIt(topic notin it.mesh)
+    nodes.allIt(topic notin it.gossipsub)
 
 template subscribeAllNodes*[T: PubSub](
     nodes: seq[T], topic: string, topicHandler: TopicHandler
@@ -576,45 +595,6 @@ proc clearMCache*[T: PubSub](node: T) =
   for i in 0 ..< node.mcache.history.len:
     node.mcache.history[i].setLen(0)
   node.mcache.pos = 0
-
-# TODO: refactor helper methods from testgossipsub.nim
-proc setupNodes*(count: int): seq[PubSub] =
-  generateNodes(count, gossip = true)
-
-proc connectNodes*(nodes: seq[PubSub], target: PubSub) {.async.} =
-  proc handler(topic: string, data: seq[byte]) {.async.} =
-    check topic == "foobar"
-
-  for node in nodes:
-    node.subscribe("foobar", handler)
-    await node.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
-
-proc baseTestProcedure*(
-    nodes: seq[PubSub],
-    gossip1: GossipSub,
-    numPeersFirstMsg: int,
-    numPeersSecondMsg: int,
-) {.async.} =
-  proc handler(topic: string, data: seq[byte]) {.async.} =
-    check topic == "foobar"
-
-  block setup:
-    for i in 0 ..< 50:
-      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == nodes.len - 1:
-        break setup
-      await sleepAsync(200.milliseconds)
-    raiseAssert "Failed to publish message to peers"
-
-  check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
-  check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg
-
-  # Now try with a mesh
-  gossip1.subscribe("foobar", handler)
-  checkUntilTimeout:
-    gossip1.mesh.peers("foobar") > 5
-
-  # use a different length so that the message is not equal to the last
-  check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg
 
 proc `$`*(peer: PubSubPeer): string =
   shortLog(peer)

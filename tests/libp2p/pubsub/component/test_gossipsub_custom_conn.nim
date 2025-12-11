@@ -28,13 +28,13 @@ proc new*(T: typedesc[DummyConnection]): DummyConnection =
   instance
 
 suite "GossipSub Component - Custom Connection Support":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "publish with useCustomConn triggers custom connection and peer selection":
-    let
-      topic = "test"
-      nodes = generateNodes(2, gossip = true).toGossipSub()
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     var
       customConnCreated = false
@@ -62,7 +62,7 @@ suite "GossipSub Component - Custom Connection Support":
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(
       topic, "hello".toBytes(), publishParams = some(PublishParams(useCustomConn: true))
@@ -73,15 +73,13 @@ suite "GossipSub Component - Custom Connection Support":
       customConnCreated
 
   asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
-    let
-      topic = "test"
-      nodes = generateNodes(2, gossip = true).toGossipSub()
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     expect AssertionDefect:
       discard await nodes[0].publish(

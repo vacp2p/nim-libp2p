@@ -13,17 +13,17 @@ import chronos, std/[sequtils], stew/byteutils
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, floodsub, rpc/messages, rpc/message]
-import ../../../tools/[unittest, futures]
+import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Message Cache":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "Received messages are added to the message cache":
-    const
-      numberOfNodes = 2
-      topic = "foobar"
+    const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -31,8 +31,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -44,7 +43,6 @@ suite "GossipSub Component - Message Cache":
   asyncTest "Message cache history shifts on heartbeat and is cleared on shift":
     const
       numberOfNodes = 2
-      topic = "foobar"
       historyGossip = 3 # mcache window
       historyLength = 5
     let nodes = generateNodes(
@@ -60,8 +58,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -84,7 +81,6 @@ suite "GossipSub Component - Message Cache":
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const
       numberOfNodes = 3
-      topic = "foobar"
       historyGossip = 3 # mcache window
       historyLength = 5
     let nodes = generateNodes(
@@ -102,9 +98,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # Add observer to NodeOutsideMesh for received IHave messages
     var (receivedIHaves, checkForIHaves) = createCheckForIHave()
@@ -130,16 +124,10 @@ suite "GossipSub Component - Message Cache":
   asyncTest "Message is retrieved from cache when handling IWant and relayed to a peer outside the mesh":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
-    const
-      numberOfNodes = 3
-      topic = "foobar"
-      historyGossip = 3 # mcache window
-      historyLength = 5
+    const numberOfNodes = 3
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
-        historyGossip = historyGossip,
-        historyLength = historyLength,
         dValues =
           some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
       )
@@ -150,9 +138,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # Add observer to Node0 for received IWant messages
     var (receivedIWantsNode0, checkForIWant) = createCheckForIWant()
@@ -177,7 +163,9 @@ suite "GossipSub Component - Message Cache":
       nodes[0].mcache.window(topic).len == 1
     let messageId = nodes[0].mcache.window(topic).toSeq()[0]
 
-    # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat
+    # When Node0 sends an IHave message to NodeOutsideMesh during a heartbeat.
+    # (Happening in the background...)
+
     # Then NodeOutsideMesh responds with an IWant message to Node0
     checkUntilTimeout:
       receivedIWantsNode0[].anyIt(messageId in it.messageIDs)
@@ -193,17 +181,14 @@ suite "GossipSub Component - Message Cache":
         messageId in messages
 
   asyncTest "Published and received messages are added to the seen cache":
-    const
-      numberOfNodes = 2
-      topic = "foobar"
+    const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     # When Node0 publishes a message to the topic
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -223,20 +208,25 @@ suite "GossipSub Component - Message Cache":
 
   asyncTest "Received messages are dropped if they are already in seen cache":
     # 3 Nodes, Node 0 <==> Node 1 and Node 2 not connected and not subscribed yet
-    const
-      numberOfNodes = 3
-      topic = "foobar"
-    let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
+    const numberOfNodes = 3
+    let nodes = generateNodes(
+        numberOfNodes,
+        gossip = true,
+        heartbeatInterval = 300.milliseconds,
+          # Becasue default heartbeat interval in tests is small (60ms) and very close to `checkUntilTimeout` 
+          # check interval (50ms). It can happen that two heartbeats happen before asserting.
+          # To prevent this from happening, `heartbeatInterval` interval is increased here to ensure that only
+          # one heartbeat interval is happening before assertion.
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
     await connectNodes(nodes[0], nodes[1])
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, voidTopicHandler)
-    await allFuturesThrowing(
-      waitSub(nodes[0], nodes[1], topic), #
-      waitSub(nodes[1], nodes[0], topic),
-    )
+    waitSubscribe(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[1], nodes[0], topic)
 
     # When Node0 publishes two messages to the topic
     tryPublish await nodes[0].publish(topic, "Hello".toBytes()), 1
@@ -257,9 +247,8 @@ suite "GossipSub Component - Message Cache":
     # When Node2 connects with Node0 and subscribes to the topic
     await connectNodes(nodes[0], nodes[2])
     nodes[2].subscribe(topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.hasPeerId(topic, nodes[2].peerInfo.peerId)
-      nodes[2].gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId)
+    waitSubscribe(nodes[0], nodes[2], topic)
+    waitSubscribe(nodes[2], nodes[0], topic)
 
     # And messageIds are added to node0PeerNode2 sentIHaves to allow processing IWant
     let node0PeerNode2 = nodes[0].getPeerByPeerId(topic, nodes[2].peerInfo.peerId)
@@ -290,9 +279,7 @@ suite "GossipSub Component - Message Cache":
     func customMsgIdProvider(m: Message): Result[MessageId, ValidationResult] =
       ok("fixed_message_id_string".toBytes())
 
-    const
-      numberOfNodes = 2
-      topic = "foobar"
+    const numberOfNodes = 2
     let nodes = generateNodes(
         numberOfNodes, gossip = true, msgIdProvider = customMsgIdProvider
       )
@@ -303,8 +290,7 @@ suite "GossipSub Component - Message Cache":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     # Given Node0 has msgId already in seen cache
     let data = "Hello".toBytes()

@@ -37,7 +37,7 @@ type LibP2PContext* = object
   eventUserData*: pointer
   running: Atomic[bool] # Used to stop the LibP2P thread loop
 
-proc runLibP2P(ctx: ptr LibP2PContext) {.async.} =
+proc runLibP2P(ctx: ptr LibP2PContext) {.async: (raises: [CancelledError]).} =
   ## Main async loop of the LibP2P thread, processes incoming requests
 
   # This is the worker body. This runs the LibP2P instance
@@ -46,7 +46,11 @@ proc runLibP2P(ctx: ptr LibP2PContext) {.async.} =
   var libp2p: LibP2P
 
   while true:
-    await ctx.reqSignal.wait()
+    try:
+      await ctx.reqSignal.wait()
+    except AsyncError as exc:
+      error "libp2p thread async error", err = $exc.msg
+      continue
 
     if not ctx.running.load:
       break
@@ -113,17 +117,9 @@ proc destroyLibP2PThread*(ctx: ptr LibP2PContext): Result[void, string] =
 
   return ok()
 
-proc sendRequestToLibP2PThread*(
-    ctx: ptr LibP2PContext,
-    reqType: RequestType,
-    reqContent: pointer,
-    callback: Libp2pCallback,
-    userData: pointer,
+proc sendRequestInternal(
+    ctx: ptr LibP2PContext, req: ptr LibP2PThreadRequest
 ): Result[void, string] =
-  ## Sends a request to the LibP2P thread, blocking until it is received
-
-  let req = LibP2PThreadRequest.createShared(reqType, reqContent, callback, userData)
-
   # This lock is only necessary while we use a SP Channel and while the signalling
   # between threads assumes that there aren't concurrent requests.
   # Rearchitecting the signaling + migrating to a MP Channel will allow us to receive
@@ -132,7 +128,6 @@ proc sendRequestToLibP2PThread*(
   defer:
     ctx.lock.release()
 
-  # Sending the request
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
     deallocShared(req)
@@ -147,7 +142,6 @@ proc sendRequestToLibP2PThread*(
     deallocShared(req)
     return err("Couldn't fireSync in time")
 
-  # wait until the LibP2P Thread properly received the request
   let res = ctx.reqReceivedSignal.waitSync()
   if res.isErr():
     deallocShared(req)
@@ -156,3 +150,32 @@ proc sendRequestToLibP2PThread*(
   # Notice that in case of "ok", the deallocShared(req) is performed by the LibP2P Thread in the
   # process proc.
   ok()
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: Libp2pCallback,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread, blocking until it is received
+  let req = LibP2PThreadRequest.createShared(reqType, reqContent, callback, userData)
+  sendRequestInternal(ctx, req)
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: PeerInfoCallback,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for peer-info callbacks
+  let req = LibP2PThreadRequest.createShared(
+    reqType,
+    reqContent,
+    nil,
+    userData,
+    callbackKind = CallbackKind.PEER_INFO,
+    peerInfoCallback = callback,
+  )
+  sendRequestInternal(ctx, req)

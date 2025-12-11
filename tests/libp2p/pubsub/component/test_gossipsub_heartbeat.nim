@@ -15,13 +15,14 @@ import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Heartbeat":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "Mesh is rebalanced during heartbeat - pruning peers":
     const
       numberOfNodes = 10
-      topic = "foobar"
       heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
@@ -36,9 +37,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      node0.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(node0, nodes[1 .. ^1], topic)
 
     # When DValues of Node0 are updated to lower than defaults
     const
@@ -63,7 +62,6 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Mesh is rebalanced during heartbeat - grafting new peers":
     const
       numberOfNodes = 10
-      topic = "foobar"
       dLow = 3
       dHigh = 4
       heartbeatInterval = 200.milliseconds
@@ -86,9 +84,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      node0.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(node0, nodes[1 .. ^1], topic)
 
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len >= dLow and
@@ -105,7 +101,6 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Mesh is rebalanced during heartbeat - opportunistic grafting":
     const
       numberOfNodes = 10
-      topic = "foobar"
       heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
@@ -134,9 +129,7 @@ suite "GossipSub Component - Heartbeat":
     await connectNodesHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      node0.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(node0, nodes[1 .. ^1], topic)
 
     # Keep track of initial mesh of Node0
     let startingMesh = node0.mesh[topic].toSeq()
@@ -166,7 +159,6 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
     const
       numberOfNodes = 10
-      topic = "foobar"
       heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
@@ -202,7 +194,6 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Fanout maintenance during heartbeat - fanout peers are replenished":
     const
       numberOfNodes = 10
-      topic = "foobar"
       heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
@@ -218,7 +209,7 @@ suite "GossipSub Component - Heartbeat":
     subscribeAllNodes(nodes[1 .. ^1], topic, voidTopicHandler)
     checkUntilTimeout:
       node0.gossipsub.hasKey(topic)
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len >= 1)
+      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 2)
 
     # When Node0 sends a message to the topic
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
@@ -241,8 +232,7 @@ suite "GossipSub Component - Heartbeat":
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
     const
-      topic = "foobar"
-      heartbeatInterval = 200.milliseconds
+      heartbeatInterval = 300.milliseconds
       historyLength = 3
     let nodes = generateNodes(
         2,
@@ -255,10 +245,10 @@ suite "GossipSub Component - Heartbeat":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connectNodesChain(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribeChain(nodes, topic)
 
     # Get Node0 as Peer of Node1 
     let peer = nodes[1].mesh[topic].toSeq()[0]
@@ -273,7 +263,7 @@ suite "GossipSub Component - Heartbeat":
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
     # Then Node1 receives 5 iDontWant messages from Node0
-    checkUntilTimeoutCustom(3.seconds, 50.milliseconds):
+    checkUntilTimeout:
       peer.iDontWants[0].len == msgCount
 
     for i in 0 ..< historyLength:
@@ -297,8 +287,7 @@ suite "GossipSub Component - Heartbeat":
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const
       numberOfNodes = 3
-      topic = "foobar"
-      heartbeatInterval = 200.milliseconds
+      heartbeatInterval = 300.milliseconds
       historyLength = 3
       gossipThreshold = -100.0
     let nodes = generateNodes(
@@ -316,9 +305,7 @@ suite "GossipSub Component - Heartbeat":
 
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
-      nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == 1)
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # Find Peer outside of mesh to which Node 0 will send IHave
     let peerOutsideMesh =

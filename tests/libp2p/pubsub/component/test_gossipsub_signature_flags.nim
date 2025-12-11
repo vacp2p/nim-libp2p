@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, stew/byteutils, std/sequtils
+import chronos, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
 import ../../../tools/[unittest]
 import ../utils
@@ -32,8 +32,7 @@ suite "GossipSub Component - Signature Flags":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+    waitSubscribeStar(nodes, topic)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
@@ -61,8 +60,7 @@ suite "GossipSub Component - Signature Flags":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+    waitSubscribeStar(nodes, topic)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
@@ -87,8 +85,7 @@ suite "GossipSub Component - Signature Flags":
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == nodes.len - 1)
+    waitSubscribeStar(nodes, topic)
 
     var (receivedMessages, checkForMessage) = createCheckForMessages()
     nodes[1].addOnRecvObserver(checkForMessage)
@@ -214,8 +211,8 @@ suite "GossipSub Component - Signature Flags":
 
       let (messageReceivedFut, handler) = createCompleteHandler()
 
-      receiver.subscribe(topic, handler)
-      await waitSub(sender, receiver, topic)
+      subscribeAllNodes(nodes, topic, handler)
+      waitSubscribeStar(nodes, topic)
 
       tryPublish await sender.publish(topic, testData), 1
 

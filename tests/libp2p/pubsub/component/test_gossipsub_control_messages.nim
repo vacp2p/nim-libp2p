@@ -17,12 +17,13 @@ import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Control Messages":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "GRAFT messages correctly add peers to mesh":
     let
-      topic = "foobar"
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       numberOfNodes = 2
       # First part of the hack: Weird dValues so peers are not GRAFTed automatically
@@ -40,13 +41,11 @@ suite "GossipSub Component - Control Messages":
     await connectNodesStar(nodes)
 
     # And both subscribe to the topic
-    nodes[0].subscribe(topic, voidTopicHandler)
-    nodes[1].subscribe(topic, voidTopicHandler)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
 
     # Because of the hack-ish dValues, the peers are added to gossipsub but not GRAFTed to mesh
     checkUntilTimeout:
-      n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
-      n1.gossipsub.hasPeerId(topic, n0.peerInfo.peerId)
       not n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
@@ -79,7 +78,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "Received GRAFT for non-subscribed topic":
     let
-      topic = "foo"
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
@@ -94,7 +92,7 @@ suite "GossipSub Component - Control Messages":
 
     # And only node0 subscribes to the topic
     nodes[0].subscribe(topic, voidTopicHandler)
-    await waitSub(n1, n0, topic)
+    waitSubscribe(n1, n0, topic)
 
     check:
       n0.topics.hasKey(topic)
@@ -119,7 +117,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "PRUNE messages correctly removes peers from mesh":
     let
-      topic = "foo"
       backoff = 1
       pruneMessage = ControlMessage(
         prune: @[ControlPrune(topicID: topic, peers: @[], backoff: uint64(backoff))]
@@ -137,8 +134,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -170,7 +166,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "Received PRUNE for non-subscribed topic":
     let
-      topic = "foo"
       pruneMessage =
         ControlMessage(prune: @[ControlPrune(topicID: topic, peers: @[], backoff: 1)])
       numberOfNodes = 2
@@ -186,7 +181,7 @@ suite "GossipSub Component - Control Messages":
 
     # And only node0 subscribes to the topic 
     n0.subscribe(topic, voidTopicHandler)
-    await waitSub(n1, n0, topic)
+    waitSubscribe(n1, n0, topic)
 
     check:
       n0.topics.hasKey(topic)
@@ -211,7 +206,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "IHAVE messages correctly advertise message ID to peers":
     let
-      topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
       ihaveMessage =
         ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
@@ -232,8 +226,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -251,7 +244,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "IWANT messages correctly request messages by their IDs":
     let
-      topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
       iwantMessage = ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageID])])
       numberOfNodes = 2
@@ -271,8 +263,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     check:
       n0.gossipsub.hasPeerId(topic, n1.peerInfo.peerId)
@@ -290,7 +281,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "IHAVE for message not held by peer triggers IWANT response to sender":
     let
-      topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
       ihaveMessage =
         ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
@@ -311,8 +301,7 @@ suite "GossipSub Component - Control Messages":
 
     # And both nodes subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     # When an IHAVE message is sent from node0
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
@@ -325,9 +314,7 @@ suite "GossipSub Component - Control Messages":
         receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IDONTWANT":
-    let
-      topic = "foobar"
-      nodes = generateNodes(3, gossip = true).toGossipSub()
+    let nodes = generateNodes(3, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -339,7 +326,7 @@ suite "GossipSub Component - Control Messages":
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handlerB)
     nodes[2].subscribe(topic, voidTopicHandler)
-    await waitSubGraph(nodes, topic)
+    waitSubscribeChain(nodes, topic)
 
     check:
       nodes[2].mesh.peers(topic) == 1
@@ -371,18 +358,15 @@ suite "GossipSub Component - Control Messages":
       toSeq(nodes[0].mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
 
   asyncTest "IDONTWANT is broadcasted on publish":
-    let
-      topic = "foobar"
-      nodes =
-        generateNodes(2, gossip = true, sendIDontWantOnPublish = true).toGossipSub()
+    let nodes =
+      generateNodes(2, gossip = true, sendIDontWantOnPublish = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
     await connectNodesStar(nodes)
 
-    nodes[0].subscribe(topic, voidTopicHandler)
-    nodes[1].subscribe(topic, voidTopicHandler)
-    await waitSubGraph(nodes, topic)
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
 
     # When A sends a message to the topic
     tryPublish await nodes[0].publish(topic, newSeq[byte](10000)), 1
@@ -394,7 +378,6 @@ suite "GossipSub Component - Control Messages":
   when defined(libp2p_gossipsub_1_4):
     asyncTest "emit IMReceiving while handling preamble control msg":
       let
-        topic = "foobar"
         numberOfNodes = 2
         messageID = @[1.byte, 2, 3, 4]
         nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
@@ -408,8 +391,7 @@ suite "GossipSub Component - Control Messages":
 
       # And both subscribe to the topic
       subscribeAllNodes(nodes, topic, voidTopicHandler)
-      checkUntilTimeout:
-        nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+      waitSubscribeStar(nodes, topic)
 
       let preambles =
         @[

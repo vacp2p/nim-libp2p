@@ -15,13 +15,14 @@ import ../../../tools/[unittest, futures]
 import ../utils
 
 suite "GossipSub Component - Mesh Management":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "Nodes graft peers according to DValues - numberOfNodes < dHigh":
     let
       numberOfNodes = 5
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -40,7 +41,6 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "Nodes graft peers according to DValues - numberOfNodes > dHigh":
     let
       numberOfNodes = 8
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -72,12 +72,12 @@ suite "GossipSub Component - Mesh Management":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe("foobar", handler)
+    nodes[1].subscribe(topic, handler)
 
     checkUntilTimeout:
-      "foobar" in nodes[1].topics
-      "foobar" in nodes[0].gossipsub
-      nodes[0].gossipsub.hasPeerId("foobar", nodes[1].peerInfo.peerId)
+      topic in nodes[1].topics
+      topic in nodes[0].gossipsub
+      nodes[0].gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
   asyncTest "GossipSub should add remote peer topic subscriptions if both peers are subscribed":
     proc handler(topic: string, data: seq[byte]) {.async.} =
@@ -88,30 +88,27 @@ suite "GossipSub Component - Mesh Management":
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
-    nodes[0].subscribe("foobar", handler)
-    nodes[1].subscribe("foobar", handler)
-    await allFuturesThrowing( # wait for subscribe
-      waitSub(nodes[1], nodes[0], "foobar"), #
-      waitSub(nodes[0], nodes[1], "foobar"),
-    )
+    nodes[0].subscribe(topic, handler)
+    nodes[1].subscribe(topic, handler)
+    waitSubscribeStar(nodes, topic)
 
     check:
-      "foobar" in nodes[0].topics
-      "foobar" in nodes[1].topics
+      topic in nodes[0].topics
+      topic in nodes[1].topics
 
-      "foobar" in nodes[0].gossipsub
-      "foobar" in nodes[1].gossipsub
+      topic in nodes[0].gossipsub
+      topic in nodes[1].gossipsub
 
-      nodes[0].gossipsub.hasPeerId("foobar", nodes[1].peerInfo.peerId) or
-        nodes[0].mesh.hasPeerId("foobar", nodes[1].peerInfo.peerId)
+      nodes[0].gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId) or
+        nodes[0].mesh.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
-      nodes[1].gossipsub.hasPeerId("foobar", nodes[0].peerInfo.peerId) or
-        nodes[1].mesh.hasPeerId("foobar", nodes[0].peerInfo.peerId)
+      nodes[1].gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) or
+        nodes[1].mesh.hasPeerId(topic, nodes[0].peerInfo.peerId)
 
   asyncTest "GossipSub invalid topic subscription":
     var handlerFut = newFuture[bool]()
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      check topic == "foobar"
+    proc handler(handlerTopic: string, data: seq[byte]) {.async.} =
+      check handlerTopic == topic
       handlerFut.complete(true)
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
@@ -119,11 +116,11 @@ suite "GossipSub Component - Mesh Management":
     startNodesAndDeferStop(nodes)
 
     # We must subscribe before setting the validator
-    nodes[0].subscribe("foobar", handler)
+    nodes[0].subscribe(topic, handler)
 
     let invalidDetected = newFuture[void]()
-    nodes[0].subscriptionValidator = proc(topic: string): bool =
-      if topic == "foobar":
+    nodes[0].subscriptionValidator = proc(subTopic: string): bool =
+      if subTopic == topic:
         try:
           invalidDetected.complete()
         except:
@@ -134,7 +131,7 @@ suite "GossipSub Component - Mesh Management":
 
     await connectNodesStar(nodes)
 
-    nodes[1].subscribe("foobar", handler)
+    nodes[1].subscribe(topic, handler)
 
     await invalidDetected.wait(10.seconds)
 
@@ -145,8 +142,8 @@ suite "GossipSub Component - Mesh Management":
     await nodes[0].addDirectPeer(nodes[1])
 
     let invalidDetected = newFuture[void]()
-    nodes[0].subscriptionValidator = proc(topic: string): bool =
-      if topic == "foobar":
+    nodes[0].subscriptionValidator = proc(subTopic: string): bool =
+      if subTopic == topic:
         try:
           invalidDetected.complete()
         except:
@@ -161,14 +158,13 @@ suite "GossipSub Component - Mesh Management":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
 
-    nodes[1].subscribe("foobar", handler)
+    nodes[1].subscribe(topic, handler)
 
     await invalidDetected.wait(10.seconds)
 
   asyncTest "mesh and gossipsub updated when topic subscribed and unsubscribed":
     let
       numberOfNodes = 5
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
@@ -176,8 +172,7 @@ suite "GossipSub Component - Mesh Management":
     # When all of them are connected and subscribed to the same topic
     await connectNodesStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      nodes.allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 1)
+    waitSubscribeStar(nodes, topic)
 
     # Then mesh and gossipsub should be populated
     for node in nodes:
@@ -206,29 +201,26 @@ suite "GossipSub Component - Mesh Management":
 
     startNodesAndDeferStop(nodes)
 
-    # When nodes subscribe to multiple topics
     await connectNodesStar(nodes)
-    for topic in topics:
-      let t = topic
-      subscribeAllNodes(nodes, t, voidTopicHandler)
+
+    # When nodes subscribe to multiple topics
+    for t in topics:
+      let topic = t
+      subscribeAllNodes(nodes, topic, voidTopicHandler)
 
     # Then all nodes should be subscribed to the topics initially
-    for i in 0 ..< topics.len:
-      let topic = topics[i]
-      checkUntilTimeout:
-        nodes.allIt(it.topics.contains(topic))
-        nodes.allIt(it.gossipsub.getOrDefault(topic).len() == numberOfNodes - 1)
-        nodes.allIt(it.mesh.getOrDefault(topic).len() == numberOfNodes - 1)
+    for t in topics:
+      let topic = t
+      waitSubscribeStar(nodes, topic)
 
     # When they unsubscribe from all topics
-    for topic in topics:
-      let t = topic
-      unsubscribeAllNodes(nodes, t, voidTopicHandler)
+    for t in topics:
+      let topic = t
+      unsubscribeAllNodes(nodes, topic, voidTopicHandler)
 
     # Then topics should be removed from mesh and gossipsub
-    for i in 0 ..< topics.len:
-      let topic = topics[i]
-      checkUntilTimeout:
+    for topic in topics:
+      check:
         nodes.allIt(not it.topics.contains(topic))
         nodes.allIt(topic notin it.gossipsub)
         nodes.allIt(topic notin it.mesh)
@@ -236,7 +228,6 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "Unsubscribe backoff":
     const
       numberOfNodes = 3
-      topic = "foobar"
       unsubscribeBackoff = 1.seconds # 1s is the minimum
     let nodes = generateNodes(
         numberOfNodes, gossip = true, unsubscribeBackoff = unsubscribeBackoff
@@ -249,8 +240,7 @@ suite "GossipSub Component - Mesh Management":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      topic in nodes[0].mesh and nodes[0].mesh[topic].len == numberOfNodes - 1
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When Node0 unsubscribes from the topic
     nodes[0].unsubscribe(topic, voidTopicHandler)
@@ -274,7 +264,6 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "Prune backoff":
     const
       numberOfNodes = 9
-      topic = "foobar"
       pruneBackoff = 1.seconds # 1s is the minimum
       dValues = some(
         DValues(
@@ -299,8 +288,7 @@ suite "GossipSub Component - Mesh Management":
     await connectNodesHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    checkUntilTimeout:
-      topic in nodes[0].mesh and nodes[0].mesh[topic].len == numberOfNodes - 1
+    waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When DValues of Node0 are updated to lower than initial dValues
     const newDValues = some(
@@ -330,21 +318,20 @@ suite "GossipSub Component - Mesh Management":
   asyncTest "Outbound peers are marked correctly":
     let
       numberOfNodes = 4
-      topic = "foobar"
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1]) # Out
-    await connectNodes(nodes[0], nodes[2]) # Out
-    await connectNodes(nodes[3], nodes[0]) # In
+    await allFuturesThrowing(
+      connectNodes(nodes[0], nodes[1]), # Out
+      connectNodes(nodes[0], nodes[2]), # Out
+      connectNodes(nodes[3], nodes[0]), # In
+    )
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
-    await allFuturesThrowing( # wait for subscribe
-      waitSub(nodes[0], nodes[1], topic),
-      waitSub(nodes[0], nodes[2], topic),
-      waitSub(nodes[3], nodes[0], topic),
-    )
+    waitSubscribe(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[2], topic)
+    waitSubscribe(nodes[3], nodes[0], topic)
 
     checkUntilTimeout:
       nodes[0].mesh.outboundPeers(topic) == 2

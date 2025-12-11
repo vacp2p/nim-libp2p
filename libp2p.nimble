@@ -10,8 +10,10 @@ skipDirs = @["cbind", "examples", "interop", "performance", "tests", "tools"]
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
-  "websock >= 0.2.1", "unittest2", "results", "quic >= 0.5.2", "taskpools >= 0.1.0",
+  "websock >= 0.2.1", "unittest2", "results", "quic >= 0.5.2",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
+
+import hashes, os, sequtils, strutils
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
@@ -22,8 +24,6 @@ let cfg =
   " --styleCheck:usages --styleCheck:error" &
   (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
   " --threads:on --opt:speed"
-
-import hashes, strutils, os
 
 proc runTest(filename: string, moreoptions: string = "") =
   var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags
@@ -45,43 +45,6 @@ proc runTest(filename: string, moreoptions: string = "") =
   # step 3: remove binary
   rmFile "tests/" & filename.toExe
 
-proc buildSample(filename: string, run = false, extraFlags = "") =
-  var excstr = nimc & " " & lang & " " & cfg & " " & flags & " -p:. " & extraFlags
-  excstr.add(" examples/" & filename)
-  exec excstr
-  if run:
-    exec "./examples/" & filename.toExe
-  rmFile "examples/" & filename.toExe
-
-proc buildCBindings(libType: string, params = "") =
-  if not dirExists "build":
-    mkDir "build"
-  # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
-
-  let ext =
-    if libType == "static":
-      "a"
-    else:
-      when defined(windows):
-        "dll"
-      elif defined(macosx):
-        "dylib"
-      else:
-        "so"
-  let app = if libType == "static": "staticlib" else: "lib"
-
-  exec nimc & " " & lang & " --out:build/libp2p." & ext & " --threads:on --app:" & app &
-    " --opt:size --noMain --mm:refc --header --undef:metrics --nimMainPrefix:libp2p --nimcache:nimcache -d:asyncTimer=system " &
-    cfg & " " & flags & " cbind/libp2p.nim"
-
-proc tutorialToMd(filename: string) =
-  let markdown = gorge "cat " & filename & " | " & nimc & " " & lang &
-    " -r --verbosity:0 --hints:off tools/markdown_builder.nim "
-  writeFile(filename.replace(".nim", ".md"), markdown)
-
 task testmultiformatexts, "Run multiformat extensions tests":
   let opts =
     "-d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim " &
@@ -89,7 +52,7 @@ task testmultiformatexts, "Run multiformat extensions tests":
     "-d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim " &
     "-d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim " &
     "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim " &
-    "-d:path=libp2p/multiformat_exts"
+    "-d:path=multiformat_exts"
   runTest("test_all", opts)
 
 task testintegration, "Runs integration tests":
@@ -117,14 +80,6 @@ task testpath, "Run tests matching a specific path":
 
   runTest("test_all", "-d:path=" & testPathArg)
 
-task website, "Build the website":
-  tutorialToMd("examples/tutorial_1_connect.nim")
-  tutorialToMd("examples/tutorial_2_customproto.nim")
-  tutorialToMd("examples/tutorial_3_protobuf.nim")
-  tutorialToMd("examples/tutorial_4_gossipsub.nim")
-  tutorialToMd("examples/circuitrelay.nim")
-  exec "mkdocs build"
-
 # pin system
 # while nimble lockfile
 # isn't available
@@ -136,8 +91,6 @@ task pin, "Create a lockfile":
   # a command in a nimscript
   exec nimc & " c -r tools/pinner.nim"
 
-import sequtils
-import os
 task install_pinned, "Reads the lockfile":
   let toInstall = readFile(PinFile).splitWhitespace().mapIt(
       (it.split(";", 1)[0], it.split(";", 1)[1])
@@ -168,20 +121,3 @@ task install_pinned, "Reads the lockfile":
 
 task unpin, "Restore global package use":
   rmDir("nimbledeps")
-
-task libDynamic, "Generate dynamic bindings":
-  buildCBindings "dynamic", ""
-
-task libStatic, "Generate static bindings":
-  buildCBindings "static", ""
-
-task examples, "Build and run examples":
-  exec "nimble install -y nimpng"
-  exec "nimble install -y nico --passNim=--skipParentCfg"
-  buildSample("examples_build", false, "--styleCheck:off") # build only
-
-  buildSample("examples_run", true)
-
-  buildCBindings "static", ""
-  exec "g++ -o build/cbindings ./examples/cbindings.c ./build/libp2p.a -pthread"
-  exec "./build/cbindings"
