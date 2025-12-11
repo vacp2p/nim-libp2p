@@ -151,6 +151,19 @@ proc sendRequestInternal(
   # process proc.
   ok()
 
+template sendRequest(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    userData: pointer,
+    callbackKind: CallbackKind,
+    callback: pointer = nil,
+): Result[void, string] =
+  let req = LibP2PThreadRequest.createShared(
+    reqType, reqContent, callback, userData, callbackKind
+  )
+  sendRequestInternal(ctx, req)
+
 proc sendRequestToLibP2PThread*(
     ctx: ptr LibP2PContext,
     reqType: RequestType,
@@ -159,8 +172,9 @@ proc sendRequestToLibP2PThread*(
     userData: pointer,
 ): Result[void, string] =
   ## Sends a request to the LibP2P thread, blocking until it is received
-  let req = LibP2PThreadRequest.createShared(reqType, reqContent, callback, userData)
-  sendRequestInternal(ctx, req)
+  sendRequest(
+    ctx, reqType, reqContent, userData, CallbackKind.DEFAULT, cast[pointer](callback)
+  )
 
 proc sendRequestToLibP2PThread*(
     ctx: ptr LibP2PContext,
@@ -170,12 +184,23 @@ proc sendRequestToLibP2PThread*(
     userData: pointer,
 ): Result[void, string] =
   ## Sends a request to the LibP2P thread for peer-info callbacks
-  let req = LibP2PThreadRequest.createShared(
+  sendRequest(
+    ctx, reqType, reqContent, userData, CallbackKind.PEER_INFO, cast[pointer](callback)
+  )
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: ConnectedPeersCallback,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for connected-peers callbacks
+  sendRequest(
+    ctx,
     reqType,
     reqContent,
-    nil,
     userData,
-    callbackKind = CallbackKind.PEER_INFO,
-    peerInfoCallback = callback,
+    CallbackKind.CONNECTED_PEERS,
+    cast[pointer](callback),
   )
-  sendRequestInternal(ctx, req)

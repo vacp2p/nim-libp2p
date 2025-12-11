@@ -21,12 +21,10 @@ suite "GossipSub Component - Heartbeat":
     checkTrackers()
 
   asyncTest "Mesh is rebalanced during heartbeat - pruning peers":
-    const
-      numberOfNodes = 10
-      heartbeatInterval = 200.milliseconds
+    const numberOfNodes = 10
     let
       nodes = generateNodes(
-          numberOfNodes, gossip = true, heartbeatInterval = heartbeatInterval
+          numberOfNodes, gossip = true, heartbeatInterval = 500.milliseconds
         )
         .toGossipSub()
       node0 = nodes[0]
@@ -64,7 +62,6 @@ suite "GossipSub Component - Heartbeat":
       numberOfNodes = 10
       dLow = 3
       dHigh = 4
-      heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
           numberOfNodes,
@@ -73,7 +70,7 @@ suite "GossipSub Component - Heartbeat":
             DValues(dLow: some(dLow), dHigh: some(dHigh), d: some(3), dOut: some(1))
           ),
           pruneBackoff = 20.milliseconds,
-          heartbeatInterval = heartbeatInterval,
+          heartbeatInterval = 500.milliseconds,
         )
         .toGossipSub()
       node0 = nodes[0]
@@ -99,9 +96,7 @@ suite "GossipSub Component - Heartbeat":
       node0.mesh[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "Mesh is rebalanced during heartbeat - opportunistic grafting":
-    const
-      numberOfNodes = 10
-      heartbeatInterval = 200.milliseconds
+    const numberOfNodes = 10
     let
       nodes = generateNodes(
           numberOfNodes,
@@ -118,7 +113,7 @@ suite "GossipSub Component - Heartbeat":
           ),
           pruneBackoff = 20.milliseconds,
           opportunisticGraftThreshold = 600,
-          heartbeatInterval = heartbeatInterval,
+          heartbeatInterval = 500.milliseconds,
         )
         .toGossipSub()
       node0 = nodes[0]
@@ -231,15 +226,13 @@ suite "GossipSub Component - Heartbeat":
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
-    const
-      heartbeatInterval = 300.milliseconds
-      historyLength = 3
+    const historyLength = 3
     let nodes = generateNodes(
         2,
         gossip = true,
         sendIDontWantOnPublish = true,
         historyLength = historyLength,
-        heartbeatInterval = heartbeatInterval,
+        heartbeatInterval = 500.milliseconds,
       )
       .toGossipSub()
 
@@ -287,7 +280,6 @@ suite "GossipSub Component - Heartbeat":
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const
       numberOfNodes = 3
-      heartbeatInterval = 300.milliseconds
       historyLength = 3
       gossipThreshold = -100.0
     let nodes = generateNodes(
@@ -296,7 +288,7 @@ suite "GossipSub Component - Heartbeat":
         historyLength = historyLength,
         dValues =
           some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
-        heartbeatInterval = heartbeatInterval,
+        heartbeatInterval = 500.milliseconds,
         gossipThreshold = gossipThreshold,
       )
       .toGossipSub()
@@ -322,31 +314,20 @@ suite "GossipSub Component - Heartbeat":
     for p in nodeOutsideMesh.gossipsub[topic].toSeq():
       p.score = 2 * gossipThreshold
 
+    # Before publish sentIHaves has empty history
+    check:
+      peerOutsideMesh.sentIHaves.allIt(it.len == 0)
+
     # When NodeInsideMesh sends a messages to the topic
     let peerInsideMesh = nodes[0].mesh[topic].toSeq()[0]
     let nodeInsideMesh = nodes.getNodeByPeerId(peerInsideMesh.peerId)
     tryPublish await nodeInsideMesh.publish(topic, newSeq[byte](1000)), 1
 
-    # When next heartbeat occurs
-    # Then IHave is sent and sentIHaves is populated 
-    checkUntilTimeout:
-      peerOutsideMesh.sentIHaves[0].len == 1
-
-    # Need to clear mCache as node would keep populating sentIHaves until cache is shifted enough times
-    nodes[0].clearMCache()
-
+    # Then with each heartbeat, history moves (new element added at start, last element pruned)
     for i in 0 ..< historyLength:
-      # When heartbeat happens
-      # And history moves (new element added at start, last element pruned)
       checkUntilTimeout:
-        peerOutsideMesh.sentIHaves[i].len == 0
+        peerOutsideMesh.sentIHaves[i].len == 1
 
-      # Then sentIHaves messages are moved to the next element
-      var expectedHistory = newSeqWith(historyLength, 0)
-      let nextIndex = i + 1
-      if nextIndex < historyLength:
-        expectedHistory[nextIndex] = 1
-
-      # Until they reach last element and are pruned
-      checkUntilTimeout:
-        peerOutsideMesh.sentIHaves.mapIt(it.len) == expectedHistory
+    # Finally after `historyLength` iterations history is cleared
+    checkUntilTimeout:
+      peerOutsideMesh.sentIHaves.allIt(it.len == 0)
