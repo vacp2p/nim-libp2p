@@ -7,81 +7,17 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sets, tables, sequtils]
+import std/[tables, sequtils, sets]
 import chronos, chronicles, results
-import ../../[peerid, switch, multihash]
-import ../kademlia/[types, routingtable, lookupstate, protobuf, find, get, protobuf]
-import ./types
-
-proc findAllNode*(
-    disco: KademliaDiscovery, targetId: Key
-): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
-  ## Return all peerIds on the way to a target ID.
-
-  var initialPeers = disco.rtable.findClosestPeerIds(targetId, disco.config.replication)
-  var state = LookupState.init(
-    targetId, initialPeers, disco.config.alpha, high(int), disco.rtable.config.hasher
-  )
-  var addrTable: Table[PeerId, seq[MultiAddress]]
-  for p in initialPeers:
-    addrTable[p] = disco.switch.peerStore[AddressBook][p]
-
-  while not state.done:
-    let toQuery = state.selectAlphaPeers()
-    debug "Find node queries",
-      peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = addrTable
-    var pendingFutures = initTable[PeerId, Future[Message]]()
-
-    for peer in toQuery.filterIt(disco.switch.peerInfo.peerId != it):
-      state.markPending(peer)
-      let addrs = addrTable.getOrDefault(peer, @[])
-      if addrs.len == 0:
-        state.markFailed(peer)
-        continue
-      pendingFutures[peer] =
-        disco.sendFindNode(peer, addrs, targetId).wait(chronos.seconds(5))
-
-      state.activeQueries.inc
-
-    let (successfulReplies, timedOutPeers) = await waitRepliesOrTimeouts(pendingFutures)
-
-    for msg in successfulReplies:
-      for peer in msg.closerPeers:
-        let pid = PeerId.init(peer.id)
-        if not pid.isOk:
-          error "Invalid PeerId in successful reply", peerId = peer.id
-          continue
-        addrTable[pid.get()] = peer.addrs
-      state.updateShortlist(
-        msg,
-        proc(p: PeerInfo) {.raises: [].} =
-          discard disco.rtable.insert(p.peerId)
-          # Nodes might return different addresses for a peer, so we append instead of replacing
-          try:
-            var existingAddresses =
-              disco.switch.peerStore[AddressBook][p.peerId].toHashSet()
-            for a in p.addrs:
-              existingAddresses.incl(a)
-            disco.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
-          except KeyError as exc:
-            debug "Could not update shortlist", err = exc.msg
-          # TODO: add TTL to peerstore, otherwise we can spam it with junk
-        ,
-        disco.rtable.config.hasher,
-      )
-
-    for timedOut in timedOutPeers:
-      state.markFailed(timedOut)
-
-    # Check for covergence: no active queries, and no other peers to be selected
-    state.done = checkConvergence(state, disco.switch.peerInfo.peerId)
-
-  return state.selectClosestK()
+import ../../[peerid, peerinfo, switch, multihash]
+import ../protocol
+import ../kademlia/[types, find, get, protobuf]
+import ./[types, protobuf]
 
 proc findRandom*(
     disco: KademliaDiscovery
-): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  ## Return all nodes on the path towards a random target ID.
+): Future[seq[ExtPeerRecord]] {.async: (raises: [CancelledError]).} =
+  ## Return all peer records on the path towards a random target ID.
 
   let randomPeerId = PeerId.random(disco.rng).valueOr:
     debug "cannot generate random peer id", error
@@ -89,28 +25,53 @@ proc findRandom*(
 
   let randomKey = randomPeerId.toKey()
 
-  let peerIds = await disco.findAllNode(randomKey)
+  var state = LookupState.init(disco, randomKey)
+  var buffers: seq[seq[byte]]
 
-  var getFutures: seq[Future[Result[EntryRecord, string]]] = @[]
-  for pid in peerIds:
-    getFutures.add(disco.getValue(pid.toKey()))
+  while true:
+    let toQuery = state.selectCloserPeers(disco.config.alpha)
 
-  var records: seq[SignedPeerRecord] = @[]
-  await allFutures(getFutures)
+    if toQuery.len() == 0:
+      break
 
-  for fut in getFutures:
-    if fut.failed:
-      trace "future failed", error = fut.error
-      continue
+    for peerId in toQuery:
+      state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
 
-    let entry = fut.read().valueOr:
-      trace "cannot read future", error
-      continue
+    debug "Find random node queries", peersToQuery = toQuery.mapIt(it.shortLog())
 
-    let spr = SignedPeerRecord.decode(entry.value).valueOr:
+    let
+      findRPCBatch = toQuery.mapIt(disco.dispatchFindNode(it, randomKey))
+      getRPCBatch = toQuery.mapIt(disco.dispatchGetVal(it, it.toKey()))
+      completedFindRPCBatch = await findRPCBatch.collectCompleted(disco.config.timeout)
+      completedGetRPCBatch = await getRPCBatch.collectCompleted(disco.config.timeout)
+
+    for (fut, peerId) in zip(findRPCBatch, toQuery):
+      if fut.completed():
+        state.responded.incl(peerId)
+
+    for msg in completedFindRPCBatch:
+      msg.withValue(reply):
+        let newPeerInfos = state.updateShortlist(reply)
+        disco.updatePeers(newPeerInfos)
+
+    for msg in completedGetRPCBatch:
+      let reply = msg.valueOr:
+        continue
+
+      let record = reply.record.valueOr:
+        continue
+
+      let buffer = record.value.valueOr:
+        continue
+
+      buffers.add(buffers)
+
+  var records: seq[ExtPeerRecord]
+  for buffer in buffers:
+    let xpr = ExtPeerRecord.decode(buffer).valueOr:
       debug "cannot decode signed peer record", error
       continue
 
-    records.add(spr)
+    records.add(xpr)
 
   return records
