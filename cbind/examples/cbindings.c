@@ -122,10 +122,14 @@ static void connected_peers_handler(int callerRet, const char **peerIds,
     exit(1);
   }
 
+  if (peerIds == NULL && peerIdsLen > 0) {
+    printf("  (null peerIds array with non-zero length)\n");
+    exit(1);
+  }
+
   printf("Connected peers (%zu):\n", peerIdsLen);
   for (size_t i = 0; i < peerIdsLen; i++) {
-    const char *peer = peerIds != NULL ? peerIds[i] : "(null peer)";
-    printf("  %s\n", peer != NULL ? peer : "(null peer)");
+    printf("  %s\n", peerIds[i]);
   }
 
   pthread_mutex_lock(&mutex);

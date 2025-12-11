@@ -140,7 +140,7 @@ proc processPeerInfo*(
 
 proc processConnectedPeers*(
     self: ptr PeerManagementRequest, libp2p: ptr LibP2P
-): Future[Result[ptr ConnectedPeersList, string]] {.async.} =
+): Future[Result[ptr ConnectedPeersList, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)
 

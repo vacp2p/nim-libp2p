@@ -164,7 +164,6 @@ template sendRequest(
   )
   sendRequestInternal(ctx, req)
 
-
 proc sendRequestToLibP2PThread*(
     ctx: ptr LibP2PContext,
     reqType: RequestType,
@@ -186,12 +185,7 @@ proc sendRequestToLibP2PThread*(
 ): Result[void, string] =
   ## Sends a request to the LibP2P thread for peer-info callbacks
   sendRequest(
-    ctx,
-    reqType,
-    reqContent,
-    userData,
-    CallbackKind.PEER_INFO,
-    cast[pointer](callback),
+    ctx, reqType, reqContent, userData, CallbackKind.PEER_INFO, cast[pointer](callback)
   )
 
 proc sendRequestToLibP2PThread*(

@@ -263,25 +263,28 @@ proc libp2p_peerinfo(
 
   return RET_OK.cint
 
+proc fromUint32*(T: typedesc[Direction], dir: uint32): Result[T, string] =
+  case dir
+  of uint32(Direction.In):
+    ok(Direction.In)
+  of uint32(Direction.Out):
+    ok(Direction.Out)
+  else:
+    err("invalid direction")
+
 proc libp2p_connected_peers(
     ctx: ptr LibP2PContext,
     dir: uint32,
     callback: ConnectedPeersCallback,
     userData: pointer,
-): cint {.dynlib, exportc, cdecl.} =
+): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  let direction =
-    case dir
-    of uint32(Direction.In):
-      Direction.In
-    of uint32(Direction.Out):
-      Direction.Out
-    else:
-      let msg = "invalid direction: " & $dir
-      callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
-      return RET_ERR.cint
+  let direction = Direction.fromUint32(dir).valueOr:
+    let msg = "invalid direction: " & $dir
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,

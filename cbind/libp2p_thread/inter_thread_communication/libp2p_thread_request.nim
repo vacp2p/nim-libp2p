@@ -75,12 +75,10 @@ proc handleRes(res: Result[string, string], request: ptr LibP2PThreadRequest) =
 
   foreignThreadGc:
     if res.get() == "":
-      request[].callback(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
+      cb(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
     else:
       var msg: cstring = res.get().cstring
-      request[].callback(
-        RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData
-      )
+      cb(RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
   return
 
 proc handlePeerInfoRes(
@@ -117,14 +115,7 @@ proc handleConnectedPeersRes(
     return
 
   foreignThreadGc:
-    cb(
-      RET_OK.cint,
-      peers[].peerIds,
-      peers[].peerIdsLen,
-      nil,
-      0,
-      request[].userData,
-    )
+    cb(RET_OK.cint, peers[].peerIds, peers[].peerIdsLen, nil, 0, request[].userData)
 
   deallocConnectedPeers(peers)
 
