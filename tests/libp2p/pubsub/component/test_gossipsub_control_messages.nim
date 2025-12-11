@@ -17,12 +17,13 @@ import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Control Messages":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "GRAFT messages correctly add peers to mesh":
     let
-      topic = "foobar"
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       numberOfNodes = 2
       # First part of the hack: Weird dValues so peers are not GRAFTed automatically
@@ -77,7 +78,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "Received GRAFT for non-subscribed topic":
     let
-      topic = "foo"
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
@@ -117,7 +117,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "PRUNE messages correctly removes peers from mesh":
     let
-      topic = "foo"
       backoff = 1
       pruneMessage = ControlMessage(
         prune: @[ControlPrune(topicID: topic, peers: @[], backoff: uint64(backoff))]
@@ -167,7 +166,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "Received PRUNE for non-subscribed topic":
     let
-      topic = "foo"
       pruneMessage =
         ControlMessage(prune: @[ControlPrune(topicID: topic, peers: @[], backoff: 1)])
       numberOfNodes = 2
@@ -208,7 +206,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "IHAVE messages correctly advertise message ID to peers":
     let
-      topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
       ihaveMessage =
         ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
@@ -247,7 +244,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "IWANT messages correctly request messages by their IDs":
     let
-      topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
       iwantMessage = ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageID])])
       numberOfNodes = 2
@@ -285,7 +281,6 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "IHAVE for message not held by peer triggers IWANT response to sender":
     let
-      topic = "foo"
       messageID = @[0'u8, 1, 2, 3]
       ihaveMessage =
         ControlMessage(ihave: @[ControlIHave(topicID: topic, messageIDs: @[messageID])])
@@ -319,9 +314,7 @@ suite "GossipSub Component - Control Messages":
         receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
   asyncTest "IDONTWANT":
-    let
-      topic = "foobar"
-      nodes = generateNodes(3, gossip = true).toGossipSub()
+    let nodes = generateNodes(3, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -365,10 +358,8 @@ suite "GossipSub Component - Control Messages":
       toSeq(nodes[0].mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
 
   asyncTest "IDONTWANT is broadcasted on publish":
-    let
-      topic = "foobar"
-      nodes =
-        generateNodes(2, gossip = true, sendIDontWantOnPublish = true).toGossipSub()
+    let nodes =
+      generateNodes(2, gossip = true, sendIDontWantOnPublish = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -387,7 +378,6 @@ suite "GossipSub Component - Control Messages":
   when defined(libp2p_gossipsub_1_4):
     asyncTest "emit IMReceiving while handling preamble control msg":
       let
-        topic = "foobar"
         numberOfNodes = 2
         messageID = @[1.byte, 2, 3, 4]
         nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
