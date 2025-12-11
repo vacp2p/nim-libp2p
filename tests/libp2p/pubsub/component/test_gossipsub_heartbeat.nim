@@ -15,13 +15,14 @@ import ../../../tools/[unittest]
 import ../utils
 
 suite "GossipSub Component - Heartbeat":
+  const topic = "foobar"
+
   teardown:
     checkTrackers()
 
   asyncTest "Mesh is rebalanced during heartbeat - pruning peers":
     const
       numberOfNodes = 10
-      topic = "foobar"
       heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
@@ -61,7 +62,6 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Mesh is rebalanced during heartbeat - grafting new peers":
     const
       numberOfNodes = 10
-      topic = "foobar"
       dLow = 3
       dHigh = 4
       heartbeatInterval = 200.milliseconds
@@ -101,7 +101,6 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Mesh is rebalanced during heartbeat - opportunistic grafting":
     const
       numberOfNodes = 10
-      topic = "foobar"
       heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
@@ -160,7 +159,6 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
     const
       numberOfNodes = 10
-      topic = "foobar"
       heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
@@ -196,7 +194,6 @@ suite "GossipSub Component - Heartbeat":
   asyncTest "Fanout maintenance during heartbeat - fanout peers are replenished":
     const
       numberOfNodes = 10
-      topic = "foobar"
       heartbeatInterval = 200.milliseconds
     let
       nodes = generateNodes(
@@ -235,7 +232,6 @@ suite "GossipSub Component - Heartbeat":
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
     const
-      topic = "foobar"
       heartbeatInterval = 300.milliseconds
       historyLength = 3
     let nodes = generateNodes(
@@ -291,7 +287,6 @@ suite "GossipSub Component - Heartbeat":
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const
       numberOfNodes = 3
-      topic = "foobar"
       heartbeatInterval = 300.milliseconds
       historyLength = 3
       gossipThreshold = -100.0

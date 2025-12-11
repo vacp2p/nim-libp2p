@@ -25,8 +25,8 @@ suite "GossipSub Component - Scoring":
   asyncTest "Flood publish to all peers with score above threshold, regardless of subscription":
     let
       numberOfNodes = 3
-      nodes = generateNodes(numberOfNodes, gossip = true, floodPublish = true)
-      g0 = GossipSub(nodes[0])
+      nodes =
+        generateNodes(numberOfNodes, gossip = true, floodPublish = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
 
@@ -39,13 +39,13 @@ suite "GossipSub Component - Scoring":
     # Nodes are subscribed to the same topic
     nodes[1].subscribe(topic, handler1)
     nodes[2].subscribe(topic, handler2)
-    await waitSub(nodes[0], nodes[1], topic)
-    await waitSub(nodes[0], nodes[2], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[2], topic)
 
     # Given node 2's score is below the threshold
-    for peer in g0.gossipsub.getOrDefault(topic):
+    for peer in nodes[0].gossipsub.getOrDefault(topic):
       if peer.peerId == nodes[2].peerInfo.peerId:
-        peer.score = (g0.parameters.publishThreshold - 1)
+        peer.score = (nodes[0].parameters.publishThreshold - 1)
 
     # When node 0 publishes a message to topic "foo"
     let message = "Hello!".toBytes()
@@ -87,8 +87,8 @@ suite "GossipSub Component - Scoring":
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
     nodes[0].broadcast(
-      nodes[0].mesh["foobar"],
-      RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](12))]),
+      nodes[0].mesh[topic],
+      RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](12))]),
       isHighPriority = true,
     )
 
@@ -250,7 +250,7 @@ suite "GossipSub Component - Scoring":
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, handler)
-    await waitSub(nodes[0], nodes[1], topic)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     nodes[1].updateScores()
 
@@ -336,9 +336,7 @@ suite "GossipSub Component - Scoring":
       nodes[0].peerStats.len == numberOfNodes - 1 # minus self
 
   asyncTest "DecayInterval":
-    const
-      topic = "foobar"
-      decayInterval = 50.milliseconds
+    const decayInterval = 50.milliseconds
     let nodes =
       generateNodes(2, gossip = true, decayInterval = decayInterval).toGossipSub()
 
