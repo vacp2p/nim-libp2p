@@ -4,7 +4,6 @@ FROM nimlang/nim:latest AS build
 WORKDIR /node
 
 COPY libp2p.nimble config.nims ./
-RUN apk add --no-cache pkgconfig
 RUN nimble install -y
 
 COPY . .
@@ -19,7 +18,7 @@ RUN nimble c \
     performance/test_node/main.nim
 
 
-FROM nimlang/nim:latest
+FROM nimlang/nim:2.2.4-alpine-slim
 
 WORKDIR /node
 
