@@ -23,7 +23,15 @@ proc setupTest(): Future[
       gossip0: GossipSub, gossip1: GossipSub, receivedMessages: ref HashSet[seq[byte]]
     ]
 ] {.async.} =
-  let nodes = generateNodes(2, gossip = true, verifySignature = false).toGossipSub()
+  let nodes = generateNodes(
+      2,
+      gossip = true,
+      verifySignature = false,
+      historyLength = 100,
+        # has to be larger, as otherwise history will get cleared if 
+        #requests don't get in time
+    )
+    .toGossipSub()
   await allFuturesThrowing(nodes[0].switch.start(), nodes[1].switch.start())
 
   await connectNodes(nodes[1], nodes[0])
@@ -139,7 +147,10 @@ suite "GossipSub Component - Message Handling":
       isHighPriority = false,
     )
 
-    checkUntilTimeout:
+    # wait some time before asserting that messages is not received
+    await sleepAsync(500.milliseconds)
+
+    check:
       receivedMessages[].len == 0
 
   asyncTest "Process IWANT replies when both messages are below maxSize":
