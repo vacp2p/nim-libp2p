@@ -171,14 +171,15 @@ suite "Message":
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
   # check value before & after decoding equal using protoc cmd tool for reference
   asyncTest "ControlMessage RPCMsg encoding and decoding":
+    const topic = "foobar"
     let id: seq[byte] = @[123]
     let message = RPCMsg(
       control: some(
         ControlMessage(
-          ihave: @[ControlIHave(topicID: "foobar", messageIDs: @[id])],
+          ihave: @[ControlIHave(topicID: topic, messageIDs: @[id])],
           iwant: @[ControlIWant(messageIDs: @[id])],
-          graft: @[ControlGraft(topicID: "foobar")],
-          prune: @[ControlPrune(topicID: "foobar", backoff: 10.uint64)],
+          graft: @[ControlGraft(topicID: topic)],
+          prune: @[ControlPrune(topicID: topic, backoff: 10.uint64)],
           idontwant: @[ControlIWant(messageIDs: @[id])],
         )
       )

@@ -19,14 +19,15 @@ suite "GossipSub Component - Fanout Management":
     checkTrackers()
 
   asyncTest "GossipSub send over fanout A -> B":
+    const topic = "foobar"
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     let (passed, handler) = createCompleteHandler()
-    nodes[1].subscribe("foobar", handler)
-    waitSubscribe(nodes[0], nodes[1], "foobar")
+    nodes[1].subscribe(topic, handler)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     var observed = 0
     let
@@ -42,18 +43,19 @@ suite "GossipSub Component - Fanout Management":
     nodes[1].addObserver(obs1)
     nodes[0].addObserver(obs2)
 
-    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
     discard await passed.wait(2.seconds)
 
     check:
-      "foobar" in nodes[0].gossipsub
-      nodes[0].fanout.hasPeerId("foobar", nodes[1].peerInfo.peerId)
-      not nodes[0].mesh.hasPeerId("foobar", nodes[1].peerInfo.peerId)
+      topic in nodes[0].gossipsub
+      nodes[0].fanout.hasPeerId(topic, nodes[1].peerInfo.peerId)
+      not nodes[0].mesh.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
     check observed == 2
 
   asyncTest "GossipSub send over fanout A -> B for subscribed topic":
+    const topic = "foobar"
     let nodes =
       generateNodes(2, gossip = true, unsubscribeBackoff = 10.minutes).toGossipSub()
 
@@ -65,20 +67,20 @@ suite "GossipSub Component - Fanout Management":
     await connectNodesStar(nodes)
 
     let (passed, handler) = createCompleteHandler()
-    nodes[1].subscribe("foobar", handler)
-    waitSubscribe(nodes[0], nodes[1], "foobar")
+    nodes[1].subscribe(topic, handler)
+    waitSubscribe(nodes[0], nodes[1], topic)
 
     checkUntilTimeout:
-      nodes[0].mesh.getOrDefault("foobar").len == 0
-      nodes[1].mesh.getOrDefault("foobar").len == 0
+      nodes[0].mesh.getOrDefault(topic).len == 0
+      nodes[1].mesh.getOrDefault(topic).len == 0
       (
-        nodes[0].gossipsub.getOrDefault("foobar").len == 1 or
-        nodes[0].fanout.getOrDefault("foobar").len == 1
+        nodes[0].gossipsub.getOrDefault(topic).len == 1 or
+        nodes[0].fanout.getOrDefault(topic).len == 1
       )
 
-    tryPublish await nodes[0].publish("foobar", "Hello!".toBytes()), 1
+    tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
 
     discard await passed.wait(2.seconds)
     check:
-      nodes[0].mesh.getOrDefault("foobar").len == 0
-      nodes[0].fanout.getOrDefault("foobar").len == 1
+      nodes[0].mesh.getOrDefault(topic).len == 0
+      nodes[0].fanout.getOrDefault(topic).len == 1

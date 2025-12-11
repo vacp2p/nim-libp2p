@@ -18,15 +18,17 @@ import ../utils
 
 const MsgIdSuccess = "msg id gen success"
 
-proc setupTest(): Future[
+proc setupTest(
+    topic: string
+): Future[
     tuple[
       gossip0: GossipSub, gossip1: GossipSub, receivedMessages: ref HashSet[seq[byte]]
     ]
 ] {.async.} =
   let nodes = generateNodes(2, gossip = true, verifySignature = false).toGossipSub()
-  await allFuturesThrowing(nodes[0].switch.start(), nodes[1].switch.start())
+  await startNodes(nodes)
 
-  await connectNodes(nodes[1], nodes[0])
+  await connectNodesStar(nodes)
 
   var receivedMessages = new(HashSet[seq[byte]])
 
@@ -36,18 +38,17 @@ proc setupTest(): Future[
   proc handlerB(topic: string, data: seq[byte]) {.async.} =
     raiseAssert "should not be called"
 
-  nodes[0].subscribe("foobar", handlerA)
-  nodes[1].subscribe("foobar", handlerB)
-  checkUntilTimeout:
-    nodes.allIt(it.gossipsub.getOrDefault("foobar").len == nodes.len - 1)
+  nodes[0].subscribe(topic, handlerA)
+  nodes[1].subscribe(topic, handlerB)
+  waitSubscribeStar(nodes, topic)
 
   return (nodes[0], nodes[1], receivedMessages)
 
 proc teardownTest(gossip0: GossipSub, gossip1: GossipSub) {.async.} =
-  await allFuturesThrowing(gossip0.switch.stop(), gossip1.switch.stop())
+  await stopNodes(@[gossip0, gossip1])
 
 proc createMessages(
-    gossip0: GossipSub, gossip1: GossipSub, size1: int, size2: int
+    gossip0: GossipSub, gossip1: GossipSub, topic: string, size1: int, size2: int
 ): tuple[iwantMessageIds: seq[MessageId], sentMessages: HashSet[seq[byte]]] =
   var iwantMessageIds = newSeq[MessageId]()
   var sentMessages = initHashSet[seq[byte]]()
@@ -56,7 +57,7 @@ proc createMessages(
     let data = newSeqWith(size, i.byte)
     sentMessages.incl(data)
 
-    let msg = Message.init(gossip1.peerInfo.peerId, data, "foobar", some(uint64(i + 1)))
+    let msg = Message.init(gossip1.peerInfo.peerId, data, topic, some(uint64(i + 1)))
     let iwantMessageId = gossip1.msgIdProvider(msg).expect(MsgIdSuccess)
     iwantMessageIds.add(iwantMessageId)
     gossip1.mcache.put(iwantMessageId, msg)
@@ -67,24 +68,24 @@ proc createMessages(
   return (iwantMessageIds, sentMessages)
 
 proc floodPublishBaseTest*(
-    nodes: seq[GossipSub], numPeersFirstMsg: int, numPeersSecondMsg: int
+    nodes: seq[GossipSub], topic: string, numPeersFirstMsg: int, numPeersSecondMsg: int
 ) {.async.} =
   block setup:
     for i in 0 ..< 50:
-      if (await nodes[0].publish("foobar", ("Hello!" & $i).toBytes())) == nodes.len - 1:
+      if (await nodes[0].publish(topic, ("Hello!" & $i).toBytes())) == nodes.len - 1:
         break setup
       await sleepAsync(100.milliseconds)
     raiseAssert "Failed to publish message to peers"
 
-  check (await nodes[0].publish("foobar", newSeq[byte](2_500_000))) == numPeersFirstMsg
-  check (await nodes[0].publish("foobar", newSeq[byte](500_001))) == numPeersSecondMsg
+  check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == numPeersFirstMsg
+  check (await nodes[0].publish(topic, newSeq[byte](500_001))) == numPeersSecondMsg
 
   # Now try with a mesh
   checkUntilTimeout:
-    nodes[0].mesh.peers("foobar") > 5
+    nodes[0].mesh.peers(topic) > 5
 
   # use a different length so that the message is not equal to the last
-  check (await nodes[0].publish("foobar", newSeq[byte](500_000))) == numPeersSecondMsg
+  check (await nodes[0].publish(topic, newSeq[byte](500_000))) == numPeersSecondMsg
 
 suite "GossipSub Component - Message Handling":
   teardown:
@@ -93,20 +94,21 @@ suite "GossipSub Component - Message Handling":
   asyncTest "Split IWANT replies when individual messages are below maxSize but combined exceed maxSize":
     # This test checks if two messages, each below the maxSize, are correctly split when their combined size exceeds maxSize.
     # Expected: Both messages should be received.
-    let (gossip0, gossip1, receivedMessages) = await setupTest()
+    const topic = "foobar"
+    let (gossip0, gossip1, receivedMessages) = await setupTest(topic)
     defer:
       await teardownTest(gossip0, gossip1)
 
     let messageSize = gossip1.maxMessageSize div 2 + 1
     let (iwantMessageIds, sentMessages) =
-      createMessages(gossip0, gossip1, messageSize, messageSize)
+      createMessages(gossip0, gossip1, topic, messageSize, messageSize)
 
     gossip1.broadcast(
-      gossip1.mesh["foobar"],
+      gossip1.mesh[topic],
       RPCMsg(
         control: some(
           ControlMessage(
-            ihave: @[ControlIHave(topicID: "foobar", messageIDs: iwantMessageIds)]
+            ihave: @[ControlIHave(topicID: topic, messageIDs: iwantMessageIds)]
           )
         )
       ),
@@ -119,20 +121,21 @@ suite "GossipSub Component - Message Handling":
   asyncTest "Discard IWANT replies when both messages individually exceed maxSize":
     # This test checks if two messages, each exceeding the maxSize, are discarded and not sent.
     # Expected: No messages should be received.
-    let (gossip0, gossip1, receivedMessages) = await setupTest()
+    const topic = "foobar"
+    let (gossip0, gossip1, receivedMessages) = await setupTest(topic)
     defer:
       await teardownTest(gossip0, gossip1)
 
     let messageSize = gossip1.maxMessageSize + 10
     let (bigIWantMessageIds, sentMessages) =
-      createMessages(gossip0, gossip1, messageSize, messageSize)
+      createMessages(gossip0, gossip1, topic, messageSize, messageSize)
 
     gossip1.broadcast(
-      gossip1.mesh["foobar"],
+      gossip1.mesh[topic],
       RPCMsg(
         control: some(
           ControlMessage(
-            ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
+            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
           )
         )
       ),
@@ -145,20 +148,21 @@ suite "GossipSub Component - Message Handling":
   asyncTest "Process IWANT replies when both messages are below maxSize":
     # This test checks if two messages, both below the maxSize, are correctly processed and sent.
     # Expected: Both messages should be received.
-    let (gossip0, gossip1, receivedMessages) = await setupTest()
+    const topic = "foobar"
+    let (gossip0, gossip1, receivedMessages) = await setupTest(topic)
     defer:
       await teardownTest(gossip0, gossip1)
     let size1 = gossip1.maxMessageSize div 2
     let size2 = gossip1.maxMessageSize div 3
     let (bigIWantMessageIds, sentMessages) =
-      createMessages(gossip0, gossip1, size1, size2)
+      createMessages(gossip0, gossip1, topic, size1, size2)
 
     gossip1.broadcast(
-      gossip1.mesh["foobar"],
+      gossip1.mesh[topic],
       RPCMsg(
         control: some(
           ControlMessage(
-            ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
+            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
           )
         )
       ),
@@ -171,21 +175,22 @@ suite "GossipSub Component - Message Handling":
   asyncTest "Split IWANT replies when one message is below maxSize and the other exceeds maxSize":
     # This test checks if, when given two messages where one is below maxSize and the other exceeds it, only the smaller message is processed and sent.
     # Expected: Only the smaller message should be received.
-    let (gossip0, gossip1, receivedMessages) = await setupTest()
+    const topic = "foobar"
+    let (gossip0, gossip1, receivedMessages) = await setupTest(topic)
     defer:
       await teardownTest(gossip0, gossip1)
     let maxSize = gossip1.maxMessageSize
     let size1 = maxSize div 2
     let size2 = maxSize + 10
     let (bigIWantMessageIds, sentMessages) =
-      createMessages(gossip0, gossip1, size1, size2)
+      createMessages(gossip0, gossip1, topic, size1, size2)
 
     gossip1.broadcast(
-      gossip1.mesh["foobar"],
+      gossip1.mesh[topic],
       RPCMsg(
         control: some(
           ControlMessage(
-            ihave: @[ControlIHave(topicID: "foobar", messageIDs: bigIWantMessageIds)]
+            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
           )
         )
       ),
@@ -546,7 +551,7 @@ suite "GossipSub Component - Message Handling":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
-    await floodPublishBaseTest(nodes, nodes[0].parameters.dHigh, 17)
+    await floodPublishBaseTest(nodes, topic, nodes[0].parameters.dHigh, 17)
 
   asyncTest "GossipSub floodPublish limit with bandwidthEstimatebps = 0":
     let
@@ -563,7 +568,7 @@ suite "GossipSub Component - Message Handling":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
-    await floodPublishBaseTest(nodes, nodes.len - 1, nodes.len - 1)
+    await floodPublishBaseTest(nodes, topic, nodes.len - 1, nodes.len - 1)
 
   asyncTest "GossipSub with multiple peers":
     const

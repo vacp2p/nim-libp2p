@@ -87,8 +87,8 @@ suite "GossipSub Component - Scoring":
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
     nodes[0].broadcast(
-      nodes[0].mesh["foobar"],
-      RPCMsg(messages: @[Message(topic: "foobar", data: newSeq[byte](12))]),
+      nodes[0].mesh[topic],
+      RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](12))]),
       isHighPriority = true,
     )
 
@@ -336,9 +336,7 @@ suite "GossipSub Component - Scoring":
       nodes[0].peerStats.len == numberOfNodes - 1 # minus self
 
   asyncTest "DecayInterval":
-    const
-      topic = "foobar"
-      decayInterval = 50.milliseconds
+    const decayInterval = 50.milliseconds
     let nodes =
       generateNodes(2, gossip = true, decayInterval = decayInterval).toGossipSub()
 
