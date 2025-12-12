@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[tables, sequtils, sets, heapqueue, times]
+import std/[hashes, tables, sequtils, sets, heapqueue, times]
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, routing_record]
 import ../../protobuf/minprotobuf
@@ -25,6 +25,13 @@ type
     seqNo*: uint64
     addresses*: seq[AddressInfo]
     services*: seq[ServiceInfo]
+
+# This is for internal use only
+proc hash*(service: ServiceInfo): Hash =
+  return service.id.hash()
+
+proc toKey*(service: ServiceInfo): Key =
+  return MultiHash.digest("sha2-256", service.id).get().toKey()
 
 proc init*(
     T: typedesc[LogosPeerRecord], peerInfo: PeerInfo, services: seq[ServiceInfo]
