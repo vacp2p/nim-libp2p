@@ -533,7 +533,7 @@ suite "GossipSub Component - Message Handling":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
-    # becasue of bandwith configuration, the fist message is deliver to less
+    # becasue of bandwith configuration, the first message is deliver to less
     # number of nodes, then the second message. 
     # that's because first message is larger then the second.
     check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == 12
