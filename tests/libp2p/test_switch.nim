@@ -750,7 +750,7 @@ suite "Switch":
       )
     )
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesThrowing(switches.mapIt(it.stop()))
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
@@ -775,7 +775,7 @@ suite "Switch":
     switches.add(srcSwitch)
     switches.add(dstSwitch)
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesThrowing(switches.mapIt(it.stop()))
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
@@ -803,7 +803,7 @@ suite "Switch":
       )
     )
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesThrowing(switches.mapIt(it.stop()))
 
   asyncTest "e2e max outgoing connection limits":
     var switches: seq[Switch]
@@ -828,7 +828,7 @@ suite "Switch":
     switches.add(srcSwitch)
     switches.add(dstSwitch)
 
-    await allFuturesThrowing(allFutures(switches.mapIt(it.stop())))
+    await allFuturesThrowing(switches.mapIt(it.stop()))
 
   asyncTest "e2e peer store":
     let handleFinished = newWaitGroup(1)
