@@ -344,7 +344,7 @@ proc getOutgoingSlot*(
     # still calling acquire to track this connection.
     discard c.outSema.acquire()
   elif not c.outSema.tryAcquire():
-    trace "Too many outgoing connections!", available = c.outSema.availableSlots
+    trace "Too many outgoing connections"
     raise newTooManyConnectionsError()
   return ConnectionSlot(connManager: c, direction: Out)
 
