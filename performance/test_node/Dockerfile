@@ -15,6 +15,7 @@ RUN nimble c \
     -d:metrics \
     -d:libp2p_network_protocols_metrics \
     -d:release \
+    --passL:-static \
     performance/test_node/main.nim
 
 
