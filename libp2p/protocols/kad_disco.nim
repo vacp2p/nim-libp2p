@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, chronicles, results, sets
+import chronos, chronicles, results, sets, sequtils
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo]
 import ./kademlia

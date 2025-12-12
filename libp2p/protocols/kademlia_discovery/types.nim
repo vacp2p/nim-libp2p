@@ -8,7 +8,7 @@
 # those terms.
 
 import std/[hashes, tables, sequtils, sets, heapqueue, times]
-import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
+import chronos, chronicles, results, stew/byteutils, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, routing_record]
 import ../../protobuf/minprotobuf
 import ../kademlia/types
@@ -31,23 +31,40 @@ proc hash*(service: ServiceInfo): Hash =
   return service.id.hash()
 
 proc toKey*(service: ServiceInfo): Key =
-  return MultiHash.digest("sha2-256", service.id).get().toKey()
+  return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
 
 proc init*(
-    T: typedesc[LogosPeerRecord], peerInfo: PeerInfo, services: seq[ServiceInfo]
+    T: typedesc[LogosPeerRecord],
+    peerInfo: PeerInfo,
+    seqNo: uint64 = getTime().toUnix().uint64,
+    services: seq[ServiceInfo] = @[],
 ): T =
   LogosPeerRecord(
     peerId: peerInfo.peerId,
-    seqNo: getTime().toUnix().uint64,
+    seqNo: seqNo,
     addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-    services,
+    services: services,
+  )
+
+proc init*(
+    T: typedesc[LogosPeerRecord],
+    peerId: PeerId,
+    addresses: seq[MultiAddress],
+    seqNo: uint64 = getTime().toUnix().uint64,
+    services: seq[ServiceInfo] = @[],
+): T =
+  LogosPeerRecord(
+    peerId: peerId,
+    seqNo: seqNo,
+    addresses: addresses.mapIt(AddressInfo(address: it)),
+    services: services,
   )
 
 proc decode*(
     T: typedesc[LogosPeerRecord], buffer: seq[byte]
 ): Result[LogosPeerRecord, ProtoError] =
   let pb = initProtoBuffer(buffer)
-  var record = PeerRecord()
+  var record = LogosPeerRecord()
 
   ?pb.getRequiredField(1, record.peerId)
   ?pb.getRequiredField(2, record.seqNo)

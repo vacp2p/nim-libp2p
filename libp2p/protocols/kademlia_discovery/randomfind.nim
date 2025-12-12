@@ -89,10 +89,12 @@ proc findRandom*(
 
   let randomKey = randomPeerId.toKey()
 
-  let peerIds = await disco.findAllNode(randomKey)
+  let peerIds = await disco.findNodesBetween(randomKey)
 
-  let getFutures: seq[Future[Result[EntryRecord, string]]] =
-    peerIds.mapIt(disco.getValue(it.toKey()))
+  #TODO refactor to gradually call `getValue` at each step of the path instead of all at once at the end
+  var getFutures: seq[Future[Result[EntryRecord, string]]] = @[]
+  for pid in peerIds:
+    getFutures.add(disco.getValue(pid.toKey()))
 
   var records: seq[LogosPeerRecord] = @[]
   await allFutures(getFutures)
@@ -102,14 +104,17 @@ proc findRandom*(
       trace "future failed", error = fut.error
       continue
 
-    let entry = fut.read().valueOr:
-      trace "cannot read future", error
-      continue
+    try:
+      let entry = fut.read().valueOr:
+        trace "cannot read future", error
+        continue
 
-    let spr = LogosPeerRecord.decode(entry.value).valueOr:
-      debug "cannot decode signed peer record", error
-      continue
+      let spr = LogosPeerRecord.decode(entry.value).valueOr:
+        debug "cannot decode signed peer record", error
+        continue
 
-    records.add(spr)
+      records.add(spr)
+    except CatchableError:
+      error "Could not getValue", err = getCurrentExceptionMsg()
 
   return records
