@@ -20,12 +20,10 @@ RUN nimble c \
 
 FROM nimlang/nim:2.2.6-alpine-slim
 
-WORKDIR /node
-
 COPY --from=build /node/performance/test_node/main /node/main
 COPY performance/test_node/entrypoint.sh /node/entrypoint.sh
 
-RUN chmod +x main entrypoint.sh \
+RUN chmod +x /node/main /node/entrypoint.sh \
     && apk add --no-cache curl iproute2
 
 VOLUME ["/output"]
