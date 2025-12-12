@@ -75,26 +75,6 @@ proc createMessages(
 
   return (iwantMessageIds, sentMessages)
 
-proc floodPublishBaseTest*(
-    nodes: seq[GossipSub], topic: string, numPeersFirstMsg: int, numPeersSecondMsg: int
-) {.async.} =
-  block setup:
-    for i in 0 ..< 50:
-      if (await nodes[0].publish(topic, ("Hello!" & $i).toBytes())) == nodes.len - 1:
-        break setup
-      await sleepAsync(100.milliseconds)
-    raiseAssert "Failed to publish message to peers"
-
-  check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == numPeersFirstMsg
-  check (await nodes[0].publish(topic, newSeq[byte](500_001))) == numPeersSecondMsg
-
-  # Now try with a mesh
-  checkUntilTimeout:
-    nodes[0].mesh.peers(topic) > 5
-
-  # use a different length so that the message is not equal to the last
-  check (await nodes[0].publish(topic, newSeq[byte](500_000))) == numPeersSecondMsg
-
 suite "GossipSub Component - Message Handling":
   const topic = "foobar"
 
@@ -539,10 +519,12 @@ suite "GossipSub Component - Message Handling":
       topic notin nodes[1].gossipsub
       not nodes[0].mesh.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
-  asyncTest "GossipSub floodPublish limit":
+  asyncTest "GossipSub floodPublish with bandwidthEstimatebps":
     let nodes = generateNodes(20, gossip = true).toGossipSub()
 
     nodes[0].parameters.floodPublish = true
+    nodes[0].parameters.bandwidthEstimatebps = 100_000_000
+    # bandwidth is calculated per heartbeat
     nodes[0].parameters.heartbeatInterval = milliseconds(700)
 
     startNodesAndDeferStop(nodes)
@@ -551,13 +533,17 @@ suite "GossipSub Component - Message Handling":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
-    await floodPublishBaseTest(nodes, topic, nodes[0].parameters.dHigh, 17)
+    # becasue of bandwith configuration, the fist message is deliver to less
+    # number of nodes, then the second message. 
+    # that's because first message is larger then the second.
+    check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == 12
+    check (await nodes[0].publish(topic, newSeq[byte](500_001))) == 17
 
-  asyncTest "GossipSub floodPublish limit with bandwidthEstimatebps = 0":
+  asyncTest "GossipSub floodPublish limit without bandwidthEstimatebps":
     let nodes = generateNodes(20, gossip = true).toGossipSub()
 
     nodes[0].parameters.floodPublish = true
-    nodes[0].parameters.heartbeatInterval = milliseconds(700)
+    # should flood publish to all without bandwidthEstimatebps
     nodes[0].parameters.bandwidthEstimatebps = 0
 
     startNodesAndDeferStop(nodes)
@@ -566,7 +552,9 @@ suite "GossipSub Component - Message Handling":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
-    await floodPublishBaseTest(nodes, topic, nodes.len - 1, nodes.len - 1)
+    # should publish to all nodes with bandwidthEstimatebps disabled
+    check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == nodes.len - 1
+    check (await nodes[0].publish(topic, newSeq[byte](500_001))) == nodes.len - 1
 
   asyncTest "GossipSub with multiple peers":
     const numberOfNodes = 10
