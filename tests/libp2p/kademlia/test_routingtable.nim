@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, results
+import chronos, chronicles, results
 import ../../../libp2p/[protocols/kademlia, crypto/crypto]
 import ../../tools/[unittest, crypto]
 
@@ -18,7 +18,9 @@ proc testKey*(x: byte): Key =
   buf[31] = x
   return @buf
 
-suite "routing table":
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+
+suite "KadDHT Routing Table":
   const TargetBucket = 6
 
   test "inserts single key in correct bucket":

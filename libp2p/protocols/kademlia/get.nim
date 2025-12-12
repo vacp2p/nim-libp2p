@@ -48,9 +48,9 @@ proc dispatchGetVal(
     return
 
   let time = record.timeReceived.valueOr:
-    debug "GetValue returned record with no timeReceived",
+    debug "GetValue returned record with no timeReceived, using current time instead",
       msg = msg, reply = reply, conn = conn
-    return
+    TimeStamp($times.now().utc)
 
   received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
@@ -65,7 +65,10 @@ proc bestValidRecord(
       validRecords.add(record)
 
   if validRecords.len() < kad.config.quorum:
-    return err("Not enough valid records to achieve quorum")
+    return err(
+      "Not enough valid records to achieve quorum, needed " & $kad.config.quorum &
+        " got " & $validRecords.len()
+    )
 
   let selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
     return err("Could not select best value")

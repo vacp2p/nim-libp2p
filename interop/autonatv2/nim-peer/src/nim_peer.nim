@@ -11,20 +11,6 @@ import net, os, chronos
 import ../../../../libp2p
 import ../../../../libp2p/protocols/connectivity/autonatv2/[service, types]
 
-proc waitForService(
-    host: string, port: Port, retries: int = 20, delay: Duration = 500.milliseconds
-): Future[bool] {.async.} =
-  for i in 0 ..< retries:
-    try:
-      var s = newSocket()
-      s.connect(host, port)
-      s.close()
-      return true
-    except OSError:
-      discard
-    await sleepAsync(delay)
-  return false
-
 proc main() {.async.} =
   if paramCount() != 1:
     quit("Usage: nim r src/nim_peer.nim <peerid>", 1)

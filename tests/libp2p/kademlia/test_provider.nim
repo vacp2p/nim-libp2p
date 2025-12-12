@@ -24,11 +24,13 @@ suite "KadDHT - ProviderManager":
 
   asyncTest "Add provider":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-
-    await kad1.bootstrap(@[switch2.peerInfo])
 
     discard await kad1.findNode(kad2.rtable.selfId)
 
@@ -52,11 +54,13 @@ suite "KadDHT - ProviderManager":
 
   asyncTest "Provider expired":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-
-    await kad1.bootstrap(@[switch2.peerInfo])
 
     discard await kad1.findNode(kad2.rtable.selfId)
 
@@ -93,11 +97,13 @@ suite "KadDHT - ProviderManager":
 
   asyncTest "Provider refreshed (not expired)":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-
-    await kad1.bootstrap(@[switch2.peerInfo])
 
     discard await kad1.findNode(kad2.rtable.selfId)
 
@@ -146,11 +152,13 @@ suite "KadDHT - ProviderManager":
 
   asyncTest "Start/stop providing":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop())
-
-    await kad1.bootstrap(@[switch2.peerInfo])
 
     let
       key1 = kad1.rtable.selfId
@@ -194,14 +202,20 @@ suite "KadDHT - ProviderManager":
       kad2.providerManager.knownKeys.len() == 0
 
   asyncTest "Provider limits":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
     var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
     var (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector())
     var (switch4, kad4) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch1, kad1) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[
+        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
+        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
+        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
+      ],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
-
-    await kad1.bootstrap(@[switch2.peerInfo, switch3.peerInfo, switch4.peerInfo])
 
     let
       key1 = kad1.rtable.selfId
@@ -238,12 +252,17 @@ suite "KadDHT - ProviderManager":
 
   asyncTest "Get providers":
     var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
     var (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[
+        (switch1.peerInfo.peerId, switch1.peerInfo.addrs),
+        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
+      ],
+    )
     defer:
       await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
-
-    await kad2.bootstrap(@[switch1.peerInfo, switch3.peerInfo])
 
     discard await kad2.findNode(kad1.rtable.selfId)
     discard await kad2.findNode(kad3.rtable.selfId)

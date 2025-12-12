@@ -292,7 +292,10 @@ method negotiateStream*(
   let selected = await MultistreamSelect.select(conn, protos)
   if not protos.contains(selected):
     await conn.closeWithEOF()
-    raise newException(DialFailedError, "Unable to select sub-protocol: " & $protos)
+    raise newException(
+      DialFailedError,
+      "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
+    )
   return conn
 
 method tryDial*(
