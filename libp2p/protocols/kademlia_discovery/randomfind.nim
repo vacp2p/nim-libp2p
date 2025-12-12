@@ -13,7 +13,7 @@ import ../../[peerid, switch, multihash]
 import ../kademlia/[types, routingtable, lookupstate, protobuf, find, get, protobuf]
 import ./types
 
-proc findAllNode*(
+proc findNodesBetween*(
     disco: KademliaDiscovery, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   ## Return all peerIds on the way to a target ID.
@@ -91,9 +91,8 @@ proc findRandom*(
 
   let peerIds = await disco.findAllNode(randomKey)
 
-  var getFutures: seq[Future[Result[EntryRecord, string]]] = @[]
-  for pid in peerIds:
-    getFutures.add(disco.getValue(pid.toKey()))
+  let getFutures: seq[Future[Result[EntryRecord, string]]] =
+    peerIds.mapIt(disco.getValue(it.toKey()))
 
   var records: seq[LogosPeerRecord] = @[]
   await allFutures(getFutures)

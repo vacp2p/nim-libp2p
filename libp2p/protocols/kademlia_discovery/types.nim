@@ -121,10 +121,7 @@ method isValid*(
   let expectedPeerId = key.toPeerId().valueOr:
     return false
 
-  if spr.data.peerId != expectedPeerId:
-    return false
-
-  return true
+  return spr.data.peerId == expectedPeerId
 
 type LogosEntrySelector* = ref object of EntrySelector
 method select*(
