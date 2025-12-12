@@ -260,7 +260,7 @@ suite "GossipSub Component - Heartbeat":
     for i in 0 ..< historyLength:
       checkUntilTimeout:
         peer.iDontWants[i].len == msgCount
-      
+
       # Assert that new element is added to the start
       for j in 0 ..< i:
         check peer.iDontWants[j].len == 0
