@@ -9,11 +9,13 @@
 
 {.used.}
 
-import chronos
+import chronos, chronicles
 import ../../../libp2p/[switch, builders]
 import ../../../libp2p/protocols/kademlia
 import ../../tools/[unittest]
 import ./utils.nim
+
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT Switch Builder":
   teardown:

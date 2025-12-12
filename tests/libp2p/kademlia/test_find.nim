@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, std/[sequtils, enumerate]
+import chronos, chronicles, std/[sequtils, enumerate]
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
