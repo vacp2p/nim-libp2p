@@ -1,10 +1,9 @@
 # Create the build image
-FROM nimlang/nim:2.2.4-alpine-regular AS build
+FROM nimlang/nim:2.2.6-ubuntu-regular AS build
 
 WORKDIR /node
 
 COPY libp2p.nimble config.nims ./
-RUN apk add --no-cache pkgconfig
 RUN nimble install -y
 
 COPY . .
@@ -16,10 +15,11 @@ RUN nimble c \
     -d:metrics \
     -d:libp2p_network_protocols_metrics \
     -d:release \
+    --passL:-static \
     performance/test_node/main.nim
 
 
-FROM nimlang/nim:2.2.4-alpine-slim
+FROM nimlang/nim:2.2.6-alpine-slim
 
 WORKDIR /node
 

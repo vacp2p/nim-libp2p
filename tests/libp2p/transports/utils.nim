@@ -167,6 +167,7 @@ proc clientRunSingleStream*(
 
     await muxer.close()
     await conn.close()
+    await client.stop()
   except CatchableError as exc:
     raiseAssert "should not fail: " & exc.msg
 
