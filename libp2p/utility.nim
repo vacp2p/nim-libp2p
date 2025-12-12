@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[sets, options, macros]
+import std/[net, sets, options, macros]
 import stew/byteutils
 import results, chronos, sequtils
 

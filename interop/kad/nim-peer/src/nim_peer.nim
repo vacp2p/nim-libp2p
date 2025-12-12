@@ -7,15 +7,21 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import net, chronos, libp2p, sequtils
+import chronos, libp2p, sequtils
 import ../../../../libp2p
 import ../../../../libp2p/protocols/kademlia
+
+const
+  PeerIP: string = "127.0.0.1"
+  PeerPort: int = 4141
+  OurIP: string = "127.0.0.1"
+  OurPort: int = 3131
 
 proc main() {.async.} =
   var switch = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/3131").tryGet()])
+    .withAddresses(@[MultiAddress.init("/ip4/" & OurIP & "/tcp/" & $OurPort).tryGet()])
     .withTcpTransport()
     .withMplex()
     .withNoise()
@@ -23,7 +29,7 @@ proc main() {.async.} =
 
   let
     peerId = PeerId.init(readFile("../rust-peer/peer.id")).get()
-    peerMa = MultiAddress.init("/ip4/127.0.0.1/tcp/4141").get()
+    peerMa = MultiAddress.init("/ip4/" & PeerIP & "/tcp/" & $PeerPort).get()
     kad = KadDHT.new(
       switch,
       bootstrapNodes = @[(peerId, @[peerMa])],
@@ -53,7 +59,7 @@ proc main() {.async.} =
     quit(1)
 
 when isMainModule:
-  if waitFor(waitForService("127.0.0.1", Port(4141))):
+  if waitFor(waitForService(PeerIP, Port(PeerPort))):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)
