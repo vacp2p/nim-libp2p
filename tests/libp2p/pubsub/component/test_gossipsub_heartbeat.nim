@@ -226,13 +226,17 @@ suite "GossipSub Component - Heartbeat":
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
-    const historyLength = 3
+    const
+      historyLength = 3
+      msgCount = 5
     let nodes = generateNodes(
         2,
         gossip = true,
         sendIDontWantOnPublish = true,
         historyLength = historyLength,
-        heartbeatInterval = 500.milliseconds,
+        heartbeatInterval = (200 * msgCount).milliseconds,
+          # all message publications must be delivered within the same heartbeat.
+          # therefore, the heartbeat interval needs to scale with the number of messages.
       )
       .toGossipSub()
 
@@ -251,7 +255,6 @@ suite "GossipSub Component - Heartbeat":
       peer.iDontWants.len == historyLength
 
     # When Node0 sends 5 messages to the topic
-    const msgCount = 5
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
