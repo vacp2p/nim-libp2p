@@ -255,14 +255,15 @@ suite "GossipSub Component - Heartbeat":
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
-    # Then Node1 receives 5 iDontWant messages from Node0
-    checkUntilTimeout:
-      peer.iDontWants[0].len == msgCount
-
-    # Then with each heartbeat, history moves (new element added at start, last element pruned)
+    # Then Node1 receives msgCount iDontWant messages from Node0
+    # And with each heartbeat, history moves (new element added at start, last element pruned)
     for i in 0 ..< historyLength:
       checkUntilTimeout:
-        peer.iDontWants[i].len == 0
+        peer.iDontWants[i].len == msgCount
+      
+      # Assert that new element is added to the start
+      for j in 0 ..< i:
+        check peer.iDontWants[j].len == 0
 
     # Finally after `historyLength` iterations history is cleared
     checkUntilTimeout:
