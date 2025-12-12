@@ -7,4 +7,4 @@ bin = @["nim_peer"]
 
 # Dependencies
 
-requires "nim >= 2.3.1", "libp2p"
+requires "nim >= 2.3.1"
