@@ -181,3 +181,20 @@ proc collectCompleted*[T, E](
 
   # Collect only successful results
   return futs.filterIt(it.completed()).mapIt(it.value())
+
+proc waitForService*(
+    host: string,
+    port: Port,
+    retries: int = 20,
+    delay: chronos.Duration = 500.milliseconds,
+): Future[bool] {.async.} =
+  for i in 0 ..< retries:
+    try:
+      var s = newSocket()
+      s.connect(host, port)
+      s.close()
+      return true
+    except OSError:
+      discard
+    await sleepAsync(delay)
+  return false

@@ -8,21 +8,8 @@
 # those terms.
 
 import net, chronos, libp2p, sequtils
-import libp2p/protocols/kademlia
-
-proc waitForService(
-    host: string, port: Port, retries: int = 20, delay: Duration = 500.milliseconds
-): Future[bool] {.async.} =
-  for i in 0 ..< retries:
-    try:
-      var s = newSocket()
-      s.connect(host, port)
-      s.close()
-      return true
-    except OSError:
-      discard
-    await sleepAsync(delay)
-  return false
+import ../../../../libp2p
+import ../../../../libp2p/protocols/kademlia
 
 proc main() {.async.} =
   var switch = SwitchBuilder
@@ -51,7 +38,6 @@ proc main() {.async.} =
     await switch.stop()
 
   let key: Key = "key".mapIt(byte(it))
-
   let value = @[1.byte, 2, 3, 4, 5]
 
   let res = await kad.putValue(key, value)

@@ -14,13 +14,9 @@ import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
 
-<<<<<<<< HEAD:tests/libp2p/kademlia/test_put_val.nim
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
-suite "KadDHT - PutVal":
-========
 suite "KadDHT Put":
->>>>>>>> 539d365e0 (chore(kad): bootstrap does not need peerinfo (#1903)):tests/libp2p/kademlia/test_put.nim
   teardown:
     checkTrackers()
 

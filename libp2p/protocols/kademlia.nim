@@ -46,7 +46,7 @@ proc bootstrapNode*(
   for peer in msg.closerPeers:
     let p = PeerId.init(peer.id).valueOr:
       debug "Invalid peer id received", error = error
-      return
+      continue
     discard kad.rtable.insert(p)
 
     kad.switch.peerStore[AddressBook][p] = peer.addrs
