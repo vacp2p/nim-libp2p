@@ -21,8 +21,9 @@ import ffi_types
 type AppCallbacks* = ref object
 
 type PubsubTopicPair* = tuple[topic: string, handler: PubsubTopicHandler]
+type TopicHandlerEntry* = tuple[handler: TopicHandler, userData: pointer]
 
 type LibP2P* = ref object
   switch*: Switch
   gossipSub*: GossipSub
-  topicHandlers*: Table[PubsubTopicPair, TopicHandler]
+  topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
