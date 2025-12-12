@@ -32,8 +32,18 @@ type PeerInfoCallback* = proc(
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
-type PubsubTopicHandler* =
-  proc(topic: cstring, data: ptr byte, len: csize_t) {.cdecl, gcsafe, raises: [].}
+type ConnectedPeersCallback* = proc(
+  callerRet: cint,
+  peerIds: ptr cstring,
+  peerIdsLen: csize_t,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
+type PubsubTopicHandler* = proc(
+  topic: cstring, data: ptr byte, len: csize_t, userData: pointer
+) {.cdecl, gcsafe, raises: [].}
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0

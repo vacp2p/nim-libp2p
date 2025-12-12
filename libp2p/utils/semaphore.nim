@@ -7,6 +7,8 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+{.used.}
+
 {.warning[UnusedImport]: off.}
 import chronos
 
@@ -86,8 +88,3 @@ when not declared(chronos.AsyncSemaphore):
         s.availableSlots.dec
         fut.complete()
         break
-
-else:
-  # this hack fixes "unsed imports" errors, when this file is imported
-  # but chornos has AsyncSemaphore defined.
-  export chronos.AsyncSemaphore
