@@ -1,5 +1,5 @@
 # Create the build image
-FROM nimlang/nim:2.2.4-ubuntu-regular AS build
+FROM nimlang/nim:2.2.6-ubuntu-regular AS build
 
 WORKDIR /node
 
