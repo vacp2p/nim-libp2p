@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, std/[sequtils]
+import chronos, std/[sequtils], stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 import ../../../tools/[unittest]
 import ../utils
@@ -234,7 +234,7 @@ suite "GossipSub Component - Heartbeat":
         gossip = true,
         sendIDontWantOnPublish = true,
         historyLength = historyLength,
-        heartbeatInterval = (200 * msgCount).milliseconds,
+        heartbeatInterval = (300 * msgCount).milliseconds,
           # all message publications must be delivered within the same heartbeat.
           # therefore, the heartbeat interval needs to scale with the number of messages.
       )
@@ -256,7 +256,7 @@ suite "GossipSub Component - Heartbeat":
 
     # When Node0 sends 5 messages to the topic
     for i in 0 ..< msgCount:
-      tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
+      tryPublish await nodes[0].publish(topic, toBytes("hellow")), 1
 
     # Then Node1 receives msgCount iDontWant messages from Node0
     # And with each heartbeat, history moves (new element added at start, last element pruned)
@@ -318,7 +318,7 @@ suite "GossipSub Component - Heartbeat":
     # When NodeInsideMesh sends a messages to the topic
     let peerInsideMesh = nodes[0].mesh[topic].toSeq()[0]
     let nodeInsideMesh = nodes.getNodeByPeerId(peerInsideMesh.peerId)
-    tryPublish await nodeInsideMesh.publish(topic, newSeq[byte](1000)), 1
+    tryPublish await nodeInsideMesh.publish(topic, toBytes("hellow")), 1
 
     # Then with each heartbeat, history moves (new element added at start, last element pruned)
     for i in 0 ..< historyLength:
