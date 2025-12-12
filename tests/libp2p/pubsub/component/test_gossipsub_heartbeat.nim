@@ -255,25 +255,19 @@ suite "GossipSub Component - Heartbeat":
     for i in 0 ..< msgCount:
       tryPublish await nodes[0].publish(topic, newSeq[byte](1000)), 1
 
-    # Then Node1 receives 5 iDontWant messages from Node0
-    checkUntilTimeout:
-      peer.iDontWants[0].len == msgCount
-
+    # Then Node1 receives msgCount iDontWant messages from Node0
+    # And with each heartbeat, history moves (new element added at start, last element pruned)
     for i in 0 ..< historyLength:
-      # When heartbeat happens
-      # And history moves (new element added at start, last element pruned)
       checkUntilTimeout:
-        peer.iDontWants[i].len == 0
+        peer.iDontWants[i].len == msgCount
 
-      # Then iDontWant messages are moved to the next element
-      var expectedHistory = newSeqWith(historyLength, 0)
-      let nextIndex = i + 1
-      if nextIndex < historyLength:
-        expectedHistory[nextIndex] = msgCount
+      # Assert that new element is added to the start
+      for j in 0 ..< i:
+        check peer.iDontWants[j].len == 0
 
-      # Until they reach last element and are pruned
-      checkUntilTimeout:
-        peer.iDontWants.mapIt(it.len) == expectedHistory
+    # Finally after `historyLength` iterations history is cleared
+    checkUntilTimeout:
+      peer.iDontWants.allIt(it.len == 0)
 
   asyncTest "sentIHaves history - last element is pruned during heartbeat":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
