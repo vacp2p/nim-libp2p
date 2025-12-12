@@ -20,7 +20,8 @@ static void waitForCallback(void);
 static void free_peerinfo(PeerInfo *pi);
 static void event_handler(int callerRet, const char *msg, size_t len,
                           void *userData);
-static void topic_handler(const char *topic, uint8_t *data, size_t len);
+static void topic_handler(const char *topic, uint8_t *data, size_t len,
+                          void *userData);
 static void connected_peers_handler(int callerRet, const char **peerIds,
                                     size_t peerIdsLen, const char *msg,
                                     size_t len, void *userData);
@@ -58,6 +59,8 @@ int main(int argc, char **argv) {
   waitForCallback();
 
   libp2p_gossipsub_subscribe(ctx1, "test", topic_handler, event_handler, NULL);
+
+  libp2p_gossipsub_subscribe(ctx1, "test", topic_handler, event_handler, NULL);
   waitForCallback();
 
   libp2p_gossipsub_subscribe(ctx2, "test", topic_handler, event_handler, NULL);
@@ -66,7 +69,7 @@ int main(int argc, char **argv) {
   sleep(2);
 
   const char *msg = "Hello World";
-  libp2p_gossipsub_publish(ctx1, "test", (uint8_t *)msg, strlen(msg), 0,
+  libp2p_gossipsub_publish(ctx1, "test", (uint8_t *)msg, strlen(msg),
                            event_handler, NULL);
   waitForCallback();
 
@@ -107,7 +110,8 @@ static void event_handler(int callerRet, const char *msg, size_t len,
   pthread_mutex_unlock(&mutex);
 }
 
-static void topic_handler(const char *topic, uint8_t *data, size_t len) {
+static void topic_handler(const char *topic, uint8_t *data, size_t len,
+                          void *userData) {
   const char *resolved_topic = topic != NULL ? topic : "(null topic)";
   const char *payload = (const char *)data;
   printf("Topic '%s' received (%zu bytes): %.*s\n", resolved_topic, len,
