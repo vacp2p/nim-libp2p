@@ -543,7 +543,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(20, gossip = true).toGossipSub()
 
     nodes[0].parameters.floodPublish = true
-    # should flood publish to all without bandwidthEstimatebps
+    # should flood publish to all, when bandwidthEstimatebps is disabled
     nodes[0].parameters.bandwidthEstimatebps = 0
 
     startNodesAndDeferStop(nodes)
