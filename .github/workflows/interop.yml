@@ -119,4 +119,4 @@ jobs:
           cargo run &
 
           cd ../nim-peer
-          nim r src/nim_peer.nim $(cat ../rust-peer/peer.id)
+          nim r src/nim_peer.nim
