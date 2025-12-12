@@ -308,7 +308,6 @@ proc libp2p_gossipsub_publish(
     topic: cstring,
     data: ptr byte,
     dataLen: csize_t,
-    timeoutMs: int64,
     callback: Libp2pCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
@@ -338,7 +337,9 @@ proc libp2p_gossipsub_subscribe(
   handleRequest(
     ctx,
     RequestType.PUBSUB,
-    PubSubRequest.createShared(PubSubMsgType.SUBSCRIBE, topic, topicHandler),
+    PubSubRequest.createShared(
+      PubSubMsgType.SUBSCRIBE, topic, topicHandler, topicUserData = userData
+    ),
     callback,
     userData,
   ).cint
@@ -356,7 +357,9 @@ proc libp2p_gossipsub_unsubscribe(
   handleRequest(
     ctx,
     RequestType.PUBSUB,
-    PubSubRequest.createShared(PubSubMsgType.UNSUBSCRIBE, topic, topicHandler),
+    PubSubRequest.createShared(
+      PubSubMsgType.UNSUBSCRIBE, topic, topicHandler, topicUserData = userData
+    ),
     callback,
     userData,
   ).cint

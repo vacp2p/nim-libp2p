@@ -23,6 +23,7 @@ type PubSubRequest* = object
   operation: PubSubMsgType
   topic: cstring
   topicHandler: PubsubTopicHandler
+  topicUserData: pointer
   topics: SharedSeq[cstring]
   data: SharedSeq[byte]
   hook: pointer
@@ -33,6 +34,7 @@ proc createShared*(
     op: PubSubMsgType,
     topic: cstring = "",
     topicHandler: PubsubTopicHandler = nil,
+    topicUserData: pointer = nil,
     topics: ptr cstring = nil,
     topicsLen: csize_t = 0,
     data: ptr byte = nil,
@@ -46,6 +48,7 @@ proc createShared*(
   ret[].topics = allocSharedSeqFromCArray(topics, topicsLen.int)
   ret[].data = allocSharedSeqFromCArray(data, dataLen.int)
   ret[].topicHandler = topicHandler
+  ret[].topicUserData = topicUserData
   ret[].hook = hook
   ret[].timeout = timeout
   ret
@@ -65,6 +68,7 @@ proc process*(
   case self.operation
   of SUBSCRIBE:
     let pubsubTopicHandler = self.topicHandler
+    let topicUserData = self.topicUserData
     let tpair = (topic: $self.topic, handler: pubsubTopicHandler)
     if not libp2p[].topicHandlers.hasKey(tpair):
       let topicHandler = proc(topic: string, data: seq[byte]): Future[void] {.async.} =
@@ -75,15 +79,16 @@ proc process*(
           else:
             nil,
           data.len.csize_t,
+          topicUserData,
         )
-      libp2p[].topicHandlers[tpair] = topicHandler
+      libp2p[].topicHandlers[tpair] = (handler: topicHandler, userData: topicUserData)
       libp2p[].gossipSub.subscribe($self.topic, topicHandler)
   of UNSUBSCRIBE:
     let tpair = (topic: $self.topic, handler: self.topicHandler)
     if libp2p[].topicHandlers.hasKey(tpair):
       let topicHandler =
         try:
-          libp2p[].topicHandlers[tpair]
+          libp2p[].topicHandlers[tpair].handler
         except KeyError:
           raiseAssert "checked with hasKey"
       libp2p[].topicHandlers.del(tpair)
