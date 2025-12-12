@@ -6,8 +6,9 @@ use libp2p::{
     kad::{store::MemoryStore, Mode},
     noise,
     swarm::{NetworkBehaviour, SwarmEvent},
-    tcp, yamux,
+    tcp,
 };
+use libp2p_mplex as mplex;
 use tokio::select;
 use tracing_subscriber::EnvFilter;
 
@@ -32,7 +33,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_tcp(
             tcp::Config::default(),
             noise::Config::new,
-            yamux::Config::default,
+            mplex::Config::default,
         )?
         .with_behaviour(|key| {
             Ok(Behaviour {

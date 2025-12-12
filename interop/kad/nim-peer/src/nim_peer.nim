@@ -17,7 +17,7 @@ proc main() {.async.} =
     .withRng(newRng())
     .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/3131").tryGet()])
     .withTcpTransport()
-    .withYamux()
+    .withMplex()
     .withNoise()
     .build()
 

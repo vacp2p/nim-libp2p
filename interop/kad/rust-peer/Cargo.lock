@@ -996,7 +996,7 @@ dependencies = [
  "hyper",
  "libc",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "tokio",
  "tower-service",
  "tracing",
@@ -1418,6 +1418,25 @@ dependencies = [
  "pin-project",
  "prometheus-client",
  "web-time",
+]
+
+[[package]]
+name = "libp2p-mplex"
+version = "0.43.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95a4019ba30c4e42b776113e9778071691fe3f34bf23b6b3bf0dfcf29d801f3d"
+dependencies = [
+ "asynchronous-codec",
+ "bytes",
+ "futures",
+ "libp2p-core",
+ "libp2p-identity",
+ "nohash-hasher",
+ "parking_lot",
+ "rand 0.8.5",
+ "smallvec",
+ "tracing",
+ "unsigned-varint 0.8.0",
 ]
 
 [[package]]
@@ -2118,7 +2137,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -2155,9 +2174,9 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2318,6 +2337,7 @@ dependencies = [
  "anyhow",
  "futures",
  "libp2p",
+ "libp2p-mplex",
  "tokio",
  "tracing-subscriber",
 ]
@@ -2898,6 +2918,10 @@ name = "unsigned-varint"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb066959b24b5196ae73cb057f45598450d2c5f71460e98c49b738086eff9c06"
+dependencies = [
+ "asynchronous-codec",
+ "bytes",
+]
 
 [[package]]
 name = "untrusted"
