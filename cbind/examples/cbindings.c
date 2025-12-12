@@ -22,9 +22,15 @@ static void event_handler(int callerRet, const char *msg, size_t len,
                           void *userData);
 static void topic_handler(const char *topic, uint8_t *data, size_t len,
                           void *userData);
-static void connected_peers_handler(int callerRet, const char **peerIds,
+static void peers_handler(int callerRet, const char **peerIds,
                                     size_t peerIdsLen, const char *msg,
                                     size_t len, void *userData);
+static void get_value_handler(int callerRet, const uint8_t *value,
+                              size_t valueLen, const char *msg, size_t len,
+                              void *userData);
+static void providers_handler(int callerRet, const Libp2pPeerInfo *providers,
+                              size_t providersLen, const char *msg, size_t len,
+                              void *userData);
 static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userData);
 
@@ -55,7 +61,8 @@ int main(int argc, char **argv) {
                  NULL);
   waitForCallback();
 
-  libp2p_connected_peers(ctx1, Direction_Out, connected_peers_handler, NULL);
+  printf("Retrieve list of peers we opened a connection to:\n");
+  libp2p_connected_peers(ctx1, Direction_Out, peers_handler, NULL);
   waitForCallback();
 
   libp2p_gossipsub_subscribe(ctx1, "test", topic_handler, event_handler, NULL);
@@ -71,6 +78,28 @@ int main(int argc, char **argv) {
   const char *msg = "Hello World";
   libp2p_gossipsub_publish(ctx1, "test", (uint8_t *)msg, strlen(msg),
                            event_handler, NULL);
+  waitForCallback();
+
+  // Kademlia operations
+  printf("Found nodes:\n");
+  libp2p_find_node(ctx1, pi.peerId, peers_handler, NULL);
+  waitForCallback();
+
+  const uint8_t keyBytes[] = {0xde, 0xad, 0xbe, 0xef};
+  const uint8_t valBytes[] = "nim-libp2p";
+  libp2p_put_value(ctx1, keyBytes, sizeof(keyBytes), valBytes,
+                   sizeof(valBytes) - 1, event_handler, NULL);
+  waitForCallback();
+
+  libp2p_get_value(ctx2, keyBytes, sizeof(keyBytes), get_value_handler, NULL);
+  waitForCallback();
+
+  const char *cid =
+      "bafkreigh2akiscaildcztl3lv4odwvqpmr3p3u2ryyfsl5p4f4n37jds3m";
+  libp2p_add_provider(ctx1, cid, event_handler, NULL);
+  waitForCallback();
+
+  libp2p_get_providers(ctx2, cid, providers_handler, NULL);
   waitForCallback();
 
   sleep(5);
@@ -118,7 +147,7 @@ static void topic_handler(const char *topic, uint8_t *data, size_t len,
          (int)len, payload != NULL ? payload : "");
 }
 
-static void connected_peers_handler(int callerRet, const char **peerIds,
+static void peers_handler(int callerRet, const char **peerIds,
                                     size_t peerIdsLen, const char *msg,
                                     size_t len, void *userData) {
   if (callerRet != RET_OK) {
@@ -131,7 +160,7 @@ static void connected_peers_handler(int callerRet, const char **peerIds,
     exit(1);
   }
 
-  printf("Connected peers (%zu):\n", peerIdsLen);
+  printf("Peers (%zu):\n", peerIdsLen);
   for (size_t i = 0; i < peerIdsLen; i++) {
     printf("  %s\n", peerIds[i]);
   }
@@ -181,6 +210,51 @@ static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
         memcpy(buf, addr, len + 1);
         pi->addrs[i] = buf;
       }
+    }
+  }
+
+  pthread_mutex_lock(&mutex);
+  callback_executed = 1;
+  pthread_cond_signal(&cond);
+  pthread_mutex_unlock(&mutex);
+}
+
+static void get_value_handler(int callerRet, const uint8_t *value,
+                              size_t valueLen, const char *msg, size_t len,
+                              void *userData) {
+  if (callerRet != RET_OK) {
+    printf("GetValue error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  printf("GetValue received (%zu bytes): ", valueLen);
+  for (size_t i = 0; i < valueLen; i++) {
+    printf("%02x", value[i]);
+  }
+  printf("\n");
+
+  pthread_mutex_lock(&mutex);
+  callback_executed = 1;
+  pthread_cond_signal(&cond);
+  pthread_mutex_unlock(&mutex);
+}
+
+static void providers_handler(int callerRet, const Libp2pPeerInfo *providers,
+                              size_t providersLen, const char *msg, size_t len,
+                              void *userData) {
+  if (callerRet != RET_OK) {
+    printf("GetProviders error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  printf("Providers (%zu):\n", providersLen);
+  for (size_t i = 0; i < providersLen; i++) {
+    const Libp2pPeerInfo *p = &providers[i];
+    printf("  %s\n", p->peerId != NULL ? p->peerId : "(null peerId)");
+    for (size_t j = 0; j < p->addrsLen; j++) {
+      printf("    %s\n", p->addrs[j] != NULL ? p->addrs[j] : "(null addr)");
     }
   }
 
