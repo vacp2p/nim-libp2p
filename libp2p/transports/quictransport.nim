@@ -120,8 +120,7 @@ method closed*(session: QuicSession): bool {.raises: [].} =
   procCall P2PConnection(session).isClosed or session.connection.isClosed
 
 method close*(session: QuicSession) {.async: (raises: []).} =
-  for s in session.streams:
-    await s.close()
+  await noCancel allFutures(session.streams.mapIt(it.close()))
   session.connection.close()
   await procCall P2PConnection(session).close()
 
