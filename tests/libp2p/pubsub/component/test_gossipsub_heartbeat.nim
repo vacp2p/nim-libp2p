@@ -226,6 +226,10 @@ suite "GossipSub Component - Heartbeat":
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
   asyncTest "iDontWants history - last element is pruned during heartbeat":
+    # When Node0 publish larger messages, it will also publish IDontWants, because 
+    # message is larger and sendIDontWantOnPublish is set to true.
+    # Then Node1 receives messages and IDontWants control messages.
+    # Test asserts that with each heartbeat iDontWants history moves and last element is pruned.
     const
       historyLength = 3
       msgCount = 5
@@ -235,8 +239,10 @@ suite "GossipSub Component - Heartbeat":
         sendIDontWantOnPublish = true,
         historyLength = historyLength,
         heartbeatInterval = (300 * msgCount).milliseconds,
-          # all message publications must be delivered within the same heartbeat.
-          # therefore, the heartbeat interval needs to scale with the number of messages.
+          # All message publications must be delivered within the same heartbeat.
+          # Therefore, the heartbeat interval needs to scale with the number of messages.
+          # Node will also send as many iDontWants control messages, which should also 
+          # be received within the same heartbeat.
       )
       .toGossipSub()
 
@@ -254,11 +260,17 @@ suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       peer.iDontWants.len == historyLength
 
-    # When Node0 sends 5 messages to the topic
-    for i in 0 ..< msgCount:
-      tryPublish await nodes[0].publish(topic, toBytes("hellow")), 1
+    # Before publishing messages, wait for begining of Node1 heartbeat interval
+    # to futher increase chances of all publications to be received within same heartbeat. 
+    await nodes[1].waitForHeartbeatByEvent(1)
 
-    # Then Node1 receives msgCount iDontWant messages from Node0
+    # When Node0 sends large messages to the topic
+    # (it will also send iDontWants control messages)
+    let largeMsg = newSeq[byte](iDontWantMessageSizeThreshold * 2)
+    for i in 0 ..< msgCount:
+      tryPublish await nodes[0].publish(topic, largeMsg), 1
+
+    # Then Node1 receives msgCount messages and iDontWant messages from Node0
     # And with each heartbeat, history moves (new element added at start, last element pruned)
     for i in 0 ..< historyLength:
       checkUntilTimeout:
@@ -268,7 +280,7 @@ suite "GossipSub Component - Heartbeat":
       for j in 0 ..< i:
         check peer.iDontWants[j].len == 0
 
-    # Finally after `historyLength` iterations history is cleared
+    # Finally after historyLength iterations history is cleared
     checkUntilTimeout:
       peer.iDontWants.allIt(it.len == 0)
 
@@ -325,6 +337,6 @@ suite "GossipSub Component - Heartbeat":
       checkUntilTimeout:
         peerOutsideMesh.sentIHaves[i].len == 1
 
-    # Finally after `historyLength` iterations history is cleared
+    # Finally after historyLength iterations history is cleared
     checkUntilTimeout:
       peerOutsideMesh.sentIHaves.allIt(it.len == 0)
