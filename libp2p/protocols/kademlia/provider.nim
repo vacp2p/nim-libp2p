@@ -207,27 +207,19 @@ proc getProviders*(
   ## Get providers for a given `key` from the nodes closest to that `key`.
 
   var
-    nextCandidates: seq[PeerId] = await kad.findNode(key)
-    curCandidates: seq[PeerId]
+    candidates: seq[PeerId] = await kad.findNode(key)
     allProviders: HashSet[Provider]
 
   # run until we find at least K providers
   var curTry = 0
-  while allProviders.len() < DefaultReplication and curTry < kad.config.retries:
-    curCandidates = nextCandidates
-    nextCandidates = @[]
-    for chunk in curCandidates.toChunks(kad.config.alpha):
+  while allProviders.len() < kad.config.replication and curTry < kad.config.retries:
+    for chunk in candidates.toChunks(kad.config.alpha):
       let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
       for (providers, closerPeers) in await rpcBatch.collectCompleted(
         kad.config.timeout
       ):
         allProviders.incl(providers)
-        for peer in closerPeers:
-          let pid = PeerId.init(peer.id)
-          if not pid.isOk:
-            error "Invalid PeerId getProviders successful reply", peerId = peer.id
-            continue
-          nextCandidates.add(pid.get())
+        candidates = closerPeers.toPeerIds()
     curTry.inc()
 
   return allProviders
