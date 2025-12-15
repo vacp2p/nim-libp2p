@@ -38,9 +38,12 @@ proc dispatchPutVal*(
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
     error "PutValue reply decode fail", error = error, conn = conn
     return
+
   if reply != msg:
     error "Unexpected change between msg and reply: ",
       msg = msg, reply = reply, conn = conn
+
+  debug "Got PutValue reply", msg = msg, reply = reply, conn = conn
 
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
@@ -62,6 +65,7 @@ proc putValue*(
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
     except AsyncTimeoutError:
+      debug "One or more PutValue messages timed out"
       # Dispatch will timeout if any of the calls don't receive a response (which is normal)
       discard
 

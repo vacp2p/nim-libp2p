@@ -9,11 +9,13 @@
 
 {.used.}
 
-import chronos
+import chronos, chronicles
 import ../../../libp2p/protocols/kademlia
 import ../../tools/[unittest]
 
-suite "xor distance":
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+
+suite "KadDHT XOR Distance":
   test "countLeadingZeroBits works":
     check countLeadingZeroBits(0b00000000'u8) == 8
     check countLeadingZeroBits(0b10000000'u8) == 0

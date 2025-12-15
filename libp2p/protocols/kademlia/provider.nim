@@ -188,6 +188,8 @@ proc dispatchGetProviders(
     error "GetProviders reply decode fail", error = error, conn = conn
     return
 
+  debug "Received reply for GetProviders", reply = reply
+
   var providers: HashSet[Provider]
   for peer in reply.providerPeers:
     let p = PeerId.init(peer.id).valueOr:

@@ -71,7 +71,7 @@ proc select*(
   else:
     s = string.fromBytes(await conn.readLp(MsgSize)) # read the first proto
     validateSuffix(s)
-    trace "reading first requested proto", conn
+    trace "reading first requested proto", conn, s, proto
     if s == proto[0]:
       trace "successfully selected ", conn, proto = proto[0]
       conn.protocol = proto[0]
