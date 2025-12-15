@@ -7,15 +7,18 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, libp2p, sequtils, stew/byteutils
+import chronos, stew/byteutils
 import ../../../../libp2p
 import ../../../../libp2p/protocols/kademlia
 
 const
+  PeerIP: string = "127.0.0.1"
   PeerPort: int = 4141
-  PeerAddr: string = "/ip4/127.0.0.1/tcp/" & $PeerPort
+  PeerAddr: string = "/ip4/" & PeerIP & "/tcp/" & $PeerPort
+
+  OurIP: string = "127.0.0.1"
   OurPort: int = 3131
-  OurAddr: string = "/ip4/127.0.0.1/tcp/" & $OurPort
+  OurAddr: string = "/ip4/" & OurIP & "/tcp/" & $OurPort
 
 proc main() {.async.} =
   var switch = SwitchBuilder
@@ -46,7 +49,7 @@ proc main() {.async.} =
     await switch.stop()
 
   let key: Key = "key".toBytes()
-  let value = @[1.byte, 2, 3, 4, 5]
+  let value = "value".toBytes()
 
   let res = await kad.putValue(key, value)
   if res.isErr():
@@ -62,7 +65,7 @@ proc main() {.async.} =
     quit(1)
 
 when isMainModule:
-  if waitFor(waitForService("127.0.0.1", Port(PeerPort))):
+  if waitFor(waitForService(PeerIP, Port(PeerPort))):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)

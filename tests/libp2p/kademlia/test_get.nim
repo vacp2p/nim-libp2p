@@ -183,7 +183,8 @@ suite "KadDHT Get":
 
     let getValueRes = (await kad1.getValue(key))
     check getValueRes.isErr()
-    check getValueRes.error() == "Not enough valid records to achieve quorum"
+    check getValueRes.error() ==
+      "Not enough valid records to achieve quorum, needed 5 got 1"
 
   asyncTest "Update peers with empty values":
     var (switch2, kad2) =
