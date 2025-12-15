@@ -27,3 +27,4 @@ type LibP2P* = ref object
   switch*: Switch
   gossipSub*: GossipSub
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
+  connections*: Table[ptr Libp2pStream, Connection]

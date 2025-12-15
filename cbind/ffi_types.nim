@@ -41,6 +41,17 @@ type ConnectedPeersCallback* = proc(
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
+type Libp2pStream* = object
+  conn*: pointer
+
+type ConnectionCallback* = proc(
+  callerRet: cint,
+  conn: ptr Libp2pStream,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
 type PubsubTopicHandler* = proc(
   topic: cstring, data: ptr byte, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}

@@ -18,18 +18,25 @@ import chronos, chronos/threadsync
 import
   ../../[ffi_types, types],
   ./requests/
-    [libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests],
+    [
+      libp2p_lifecycle_requests,
+      libp2p_peer_manager_requests,
+      libp2p_pubsub_requests,
+      libp2p_stream_requests,
+    ],
   ../../../libp2p
 
 type RequestType* {.pure.} = enum
   LIFECYCLE
   PEER_MANAGER
   PUBSUB
+  STREAM
 
 type CallbackKind* {.pure.} = enum
   DEFAULT
   PEER_INFO
   CONNECTED_PEERS
+  CONNECTION
 
 ## Central request object passed to the LibP2P thread
 type LibP2PThreadRequest* = object
@@ -119,6 +126,23 @@ proc handleConnectedPeersRes(
 
   deallocConnectedPeers(peers)
 
+proc handleConnectionRes(
+    res: Result[ptr Libp2pStream, string], request: ptr LibP2PThreadRequest
+) =
+  defer:
+    deallocShared(request)
+
+  let cb = cast[ConnectionCallback](request[].callback)
+
+  let conn = res.valueOr:
+    foreignThreadGc:
+      let msg = $error
+      cb(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+    return
+
+  foreignThreadGc:
+    cb(RET_OK.cint, conn, nil, 0, request[].userData)
+
 # Dispatcher for processing the request based on its type
 # Casts reqContent to the correct request struct and runs its `.process()` logic
 proc process*(
@@ -153,6 +177,15 @@ proc process*(
     handleRes(
       await cast[ptr PubSubRequest](request[].reqContent).process(libp2p), request
     )
+  of RequestType.STREAM:
+    let req = cast[ptr StreamRequest](request[].reqContent)
+    case req[].operation
+    of StreamMsgType.DIAL:
+      handleConnectionRes(await req.processDial(libp2p), request)
+    of StreamMsgType.CLOSE, StreamMsgType.CLOSE_WITH_EOF:
+      handleRes(await req.processClose(libp2p), request)
+    of StreamMsgType.RELEASE:
+      handleRes(await req.processRelease(libp2p), request)
 
 # String representation of the request type
 proc `$`*(self: LibP2PThreadRequest): string =
