@@ -15,7 +15,6 @@ const
   PeerIP: string = "127.0.0.1"
   PeerPort: int = 4141
   PeerAddr: string = "/ip4/" & PeerIP & "/tcp/" & $PeerPort
-
   OurIP: string = "127.0.0.1"
   OurPort: int = 3131
   OurAddr: string = "/ip4/" & OurIP & "/tcp/" & $OurPort
