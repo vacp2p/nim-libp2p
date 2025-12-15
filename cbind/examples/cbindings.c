@@ -9,6 +9,7 @@
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 int callback_executed = 0;
+libp2p_stream_t *ping_stream = NULL;
 
 typedef struct {
   char peerId[256];
@@ -34,6 +35,8 @@ static void get_providers_handler(int callerRet,
                                   size_t len, void *userData);
 static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userData);
+static void connection_handler(int callerRet, libp2p_stream_t *conn,
+                               const char *msg, size_t len, void *userData);
 
 // libp2p Context
 libp2p_ctx_t *ctx1;
@@ -65,6 +68,22 @@ int main(int argc, char **argv) {
   printf("Retrieve list of peers we opened a connection to:\n");
   libp2p_connected_peers(ctx1, Direction_Out, peers_handler, NULL);
   waitForCallback();
+
+  // Dialing a protocol
+
+  libp2p_dial(ctx1, pi.peerId, "/ipfs/ping/1.0.0", connection_handler, NULL);
+  waitForCallback();
+
+  sleep(2);
+
+  libp2p_stream_closeWithEOF(ctx1, ping_stream, event_handler, NULL);
+  waitForCallback();
+
+  libp2p_stream_release(ctx1, ping_stream, event_handler, NULL);
+  waitForCallback();
+  ping_stream = NULL;
+
+  // GossipSub
 
   libp2p_gossipsub_subscribe(ctx1, "test", topic_handler, event_handler, NULL);
 
@@ -262,6 +281,21 @@ static void get_providers_handler(int callerRet,
       printf("    %s\n", p->addrs[j] != NULL ? p->addrs[j] : "(null addr)");
     }
   }
+
+  pthread_mutex_lock(&mutex);
+  callback_executed = 1;
+  pthread_cond_signal(&cond);
+  pthread_mutex_unlock(&mutex);
+}
+
+static void connection_handler(int callerRet, libp2p_stream_t *conn,
+                               const char *msg, size_t len, void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Error(%d): %.*s\n", callerRet, (int)len, msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  ping_stream = conn;
 
   pthread_mutex_lock(&mutex);
   callback_executed = 1;
