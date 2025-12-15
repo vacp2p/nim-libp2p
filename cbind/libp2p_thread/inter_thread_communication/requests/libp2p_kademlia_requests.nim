@@ -9,7 +9,7 @@
 
 import std/[sequtils]
 import chronos, results, sets
-import ../../../[alloc, ffi_types, types]
+import ../../../[alloc, ffi_types]
 import ../../../../libp2p
 import ../../../../libp2p/protocols/kademlia
 import ./libp2p_peer_manager_requests
@@ -27,6 +27,7 @@ type KademliaRequest* = object
   key: SharedSeq[byte]
   value: SharedSeq[byte]
   cid: cstring
+  quorumOverride: int
 
 type FindNodeResult* = object
   peerIds*: ptr cstring
@@ -49,6 +50,7 @@ proc createShared*(
     value: ptr byte = nil,
     valueLen: csize_t = 0,
     cid: cstring = "",
+    quorumOverride: int = 0,
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
@@ -56,6 +58,7 @@ proc createShared*(
   ret[].key = allocSharedSeqFromCArray(key, keyLen.int)
   ret[].value = allocSharedSeqFromCArray(value, valueLen.int)
   ret[].cid = cid.alloc()
+  ret[].quorumOverride = quorumOverride
   return ret
 
 proc destroyShared(self: ptr KademliaRequest) =
@@ -69,12 +72,7 @@ proc deallocFindNodeResult*(res: ptr FindNodeResult) =
   if res.isNil():
     return
 
-  if not res[].peerIds.isNil():
-    let peersArr = cast[ptr UncheckedArray[cstring]](res[].peerIds)
-    for i in 0 ..< int(res[].peerIdsLen):
-      if not peersArr[i].isNil():
-        deallocShared(peersArr[i])
-    deallocShared(peersArr)
+  deallocCStringArray(res[].peerIds, res[].peerIdsLen)
 
   deallocShared(res)
 
@@ -87,139 +85,43 @@ proc deallocGetValueResult*(res: ptr GetValueResult) =
 
   deallocShared(res)
 
-proc deallocProvidersResult*(res: ptr ProvidersResult) =
-  if res.isNil():
-    return
-
-  if not res[].providers.isNil():
-    let providersArr = cast[ptr UncheckedArray[Libp2pPeerInfo]](res[].providers)
-    for i in 0 ..< int(res[].providersLen):
-      if not providersArr[i].peerId.isNil():
-        deallocShared(providersArr[i].peerId)
-      if not providersArr[i].addrs.isNil():
-        let addrsArr = cast[ptr UncheckedArray[cstring]](providersArr[i].addrs)
-        for j in 0 ..< int(providersArr[i].addrsLen):
-          if not addrsArr[j].isNil():
-            deallocShared(addrsArr[j])
-        deallocShared(addrsArr)
-    deallocShared(providersArr)
-
-  deallocShared(res)
-
-proc process*(
-    self: ptr KademliaRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
-  defer:
-    destroyShared(self)
-
-  if libp2p.kad.isNil():
-    return err("kad-dht not initialized")
-
-  case self.operation
-  of PUT_VALUE:
-    let res = await libp2p.kad.putValue(self[].key.toSeq(), self[].value.toSeq())
-    if res.isErr():
-      return err(res.error)
-  of ADD_PROVIDER:
-    let cid = Cid.init($self[].cid).valueOr:
-      return err($error)
-    await libp2p.kad.addProvider(cid)
-  else:
-    raiseAssert "unsupported path, use specific processor"
-
-  ok("")
-
-proc processFindNode*(
-    self: ptr KademliaRequest, libp2p: ptr LibP2P
-): Future[Result[ptr FindNodeResult, string]] {.async: (raises: [CancelledError]).} =
-  defer:
-    destroyShared(self)
-
-  if libp2p.kad.isNil():
-    return err("kad-dht not initialized")
-
-  let target = PeerId.init($self[].peerId).valueOr:
-    return err($error)
-
-  let peers =
-    try:
-      await libp2p.kad.findNode(target.toKey())
-    except CatchableError as exc:
-      return err(exc.msg)
-
-  let resPtr = cast[ptr FindNodeResult](createShared(FindNodeResult, 1))
-  resPtr[].peerIdsLen = peers.len.csize_t
-
-  if peers.len == 0:
-    resPtr[].peerIds = nil
-    return ok(resPtr)
-
-  resPtr[].peerIds = cast[ptr cstring](allocShared(sizeof(cstring) * peers.len))
-  let arr = cast[ptr UncheckedArray[cstring]](resPtr[].peerIds)
-
-  try:
-    for i, p in peers:
-      arr[i] = ($p).alloc()
-  except CatchableError as exc:
-    deallocFindNodeResult(resPtr)
-    return err(exc.msg)
-
-  ok(resPtr)
-
-proc processGetValue*(
-    self: ptr KademliaRequest, libp2p: ptr LibP2P
-): Future[Result[ptr GetValueResult, string]] {.async: (raises: [CancelledError]).} =
-  defer:
-    destroyShared(self)
-
-  if libp2p.kad.isNil():
-    return err("kad-dht not initialized")
-
-  let res =
-    try:
-      await libp2p.kad.getValue(self[].key.toSeq())
-    except CatchableError as exc:
-      return err(exc.msg)
-
-  let entry = res.valueOr:
-    return err($res.error)
-
+proc buildGetValueResult(entry: EntryRecord): Result[ptr GetValueResult, string] =
   let valueLen = entry.value.len
   let resPtr = cast[ptr GetValueResult](createShared(GetValueResult, 1))
   resPtr[].valueLen = valueLen.csize_t
-
+  resPtr[].value = nil
   if valueLen == 0:
-    resPtr[].value = nil
     return ok(resPtr)
 
   resPtr[].value = cast[ptr byte](allocShared(valueLen))
   try:
     copyMem(resPtr[].value, addr entry.value[0], valueLen)
-  except CatchableError as exc:
+  except LPError as exc:
     deallocGetValueResult(resPtr)
     return err(exc.msg)
 
   ok(resPtr)
 
-proc processGetProviders*(
-    self: ptr KademliaRequest, libp2p: ptr LibP2P
-): Future[Result[ptr ProvidersResult, string]] {.async: (raises: [CancelledError]).} =
+proc deallocProvidersResult*(res: ptr ProvidersResult) =
+  if res.isNil():
+    return
+
   defer:
-    destroyShared(self)
+    deallocShared(res)
 
-  if libp2p.kad.isNil():
-    return err("kad-dht not initialized")
+  if res[].providers.isNil():
+    return
 
-  let cid = Cid.init($self[].cid).valueOr:
-    return err($error)
+  let providersArr = cast[ptr UncheckedArray[Libp2pPeerInfo]](res[].providers)
+  for i in 0 ..< int(res[].providersLen):
+    if not providersArr[i].peerId.isNil():
+      deallocShared(providersArr[i].peerId)
+    deallocCStringArray(providersArr[i].addrs, providersArr[i].addrsLen)
+  deallocShared(providersArr)
 
-  let providersSet =
-    try:
-      await libp2p.kad.getProviders(cid.toKey())
-    except CatchableError as exc:
-      return err(exc.msg)
-
-  let providers = providersSet.toSeq()
+proc buildProvidersResult(
+    providers: seq[Provider]
+): Result[ptr ProvidersResult, string] =
   let resPtr = cast[ptr ProvidersResult](createShared(ProvidersResult, 1))
   resPtr[].providersLen = providers.len.csize_t
 
@@ -246,8 +148,116 @@ proc processGetProviders*(
         let addrsArr = cast[ptr UncheckedArray[cstring]](arr[i].addrs)
         for j, addrStr in addrs:
           addrsArr[j] = addrStr.alloc()
-  except CatchableError as exc:
+  except ValueError as exc:
+    deallocProvidersResult(resPtr)
+    return err("Invalid peerId: " & $exc.msg)
+  except LPError as exc:
     deallocProvidersResult(resPtr)
     return err(exc.msg)
 
   ok(resPtr)
+
+proc process*(
+    self: ptr KademliaRequest, kad: KadDHT
+): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+  defer:
+    destroyShared(self)
+
+  if kad.isNil():
+    return err("kad-dht not initialized")
+
+  case self.operation
+  of PUT_VALUE:
+    let res = await kad.putValue(self[].key.toSeq(), self[].value.toSeq())
+    if res.isErr():
+      return err(res.error)
+  of ADD_PROVIDER:
+    let cid = Cid.init($self[].cid).valueOr:
+      return err($error)
+    await kad.addProvider(cid)
+  else:
+    raiseAssert "unsupported path, use specific processor"
+
+  ok("")
+
+proc processFindNode*(
+    self: ptr KademliaRequest, kad: KadDHT
+): Future[Result[ptr FindNodeResult, string]] {.async: (raises: [CancelledError]).} =
+  defer:
+    destroyShared(self)
+
+  if kad.isNil():
+    return err("kad-dht not initialized")
+
+  let target = PeerId.init($self[].peerId).valueOr:
+    return err($error)
+
+  let peers =
+    try:
+      await kad.findNode(target.toKey())
+    except LPError as exc:
+      return err(exc.msg)
+
+  let resPtr = cast[ptr FindNodeResult](createShared(FindNodeResult, 1))
+  resPtr[].peerIdsLen = peers.len.csize_t
+
+  if peers.len == 0:
+    resPtr[].peerIds = nil
+    return ok(resPtr)
+
+  resPtr[].peerIds = cast[ptr cstring](allocShared(sizeof(cstring) * peers.len))
+  let arr = cast[ptr UncheckedArray[cstring]](resPtr[].peerIds)
+
+  try:
+    for i, p in peers:
+      arr[i] = ($p).alloc()
+  except LPError as exc:
+    deallocFindNodeResult(resPtr)
+    return err(exc.msg)
+
+  ok(resPtr)
+
+proc processGetValue*(
+    self: ptr KademliaRequest, kad: KadDHT
+): Future[Result[ptr GetValueResult, string]] {.async: (raises: [CancelledError]).} =
+  defer:
+    destroyShared(self)
+
+  if kad.isNil():
+    return err("kad-dht not initialized")
+
+  let res =
+    try:
+      let quorum =
+        if self[].quorumOverride < 0:
+          Opt.none(int)
+        else:
+          Opt.some(self[].quorumOverride)
+      await kad.getValue(self[].key.toSeq(), quorum)
+    except LPError as exc:
+      return err(exc.msg)
+
+  let entry = res.valueOr:
+    return err($res.error)
+
+  buildGetValueResult(entry)
+
+proc processGetProviders*(
+    self: ptr KademliaRequest, kad: KadDHT
+): Future[Result[ptr ProvidersResult, string]] {.async: (raises: [CancelledError]).} =
+  defer:
+    destroyShared(self)
+
+  if kad.isNil():
+    return err("kad-dht not initialized")
+
+  let cid = Cid.init($self[].cid).valueOr:
+    return err($error)
+
+  let providersSet =
+    try:
+      await kad.getProviders(cid.toKey())
+    except LPError as exc:
+      return err(exc.msg)
+
+  buildProvidersResult(providersSet.toSeq())

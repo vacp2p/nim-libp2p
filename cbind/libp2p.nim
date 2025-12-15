@@ -476,6 +476,7 @@ proc libp2p_get_value(
     ctx: ptr LibP2PContext,
     key: ptr byte,
     keyLen: csize_t,
+    quorumOverride: cint,
     callback: GetValueCallback,
     userData: pointer,
 ): cint {.dynlib, exportc, cdecl.} =
@@ -490,7 +491,12 @@ proc libp2p_get_value(
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
     RequestType.KADEMLIA,
-    KademliaRequest.createShared(KademliaMsgType.GET_VALUE, key = key, keyLen = keyLen),
+    KademliaRequest.createShared(
+      KademliaMsgType.GET_VALUE,
+      key = key,
+      keyLen = keyLen,
+      quorumOverride = quorumOverride,
+    ),
     callback,
     userData,
   ).isOkOr:

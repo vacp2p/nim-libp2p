@@ -229,26 +229,17 @@ proc processPubSub(
 proc processKademlia(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
+  let kad = libp2p.kad
+  let kadReq = cast[ptr KademliaRequest](request[].reqContent)
   case request[].callbackKind
   of CallbackKind.PEERS:
-    handleFindNodeRes(
-      await cast[ptr KademliaRequest](request[].reqContent).processFindNode(libp2p),
-      request,
-    )
+    handleFindNodeRes(await kadReq.processFindNode(kad), request)
   of CallbackKind.GET_VALUE:
-    handleGetValueRes(
-      await cast[ptr KademliaRequest](request[].reqContent).processGetValue(libp2p),
-      request,
-    )
+    handleGetValueRes(await kadReq.processGetValue(kad), request)
   of CallbackKind.GET_PROVIDERS:
-    handleGetProvidersRes(
-      await cast[ptr KademliaRequest](request[].reqContent).processGetProviders(libp2p),
-      request,
-    )
+    handleGetProvidersRes(await kadReq.processGetProviders(kad), request)
   else:
-    handleRes(
-      await cast[ptr KademliaRequest](request[].reqContent).process(libp2p), request
-    )
+    handleRes(await kadReq.process(kad), request)
 
 # Dispatcher for processing the request based on its type
 # Casts reqContent to the correct request struct and runs its `.process()` logic

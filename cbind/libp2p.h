@@ -159,7 +159,8 @@ int libp2p_put_value(void *ctx, const uint8_t *key, size_t keyLen,
                      Libp2pCallback callback, void *userData);
 
 int libp2p_get_value(void *ctx, const uint8_t *key, size_t keyLen,
-                     GetValueCallback callback, void *userData);
+                     int quorumOverride, GetValueCallback callback,
+                     void *userData);
 
 int libp2p_add_provider(void *ctx, const char *cid, Libp2pCallback callback,
                         void *userData);

@@ -23,14 +23,15 @@ static void event_handler(int callerRet, const char *msg, size_t len,
 static void topic_handler(const char *topic, uint8_t *data, size_t len,
                           void *userData);
 static void peers_handler(int callerRet, const char **peerIds,
-                                    size_t peerIdsLen, const char *msg,
-                                    size_t len, void *userData);
+                          size_t peerIdsLen, const char *msg, size_t len,
+                          void *userData);
 static void get_value_handler(int callerRet, const uint8_t *value,
                               size_t valueLen, const char *msg, size_t len,
                               void *userData);
-static void providers_handler(int callerRet, const Libp2pPeerInfo *providers,
-                              size_t providersLen, const char *msg, size_t len,
-                              void *userData);
+static void get_providers_handler(int callerRet,
+                                  const Libp2pPeerInfo *providers,
+                                  size_t providersLen, const char *msg,
+                                  size_t len, void *userData);
 static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userData);
 
@@ -91,7 +92,8 @@ int main(int argc, char **argv) {
                    sizeof(valBytes) - 1, event_handler, NULL);
   waitForCallback();
 
-  libp2p_get_value(ctx2, keyBytes, sizeof(keyBytes), get_value_handler, NULL);
+  libp2p_get_value(ctx2, keyBytes, sizeof(keyBytes), 0, get_value_handler,
+                   NULL);
   waitForCallback();
 
   const char *cid =
@@ -99,7 +101,7 @@ int main(int argc, char **argv) {
   libp2p_add_provider(ctx1, cid, event_handler, NULL);
   waitForCallback();
 
-  libp2p_get_providers(ctx2, cid, providers_handler, NULL);
+  libp2p_get_providers(ctx2, cid, get_providers_handler, NULL);
   waitForCallback();
 
   sleep(5);
@@ -148,8 +150,8 @@ static void topic_handler(const char *topic, uint8_t *data, size_t len,
 }
 
 static void peers_handler(int callerRet, const char **peerIds,
-                                    size_t peerIdsLen, const char *msg,
-                                    size_t len, void *userData) {
+                          size_t peerIdsLen, const char *msg, size_t len,
+                          void *userData) {
   if (callerRet != RET_OK) {
     printf("Error(%d): %.*s\n", callerRet, (int)len, msg != NULL ? msg : "");
     exit(1);
@@ -225,7 +227,9 @@ static void get_value_handler(int callerRet, const uint8_t *value,
   if (callerRet != RET_OK) {
     printf("GetValue error(%d): %.*s\n", callerRet, (int)len,
            msg != NULL ? msg : "");
-    exit(1);
+
+    // TODO: once bootstrapping is enabled, uncomment this
+    // exit(1);
   }
 
   printf("GetValue received (%zu bytes): ", valueLen);
@@ -240,9 +244,10 @@ static void get_value_handler(int callerRet, const uint8_t *value,
   pthread_mutex_unlock(&mutex);
 }
 
-static void providers_handler(int callerRet, const Libp2pPeerInfo *providers,
-                              size_t providersLen, const char *msg, size_t len,
-                              void *userData) {
+static void get_providers_handler(int callerRet,
+                                  const Libp2pPeerInfo *providers,
+                                  size_t providersLen, const char *msg,
+                                  size_t len, void *userData) {
   if (callerRet != RET_OK) {
     printf("GetProviders error(%d): %.*s\n", callerRet, (int)len,
            msg != NULL ? msg : "");

@@ -22,7 +22,6 @@ import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
 
-
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
   START_NODE

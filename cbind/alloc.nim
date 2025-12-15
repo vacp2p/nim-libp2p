@@ -19,6 +19,14 @@ type SharedSeq*[T] = object
   data: ptr UncheckedArray[T]
   len: int
 
+template deallocCStringArray*(arrPtr: ptr cstring, len: csize_t) =
+  if not arrPtr.isNil():
+    let arr = cast[ptr UncheckedArray[cstring]](arrPtr)
+    for i in 0 ..< int(len):
+      if not arr[i].isNil():
+        deallocShared(arr[i])
+    deallocShared(arr)
+
 proc alloc*(str: cstring): cstring =
   # Byte allocation from the given address.
   # There should be the corresponding manual deallocation with deallocShared !
