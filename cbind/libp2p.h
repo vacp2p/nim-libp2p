@@ -56,6 +56,12 @@ typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
                                    const char *msg, size_t len,
                                    void *userData);
 
+typedef struct libp2p_stream libp2p_stream_t;
+
+typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
+                                   const char *msg, size_t len,
+                                   void *userData);
+
 typedef uint32_t Direction;
 
 enum {
@@ -132,6 +138,18 @@ int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir, PeersCallback callb
                            void *userData);
 
 // TODO: libp2p_ping
+
+int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
+                ConnectionCallback callback, void *userData);
+
+int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                        Libp2pCallback callback, void *userData);
+
+int libp2p_stream_closeWithEOF(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                               Libp2pCallback callback, void *userData);
+
+int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                          Libp2pCallback callback, void *userData);
 
 int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
                 ConnectionCallback callback, void *userData);

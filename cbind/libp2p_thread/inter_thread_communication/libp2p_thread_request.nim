@@ -249,6 +249,7 @@ proc handleConnectionRes(
 ) =
   defer:
     deallocShared(request)
+
   let cb = cast[ConnectionCallback](request[].callback)
 
   let conn = res.valueOr:

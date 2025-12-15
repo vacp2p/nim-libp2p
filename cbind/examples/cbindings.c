@@ -5,13 +5,13 @@
 #include <string.h>
 #include <unistd.h>
 
+#define CID_BUF_SIZE 128
+
 // Shared synchronization variables
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 int callback_executed = 0;
 libp2p_stream_t *ping_stream = NULL;
-
-#define CID_BUF_SIZE 128
 
 typedef struct {
   char peerId[256];
