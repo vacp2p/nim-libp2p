@@ -161,7 +161,7 @@ proc handleAddProvider*(
   let peerBytes = conn.peerId.getBytes()
 
   for peer in msg.providerPeers.filterIt(it.id == peerBytes):
-    let p = PeerId.init(peer.id).valueOr:
+    if not PeerId.init(peer.id).isOk():
       continue
 
     # add provider to providerManager
@@ -175,7 +175,7 @@ proc handleAddProvider*(
 
 proc dispatchGetProviders(
     switch: Switch, peer: PeerId, key: Key
-): Future[HashSet[Provider]] {.
+): Future[(HashSet[Provider], seq[Peer])] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
 .} =
   let conn = await switch.dial(peer, KadCodec)
@@ -197,7 +197,7 @@ proc dispatchGetProviders(
       continue
     providers.incl(peer)
 
-  return providers
+  return (providers, reply.closerPeers)
 
 proc getProviders*(
     kad: KadDHT, key: Key
@@ -206,12 +206,29 @@ proc getProviders*(
 .} =
   ## Get providers for a given `key` from the nodes closest to that `key`.
 
-  var allProviders: HashSet[Provider]
+  var
+    nextCandidates: seq[PeerId] = await kad.findNode(key)
+    curCandidates: seq[PeerId]
+    allProviders: HashSet[Provider]
 
-  for chunk in (await kad.findNode(key)).toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
-    for res in await rpcBatch.collectCompleted(kad.config.timeout):
-      allProviders.incl(res)
+  # run until we find at least K providers
+  var curTry = 0
+  while allProviders.len() < DefaultReplication and curTry < kad.config.retries:
+    curCandidates = nextCandidates
+    nextCandidates = @[]
+    for chunk in curCandidates.toChunks(kad.config.alpha):
+      let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
+      for (providers, closerPeers) in await rpcBatch.collectCompleted(
+        kad.config.timeout
+      ):
+        allProviders.incl(providers)
+        for peer in closerPeers:
+          let pid = PeerId.init(peer.id)
+          if not pid.isOk:
+            error "Invalid PeerId getProviders successful reply", peerId = peer.id
+            continue
+          nextCandidates.add(pid.get())
+    curTry.inc()
 
   return allProviders
 
