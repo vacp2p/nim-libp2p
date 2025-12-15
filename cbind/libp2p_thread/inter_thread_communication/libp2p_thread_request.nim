@@ -17,13 +17,10 @@ import std/json, results
 import chronos, chronos/threadsync
 import
   ../../[ffi_types, types],
-  ./requests/
-    [
-      libp2p_lifecycle_requests,
-      libp2p_peer_manager_requests,
-      libp2p_pubsub_requests,
-      libp2p_kademlia_requests,
-    ],
+  ./requests/[
+    libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
+    libp2p_kademlia_requests,
+  ],
   ../../../libp2p
 
 type RequestType* {.pure.} = enum
@@ -142,14 +139,7 @@ proc handleFindNodeRes(
     return
 
   foreignThreadGc:
-    cb(
-      RET_OK.cint,
-      peers[].peerIds,
-      peers[].peerIdsLen,
-      nil,
-      0,
-      request[].userData,
-    )
+    cb(RET_OK.cint, peers[].peerIds, peers[].peerIdsLen, nil, 0, request[].userData)
 
   deallocFindNodeResult(peers)
 
@@ -168,14 +158,7 @@ proc handleGetValueRes(
     return
 
   foreignThreadGc:
-    cb(
-      RET_OK.cint,
-      valueRes[].value,
-      valueRes[].valueLen,
-      nil,
-      0,
-      request[].userData,
-    )
+    cb(RET_OK.cint, valueRes[].value, valueRes[].valueLen, nil, 0, request[].userData)
 
   deallocGetValueResult(valueRes)
 
@@ -207,14 +190,14 @@ proc handleGetProvidersRes(
 
 proc processLifecycle(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
-) {.async:(raises:[CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   handleRes(
     await cast[ptr LifecycleRequest](request[].reqContent).process(libp2p), request
   )
 
 proc processPeerManager(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
-) {.async:(raises:[CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   case request[].callbackKind
   of CallbackKind.PEER_INFO:
     handlePeerInfoRes(
@@ -238,12 +221,14 @@ proc processPeerManager(
 
 proc processPubSub(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
-) {.async:(raises:[CancelledError]).} =
-  handleRes(await cast[ptr PubSubRequest](request[].reqContent).process(libp2p), request)
+) {.async: (raises: [CancelledError]).} =
+  handleRes(
+    await cast[ptr PubSubRequest](request[].reqContent).process(libp2p), request
+  )
 
 proc processKademlia(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
-) {.async:(raises:[CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   case request[].callbackKind
   of CallbackKind.PEERS:
     handleFindNodeRes(

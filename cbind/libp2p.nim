@@ -19,13 +19,10 @@ import
   ./libp2p_thread/libp2p_thread,
   ./[ffi_types, types],
   ./libp2p_thread/inter_thread_communication/libp2p_thread_request,
-  ./libp2p_thread/inter_thread_communication/requests/
-    [
-      libp2p_lifecycle_requests,
-      libp2p_peer_manager_requests,
-      libp2p_pubsub_requests,
-      libp2p_kademlia_requests,
-    ],
+  ./libp2p_thread/inter_thread_communication/requests/[
+    libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
+    libp2p_kademlia_requests,
+  ],
   ../libp2p
 ################################################################################
 ### Not-exported components
@@ -278,10 +275,7 @@ proc fromUint32*(T: typedesc[Direction], dir: uint32): Result[T, string] =
     err("invalid direction")
 
 proc libp2p_connected_peers(
-    ctx: ptr LibP2PContext,
-    dir: uint32,
-    callback: PeersCallback,
-    userData: pointer,
+    ctx: ptr LibP2PContext, dir: uint32, callback: PeersCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
@@ -418,10 +412,7 @@ proc libp2p_gossipsub_remove_validator(
 ]#
 
 proc libp2p_find_node(
-    ctx: ptr LibP2PContext,
-    peerId: cstring,
-    callback: PeersCallback,
-    userData: pointer,
+    ctx: ptr LibP2PContext, peerId: cstring, callback: PeersCallback, userData: pointer
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
@@ -458,7 +449,7 @@ proc libp2p_put_value(
   checkLibParams(ctx, callback, userData)
 
   if key.isNil() or keyLen == 0:
-    let msg = "key is nil or empty"
+    let msg = "key is not set"
     callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR.cint
 
@@ -466,7 +457,11 @@ proc libp2p_put_value(
     ctx,
     RequestType.KADEMLIA,
     KademliaRequest.createShared(
-      KademliaMsgType.PUT_VALUE, key = key, keyLen = keyLen, value = value, valueLen = valueLen
+      KademliaMsgType.PUT_VALUE,
+      key = key,
+      keyLen = keyLen,
+      value = value,
+      valueLen = valueLen,
     ),
     callback,
     userData,
@@ -488,7 +483,7 @@ proc libp2p_get_value(
   checkLibParams(ctx, callback, userData)
 
   if key.isNil() or keyLen == 0:
-    let msg = "key is nil or empty"
+    let msg = "key is not set"
     callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR.cint
 
@@ -555,5 +550,6 @@ proc libp2p_get_providers(
     return RET_ERR.cint
 
   RET_OK.cint
+
 ### End of exported procs
 ################################################################################
