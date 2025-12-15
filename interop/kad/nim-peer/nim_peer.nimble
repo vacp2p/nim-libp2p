@@ -7,4 +7,4 @@ bin = @["nim_peer"]
 
 # Dependencies
 
-requires "nim >= 2.3.1"
+requires "nim >= 2.3.1", "stew >= 0.4.2"
