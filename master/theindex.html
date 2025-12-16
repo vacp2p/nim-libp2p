@@ -2982,8 +2982,8 @@
           </ul></dd>
 <dt><a name="getValue" href="#getValue"><span>getValue:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
-          data-doc-search-tag="get: proc getValue(kad: KadDHT; key: Key): InternalRaisesFuture[
-    Result[EntryRecord, string], (CancelledError,)]" href="libp2p/protocols/kademlia/get.html#getValue%2CKadDHT%2CKey">get: proc getValue(kad: KadDHT; key: Key): InternalRaisesFuture[
+          data-doc-search-tag="get: proc getValue(kad: KadDHT; key: Key; quorumOverride: Opt[int] = Opt.none(int)): InternalRaisesFuture[
+    Result[EntryRecord, string], (CancelledError,)]" href="libp2p/protocols/kademlia/get.html#getValue%2CKadDHT%2CKey%2COpt%5Bint%5D">get: proc getValue(kad: KadDHT; key: Key; quorumOverride: Opt[int] = Opt.none(int)): InternalRaisesFuture[
     Result[EntryRecord, string], (CancelledError,)]</a></li>
           <li><a class="reference external"
           data-doc-search-tag="protobuf: MessageType.getValue" href="libp2p/protocols/kademlia/protobuf.html#getValue">protobuf: MessageType.getValue</a></li>
@@ -7180,6 +7180,10 @@
 <li><a class="reference external"
           data-doc-search-tag="types: proc toPeerId(k: Key): Result[PeerId, string]" href="libp2p/protocols/kademlia/types.html#toPeerId%2CKey">types: proc toPeerId(k: Key): Result[PeerId, string]</a></li>
           </ul></dd>
+<dt><a name="toPeerIds" href="#toPeerIds"><span>toPeerIds:</span></a></dt><dd><ul class="simple">
+<li><a class="reference external"
+          data-doc-search-tag="types: proc toPeerIds(peers: seq[Peer]): seq[PeerId]" href="libp2p/protocols/kademlia/types.html#toPeerIds%2Cseq%5BPeer%5D">types: proc toPeerIds(peers: seq[Peer]): seq[PeerId]</a></li>
+          </ul></dd>
 <dt><a name="TopicHandler" href="#TopicHandler"><span>TopicHandler:</span></a></dt><dd><ul class="simple">
 <li><a class="reference external"
           data-doc-search-tag="pubsub: type TopicHandler" href="libp2p/protocols/pubsub/pubsub.html#TopicHandler">pubsub: type TopicHandler</a></li>
@@ -8016,7 +8020,7 @@
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-12-15 21:14:53 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-12-16 18:17:32 UTC</small>
       </div>
     </div>
   </div>
