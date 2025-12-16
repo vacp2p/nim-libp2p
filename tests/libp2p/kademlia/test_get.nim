@@ -44,8 +44,7 @@ suite "KadDHT Get":
       containsData(kad1, key, value)
       containsNoData(kad2, key)
 
-    kad2.config.quorum = 1
-    discard await kad2.getValue(key)
+    discard await kad2.getValue(key, quorumOverride = Opt.some(1))
 
     check:
       containsData(kad1, key, value)
@@ -128,8 +127,7 @@ suite "KadDHT Get":
       containsData(kad4, key, bestValue)
       containsData(kad5, key, bestValue)
 
-    kad1.config.quorum = 3
-    discard await kad1.getValue(key)
+    discard await kad1.getValue(key, quorumOverride = Opt.some(3))
 
     # now all have bestvalue
     check:
@@ -229,9 +227,7 @@ suite "KadDHT Get":
       containsNoData(kad5, key)
 
     # 1 is enough to make a decision
-    kad1.config.quorum = 1
-
-    discard await kad1.getValue(key)
+    discard await kad1.getValue(key, quorumOverride = Opt.some(1))
 
     # peers are updated
     check:

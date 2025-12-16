@@ -161,7 +161,7 @@ proc handleAddProvider*(
   let peerBytes = conn.peerId.getBytes()
 
   for peer in msg.providerPeers.filterIt(it.id == peerBytes):
-    let p = PeerId.init(peer.id).valueOr:
+    if not PeerId.init(peer.id).isOk():
       continue
 
     # add provider to providerManager
@@ -175,7 +175,7 @@ proc handleAddProvider*(
 
 proc dispatchGetProviders(
     switch: Switch, peer: PeerId, key: Key
-): Future[HashSet[Provider]] {.
+): Future[(HashSet[Provider], seq[Peer])] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
 .} =
   let conn = await switch.dial(peer, KadCodec)
@@ -197,7 +197,16 @@ proc dispatchGetProviders(
       continue
     providers.incl(peer)
 
-  return providers
+  return (providers, reply.closerPeers)
+
+proc nextCandidates(
+    allCandidates: HashSet[PeerId], visitedCandidates: HashSet[PeerId], alpha: int
+): seq[PeerId] =
+  let unvisitedCandidates = allCandidates - visitedCandidates
+  if unvisitedCandidates.len() == 0:
+    return @[]
+
+  return unvisitedCandidates.toSeq()[0 .. min(alpha, unvisitedCandidates.len() - 1)]
 
 proc getProviders*(
     kad: KadDHT, key: Key
@@ -206,12 +215,23 @@ proc getProviders*(
 .} =
   ## Get providers for a given `key` from the nodes closest to that `key`.
 
-  var allProviders: HashSet[Provider]
+  var
+    allCandidates: HashSet[PeerId] = (await kad.findNode(key)).toHashSet()
+    visitedCandidates: HashSet[PeerId]
+    allProviders: HashSet[Provider]
 
-  for chunk in (await kad.findNode(key)).toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
-    for res in await rpcBatch.collectCompleted(kad.config.timeout):
-      allProviders.incl(res)
+  # run until we find at least K providers
+  while allProviders.len() < kad.config.replication:
+    let candidates = nextCandidates(allCandidates, visitedCandidates, kad.config.alpha)
+    if candidates.len() == 0:
+      break
+
+    let rpcBatch = candidates.mapIt(kad.switch.dispatchGetProviders(it, key))
+    for (providers, closerPeers) in await rpcBatch.collectCompleted(kad.config.timeout):
+      allProviders.incl(providers)
+      allCandidates.incl(closerPeers.toPeerIds().toHashSet())
+
+    visitedCandidates.incl(candidates.toHashSet())
 
   return allProviders
 
