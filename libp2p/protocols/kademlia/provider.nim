@@ -207,19 +207,23 @@ proc getProviders*(
   ## Get providers for a given `key` from the nodes closest to that `key`.
 
   var
-    candidates: seq[PeerId] = await kad.findNode(key)
+    candidates: HashSet[PeerId]
     allProviders: HashSet[Provider]
+
+  for peer in (await kad.findNode(key)):
+    candidates.incl(peer)
 
   # run until we find at least K providers
   var curTry = 0
   while allProviders.len() < kad.config.replication and curTry < kad.config.retries:
-    for chunk in candidates.toChunks(kad.config.alpha):
+    for chunk in candidates.toSeq().toChunks(kad.config.alpha):
       let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
       for (providers, closerPeers) in await rpcBatch.collectCompleted(
         kad.config.timeout
       ):
         allProviders.incl(providers)
-        candidates = closerPeers.toPeerIds()
+        for pid in closerPeers.toPeerIds():
+          candidates.incl(pid)
     curTry.inc()
 
   return allProviders
