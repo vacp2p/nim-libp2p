@@ -216,3 +216,15 @@ proc sendRequestToLibP2PThread*(
   sendRequest(
     ctx, reqType, reqContent, userData, CallbackKind.CONNECTION, cast[pointer](callback)
   )
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: Libp2pReadCallback,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for read callbacks
+  sendRequest(
+    ctx, reqType, reqContent, userData, CallbackKind.READ, cast[pointer](callback)
+  )

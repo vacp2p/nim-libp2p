@@ -17,13 +17,10 @@ import std/json, results
 import chronos, chronos/threadsync
 import
   ../../[ffi_types, types],
-  ./requests/
-    [
-      libp2p_lifecycle_requests,
-      libp2p_peer_manager_requests,
-      libp2p_pubsub_requests,
-      libp2p_stream_requests,
-    ],
+  ./requests/[
+    libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
+    libp2p_stream_requests,
+  ],
   ../../../libp2p
 
 type RequestType* {.pure.} = enum
@@ -37,6 +34,7 @@ type CallbackKind* {.pure.} = enum
   PEER_INFO
   CONNECTED_PEERS
   CONNECTION
+  READ
 
 ## Central request object passed to the LibP2P thread
 type LibP2PThreadRequest* = object
@@ -126,6 +124,25 @@ proc handleConnectedPeersRes(
 
   deallocConnectedPeers(peers)
 
+proc handleReadRes(
+    res: Result[ptr ReadResponse, string], request: ptr LibP2PThreadRequest
+) =
+  defer:
+    deallocShared(request)
+
+  let cb = cast[Libp2pReadCallback](request[].callback)
+
+  let dataRes = res.valueOr:
+    foreignThreadGc:
+      let msg = $error
+      cb(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+    return
+
+  foreignThreadGc:
+    cb(RET_OK.cint, dataRes[].data, dataRes[].dataLen, nil, 0, request[].userData)
+
+  deallocReadResponse(dataRes)
+
 proc handleConnectionRes(
     res: Result[ptr Libp2pStream, string], request: ptr LibP2PThreadRequest
 ) =
@@ -186,6 +203,10 @@ proc process*(
       handleRes(await req.processClose(libp2p), request)
     of StreamMsgType.RELEASE:
       handleRes(await req.processRelease(libp2p), request)
+    of StreamMsgType.WRITE, StreamMsgType.WRITELP:
+      handleRes(await req.processWrite(libp2p), request)
+    of StreamMsgType.READEXACTLY, StreamMsgType.READLP:
+      handleReadRes(await req.processRead(libp2p), request)
 
 # String representation of the request type
 proc `$`*(self: LibP2PThreadRequest): string =
