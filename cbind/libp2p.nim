@@ -112,6 +112,66 @@ proc initializeLibrary() {.exported.} =
 ################################################################################
 ### Exported procs
 
+proc libp2p_create_cid(
+    version: cuint,
+    multicodec: cstring,
+    hash: cstring,
+    data: ptr byte,
+    dataLen: csize_t,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+
+  if callback.isNil():
+    return RET_MISSING_CALLBACK.cint
+
+  if multicodec.isNil() or hash.isNil():
+    let msg = "multicodec or hash is not set"
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  if dataLen > 0 and data.isNil():
+    let msg = "data is not set"
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  var payload: seq[byte]
+  if dataLen == 0:
+    payload = @[]
+  else:
+    payload = newSeq[byte](int(dataLen))
+    copyMem(addr payload[0], data, int(dataLen))
+
+  let cidVer =
+    case int(version)
+    of 0:
+      CIDv0
+    of 1:
+      CIDv1
+    else:
+      let msg = "cid version must be 0 or 1"
+      callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+      return RET_ERR.cint
+
+  let mc = MultiCodec.codec($multicodec)
+
+  let mhRes = MultiHash.digest($hash, payload)
+  let mh = mhRes.valueOr:
+    let msg = "multihash error: " & $mhRes.error
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  let cidRes = Cid.init(cidVer, mc, mh)
+  let cid = cidRes.valueOr:
+    let msg = "cid init error: " & $cidRes.error
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  let cidStr = $cid
+  callback(RET_OK.cint, addr cidStr[0], cast[csize_t](len(cidStr)), userData)
+  RET_OK.cint
+
 proc libp2p_new(
     callback: Libp2pCallback, userData: pointer
 ): pointer {.dynlib, exportc, cdecl.} =
@@ -623,6 +683,54 @@ proc libp2p_add_provider(
     ctx,
     RequestType.KADEMLIA,
     KademliaRequest.createShared(KademliaMsgType.ADD_PROVIDER, cid = cid),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_start_providing(
+    ctx: ptr LibP2PContext, cid: cstring, callback: Libp2pCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if cid.isNil():
+    let msg = "cid is nil"
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(KademliaMsgType.START_PROVIDING, cid = cid),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_stop_providing(
+    ctx: ptr LibP2PContext, cid: cstring, callback: Libp2pCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if cid.isNil():
+    let msg = "cid is nil"
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(KademliaMsgType.STOP_PROVIDING, cid = cid),
     callback,
     userData,
   ).isOkOr:

@@ -104,6 +104,10 @@ typedef ValidationResult ValidatorHandler(const char *topic, Message msg);
 typedef void TopicHandler(const char *topic, uint8_t *data, size_t len,
                           void *userData);
 
+int libp2p_create_cid(uint32_t version, const char *multicodec, const char *hash,
+                      const uint8_t *data, size_t dataLen, Libp2pCallback callback,
+                      void *userData);
+
 libp2p_ctx_t *libp2p_new(Libp2pCallback callback, void *userData);
 
 int libp2p_destroy(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
@@ -182,6 +186,12 @@ int libp2p_get_value(void *ctx, const uint8_t *key, size_t keyLen,
 
 int libp2p_add_provider(void *ctx, const char *cid, Libp2pCallback callback,
                         void *userData);
+
+int libp2p_start_providing(void *ctx, const char *cid, Libp2pCallback callback,
+                           void *userData);
+
+int libp2p_stop_providing(void *ctx, const char *cid, Libp2pCallback callback,
+                          void *userData);
 
 int libp2p_get_providers(void *ctx, const char *cid,
                          GetProvidersCallback callback, void *userData);
