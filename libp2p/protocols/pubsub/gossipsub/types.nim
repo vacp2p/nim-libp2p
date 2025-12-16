@@ -177,6 +177,8 @@ type
 
     # Max number of elements allowed in the non-priority queue. When this limit has been reached, the peer will be disconnected.
     maxNumElementsInNonPriorityQueue*: int
+    # Max number of elements allowed in the priority queue. Messages beyond this limit are dropped.
+    maxNumElementsInPriorityQueue*: int
 
     # Broadcast an IDONTWANT message automatically when the message exceeds the IDONTWANT message size threshold
     sendIDontWantOnPublish*: bool

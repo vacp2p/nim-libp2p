@@ -109,6 +109,7 @@ proc init*(
     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
+    maxNumElementsInPriorityQueue = DefaultMaxNumElementsInPriorityQueue,
     sendIDontWantOnPublish = false,
 ): GossipSubParams =
   GossipSubParams(
@@ -147,6 +148,7 @@ proc init*(
     overheadRateLimit: overheadRateLimit,
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
+    maxNumElementsInPriorityQueue: maxNumElementsInPriorityQueue,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
   )
 
@@ -181,6 +183,8 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: behaviourPenaltyDecay parameter error, Must be between 0 and 1")
   elif parameters.maxNumElementsInNonPriorityQueue <= 0:
     err("gossipsub: maxNumElementsInNonPriorityQueue parameter error, Must be > 0")
+  elif parameters.maxNumElementsInPriorityQueue <= 0:
+    err("gossipsub: maxNumElementsInPriorityQueue parameter error, Must be > 0")
   else:
     ok()
 
@@ -1050,4 +1054,5 @@ method getOrCreatePeer*(
     peer.overheadRateLimitOpt =
       Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
   peer.maxNumElementsInNonPriorityQueue = g.parameters.maxNumElementsInNonPriorityQueue
+  peer.maxNumElementsInPriorityQueue = g.parameters.maxNumElementsInPriorityQueue
   return peer
