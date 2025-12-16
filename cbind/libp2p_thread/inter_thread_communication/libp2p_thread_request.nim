@@ -38,6 +38,7 @@ type CallbackKind* {.pure.} = enum
   GET_PROVIDERS
   CONNECTED_PEERS
   CONNECTION
+  READ
 
 ## Central request object passed to the LibP2P thread
 type LibP2PThreadRequest* = object
@@ -132,7 +133,6 @@ proc handleFindNodeRes(
 ) =
   defer:
     deallocShared(request)
-
   let cb = cast[PeersCallback](request[].callback)
 
   let peers = res.valueOr:
@@ -146,13 +146,32 @@ proc handleFindNodeRes(
 
   deallocFindNodeResult(peers)
 
+proc handleReadRes(
+    res: Result[ptr ReadResponse, string], request: ptr LibP2PThreadRequest
+) =
+  defer:
+    deallocShared(request)
+
+  let cb = cast[Libp2pBufferCallback](request[].callback)
+
+  let dataRes = res.valueOr:
+    foreignThreadGc:
+      let msg = $error
+      cb(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+    return
+
+  foreignThreadGc:
+    cb(RET_OK.cint, dataRes[].data, dataRes[].dataLen, nil, 0, request[].userData)
+
+  deallocReadResponse(dataRes)
+
 proc handleGetValueRes(
     res: Result[ptr GetValueResult, string], request: ptr LibP2PThreadRequest
 ) =
   defer:
     deallocShared(request)
 
-  let cb = cast[GetValueCallback](request[].callback)
+  let cb = cast[Libp2pBufferCallback](request[].callback)
 
   let valueRes = res.valueOr:
     foreignThreadGc:
@@ -272,6 +291,10 @@ proc processStream(
     handleRes(await req.processClose(libp2p), request)
   of StreamMsgType.RELEASE:
     handleRes(await req.processRelease(libp2p), request)
+  of StreamMsgType.WRITE, StreamMsgType.WRITELP:
+    handleRes(await req.processWrite(libp2p), request)
+  of StreamMsgType.READEXACTLY, StreamMsgType.READLP:
+    handleReadRes(await req.processRead(libp2p), request)
 
 # Dispatcher for processing the request based on its type
 # Casts reqContent to the correct request struct and runs its `.process()` logic

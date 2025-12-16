@@ -42,6 +42,9 @@ static void connection_handler(int callerRet, libp2p_stream_t *conn,
                                const char *msg, size_t len, void *userData);
 static void create_cid_handler(int callerRet, const char *msg, size_t len,
                                void *userData);
+static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
+                         const char *msg, size_t len, void *userData);
+static void print_bytes(const char *label, const uint8_t *data, size_t dataLen);
 
 // libp2p Context
 libp2p_ctx_t *ctx1;
@@ -64,6 +67,8 @@ int main(int argc, char **argv) {
   libp2p_start(ctx2, event_handler, NULL);
   waitForCallback();
 
+  // Obtaining the node's peerId and multiaddresses in which it is listening
+
   libp2p_peerinfo(ctx2, peerinfo_handler, &pi);
   waitForCallback();
 
@@ -71,16 +76,29 @@ int main(int argc, char **argv) {
                  NULL);
   waitForCallback();
 
+  // Use Direction_in for the list of peers that opened a connection to us
   printf("Retrieve list of peers we opened a connection to:\n");
   libp2p_connected_peers(ctx1, Direction_Out, peers_handler, NULL);
   waitForCallback();
 
-  // Dialing a protocol
-
   libp2p_dial(ctx1, pi.peerId, "/ipfs/ping/1.0.0", connection_handler, NULL);
   waitForCallback();
 
-  sleep(2);
+  uint8_t ping_payload[32] = {0};
+  for (size_t i = 0; i < sizeof(ping_payload); i++) {
+    ping_payload[i] = (uint8_t)i;
+  }
+
+  // Interacting with a stream
+
+  print_bytes("Writing bytes", ping_payload, sizeof(ping_payload));
+  libp2p_stream_write(ctx1, ping_stream, ping_payload, sizeof(ping_payload),
+                      event_handler, NULL);
+  waitForCallback();
+
+  libp2p_stream_readExactly(ctx1, ping_stream, sizeof(ping_payload),
+                            read_handler, NULL);
+  waitForCallback();
 
   libp2p_stream_closeWithEOF(ctx1, ping_stream, event_handler, NULL);
   waitForCallback();
@@ -90,8 +108,6 @@ int main(int argc, char **argv) {
   ping_stream = NULL;
 
   // GossipSub
-
-  libp2p_gossipsub_subscribe(ctx1, "test", topic_handler, event_handler, NULL);
 
   libp2p_gossipsub_subscribe(ctx1, "test", topic_handler, event_handler, NULL);
   waitForCallback();
@@ -276,8 +292,8 @@ static void create_cid_handler(int callerRet, const char *msg, size_t len,
   signal_callback_executed();
 }
 
-static void get_value_handler(int callerRet, const uint8_t *value,
-                              size_t valueLen, const char *msg, size_t len,
+static void get_value_handler(int callerRet, const uint8_t *data,
+                              size_t dataLen, const char *msg, size_t len,
                               void *userData) {
   if (callerRet != RET_OK) {
     printf("GetValue error(%d): %.*s\n", callerRet, (int)len,
@@ -287,9 +303,9 @@ static void get_value_handler(int callerRet, const uint8_t *value,
     // exit(1);
   }
 
-  printf("GetValue received (%zu bytes): ", valueLen);
-  for (size_t i = 0; i < valueLen; i++) {
-    printf("%02x", value[i]);
+  printf("GetValue received (%zu bytes): ", dataLen);
+  for (size_t i = 0; i < dataLen; i++) {
+    printf("%02x", data[i]);
   }
   printf("\n");
 
@@ -346,6 +362,23 @@ static void waitForCallback(void) {
   pthread_mutex_unlock(&mutex);
 }
 
+static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
+                         const char *msg, size_t len, void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Read error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  printf("Read %zu bytes from ping stream\n", dataLen);
+  print_bytes("Read bytes", data, dataLen);
+
+  pthread_mutex_lock(&mutex);
+  callback_executed = 1;
+  pthread_cond_signal(&cond);
+  pthread_mutex_unlock(&mutex);
+}
+
 static void free_peerinfo(PeerInfo *pi) {
   if (pi == NULL)
     return;
@@ -356,4 +389,15 @@ static void free_peerinfo(PeerInfo *pi) {
   pi->addrs = NULL;
   pi->addrCount = 0;
   pi->peerId[0] = '\0';
+}
+
+static void print_bytes(const char *label, const uint8_t *data,
+                        size_t dataLen) {
+  printf("%s (%zu bytes):", label, dataLen);
+  for (size_t i = 0; i < dataLen; i++) {
+    if (i % 16 == 0)
+      printf("\n  ");
+    printf("%02x ", data[i]);
+  }
+  printf("\n");
 }

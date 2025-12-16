@@ -29,6 +29,11 @@ extern "C" {
 typedef void (*Libp2pCallback)(int callerRet, const char *msg, size_t len,
                                void *userData);
 
+typedef void (*Libp2pBufferCallback)(int callerRet, const uint8_t *data,
+                                   size_t dataLen,
+                                   const char *msg, size_t len,
+                                   void *userData);
+
 typedef void (*PubsubTopicHandler)(const char *topic, uint8_t *data, size_t len,
                                    void *userData);
 
@@ -68,9 +73,6 @@ enum {
   Direction_In = 0,
   Direction_Out = 1,
 };
-typedef void (*GetValueCallback)(int callerRet, const uint8_t *value,
-                                 size_t valueLen, const char *msg, size_t len,
-                                 void *userData);
 
 typedef void (*GetProvidersCallback)(int callerRet,
                                      const Libp2pPeerInfo *providers,
@@ -154,6 +156,22 @@ int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
 int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
                 ConnectionCallback callback, void *userData);
 
+int libp2p_stream_readExactly(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                              size_t dataLen, Libp2pBufferCallback callback,
+                              void *userData);
+
+int libp2p_stream_readLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                         int64_t maxSize, Libp2pBufferCallback callback,
+                         void *userData);
+
+int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                        uint8_t *data, size_t dataLen,
+                        Libp2pCallback callback, void *userData);
+
+int libp2p_stream_writeLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                          uint8_t *data, size_t dataLen,
+                          Libp2pCallback callback, void *userData);
+
 int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
                         Libp2pCallback callback, void *userData);
 
@@ -199,7 +217,7 @@ int libp2p_put_value(void *ctx, const uint8_t *key, size_t keyLen,
                      Libp2pCallback callback, void *userData);
 
 int libp2p_get_value(void *ctx, const uint8_t *key, size_t keyLen,
-                     int quorumOverride, GetValueCallback callback,
+                     int quorumOverride, Libp2pBufferCallback callback,
                      void *userData);
 
 int libp2p_add_provider(void *ctx, const char *cid, Libp2pCallback callback,

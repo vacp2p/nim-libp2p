@@ -203,18 +203,6 @@ proc sendRequestToLibP2PThread*(
     ctx: ptr LibP2PContext,
     reqType: RequestType,
     reqContent: pointer,
-    callback: GetValueCallback,
-    userData: pointer,
-): Result[void, string] =
-  ## Sends a request to the LibP2P thread for get-value callbacks
-  sendRequest(
-    ctx, reqType, reqContent, userData, CallbackKind.GET_VALUE, cast[pointer](callback)
-  )
-
-proc sendRequestToLibP2PThread*(
-    ctx: ptr LibP2PContext,
-    reqType: RequestType,
-    reqContent: pointer,
     callback: GetProvidersCallback,
     userData: pointer,
 ): Result[void, string] =
@@ -238,4 +226,17 @@ proc sendRequestToLibP2PThread*(
   ## Sends a request to the LibP2P thread for connection callbacks
   sendRequest(
     ctx, reqType, reqContent, userData, CallbackKind.CONNECTION, cast[pointer](callback)
+  )
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: Libp2pBufferCallback,
+    callbackKind: CallbackKind,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for buffer callbacks
+  sendRequest(
+    ctx, reqType, reqContent, userData, callbackKind, cast[pointer](callback)
   )

@@ -384,6 +384,138 @@ proc libp2p_dial(
 
   return RET_OK.cint
 
+proc libp2p_stream_readExactly(
+    ctx: ptr LibP2PContext,
+    conn: ptr Libp2pStream,
+    dataLen: csize_t,
+    callback: Libp2pBufferCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if conn.isNil():
+    let msg = "connection is not set 1"
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.READEXACTLY, conn = conn, readLen = dataLen
+    ),
+    callback,
+    CallbackKind.READ,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_stream_readLp(
+    ctx: ptr LibP2PContext,
+    conn: ptr Libp2pStream,
+    maxSize: int64,
+    callback: Libp2pBufferCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if conn.isNil():
+    let msg = "connection is not set"
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(StreamMsgType.READLP, conn = conn, maxSize = maxSize),
+    callback,
+    CallbackKind.READ,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_stream_write(
+    ctx: ptr LibP2PContext,
+    conn: ptr Libp2pStream,
+    data: ptr byte,
+    dataLen: csize_t,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if conn.isNil():
+    let msg = "connection is not set"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  if data.isNil() and dataLen > 0:
+    let msg = "data is not set"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.WRITE, conn = conn, data = data, dataLen = dataLen
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_stream_writeLp(
+    ctx: ptr LibP2PContext,
+    conn: ptr Libp2pStream,
+    data: ptr byte,
+    dataLen: csize_t,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if conn.isNil():
+    let msg = "connection is not set"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  if data.isNil() and dataLen > 0:
+    let msg = "data is not set"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.WRITELP, conn = conn, data = data, dataLen = dataLen
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
 proc libp2p_stream_close(
     ctx: ptr LibP2PContext,
     conn: ptr Libp2pStream,
@@ -639,7 +771,7 @@ proc libp2p_get_value(
     key: ptr byte,
     keyLen: csize_t,
     quorumOverride: cint,
-    callback: GetValueCallback,
+    callback: Libp2pBufferCallback,
     userData: pointer,
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
@@ -660,6 +792,7 @@ proc libp2p_get_value(
       quorumOverride = quorumOverride,
     ),
     callback,
+    CallbackKind.GET_VALUE,
     userData,
   ).isOkOr:
     let msg = "libp2p error: " & $error
