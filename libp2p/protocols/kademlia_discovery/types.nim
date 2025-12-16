@@ -120,7 +120,7 @@ proc payloadDomain*(T: typedesc[LogosPeerRecord]): string =
   $multiCodec("libp2p-peer-record")
 
 proc payloadType*(T: typedesc[LogosPeerRecord]): seq[byte] =
-  "/libp2p/logos-routing-record/".charsToBytes()
+  "/libp2p/logos-routing-record/".toBytes()
 
 proc checkValid*(spr: SignedLogosPeerRecord): Result[void, EnvelopeError] =
   if not spr.data.peerId.match(spr.envelope.publicKey):

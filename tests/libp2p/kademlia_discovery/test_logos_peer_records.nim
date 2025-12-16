@@ -9,9 +9,10 @@
 
 {.used.}
 
-import ../../../libp2p/[crypto/crypto, peerid, multiaddress]
-import ../../../libp2p/protocols/kad_disco
-import ../../tools/unittest
+import stew/byteutils
+import ../../../libp2p/[crypto/crypto, peerid, multiaddress, routing_record]
+import ../../../libp2p/protocols/kademlia_discovery/types
+import ../../tools/[unittest, crypto]
 
 suite "Logos peer record":
   test "Encode -> decode test":
@@ -141,7 +142,7 @@ suite "Signed Logos Peer Record":
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses =
         @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
-      services = newSeq[ServiceInfo]
+      services: seq[ServiceInfo] = @[]
       routingRecord = LogosPeerRecord.init(peerId, multiAddresses, 42, services)
 
       buffer = routingRecord.encode()

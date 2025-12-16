@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, chronicles, results, sets, sequtils
+import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo]
 import ./kademlia
@@ -23,8 +23,21 @@ proc refreshSelfSignedPeerRecord(
 ) {.async: (raises: [CancelledError]).} =
   await disco.switch.peerInfo.update()
 
-  let logosPeerRecord =
-    LogosPeerRecord.init(disco.switch.peerInfo, disco.services.toSeq())
+  let
+    peerInfo: PeerInfo = disco.switch.peerInfo
+    services: seq[ServiceInfo] = disco.services.toSeq()
+
+  let logosPeerRecord = SignedLogosPeerRecord.init(
+    peerInfo.privateKey,
+    LogosPeerRecord(
+      peerId: peerInfo.peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
+      services: services,
+    ),
+  ).valueOr:
+    error "Failed to create signed peer record", error
+    return
 
   let encodedSR = logosPeerRecord.encode().valueOr:
     error "Failed to encode signed peer record", error
