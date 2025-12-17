@@ -173,7 +173,7 @@ proc handleAddProvider*(
       )
     )
 
-proc dispatchGetProviders(
+proc dispatchGetProviders*(
     switch: Switch, peer: PeerId, key: Key
 ): Future[(HashSet[Provider], seq[Peer])] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
