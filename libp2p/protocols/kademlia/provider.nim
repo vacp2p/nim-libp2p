@@ -231,9 +231,8 @@ proc getProviders*(
 
       let rpcBatch = candidates.mapIt(kad.switch.dispatchGetProviders(it, key))
 
-      for (providers, closerPeers) in await rpcBatch.collectCompleted(
-        kad.config.timeout
-      ):
+      let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
+      for (providers, closerPeers) in completedRPCBatch:
         allProviders.incl(providers)
         allCandidates.incl(closerPeers.toPeerIds().toHashSet())
 
