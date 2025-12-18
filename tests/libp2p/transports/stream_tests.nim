@@ -16,15 +16,43 @@ import ./utils
 
 template streamTransportTest*(
     transportProvider: TransportProvider,
-    address: string,
+    addressIP4: MultiAddress,
+    addressIP6: Opt[MultiAddress],
     streamProvider: StreamProvider,
 ) =
   const serverMessage =
     "Privacy is necessary for an open society in the electronic age."
   const clientMessage = "We can be decentralised yet cooperative."
 
-  asyncTest "transport e2e":
-    let ma = @[MultiAddress.init(address).tryGet()]
+  asyncTest "transport e2e::ipv4":
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        var buffer: array[clientMessage.len, byte]
+        await stream.readExactly(addr buffer, clientMessage.len)
+        check string.fromBytes(buffer) == clientMessage
+
+        await stream.write(serverMessage)
+
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.write(clientMessage)
+
+        var buffer: array[serverMessage.len, byte]
+        await stream.readExactly(addr buffer, serverMessage.len)
+        check string.fromBytes(buffer) == serverMessage
+
+    await runSingleStreamScenario(
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
+  asyncTest "transport e2e::ipv6":
+    if addressIP6.isNone:
+      skip() # ipv6 not supported
+      return
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
@@ -43,12 +71,14 @@ template streamTransportTest*(
         check string.fromBytes(buffer) == serverMessage
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP6.get()],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "read/write Lp":
-    let ma = @[MultiAddress.init(address).tryGet()]
-
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         check (await stream.readLp(100)) == fromHex("1234")
@@ -60,11 +90,14 @@ template streamTransportTest*(
         check (await stream.readLp(100)) == fromHex("5678")
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "EOF handling - first readOnce at EOF + repeated reads":
-    let ma = @[MultiAddress.init(address).tryGet()]
     var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
@@ -94,11 +127,14 @@ template streamTransportTest*(
         await serverHandlerDone
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "server writes after EOF":
-    let ma = @[MultiAddress.init(address).tryGet()]
     var clientHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
@@ -129,7 +165,7 @@ template streamTransportTest*(
       clientHandlerDone.complete()
 
     let server = transportProvider()
-    await server.start(ma)
+    await server.start(@[addressIP4])
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
@@ -138,7 +174,6 @@ template streamTransportTest*(
     await server.stop()
 
   asyncTest "incomplete read":
-    let ma = @[MultiAddress.init(address).tryGet()]
     var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
@@ -160,12 +195,14 @@ template streamTransportTest*(
         await serverHandlerDone
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "client closeWrite - server can still write":
-    let ma = @[MultiAddress.init(address).tryGet()]
-
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Client reads server data
@@ -196,12 +233,14 @@ template streamTransportTest*(
         check string.fromBytes(buffer) == clientMessage
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "multiple empty writes before closeWrite":
-    let ma = @[MultiAddress.init(address).tryGet()]
-
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Even with multiple empty writes, reading should eventually get EOF
@@ -218,12 +257,14 @@ template streamTransportTest*(
         await stream.closeWrite()
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "closeWrite immediately after newStream":
-    let ma = @[MultiAddress.init(address).tryGet()]
-
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Should get EOF immediately
@@ -237,11 +278,14 @@ template streamTransportTest*(
         await stream.closeWrite()
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "closing session should close all streams":
-    let ma = @[MultiAddress.init(address).tryGet()]
     const numStreams = 20
     const numIncomplete = 10
     const numComplete = numStreams - numIncomplete
@@ -285,7 +329,7 @@ template streamTransportTest*(
       await client.stop()
 
     let server = transportProvider()
-    await server.start(ma)
+    await server.start(@[addressIP4])
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
@@ -294,7 +338,6 @@ template streamTransportTest*(
     await server.stop()
 
   asyncTest "stream caching with multiple partial reads":
-    let ma = @[MultiAddress.init(address).tryGet()]
     const messageSize = 2048
     const chunkSize = 256
     let message = newData(messageSize)
@@ -313,11 +356,14 @@ template streamTransportTest*(
         await serverHandlerDone
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "stream with multiple parallel writes":
-    let ma = @[MultiAddress.init(address).tryGet()]
     const messageSize = 2 * 1024 * 1024
     const chunkSize = 256 * 1024
     const parallelWrites = 10
@@ -357,11 +403,14 @@ template streamTransportTest*(
         await serverHandlerDone
 
     await runSingleStreamScenario(
-      ma, transportProvider, streamProvider, serverStreamHandler, clientStreamHandler
+      @[addressIP4],
+      transportProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
     )
 
   asyncTest "connection with multiple parallel streams":
-    let ma = @[MultiAddress.init(address).tryGet()]
     const chunkSize = 64
     const chunkCount = 32
     const messageSize = chunkSize * chunkCount
@@ -430,7 +479,7 @@ template streamTransportTest*(
       await client.stop()
 
     let server = transportProvider()
-    await server.start(ma)
+    await server.start(@[addressIP4])
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
@@ -447,7 +496,6 @@ template streamTransportTest*(
     echo serverReadOrder
 
   asyncTest "server with multiple parallel connections":
-    let ma = @[MultiAddress.init(address).tryGet()]
     const chunkSize = 64
     const chunkCount = 32
     const messageSize = chunkSize * chunkCount
@@ -531,7 +579,7 @@ template streamTransportTest*(
       await client.stop()
 
     let server = transportProvider()
-    await server.start(ma)
+    await server.start(@[addressIP4])
     let serverTask = serverHandler(server)
 
     # Start multiple concurrent clients
@@ -549,6 +597,6 @@ template streamTransportTest*(
     # Sequential execution would have only 4 transitions [0,0,0,1,1,1,3,3,3,2,2,2,4,4,4]
     # We expect at least 50%
     # TODO: nim-libp2p#1859 Tor transport: Server with multiple connections processes data sequentially in the tests
-    if not (isTorTransport(ma[0])):
+    if not (isTorTransport(addressIP4)):
       check countTransitions(serverReadOrder) >= (numConnections * chunkCount) div 2
     echo serverReadOrder
