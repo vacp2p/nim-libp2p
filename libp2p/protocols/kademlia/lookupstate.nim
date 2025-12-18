@@ -31,14 +31,13 @@ proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
   return state.shortlist.anyIt(it.peerId.getBytes() == peer.id)
 
 proc updateShortlist*(
-    state: var LookupState,
-    msg: Message,
-    onInsert: proc(p: PeerInfo) {.gcsafe, raises: [].},
-    hasher: Opt[XorDHasher],
-) {.raises: [].} =
+    state: var LookupState, msg: Message, hasher: Opt[XorDHasher]
+): seq[PeerInfo] {.raises: [].} =
+  var newPeerInfos: seq[PeerInfo]
+
   for newPeer in msg.closerPeers.filterIt(not alreadyInShortlist(state, it)):
     let peerInfo = PeerInfo(peerId: PeerId.init(newPeer.id).get(), addrs: newPeer.addrs)
-    onInsert(peerInfo)
+    newPeerInfos.add(peerInfo)
 
     state.shortlist.add(
       LookupNode(
@@ -56,6 +55,8 @@ proc updateShortlist*(
   )
 
   state.activeQueries.dec
+
+  return newPeerInfos
 
 proc markFailed*(state: var LookupState, peerId: PeerId) =
   for p in mitems(state.shortlist):

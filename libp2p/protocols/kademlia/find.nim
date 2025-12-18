@@ -48,6 +48,19 @@ proc sendFindNode*(
 
   return reply
 
+proc updatePeers(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
+  for p in peerInfos:
+    discard kad.rtable.insert(p.peerId)
+    # Nodes might return different addresses for a peer, so we append instead of replacing
+    try:
+      var existingAddresses = kad.switch.peerStore[AddressBook][p.peerId].toHashSet()
+      for a in p.addrs:
+        existingAddresses.incl(a)
+      kad.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
+    except KeyError as exc:
+      debug "Could not update shortlist", err = exc.msg
+    # TODO: add TTL to peerstore, otherwise we can spam it with junk
+
 proc findNode*(
     kad: KadDHT, targetId: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
@@ -73,11 +86,10 @@ proc findNode*(
       let addrs = addrTable.getOrDefault(peer, @[])
       if addrs.len == 0:
         state.markFailed(peer)
-        continue
-      pendingFutures[peer] =
-        kad.sendFindNode(peer, addrs, targetId).wait(chronos.seconds(5))
-
-      state.activeQueries.inc
+      else:
+        pendingFutures[peer] =
+          kad.sendFindNode(peer, addrs, targetId).wait(chronos.seconds(5))
+        state.activeQueries.inc
 
     let (successfulReplies, timedOutPeers) = await waitRepliesOrTimeouts(pendingFutures)
 
@@ -88,23 +100,8 @@ proc findNode*(
           error "Invalid PeerId in successful reply", peerId = peer.id
           continue
         addrTable[pid.get()] = peer.addrs
-      state.updateShortlist(
-        msg,
-        proc(p: PeerInfo) {.raises: [].} =
-          discard kad.rtable.insert(p.peerId)
-          # Nodes might return different addresses for a peer, so we append instead of replacing
-          try:
-            var existingAddresses =
-              kad.switch.peerStore[AddressBook][p.peerId].toHashSet()
-            for a in p.addrs:
-              existingAddresses.incl(a)
-            kad.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
-          except KeyError as exc:
-            debug "Could not update shortlist", err = exc.msg
-          # TODO: add TTL to peerstore, otherwise we can spam it with junk
-        ,
-        kad.rtable.config.hasher,
-      )
+      let newPeerInfos = state.updateShortlist(msg, kad.rtable.config.hasher)
+      kad.updatePeers(newPeerInfos)
 
     for timedOut in timedOutPeers:
       state.markFailed(timedOut)
