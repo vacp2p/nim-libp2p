@@ -178,6 +178,14 @@ window.addEventListener("DOMContentLoaded", main2);
 <li><a class="reference" href="#del%2CProviderRecords%2CNatural" title="del(pr: ProviderRecords; index: Natural)">del(pr: ProviderRecords; index: Natural)</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">dispatchGetProviders
+  <li><a class="reference" href="#dispatchGetProviders%2CSwitch%2CPeerId%2CKey" title="dispatchGetProviders(switch: Switch; peer: PeerId; key: Key): InternalRaisesFuture[
+    (HashSet[Provider], seq[Peer]),
+    (CancelledError, DialFailedError, LPStreamError)]">dispatchGetProviders(switch: Switch; peer: PeerId; key: Key): InternalRaisesFuture[
+    (HashSet[Provider], seq[Peer]),
+    (CancelledError, DialFailedError, LPStreamError)]</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">find
   <li><a class="reference" href="#find%2CProviderRecords%2CProviderRecord" title="find(pr: ProviderRecords; record: ProviderRecord): int">find(pr: ProviderRecords; record: ProviderRecord): int</a></li>
 
@@ -359,6 +367,22 @@ Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self'
 </div>
 
 </div>
+<div id="dispatchGetProviders-procs-all">
+  <div id="dispatchGetProviders,Switch,PeerId,Key" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#dispatchGetProviders%2CSwitch%2CPeerId%2CKey"><span class="Identifier">dispatchGetProviders</span></a><span class="Other">(</span><span class="Identifier">switch</span><span class="Other">:</span> <a href="../../switch.html#Switch"><span class="Identifier">Switch</span></a><span class="Other">;</span> <span class="Identifier">peer</span><span class="Other">:</span> <a href="../../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">key</span><span class="Other">:</span> <a href="types.html#Key"><span class="Identifier">Key</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <span class="Other">(</span><span class="Identifier">HashSet</span><span class="Other">[</span><a href="types.html#Provider"><span class="Identifier">Provider</span></a><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="protobuf.html#Peer"><span class="Identifier">Peer</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">,</span>
+    <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../../dial.html#DialFailedError"><span class="Identifier">DialFailedError</span></a><span class="Other">,</span> <a href="../../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
+    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/provider.nim#L179" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/provider.nim#L179" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
 <div id="find-procs-all">
   <div id="find,ProviderRecords,ProviderRecord" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#find%2CProviderRecords%2CProviderRecord"><span class="Identifier">find</span></a><span class="Other">(</span><span class="Identifier">pr</span><span class="Other">:</span> <a href="types.html#ProviderRecords"><span class="Identifier">ProviderRecords</span></a><span class="Other">;</span> <span class="Identifier">record</span><span class="Other">:</span> <a href="types.html#ProviderRecord"><span class="Identifier">ProviderRecord</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span class="Identifier">inline</span><span class="Other">,</span>
@@ -412,8 +436,8 @@ Get providers for a given <tt class="docutils literal"><span class="pre"><span c
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/provider.nim#L240" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/provider.nim#L240" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/kademlia/provider.nim#L262" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/kademlia/provider.nim#L262" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -576,7 +600,7 @@ Get providers for a given <tt class="docutils literal"><span class="pre"><span c
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-12-16 18:17:30 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-12-18 11:21:07 UTC</small>
       </div>
     </div>
   </div>
