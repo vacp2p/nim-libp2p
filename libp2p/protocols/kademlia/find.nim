@@ -13,11 +13,6 @@ import ../../[peerid, switch, multihash]
 import ../protocol
 import ./[routingtable, lookupstate, protobuf, types]
 
-proc checkConvergence(state: LookupState, me: PeerId): bool {.raises: [], gcsafe.} =
-  let ready = state.activeQueries == 0
-  let noNew = state.selectAlphaPeers().filterIt(me != it).len == 0
-  return ready and noNew
-
 proc waitRepliesOrTimeouts(
     pendingFutures: Table[PeerId, Future[Message]]
 ): Future[(seq[Message], seq[PeerId])] {.async: (raises: [CancelledError]).} =
@@ -60,14 +55,14 @@ proc findNode*(
 
   var initialPeers = kad.rtable.findClosestPeerIds(targetId, kad.config.replication)
   var state = LookupState.init(
-    targetId, initialPeers, kad.config.alpha, kad.config.replication,
-    kad.rtable.config.hasher,
+    kad.switch.peerInfo.peerId, targetId, initialPeers, kad.config.alpha,
+    kad.config.replication, kad.rtable.config.hasher,
   )
   var addrTable: Table[PeerId, seq[MultiAddress]]
   for p in initialPeers:
     addrTable[p] = kad.switch.peerStore[AddressBook][p]
 
-  while not state.done:
+  while not state.converged():
     let toQuery = state.selectAlphaPeers()
     debug "Find node queries",
       peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = addrTable
@@ -113,9 +108,6 @@ proc findNode*(
 
     for timedOut in timedOutPeers:
       state.markFailed(timedOut)
-
-    # Check for covergence: no active queries, and no other peers to be selected
-    state.done = checkConvergence(state, kad.switch.peerInfo.peerId)
 
   return state.selectClosestK()
 
