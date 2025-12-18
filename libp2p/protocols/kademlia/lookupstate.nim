@@ -20,12 +20,12 @@ type
     failed: bool # did the query timeout or error?
 
   LookupState* = object
+    pid: PeerId
     targetId: Key
     shortlist: seq[LookupNode] # current known closest node
     activeQueries*: int # how many queries in flight
     alpha: int # parallelism level
     replication: int ## aka `k`: number of closest nodes to find
-    done*: bool # has lookup converged
 
 proc alreadyInShortlist(state: LookupState, peer: Peer): bool =
   return state.shortlist.anyIt(it.peerId.getBytes() == peer.id)
@@ -84,6 +84,7 @@ proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
 
 proc init*(
     T: type LookupState,
+    pid: PeerId,
     targetId: Key,
     initialPeers: seq[PeerId],
     alpha: int,
@@ -91,12 +92,12 @@ proc init*(
     hasher: Opt[XorDHasher],
 ): T =
   var res = LookupState(
+    pid: pid,
     targetId: targetId,
     shortlist: @[],
     activeQueries: 0,
     alpha: alpha,
     replication: replication,
-    done: false,
   )
   for p in initialPeers:
     res.shortlist.add(
@@ -122,3 +123,8 @@ proc selectClosestK*(state: LookupState): seq[PeerId] =
     if res.len >= state.replication:
       break
   return res
+
+proc converged*(state: LookupState): bool {.raises: [], gcsafe.} =
+  let ready = state.activeQueries == 0
+  let noNew = state.selectAlphaPeers().filterIt(state.pid != it).len == 0
+  return ready and noNew
