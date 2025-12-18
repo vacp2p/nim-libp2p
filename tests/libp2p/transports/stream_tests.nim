@@ -14,69 +14,54 @@ import ../../../libp2p/[stream/connection, transports/transport, muxers/muxer]
 import ../../tools/[stream, sync]
 import ./utils
 
+const
+  serverMessage = "Privacy is necessary for an open society in the electronic age."
+  clientMessage = "We can be decentralised yet cooperative."
+
+template runTransportE2E(
+    transportProvider: TransportProvider,
+    streamProvider: StreamProvider,
+    address: MultiAddress,
+) =
+  proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    noExceptionWithStreamClose(stream):
+      var buffer: array[clientMessage.len, byte]
+      await stream.readExactly(addr buffer, clientMessage.len)
+      check string.fromBytes(buffer) == clientMessage
+
+      await stream.write(serverMessage)
+
+  proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    noExceptionWithStreamClose(stream):
+      await stream.write(clientMessage)
+
+      var buffer: array[serverMessage.len, byte]
+      await stream.readExactly(addr buffer, serverMessage.len)
+      check string.fromBytes(buffer) == serverMessage
+
+  await runSingleStreamScenario(
+    @[address],
+    transportProvider,
+    streamProvider,
+    serverStreamHandler,
+    clientStreamHandler,
+  )
+
 template streamTransportTest*(
     transportProvider: TransportProvider,
     addressIP4: MultiAddress,
     addressIP6: Opt[MultiAddress],
     streamProvider: StreamProvider,
 ) =
-  const serverMessage =
-    "Privacy is necessary for an open society in the electronic age."
-  const clientMessage = "We can be decentralised yet cooperative."
-
   asyncTest "transport e2e::ipv4":
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        var buffer: array[clientMessage.len, byte]
-        await stream.readExactly(addr buffer, clientMessage.len)
-        check string.fromBytes(buffer) == clientMessage
-
-        await stream.write(serverMessage)
-
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        await stream.write(clientMessage)
-
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
-
-    await runSingleStreamScenario(
-      @[addressIP4],
-      transportProvider,
-      streamProvider,
-      serverStreamHandler,
-      clientStreamHandler,
-    )
+    runTransportE2E(transportProvider, streamProvider, addressIP4)
 
   asyncTest "transport e2e::ipv6":
     if addressIP6.isNone:
       skip() # ipv6 not supported
       return
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        var buffer: array[clientMessage.len, byte]
-        await stream.readExactly(addr buffer, clientMessage.len)
-        check string.fromBytes(buffer) == clientMessage
-
-        await stream.write(serverMessage)
-
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
-      noExceptionWithStreamClose(stream):
-        await stream.write(clientMessage)
-
-        var buffer: array[serverMessage.len, byte]
-        await stream.readExactly(addr buffer, serverMessage.len)
-        check string.fromBytes(buffer) == serverMessage
-
-    await runSingleStreamScenario(
-      @[addressIP6.get()],
-      transportProvider,
-      streamProvider,
-      serverStreamHandler,
-      clientStreamHandler,
-    )
+    runTransportE2E(transportProvider, streamProvider, addressIP6.get())
 
   asyncTest "read/write Lp":
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
