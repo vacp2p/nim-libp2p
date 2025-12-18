@@ -173,7 +173,7 @@ proc handleAddProvider*(
       )
     )
 
-proc dispatchGetProviders(
+proc dispatchGetProviders*(
     switch: Switch, peer: PeerId, key: Key
 ): Future[(HashSet[Provider], seq[Peer])] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
@@ -218,20 +218,42 @@ proc getProviders*(
   var
     allCandidates: HashSet[PeerId] = (await kad.findNode(key)).toHashSet()
     visitedCandidates: HashSet[PeerId]
+    failedCandidates: HashSet[PeerId]
     allProviders: HashSet[Provider]
 
-  # run until we find at least K providers
-  while allProviders.len() < kad.config.replication:
-    let candidates = nextCandidates(allCandidates, visitedCandidates, kad.config.alpha)
-    if candidates.len() == 0:
+  for retry in 0 .. kad.config.retries:
+    # run until we find at least K providers
+    while allProviders.len() < kad.config.replication:
+      let candidates =
+        nextCandidates(allCandidates, visitedCandidates, kad.config.alpha)
+      if candidates.len() == 0:
+        break
+
+      let rpcBatch = candidates.mapIt(kad.switch.dispatchGetProviders(it, key))
+
+      let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
+      for (providers, closerPeers) in completedRPCBatch:
+        allProviders.incl(providers)
+        allCandidates.incl(closerPeers.toPeerIds().toHashSet())
+
+      visitedCandidates.incl(candidates.toHashSet())
+
+      for (cand, fut) in zip(candidates, rpcBatch):
+        if not fut.completed():
+          failedCandidates.incl(cand)
+
+    # stop condition is satisfied
+    if allProviders.len() >= kad.config.replication:
+      return allProviders
+
+    # stop condition is not satisfied, but we can't retry (no peers have failed)
+    if failedCandidates.len == 0:
       break
 
-    let rpcBatch = candidates.mapIt(kad.switch.dispatchGetProviders(it, key))
-    for (providers, closerPeers) in await rpcBatch.collectCompleted(kad.config.timeout):
-      allProviders.incl(providers)
-      allCandidates.incl(closerPeers.toPeerIds().toHashSet())
-
-    visitedCandidates.incl(candidates.toHashSet())
+    visitedCandidates = visitedCandidates - failedCandidates
+      # we need to visit failed peers again
+    failedCandidates.clear()
+    debug "Retrying to fetch get providers", attempt = retry + 1
 
   return allProviders
 
