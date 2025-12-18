@@ -18,7 +18,7 @@ const
   serverMessage = "Privacy is necessary for an open society in the electronic age."
   clientMessage = "We can be decentralised yet cooperative."
 
-template runTransportE2E(
+template runTransportTest(
     transportProvider: TransportProvider,
     streamProvider: StreamProvider,
     address: MultiAddress,
@@ -53,15 +53,15 @@ template streamTransportTest*(
     addressIP6: Opt[MultiAddress],
     streamProvider: StreamProvider,
 ) =
-  asyncTest "transport e2e::ipv4":
-    runTransportE2E(transportProvider, streamProvider, addressIP4)
+  asyncTest "transport::ipv4":
+    runTransportTest(transportProvider, streamProvider, addressIP4)
 
-  asyncTest "transport e2e::ipv6":
+  asyncTest "transport::ipv6":
     if addressIP6.isNone:
       skip() # ipv6 not supported
       return
 
-    runTransportE2E(transportProvider, streamProvider, addressIP6.get())
+    runTransportTest(transportProvider, streamProvider, addressIP6.get())
 
   asyncTest "read/write Lp":
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
