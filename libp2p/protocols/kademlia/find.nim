@@ -81,7 +81,7 @@ proc findNode*(
       peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = addrTable
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
-    for peer in toQuery.filterIt(kad.switch.peerInfo.peerId != it):
+    for peer in toQuery:
       state.markPending(peer)
       let addrs = addrTable.getOrDefault(peer, @[])
       if addrs.len == 0:

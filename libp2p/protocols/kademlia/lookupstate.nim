@@ -77,7 +77,7 @@ proc markPending*(state: var LookupState, peerId: PeerId) =
 proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
   var selected: seq[PeerId] = @[]
   for p in state.shortlist:
-    if not p.queried and not p.failed and not p.pending:
+    if not p.queried and not p.failed and not p.pending and p.peerId != state.pid:
       selected.add(p.peerId)
       if selected.len >= state.alpha:
         break
@@ -126,6 +126,8 @@ proc selectClosestK*(state: LookupState): seq[PeerId] =
   return res
 
 proc converged*(state: LookupState): bool {.raises: [], gcsafe.} =
-  let ready = state.activeQueries == 0
-  let noNew = state.selectAlphaPeers().filterIt(state.pid != it).len == 0
+  let
+    ready = state.activeQueries == 0
+    noNew = state.selectAlphaPeers().len() == 0
+
   return ready and noNew
