@@ -37,19 +37,27 @@ proc updateShortlist*(
   return newPeerInfos
 
 proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
-  var res: seq[PeerId] = @[]
+  var peers: seq[PeerId] = @[]
 
-  let sorted = state.shortlist.pairs().toSeq().sortedByIt(it[1]) # closer distance first
+  # sort by closer distance first
+  let sortedPids = state.shortlist
+    .pairs()
+    .toSeq()
+    # sort by distance (closer first)
+    .sortedByIt(it[1])
+    # get pid
+    .mapIt(it[0])
+    # filter out already queried pids
+    .filterIt(not state.queried.contains(it))
+    # filter out our own pid
+    .filterIt(it != state.kad.switch.peerInfo.peerId)
 
-  for (pid, _) in sorted:
-    if pid == state.kad.switch.peerInfo.peerId or state.queried.contains(pid):
-      continue
-
-    res.add(pid)
-    if res.len >= state.kad.config.alpha:
+  # get alpha peers
+  for pid in sortedPids:
+    peers.add(pid)
+    if peers.len() >= state.kad.config.alpha:
       break
-
-  res
+  peers
 
 proc init*(T: type LookupState, kad: KadDHT, targetId: Key): T =
   var res = LookupState(kad: kad, targetId: targetId, queried: initHashSet[PeerId]())
