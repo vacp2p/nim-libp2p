@@ -15,7 +15,7 @@ import ./[routingtable, protobuf, types]
 
 type LookupState* = object
   kad: KadDHT
-  targetId: Key
+  targetKey: Key
   shortlist: Table[PeerId, XorDistance]
   queried: HashSet[PeerId]
 
@@ -29,53 +29,44 @@ proc updateShortlist*(
       continue
     if not state.shortlist.contains(pid):
       state.shortlist[pid] =
-        xorDistance(pid, state.targetId, state.kad.rtable.config.hasher)
+        xorDistance(pid, state.targetKey, state.kad.rtable.config.hasher)
 
       let peerInfo = PeerInfo(peerId: pid, addrs: newPeer.addrs)
       newPeerInfos.add(peerInfo)
 
   return newPeerInfos
 
-proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
-  var peers: seq[PeerId] = @[]
+proc sortedShortlist(state: LookupState): seq[(PeerId, XorDistance)] =
+  ## Sort shortlist by closer distance first
 
-  # sort by closer distance first
-  let sortedPids = state.shortlist
+  return state.shortlist
     .pairs()
     .toSeq()
+    # filter out already queried pids
+    .filterIt(not state.queried.contains(it[0]))
+    # filter out our own pid
+    .filterIt(it[0] != state.kad.switch.peerInfo.peerId)
     # sort by distance (closer first)
     .sortedByIt(it[1])
+
+proc selectPeers*(state: LookupState, amount: int): seq[PeerId] =
+  ## Take at most `alpha` peers, sorted by closer peers first
+  return state
+    .sortedShortlist()
     # get pid
     .mapIt(it[0])
-    # filter out already queried pids
-    .filterIt(not state.queried.contains(it))
-    # filter out our own pid
-    .filterIt(it != state.kad.switch.peerInfo.peerId)
+    # take at most alpha peers
+    .take(amount)
 
-  # get alpha peers
-  for pid in sortedPids:
-    peers.add(pid)
-    if peers.len() >= state.kad.config.alpha:
-      break
-  peers
+proc init*(T: type LookupState, kad: KadDHT, targetKey: Key): T =
+  var res = LookupState(kad: kad, targetKey: targetKey, queried: initHashSet[PeerId]())
+  for pid in kad.rtable.findClosestPeerIds(targetKey, kad.config.replication):
+    res.shortlist[pid] = xorDistance(pid, targetKey, kad.rtable.config.hasher)
 
-proc init*(T: type LookupState, kad: KadDHT, targetId: Key): T =
-  var res = LookupState(kad: kad, targetId: targetId, queried: initHashSet[PeerId]())
-  for pid in kad.rtable.findClosestPeerIds(targetId, kad.config.replication):
-    res.shortlist[pid] = xorDistance(pid, targetId, kad.rtable.config.hasher)
-
-  return res
-
-proc selectClosestK*(state: LookupState): seq[PeerId] =
-  var res: seq[PeerId] = @[]
-  for pid in state.shortlist.keys():
-    res.add(pid)
-    if res.len >= state.kad.config.replication:
-      break
   return res
 
 proc done*(state: LookupState): bool {.raises: [], gcsafe.} =
-  let noNew = state.selectAlphaPeers().len() == 0
+  let noNew = state.selectPeers(state.kad.config.alpha).len() == 0
 
   return noNew
 
@@ -113,6 +104,16 @@ proc updatePeers(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
       debug "Could not update shortlist", err = exc.msg
     # TODO: add TTL to peerstore, otherwise we can spam it with junk
 
+proc addNewPeerAddresses(
+    addrsTable: SeqPeerBook[MultiAddress], closerPeers: seq[Peer]
+) =
+  for peer in closerPeers:
+    let pid = PeerId.init(peer.id)
+    if not pid.isOk:
+      error "Invalid PeerId in successful reply", peerId = peer.id
+      return
+    addrsTable[pid.get()] = peer.addrs
+
 proc findNode*(
     kad: KadDHT, key: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
@@ -120,8 +121,11 @@ proc findNode*(
 
   var state = LookupState.init(kad, key)
 
-  while not state.done():
-    let toQuery = state.selectAlphaPeers()
+  while true:
+    let toQuery = state.selectPeers(kad.config.alpha)
+
+    if toQuery.len() == 0:
+      break
 
     debug "Find node queries", peersToQuery = toQuery.mapIt(it.shortLog())
 
@@ -133,16 +137,11 @@ proc findNode*(
         state.queried.incl(peerId)
 
     for msg in completedRPCBatch:
-      for peer in msg.closerPeers:
-        let pid = PeerId.init(peer.id)
-        if not pid.isOk:
-          error "Invalid PeerId in successful reply", peerId = peer.id
-          continue
-        kad.switch.peerStore[AddressBook][pid.get()] = peer.addrs
+      addNewPeerAddresses(kad.switch.peerStore[AddressBook], msg.closerPeers)
       let newPeerInfos = state.updateShortlist(msg)
       kad.updatePeers(newPeerInfos)
 
-  return state.selectClosestK()
+  return state.selectPeers(kad.config.replication)
 
 proc findPeer*(
     kad: KadDHT, peer: PeerId
@@ -164,19 +163,22 @@ proc findPeer*(
   return ok(PeerInfo(peerId: peer, addrs: kad.switch.peerStore[AddressBook][peer]))
 
 proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
+  let closerPeers = kad.rtable.findClosest(target, kad.config.replication).filterIt(
+      it != kad.switch.peerInfo.peerId.toKey()
+    )
+
   var closestPeers: seq[Peer]
-  let selfKey = kad.switch.peerInfo.peerId.toKey()
-  for p in kad.rtable.findClosest(target, kad.config.replication).filterIt(
-    it != selfKey
-  ):
+
+  for p in closerPeers:
     p.toPeer(kad.switch).withValue(peer):
       closestPeers.add(peer)
+
   return closestPeers
 
 proc handleFindNode*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let targetId = PeerId.init(msg.key).valueOr:
+  let targetKey = PeerId.init(msg.key).valueOr:
     error "FindNode message without valid key data", msg = msg, conn = conn
     return
 
@@ -184,7 +186,7 @@ proc handleFindNode*(
     await conn.writeLp(
       Message(
         msgType: MessageType.findNode,
-        closerPeers: kad.findClosestPeers(targetId.toKey()),
+        closerPeers: kad.findClosestPeers(targetKey.toKey()),
       ).encode().buffer
     )
   except LPStreamError as exc:
