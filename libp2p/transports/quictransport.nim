@@ -9,8 +9,7 @@
 
 import std/[sequtils, sets]
 import chronos, chronicles, metrics, results
-import
-  lsquic/[api, tlsconfig, connection as lsconn, certificateverifier]
+import lsquic/[api, tlsconfig, connection as lsconn, certificateverifier]
 import
   ../wire,
   ../multiaddress,
