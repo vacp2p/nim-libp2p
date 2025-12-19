@@ -10,7 +10,7 @@
 import std/[sequtils, sets]
 import chronos, chronicles, metrics, results
 import
-  lsquic/[api, listener, tlsconfig, connection as lsconn, certificateverifier, stream]
+  lsquic/[api, tlsconfig, connection as lsconn, certificateverifier]
 import
   ../wire,
   ../multiaddress,
