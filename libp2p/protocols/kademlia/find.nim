@@ -66,24 +66,24 @@ proc findNode*(
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a target ID.
 
-  var initialPeers = kad.rtable.findClosestPeerIds(targetId, kad.config.replication)
+  var initialPeers: Table[PeerId, seq[MultiAddress]]
+  for pid in kad.rtable.findClosestPeerIds(targetId, kad.config.replication):
+    initialPeers[pid] = kad.switch.peerStore[AddressBook][pid]
+
   var state = LookupState.init(
     kad.switch.peerInfo.peerId, targetId, initialPeers, kad.config.alpha,
     kad.config.replication, kad.rtable.config.hasher,
   )
-  var addrTable: Table[PeerId, seq[MultiAddress]]
-  for p in initialPeers:
-    addrTable[p] = kad.switch.peerStore[AddressBook][p]
 
-  while not state.converged():
+  while not state.done():
     let toQuery = state.selectAlphaPeers()
     debug "Find node queries",
-      peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = addrTable
+      peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = state.addrTable
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
     for peer in toQuery:
       state.markPending(peer)
-      let addrs = addrTable.getOrDefault(peer, @[])
+      let addrs = state.addrTable.getOrDefault(peer, @[])
       if addrs.len == 0:
         state.markFailed(peer)
       else:
@@ -99,7 +99,7 @@ proc findNode*(
         if not pid.isOk:
           error "Invalid PeerId in successful reply", peerId = peer.id
           continue
-        addrTable[pid.get()] = peer.addrs
+        state.addrTable[pid.get()] = peer.addrs
       let newPeerInfos = state.updateShortlist(msg, kad.rtable.config.hasher)
       kad.updatePeers(newPeerInfos)
 
