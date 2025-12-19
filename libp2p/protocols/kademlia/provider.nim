@@ -161,7 +161,7 @@ proc handleAddProvider*(
   let peerBytes = conn.peerId.getBytes()
 
   for peer in msg.providerPeers.filterIt(it.id == peerBytes):
-    let p = PeerId.init(peer.id).valueOr:
+    if not PeerId.init(peer.id).isOk():
       continue
 
     # add provider to providerManager
@@ -173,9 +173,9 @@ proc handleAddProvider*(
       )
     )
 
-proc dispatchGetProviders(
+proc dispatchGetProviders*(
     switch: Switch, peer: PeerId, key: Key
-): Future[HashSet[Provider]] {.
+): Future[(HashSet[Provider], seq[Peer])] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
 .} =
   let conn = await switch.dial(peer, KadCodec)
@@ -188,6 +188,8 @@ proc dispatchGetProviders(
     error "GetProviders reply decode fail", error = error, conn = conn
     return
 
+  debug "Received reply for GetProviders", reply = reply
+
   var providers: HashSet[Provider]
   for peer in reply.providerPeers:
     let p = PeerId.init(peer.id).valueOr:
@@ -195,7 +197,16 @@ proc dispatchGetProviders(
       continue
     providers.incl(peer)
 
-  return providers
+  return (providers, reply.closerPeers)
+
+proc nextCandidates(
+    allCandidates: HashSet[PeerId], visitedCandidates: HashSet[PeerId], alpha: int
+): seq[PeerId] =
+  let unvisitedCandidates = allCandidates - visitedCandidates
+  if unvisitedCandidates.len() == 0:
+    return @[]
+
+  return unvisitedCandidates.toSeq()[0 .. min(alpha, unvisitedCandidates.len() - 1)]
 
 proc getProviders*(
     kad: KadDHT, key: Key
@@ -204,12 +215,45 @@ proc getProviders*(
 .} =
   ## Get providers for a given `key` from the nodes closest to that `key`.
 
-  var allProviders: HashSet[Provider]
+  var
+    allCandidates: HashSet[PeerId] = (await kad.findNode(key)).toHashSet()
+    visitedCandidates: HashSet[PeerId]
+    failedCandidates: HashSet[PeerId]
+    allProviders: HashSet[Provider]
 
-  for chunk in (await kad.findNode(key)).toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchGetProviders(it, key))
-    for res in await rpcBatch.collectCompleted(kad.config.timeout):
-      allProviders.incl(res)
+  for retry in 0 .. kad.config.retries:
+    # run until we find at least K providers
+    while allProviders.len() < kad.config.replication:
+      let candidates =
+        nextCandidates(allCandidates, visitedCandidates, kad.config.alpha)
+      if candidates.len() == 0:
+        break
+
+      let rpcBatch = candidates.mapIt(kad.switch.dispatchGetProviders(it, key))
+
+      let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
+      for (providers, closerPeers) in completedRPCBatch:
+        allProviders.incl(providers)
+        allCandidates.incl(closerPeers.toPeerIds().toHashSet())
+
+      visitedCandidates.incl(candidates.toHashSet())
+
+      for (cand, fut) in zip(candidates, rpcBatch):
+        if not fut.completed():
+          failedCandidates.incl(cand)
+
+    # stop condition is satisfied
+    if allProviders.len() >= kad.config.replication:
+      return allProviders
+
+    # stop condition is not satisfied, but we can't retry (no peers have failed)
+    if failedCandidates.len == 0:
+      break
+
+    visitedCandidates = visitedCandidates - failedCandidates
+      # we need to visit failed peers again
+    failedCandidates.clear()
+    debug "Retrying to fetch get providers", attempt = retry + 1
 
   return allProviders
 

@@ -82,6 +82,16 @@ proc toPeer*(peerInfo: PeerInfo): Peer =
     connection: ConnectionType.connected,
   )
 
+proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
+  var peerIds: seq[PeerId]
+
+  for p in peers:
+    let pid = PeerId.init(p.id).valueOr:
+      continue
+    peerIds.add(pid)
+
+  return peerIds
+
 proc shortLog*(k: Key): string =
   "key:" & toHex(k)
 
@@ -334,5 +344,6 @@ type KadDHT* = ref object of LPProtocol
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
   dataTable*: LocalTable
+  bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
   providerManager*: ProviderManager
   config*: KadDHTConfig

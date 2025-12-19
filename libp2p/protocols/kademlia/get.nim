@@ -48,14 +48,14 @@ proc dispatchGetVal(
     return
 
   let time = record.timeReceived.valueOr:
-    debug "GetValue returned record with no timeReceived",
+    debug "GetValue returned record with no timeReceived, using current time instead",
       msg = msg, reply = reply, conn = conn
-    return
+    TimeStamp($times.now().utc)
 
   received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
 proc bestValidRecord(
-    kad: KadDHT, key: Key, received: ReceivedTable
+    kad: KadDHT, key: Key, received: ReceivedTable, quorum: int
 ): Result[EntryRecord, string] =
   var validRecords: seq[EntryRecord]
   for r in received.values():
@@ -64,8 +64,11 @@ proc bestValidRecord(
     if kad.config.validator.isValid(key, record):
       validRecords.add(record)
 
-  if validRecords.len() < kad.config.quorum:
-    return err("Not enough valid records to achieve quorum")
+  if validRecords.len() < quorum:
+    return err(
+      "Not enough valid records to achieve quorum, needed " & $quorum & " got " &
+        $validRecords.len()
+    )
 
   let selectedIdx = kad.config.selector.select(key, validRecords).valueOr:
     return err("Could not select best value")
@@ -73,16 +76,18 @@ proc bestValidRecord(
   ok(validRecords[selectedIdx])
 
 proc getValue*(
-    kad: KadDHT, key: Key
+    kad: KadDHT, key: Key, quorumOverride: Opt[int] = Opt.none(int)
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let candidates = CandidatePeers()
   for p in (await kad.findNode(key)):
     candidates[].incl(p)
   let received = ReceivedTable()
 
+  let quorum = quorumOverride.valueOr:
+    kad.config.quorum
+
   var curTry = 0
-  while received.len < kad.config.quorum and candidates[].len > 0 and
-      curTry < kad.config.retries:
+  while received.len < quorum and candidates[].len > 0 and curTry < kad.config.retries:
     for chunk in candidates[].toSeq.toChunks(kad.config.alpha):
       let rpcBatch =
         candidates[].mapIt(kad.switch.dispatchGetVal(it, key, received, candidates))
@@ -95,7 +100,7 @@ proc getValue*(
     candidates[] = candidates[].filterIt(not received.hasKey(it))
     curTry.inc()
 
-  let best = ?kad.bestValidRecord(key, received)
+  let best = ?kad.bestValidRecord(key, received, quorum)
 
   # insert value to our localtable
   kad.dataTable.insert(key, best.value, $times.now().utc)

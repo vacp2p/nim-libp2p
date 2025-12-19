@@ -18,42 +18,52 @@ export routingtable, protobuf, types, find, get, put, provider, ping
 logScope:
   topics = "kad-dht"
 
-proc bootstrap*(
-    kad: KadDHT, bootstrapNodes: seq[PeerInfo]
+proc bootstrapNode*(
+    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError]).} =
-  for b in bootstrapNodes:
+  ## Uses node with `peerId` and `addrs` as a bootstrap node
+
+  let msg =
     try:
-      await kad.switch.connect(b.peerId, b.addrs)
-      debug "Connected to bootstrap peer", peerId = b.peerId
-    except DialFailedError as exc:
-      # at some point will want to bubble up a Result[void, SomeErrorEnum]
-      error "failed to dial to bootstrap peer", peerId = b.peerId, error = exc.msg
+      await kad.sendFindNode(peerId, addrs, kad.rtable.selfId).wait(kad.config.timeout)
+    except DialFailedError as e:
+      debug "Failed to dial bootstrap node",
+        target = peerId, addrs = addrs, description = e.msg
+      return
+    except LPStreamError as e:
+      debug "LPStreamError when dialing bootstrap node",
+        target = peerId, addrs = addrs, description = e.msg
+      return
+    except ValueError as e:
+      debug "Wrong reply message type from bootstrap node",
+        target = peerId, addrs = addrs, description = e.msg
+      return
+    except AsyncTimeoutError as e:
+      debug "Timeout error when dialing bootstrap node",
+        target = peerId, addrs = addrs, description = e.msg
+      return
+
+  for peer in msg.closerPeers:
+    let p = PeerId.init(peer.id).valueOr:
+      debug "Invalid peer id received", error = error
       continue
+    discard kad.rtable.insert(p)
 
-    let msg =
-      try:
-        await kad.sendFindNode(b.peerId, b.addrs, kad.rtable.selfId).wait(
-          kad.config.timeout
-        )
-      except CatchableError as exc:
-        debug "Send find node exception during bootstrap",
-          target = b.peerId, addrs = b.addrs, err = exc.msg
-        continue
-    for peer in msg.closerPeers:
-      let p = PeerId.init(peer.id).valueOr:
-        debug "Invalid peer id received", error = error
-        continue
-      discard kad.rtable.insert(p)
+    kad.switch.peerStore[AddressBook][p] = peer.addrs
 
-      kad.switch.peerStore[AddressBook][p] = peer.addrs
+  # bootstrap node replied succesfully, add to routing table
+  discard kad.rtable.insert(peerId)
 
-    # bootstrap node replied succesfully. Adding to routing table
-    discard kad.rtable.insert(b.peerId)
+proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  for (peerId, addrs) in kad.bootstrapNodes:
+    await kad.bootstrapNode(peerId, addrs)
 
   let key = PeerId.random(kad.rng).valueOr:
     doAssert(false, "this should never happen")
     return
+
   discard await kad.findNode(key.toKey())
+
   info "Bootstrap lookup complete"
 
 proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
@@ -69,8 +79,11 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 proc new*(
     T: typedesc[KadDHT],
     switch: Switch,
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
+    client: bool = false,
+    codec: string = KadCodec,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
@@ -79,13 +92,17 @@ proc new*(
   let kad = T(
     rng: rng,
     switch: switch,
+    bootstrapNodes: bootstrapNodes,
     rtable: rtable,
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
   )
 
-  kad.codec = KadCodec
+  kad.codec = codec
+  if client:
+    return kad
+
   kad.handler = proc(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
@@ -120,6 +137,7 @@ proc new*(
       else:
         error "Unhandled kad-dht message type", msg = msg
         return
+
   return kad
 
 method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
@@ -130,6 +148,8 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
+
+  await kad.bootstrap()
 
   kad.started = true
 
