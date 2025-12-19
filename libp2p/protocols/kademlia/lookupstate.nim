@@ -15,9 +15,7 @@ type
   LookupNode* = object
     peerId: PeerId
     distance: XorDistance
-    queried: bool # have we already queried this node?
     pending: bool # is there an active request rn?
-    failed: bool # did the query timeout or error?
 
   LookupState* = object
     pid: PeerId
@@ -44,9 +42,7 @@ proc updateShortlist*(
       LookupNode(
         peerId: peerInfo.peerId,
         distance: xorDistance(peerInfo.peerId, state.targetId, hasher),
-        queried: false,
         pending: false,
-        failed: false,
       )
     )
 
@@ -59,26 +55,16 @@ proc updateShortlist*(
 
   return newPeerInfos
 
-proc markFailed*(state: var LookupState, peerId: PeerId) =
-  for p in mitems(state.shortlist):
-    if p.peerId == peerId:
-      p.failed = true
-      p.pending = false
-      p.queried = true
-      state.activeQueries.dec
-      break
-
 proc markPending*(state: var LookupState, peerId: PeerId) =
   for p in mitems(state.shortlist):
     if p.peerId == peerId:
       p.pending = true
-      p.queried = true
       break
 
 proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
   var selected: seq[PeerId] = @[]
   for p in state.shortlist:
-    if not p.queried and not p.failed and not p.pending and p.peerId != state.pid:
+    if not p.pending and p.peerId != state.pid:
       selected.add(p.peerId)
       if selected.len >= state.alpha:
         break
@@ -105,11 +91,7 @@ proc init*(
   for pid in addrTable.keys():
     res.shortlist.add(
       LookupNode(
-        peerId: pid,
-        distance: xorDistance(pid, targetId, hasher),
-        queried: false,
-        pending: false,
-        failed: false,
+        peerId: pid, distance: xorDistance(pid, targetId, hasher), pending: false
       )
     )
 
@@ -121,7 +103,7 @@ proc init*(
 
 proc selectClosestK*(state: LookupState): seq[PeerId] =
   var res: seq[PeerId] = @[]
-  for p in state.shortlist.filterIt(not it.failed):
+  for p in state.shortlist:
     res.add(p.peerId)
     if res.len >= state.replication:
       break
