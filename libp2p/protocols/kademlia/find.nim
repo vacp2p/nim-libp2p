@@ -15,20 +15,18 @@ import ./[routingtable, lookupstate, protobuf, types]
 
 proc waitRepliesOrTimeouts(
     pendingFutures: Table[PeerId, Future[Message]]
-): Future[(seq[Message], seq[PeerId])] {.async: (raises: [CancelledError]).} =
+): Future[seq[Message]] {.async: (raises: [CancelledError]).} =
   await allFutures(pendingFutures.values.toSeq())
 
-  var receivedReplies: seq[Message] = @[]
-  var failedPeers: seq[PeerId] = @[]
+  var replies: seq[Message] = @[]
 
-  for (peerId, replyFut) in pendingFutures.pairs:
+  for (peerId, replyFut) in pendingFutures.pairs():
     try:
-      receivedReplies.add(await replyFut)
+      replies.add(await replyFut)
     except CatchableError:
-      failedPeers.add(peerId)
       error "Could not send find_node to peer", peerId, err = getCurrentExceptionMsg()
 
-  return (receivedReplies, failedPeers)
+  return replies
 
 proc sendFindNode*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress], targetId: Key
@@ -77,23 +75,23 @@ proc findNode*(
 
   while not state.done():
     let toQuery = state.selectAlphaPeers()
+
     debug "Find node queries",
       peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = state.addrTable
+
     var pendingFutures = initTable[PeerId, Future[Message]]()
 
     for peer in toQuery:
       state.markPending(peer)
+
       let addrs = state.addrTable.getOrDefault(peer, @[])
-      if addrs.len == 0:
-        state.markFailed(peer)
-      else:
+
+      if addrs.len() > 0:
         pendingFutures[peer] =
           kad.sendFindNode(peer, addrs, targetId).wait(chronos.seconds(5))
         state.activeQueries.inc
 
-    let (successfulReplies, timedOutPeers) = await waitRepliesOrTimeouts(pendingFutures)
-
-    for msg in successfulReplies:
+    for msg in (await pendingFutures.waitRepliesOrTimeouts()):
       for peer in msg.closerPeers:
         let pid = PeerId.init(peer.id)
         if not pid.isOk:
@@ -102,9 +100,6 @@ proc findNode*(
         state.addrTable[pid.get()] = peer.addrs
       let newPeerInfos = state.updateShortlist(msg, kad.rtable.config.hasher)
       kad.updatePeers(newPeerInfos)
-
-    for timedOut in timedOutPeers:
-      state.markFailed(timedOut)
 
   return state.selectClosestK()
 
@@ -130,12 +125,11 @@ proc findPeer*(
 proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
   var closestPeers: seq[Peer]
   let selfKey = kad.switch.peerInfo.peerId.toKey()
-  for p in kad.rtable.findClosest(target, kad.config.replication):
-    if p == selfKey: # do not return self as one of closest peers
-      continue
-    let peer = p.toPeer(kad.switch).valueOr:
-      continue
-    closestPeers.add(peer)
+  for p in kad.rtable.findClosest(target, kad.config.replication).filterIt(
+    it != selfKey
+  ):
+    p.toPeer(kad.switch).withValue(peer):
+      closestPeers.add(peer)
   return closestPeers
 
 proc handleFindNode*(
