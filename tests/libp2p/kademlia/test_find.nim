@@ -132,5 +132,6 @@ suite "KadDHT Find":
     let res1 = await kad2.findPeer(switch3.peerInfo.peerId)
     check res1.get().peerId == switch3.peerInfo.peerId
 
+    # try to find peer that does not exist
     let res2 = await kad2.findPeer(PeerId.random(newRng()).get())
     check res2.isErr()

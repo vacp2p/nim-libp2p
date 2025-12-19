@@ -7,42 +7,88 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[tables, sequtils, sets]
+import std/[tables, sequtils, sets, algorithm]
 import chronos, chronicles, results
-import ../../[peerid, switch, multihash]
+import ../../[peerid, peerinfo, switch, multihash]
 import ../protocol
-import ./[routingtable, lookupstate, protobuf, types]
+import ./[routingtable, protobuf, types]
 
-proc waitRepliesOrTimeouts(
-    pendingFutures: Table[PeerId, Future[Message]]
-): Future[seq[Message]] {.async: (raises: [CancelledError]).} =
-  await allFutures(pendingFutures.values.toSeq())
+type LookupState* = object
+  kad: KadDHT
+  targetId: Key
+  shortlist: Table[PeerId, XorDistance]
+  queried: HashSet[PeerId]
 
-  var replies: seq[Message] = @[]
+proc updateShortlist*(
+    state: var LookupState, msg: Message
+): seq[PeerInfo] {.raises: [].} =
+  var newPeerInfos: seq[PeerInfo]
 
-  for (peerId, replyFut) in pendingFutures.pairs():
-    try:
-      replies.add(await replyFut)
-    except CatchableError:
-      error "Could not send find_node to peer", peerId, err = getCurrentExceptionMsg()
+  for newPeer in msg.closerPeers:
+    let pid = PeerId.init(newPeer.id).valueOr:
+      continue
+    if not state.shortlist.contains(pid):
+      state.shortlist[pid] =
+        xorDistance(pid, state.targetId, state.kad.rtable.config.hasher)
 
-  return replies
+      let peerInfo = PeerInfo(peerId: pid, addrs: newPeer.addrs)
+      newPeerInfos.add(peerInfo)
 
-proc sendFindNode*(
-    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress], targetId: Key
+  return newPeerInfos
+
+proc selectAlphaPeers*(state: LookupState): seq[PeerId] =
+  var res: seq[PeerId] = @[]
+
+  let sorted = state.shortlist.pairs().toSeq().sortedByIt(it[1]) # closer distance first
+
+  for (pid, _) in sorted:
+    if pid == state.kad.switch.peerInfo.peerId or state.queried.contains(pid):
+      continue
+
+    res.add(pid)
+    if res.len >= state.kad.config.alpha:
+      break
+
+  res
+
+proc init*(T: type LookupState, kad: KadDHT, targetId: Key): T =
+  var res = LookupState(kad: kad, targetId: targetId, queried: initHashSet[PeerId]())
+  for pid in kad.rtable.findClosestPeerIds(targetId, kad.config.replication):
+    res.shortlist[pid] = xorDistance(pid, targetId, kad.rtable.config.hasher)
+
+  return res
+
+proc selectClosestK*(state: LookupState): seq[PeerId] =
+  var res: seq[PeerId] = @[]
+  for pid in state.shortlist.keys():
+    res.add(pid)
+    if res.len >= state.kad.config.replication:
+      break
+  return res
+
+proc done*(state: LookupState): bool {.raises: [], gcsafe.} =
+  let noNew = state.selectAlphaPeers().len() == 0
+
+  return noNew
+
+proc dispatchFindNode*(
+    switch: Switch,
+    peer: PeerId,
+    key: Key,
+    addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
 ): Future[Message] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  let conn = await kad.switch.dial(peerId, addrs, KadCodec)
+  let addrs = addrs.valueOr(switch.peerStore[AddressBook][peer])
+  let conn = await switch.dial(peer, addrs, KadCodec)
   defer:
     await conn.close()
 
-  let msg = Message(msgType: MessageType.findNode, key: targetId)
+  let msg = Message(msgType: MessageType.findNode, key: key)
   await conn.writeLp(msg.encode().buffer)
 
-  let reply = Message.decode(await conn.readLp(MaxMsgSize)).tryGet()
-  if reply.msgType != MessageType.findNode:
-    raise newException(ValueError, "Unexpected reply message type: " & $reply.msgType)
+  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+    raise newException(ValueError, "FindNode reply decode fail")
 
   return reply
 
@@ -60,45 +106,32 @@ proc updatePeers(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
     # TODO: add TTL to peerstore, otherwise we can spam it with junk
 
 proc findNode*(
-    kad: KadDHT, targetId: Key
+    kad: KadDHT, key: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
-  ## Iteratively search for the k closest peers to a target ID.
+  ## Iteratively search for the k closest peers to a key.
 
-  var initialPeers: Table[PeerId, seq[MultiAddress]]
-  for pid in kad.rtable.findClosestPeerIds(targetId, kad.config.replication):
-    initialPeers[pid] = kad.switch.peerStore[AddressBook][pid]
-
-  var state = LookupState.init(
-    kad.switch.peerInfo.peerId, targetId, initialPeers, kad.config.alpha,
-    kad.config.replication, kad.rtable.config.hasher,
-  )
+  var state = LookupState.init(kad, key)
 
   while not state.done():
     let toQuery = state.selectAlphaPeers()
 
-    debug "Find node queries",
-      peersToQuery = toQuery.mapIt(it.shortLog()), addressTable = state.addrTable
+    debug "Find node queries", peersToQuery = toQuery.mapIt(it.shortLog())
 
-    var pendingFutures = initTable[PeerId, Future[Message]]()
+    let
+      rpcBatch = toQuery.mapIt(kad.switch.dispatchFindNode(it, key))
+      completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
+    for (fut, peerId) in zip(rpcBatch, toQuery):
+      if fut.completed():
+        state.queried.incl(peerId)
 
-    for peer in toQuery:
-      state.markPending(peer)
-
-      let addrs = state.addrTable.getOrDefault(peer, @[])
-
-      if addrs.len() > 0:
-        pendingFutures[peer] =
-          kad.sendFindNode(peer, addrs, targetId).wait(chronos.seconds(5))
-        state.activeQueries.inc
-
-    for msg in (await pendingFutures.waitRepliesOrTimeouts()):
+    for msg in completedRPCBatch:
       for peer in msg.closerPeers:
         let pid = PeerId.init(peer.id)
         if not pid.isOk:
           error "Invalid PeerId in successful reply", peerId = peer.id
           continue
-        state.addrTable[pid.get()] = peer.addrs
-      let newPeerInfos = state.updateShortlist(msg, kad.rtable.config.hasher)
+        kad.switch.peerStore[AddressBook][pid.get()] = peer.addrs
+      let newPeerInfos = state.updateShortlist(msg)
       kad.updatePeers(newPeerInfos)
 
   return state.selectClosestK()
