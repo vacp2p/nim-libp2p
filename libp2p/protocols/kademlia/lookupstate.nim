@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import algorithm, sequtils
+import algorithm, sequtils, std/tables
 import ../../[peerid, peerinfo]
 import ./[protobuf, types]
 
@@ -21,6 +21,7 @@ type
 
   LookupState* = object
     pid: PeerId
+    addrTable*: Table[PeerId, seq[MultiAddress]]
     targetId: Key
     shortlist: seq[LookupNode] # current known closest node
     activeQueries*: int # how many queries in flight
@@ -87,7 +88,7 @@ proc init*(
     T: type LookupState,
     pid: PeerId,
     targetId: Key,
-    initialPeers: seq[PeerId],
+    addrTable: Table[PeerId, seq[MultiAddress]],
     alpha: int,
     replication: int,
     hasher: Opt[XorDHasher],
@@ -95,16 +96,17 @@ proc init*(
   var res = LookupState(
     pid: pid,
     targetId: targetId,
+    addrTable: addrTable,
     shortlist: @[],
     activeQueries: 0,
     alpha: alpha,
     replication: replication,
   )
-  for p in initialPeers:
+  for pid in addrTable.keys():
     res.shortlist.add(
       LookupNode(
-        peerId: p,
-        distance: xorDistance(p, targetId, hasher),
+        peerId: pid,
+        distance: xorDistance(pid, targetId, hasher),
         queried: false,
         pending: false,
         failed: false,
@@ -125,7 +127,7 @@ proc selectClosestK*(state: LookupState): seq[PeerId] =
       break
   return res
 
-proc converged*(state: LookupState): bool {.raises: [], gcsafe.} =
+proc done*(state: LookupState): bool {.raises: [], gcsafe.} =
   let
     ready = state.activeQueries == 0
     noNew = state.selectAlphaPeers().len() == 0
