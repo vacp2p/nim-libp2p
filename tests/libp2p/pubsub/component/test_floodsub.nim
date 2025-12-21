@@ -177,9 +177,9 @@ suite "FloodSub Component":
     var pubs: seq[Future[int]]
     for i in 0 ..< numberOfNodes:
       pubs &= nodes[i].publish(topic, ("Hello!" & $i).toBytes())
-    await allFuturesThrowing(pubs)
+    await allFuturesRaising(pubs)
 
-    await allFuturesThrowing(futs.mapIt(it[0]))
+    await allFuturesRaising(futs.mapIt(it[0]))
 
   asyncTest "FloodSub multiple peers, with self trigger":
     const numberOfNodes = 10
@@ -213,10 +213,10 @@ suite "FloodSub Component":
     var pubs: seq[Future[int]]
     for i in 0 ..< numberOfNodes:
       pubs &= nodes[i].publish(topic, ("Hello!" & $i).toBytes())
-    await allFuturesThrowing(pubs)
+    await allFuturesRaising(pubs)
 
     # wait the test task
-    await allFuturesThrowing(futs.mapIt(it[0]))
+    await allFuturesRaising(futs.mapIt(it[0]))
 
     # test calling unsubscribeAll for coverage
     for node in nodes:

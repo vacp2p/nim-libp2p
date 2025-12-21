@@ -126,7 +126,7 @@ proc main() {.async.} =
     let conn = switch.connManager.selectMuxer(listenerId).connection
     let channel = await switch.dial(listenerId, @[listenerRelayAddr], PingCodec)
     let delay = await Ping.new().ping(channel)
-    await allFuturesThrowing(
+    await allFuturesRaising(
       channel.close(), conn.close(), switch.stop(), auxSwitch.stop()
     )
     echo &"""{{"rtt_to_holepunched_peer_millis":{delay.millis}}}"""

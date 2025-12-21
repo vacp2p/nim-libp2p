@@ -81,7 +81,7 @@ suite "Autonat Service":
     check autonatService.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
 
-    await allFuturesThrowing(
+    await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
@@ -125,7 +125,7 @@ suite "Autonat Service":
     check switch1.peerInfo.addrs ==
       switch1.peerInfo.addrs.mapIt(switch1.peerStore.guessDialableAddr(it))
 
-    await allFuturesThrowing(
+    await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
@@ -177,7 +177,7 @@ suite "Autonat Service":
     check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
-    await allFuturesThrowing(
+    await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
@@ -219,7 +219,7 @@ suite "Autonat Service":
     check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
-    await allFuturesThrowing(
+    await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
@@ -270,7 +270,7 @@ suite "Autonat Service":
     check autonatService.networkReachability == NetworkReachability.NotReachable
     check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 1 / 3
 
-    await allFuturesThrowing(
+    await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
@@ -286,7 +286,7 @@ suite "Autonat Service":
     check (await autonatService.stop(switch)) == true
     check (await autonatService.stop(switch)) == false
 
-    await allFuturesThrowing(switch.stop())
+    await allFuturesRaising(switch.stop())
 
   asyncTest "Must bypass maxConnectionsPerPeer limit":
     let autonatService = AutonatService.new(
@@ -329,7 +329,7 @@ suite "Autonat Service":
     check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
     let autonatService1 = AutonatService.new(
@@ -387,7 +387,7 @@ suite "Autonat Service":
     check autonatService2.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop(), switch3.stop())
+    await allFuturesRaising(switch1.stop(), switch2.stop(), switch3.stop())
 
   asyncTest "Must work for one peer when two peers ask each other at the same time with max 1 conn per peer":
     let autonatService1 = AutonatService.new(
@@ -436,7 +436,7 @@ suite "Autonat Service":
     # Make sure remote peer can't create a connection to us
     check switch1.connManager.connCount(switch2.peerInfo.peerId) == 1
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "Must work with low maxConnections":
     let autonatService = AutonatService.new(
@@ -485,7 +485,7 @@ suite "Autonat Service":
     check autonatService.networkReachability == NetworkReachability.Reachable
     check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 1
 
-    await allFuturesThrowing(
+    await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
     )
 
@@ -511,4 +511,4 @@ suite "Autonat Service":
 
     await sleepAsync(250.milliseconds)
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesRaising(switch1.stop(), switch2.stop())

@@ -408,14 +408,15 @@ suite "Mplex":
         await chann.readExactly(addr data[0], 1)
         await chann.readExactly(addr data[0], 1)
 
-      let rw = @[writer(), reader()]
+      let readerFut = reader()
+      let writerFut = writer()
 
       await chann.close()
       check await chann.reset()
       # this would hang
       .withTimeout(100.millis)
 
-      check await allFuturesThrowing(allFinished(rw)).withTimeout(100.millis)
+      check await allFuturesRaising(readerFut, writerFut).withTimeout(100.millis)
 
       await conn.close()
 
@@ -484,7 +485,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut.wait(1.seconds)
       await mplexDialFut.wait(1.seconds)
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "read/write receiver lazy":
@@ -523,7 +524,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut.wait(1.seconds)
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "write fragmented":
@@ -576,7 +577,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
 
       await listenFut
 
@@ -614,7 +615,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut.wait(1.seconds)
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "multiple streams":
@@ -662,7 +663,7 @@ suite "Mplex":
       await conn.close()
       await acceptFut.wait(1.seconds)
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "multiple read/write streams":
@@ -713,7 +714,7 @@ suite "Mplex":
       await acceptFut.wait(1.seconds)
       await mplexDialFut
       await mplexDial.close()
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
     asyncTest "channel closes listener with EOF":
@@ -760,7 +761,7 @@ suite "Mplex":
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "channel closes dialer with EOF":
@@ -810,13 +811,13 @@ suite "Mplex":
         check s.closed
 
       await readLoop
-      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
+      await allFuturesRaising((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "dialing mplex closes both ends":
@@ -848,13 +849,13 @@ suite "Mplex":
         unorderedCompare(dialStreams, mplexDial.getStreams())
 
       await mplexDial.close()
-      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
+      await allFuturesRaising((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "listening mplex closes both ends":
@@ -890,13 +891,13 @@ suite "Mplex":
         listenStreams.len == 10 and dialStreams.len == 10
 
       await mplexListen.close()
-      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
+      await allFuturesRaising((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "canceling mplex handler closes both ends":
@@ -933,13 +934,13 @@ suite "Mplex":
         listenStreams.len == 10 and dialStreams.len == 10
 
       mplexHandle.cancel()
-      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
+      await allFuturesRaising((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
 
     asyncTest "closing dialing connection should close both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
@@ -973,13 +974,13 @@ suite "Mplex":
         listenStreams.len == 10 and dialStreams.len == 10
 
       await conn.close()
-      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
+      await allFuturesRaising((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.closeWithEOF()
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
     asyncTest "canceling listening connection should close both ends":
@@ -1015,13 +1016,13 @@ suite "Mplex":
         listenStreams.len == 10 and dialStreams.len == 10
 
       await listenConn.closeWithEOF()
-      await allFuturesThrowing((dialStreams & listenStreams).mapIt(it.join()))
+      await allFuturesRaising((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)
 
       await conn.close()
       await mplexDialFut
-      await allFuturesThrowing(transport1.stop(), transport2.stop())
+      await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
     suite "jitter":
@@ -1093,7 +1094,7 @@ suite "Mplex":
         await acceptFut
         await mplexDialFut
 
-        await allFuturesThrowing(transport1.stop(), transport2.stop())
+        await allFuturesRaising(transport1.stop(), transport2.stop())
         await listenFut
 
       asyncTest "channel should handle 1 byte read/write":
@@ -1153,5 +1154,5 @@ suite "Mplex":
         await conn.close()
         await acceptFut
         await mplexDialFut
-        await allFuturesThrowing(transport1.stop(), transport2.stop())
+        await allFuturesRaising(transport1.stop(), transport2.stop())
         await listenFut
