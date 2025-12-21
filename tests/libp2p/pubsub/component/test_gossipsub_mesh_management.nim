@@ -322,7 +322,7 @@ suite "GossipSub Component - Mesh Management":
 
     startNodesAndDeferStop(nodes)
 
-    await allFuturesThrowing(
+    await allFuturesRaising(
       connectNodes(nodes[0], nodes[1]), # Out
       connectNodes(nodes[0], nodes[2]), # Out
       connectNodes(nodes[3], nodes[0]), # In

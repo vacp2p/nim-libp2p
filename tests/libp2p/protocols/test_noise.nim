@@ -274,7 +274,7 @@ suite "Noise":
     check "Hello!" == msg
     await conn.close()
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e test wrong secure negotiation":
     let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
@@ -296,4 +296,4 @@ suite "Noise":
       let conn =
         await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
-    await allFuturesThrowing(switch1.stop(), switch2.stop())
+    await allFuturesRaising(switch1.stop(), switch2.stop())

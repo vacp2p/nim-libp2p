@@ -154,7 +154,7 @@ suite "BufferStream":
     let readerFut = reader()
     let writerFut = writer()
 
-    await allFuturesThrowing(readerFut, writerFut)
+    await allFuturesRaising(readerFut, writerFut)
 
     check str == str2
     await buff.close()

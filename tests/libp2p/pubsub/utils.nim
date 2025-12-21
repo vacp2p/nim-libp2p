@@ -143,7 +143,7 @@ proc setupGossipSubWithPeers*(
   )
 
 proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
-  await allFuturesThrowing(conns.mapIt(it.close()))
+  await allFuturesRaising(conns.mapIt(it.close()))
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   let mid =
@@ -310,7 +310,7 @@ proc connectNodesChain*[T: PubSub](nodes: seq[T]) {.async.} =
   for i in 0 ..< nodes.len - 1:
     futs.add(connectNodes(nodes[i], nodes[i + 1]))
 
-  await allFuturesThrowing(futs)
+  await allFuturesRaising(futs)
 
 proc connectNodesRing*[T: PubSub](nodes: seq[T]) {.async.} =
   ## Ring: 1-2-3-4-5-1
@@ -321,7 +321,7 @@ proc connectNodesRing*[T: PubSub](nodes: seq[T]) {.async.} =
     futs.add(connectNodes(nodes[i], nodes[i + 1]))
   futs.add(connectNodes(nodes[nodes.len - 1], nodes[0]))
 
-  await allFuturesThrowing(futs)
+  await allFuturesRaising(futs)
 
 proc connectNodesHub*[T: PubSub](hub: T, nodes: seq[T]) {.async.} =
   ## Hub: hub-1, hub-2, hub-3,...
@@ -331,7 +331,7 @@ proc connectNodesHub*[T: PubSub](hub: T, nodes: seq[T]) {.async.} =
   for i in 0 ..< nodes.len:
     futs.add(connectNodes(hub, nodes[i]))
 
-  await allFuturesThrowing(futs)
+  await allFuturesRaising(futs)
 
 proc connectNodesStar*[T: PubSub](nodes: seq[T]) {.async.} =
   ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
@@ -343,7 +343,7 @@ proc connectNodesStar*[T: PubSub](nodes: seq[T]) {.async.} =
       if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
         futs.add(connectNodes(dialer, listener))
 
-  await allFuturesThrowing(futs)
+  await allFuturesRaising(futs)
 
 proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
   doAssert nodes.len >= degree, "nodes count needs to be greater or equal to degree"
@@ -358,7 +358,7 @@ proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
       if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
         futs.add(connectNodes(dialer, listener))
 
-  await allFuturesThrowing(futs)
+  await allFuturesRaising(futs)
 
 template waitSubscribeChain*[T: PubSub](nodes: seq[T], topic: string): untyped =
   ## Chain: 1-2-3-4-5
@@ -437,10 +437,10 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
     isGraphConnected()
 
 proc startNodes*[T: PubSub](nodes: seq[T]) {.async.} =
-  await allFuturesThrowing(nodes.mapIt(it.switch.start()))
+  await allFuturesRaising(nodes.mapIt(it.switch.start()))
 
 proc stopNodes*[T: PubSub](nodes: seq[T]) {.async.} =
-  await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
+  await allFuturesRaising(nodes.mapIt(it.switch.stop()))
 
 template startNodesAndDeferStop*[T: PubSub](nodes: seq[T]): untyped =
   await startNodes(nodes)
@@ -620,4 +620,4 @@ proc addDirectPeerStar*[T: PubSub](nodes: seq[T]) {.async.} =
       if node.switch.peerInfo.peerId != target.switch.peerInfo.peerId:
         futs.add(addDirectPeer(node, target))
 
-  await allFuturesThrowing(futs)
+  await allFuturesRaising(futs)
