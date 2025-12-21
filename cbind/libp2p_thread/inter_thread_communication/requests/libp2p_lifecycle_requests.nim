@@ -14,12 +14,13 @@
 # main thread, which is the one that runs LibP2P
 
 import std/[json]
-import chronos, results
+import chronos, results, chronicles
 
 import ../../../[types]
 import ../../../../libp2p
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
+import ../../../../libp2p/protocols/kademlia
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -40,7 +41,10 @@ proc createLibp2p(appCallbacks: AppCallbacks): LibP2P =
   let gossipSub = GossipSub.init(switch = switch, triggerSelf = true)
   switch.mount(gossipSub)
 
-  LibP2P(switch: switch, gossipSub: gossipSub)
+  let kad = KadDHT.new(switch)
+  switch.mount(kad)
+
+  LibP2P(switch: switch, gossipSub: gossipSub, kad: kad)
 
 proc createShared*(
     T: type LifecycleRequest, op: LifecycleMsgType, appCallbacks: AppCallbacks = nil

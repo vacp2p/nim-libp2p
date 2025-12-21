@@ -19,8 +19,10 @@ import
   ./libp2p_thread/libp2p_thread,
   ./[ffi_types, types],
   ./libp2p_thread/inter_thread_communication/libp2p_thread_request,
-  ./libp2p_thread/inter_thread_communication/requests/
-    [libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests],
+  ./libp2p_thread/inter_thread_communication/requests/[
+    libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
+    libp2p_kademlia_requests,
+  ],
   ../libp2p
 ################################################################################
 ### Not-exported components
@@ -273,10 +275,7 @@ proc fromUint32*(T: typedesc[Direction], dir: uint32): Result[T, string] =
     err("invalid direction")
 
 proc libp2p_connected_peers(
-    ctx: ptr LibP2PContext,
-    dir: uint32,
-    callback: ConnectedPeersCallback,
-    userData: pointer,
+    ctx: ptr LibP2PContext, dir: uint32, callback: PeersCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
@@ -293,6 +292,7 @@ proc libp2p_connected_peers(
       PeerManagementMsgType.CONNECTED_PEERS, direction = direction
     ),
     callback,
+    CallbackKind.PEERS,
     userData,
   ).isOkOr:
     let msg = "libp2p error: " & $error
@@ -410,5 +410,152 @@ proc libp2p_gossipsub_remove_validator(
     userData,
   ).cint
 ]#
+
+proc libp2p_find_node(
+    ctx: ptr LibP2PContext, peerId: cstring, callback: PeersCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil():
+    let msg = "peerId is nil"
+    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(KademliaMsgType.FIND_NODE, peerId = peerId),
+    callback,
+    CallbackKind.PEERS,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_put_value(
+    ctx: ptr LibP2PContext,
+    key: ptr byte,
+    keyLen: csize_t,
+    value: ptr byte,
+    valueLen: csize_t,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if key.isNil() or keyLen == 0:
+    let msg = "key is not set"
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(
+      KademliaMsgType.PUT_VALUE,
+      key = key,
+      keyLen = keyLen,
+      value = value,
+      valueLen = valueLen,
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_get_value(
+    ctx: ptr LibP2PContext,
+    key: ptr byte,
+    keyLen: csize_t,
+    quorumOverride: cint,
+    callback: GetValueCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if key.isNil() or keyLen == 0:
+    let msg = "key is not set"
+    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(
+      KademliaMsgType.GET_VALUE,
+      key = key,
+      keyLen = keyLen,
+      quorumOverride = quorumOverride,
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_add_provider(
+    ctx: ptr LibP2PContext, cid: cstring, callback: Libp2pCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if cid.isNil():
+    let msg = "cid is nil"
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(KademliaMsgType.ADD_PROVIDER, cid = cid),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_get_providers(
+    ctx: ptr LibP2PContext,
+    cid: cstring,
+    callback: GetProvidersCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if cid.isNil():
+    let msg = "cid is nil"
+    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(KademliaMsgType.GET_PROVIDERS, cid = cid),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
 ### End of exported procs
 ################################################################################

@@ -36,13 +36,7 @@ proc deallocPeerInfo*(info: ptr Libp2pPeerInfo) =
   if not info[].peerId.isNil():
     deallocShared(info[].peerId)
 
-  if not info[].addrs.isNil():
-    let addrsArr = cast[ptr UncheckedArray[cstring]](info[].addrs)
-    for i in 0 ..< int(info[].addrsLen):
-      let a = addrsArr[i]
-      if not a.isNil():
-        deallocShared(a)
-    deallocShared(addrsArr)
+  deallocCStringArray(info[].addrs, info[].addrsLen)
 
   deallocShared(info)
 
@@ -72,12 +66,7 @@ proc deallocConnectedPeers*(peers: ptr ConnectedPeersList) =
   if peers.isNil():
     return
 
-  if not peers[].peerIds.isNil():
-    let peersArr = cast[ptr UncheckedArray[cstring]](peers[].peerIds)
-    for i in 0 ..< int(peers[].peerIdsLen):
-      if not peersArr[i].isNil():
-        deallocShared(peersArr[i])
-    deallocShared(peersArr)
+  deallocCStringArray(peers[].peerIds, peers[].peerIdsLen)
 
   deallocShared(peers)
 
@@ -132,7 +121,7 @@ proc processPeerInfo*(
         addrsArr[i] = addrStr.alloc()
     else:
       infoPtr[].addrs = nil
-  except CatchableError as exc:
+  except LPError as exc:
     deallocPeerInfo(infoPtr)
     return err(exc.msg)
 
@@ -157,7 +146,7 @@ proc processConnectedPeers*(
   try:
     for i, peer in peers:
       peersArr[i] = ($peer).alloc()
-  except CatchableError as exc:
+  except LPError as exc:
     deallocConnectedPeers(peersPtr)
     return err(exc.msg)
 

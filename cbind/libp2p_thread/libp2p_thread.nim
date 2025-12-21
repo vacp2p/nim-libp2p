@@ -192,15 +192,38 @@ proc sendRequestToLibP2PThread*(
     ctx: ptr LibP2PContext,
     reqType: RequestType,
     reqContent: pointer,
-    callback: ConnectedPeersCallback,
+    callback: PeersCallback,
+    callbackKind: CallbackKind,
     userData: pointer,
 ): Result[void, string] =
-  ## Sends a request to the LibP2P thread for connected-peers callbacks
+  ## Sends a request to the LibP2P thread for find-node callbacks
+  sendRequest(ctx, reqType, reqContent, userData, callbackKind, cast[pointer](callback))
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: GetValueCallback,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for get-value callbacks
+  sendRequest(
+    ctx, reqType, reqContent, userData, CallbackKind.GET_VALUE, cast[pointer](callback)
+  )
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: GetProvidersCallback,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for get-providers callbacks
   sendRequest(
     ctx,
     reqType,
     reqContent,
     userData,
-    CallbackKind.CONNECTED_PEERS,
+    CallbackKind.GET_PROVIDERS,
     cast[pointer](callback),
   )
