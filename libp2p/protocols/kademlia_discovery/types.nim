@@ -1,0 +1,169 @@
+# Nim-LibP2P
+# Copyright (c) 2023-2025 Status Research & Development GmbH
+# Licensed under either of
+#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+# at your option.
+# This file may not be copied, modified, or distributed except according to
+# those terms.
+
+import std/[hashes, tables, sequtils, sets, heapqueue, times]
+import chronos, chronicles, results, stew/byteutils, nimcrypto/sha2
+import ../../[peerid, switch, multihash, cid, multicodec, routing_record]
+import ../../protobuf/minprotobuf
+import ../kademlia/types
+
+const DefaultSelfSPRRereshTime* = 10.minutes
+
+type
+  ServiceInfo* = object
+    id*: string
+    data*: seq[byte]
+
+  LogosPeerRecord* = object
+    peerId*: PeerId
+    seqNo*: uint64
+    addresses*: seq[AddressInfo]
+    services*: seq[ServiceInfo]
+
+# This is for internal use only
+proc hash*(service: ServiceInfo): Hash =
+  return service.id.hash()
+
+proc toKey*(service: ServiceInfo): Key =
+  return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
+
+proc init*(
+    T: typedesc[LogosPeerRecord],
+    peerInfo: PeerInfo,
+    seqNo: uint64 = getTime().toUnix().uint64,
+    services: seq[ServiceInfo] = @[],
+): T =
+  LogosPeerRecord(
+    peerId: peerInfo.peerId,
+    seqNo: seqNo,
+    addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
+    services: services,
+  )
+
+proc init*(
+    T: typedesc[LogosPeerRecord],
+    peerId: PeerId,
+    addresses: seq[MultiAddress],
+    seqNo: uint64 = getTime().toUnix().uint64,
+    services: seq[ServiceInfo] = @[],
+): T =
+  LogosPeerRecord(
+    peerId: peerId,
+    seqNo: seqNo,
+    addresses: addresses.mapIt(AddressInfo(address: it)),
+    services: services,
+  )
+
+proc decode*(
+    T: typedesc[LogosPeerRecord], buffer: seq[byte]
+): Result[LogosPeerRecord, ProtoError] =
+  let pb = initProtoBuffer(buffer)
+  var record = LogosPeerRecord()
+
+  ?pb.getRequiredField(1, record.peerId)
+  ?pb.getRequiredField(2, record.seqNo)
+
+  var addressInfos: seq[seq[byte]]
+  if ?pb.getRepeatedField(3, addressInfos):
+    for address in addressInfos:
+      var addressInfo = AddressInfo()
+      let subProto = initProtoBuffer(address)
+      let f = subProto.getField(1, addressInfo.address)
+      if f.get(false):
+        record.addresses &= addressInfo
+
+    if record.addresses.len == 0:
+      return err(ProtoError.RequiredFieldMissing)
+
+  var serviceInfos: seq[seq[byte]]
+  if ?pb.getRepeatedField(4, serviceInfos):
+    for service in serviceInfos:
+      var serviceInfo = ServiceInfo()
+      let subProto = initProtoBuffer(service)
+      let f = subProto.getField(1, serviceInfo.id)
+      discard ?subProto.getField(2, serviceInfo.data)
+      if f.get(false):
+        record.services &= serviceInfo
+
+  ok(record)
+
+proc encode*(record: LogosPeerRecord): seq[byte] =
+  var pb = initProtoBuffer()
+
+  pb.write(1, record.peerId)
+  pb.write(2, record.seqNo)
+
+  for address in record.addresses:
+    var addrPb = initProtoBuffer()
+    addrPb.write(1, address.address)
+    pb.write(3, addrPb)
+
+  for service in record.services:
+    var servPb = initProtoBuffer()
+    servPb.write(1, service.id)
+    if service.data.len > 0:
+      servPb.write(2, service.data)
+    pb.write(4, servPb)
+
+  pb.finish()
+  pb.buffer
+
+type SignedLogosPeerRecord* = SignedPayload[LogosPeerRecord]
+
+proc payloadDomain*(T: typedesc[LogosPeerRecord]): string =
+  $multiCodec("libp2p-peer-record")
+
+proc payloadType*(T: typedesc[LogosPeerRecord]): seq[byte] =
+  "/libp2p/logos-routing-record/".toBytes()
+
+proc checkValid*(spr: SignedLogosPeerRecord): Result[void, EnvelopeError] =
+  if not spr.data.peerId.match(spr.envelope.publicKey):
+    err(EnvelopeInvalidSignature)
+  else:
+    ok()
+
+type LogosEntryValidator* = ref object of EntryValidator
+method isValid*(
+    self: LogosEntryValidator, key: Key, record: EntryRecord
+): bool {.raises: [], gcsafe.} =
+  let spr = SignedPeerRecord.decode(record.value).valueOr:
+    return false
+
+  let expectedPeerId = key.toPeerId().valueOr:
+    return false
+
+  return spr.data.peerId == expectedPeerId
+
+type LogosEntrySelector* = ref object of EntrySelector
+method select*(
+    self: LogosEntrySelector, key: Key, records: seq[EntryRecord]
+): Result[int, string] {.raises: [], gcsafe.} =
+  if records.len == 0:
+    return err("No records to choose from")
+
+  var maxSeqNo: uint64 = 0
+  var bestIdx: int = -1
+
+  for i, rec in records:
+    let spr = SignedPeerRecord.decode(rec.value).valueOr:
+      continue
+
+    let seqNo = spr.data.seqNo
+    if seqNo > maxSeqNo or bestIdx == -1:
+      maxSeqNo = seqNo
+      bestIdx = i
+
+  if bestIdx == -1:
+    return err("No valid records")
+
+  return ok(bestIdx)
+
+type KademliaDiscovery* = ref object of KadDHT
+  services*: HashSet[ServiceInfo]
+  selfSignedLoop*: Future[void]

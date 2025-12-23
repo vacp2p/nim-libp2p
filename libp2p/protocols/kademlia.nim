@@ -72,7 +72,7 @@ proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       let randomKey = randomKeyInBucketRange(kad.rtable.selfId, i, kad.rng)
       discard await kad.findNode(randomKey)
 
-proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+proc maintainBuckets*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh buckets", kad.config.bucketRefreshTime:
     await kad.refreshBuckets()
 
