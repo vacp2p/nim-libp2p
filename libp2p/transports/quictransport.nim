@@ -9,7 +9,7 @@
 
 import std/[sequtils, sets]
 import chronos, chronicles, metrics, results
-import lsquic/[api, tlsconfig, connection as lsconn, certificateverifier]
+import lsquic
 import
   ../wire,
   ../multiaddress,
@@ -30,7 +30,7 @@ logScope:
 
 type
   P2PConnection = connection.Connection
-  QuicConnection = lsconn.Connection
+  QuicConnection = lsquic.Connection
   QuicTransportError* = object of transport.TransportError
   QuicTransportDialError* = object of transport.TransportDialError
   QuicTransportAcceptStopped* = object of QuicTransportError
