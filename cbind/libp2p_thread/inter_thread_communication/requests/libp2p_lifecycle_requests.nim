@@ -14,7 +14,7 @@
 # main thread, which is the one that runs LibP2P
 
 import std/[json]
-import chronos, results, chronicles
+import chronos, results
 
 import ../../../[types]
 import ../../../../libp2p

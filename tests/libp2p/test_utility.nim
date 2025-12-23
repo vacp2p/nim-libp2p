@@ -93,11 +93,10 @@ suite "Utility":
       await sleepAsync(3.seconds)
       return 2
 
-    let
-      f1 = futFinishes()
-      f2 = futFinishes()
-      f3 = futStalls()
-      futs = @[f1, f2, f3]
+    proc futCancels(): Future[int] {.async: (raises: [CancelledError]).} =
+      raise newException(CancelledError, "cancelled")
+
+    let futs = @[futFinishes(), futStalls(), futFinishes(), futCancels()]
 
     check (await futs.collectCompleted(10.millis)) == @[1, 1]
 

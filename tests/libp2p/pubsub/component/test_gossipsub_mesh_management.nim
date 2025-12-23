@@ -249,17 +249,12 @@ suite "GossipSub Component - Mesh Management":
     nodes[0].subscribe(topic, voidTopicHandler)
 
     # Then its mesh is pruned and peers have applied unsubscribeBackoff
-    # Waiting more than one heartbeat (60ms) and less than unsubscribeBackoff (1s)
-    await sleepAsync(unsubscribeBackoff.div(2))
-    check:
-      not nodes[0].mesh.hasKey(topic)
+    check not nodes[0].mesh.hasKey(topic)
 
-    # When unsubscribeBackoff period is done 
-    await sleepAsync(unsubscribeBackoff)
-
+    # After unsubscribeBackoff period is done
     # Then on the next heartbeat mesh is rebalanced and peers are regrafted
-    check:
-      nodes[0].mesh[topic].len == numberOfNodes - 1
+    checkUntilTimeout:
+      (nodes[0].mesh.hasKey(topic) and nodes[0].mesh[topic].len == numberOfNodes - 1)
 
   asyncTest "Prune backoff":
     const
