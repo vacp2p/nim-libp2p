@@ -94,7 +94,7 @@ suite "Utility":
       return 2
 
     proc futCancels(): Future[int] {.async: (raises: [CancelledError]).} =
-      raise newException(CancelledError, "cancelled") 
+      raise newException(CancelledError, "cancelled")
 
     let futs = @[futFinishes(), futStalls(), futFinishes(), futCancels()]
 
