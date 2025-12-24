@@ -12,7 +12,7 @@ import ../../../../libp2p
 import ../../../../libp2p/protocols/connectivity/autonatv2/[service, types]
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
-const 
+const
   thisPeer = MultiAddress.init("/ip6/::1/tcp/3030").get()
   otherPeer = MultiAddress.init("/ip6/::1/tcp/4040").get()
 
