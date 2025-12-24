@@ -189,7 +189,8 @@ proc waitForTCPServer*(
 ): Future[bool] {.async.} =
   for i in 0 ..< retries:
     try:
-      discard await connect(taddr)
+      let conn = await connect(taddr)
+      await conn.closeWait()
       return true
     except OSError:
       discard
