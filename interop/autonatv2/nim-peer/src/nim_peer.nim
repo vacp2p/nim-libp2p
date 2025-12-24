@@ -9,11 +9,12 @@
 
 import net, os, chronos
 import ../../../../libp2p
-import ../../../../libp2p/[
-  wire,
-  protocols/connectivity/autonatv2/service,
-  protocols/connectivity/autonatv2/types
-]
+import
+  ../../../../libp2p/[
+    wire,
+    protocols/connectivity/autonatv2/service,
+    protocols/connectivity/autonatv2/types,
+  ]
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
 const

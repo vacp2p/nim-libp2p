@@ -9,11 +9,7 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p
-import ../../../../libp2p/[
-  wire,
-  protocols/kademlia
-]
-
+import ../../../../libp2p/[wire, protocols/kademlia]
 
 const
   PeerAddr: string = "/ip4/127.0.0.1/tcp/4141"
