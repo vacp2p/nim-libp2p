@@ -9,7 +9,11 @@
 
 import net, os, chronos
 import ../../../../libp2p
-import ../../../../libp2p/protocols/connectivity/autonatv2/[service, types]
+import ../../../../libp2p/[
+  wire,
+  protocols/connectivity/autonatv2/service,
+  protocols/connectivity/autonatv2/types
+]
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
 const
@@ -58,7 +62,8 @@ proc main() {.async.} =
   echo service.networkReachability
 
 when isMainModule:
-  if waitFor(waitForTCPServer(initTAddress("::1:4040"))):
+  let ta = initTAddress(MultiAddress.init(otherPeer).get()).get()
+  if waitFor(waitForTCPServer(ta)):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)
