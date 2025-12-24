@@ -64,7 +64,7 @@ proc main() {.async.} =
     quit(1)
 
 when isMainModule:
-  if waitFor(waitForService(PeerIP, Port(PeerPort))):
+  if waitFor(waitForTCPServer(initTAddress(PeerIP, Port(PeerPort)))):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)

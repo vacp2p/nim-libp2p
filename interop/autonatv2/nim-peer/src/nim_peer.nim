@@ -13,8 +13,8 @@ import ../../../../libp2p/protocols/connectivity/autonatv2/[service, types]
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
 const
-  thisPeer = MultiAddress.init("/ip6/::1/tcp/3030").get()
-  otherPeer = MultiAddress.init("/ip6/::1/tcp/4040").get()
+  thisPeer = "/ip6/::1/tcp/3030"
+  otherPeer = "/ip6/::1/tcp/4040"
 
 proc main() {.async.} =
   if paramCount() != 1:
@@ -28,7 +28,7 @@ proc main() {.async.} =
   var src = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[thisPeer])
+    .withAddresses(@[MultiAddress.init(thisPeer).get()])
     .withAutonatV2Server()
     .withAutonatV2(
       serviceConfig = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
@@ -52,13 +52,13 @@ proc main() {.async.} =
   service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
   await src.start()
-  await src.connect(dstPeerId, @[otherPeer])
+  await src.connect(dstPeerId, @[MultiAddress.init(otherPeer).get()])
 
   await awaiter
   echo service.networkReachability
 
 when isMainModule:
-  if waitFor(waitForService(otherPeer.getPart(1), Port(otherPeer.getPart(3)))):
+  if waitFor(waitForTCPServer(initTAddress("::1:4040"))):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)

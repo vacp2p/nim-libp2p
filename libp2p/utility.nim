@@ -182,17 +182,14 @@ proc collectCompleted*[T, E](
   # Collect only successful results
   return futs.filterIt(it.completed()).mapIt(it.value())
 
-proc waitForService*(
-    host: string,
-    port: Port,
+proc waitForTCPServer*(
+    taddr: TransportAddress,
     retries: int = 20,
     delay: chronos.Duration = 500.milliseconds,
 ): Future[bool] {.async.} =
   for i in 0 ..< retries:
     try:
-      var s = newSocket()
-      s.connect(host, port)
-      s.close()
+      discard await connect(taddr)
       return true
     except OSError:
       discard

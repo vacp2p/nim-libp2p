@@ -79,7 +79,8 @@ func main() {
 		libp2p.Identity(priv),
 		libp2p.EnableAutoNATv2(),
 		libp2p.ListenAddrStrings(
-			"/ip4/0.0.0.0/tcp/4040",
+			// only use ipv6 address as this test case also tests
+			// interoperability with ipv6 addresses
 			"/ip6/::/tcp/4040",
 		),
 	)
