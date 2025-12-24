@@ -18,8 +18,8 @@ import
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
 const
-  thisPeer = "/ip6/::1/tcp/3030"
-  otherPeer = "/ip6/::1/tcp/4040"
+  OurAddr = "/ip6/::1/tcp/3030"
+  PeerAddr = "/ip6/::1/tcp/4040"
 
 proc main() {.async.} =
   if paramCount() != 1:
@@ -33,7 +33,7 @@ proc main() {.async.} =
   var src = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[MultiAddress.init(thisPeer).get()])
+    .withAddresses(@[MultiAddress.init(OurAddr).get()])
     .withAutonatV2Server()
     .withAutonatV2(
       serviceConfig = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
@@ -57,13 +57,13 @@ proc main() {.async.} =
   service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
   await src.start()
-  await src.connect(dstPeerId, @[MultiAddress.init(otherPeer).get()])
+  await src.connect(dstPeerId, @[MultiAddress.init(PeerAddr).get()])
 
   await awaiter
   echo service.networkReachability
 
 when isMainModule:
-  let ta = initTAddress(MultiAddress.init(otherPeer).get()).get()
+  let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
   if waitFor(waitForTCPServer(ta)):
     waitFor(main())
   else:
