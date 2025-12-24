@@ -25,7 +25,10 @@ proc bootstrapNode*(
 
   let msg =
     try:
-      await kad.sendFindNode(peerId, addrs, kad.rtable.selfId).wait(kad.config.timeout)
+      debug "trying to find self"
+      await kad.switch.dispatchFindNode(peerId, kad.rtable.selfId, Opt.some(addrs)).wait(
+        kad.config.timeout
+      )
     except DialFailedError as e:
       debug "Failed to dial bootstrap node",
         target = peerId, addrs = addrs, description = e.msg

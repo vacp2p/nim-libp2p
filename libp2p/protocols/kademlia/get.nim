@@ -23,6 +23,7 @@ proc dispatchGetVal(
   let conn = await switch.dial(peer, KadCodec)
   defer:
     await conn.close()
+
   let msg = Message(msgType: MessageType.getValue, key: key)
   await conn.writeLp(msg.encode().buffer)
 
