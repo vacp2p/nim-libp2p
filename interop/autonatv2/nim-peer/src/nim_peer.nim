@@ -23,7 +23,7 @@ proc main() {.async.} =
   var src = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/3030").tryGet()])
+    .withAddresses(@[MultiAddress.init("/ip6/::1/tcp/3030").tryGet()])
     .withAutonatV2Server()
     .withAutonatV2(
       serviceConfig = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
@@ -47,13 +47,13 @@ proc main() {.async.} =
   service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
   await src.start()
-  await src.connect(dstPeerId, @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()])
+  await src.connect(dstPeerId, @[MultiAddress.init("/ip6/::1/tcp/4040").get()])
 
   await awaiter
   echo service.networkReachability
 
 when isMainModule:
-  if waitFor(waitForService("127.0.0.1", Port(4040))):
+  if waitFor(waitForService("::1", Port(4040))):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)
