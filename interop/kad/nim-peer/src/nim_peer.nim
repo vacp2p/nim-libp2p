@@ -12,8 +12,9 @@ import ../../../../libp2p
 import ../../../../libp2p/[wire, protocols/kademlia]
 
 const
-  PeerAddr: string = "/ip4/127.0.0.1/tcp/4141"
-  OurAddr: string = "/ip4/127.0.0.1/tcp/3131"
+  PeerIdFile = "../rust-peer/peer.id"
+  PeerAddr = "/ip4/127.0.0.1/tcp/4141"
+  OurAddr = "/ip4/127.0.0.1/tcp/3131"
 
 proc kadInteropTest(otherPeerId: PeerId): Future[bool] {.async.} =
   var switch = SwitchBuilder
@@ -61,11 +62,11 @@ when isMainModule:
     # ensure other peer has fully started
     waitFor(sleepAsync(5.seconds))
 
-    let otherPeerId = PeerId.init(readFile("../rust-peer/peer.id")).get()
+    let otherPeerId = PeerId.init(readFile(PeerIdFile)).get()
     let success = waitFor(kadInteropTest(otherPeerId))
     if success:
-      echo "Kademlia introp test successfull"
+      echo "Kademlia introp test was successfull"
     else:
-      quit("Kademlia introp test failed", 1)
+      quit("Kademlia introp test has failed", 1)
   else:
     quit("timeout waiting for service", 1)

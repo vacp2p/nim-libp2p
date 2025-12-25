@@ -51,10 +51,13 @@ proc autonatInteropTest(otherPeerId: PeerId): Future[bool] {.async.} =
   await src.start()
   await src.connect(otherPeerId, @[MultiAddress.init(PeerAddr).get()])
 
+  # await for network reachability with some timeout, 
+  # to prevent waiting indefinitely
   await awaiter.wait(5.minutes)
 
   echo "Network reachability: ", service.networkReachability
-  
+
+  # if awaiter has completed then autonat tests has passed.
   return awaiter.completed()
 
 when isMainModule:
@@ -69,8 +72,8 @@ when isMainModule:
     let otherPeerId = PeerId.init(paramStr(1)).get()
     let success = waitFor(autonatInteropTest(otherPeerId))
     if success:
-      echo "Autonatv2 introp test successfull"
+      echo "Autonatv2 introp test was successfull"
     else:
-      quit("Autonatv2 introp test failed", 1)
+      quit("Autonatv2 introp test has failed", 1)
   else:
     quit("timeout waiting for service", 1)
