@@ -30,7 +30,7 @@ nim-libp2p is a great place to contribute. Your contribution will help drive tho
 
 The best part is that nim-libp2p has **good first issues** that are especially suited for newcomers. Your contributions will be guided by core maintainers, just like an **internship expiriance** but decentralized. 
 
-So what are you waiting for? Jump into the [contribting](https://github.com/vacp2p/nim-libp2p?ab=contributing-ov-file) page to get started.
+So what are you waiting for? Jump into the [contributing](docs/contributing.md) page to get started.
 
 ## Install
 
