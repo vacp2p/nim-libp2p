@@ -15,9 +15,10 @@ import ./imports
 const path {.strdefine.} = ""
 
 when path == "":
-  # Run all tests in libp2p and tools
+  # Run all tests in libp2p, tools, and interop
   importTests(currentSourcePath().parentDir() / "libp2p", @["multiformat_exts"])
   importTests(currentSourcePath().parentDir() / "tools", @[])
+  importTests(currentSourcePath().parentDir() / "interop", @[])
 else:
   # Run tests that match specific path substring
   importTests(currentSourcePath().parentDir(), @[], path)
