@@ -7,54 +7,14 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import chronos, stew/byteutils
-import ../../../../libp2p
-import ../../../../libp2p/[wire, protocols/kademlia]
+import chronos
+import ../../../../libp2p/[peerid, wire]
+import ../../../../tests/interop/kadTests
 
 const
   PeerIdFile = "../rust-peer/peer.id"
   PeerAddr = "/ip4/127.0.0.1/tcp/4141"
   OurAddr = "/ip4/127.0.0.1/tcp/3131"
-
-proc kadInteropTest(otherPeerId: PeerId): Future[bool] {.async.} =
-  var switch = SwitchBuilder
-    .new()
-    .withRng(newRng())
-    .withAddresses(@[MultiAddress.init(OurAddr).tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
-
-  let kad = KadDHT.new(
-    switch,
-    bootstrapNodes = @[(otherPeerId, @[MultiAddress.init(PeerAddr).get()])],
-    config = KadDHTConfig.new(quorum = 1),
-  )
-
-  switch.mount(kad)
-
-  await switch.start()
-  defer:
-    await switch.stop()
-
-  let key: Key = "key".toBytes()
-  let value = "value".toBytes()
-
-  let res = await kad.putValue(key, value)
-  if res.isErr():
-    echo "putValue failed: ", res.error
-    return false
-
-  # wait for other peer's kad to store the value
-  await sleepAsync(2.seconds)
-
-  # try to get the inserted value from peer
-  if (await kad.getValue(key)).get().value != value:
-    echo "Get value did not return correct value"
-    return false
-
-  return true
 
 when isMainModule:
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
@@ -63,7 +23,7 @@ when isMainModule:
     waitFor(sleepAsync(5.seconds))
 
     let otherPeerId = PeerId.init(readFile(PeerIdFile)).get()
-    let success = waitFor(kadInteropTest(otherPeerId))
+    let success = waitFor(kadInteropTest(otherPeerId, PeerAddr, OurAddr))
     if success:
       echo "Kademlia introp test was successfull"
     else:
