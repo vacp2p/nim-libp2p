@@ -29,3 +29,4 @@ type LibP2P* = ref object
   gossipSub*: GossipSub
   kad*: KadDHT
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
+  connections*: Table[ptr Libp2pStream, Connection]

@@ -50,6 +50,12 @@ typedef void (*PeersCallback)(int callerRet, const char **peerIds,
                               size_t peerIdsLen, const char *msg, size_t len,
                               void *userData);
 
+typedef struct libp2p_stream libp2p_stream_t;
+
+typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
+                                   const char *msg, size_t len,
+                                   void *userData);
+
 typedef uint32_t Direction;
 
 enum {
@@ -98,6 +104,10 @@ typedef ValidationResult ValidatorHandler(const char *topic, Message msg);
 typedef void TopicHandler(const char *topic, uint8_t *data, size_t len,
                           void *userData);
 
+int libp2p_create_cid(uint32_t version, const char *multicodec, const char *hash,
+                      const uint8_t *data, size_t dataLen, Libp2pCallback callback,
+                      void *userData);
+
 libp2p_ctx_t *libp2p_new(Libp2pCallback callback, void *userData);
 
 int libp2p_destroy(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
@@ -122,6 +132,18 @@ int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir, PeersCallback callb
                            void *userData);
 
 // TODO: libp2p_ping
+
+int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
+                ConnectionCallback callback, void *userData);
+
+int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                        Libp2pCallback callback, void *userData);
+
+int libp2p_stream_closeWithEOF(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                               Libp2pCallback callback, void *userData);
+
+int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                          Libp2pCallback callback, void *userData);
 
 // TODO: pubsub parameters
 // TODO: gossipsub parameters
@@ -164,6 +186,12 @@ int libp2p_get_value(void *ctx, const uint8_t *key, size_t keyLen,
 
 int libp2p_add_provider(void *ctx, const char *cid, Libp2pCallback callback,
                         void *userData);
+
+int libp2p_start_providing(void *ctx, const char *cid, Libp2pCallback callback,
+                           void *userData);
+
+int libp2p_stop_providing(void *ctx, const char *cid, Libp2pCallback callback,
+                          void *userData);
 
 int libp2p_get_providers(void *ctx, const char *cid,
                          GetProvidersCallback callback, void *userData);
