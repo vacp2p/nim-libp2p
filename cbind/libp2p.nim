@@ -21,7 +21,7 @@ import
   ./libp2p_thread/inter_thread_communication/libp2p_thread_request,
   ./libp2p_thread/inter_thread_communication/requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
-    libp2p_kademlia_requests,
+    libp2p_kademlia_requests, libp2p_stream_requests,
   ],
   ../libp2p
 ################################################################################
@@ -301,7 +301,109 @@ proc libp2p_connected_peers(
 
   return RET_OK.cint
 
-# TODO: instead of returning a ctx, return a libp2p_t
+proc libp2p_dial(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    proto: cstring,
+    callback: ConnectionCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(StreamMsgType.DIAL, peerId = peerId, proto = proto),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_stream_close(
+    ctx: ptr LibP2PContext,
+    conn: ptr Libp2pStream,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if conn.isNil():
+    let msg = "connection is not set"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(StreamMsgType.CLOSE, conn = conn),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_stream_closeWithEOF(
+    ctx: ptr LibP2PContext,
+    conn: ptr Libp2pStream,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if conn.isNil():
+    let msg = "connection is not set"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(StreamMsgType.CLOSE_WITH_EOF, conn = conn),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_stream_release(
+    ctx: ptr LibP2PContext,
+    conn: ptr Libp2pStream,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if conn.isNil():
+    let msg = "connection is not set"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(StreamMsgType.RELEASE, conn = conn),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
 
 proc libp2p_gossipsub_publish(
     ctx: ptr LibP2PContext,
