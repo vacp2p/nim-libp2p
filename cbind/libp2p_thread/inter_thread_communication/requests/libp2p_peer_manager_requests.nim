@@ -95,10 +95,8 @@ proc process*(
     let peerId = PeerId.init($self[].peerId).valueOr:
       return err($error)
     await libp2p.switch.disconnect(peerId)
-  of PEER_INFO:
-    raiseAssert "unsupported path, use processPeerInfo"
-  of CONNECTED_PEERS:
-    raiseAssert "unsupported path, use processConnectedPeers"
+  else:
+    raiseAssert "unsupported operation"
 
   return ok("")
 

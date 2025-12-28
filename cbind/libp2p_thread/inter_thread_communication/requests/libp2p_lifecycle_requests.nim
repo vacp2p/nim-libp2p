@@ -13,14 +13,15 @@
 # management and request processing. This structure is used for communicating with the
 # main thread, which is the one that runs LibP2P
 
-import std/[json]
+import std/[json, tables]
 import chronos, results
 
-import ../../../[types]
+import ../../../[types, ffi_types]
 import ../../../../libp2p
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/protocols/ping
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -40,11 +41,18 @@ proc createLibp2p(appCallbacks: AppCallbacks): LibP2P =
   # TODO: this should be optional depending on parameters
   let gossipSub = GossipSub.init(switch = switch, triggerSelf = true)
   switch.mount(gossipSub)
+  switch.mount(Ping.new())
 
   let kad = KadDHT.new(switch)
   switch.mount(kad)
 
-  LibP2P(switch: switch, gossipSub: gossipSub, kad: kad)
+  LibP2P(
+    switch: switch,
+    gossipSub: gossipSub,
+    kad: kad,
+    topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
+    connections: initTable[ptr Libp2pStream, Connection](),
+  )
 
 proc createShared*(
     T: type LifecycleRequest, op: LifecycleMsgType, appCallbacks: AppCallbacks = nil
