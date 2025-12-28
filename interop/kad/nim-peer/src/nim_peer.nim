@@ -9,15 +9,11 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p
-import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/[wire, protocols/kademlia]
 
 const
-  PeerIP: string = "127.0.0.1"
-  PeerPort: int = 4141
-  PeerAddr: string = "/ip4/" & PeerIP & "/tcp/" & $PeerPort
-  OurIP: string = "127.0.0.1"
-  OurPort: int = 3131
-  OurAddr: string = "/ip4/" & OurIP & "/tcp/" & $OurPort
+  PeerAddr: string = "/ip4/127.0.0.1/tcp/4141"
+  OurAddr: string = "/ip4/127.0.0.1/tcp/3131"
 
 proc main() {.async.} =
   var switch = SwitchBuilder
@@ -64,7 +60,8 @@ proc main() {.async.} =
     quit(1)
 
 when isMainModule:
-  if waitFor(waitForService(PeerIP, Port(PeerPort))):
+  let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
+  if waitFor(waitForTCPServer(ta)):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)
