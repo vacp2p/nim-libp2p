@@ -11,6 +11,8 @@ pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 int callback_executed = 0;
 libp2p_stream_t *ping_stream = NULL;
 
+#define CID_BUF_SIZE 128
+
 typedef struct {
   char peerId[256];
   const char **addrs;
@@ -26,6 +28,7 @@ static void topic_handler(const char *topic, uint8_t *data, size_t len,
 static void peers_handler(int callerRet, const char **peerIds,
                           size_t peerIdsLen, const char *msg, size_t len,
                           void *userData);
+static void signal_callback_executed(void);
 static void get_value_handler(int callerRet, const uint8_t *value,
                               size_t valueLen, const char *msg, size_t len,
                               void *userData);
@@ -37,6 +40,8 @@ static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userData);
 static void connection_handler(int callerRet, libp2p_stream_t *conn,
                                const char *msg, size_t len, void *userData);
+static void create_cid_handler(int callerRet, const char *msg, size_t len,
+                               void *userData);
 
 // libp2p Context
 libp2p_ctx_t *ctx1;
@@ -45,6 +50,7 @@ libp2p_ctx_t *ctx2;
 int main(int argc, char **argv) {
   int status = 1;
   PeerInfo pi = {0};
+  char cid_buf[CID_BUF_SIZE] = {0};
 
   ctx1 = libp2p_new(event_handler, NULL);
   waitForCallback();
@@ -115,8 +121,18 @@ int main(int argc, char **argv) {
                    NULL);
   waitForCallback();
 
-  const char *cid =
-      "bafkreigh2akiscaildcztl3lv4odwvqpmr3p3u2ryyfsl5p4f4n37jds3m";
+  uint8_t cidData[32];
+  for (size_t i = 0; i < sizeof(cidData); i++) {
+    cidData[i] = (uint8_t)i;
+  }
+  libp2p_create_cid(1, "dag-pb", "sha2-256", cidData, sizeof(cidData),
+                    create_cid_handler, cid_buf);
+  waitForCallback();
+
+  const char *cid = cid_buf;
+  libp2p_start_providing(ctx1, cid, event_handler, NULL);
+  waitForCallback();
+
   libp2p_add_provider(ctx1, cid, event_handler, NULL);
   waitForCallback();
 
@@ -154,10 +170,7 @@ static void event_handler(int callerRet, const char *msg, size_t len,
     exit(1);
   }
 
-  pthread_mutex_lock(&mutex);
-  callback_executed = 1;
-  pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
+  signal_callback_executed();
 }
 
 static void topic_handler(const char *topic, uint8_t *data, size_t len,
@@ -186,10 +199,7 @@ static void peers_handler(int callerRet, const char **peerIds,
     printf("  %s\n", peerIds[i]);
   }
 
-  pthread_mutex_lock(&mutex);
-  callback_executed = 1;
-  pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
+  signal_callback_executed();
 }
 
 static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
@@ -234,10 +244,36 @@ static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
     }
   }
 
-  pthread_mutex_lock(&mutex);
-  callback_executed = 1;
-  pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
+  signal_callback_executed();
+}
+
+static void create_cid_handler(int callerRet, const char *msg, size_t len,
+                               void *userData) {
+  char *buf = (char *)userData;
+  if (callerRet != RET_OK) {
+    printf("Create CID error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  if (msg == NULL || len == 0) {
+    printf("Create CID returned no data\n");
+    exit(1);
+  }
+
+  if (buf == NULL) {
+    printf("Create CID handler missing buffer\n");
+    exit(1);
+  }
+
+  size_t copyLen = len;
+  if (copyLen >= CID_BUF_SIZE)
+    copyLen = CID_BUF_SIZE - 1;
+  memcpy(buf, msg, copyLen);
+  buf[copyLen] = '\0';
+  printf("Generated CID: %s\n", buf);
+
+  signal_callback_executed();
 }
 
 static void get_value_handler(int callerRet, const uint8_t *value,
@@ -257,10 +293,7 @@ static void get_value_handler(int callerRet, const uint8_t *value,
   }
   printf("\n");
 
-  pthread_mutex_lock(&mutex);
-  callback_executed = 1;
-  pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
+  signal_callback_executed();
 }
 
 static void get_providers_handler(int callerRet,
@@ -282,10 +315,7 @@ static void get_providers_handler(int callerRet,
     }
   }
 
-  pthread_mutex_lock(&mutex);
-  callback_executed = 1;
-  pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
+  signal_callback_executed();
 }
 
 static void connection_handler(int callerRet, libp2p_stream_t *conn,
@@ -297,6 +327,10 @@ static void connection_handler(int callerRet, libp2p_stream_t *conn,
 
   ping_stream = conn;
 
+  signal_callback_executed();
+}
+
+static void signal_callback_executed(void) {
   pthread_mutex_lock(&mutex);
   callback_executed = 1;
   pthread_cond_signal(&cond);
