@@ -178,10 +178,10 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#toChunks%2Cseq%5BT%5D%2Cint" title="toChunks[T](data: seq[T]; size: int): seq[seq[T]]">toChunks[T](data: seq[T]; size: int): seq[seq[T]]</a></li>
 
 </ul>
-<ul class="simple nested-toc-section">waitForService
-  <li><a class="reference" href="#waitForService%2Cstring%2CPort%2Cint" title="waitForService(host: string; port: Port; retries: int = 20;
-               delay: chronos.Duration = 500.milliseconds): Future[bool]">waitForService(host: string; port: Port; retries: int = 20;
-               delay: chronos.Duration = 500.milliseconds): Future[bool]</a></li>
+<ul class="simple nested-toc-section">waitForTCPServer
+  <li><a class="reference" href="#waitForTCPServer%2CTransportAddress%2Cint" title="waitForTCPServer(taddr: TransportAddress; retries: int = 20;
+                 delay: chronos.Duration = 500.milliseconds): Future[bool]">waitForTCPServer(taddr: TransportAddress; retries: int = 20;
+                 delay: chronos.Duration = 500.milliseconds): Future[bool]</a></li>
 
 </ul>
 
@@ -333,17 +333,17 @@ Splits <tt class="docutils literal"><span class="pre"><span class="Identifier">d
 </div>
 
 </div>
-<div id="waitForService-procs-all">
-  <div id="waitForService,string,Port,int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#waitForService%2Cstring%2CPort%2Cint"><span class="Identifier">waitForService</span></a><span class="Other">(</span><span class="Identifier">host</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">port</span><span class="Other">:</span> <span class="Identifier">Port</span><span class="Other">;</span> <span class="Identifier">retries</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="DecNumber">20</span><span class="Other">;</span>
-                    <span class="Identifier">delay</span><span class="Other">:</span> <span class="Identifier">chronos</span><span class="Other">.</span><span class="Identifier">Duration</span> <span class="Other">=</span> <span class="DecNumber">500</span><span class="Other">.</span><span class="Identifier">milliseconds</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
+<div id="waitForTCPServer-procs-all">
+  <div id="waitForTCPServer,TransportAddress,int" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#waitForTCPServer%2CTransportAddress%2Cint"><span class="Identifier">waitForTCPServer</span></a><span class="Other">(</span><span class="Identifier">taddr</span><span class="Other">:</span> <span class="Identifier">TransportAddress</span><span class="Other">;</span> <span class="Identifier">retries</span><span class="Other">:</span> <span class="Identifier">int</span> <span class="Other">=</span> <span class="DecNumber">20</span><span class="Other">;</span>
+                      <span class="Identifier">delay</span><span class="Other">:</span> <span class="Identifier">chronos</span><span class="Other">.</span><span class="Identifier">Duration</span> <span class="Other">=</span> <span class="DecNumber">500</span><span class="Other">.</span><span class="Identifier">milliseconds</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utility.nim#L190" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utility.nim#L190" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utility.nim#L189" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utility.nim#L189" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -506,7 +506,7 @@ Splits <tt class="docutils literal"><span class="pre"><span class="Identifier">d
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2025-12-23 18:33:08 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2025-12-28 15:56:25 UTC</small>
       </div>
     </div>
   </div>
