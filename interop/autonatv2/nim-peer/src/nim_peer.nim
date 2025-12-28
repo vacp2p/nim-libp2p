@@ -9,13 +9,23 @@
 
 import net, os, chronos
 import ../../../../libp2p
-import ../../../../libp2p/protocols/connectivity/autonatv2/[service, types]
+import
+  ../../../../libp2p/[
+    wire,
+    protocols/connectivity/autonatv2/service,
+    protocols/connectivity/autonatv2/types,
+  ]
+
+# Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
+const
+  OurAddr = "/ip6/::1/tcp/3030"
+  PeerAddr = "/ip6/::1/tcp/4040"
 
 proc main() {.async.} =
   if paramCount() != 1:
     quit("Usage: nim r src/nim_peer.nim <peerid>", 1)
 
-  # ensure go peer is started
+  # ensure go peer has fully started
   await sleepAsync(3.seconds)
 
   let dstPeerId = PeerId.init(paramStr(1)).get()
@@ -23,7 +33,7 @@ proc main() {.async.} =
   var src = SwitchBuilder
     .new()
     .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/3030").tryGet()])
+    .withAddresses(@[MultiAddress.init(OurAddr).get()])
     .withAutonatV2Server()
     .withAutonatV2(
       serviceConfig = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
@@ -47,13 +57,14 @@ proc main() {.async.} =
   service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
   await src.start()
-  await src.connect(dstPeerId, @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()])
+  await src.connect(dstPeerId, @[MultiAddress.init(PeerAddr).get()])
 
   await awaiter
   echo service.networkReachability
 
 when isMainModule:
-  if waitFor(waitForService("127.0.0.1", Port(4040))):
+  let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
+  if waitFor(waitForTCPServer(ta)):
     waitFor(main())
   else:
     quit("timeout waiting for service", 1)

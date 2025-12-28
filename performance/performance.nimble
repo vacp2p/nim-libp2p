@@ -7,7 +7,7 @@ license = "MIT"
 
 # Dependencies
 
-requires "nim >= 2.2.4", "chronicles", "chronos", "unittest2"
+requires "nim >= 2.2.6", "chronicles", "chronos", "unittest2"
 
 task performance, "Run performance tests":
   exec "nim c -r --mm:refc -d:release -o:/tmp/scenarios_performance -d:chronicles_log_level:DEBUG ./scenarios_performance.nim"
