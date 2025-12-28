@@ -16,22 +16,6 @@
 <img src="https://img.shields.io/badge/nim-%3E%3D1.2.0-orange.svg?style=flat-square" />
 </p>
 
-# Table of Contents
-- [Table of Contents](#table-of-contents)
-  - [Background](#background)
-  - [Install](#install)
-  - [Getting Started](#getting-started)
-  - [Development](#development)
-    - [Testing](#testing)
-    - [Contribute](#contribute)
-    - [Contributors](#contributors)
-    - [Core Maintainers](#core-maintainers)
-    - [Compile time flags](#compile-time-flags)
-  - [Modules](#modules)
-  - [Users](#users)
-  - [Stability](#stability)
-  - [License](#license)
-
 ## Background
 libp2p is a [Peer-to-Peer](https://en.wikipedia.org/wiki/Peer-to-peer) networking stack, with [implementations](https://github.com/libp2p/libp2p#implementations) in multiple languages derived from the same [specifications.](https://github.com/libp2p/specs)
 
@@ -40,155 +24,65 @@ This is a native Nim implementation, using [chronos](https://github.com/status-i
 
 Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p's documentation [**docs.libp2p.io**](https://docs.libp2p.io).
 
+## Contribute
+
+nim-libp2p is a great place to contribute. Your contribution will help drive thousands of decentralized nodes across networks worldwide.
+
+The best part is that nim-libp2p has **good first issues** that are especially suited for newcomers. Your contributions will be guided by core maintainers, just like an **internship expiriance** but decentralized. 
+
+So what are you waiting for? Jump into the [contributing](docs/contributing.md) page to get started.
+
 ## Install
 
-> The currently supported Nim versions are 2.0 and 2.2.
+The currently supported Nim versions are 2.0.16 and v2.2.6.
 
 ```
 nimble install libp2p
 ```
 You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/). See [examples](./examples) for simple usage patterns.
 
-## Getting Started
-Try out the chat example. Full code can be found [here](https://github.com/vacp2p/nim-libp2p/blob/master/examples/directchat.nim):
-
-```bash
-nim c -r --threads:on examples/directchat.nim
-```
-
-This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in another instance to connect to it.
-
-```bash
-./examples/directchat
-/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu # change this hash by the hash you were given
-```
-
-You can now chat between the instances!
-
-![Chat example](https://imgur.com/caYRu8K.gif)
-
 ## Development
-Clone the repository and install the dependencies:
-```sh
-git clone https://github.com/vacp2p/nim-libp2p
-cd nim-libp2p
-nimble install -dy
-```
-You can use `nix develop` to start a shell with Nim and Nimble.
 
-nimble 0.20.1 is required for running `nimble test`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
+Read the [development](docs/development.md) guide to get started with the project and testing the code. Additionally, check the [compile time flags](docs/compile_time_flags.md) page, where all available compile-time flags are documented.
 
-### Testing
-Run unit tests:
-```sh
-# run all the unit tests
-nimble test
+## Contributors
 
-# run tests matching a path substring:
-# - Directory name: "transports" matches all tests in transports/
-# - Partial filename: "quic" matches test_quic.nim, test_quic_stream.nim, etc.
-# - Exact filename: "test_ws.nim" matches only that specific file
-# - Full path: "libp2p/transports/test_tcp" matches libp2p/transports/test_tcp.nim
-nimble testpath quic
-nimble testpath transports/test_ws
-nimble testpath mix
-# etc ...
+Thanks to everyone who has contributed to nim-libp2p. Your support and efforts are greatly appreciated.
 
-# run specific test suites
-nimble testmultiformatexts
-nimble testintegration
-```
-
-For faster iteration during development, you can bypass nimble overhead by compiling the test file directly:
-
-```sh
-# compile and run all tests
-nim c -r tests/test_all.nim
-
-# compile and run tests matching a path substring
-nim c -r -d:path=quic tests/test_all.nim
-nim c -r -d:path=transports/test_ws tests/test_all.nim
-nim c -r -d:path=mix tests/test_all.nim
-```
-
-For a list of all available test tasks, use:
-```
-nimble tasks
-```
-
-### Contribute
-
-The libp2p implementation in Nim is a work in progress. We welcome contributors to help out! Specifically, you can:
-- Go through the modules and **check out existing issues**. This would be especially useful for modules in active development. Some knowledge of IPFS/libp2p may be required, as well as the infrastructure behind it.
-- **Perform code reviews**. Feel free to let us know if you found anything that can a) speed up the project development b) ensure better quality and c) reduce possible future bugs.
-- **Add tests**. Help nim-libp2p to be more robust by adding more tests to the [tests folder](tests/).
-- **Small PRs**. Try to keep PRs atomic and digestible. This makes the review process and pinpointing bugs easier.
-- **Code format**. See [Coding Style](CODING_STYLE.md).
-- **Join the Conversation**. Connect with other contributors in our [community channel](https://discord.com/channels/1204447718093750272/1351621032263417946). Ask questions, share ideas, get support, and stay informed about the latest updates from the maintainers.
-
-### Contributors
 <a href="https://github.com/vacp2p/nim-libp2p/graphs/contributors"><img src="https://contrib.rocks/image?repo=vacp2p/nim-libp2p" alt="nim-libp2p contributors"></a>
 
-### Core Maintainers
-<table>
-  <tbody>
-    <tr>
-      <td align="center"><a href="https://github.com/richard-ramos"><img src="https://avatars.githubusercontent.com/u/1106587?v=4?s=100" width="100px;" alt="Richard"/><br /><sub><b>Richard</b></sub></a></td>
-      <td align="center"><a href="https://github.com/vladopajic"><img src="https://avatars.githubusercontent.com/u/4353513?v=4?s=100" width="100px;" alt="Vlado"/><br /><sub><b>Vlado</b></sub></a></td>
-      <td align="center"><a href="https://github.com/gmelodie"><img src="https://avatars.githubusercontent.com/u/8129788?v=4?s=100" width="100px;" alt="Gabe"/><br /><sub><b>Gabe</b></sub></a></td>
-    </tr>
-  </tbody>
-</table>
+## Join the Conversation
 
-### Compile time flags
+Connect with other contributors in our [community channel](https://discord.com/channels/1204447718093750272/1351621032263417946). Ask questions, share ideas, get support, and stay informed about the latest updates from the maintainers.
 
-Enable autotls support
-```bash
-nim c -d:libp2p_autotls_support some_file.nim
-```
+## Users
 
-Enable expensive metrics (ie, metrics with per-peer cardinality):
-```bash
-nim c -d:libp2p_expensive_metrics some_file.nim
-```
+nim-libp2p is used by:
+- [Nimbus](https://github.com/status-im/nimbus-eth2), an Ethereum client
+- [nwaku](https://github.com/waku-org/nwaku), a decentralized messaging application
+- [nim-codex](https://github.com/codex-storage/nim-codex), a decentralized storage application
+- (open a pull request if you want to be included here)
 
-Set list of known libp2p agents for metrics:
-```bash
-nim c -d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,lighthouse,lodestar,prysm,teku some_file.nim
-```
+## Stability
+nim-libp2p has been used in production for over a year in high-stake scenarios, so its core is considered stable.
+Some modules are more recent and less stable.
 
-Specify gossipsub specific topics to measure in the metrics:
-```bash
-nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
-```
+The versioning follows [semver](https://semver.org/), with some additions:
+- Some of libp2p procedures are marked as `.public.`, they will remain compatible during each `MAJOR` version
+- The rest of the procedures are considered internal, and can change at any `MINOR` version (but remain compatible for each new `PATCH`)
 
-Extend `MultiFormats`:
-| Multi format   | Compiler flag<br>(path to extensions file) | Expected definition in extension file |
-|----------------|--------------------------------------------|-------------------------------|
-| `MultiCodec`   | `-d:libp2p_multicodec_exts`                | `const CodecExts = []`        |
-| `MultiHash`    | `-d:libp2p_multihash_exts`                 | `const HashExts = []`         |
-| `MultiAddress` | `-d:libp2p_multiaddress_exts`              | `const AddressExts = []`      |
-| `MultiBase`    | `-d:libp2p_multibase_exts`                 | `const BaseExts = []`         |
-| `ContentIds`   | `-d:libp2p_contentids_exts`                | `const ContentIdsExts = []`   |
+## License
 
-For example, a file called `multihash_exts.nim` could be created and contain `MultiHash` extensions:
-```nim
-proc coder1(data: openArray[byte], output: var openArray[byte]) =
-  copyMem(addr output[0], unsafeAddr data[0], len(output))
+Licensed and distributed under either of
 
-proc coder2(data: openArray[byte], output: var openArray[byte]) =
-  copyMem(addr output[0], unsafeAddr data[0], len(output))
+* MIT license: [LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT
 
-proc sha2_256_override(data: openArray[byte], output: var openArray[byte]) =
-  copyMem(addr output[0], unsafeAddr data[0], len(output))
+or
 
-const HashExts = [
-  MHash(mcodec: multiCodec("codec_mc1"), size: 0, coder: coder1),
-  MHash(mcodec: multiCodec("codec_mc2"), size: 6, coder: coder2),
-  MHash(mcodec: multiCodec("sha2-256"), size: 6, coder: sha2_256_override),
-]
-```
-These `MultiHashes` will be available at compile time when the binary is compiled with `-d:libp2p_multihash_exts=multihash_exts.nim`.
+* Apache License, Version 2.0, ([LICENSE-APACHEv2](LICENSE-APACHEv2) or http://www.apache.org/licenses/LICENSE-2.0)
+
+at your option. These files may not be copied, modified, or distributed except according to those terms.
+
 
 ## Modules
 List of packages modules implemented in nim-libp2p:
@@ -226,33 +120,3 @@ List of packages modules implemented in nim-libp2p:
 | [libp2p-pubsub](libp2p/protocols/pubsub/pubsub.nim)        | Pub-Sub generic interface                                                                                        |
 | [libp2p-floodsub](libp2p/protocols/pubsub/floodsub.nim)    | FloodSub implementation                                                                                          |
 | [libp2p-gossipsub](libp2p/protocols/pubsub/gossipsub.nim)  | [GossipSub](https://docs.libp2p.io/concepts/publish-subscribe/) implementation                                   |
-
-## Users
-
-nim-libp2p is used by:
-- [Nimbus](https://github.com/status-im/nimbus-eth2), an Ethereum client
-- [nwaku](https://github.com/waku-org/nwaku), a decentralized messaging application
-- [nim-codex](https://github.com/codex-storage/nim-codex), a decentralized storage application
-- (open a pull request if you want to be included here)
-
-## Stability
-nim-libp2p has been used in production for over a year in high-stake scenarios, so its core is considered stable.
-Some modules are more recent and less stable.
-
-The versioning follows [semver](https://semver.org/), with some additions:
-- Some of libp2p procedures are marked as `.public.`, they will remain compatible during each `MAJOR` version
-- The rest of the procedures are considered internal, and can change at any `MINOR` version (but remain compatible for each new `PATCH`)
-
-We aim to be compatible at all time with at least 2 Nim `MINOR` versions, currently `2.0 & 2.2`
-
-## License
-
-Licensed and distributed under either of
-
-* MIT license: [LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT
-
-or
-
-* Apache License, Version 2.0, ([LICENSE-APACHEv2](LICENSE-APACHEv2) or http://www.apache.org/licenses/LICENSE-2.0)
-
-at your option. These files may not be copied, modified, or distributed except according to those terms.
