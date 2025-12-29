@@ -97,4 +97,8 @@ chronicles is configured at compile time. You can adjust the log detail level us
 nim c -r -d:chronicles_log_level=error examples/helloworld.nim
 ```
 
-where `chronicles_log_level` can have following values: `none`, `error`, `warn`, `info`, `debug` and `trace`.
+where `chronicles_log_level` can have following values: `none`, `error`, `warn`, `info`, `debug` and `trace` (values are case-insensitive).
+
+If you are overwhelmed with logs, you can disable topics that aren’t relevant and increase the logging level for the ones that matter most:
+
+```-d:chronicles_enabled_topics:switch:TRACE,quictransport:INFO```
