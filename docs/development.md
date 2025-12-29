@@ -60,10 +60,13 @@ nim c -r tests/test_all.nim
 nim c -r -d:path=quic tests/test_all.nim
 nim c -r -d:path=transports/test_ws tests/test_all.nim
 nim c -r -d:path=mix tests/test_all.nim
+
+# compile and run specific test file
+nim c -r tests/tools/test_multiaddress.nim
 ```
 
-For a list of all available test tasks, use:
-```
-nimble tasks
-```
+## Formatting code
 
+Code should be formatted with [nph](https://github.com/arnetheduck/nph). 
+
+Do `nimble install nph@v0.6.1` once to install nph, then `nimble format` (or `nph ./. *.nim`) to format code.
