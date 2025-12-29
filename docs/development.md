@@ -70,3 +70,16 @@ nim c -r tests/tools/test_multiaddress.nim
 nim-libp2p uses [nph](https://github.com/arnetheduck/nph) to format code.
 
 Do `nimble install nph@v0.6.1` once to install nph, then `nimble format` (or `nph ./. *.nim`) to format code.
+
+
+## Logs
+
+nim-libp2p uses [chronicles](https://github.com/status-im/nim-chronicles) library for structured logging.
+
+chronicles is configured at compile time. You can adjust the log detail level using compile time flags like this:
+
+```bash
+nim c -r -d:chronicles_log_level=error examples/helloworld.nim
+```
+
+where `chronicles_log_level` can have following values: `none`, `error`, `warn`, `info`, `debug` and `trace`.
