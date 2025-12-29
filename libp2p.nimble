@@ -122,3 +122,6 @@ task install_pinned, "Reads the lockfile":
 
 task unpin, "Restore global package use":
   rmDir("nimbledeps")
+
+task format, "Format nim code using nph":
+  exec "nph ./. *.nim"
