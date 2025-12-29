@@ -14,9 +14,8 @@ Feel free to let us know if you found anything that can a) speed up the project 
 
 ## Contribute
 
-- **Developing**. Read the [development](./docs/development.md) guide to get started with the project and testing the code. Additionally, check the [compile time flags](./docs/compile_time_flags.md) page, where all available compile-time flags are documented. Reading [common hurdles](./docs/common_hurdles.md) for frequently encountered issues can be helpfull to prevent painfull time loss in advance.
+- **Developing**. Read the [development](docs/development.md) guide to get started with the project and testing the code. Additionally, check the [compile time flags](docs/compile_time_flags.md) page, where all available compile-time flags are documented. Reading [common hurdles](docs/common_hurdles.md) for frequently encountered issues can be helpfull to prevent painfull time loss in advance.
 - **Small PRs**. Try to keep PRs atomic and digestible. This makes the review process and pinpointing bugs easier.
-- **Code format**. Code should be formatted with [nph](https://github.com/arnetheduck/nph). Do `nimble install nph@v0.6.1` once to install nph, then `nimble format` to format code.
 - **Are you stuck or need help?**. Direct questions to core maintainers via issues, they will be fast to respond. Or connect with core contributors in our [community channel](https://discord.com/channels/1204447718093750272/1351621032263417946).
 - **Open a PR**. Open a PR whenever you feel ready. Assign the core maintainers for review, and they’ll be right there to help you through the process.
 
