@@ -12,20 +12,35 @@ nimble 0.20.1 is required for running `nimble test`. At time of writing, this is
 
 
 ## Getting Started
-Try out the chat example. Full code can be found [here](https://github.com/vacp2p/nim-libp2p/blob/master/examples/directchat.nim):
+
+### Hello World example
+
+Try to compile and run a simple example to ensure that everything is working on your machine.
 
 ```bash
-nim c -r --threads:on examples/directchat.nim
+nim c -r examples/helloworld.nim
 ```
 
-This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in another instance to connect to it.
+### Chat example
+
+Try out the chat example, where you can chat between two instances.
+
+Run chat example (first instance):
+```bash
+nim c -r examples/directchat.nim
+```
+This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in second instance to connect to it.
+
+Then run chat example again (second instance):
+```bash
+nim c -r examples/directchat.nim
+```
+
+And then use peer ID from first instance to connect to it, by typing in second instance:
 
 ```bash
-./examples/directchat
-/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu # change this hash by the hash you were given
+/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu # use peer ID from first instance
 ```
-
-You can now chat between the instances!
 
 ![Chat example](https://imgur.com/caYRu8K.gif)
 
@@ -60,10 +75,30 @@ nim c -r tests/test_all.nim
 nim c -r -d:path=quic tests/test_all.nim
 nim c -r -d:path=transports/test_ws tests/test_all.nim
 nim c -r -d:path=mix tests/test_all.nim
+
+# compile and run specific test file
+nim c -r tests/tools/test_multiaddress.nim
 ```
 
-For a list of all available test tasks, use:
-```
-nimble tasks
+## Formatting code
+
+nim-libp2p uses [nph](https://github.com/arnetheduck/nph) to format code.
+
+Do `nimble install nph@v0.6.1` once to install nph, then `nimble format` (or `nph ./. *.nim`) to format code.
+
+
+## Logs
+
+nim-libp2p uses [chronicles](https://github.com/status-im/nim-chronicles) library for structured logging.
+
+chronicles is configured at compile time. You can adjust the log detail level using compile time flags like this:
+
+```bash
+nim c -r -d:chronicles_log_level=error examples/helloworld.nim
 ```
 
+where `chronicles_log_level` can have following values: `none`, `error`, `warn`, `info`, `debug` and `trace` (values are case-insensitive).
+
+If you are overwhelmed with logs, you can disable topics that aren’t relevant and increase the logging level for the ones that matter most:
+
+```-d:chronicles_enabled_topics:switch:TRACE,quictransport:INFO```
