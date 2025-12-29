@@ -12,20 +12,35 @@ nimble 0.20.1 is required for running `nimble test`. At time of writing, this is
 
 
 ## Getting Started
-Try out the chat example. Full code can be found [here](https://github.com/vacp2p/nim-libp2p/blob/master/examples/directchat.nim):
+
+### Hello World example
+
+Try to compile and run a simple example to ensure that everything is working on your machine.
 
 ```bash
-nim c -r --threads:on examples/directchat.nim
+nim c -r examples/helloworld.nim
 ```
 
-This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in another instance to connect to it.
+### Chat example
+
+Try out the chat example, where you can chat between two instances.
+
+Run chat example (first instance):
+```bash
+nim c -r examples/directchat.nim
+```
+This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in second instance to connect to it.
+
+Then run chat example again (second instance):
+```bash
+nim c -r examples/directchat.nim
+```
+
+And then use peer ID from first instance to connect to it, by typing in second instance:
 
 ```bash
-./examples/directchat
-/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu # change this hash by the hash you were given
+/connect QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu # use peer ID from first instance
 ```
-
-You can now chat between the instances!
 
 ![Chat example](https://imgur.com/caYRu8K.gif)
 
