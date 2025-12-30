@@ -18,7 +18,10 @@ import
   ]
 
 proc autonatInteropTest*(
-    ourAddr: string, otherAddr: string, otherPeerId: PeerId
+    ourAddr: string,
+    otherAddr: string,
+    otherPeerId: PeerId,
+    timeout: Duration = 5.minutes,
 ): Future[bool] {.async.} =
   var switch = SwitchBuilder
     .new()
@@ -51,9 +54,9 @@ proc autonatInteropTest*(
     await switch.stop()
   await switch.connect(otherPeerId, @[MultiAddress.init(otherAddr).get()])
 
-  # await for network reachability with some timeout, 
+  # await for network reachability with some timeout,
   # to prevent waiting indefinitely
-  await awaiter.wait(5.minutes)
+  await awaiter.wait(timeout)
 
   echo "Network reachability: ", service.networkReachability
 
