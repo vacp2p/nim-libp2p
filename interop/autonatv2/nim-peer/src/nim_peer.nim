@@ -9,12 +9,7 @@
 
 import net, os, chronos
 import ../../../../tests/interop/autonatv2
-import
-  ../../../../libp2p/[
-    multiaddress,
-    peerid,
-    wire,
-  ]
+import ../../../../libp2p/[multiaddress, peerid, wire]
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
 const

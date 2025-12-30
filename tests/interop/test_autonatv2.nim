@@ -11,13 +11,7 @@
 
 import chronos
 import ./autonatv2
-import
-  ../../libp2p/[
-    builders,
-    peerid,
-    wire,
-    protocols/connectivity/autonatv2/service,
-  ]
+import ../../libp2p/[builders, peerid, wire, protocols/connectivity/autonatv2/service]
 import ../tools/[unittest]
 
 suite "Autonatv2 Interop Tests with Nim nodes":
@@ -50,4 +44,3 @@ suite "Autonatv2 Interop Tests with Nim nodes":
     const ourAddress = "/ip6/::1/tcp/4040"
     check:
       await autonatInteropTest(ourAddress, peerAddress, peerId)
-

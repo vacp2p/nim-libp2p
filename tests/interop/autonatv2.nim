@@ -18,7 +18,7 @@ import
   ]
 
 proc autonatInteropTest*(
-    ourAddr: string, otherAddr: string, otherPeerId: PeerId 
+    ourAddr: string, otherAddr: string, otherPeerId: PeerId
 ): Future[bool] {.async.} =
   var switch = SwitchBuilder
     .new()
