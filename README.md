@@ -42,7 +42,12 @@ You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-lib
 
 ## Development
 
-Read the [development](docs/development.md) guide to get started with the project and testing the code. Additionally, check the [compile time flags](docs/compile_time_flags.md) page, where all available compile-time flags are documented. Reading [common hurdles](docs/common_hurdles.md) for frequently encountered issues can be helpfull to prevent painfull time loss in advance.
+Read the [development guide](docs/development.md) to get started with the project and testing.
+
+Additional resources:
+
+- [Compile time flags](docs/compile_time_flags.md) - all available compile-time options
+- [Common hurdles](docs/common_hurdles.md) - frequently encountered issues and solutions
 
 ## Contributors
 
