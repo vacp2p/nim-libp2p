@@ -13,14 +13,13 @@
 <p align="center">
 <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" /></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
-<img src="https://img.shields.io/badge/nim-%3E%3D1.2.0-orange.svg?style=flat-square" />
 </p>
 
 ## Background
 libp2p is a [Peer-to-Peer](https://en.wikipedia.org/wiki/Peer-to-peer) networking stack, with [implementations](https://github.com/libp2p/libp2p#implementations) in multiple languages derived from the same [specifications.](https://github.com/libp2p/specs)
 
 Building large scale peer-to-peer systems has been complex and difficult in the last 15 years and libp2p is a way to fix that. It strives to be a modular stack with secure defaults and useful protocols, while remaining open and extensible.
-This is a native Nim implementation, using [chronos](https://github.com/status-im/nim-chronos) for asynchronous execution. It's used in production by a few [projects](#users)
+This is a native Nim implementation, using [chronos](https://github.com/status-im/nim-chronos) for asynchronous execution. It's used in production by a few [projects](#users).
 
 Learn more about libp2p at [**libp2p.io**](https://libp2p.io) and follow libp2p's documentation [**docs.libp2p.io**](https://docs.libp2p.io).
 
@@ -30,11 +29,11 @@ nim-libp2p is a great place to contribute. Your contribution will help drive tho
 
 The best part is that nim-libp2p has **good first issues** that are especially suited for newcomers. Your contributions will be guided by core maintainers, just like an **internship expiriance** but decentralized. 
 
-So what are you waiting for? Jump into the [contributing](docs/contributing.md) page to get started.
+Jump into the [contributing](docs/contributing.md) page to get started, `nim-libp2p` is expecting your contribution!
 
 ## Install
 
-The currently supported Nim versions are 2.0.16 and v2.2.6.
+The currently supported Nim versions are v2.0.16 and v2.2.6.
 
 ```
 nimble install libp2p
@@ -43,7 +42,7 @@ You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-lib
 
 ## Development
 
-Read the [development](docs/development.md) guide to get started with the project and testing the code. Additionally, check the [compile time flags](docs/compile_time_flags.md) page, where all available compile-time flags are documented.
+Read the [development](docs/development.md) guide to get started with the project and testing the code. Additionally, check the [compile time flags](docs/compile_time_flags.md) page, where all available compile-time flags are documented. Reading [common hurdles](docs/common_hurdles.md) for frequently encountered issues can be helpfull to prevent painfull time loss in advance.
 
 ## Contributors
 
@@ -64,7 +63,7 @@ nim-libp2p is used by:
 - (open a pull request if you want to be included here)
 
 ## Stability
-nim-libp2p has been used in production for over a year in high-stake scenarios, so its core is considered stable.
+nim-libp2p has been used in production for many years in high-stake scenarios, so its core is considered stable.
 Some modules are more recent and less stable.
 
 The versioning follows [semver](https://semver.org/), with some additions:
