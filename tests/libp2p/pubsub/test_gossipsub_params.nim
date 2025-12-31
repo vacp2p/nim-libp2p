@@ -265,6 +265,20 @@ suite "GossipSubParams validation":
     params.maxNumElementsInNonPriorityQueue = 1
     check params.validateParameters().isOk()
 
+  test "maxNumElementsInPriorityQueue fails when zero":
+    const errorMessage =
+      "gossipsub: maxNumElementsInPriorityQueue parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.maxNumElementsInPriorityQueue = 0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "maxNumElementsInPriorityQueue succeeds when positive":
+    var params = newDefaultValidParams()
+    params.maxNumElementsInPriorityQueue = 1
+    check params.validateParameters().isOk()
+
 suite "TopicParams validation":
   proc newDefaultValidTopicParams(): TopicParams =
     result = TopicParams.init()

@@ -65,6 +65,7 @@ declareCounter(
 )
 
 const DefaultMaxNumElementsInNonPriorityQueue* = 1024
+const DefaultMaxNumElementsInPriorityQueue* = 100
 
 type
   PeerRateLimitError* = object of CatchableError
@@ -156,6 +157,8 @@ type
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
       # The max number of elements allowed in the non-priority queue.
+    maxNumElementsInPriorityQueue*: int
+      # The max number of elements allowed in the priority queue.
     disconnected: bool
     customConnCallbacks*: Option[CustomConnectionCallbacks]
 
@@ -458,6 +461,10 @@ proc sendEncoded*(
       maxSize = p.maxMessageSize, msgSize = msg.len
     Future[void].completed()
   elif isHighPriority or emptyQueues:
+    if p.rpcmessagequeue.sendPriorityQueue.len >= p.maxNumElementsInPriorityQueue:
+      warn "dropping pubsub message; priority queue limit exceeded",
+        p, queueLen = p.rpcmessagequeue.sendPriorityQueue.len
+      return Future[void].completed()
     let f = p.sendMsg(msg, useCustomConn)
     if not f.finished:
       p.rpcmessagequeue.sendPriorityQueue.addLast(f)
@@ -614,6 +621,7 @@ proc new*(
     codec: string,
     maxMessageSize: int,
     maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue,
+    maxNumElementsInPriorityQueue: int = DefaultMaxNumElementsInPriorityQueue,
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket),
     customConnCallbacks: Option[CustomConnectionCallbacks] =
       none(CustomConnectionCallbacks),
@@ -628,6 +636,7 @@ proc new*(
     overheadRateLimitOpt: overheadRateLimitOpt,
     rpcmessagequeue: RpcMessageQueue.new(),
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
+    maxNumElementsInPriorityQueue: maxNumElementsInPriorityQueue,
     customConnCallbacks: customConnCallbacks,
   )
 
