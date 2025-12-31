@@ -21,15 +21,7 @@ const
   OurAddr = "/ip6/::1/tcp/3030"
   PeerAddr = "/ip6/::1/tcp/4040"
 
-proc main() {.async.} =
-  if paramCount() != 1:
-    quit("Usage: nim r src/nim_peer.nim <peerid>", 1)
-
-  # ensure go peer has fully started
-  await sleepAsync(3.seconds)
-
-  let dstPeerId = PeerId.init(paramStr(1)).get()
-
+proc autonatInteropTest(otherPeerId: PeerId): Future[bool] {.async.} =
   var src = SwitchBuilder
     .new()
     .withRng(newRng())
@@ -57,14 +49,31 @@ proc main() {.async.} =
   service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
   await src.start()
-  await src.connect(dstPeerId, @[MultiAddress.init(PeerAddr).get()])
+  await src.connect(otherPeerId, @[MultiAddress.init(PeerAddr).get()])
 
-  await awaiter
-  echo service.networkReachability
+  # await for network reachability with some timeout, 
+  # to prevent waiting indefinitely
+  await awaiter.wait(5.minutes)
+
+  echo "Network reachability: ", service.networkReachability
+
+  # if awaiter has completed then autonat tests has passed.
+  return awaiter.completed()
 
 when isMainModule:
+  if paramCount() != 1:
+    quit("Usage: nim r src/nim_peer.nim <peerid>", 1)
+
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
   if waitFor(waitForTCPServer(ta)):
-    waitFor(main())
+    # ensure other peer has fully started
+    waitFor(sleepAsync(3.seconds))
+
+    let otherPeerId = PeerId.init(paramStr(1)).get()
+    let success = waitFor(autonatInteropTest(otherPeerId))
+    if success:
+      echo "Autonatv2 introp test was successfull"
+    else:
+      quit("Autonatv2 introp test has failed", 1)
   else:
     quit("timeout waiting for service", 1)
