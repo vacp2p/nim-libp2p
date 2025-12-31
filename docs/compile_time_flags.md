@@ -1,4 +1,4 @@
-# Compile time flags|
+# Compile time flags
 
 Enable autotls support
 ```bash
