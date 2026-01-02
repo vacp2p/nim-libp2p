@@ -9,17 +9,14 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p
-import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/[wire, protocols/kademlia]
 
 const
-  PeerIP: string = "127.0.0.1"
-  PeerPort: int = 4141
-  PeerAddr: string = "/ip4/" & PeerIP & "/tcp/" & $PeerPort
-  OurIP: string = "127.0.0.1"
-  OurPort: int = 3131
-  OurAddr: string = "/ip4/" & OurIP & "/tcp/" & $OurPort
+  PeerIdFile = "../rust-peer/peer.id"
+  PeerAddr = "/ip4/127.0.0.1/tcp/4141"
+  OurAddr = "/ip4/127.0.0.1/tcp/3131"
 
-proc main() {.async.} =
+proc kadInteropTest(otherPeerId: PeerId): Future[bool] {.async.} =
   var switch = SwitchBuilder
     .new()
     .withRng(newRng())
@@ -29,19 +26,13 @@ proc main() {.async.} =
     .withNoise()
     .build()
 
-  let
-    peerId = PeerId.init(readFile("../rust-peer/peer.id")).get()
-    peerMa = MultiAddress.init(PeerAddr).get()
-    kad = KadDHT.new(
-      switch,
-      bootstrapNodes = @[(peerId, @[peerMa])],
-      config = KadDHTConfig.new(quorum = 1),
-    )
+  let kad = KadDHT.new(
+    switch,
+    bootstrapNodes = @[(otherPeerId, @[MultiAddress.init(PeerAddr).get()])],
+    config = KadDHTConfig.new(quorum = 1),
+  )
 
   switch.mount(kad)
-
-  # wait for rust's kad to be ready
-  await sleepAsync(5.seconds)
 
   await switch.start()
   defer:
@@ -53,18 +44,29 @@ proc main() {.async.} =
   let res = await kad.putValue(key, value)
   if res.isErr():
     echo "putValue failed: ", res.error
-    quit(1)
+    return false
 
-  # wait for rust's kad to store the value
+  # wait for other peer's kad to store the value
   await sleepAsync(2.seconds)
 
   # try to get the inserted value from peer
   if (await kad.getValue(key)).get().value != value:
     echo "Get value did not return correct value"
-    quit(1)
+    return false
+
+  return true
 
 when isMainModule:
-  if waitFor(waitForService(PeerIP, Port(PeerPort))):
-    waitFor(main())
+  let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
+  if waitFor(waitForTCPServer(ta)):
+    # ensure other peer has fully started
+    waitFor(sleepAsync(5.seconds))
+
+    let otherPeerId = PeerId.init(readFile(PeerIdFile)).get()
+    let success = waitFor(kadInteropTest(otherPeerId))
+    if success:
+      echo "Kademlia introp test was successfull"
+    else:
+      quit("Kademlia introp test has failed", 1)
   else:
     quit("timeout waiting for service", 1)

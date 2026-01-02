@@ -20,6 +20,8 @@ type KademliaMsgType* = enum
   GET_VALUE
   ADD_PROVIDER
   GET_PROVIDERS
+  START_PROVIDING
+  STOP_PROVIDING
 
 type KademliaRequest* = object
   operation: KademliaMsgType
@@ -175,6 +177,14 @@ proc process*(
     let cid = Cid.init($self[].cid).valueOr:
       return err($error)
     await kad.addProvider(cid)
+  of START_PROVIDING:
+    let cid = Cid.init($self[].cid).valueOr:
+      return err($error)
+    await kad.startProviding(cid)
+  of STOP_PROVIDING:
+    let cid = Cid.init($self[].cid).valueOr:
+      return err($error)
+    kad.stopProviding(cid)
   else:
     raiseAssert "unsupported path, use specific processor"
 

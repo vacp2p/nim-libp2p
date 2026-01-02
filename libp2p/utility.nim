@@ -9,7 +9,7 @@
 
 {.push raises: [].}
 
-import std/[net, sets, options, macros]
+import std/[sets, options, macros]
 import stew/byteutils
 import results, chronos, sequtils
 
@@ -182,17 +182,15 @@ proc collectCompleted*[T, E](
   # Collect only successful results
   return futs.filterIt(it.completed()).mapIt(it.value())
 
-proc waitForService*(
-    host: string,
-    port: Port,
+proc waitForTCPServer*(
+    taddr: TransportAddress,
     retries: int = 20,
     delay: chronos.Duration = 500.milliseconds,
 ): Future[bool] {.async.} =
   for i in 0 ..< retries:
     try:
-      var s = newSocket()
-      s.connect(host, port)
-      s.close()
+      let conn = await connect(taddr)
+      await conn.closeWait()
       return true
     except OSError:
       discard
