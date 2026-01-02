@@ -11,7 +11,7 @@ requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
   "websock >= 0.2.1", "unittest2", "results",
-  "https://github.com/vacp2p/nim-lsquic#c767c4a5f13229c431d7301d3043258792d381e5",
+  "https://github.com/vacp2p/nim-lsquic#de410c4f0a29659f677f2ca5d7f4a8e812850082",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 import hashes, os, sequtils, strutils
