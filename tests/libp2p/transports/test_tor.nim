@@ -89,7 +89,12 @@ suite "Tor transport":
 
   basicTransportTest(torTransProvider, address, validAddresses, invalidAddresses)
   connectionTransportTest(torTransProvider, address, address2)
-  streamTransportTest(torTransProvider, address, streamProvider)
+  streamTransportTest(
+    torTransProvider,
+    MultiAddress.init(address).get(),
+    Opt.none(MultiAddress),
+    streamProvider,
+  )
 
   proc test(lintesAddr: string, dialAddr: string) {.async.} =
     let server = TcpTransport.new({ReuseAddr}, Upgrade())

@@ -38,6 +38,11 @@ jobs:
           path: nimbledeps
           key: nimbledeps-${{ hashFiles('.pinned') }}
 
+      - name: Install runtime deps (windows)
+        if: ${{ matrix.platform.os == 'windows'}}
+        run: |
+          pacman -S --noconfirm base-devel gcc nasm
+
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |

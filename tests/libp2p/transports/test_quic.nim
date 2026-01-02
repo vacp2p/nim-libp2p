@@ -31,7 +31,8 @@ proc streamProvider(conn: Connection, handle: bool = true): Muxer {.raises: [].}
     raiseAssert "should not happen"
 
 const
-  address = "/ip4/127.0.0.1/udp/0/quic-v1"
+  addressIP4 = "/ip4/127.0.0.1/udp/0/quic-v1"
+  addressIP6 = "/ip6/::1/udp/1234/quic-v1"
   validAddresses =
     @[
       "/ip4/127.0.0.1/udp/1234/quic-v1", "/ip6/::1/udp/1234/quic-v1",
@@ -48,17 +49,22 @@ suite "Quic transport":
   teardown:
     checkTrackers()
 
-  basicTransportTest(quicTransProvider, address, validAddresses, invalidAddresses)
-  streamTransportTest(quicTransProvider, address, streamProvider)
+  basicTransportTest(quicTransProvider, addressIP4, validAddresses, invalidAddresses)
+  streamTransportTest(
+    quicTransProvider,
+    MultiAddress.init(addressIP4).get(),
+    Opt.some(MultiAddress.init(addressIP6).get()),
+    streamProvider,
+  )
 
   asyncTest "transport e2e - invalid cert - server":
-    let server = await createTransport(isServer = true, withInvalidCert = true)
+    let server = await createQuicTransport(isServer = true, withInvalidCert = true)
     asyncSpawn createServerAcceptConn(server)()
     defer:
       await server.stop()
 
     proc runClient() {.async.} =
-      let client = await createTransport()
+      let client = await createQuicTransport()
       expect QuicTransportDialError:
         discard await client.dial("", server.addrs[0])
       await client.stop()
@@ -66,13 +72,13 @@ suite "Quic transport":
     await runClient()
 
   asyncTest "transport e2e - invalid cert - client":
-    let server = await createTransport(isServer = true)
+    let server = await createQuicTransport(isServer = true)
     asyncSpawn createServerAcceptConn(server)()
     defer:
       await server.stop()
 
     proc runClient() {.async.} =
-      let client = await createTransport(withInvalidCert = true)
+      let client = await createQuicTransport(withInvalidCert = true)
       let conn = await client.dial("", server.addrs[0])
       # TODO: expose CRYPTO_ERROR somehow in lsquic. 
       # This is a temporary measure just to get the test to work
@@ -94,14 +100,14 @@ suite "Quic transport":
     return
 
   asyncTest "server not accepting":
-    let server = await createTransport(isServer = true)
+    let server = await createQuicTransport(isServer = true)
     # intentionally not calling createServerAcceptConn as server should not accept
     defer:
       await server.stop()
 
     proc runClient() {.async.} =
       # client should be able to write even when server has not accepted
-      let client = await createTransport()
+      let client = await createQuicTransport()
       let conn = await client.dial("", server.addrs[0])
       let muxer = QuicMuxer.new(conn)
       let stream = await muxer.newStream()
@@ -115,9 +121,10 @@ suite "Quic transport":
     let serverPrivateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
     let expectedPeerId = PeerId.init(serverPrivateKey).tryGet()
 
-    let server =
-      await createTransport(isServer = true, privateKey = Opt.some(serverPrivateKey))
-    let client = await createTransport()
+    let server = await createQuicTransport(
+      isServer = true, privateKey = Opt.some(serverPrivateKey)
+    )
+    let client = await createQuicTransport()
 
     let acceptFut = server.accept()
     let clientConn = await client.dial("", server.addrs[0])
@@ -135,7 +142,7 @@ suite "Quic transport":
     await server.stop()
 
   asyncTest "accept on stopped transport":
-    let server = await createTransport(isServer = true)
+    let server = await createQuicTransport(isServer = true)
     await server.stop()
 
     expect QuicTransportAcceptStopped:
