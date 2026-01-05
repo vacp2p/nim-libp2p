@@ -186,9 +186,8 @@ proc take*[T](s: seq[T], n: int): seq[T] =
   ## Take first `n` elements of `s`, or `s.len()` if `n > s.len()`
   return s[0 .. min(s.len() - 1, n)]
 
-proc waitForService*(
-    host: string,
-    port: Port,
+proc waitForTCPServer*(
+    taddr: TransportAddress,
     retries: int = 20,
     delay: chronos.Duration = 500.milliseconds,
 ): Future[bool] {.async.} =
