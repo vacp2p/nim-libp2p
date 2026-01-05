@@ -73,7 +73,6 @@ suite "Key conversion":
 
     let expectedMultihash = MultiHash.init(peerId.data).get()
     check:
-      key.len > 0
       key == expectedMultihash.data.buffer
       key.toPeerId().get() == peerId
 
@@ -85,7 +84,6 @@ suite "Key conversion":
     let key = cid.toKey()
 
     check:
-      key.len > 0
       key == multihash.data.buffer
       key.toCid() == cid
 
@@ -96,6 +94,5 @@ suite "Key conversion":
     let key = multihash.toKey()
 
     check:
-      key.len > 0
       key == multihash.data.buffer
       MultiHash.init(key).get() == multihash
