@@ -231,7 +231,7 @@ proc internalConnect(
 
   try:
     self.connManager.storeMuxer(muxed)
-    await self.peerStore.identify(muxed)
+    await self.peerStore.identify(muxed, dir)
     await self.connManager.triggerPeerEvents(
       muxed.connection.peerId,
       PeerEvent(kind: PeerEventKind.Identified, initiator: true),

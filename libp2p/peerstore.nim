@@ -189,7 +189,7 @@ proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
     peerStore.toClean.delete(0)
 
 proc identify*(
-    peerStore: PeerStore, muxer: Muxer
+    peerStore: PeerStore, muxer: Muxer, dir: Direction
 ) {.
     async: (
       raises: [
@@ -216,7 +216,10 @@ proc identify*(
           knownAgent = shortAgent
         muxer.setShortAgent(knownAgent)
 
-      peerStore.updatePeerInfo(info, stream.observedAddr)
+      if dir == Direction.In:
+        peerStore.updatePeerInfo(info)
+      else:
+        peerStore.updatePeerInfo(info, stream.observedAddr)
   finally:
     await stream.closeWithEOF()
 
