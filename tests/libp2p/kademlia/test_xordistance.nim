@@ -9,9 +9,18 @@
 
 {.used.}
 
-import chronos, chronicles
-import ../../../libp2p/protocols/kademlia
-import ../../tools/[unittest]
+import chronos, chronicles, stew/byteutils
+import
+  ../../../libp2p/[
+    cid,
+    crypto/crypto,
+    multicodec,
+    multihash,
+    peerid,
+    protocols/kademlia,
+    protocols/kademlia/types,
+  ]
+import ../../tools/[crypto, unittest]
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
@@ -55,3 +64,35 @@ suite "KadDHT XOR Distance":
     check cmp(a, b) == -1
     check cmp(b, a) == 1
     check cmp(a, a) == 0
+
+suite "Key conversion":
+  test "PeerId to DHT Key extracts multihash bytes":
+    let peerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+
+    let key = peerId.toKey()
+
+    let expectedMultihash = MultiHash.init(peerId.data).get()
+    check:
+      key == expectedMultihash.data.buffer
+      key.toPeerId().get() == peerId
+
+  test "CID to DHT Key extracts multihash bytes":
+    let text = "content"
+    let multihash = MultiHash.digest("sha2-256", text.toBytes()).get()
+    let cid = Cid.init(CIDv1, multiCodec("dag-pb"), multihash).tryGet()
+
+    let key = cid.toKey()
+
+    check:
+      key == multihash.data.buffer
+      key.toCid() == cid
+
+  test "Arbitrary bytes to DHT Key extracts multihash bytes":
+    let bytes = [byte 0, 1, 2, 3, 4]
+    let multihash = MultiHash.digest("sha2-256", bytes).get()
+
+    let key = multihash.toKey()
+
+    check:
+      key == multihash.data.buffer
+      MultiHash.init(key).get() == multihash
