@@ -200,13 +200,3 @@ proc waitForTCPServer*(
       discard
     await sleepAsync(delay)
   return false
-
-proc extend[T](dst: var seq[T], src: openArray[T]) =
-  var seen = initHashSet[T](dst.len + src.len)
-
-  for x in dst:
-    seen.incl(x)
-
-  for x in src:
-    if seen.incl(x):
-      dst.add(x)

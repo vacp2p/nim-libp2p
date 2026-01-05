@@ -118,7 +118,7 @@ proc addNewPeerAddresses(
     if not pid.isOk:
       error "Invalid PeerId in successful reply", peerId = peer.id
       return
-    addrsTable[pid.get()].extend(peer.addrs)
+    addrsTable.extend(pid.get(), peer.addrs)
 
 proc findNode*(
     kad: KadDHT, target: Key
