@@ -100,6 +100,20 @@ suite "Utility":
 
     check (await futs.collectCompleted(10.millis)) == @[1, 1]
 
+  test "Take":
+    # nim shenanigans, need to do it like this
+    let
+      take3 = @[1, 2, 3, 4].take(3)
+      take5 = @[1, 2, 3, 4].take(5)
+      take0 = @[1, 2, 3, 4].take(0)
+      takeMinus1 = @[1, 2, 3, 4].take(-1)
+
+    check:
+      take3 == @[1, 2, 3]
+      take5 == @[1, 2, 3, 4]
+      take0.len() == 0
+      takeMinus1.len() == 0
+
 suite "withValue and valueOr templates":
   type TestObj = ref object
     x: int
