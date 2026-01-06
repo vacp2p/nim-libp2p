@@ -225,3 +225,14 @@ proc getMostObservedProtosAndPorts*(self: PeerStore): seq[MultiAddress] =
 
 proc guessDialableAddr*(self: PeerStore, ma: MultiAddress): MultiAddress =
   return self.identify.observedAddrManager.guessDialableAddr(ma)
+
+proc extend*[T](self: SeqPeerBook[T], key: PeerId, new: seq[T]) =
+  var extended: HashSet[T]
+
+  for old in self[key]:
+    extended.incl(old)
+
+  for elem in new:
+    extended.incl(elem)
+
+  self[key] = extended.toSeq()
