@@ -73,7 +73,7 @@ suite "KadDHT Routing Table":
     # oldest was evicted
     check oldest.nodeId != oldestAfterInsert.nodeId
 
-  test "existing key insert updates lastSeen":
+  test "re-insert existing key updates lastSeen":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
