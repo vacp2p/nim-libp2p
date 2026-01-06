@@ -102,6 +102,21 @@ proc write*(pb: var ProtoBuffer, field: int, imreceiving: ControlIMReceiving) =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["imreceiving"])
 
+proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
+  var ipb = initProtoBuffer()
+
+  # Experimental extensions must use field numbers larger than 0x200000 to be
+  # encoded with 4 bytes
+  if extensions.testExtension.isSome():
+    ipb.write(6492434, uint32(extensions.testExtension.get()))
+
+  if ipb.buffer.len > 0:
+    ipb.finish()
+    pb.write(field, ipb)
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["extensions"])
+
 proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
   var ipb = initProtoBuffer()
   for ihave in control.ihave:
@@ -114,11 +129,15 @@ proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
     ipb.write(4, prune)
   for idontwant in control.idontwant:
     ipb.write(5, idontwant)
+  if control.extensions.isSome():
+    ipb.write(6, control.extensions.get())
+
   when defined(libp2p_gossipsub_1_4):
     for preamble in control.preamble:
-      ipb.write(6, preamble)
+      ipb.write(7, preamble)
     for imreceiving in control.imreceiving:
-      ipb.write(7, imreceiving)
+      ipb.write(8, imreceiving)
+
   if len(ipb.buffer) > 0:
     ipb.finish()
     pb.write(field, ipb)
@@ -264,6 +283,26 @@ proc decodeIMReceiving*(pb: ProtoBuffer): ProtoResult[ControlIMReceiving] {.inli
     trace "decodeIMReceiving: message Length is missing"
   ok(control)
 
+proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline.} =
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["extensions"])
+
+  trace "decodeExtensions: decoding message"
+  var control = ControlExtensions()
+
+  # Experimental extensions must use field numbers larger than 0x200000 to be
+  # encoded with 4 bytes
+
+  var testExtension: uint32
+  if ?pb.getField(6492434, testExtension):
+    trace "decodeExtensions: read testExtension", testExtension = testExtension
+    control.testExtension = some(testExtension > 0)
+  else:
+    trace "decodeExtensions: testExtension is missing"
+    control.testExtension = none(bool)
+
+  ok(control)
+
 proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inline.} =
   trace "decodeControl: decoding message"
   var buffer: seq[byte]
@@ -275,6 +314,8 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
     var graftpbs: seq[seq[byte]]
     var prunepbs: seq[seq[byte]]
     var idontwant: seq[seq[byte]]
+    var extensions: seq[byte]
+
     when defined(libp2p_gossipsub_1_4):
       var preamble: seq[seq[byte]]
       var imreceiving: seq[seq[byte]]
@@ -294,12 +335,14 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
     if ?cpb.getRepeatedField(5, idontwant):
       for item in idontwant:
         control.idontwant.add(?decodeIWant(initProtoBuffer(item)))
+    if ?cpb.getField(6, extensions):
+      control.extensions = some(?decodeExtensions(initProtoBuffer(extensions)))
 
     when defined(libp2p_gossipsub_1_4):
-      if ?cpb.getRepeatedField(6, preamble):
+      if ?cpb.getRepeatedField(7, preamble):
         for item in preamble:
           control.preamble.add(?decodePreamble(initProtoBuffer(item)))
-      if ?cpb.getRepeatedField(7, imreceiving):
+      if ?cpb.getRepeatedField(8, imreceiving):
         for item in imreceiving:
           control.imreceiving.add(?decodeIMReceiving(initProtoBuffer(item)))
 
@@ -397,12 +440,19 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
     pb.write(2, item, anonymize)
   msg.control.withValue(control):
     pb.write(3, control)
-  # nim-libp2p extension, using fields which are unlikely to be used
-  # by other extensions
+  # TODO(nim-libp2p#1999)
+  # using fields which are unlikely to be used by other extensions
   if msg.ping.len > 0:
     pb.write(60, msg.ping)
   if msg.pong.len > 0:
     pb.write(61, msg.pong)
+  
+  # Canonical Extensions should register their messages here.
+  # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
+
+  if msg.testExtension.isSome():
+    pb.write(6492434, 1.uint32)
+
   if len(pb.buffer) > 0:
     pb.finish()
   pb.buffer
@@ -416,4 +466,15 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   assign(rpcMsg.control, ?pb.decodeControl())
   discard ?pb.getField(60, rpcMsg.ping)
   discard ?pb.getField(61, rpcMsg.pong)
+
+  # Canonical Extensions should register their messages here.
+  # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
+
+  var testExtension: seq[byte]
+  if ?pb.getField(6492434, testExtension):
+    rpcMsg.testExtension = some(TestExtension())
+  else:
+    rpcMsg.testExtension = none(TestExtension)
+
+
   ok(rpcMsg)

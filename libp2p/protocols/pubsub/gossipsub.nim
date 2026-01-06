@@ -233,6 +233,7 @@ method init*(g: GossipSub) =
   when defined(libp2p_gossipsub_1_4):
     g.codecs &= GossipSubCodec_14
 
+  g.codecs &= GossipSubCodec_13
   g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10

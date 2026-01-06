@@ -57,12 +57,21 @@ type
     signature*: seq[byte]
     key*: seq[byte]
 
+  ControlExtensions* = object
+    # Canonical extensions fields: 
+    # Currently empty. Future canonical extensions should be added here along with
+    # a reference to their specification.
+
+    # Experimental extensions fields:
+    testExtension*: Option[bool]
+
   ControlMessage* = object
     ihave*: seq[ControlIHave]
     iwant*: seq[ControlIWant]
     graft*: seq[ControlGraft]
     prune*: seq[ControlPrune]
     idontwant*: seq[ControlIWant]
+    extensions*: Option[ControlExtensions]
     when defined(libp2p_gossipsub_1_4):
       preamble*: seq[ControlPreamble]
       imreceiving*: seq[ControlIMReceiving]
@@ -91,12 +100,15 @@ type
     messageID*: MessageId
     messageLength*: uint32
 
+  TestExtension* = object
+
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
     control*: Option[ControlMessage]
     ping*: seq[byte]
     pong*: seq[byte]
+    testExtension*: Option[TestExtension]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
   T(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
@@ -119,6 +131,16 @@ func shortLog*(s: ControlPreamble): auto =
 func shortLog*(s: ControlIMReceiving): auto =
   (messageID: s.messageID.shortLog)
 
+func shortLog*(so: Option[ControlExtensions]): auto =
+  if so.isNone():
+    (testExtension: "false")
+  else:
+    let s = so.get()
+    if s.testExtension.isNone:
+      (testExtension: "false")
+    else:
+      (testExtension: $s.testExtension.get())
+
 func shortLog*(c: ControlMessage): auto =
   when defined(libp2p_gossipsub_1_4):
     (
@@ -126,6 +148,7 @@ func shortLog*(c: ControlMessage): auto =
       iwant: mapIt(c.iwant, it.shortLog),
       graft: mapIt(c.graft, it.shortLog),
       prune: mapIt(c.prune, it.shortLog),
+      extensions: shortLog(c.extensions),
       preamble: mapIt(c.preamble, it.shortLog),
       imreceiving: mapIt(c.imreceiving, it.shortLog),
     )
@@ -135,6 +158,7 @@ func shortLog*(c: ControlMessage): auto =
       iwant: mapIt(c.iwant, it.shortLog),
       graft: mapIt(c.graft, it.shortLog),
       prune: mapIt(c.prune, it.shortLog),
+      extensions: shortLog(c.extensions),
     )
 
 func shortLog*(msg: Message): auto =
@@ -216,32 +240,54 @@ proc byteSize(controlIMreceiving: ControlIMReceiving): int =
 proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
 
+static:
+  expectedFields(ControlExtensions, @["testExtension"])
+proc byteSize(controlExtensions: Option[ControlExtensions]): int =
+  if controlExtensions.isNone:
+    0
+  else:
+    4 # 4 byte for the bool aka uint32 - testExtension
+
+proc byteSize(testExtensions: TestExtension): int =
+  4 # 4 byte for the bool aka uint32 - it exists or it doesn't
+
 when defined(libp2p_gossipsub_1_4):
   static:
     expectedFields(
       ControlMessage,
-      @["ihave", "iwant", "graft", "prune", "idontwant", "preamble", "imreceiving"],
+      @[
+        "ihave", "iwant", "graft", "prune", "idontwant", "preamble", "imreceiving",
+        "extensions",
+      ],
     )
   proc byteSize(control: ControlMessage): int =
     control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
       control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
       control.idontwant.foldl(a + b.byteSize, 0) +
       control.preamble.foldl(a + b.byteSize, 0) +
-      control.imreceiving.foldl(a + b.byteSize, 0)
+      control.imreceiving.foldl(a + b.byteSize, 0) + byteSize(control.extensions)
 
 else:
   static:
-    expectedFields(ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant"])
+    expectedFields(
+      ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "extensions"]
+    )
   proc byteSize(control: ControlMessage): int =
     control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
       control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
-      control.idontwant.foldl(a + b.byteSize, 0)
+      control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions)
 
 static:
-  expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])
+  expectedFields(
+    RPCMsg, @["subscriptions", "messages", "control", "ping", "pong", "testExtension"]
+  )
 proc byteSize*(rpc: RPCMsg): int =
   result =
-    rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) + rpc.ping.len +
+    rpc.subscriptions.foldl(a + b.byteSize, 0) +
+    byteSize(rpc.messages) +
+    rpc.ping.len +
     rpc.pong.len
   rpc.control.withValue(ctrl):
     result += ctrl.byteSize
+  rpc.testExtension.withValue(te):
+    result += te.byteSize
