@@ -11,7 +11,7 @@
 
 import chronos, chronicles, std/[sequtils, enumerate]
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[crypto, unittest]
+import ../../tools/[unittest]
 import ./utils.nim
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
@@ -166,3 +166,4 @@ suite "KadDHT Find":
     # BUG: kad1 should discover kad3 via kad2, but doesn't
     # (refreshBuckets generates invalid keys that handleFindNode rejects)
     check not kad1.hasKey(kad3.rtable.selfId)
+ 
