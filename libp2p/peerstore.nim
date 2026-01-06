@@ -217,6 +217,9 @@ proc identify*(
         muxer.setShortAgent(knownAgent)
 
       if dir == Direction.In:
+        # for inbound connections, observedAddress is not passed down
+        # as this address is would not be dialable given that nodes behind a NAT
+        # will use random port.
         peerStore.updatePeerInfo(info)
       else:
         peerStore.updatePeerInfo(info, stream.observedAddr)
