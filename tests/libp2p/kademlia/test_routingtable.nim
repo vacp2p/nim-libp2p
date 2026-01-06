@@ -40,7 +40,7 @@ suite "KadDHT Routing Table":
     var rt = RoutingTable.new(selfId)
 
     check not rt.insert(selfId)
-      
+
   test "does not insert beyond capacity":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
@@ -77,17 +77,17 @@ suite "KadDHT Routing Table":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
-    
+
     let key1 = randomKeyInBucketRange(selfId, TargetBucket, rng)
     let key2 = randomKeyInBucketRange(selfId, TargetBucket, rng)
     let key3 = randomKeyInBucketRange(selfId, TargetBucket, rng)
-    
+
     discard rt.insert(key1)
     discard rt.insert(key2)
     discard rt.insert(key3)
 
     check rt.buckets[TargetBucket].peers[0].nodeId == key1
-    
+
     let previousLastSeen = rt.buckets[TargetBucket].peers[0].lastSeen
 
     discard rt.insert(key1)
