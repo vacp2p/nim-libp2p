@@ -152,16 +152,11 @@ proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
 proc handleFindNode*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let targetId = PeerId.init(msg.key).valueOr:
-    error "FindNode message without valid key data", msg = msg, conn = conn
-    return
+  let target = msg.key
 
   try:
     await conn.writeLp(
-      Message(
-        msgType: MessageType.findNode,
-        closerPeers: kad.findClosestPeers(targetId.toKey()),
-      ).encode().buffer
+      Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target)).encode().buffer
     )
   except LPStreamError as exc:
     debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg

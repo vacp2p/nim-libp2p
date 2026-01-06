@@ -131,7 +131,7 @@ proc isStale*(bucket: Bucket): bool =
   return false
 
 proc randomKeyInBucketRange*(
-    selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext
+    selfId: Key, bucketIndex: int, rng: var HmacDrbgContext
 ): Key =
   var raw = selfId
 
@@ -151,7 +151,7 @@ proc randomKeyInBucketRange*(
   let lsbStart = bucketIndex + 1
   let lsbBytes = (totalBits - lsbStart + 7) div 8
   var randomBuf = newSeqUninit[byte](lsbBytes)
-  hmacDrbgGenerate(rng[], randomBuf)
+  rng.hmacDrbgGenerate(randomBuf)
 
   for i in lsbStart ..< totalBits:
     let byteIdx = i div 8
