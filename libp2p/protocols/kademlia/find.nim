@@ -17,7 +17,8 @@ type LookupState* = object
   kad: KadDHT
   target: Key
   shortlist: Table[PeerId, XorDistance]
-  queried: HashSet[PeerId]
+  responded: HashSet[PeerId]
+  attempts: Table[PeerId, int]
 
 proc updateShortlist*(
     state: var LookupState, msg: Message
@@ -37,7 +38,7 @@ proc updateShortlist*(
   return newPeerInfos
 
 proc sortedShortlist(
-    state: LookupState, excludeQueried: bool = true
+    state: LookupState, excludeResponded: bool = true
 ): seq[(PeerId, XorDistance)] =
   ## Sort shortlist by closer distance first
   var sortedShortlist = newSeqOfCap[(PeerId, XorDistance)](state.shortlist.len)
@@ -46,8 +47,13 @@ proc sortedShortlist(
 
   for pid, dist in state.shortlist.pairs():
     if pid == selfPid:
+      # do not return self
       continue
-    if excludeQueried and state.queried.contains(pid):
+    if excludeResponded and state.responded.contains(pid):
+      # already responded, do not query again
+      continue
+    if state.attempts.getOrDefault(pid, 0) > state.kad.config.retries:
+      # depleted retries, do not query again
       continue
     sortedShortlist.add((pid, dist))
 
@@ -59,18 +65,18 @@ proc sortedShortlist(
   return sortedShortlist
 
 proc selectCloserPeers*(
-    state: LookupState, amount: int, excludeQueried: bool = true
+    state: LookupState, amount: int, excludeResponded: bool = true
 ): seq[PeerId] =
   ## Select closer `amount` peers
   return state
-    .sortedShortlist(excludeQueried = excludeQueried)
+    .sortedShortlist(excludeResponded = excludeResponded)
     # get pid
     .mapIt(it[0])
     # take at most alpha peers
     .take(amount)
 
 proc init*(T: type LookupState, kad: KadDHT, target: Key): T =
-  var res = LookupState(kad: kad, target: target, queried: initHashSet[PeerId]())
+  var res = LookupState(kad: kad, target: target, responded: initHashSet[PeerId]())
   for pid in kad.rtable.findClosestPeerIds(target, kad.config.replication):
     res.shortlist[pid] = xorDistance(pid, target, kad.rtable.config.hasher)
 
@@ -133,21 +139,25 @@ proc findNode*(
     if toQuery.len() == 0:
       break
 
+    for peerId in toQuery:
+      state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
+
     debug "Find node queries", peersToQuery = toQuery.mapIt(it.shortLog())
 
     let
       rpcBatch = toQuery.mapIt(kad.switch.dispatchFindNode(it, target))
       completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
+
     for (fut, peerId) in zip(rpcBatch, toQuery):
       if fut.completed():
-        state.queried.incl(peerId)
+        state.responded.incl(peerId)
 
     for msg in completedRPCBatch:
       addNewPeerAddresses(kad.switch.peerStore[AddressBook], msg.closerPeers)
       let newPeerInfos = state.updateShortlist(msg)
       kad.updatePeers(newPeerInfos)
 
-  return state.selectCloserPeers(kad.config.replication, excludeQueried = false)
+  return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 
 proc findPeer*(
     kad: KadDHT, target: PeerId
