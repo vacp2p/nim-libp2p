@@ -282,7 +282,7 @@ suite "Switch":
     let startCounts =
       @[
         switch1.connManager.availableSlots(Direction.In),
-        switch1.connManager .. availableSlots(Direction.Out),
+        switch1.connManager.availableSlots(Direction.Out),
         switch2.connManager.availableSlots(Direction.In),
         switch2.connManager.availableSlots(Direction.Out),
       ]
