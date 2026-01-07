@@ -44,6 +44,9 @@ when not declared(chronos.AsyncSemaphore):
       waiters: initDeque[Future[void].Raising([CancelledError])](),
     )
 
+  proc size*(s: AsyncSemaphore): int =
+    return s.size
+  
   proc availableSlots*(s: AsyncSemaphore): int =
     return s.availableSlots
 
