@@ -163,6 +163,5 @@ suite "KadDHT Find":
 
     await kad1.refreshBuckets()
 
-    # BUG: kad1 should discover kad3 via kad2, but doesn't
-    # (refreshBuckets generates invalid keys that handleFindNode rejects)
+    # kad1 discovers kad3 via kad2
     check kad1.hasKey(kad3.rtable.selfId)
