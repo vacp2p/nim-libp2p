@@ -187,10 +187,7 @@ proc take*[T](s: seq[T], n: int): seq[T] =
   let count = min(s.len, max(n, 0))
   if count == 0:
     return @[]
-
-  result = newSeq[T](count)
-  for i in 0 ..< count:
-    result[i] = s[i]
+  return s[0 .. count - 1]
 
 proc waitForTCPServer*(
     taddr: TransportAddress,
