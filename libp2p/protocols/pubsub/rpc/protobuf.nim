@@ -108,7 +108,7 @@ proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
   if extensions.testExtension.isSome():
-    ipb.write(6492434, uint32(extensions.testExtension.get()))
+    ipb.write(6492434, extensions.testExtension.get())
 
   if ipb.buffer.len > 0:
     ipb.finish()
@@ -296,7 +296,7 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
   var testExtension: uint32
   if ?pb.getField(6492434, testExtension):
     trace "decodeExtensions: read testExtension", testExtension = testExtension
-    control.testExtension = some(testExtension > 0)
+    control.testExtension = some(bool(testExtension))
   else:
     trace "decodeExtensions: testExtension is missing"
     control.testExtension = none(bool)
@@ -450,8 +450,8 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   # Canonical Extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
 
-  if msg.testExtension.isSome():
-    pb.write(6492434, 1.uint32)
+  # if msg.testExtension.isSome():
+  #   pb.write(6492434, 1.uint32)
 
   if len(pb.buffer) > 0:
     pb.finish()
@@ -470,11 +470,11 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   # Canonical Extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
 
-  var testExtension: seq[byte]
-  if ?pb.getField(6492434, testExtension):
-    rpcMsg.testExtension = some(TestExtension())
-  else:
-    rpcMsg.testExtension = none(TestExtension)
+  # var testExtension: seq[byte]
+  # if ?pb.getField(6492434, testExtension):
+  #   rpcMsg.testExtension = some(TestExtension())
+  # else:
+  #   rpcMsg.testExtension = none(TestExtension)
 
 
   ok(rpcMsg)
