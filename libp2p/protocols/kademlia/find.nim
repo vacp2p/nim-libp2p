@@ -69,7 +69,7 @@ proc selectCloserPeers*(
 ): seq[PeerId] =
   ## Select closer `amount` peers
   return state
-    .sortedShortlist(excludeResponded = excludeResponded)
+    .sortedShortlist(excludeResponded)
     # get pid
     .mapIt(it[0])
     # take at most alpha peers
