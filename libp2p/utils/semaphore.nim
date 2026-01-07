@@ -46,6 +46,7 @@ when not declared(chronos.AsyncSemaphore):
 
   proc size*(s: AsyncSemaphore): int =
     return s.size
+
   proc availableSlots*(s: AsyncSemaphore): int =
     return s.availableSlots
 
