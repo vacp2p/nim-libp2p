@@ -237,6 +237,4 @@ proc sendRequestToLibP2PThread*(
     userData: pointer,
 ): Result[void, string] =
   ## Sends a request to the LibP2P thread for buffer callbacks
-  sendRequest(
-    ctx, reqType, reqContent, userData, callbackKind, cast[pointer](callback)
-  )
+  sendRequest(ctx, reqType, reqContent, userData, callbackKind, cast[pointer](callback))

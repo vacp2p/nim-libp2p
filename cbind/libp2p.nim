@@ -35,6 +35,47 @@ template checkLibParams*(ctx: ptr LibP2PContext, callback: pointer, userData: po
   if isNil(callback):
     return RET_MISSING_CALLBACK.cint
 
+template failWithMsg(callback: Libp2pCallback, userData: pointer, msg: string) =
+  let localMsg = msg
+  let msgLen = cast[csize_t](len(localMsg))
+  var msgPtr: ptr cchar = nil
+  if msgLen > 0:
+    msgPtr = cast[ptr cchar](addr localMsg[0])
+  callback(RET_ERR.cint, msgPtr, msgLen, userData)
+  return RET_ERR.cint
+
+template failWithBufferMsg(
+    callback: Libp2pBufferCallback, userData: pointer, msg: string
+) =
+  let localMsg = msg
+  let msgLen = cast[csize_t](len(localMsg))
+  var msgPtr: ptr cchar = nil
+  if msgLen > 0:
+    msgPtr = cast[ptr cchar](addr localMsg[0])
+  callback(RET_ERR.cint, nil, 0, msgPtr, msgLen, userData)
+  return RET_ERR.cint
+
+template failIfConnNil(
+    conn: ptr Libp2pStream, callback: Libp2pCallback, userData: pointer, msg: string
+) =
+  if conn.isNil():
+    failWithMsg(callback, userData, msg)
+
+template failIfConnNil(
+    conn: ptr Libp2pStream,
+    callback: Libp2pBufferCallback,
+    userData: pointer,
+    msg: string,
+) =
+  if conn.isNil():
+    failWithBufferMsg(callback, userData, msg)
+
+template failIfDataMissing(
+    data: ptr byte, dataLen: csize_t, callback: Libp2pCallback, userData: pointer
+) =
+  if dataLen > 0 and data.isNil():
+    failWithMsg(callback, userData, "data is not set")
+
 template callEventCallback(ctx: ptr LibP2PContext, eventName: string, body: untyped) =
   ## This template invokes the event callback for internal events
   if isNil(ctx[].eventCallback):
@@ -127,14 +168,9 @@ proc libp2p_create_cid(
     return RET_MISSING_CALLBACK.cint
 
   if multicodec.isNil() or hash.isNil():
-    let msg = "multicodec or hash is not set"
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "multicodec or hash is not set")
 
-  if dataLen > 0 and data.isNil():
-    let msg = "data is not set"
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfDataMissing(data, dataLen, callback, userData)
 
   var payload: seq[byte]
   if dataLen == 0:
@@ -150,23 +186,17 @@ proc libp2p_create_cid(
     of 1:
       CIDv1
     else:
-      let msg = "cid version must be 0 or 1"
-      callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-      return RET_ERR.cint
+      failWithMsg(callback, userData, "cid version must be 0 or 1")
 
   let mc = MultiCodec.codec($multicodec)
 
   let mhRes = MultiHash.digest($hash, payload)
   let mh = mhRes.valueOr:
-    let msg = "multihash error: " & $mhRes.error
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "multihash error: " & $mhRes.error)
 
   let cidRes = Cid.init(cidVer, mc, mh)
   let cid = cidRes.valueOr:
-    let msg = "cid init error: " & $cidRes.error
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "cid init error: " & $cidRes.error)
 
   let cidStr = $cid
   callback(RET_OK.cint, addr cidStr[0], cast[csize_t](len(cidStr)), userData)
@@ -186,7 +216,7 @@ proc libp2p_new(
 
   ## Create the Libp2p thread that will keep waiting for req from the Client thread.
   var ctx = libp2p_thread.createLibP2PThread().valueOr:
-    let msg = "Error in createLibp2pThread: " & $error
+    let msg = "error in createLibp2pThread: " & $error
     callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
     return nil
 
@@ -215,9 +245,7 @@ proc libp2p_destroy(
   checkLibParams(ctx, callback, userData)
 
   libp2p_thread.destroyLibP2PThread(ctx).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   ## always need to invoke the callback although we don't retrieve value to the caller
   callback(RET_OK.cint, nil, 0, userData)
@@ -394,10 +422,7 @@ proc libp2p_stream_readExactly(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  if conn.isNil():
-    let msg = "connection is not set 1"
-    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfConnNil(conn, callback, userData, "connection is not set 1")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -425,10 +450,7 @@ proc libp2p_stream_readLp(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  if conn.isNil():
-    let msg = "connection is not set"
-    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfConnNil(conn, callback, userData, "connection is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -455,15 +477,9 @@ proc libp2p_stream_write(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  if conn.isNil():
-    let msg = "connection is not set"
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfConnNil(conn, callback, userData, "connection is not set")
 
-  if data.isNil() and dataLen > 0:
-    let msg = "data is not set"
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfDataMissing(data, dataLen, callback, userData)
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -491,15 +507,9 @@ proc libp2p_stream_writeLp(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  if conn.isNil():
-    let msg = "connection is not set"
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfConnNil(conn, callback, userData, "connection is not set")
 
-  if data.isNil() and dataLen > 0:
-    let msg = "data is not set"
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfDataMissing(data, dataLen, callback, userData)
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -510,9 +520,7 @@ proc libp2p_stream_writeLp(
     callback,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   return RET_OK.cint
 
@@ -525,10 +533,7 @@ proc libp2p_stream_close(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  if conn.isNil():
-    let msg = "connection is not set"
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfConnNil(conn, callback, userData, "connection is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -537,9 +542,7 @@ proc libp2p_stream_close(
     callback,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   return RET_OK.cint
 
@@ -552,10 +555,7 @@ proc libp2p_stream_closeWithEOF(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  if conn.isNil():
-    let msg = "connection is not set"
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfConnNil(conn, callback, userData, "connection is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -564,9 +564,7 @@ proc libp2p_stream_closeWithEOF(
     callback,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   return RET_OK.cint
 
@@ -579,10 +577,7 @@ proc libp2p_stream_release(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  if conn.isNil():
-    let msg = "connection is not set"
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+  failIfConnNil(conn, callback, userData, "connection is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -591,9 +586,7 @@ proc libp2p_stream_release(
     callback,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   return RET_OK.cint
 
@@ -743,9 +736,7 @@ proc libp2p_put_value(
   checkLibParams(ctx, callback, userData)
 
   if key.isNil() or keyLen == 0:
-    let msg = "key is not set"
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "key is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -760,9 +751,7 @@ proc libp2p_put_value(
     callback,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   RET_OK.cint
 
@@ -778,9 +767,7 @@ proc libp2p_get_value(
   checkLibParams(ctx, callback, userData)
 
   if key.isNil() or keyLen == 0:
-    let msg = "key is not set"
-    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithBufferMsg(callback, userData, "key is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -795,9 +782,7 @@ proc libp2p_get_value(
     CallbackKind.GET_VALUE,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithBufferMsg(callback, userData, "libp2p error: " & $error)
 
   RET_OK.cint
 
@@ -808,9 +793,7 @@ proc libp2p_add_provider(
   checkLibParams(ctx, callback, userData)
 
   if cid.isNil():
-    let msg = "cid is nil"
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "cid is nil")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -819,9 +802,7 @@ proc libp2p_add_provider(
     callback,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   RET_OK.cint
 
@@ -832,9 +813,7 @@ proc libp2p_start_providing(
   checkLibParams(ctx, callback, userData)
 
   if cid.isNil():
-    let msg = "cid is nil"
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "cid is nil")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -843,9 +822,7 @@ proc libp2p_start_providing(
     callback,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   RET_OK.cint
 
@@ -856,9 +833,7 @@ proc libp2p_stop_providing(
   checkLibParams(ctx, callback, userData)
 
   if cid.isNil():
-    let msg = "cid is nil"
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "cid is nil")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
@@ -867,9 +842,7 @@ proc libp2p_stop_providing(
     callback,
     userData,
   ).isOkOr:
-    let msg = "libp2p error: " & $error
-    callback(RET_ERR.cint, addr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR.cint
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   RET_OK.cint
 
