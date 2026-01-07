@@ -46,7 +46,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 5:
-      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
+      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng[])
       discard rt.insert(kid)
 
     check TargetBucket < rt.buckets.len
@@ -58,7 +58,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 10:
-      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
+      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng[])
       discard rt.insert(kid)
 
     check rt.buckets[TargetBucket].peers.len == config.replication
@@ -66,7 +66,7 @@ suite "KadDHT Routing Table":
     # new entry should evict oldest entry
     let (oldest, oldestIdx) = rt.buckets[TargetBucket].oldestPeer()
 
-    check rt.insert(randomKeyInBucketRange(selfId, TargetBucket, rng))
+    check rt.insert(randomKeyInBucketRange(selfId, TargetBucket, rng[]))
 
     let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
 
@@ -78,9 +78,9 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
 
-    let key1 = randomKeyInBucketRange(selfId, TargetBucket, rng)
-    let key2 = randomKeyInBucketRange(selfId, TargetBucket, rng)
-    let key3 = randomKeyInBucketRange(selfId, TargetBucket, rng)
+    let key1 = randomKeyInBucketRange(selfId, TargetBucket, rng[])
+    let key2 = randomKeyInBucketRange(selfId, TargetBucket, rng[])
+    let key3 = randomKeyInBucketRange(selfId, TargetBucket, rng[])
 
     discard rt.insert(key1)
     discard rt.insert(key2)
@@ -140,7 +140,7 @@ suite "KadDHT Routing Table":
 
   test "randomKeyInBucketRange returns id at correct distance":
     let selfId = testKey(0)
-    var rid = randomKeyInBucketRange(selfId, TargetBucket, rng)
+    var rid = randomKeyInBucketRange(selfId, TargetBucket, rng[])
     let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
     check:
       idx == TargetBucket
