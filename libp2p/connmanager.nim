@@ -64,8 +64,10 @@ type
 
   ConnManager* = ref object of RootObj
     maxConnsPerPeer: int
-    inSema*: AsyncSemaphore
-    outSema*: AsyncSemaphore
+    maxConnectionsIn: int
+    maxConnectionsOut: int
+    inSema: AsyncSemaphore
+    outSema: AsyncSemaphore
     muxed: Table[PeerId, seq[Muxer]]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
@@ -87,19 +89,39 @@ proc new*(
     maxOut = -1,
 ): ConnManager =
   var inSema, outSema: AsyncSemaphore
+  var maxConnectionsIn, maxConnectionsOut: int
   if maxIn > 0 or maxOut > 0:
     inSema = newAsyncSemaphore(maxIn)
     outSema = newAsyncSemaphore(maxOut)
+    maxConnectionsIn = maxIn
+    maxConnectionsOut = maxOut
   elif maxConnections > 0:
     inSema = newAsyncSemaphore(maxConnections)
     outSema = inSema
+    maxConnectionsIn = maxConnections
+    maxConnectionsOut = maxConnections
   else:
     raiseAssert "Invalid connection counts!"
 
-  C(maxConnsPerPeer: maxConnsPerPeer, inSema: inSema, outSema: outSema)
+  C(
+    maxConnsPerPeer: maxConnsPerPeer,
+    maxConnectionsIn: maxConnectionsIn,
+    maxConnectionsOut: maxConnectionsOut,
+    inSema: inSema,
+    outSema: outSema,
+  )
 
 proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.muxed.getOrDefault(peerId).len
+
+proc maxConnections*(c: ConnManager, dir: Direction): int =
+  if dir == Direction.In: c.maxConnectionsIn else: c.maxConnectionsOut
+
+proc availableSlots*(c: ConnManager, dir: Direction): int =
+  if dir == Direction.In:
+    c.inSema.availableSlots()
+  else:
+    c.outSema.availableSlots()
 
 proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
   var peers = newSeq[PeerId]()
