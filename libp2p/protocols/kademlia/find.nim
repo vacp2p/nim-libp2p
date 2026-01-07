@@ -138,9 +138,10 @@ proc findNode*(
     let
       rpcBatch = toQuery.mapIt(kad.switch.dispatchFindNode(it, target))
       completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
-    for (fut, peerId) in zip(rpcBatch, toQuery):
-      if fut.completed():
-        state.queried.incl(peerId)
+
+    # Mark all queried peers as queried, regardless of success or failure.
+    # This prevents infinite loops when a peer is unreachable.
+    state.queried.incl(toQuery.toHashSet())
 
     for msg in completedRPCBatch:
       addNewPeerAddresses(kad.switch.peerStore[AddressBook], msg.closerPeers)
