@@ -82,6 +82,15 @@ proc toPeer*(peerInfo: PeerInfo): Peer =
     connection: ConnectionType.connected,
   )
 
+proc toPeers*(switch: Switch, keys: seq[Key]): seq[Peer] =
+  var peers: seq[Peer]
+
+  for p in keys:
+    p.toPeer(switch).withValue(peer):
+      peers.add(peer)
+
+  return peers
+
 proc toPeerIds*(peers: seq[Peer]): seq[PeerId] =
   var peerIds: seq[PeerId]
 

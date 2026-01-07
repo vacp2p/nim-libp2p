@@ -182,6 +182,10 @@ proc collectCompleted*[T, E](
   # Collect only successful results
   return futs.filterIt(it.completed()).mapIt(it.value())
 
+proc take*[T](s: seq[T], n: int): seq[T] =
+  ## Take first `n` elements of `s`, or `s.len()` if `n > s.len()`
+  return s[0 .. min(s.len() - 1, n)]
+
 proc waitForTCPServer*(
     taddr: TransportAddress,
     retries: int = 20,
