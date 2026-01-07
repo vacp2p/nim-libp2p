@@ -130,9 +130,7 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomKeyInBucketRange*(
-    selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext
-): Key =
+proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext): Key =
   var raw = selfId
 
   # zero out higher bits
