@@ -184,7 +184,10 @@ proc collectCompleted*[T, E](
 
 proc take*[T](s: seq[T], n: int): seq[T] =
   ## Take first `n` elements of `s`, or `s.len()` if `n > s.len()`
-  return s[0 .. min(s.len() - 1, n)]
+  let count = min(s.len, max(n, 0))
+  if count == 0:
+    return @[]
+  return s[0 .. count - 1]
 
 proc waitForTCPServer*(
     taddr: TransportAddress,
