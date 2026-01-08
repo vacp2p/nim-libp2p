@@ -16,8 +16,9 @@
 import std/[json, tables]
 import chronos, results
 
-import ../../../[types, ffi_types]
+import ../../../[types, ffi_types, alloc]
 import ../../../../libp2p
+import ../../../../libp2p/[multiaddress, peerid]
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
@@ -31,20 +32,95 @@ type LifecycleMsgType* = enum
 type LifecycleRequest* = object
   operation: LifecycleMsgType
   appCallbacks: AppCallbacks
+  config: Libp2pConfig
 
-proc createLibp2p(appCallbacks: AppCallbacks): LibP2P =
-  # TODO: switch options
+const DefaultDnsResolver = "1.1.1.1:53"
+
+proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
+  var resolved = Libp2pConfig(
+    flags: 0'u32,
+    mountGossipsub: 1,
+    gossipsubTriggerSelf: 1,
+    mountKad: 1,
+    dnsResolver: DefaultDnsResolver.cstring,
+    kadBootstrapNodes: nil,
+    kadBootstrapNodesLen: 0,
+  )
+
+  if config.isNil():
+    return resolved
+
+  let flags = config[].flags
+  if (flags and Libp2pCfgGossipsub) != 0'u32:
+    resolved.mountGossipsub = config[].mountGossipsub
+  if (flags and Libp2pCfgGossipsubTriggerSelf) != 0'u32:
+    resolved.gossipsubTriggerSelf = config[].gossipsubTriggerSelf
+  if (flags and Libp2pCfgKad) != 0'u32:
+    resolved.mountKad = config[].mountKad
+  if (flags and Libp2pCfgDnsResolver) != 0'u32:
+    if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
+      resolved.dnsResolver = config[].dnsResolver
+  if (flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
+    resolved.kadBootstrapNodes = config[].kadBootstrapNodes
+    resolved.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
+
+  resolved
+
+proc parseBootstrapNodes(config: Libp2pConfig): seq[(PeerId, seq[MultiAddress])] =
+  if config.kadBootstrapNodesLen == 0:
+    return @[]
+
+  if config.kadBootstrapNodes.isNil():
+    raiseAssert "kad bootstrap nodes are missing"
+
+  var response: seq[(PeerId, seq[MultiAddress])]
+  let nodes = cast[ptr UncheckedArray[Libp2pBootstrapNode]](config.kadBootstrapNodes)
+  for i in 0 ..< config.kadBootstrapNodesLen:
+    if nodes[i].peerId.isNil():
+      raiseAssert "missing bootstrap peer id"
+
+    let peerIdStr = $nodes[i].peerId
+    let peerId = PeerId.init(peerIdStr).valueOr:
+      raiseAssert "invalid bootstrap peer id: " & $error
+
+    var addrs: seq[MultiAddress]
+    if nodes[i].multiaddrsLen > 0:
+      if nodes[i].multiaddrs.isNil():
+        raiseAssert "missing bootstrap multiaddrs for " & peerIdStr
+
+      let addrsArr = cast[ptr UncheckedArray[cstring]](nodes[i].multiaddrs)
+      for j in 0 ..< nodes[i].multiaddrsLen:
+        if addrsArr[j].isNil():
+          raiseAssert "bootstrap multiaddr is nil for " & peerIdStr
+        let addrStr = $addrsArr[j]
+        let ma = MultiAddress.init(addrStr).valueOr:
+          raiseAssert "invalid bootstrap multiaddr: " & $error
+        addrs.add(ma)
+
+    response.add((peerId, addrs))
+
+  return response
+
+proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
-    Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress("1.1.1.1:53")])))
+    Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
   let switch = newStandardSwitch(nameResolver = dnsResolver)
 
-  # TODO: this should be optional depending on parameters
-  let gossipSub = GossipSub.init(switch = switch, triggerSelf = true)
-  switch.mount(gossipSub)
+  var gossipSub = Opt.none(GossipSub)
+  if config.mountGossipsub != 0:
+    let gs =
+      GossipSub.init(switch = switch, triggerSelf = config.gossipsubTriggerSelf != 0)
+    switch.mount(gs)
+    gossipSub = Opt.some(gs)
+
   switch.mount(Ping.new())
 
-  let kad = KadDHT.new(switch)
-  switch.mount(kad)
+  var kad = Opt.none(KadDHT)
+  if config.mountKad != 0:
+    let bootstrapNodes = parseBootstrapNodes(config)
+    let k = KadDHT.new(switch, bootstrapNodes = bootstrapNodes)
+    switch.mount(k)
+    kad = Opt.some(k)
 
   LibP2P(
     switch: switch,
@@ -55,18 +131,58 @@ proc createLibp2p(appCallbacks: AppCallbacks): LibP2P =
   )
 
 proc createShared*(
-    T: type LifecycleRequest, op: LifecycleMsgType, appCallbacks: AppCallbacks = nil
+    T: type LifecycleRequest,
+    op: LifecycleMsgType,
+    appCallbacks: AppCallbacks = nil,
+    config: ptr Libp2pConfig = nil,
 ): ptr type T =
   # TODO: Modify for your request's specific field initialization
   # TODO: Allocate parameters of GC'd types to the shared memory
   var ret = createShared(T)
   ret[].operation = op
   ret[].appCallbacks = appCallbacks
+  ret[].config = applyConfigDefaults(config)
+  ret[].config.dnsResolver = ret[].config.dnsResolver.alloc()
+  ret[].config.kadBootstrapNodes = nil
+  ret[].config.kadBootstrapNodesLen = 0
+  if not config.isNil() and (config[].flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
+    ret[].config.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
+    if config[].kadBootstrapNodesLen > 0:
+      if not config[].kadBootstrapNodes.isNil():
+        ret[].config.kadBootstrapNodes = cast[ptr Libp2pBootstrapNode](allocShared(
+          sizeof(Libp2pBootstrapNode) * config[].kadBootstrapNodesLen.int
+        ))
+        let src =
+          cast[ptr UncheckedArray[Libp2pBootstrapNode]](config[].kadBootstrapNodes)
+        let dst =
+          cast[ptr UncheckedArray[Libp2pBootstrapNode]](ret[].config.kadBootstrapNodes)
+        for i in 0 ..< config[].kadBootstrapNodesLen:
+          dst[i].peerId = src[i].peerId.alloc()
+          dst[i].multiaddrsLen = src[i].multiaddrsLen
+          if dst[i].multiaddrsLen == 0 or src[i].multiaddrs.isNil():
+            dst[i].multiaddrs = nil
+          else:
+            dst[i].multiaddrs =
+              cast[ptr cstring](allocShared(sizeof(cstring) * src[i].multiaddrsLen.int))
+            let srcAddrs = cast[ptr UncheckedArray[cstring]](src[i].multiaddrs)
+            let dstAddrs = cast[ptr UncheckedArray[cstring]](dst[i].multiaddrs)
+            for j in 0 ..< src[i].multiaddrsLen:
+              dstAddrs[j] = srcAddrs[j].alloc()
   return ret
 
 proc destroyShared(self: ptr LifecycleRequest) =
   # TODO: Free any newly added fields here if you change the object structure
   # TODO: Deallocate parameters of GC'd types from the shared memory
+  if not self[].config.dnsResolver.isNil():
+    deallocShared(self[].config.dnsResolver)
+  if not self[].config.kadBootstrapNodes.isNil():
+    let nodes =
+      cast[ptr UncheckedArray[Libp2pBootstrapNode]](self[].config.kadBootstrapNodes)
+    for i in 0 ..< self[].config.kadBootstrapNodesLen:
+      if not nodes[i].peerId.isNil():
+        deallocShared(nodes[i].peerId)
+      deallocCStringArray(nodes[i].multiaddrs, nodes[i].multiaddrsLen)
+    deallocShared(self[].config.kadBootstrapNodes)
   deallocShared(self)
 
 proc process*(
@@ -78,7 +194,7 @@ proc process*(
   case self.operation
   of CREATE_LIBP2P:
     try:
-      libp2p[] = createLibp2p(self.appCallbacks)
+      libp2p[] = createLibp2p(self.appCallbacks, self.config)
     except TransportAddressError as exc:
       return err("could not create libp2p node: " & $exc.msg)
     except LPError as exc:
