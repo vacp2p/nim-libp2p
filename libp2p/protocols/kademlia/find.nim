@@ -105,8 +105,8 @@ proc dispatchFindNode*(
 
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   for p in peerInfos:
-    discard kad.rtable.insert(p.peerId)
-    kad.switch.peerStore[AddressBook].extend(p.peerId, p.addrs)
+    if kad.rtable.insert(p.peerId):
+      kad.switch.peerStore[AddressBook].extend(p.peerId, p.addrs)
 
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))

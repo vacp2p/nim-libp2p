@@ -19,7 +19,8 @@ logScope:
   topics = "kad-dht"
 
 proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  ## Sends a findNode to a random peer ID for each non-empty k-bucket
+  ## Sends a findNode to find a random key for each non-empty k-bucket
+  ## Also sends a findNode to find itself to keep nearby peers up to date
 
   discard await kad.findNode(kad.rtable.selfId)
 
@@ -28,7 +29,7 @@ proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
       let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng[])
       discard await kad.findNode(randomKey)
 
-  info "Bootstrap complete"
+  trace "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "Refreshing buckets (bootstrapping)", kad.config.bucketRefreshTime:
@@ -105,15 +106,15 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
+  await kad.bootstrap()
+
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
 
-  await kad.bootstrap()
-
   kad.started = true
 
-  info "Kad DHT started"
+  trace "Kad DHT started"
 
 method stop*(kad: KadDHT) {.async: (raises: []).} =
   if not kad.started:

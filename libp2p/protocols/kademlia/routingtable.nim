@@ -70,11 +70,12 @@ proc replaceOldest(bucket: var Bucket, newNodeId: Key, replication: int): bool =
 
 proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
+    debug "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
 
   let idx = bucketIndex(rtable.selfId, nodeId, rtable.config.hasher)
   if idx >= rtable.config.maxBuckets:
-    trace "Cannot insert node, max buckets have been reached",
+    debug "Cannot insert node, max buckets have been reached",
       nodeId = nodeId, bucketIdx = idx, maxBuckets = rtable.config.maxBuckets
     return false
 
@@ -91,6 +92,8 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   else:
     # eviction policy: replace oldest key
     if not bucket.replaceOldest(nodeId, rtable.config.replication):
+      debug "Cannot insert, failed to replace oldest key in bucket",
+        bucket = idx, nodeId = nodeId
       return false
 
   rtable.buckets[idx] = bucket
