@@ -166,3 +166,21 @@ suite "KadDHT Find":
 
     # kad1 discovers kad3 via kad2
     check kad1.hasKey(kad3.rtable.selfId)
+
+  asyncTest "FIND_NODE with empty key returns closest peers":
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
+    defer:
+      await allFutures(switch1.stop(), switch2.stop())
+
+    # Send FIND_NODE with empty key directly
+    let emptyKey: Key = @[]
+    let response = await switch2.dispatchFindNode(switch1.peerInfo.peerId, emptyKey)
+
+    # Empty key is accepted and a valid response is returned
+    check response.msgType == MessageType.findNode
+    check response.closerPeers.len == 1
