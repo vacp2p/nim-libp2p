@@ -103,7 +103,7 @@ proc dispatchFindNode*(
 
   return reply
 
-proc updatePeers(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
+proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   for p in peerInfos:
     discard kad.rtable.insert(p.peerId)
     # Nodes might return different addresses for a peer, so we append instead of replacing
@@ -115,6 +115,10 @@ proc updatePeers(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
     except KeyError as exc:
       debug "Could not update shortlist", err = exc.msg
     # TODO: add TTL to peerstore, otherwise we can spam it with junk
+
+proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
+  let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
+  kad.updatePeers(peerInfos)
 
 proc addNewPeerAddresses(
     addrsTable: SeqPeerBook[MultiAddress], closerPeers: seq[Peer]

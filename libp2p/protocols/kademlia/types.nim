@@ -353,6 +353,5 @@ type KadDHT* = ref object of LPProtocol
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
   dataTable*: LocalTable
-  bootstrapNodes*: seq[(PeerId, seq[MultiAddress])]
   providerManager*: ProviderManager
   config*: KadDHTConfig
