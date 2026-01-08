@@ -14,7 +14,7 @@ import chronos, chronicles
 export chronicles
 
 template heartbeat*(
-    name: string, interval: Duration, body: untyped, sleepFirst: bool = false
+    name: string, interval: Duration, sleepFirst: bool, body: untyped
 ): untyped =
   var nextHeartbeat = Moment.now()
   if sleepFirst:
@@ -35,3 +35,7 @@ template heartbeat*(
         debug "Missed heartbeat", heartbeat = name, delay = delay, hinterval = itv
       nextHeartbeat = now + itv
     await sleepAsync(nextHeartbeat - now)
+
+template heartbeat*(name: string, interval: Duration, body: untyped): untyped =
+  heartbeat(name, interval, sleepFirst = false):
+    body
