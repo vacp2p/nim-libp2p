@@ -131,15 +131,18 @@ func shortLog*(s: ControlPreamble): auto =
 func shortLog*(s: ControlIMReceiving): auto =
   (messageID: s.messageID.shortLog)
 
+func shortLogOpt[T](s: Option[T]): string =
+  if s.isNone():
+    "<unset>"
+  else:
+    $s.get()
+
 func shortLog*(so: Option[ControlExtensions]): auto =
   if so.isNone():
-    (testExtension: "false")
+    (testExtension: "<unset>")
   else:
     let s = so.get()
-    if s.testExtension.isNone:
-      (testExtension: "false")
-    else:
-      (testExtension: $s.testExtension.get())
+    (testExtension: shortLogOpt(s.testExtension))
 
 func shortLog*(c: ControlMessage): auto =
   when defined(libp2p_gossipsub_1_4):
