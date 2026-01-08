@@ -19,6 +19,15 @@ type Libp2pCallback* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
 
+type Libp2pBufferCallback* = proc(
+  callerRet: cint,
+  data: ptr byte,
+  dataLen: csize_t,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
 type Libp2pPeerInfo* = object
   peerId*: cstring
   addrs*: ptr cstring
@@ -36,15 +45,6 @@ type PeersCallback* = proc(
   callerRet: cint,
   peerIds: ptr cstring,
   peerIdsLen: csize_t,
-  msg: ptr cchar,
-  len: csize_t,
-  userData: pointer,
-) {.cdecl, gcsafe, raises: [].}
-
-type GetValueCallback* = proc(
-  callerRet: cint,
-  value: ptr byte,
-  valueLen: csize_t,
   msg: ptr cchar,
   len: csize_t,
   userData: pointer,
