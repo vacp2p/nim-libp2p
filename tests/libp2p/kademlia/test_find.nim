@@ -182,5 +182,31 @@ suite "KadDHT Find":
     let response = await switch2.dispatchFindNode(switch1.peerInfo.peerId, emptyKey)
 
     # Empty key is accepted and a valid response is returned
-    check response.msgType == MessageType.findNode
-    check response.closerPeers.len == 1
+    check:
+      response.msgType == MessageType.findNode
+      response.closerPeers.len == 1
+
+  asyncTest "FIND_NODE for own PeerID returns closest peers":
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
+    var (switch3, kad3) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+
+    # kad2 asks kad1 for peers closest to kad2's own PeerID
+    let ownKey = kad2.rtable.selfId
+    let response = await switch2.dispatchFindNode(switch1.peerInfo.peerId, ownKey)
+
+    check:
+      response.msgType == MessageType.findNode
+      # kad1 knows kad2 and kad3, should return both as closest peers
+      response.closerPeers.len == 2
+ 
