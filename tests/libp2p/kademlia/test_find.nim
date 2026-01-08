@@ -135,3 +135,34 @@ suite "KadDHT Find":
     # try to find peer that does not exist
     let res2 = await kad2.findPeer(PeerId.random(newRng()).get())
     check res2.isErr()
+
+  asyncTest "Find node via refresh stale buckets":
+    # Setup: kad1 -> kad2 -> kad3 (kad1 doesn't know kad3)
+    let (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    let (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
+    let (switch3, kad3) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch2.peerInfo.peerId, switch2.peerInfo.addrs)],
+    )
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+
+    # Force kad1 to forget kad3 (it learned about it during bootstrap)
+    for b in kad1.rtable.buckets.mitems:
+      b.peers = b.peers.filterIt(it.nodeId != kad3.rtable.selfId)
+    check not kad1.hasKey(kad3.rtable.selfId)
+
+    # Make kad2's bucket stale to trigger refresh
+    let kad2BucketIdx =
+      bucketIndex(kad1.rtable.selfId, kad2.rtable.selfId, kad1.rtable.config.hasher)
+    kad1.rtable.buckets[kad2BucketIdx].peers[0].lastSeen = Moment.now() - 40.minutes
+
+    await kad1.refreshBuckets()
+
+    # kad1 discovers kad3 via kad2
+    check kad1.hasKey(kad3.rtable.selfId)

@@ -69,10 +69,10 @@ proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
   info "Bootstrap lookup complete"
 
-proc refreshBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+proc refreshBuckets*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   for i in 0 ..< kad.rtable.buckets.len:
     if kad.rtable.buckets[i].isStale():
-      let randomKey = randomKeyInBucketRange(kad.rtable.selfId, i, kad.rng)
+      let randomKey = randomKeyInBucketRange(kad.rtable.selfId, i, kad.rng[])
       discard await kad.findNode(randomKey)
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
