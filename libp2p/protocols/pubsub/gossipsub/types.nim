@@ -193,6 +193,13 @@ type
     peers: seq[RoutingRecordsPair],
   ) {.gcsafe, raises: [].}
 
+  TestExtension* = object
+    onPeerAdded*: proc(peer: PeerId) {.gcsafe, raises: [].}
+
+  Extensions* = object
+    testExtension: Option[TestExtension]
+    testExtensionPeers: HashSet[PeerId]
+
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable # peers that we send messages to when we are subscribed to the topic
     fanout*: PeerTable

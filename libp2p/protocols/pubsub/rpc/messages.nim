@@ -283,9 +283,7 @@ static:
   )
 proc byteSize*(rpc: RPCMsg): int =
   result =
-    rpc.subscriptions.foldl(a + b.byteSize, 0) +
-    byteSize(rpc.messages) +
-    rpc.ping.len +
+    rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) + rpc.ping.len +
     rpc.pong.len
   rpc.control.withValue(ctrl):
     result += ctrl.byteSize
