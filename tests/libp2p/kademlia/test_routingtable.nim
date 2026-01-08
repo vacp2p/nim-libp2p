@@ -35,12 +35,18 @@ suite "KadDHT Routing Table":
       rt.buckets[idx].peers.len == 1
       rt.buckets[idx].peers[0].nodeId == other
 
+  test "does not insert self":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(selfId)
+
+    check not rt.insert(selfId)
+
   test "does not insert beyond capacity":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 5:
-      let kid = randomKeyInBucket(selfId, TargetBucket, rng)
+      let kid = randomKeyInBucket(selfId, TargetBucket, rng[])
       discard rt.insert(kid)
 
     check TargetBucket < rt.buckets.len
@@ -52,7 +58,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 10:
-      let kid = randomKeyInBucket(selfId, TargetBucket, rng)
+      let kid = randomKeyInBucket(selfId, TargetBucket, rng[])
       discard rt.insert(kid)
 
     check rt.buckets[TargetBucket].peers.len == config.replication
@@ -60,12 +66,36 @@ suite "KadDHT Routing Table":
     # new entry should evict oldest entry
     let (oldest, oldestIdx) = rt.buckets[TargetBucket].oldestPeer()
 
-    check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng))
+    check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng[]))
 
     let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
 
     # oldest was evicted
     check oldest.nodeId != oldestAfterInsert.nodeId
+
+  test "re-insert existing key updates lastSeen":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+
+    let key1 = randomKeyInBucket(selfId, TargetBucket, rng[])
+    let key2 = randomKeyInBucket(selfId, TargetBucket, rng[])
+    let key3 = randomKeyInBucket(selfId, TargetBucket, rng[])
+
+    discard rt.insert(key1)
+    discard rt.insert(key2)
+    discard rt.insert(key3)
+
+    check rt.buckets[TargetBucket].peers[0].nodeId == key1
+
+    let previousLastSeen = rt.buckets[TargetBucket].peers[0].lastSeen
+
+    discard rt.insert(key1)
+
+    # Re-inserting existing key updates lastSeen timestamp without changing bucket position
+    check:
+      rt.buckets[TargetBucket].peers[0].nodeId == key1
+      rt.buckets[TargetBucket].peers[0].lastSeen > previousLastSeen
 
   test "findClosest returns sorted keys":
     let selfId = testKey(0)
@@ -76,10 +106,26 @@ suite "KadDHT Routing Table":
     for id in ids:
       discard rt.insert(id)
 
-    let res = rt.findClosest(testKey(1), 3)
+    const peerCount = 3
+    let res = rt.findClosest(testKey(1), peerCount)
 
     check:
-      res.len == 3
+      res.len == peerCount
+      res == @[testKey(1), testKey(3), testKey(2)]
+
+  test "findClosest returns all keys if less than n available":
+    let selfId = testKey(0)
+    var rt = RoutingTable.new(
+      selfId, config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    )
+    let ids = @[testKey(1), testKey(2), testKey(3)]
+    for id in ids:
+      discard rt.insert(id)
+
+    let res = rt.findClosest(testKey(1), 5) # n > ids.len
+
+    check:
+      res.len == ids.len
       res == @[testKey(1), testKey(3), testKey(2)]
 
   test "isStale returns true for empty or old keys":
@@ -94,7 +140,7 @@ suite "KadDHT Routing Table":
 
   test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)
-    var rid = randomKeyInBucket(selfId, TargetBucket, rng)
+    var rid = randomKeyInBucket(selfId, TargetBucket, rng[])
     let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
     check:
       idx == TargetBucket

@@ -106,29 +106,11 @@ proc dispatchFindNode*(
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   for p in peerInfos:
     discard kad.rtable.insert(p.peerId)
-    # Nodes might return different addresses for a peer, so we append instead of replacing
-    try:
-      var existingAddresses = kad.switch.peerStore[AddressBook][p.peerId].toHashSet()
-      for a in p.addrs:
-        existingAddresses.incl(a)
-      kad.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
-    except KeyError as exc:
-      debug "Could not update shortlist", err = exc.msg
-    # TODO: add TTL to peerstore, otherwise we can spam it with junk
+    kad.switch.peerStore[AddressBook].extend(p.peerId, p.addrs)
 
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
   kad.updatePeers(peerInfos)
-
-proc addNewPeerAddresses(
-    addrsTable: SeqPeerBook[MultiAddress], closerPeers: seq[Peer]
-) =
-  for peer in closerPeers:
-    let pid = PeerId.init(peer.id)
-    if not pid.isOk:
-      error "Invalid PeerId in successful reply", peerId = peer.id
-      return
-    addrsTable.extend(pid.get(), peer.addrs)
 
 proc findNode*(
     kad: KadDHT, target: Key
@@ -157,7 +139,6 @@ proc findNode*(
         state.responded.incl(peerId)
 
     for msg in completedRPCBatch:
-      addNewPeerAddresses(kad.switch.peerStore[AddressBook], msg.closerPeers)
       let newPeerInfos = state.updateShortlist(msg)
       kad.updatePeers(newPeerInfos)
 
@@ -193,15 +174,11 @@ proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
 proc handleFindNode*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let target = PeerId.init(msg.key).valueOr:
-    error "FindNode message without valid key data", msg = msg, conn = conn
-    return
+  let target = msg.key
 
   try:
     await conn.writeLp(
-      Message(
-        msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target.toKey())
-      ).encode().buffer
+      Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target)).encode().buffer
     )
   except LPStreamError as exc:
     debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg

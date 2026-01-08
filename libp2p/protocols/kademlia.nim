@@ -25,13 +25,13 @@ proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 
   for i in 0 ..< kad.rtable.buckets.len:
     if kad.rtable.buckets[i].isStale():
-      let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng)
+      let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng[])
       discard await kad.findNode(randomKey)
 
   info "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh buckets", kad.config.bucketRefreshTime:
+  heartbeat "Refreshing buckets (bootstrapping)", kad.config.bucketRefreshTime:
     await kad.bootstrap()
 
 proc new*(
@@ -56,6 +56,7 @@ proc new*(
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
   )
 
+  # Fill up buckets with initial bootstrap nodes
   kad.updatePeers(bootstrapNodes)
 
   kad.codec = codec
