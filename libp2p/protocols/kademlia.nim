@@ -32,7 +32,8 @@ proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   trace "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "Refreshing buckets (bootstrapping)", kad.config.bucketRefreshTime:
+  heartbeat "Refreshing buckets (bootstrapping)",
+    kad.config.bucketRefreshTime, sleepFirst = true:
     await kad.bootstrap()
 
 proc new*(

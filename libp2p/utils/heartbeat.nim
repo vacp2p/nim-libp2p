@@ -13,8 +13,12 @@ import chronos, chronicles
 
 export chronicles
 
-template heartbeat*(name: string, interval: Duration, body: untyped): untyped =
+template heartbeat*(
+    name: string, interval: Duration, body: untyped, sleepFirst: bool = false
+): untyped =
   var nextHeartbeat = Moment.now()
+  if sleepFirst:
+    nextHeartbeat += interval
   while true:
     body
 
