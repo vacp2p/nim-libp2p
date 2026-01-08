@@ -40,7 +40,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 5:
-      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
+      let kid = randomKeyInBucket(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
     check TargetBucket < rt.buckets.len
@@ -52,7 +52,7 @@ suite "KadDHT Routing Table":
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     for _ in 0 ..< config.replication + 10:
-      let kid = randomKeyInBucketRange(selfId, TargetBucket, rng)
+      let kid = randomKeyInBucket(selfId, TargetBucket, rng)
       discard rt.insert(kid)
 
     check rt.buckets[TargetBucket].peers.len == config.replication
@@ -60,7 +60,7 @@ suite "KadDHT Routing Table":
     # new entry should evict oldest entry
     let (oldest, oldestIdx) = rt.buckets[TargetBucket].oldestPeer()
 
-    check rt.insert(randomKeyInBucketRange(selfId, TargetBucket, rng))
+    check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng))
 
     let (oldestAfterInsert, _) = rt.buckets[TargetBucket].oldestPeer()
 
@@ -92,9 +92,9 @@ suite "KadDHT Routing Table":
     bucket.peers = @[NodeEntry(nodeId: testKey(1), lastSeen: Moment.now())]
     check isStale(bucket) == false
 
-  test "randomKeyInBucketRange returns id at correct distance":
+  test "randomKeyInBucket returns id at correct distance":
     let selfId = testKey(0)
-    var rid = randomKeyInBucketRange(selfId, TargetBucket, rng)
+    var rid = randomKeyInBucket(selfId, TargetBucket, rng)
     let idx = bucketIndex(selfId, rid, Opt.some(noOpHasher))
     check:
       idx == TargetBucket
