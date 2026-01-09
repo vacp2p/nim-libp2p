@@ -34,9 +34,9 @@ suite "KadDHT Find":
     for i in 0 ..< swarmSize:
       var (switch, kad) =
         if i == 0:
-          setupKadSwitch(PermissiveValidator(), CandSelector())
+          await setupKadSwitch(PermissiveValidator(), CandSelector())
         else:
-          setupKadSwitch(
+          await setupKadSwitch(
             PermissiveValidator(),
             CandSelector(),
             @[(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)],
@@ -63,18 +63,18 @@ suite "KadDHT Find":
     await switches.mapIt(it.stop()).allFutures()
 
   asyncTest "Relay find node":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
     )
-    var (switch3, kad3) = setupKadSwitch(
+    var (switch3, kad3) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
     )
-    var (switch4, kad4) = setupKadSwitch(
+    var (switch4, kad4) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch3.peerInfo.peerId, switch3.peerInfo.addrs)],
@@ -115,13 +115,13 @@ suite "KadDHT Find":
       kad2.hasKey(kad4.rtable.selfId)
 
   asyncTest "Find peer":
-    var (switch1, _) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, _) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
     )
-    var (switch3, kad3) = setupKadSwitch(
+    var (switch3, kad3) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -138,13 +138,13 @@ suite "KadDHT Find":
 
   asyncTest "Find node via refresh stale buckets":
     # Setup: kad1 -> kad2 -> kad3 (kad1 doesn't know kad3)
-    let (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    let (switch2, kad2) = setupKadSwitch(
+    let (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    let (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
     )
-    let (switch3, kad3) = setupKadSwitch(
+    let (switch3, kad3) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch2.peerInfo.peerId, switch2.peerInfo.addrs)],

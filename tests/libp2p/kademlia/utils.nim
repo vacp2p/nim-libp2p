@@ -63,9 +63,13 @@ proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool {.raises: [].}
 proc containsNoData*(kad: KadDHT, key: Key): bool {.raises: [].} =
   not containsData(kad, key, @[])
 
-template setupKadSwitch*(
-    validator: untyped, selector: untyped, bootstrapNodes: untyped = @[]
-): untyped =
+proc setupKadSwitch*(
+    validator: EntryValidator,
+    selector: EntrySelector,
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+    cleanupProvidersInterval: Duration = chronos.milliseconds(100),
+    republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+): Future[(Switch, KadDHT)] {.async.} =
   let switch = createSwitch()
   let kad = KadDHT.new(
     switch,
@@ -74,9 +78,9 @@ template setupKadSwitch*(
       validator,
       selector,
       timeout = chronos.seconds(1),
-      cleanupProvidersInterval = chronos.milliseconds(100),
+      cleanupProvidersInterval = cleanupProvidersInterval,
       providerExpirationInterval = chronos.seconds(1),
-      republishProvidedKeysInterval = chronos.milliseconds(50),
+      republishProvidedKeysInterval = republishProvidedKeysInterval,
     ),
   )
 

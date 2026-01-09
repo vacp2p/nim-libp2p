@@ -7,20 +7,19 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[times, tables, sequtils, sets]
+import std/[times, tables]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../protocol
 import ./[protobuf, types, find, put]
 
 proc dispatchGetVal(
-    switch: Switch,
-    peer: PeerId,
-    key: Key,
-    received: ReceivedTable,
-    candidates: CandidatePeers,
-) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-  let conn = await switch.dial(peer, KadCodec)
+    kad: KadDHT, peer: PeerId, key: Key
+): Future[Opt[Message]] {.
+    async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+.} =
+  let conn =
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], KadCodec)
   defer:
     await conn.close()
 
@@ -29,31 +28,11 @@ proc dispatchGetVal(
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
     error "GetValue reply decode fail", error = error, conn = conn
-    return
+    return Opt.none(Message)
 
-  received[peer] = Opt.none(EntryRecord)
+  kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[conn.observedAddr.get()])])
 
-  for peer in reply.closerPeers:
-    let p = PeerId.init(peer.id).valueOr:
-      debug "Invalid peer id received", peerId = peer.id, error = error
-      continue
-    candidates[].incl(p)
-
-  let record = reply.record.valueOr:
-    debug "GetValue returned empty record", msg = msg, reply = reply, conn = conn
-    return
-
-  let value = record.value.valueOr:
-    debug "GetValue returned record with no value",
-      msg = msg, reply = reply, conn = conn
-    return
-
-  let time = record.timeReceived.valueOr:
-    debug "GetValue returned record with no timeReceived, using current time instead",
-      msg = msg, reply = reply, conn = conn
-    TimeStamp($times.now().utc)
-
-  received[peer] = Opt.some(EntryRecord(value: value, time: time))
+  return Opt.some(reply)
 
 proc bestValidRecord(
     kad: KadDHT, key: Key, received: ReceivedTable, quorum: int
@@ -79,9 +58,6 @@ proc bestValidRecord(
 proc getValue*(
     kad: KadDHT, key: Key, quorumOverride: Opt[int] = Opt.none(int)
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let candidates = CandidatePeers()
-  for p in (await kad.findNode(key)):
-    candidates[].incl(p)
   let received = ReceivedTable()
 
   # if locally present
@@ -91,19 +67,35 @@ proc getValue*(
   let quorum = quorumOverride.valueOr:
     kad.config.quorum
 
-  var curTry = 0
-  while received.len < quorum and candidates[].len > 0 and curTry < kad.config.retries:
-    for chunk in candidates[].toSeq.toChunks(kad.config.alpha):
-      let rpcBatch =
-        chunk.mapIt(kad.switch.dispatchGetVal(it, key, received, candidates))
-      try:
-        await rpcBatch.allFutures().wait(kad.config.timeout)
-      except AsyncTimeoutError:
-        # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-        discard
-    # filter out peers that have responded
-    candidates[] = candidates[].filterIt(not received.hasKey(it))
-    curTry.inc()
+  let onReply = proc(
+      peer: PeerId, msgOpt: Opt[Message], state: var LookupState
+  ): Future[void] {.async: (raises: []), gcsafe.} =
+    received[peer] = Opt.none(EntryRecord)
+
+    let reply = msgOpt.valueOr:
+      return
+
+    let record = reply.record.valueOr:
+      debug "GetValue returned empty record", reply = reply
+      return
+
+    let value = record.value.valueOr:
+      debug "GetValue returned record with no value", reply = reply
+      return
+
+    let time = record.timeReceived.valueOr:
+      debug "GetValue returned record with no timeReceived, using current time instead",
+        reply = reply
+      TimeStamp($times.now().utc)
+
+    received[peer] = Opt.some(EntryRecord(value: value, time: time))
+
+  let stopCond = proc(state: LookupState): bool {.gcsafe.} =
+    received.len >= quorum
+
+  discard await kad.iterativeLookup(
+    key, dispatchGetVal, onReply, stopCond, countFailedAsResponded = false
+  )
 
   let best = ?kad.bestValidRecord(key, received, quorum)
 

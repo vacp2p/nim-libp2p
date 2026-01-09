@@ -22,8 +22,8 @@ suite "KadDHT Get":
     checkTrackers()
 
   asyncTest "Get from peer":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -51,7 +51,7 @@ suite "KadDHT Get":
       containsData(kad2, key, value)
 
   asyncTest "Get value that is locally present":
-    var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
     defer:
       await switch.stop()
 
@@ -67,14 +67,14 @@ suite "KadDHT Get":
 
   asyncTest "Divergent getVal responses from peers":
     var (switch2, kad2) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch3, kad3) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch4, kad4) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch5, kad5) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch1, kad1) = setupKadSwitch(
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch1, kad1) = await setupKadSwitch(
       DefaultEntryValidator(),
       DefaultEntrySelector(),
       @[
@@ -124,14 +124,14 @@ suite "KadDHT Get":
 
   asyncTest "Could not achieve quorum":
     var (switch2, kad2) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch3, kad3) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch4, kad4) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch5, kad5) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch1, kad1) = setupKadSwitch(
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch1, kad1) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[
@@ -171,14 +171,14 @@ suite "KadDHT Get":
 
   asyncTest "Update peers with empty values":
     var (switch2, kad2) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch3, kad3) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch4, kad4) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
     var (switch5, kad5) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch1, kad1) = setupKadSwitch(
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch1, kad1) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[

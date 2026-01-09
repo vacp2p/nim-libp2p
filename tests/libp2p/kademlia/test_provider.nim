@@ -11,7 +11,7 @@
 
 import std/[tables, sets, sequtils]
 from std/times import now, utc
-import chronos, chronicles
+import chronos, chronicles, results
 import ../../../libp2p/[protocols/kademlia, switch, builders, multicodec]
 import ../../tools/[unittest]
 import ./utils.nim
@@ -23,8 +23,8 @@ suite "KadDHT - ProviderManager":
     checkTrackers()
 
   asyncTest "Add provider":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -53,8 +53,8 @@ suite "KadDHT - ProviderManager":
       kad1.providerManager.providerRecords[0].provider.id == kad2.rtable.selfId
 
   asyncTest "Provider expired":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -96,8 +96,8 @@ suite "KadDHT - ProviderManager":
     check kad1.providerManager.providerRecords.len() == 0
 
   asyncTest "Provider refreshed (not expired)":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -151,8 +151,8 @@ suite "KadDHT - ProviderManager":
     check kad1.providerManager.providerRecords.len() == 0
 
   asyncTest "Start/stop providing":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -202,10 +202,10 @@ suite "KadDHT - ProviderManager":
       kad2.providerManager.knownKeys.len() == 0
 
   asyncTest "Provider limits":
-    var (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch4, kad4) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch1, kad1) = setupKadSwitch(
+    var (switch2, kad2) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch3, kad3) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch4, kad4) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch1, kad1) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[
@@ -230,13 +230,12 @@ suite "KadDHT - ProviderManager":
     # set low capacities
     kad1.providerManager.providedKeys.capacity = 1
     kad2.providerManager.providerRecords.capacity = 1
-
     await kad1.startProviding(cid1)
     await sleepAsync(100.milliseconds)
     let keyBefore = kad2.providerManager.providerRecords[0].key
     check:
       kad1.providerManager.providedKeys.len() == 1
-      kad1.providerManager.providedKeys.hasKey(cid1)
+      kad1.providerManager.providedKeys.hasKey(cid1.toKey())
       kad2.providerManager.providerRecords.len() == 1
 
     # setting capacity means we overwrite key1
@@ -245,21 +244,27 @@ suite "KadDHT - ProviderManager":
     let keyAfter = kad2.providerManager.providerRecords[0].key
     check:
       kad1.providerManager.providedKeys.len() == 1
-      kad1.providerManager.providedKeys.hasKey(cid2)
-      not kad1.providerManager.providedKeys.hasKey(cid1)
+      kad1.providerManager.providedKeys.hasKey(cid2.toKey())
+      not kad1.providerManager.providedKeys.hasKey(cid1.toKey())
       kad2.providerManager.providerRecords.len() == 1
       keyBefore != keyAfter
 
   asyncTest "Get providers":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(
+      PermissiveValidator(), CandSelector(), @[], chronos.seconds(1), chronos.seconds(1)
+    )
+    var (switch3, kad3) = await setupKadSwitch(
+      PermissiveValidator(), CandSelector(), @[], chronos.seconds(1), chronos.seconds(1)
+    )
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[
         (switch1.peerInfo.peerId, switch1.peerInfo.addrs),
         (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
       ],
+      chronos.seconds(1),
+      chronos.seconds(1),
     )
     defer:
       await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
@@ -276,10 +281,10 @@ suite "KadDHT - ProviderManager":
     # don't call startProviding directly to avoid sending addProvider
     # this will force asking peer to use closerPeers
     kad2.dataTable.insert(key2, value, $times.now().utc)
-    kad2.providerManager.providedKeys.provided[key2.toCid()] = chronos.Moment.now()
+    kad2.providerManager.providedKeys.provided[key2] = chronos.Moment.now()
 
     kad3.dataTable.insert(key3, value, $times.now().utc)
-    kad3.providerManager.providedKeys.provided[key3.toCid()] = chronos.Moment.now()
+    kad3.providerManager.providedKeys.provided[key3] = chronos.Moment.now()
 
     # kad1 <-> kad2 <-> kad3
     #          key2     key3
@@ -288,12 +293,13 @@ suite "KadDHT - ProviderManager":
     check providers[0].id == kad2.rtable.selfId
 
     # kad2 doesn't provide key3, but returns closerPeers
-    let (rawProviders, closerPeers) =
-      await kad1.switch.dispatchGetProviders(kad2.switch.peerInfo.peerId, key3)
+    let reply = (await kad1.dispatchGetProviders(kad2.switch.peerInfo.peerId, key3)).valueOr:
+      fail()
+      return
 
     check:
-      rawProviders.len() == 0
-      closerPeers.toPeerIds()[0] == kad3.switch.peerInfo.peerId
+      reply.providerPeers.len() == 0
+      reply.closerPeers.toPeerIds()[0] == kad3.switch.peerInfo.peerId
 
     # we can still get key3 because getProviders is iterative
     let providers3 = (await kad1.getProviders(key3)).toSeq()
