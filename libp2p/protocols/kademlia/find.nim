@@ -103,28 +103,14 @@ proc dispatchFindNode*(
 
   return reply
 
-proc updatePeers(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
+proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   for p in peerInfos:
-    discard kad.rtable.insert(p.peerId)
-    # Nodes might return different addresses for a peer, so we append instead of replacing
-    try:
-      var existingAddresses = kad.switch.peerStore[AddressBook][p.peerId].toHashSet()
-      for a in p.addrs:
-        existingAddresses.incl(a)
-      kad.switch.peerStore[AddressBook][p.peerId] = existingAddresses.toSeq()
-    except KeyError as exc:
-      debug "Could not update shortlist", err = exc.msg
-    # TODO: add TTL to peerstore, otherwise we can spam it with junk
+    if kad.rtable.insert(p.peerId):
+      kad.switch.peerStore[AddressBook].extend(p.peerId, p.addrs)
 
-proc addNewPeerAddresses(
-    addrsTable: SeqPeerBook[MultiAddress], closerPeers: seq[Peer]
-) =
-  for peer in closerPeers:
-    let pid = PeerId.init(peer.id)
-    if not pid.isOk:
-      error "Invalid PeerId in successful reply", peerId = peer.id
-      return
-    addrsTable.extend(pid.get(), peer.addrs)
+proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
+  let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
+  kad.updatePeers(peerInfos)
 
 proc findNode*(
     kad: KadDHT, target: Key
@@ -153,7 +139,6 @@ proc findNode*(
         state.responded.incl(peerId)
 
     for msg in completedRPCBatch:
-      addNewPeerAddresses(kad.switch.peerStore[AddressBook], msg.closerPeers)
       let newPeerInfos = state.updateShortlist(msg)
       kad.updatePeers(newPeerInfos)
 

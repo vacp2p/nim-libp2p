@@ -84,6 +84,10 @@ proc getValue*(
     candidates[].incl(p)
   let received = ReceivedTable()
 
+  # if locally present
+  if kad.dataTable.hasKey(key):
+    received[kad.switch.peerInfo.peerId] = kad.dataTable.get(key)
+
   let quorum = quorumOverride.valueOr:
     kad.config.quorum
 
