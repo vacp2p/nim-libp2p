@@ -65,6 +65,9 @@ proc process*(
   defer:
     destroyShared(self)
 
+  let gossipSub = libp2p[].gossipSub.valueOr:
+    return err("gossipsub not initialized")
+
   case self.operation
   of SUBSCRIBE:
     let pubsubTopicHandler = self.topicHandler
@@ -82,7 +85,7 @@ proc process*(
           topicUserData,
         )
       libp2p[].topicHandlers[tpair] = (handler: topicHandler, userData: topicUserData)
-      libp2p[].gossipSub.subscribe($self.topic, topicHandler)
+      gossipSub.subscribe($self.topic, topicHandler)
   of UNSUBSCRIBE:
     let tpair = (topic: $self.topic, handler: self.topicHandler)
     if libp2p[].topicHandlers.hasKey(tpair):
@@ -92,9 +95,9 @@ proc process*(
         except KeyError:
           raiseAssert "checked with hasKey"
       libp2p[].topicHandlers.del(tpair)
-      libp2p[].gossipSub.unsubscribe($self.topic, topicHandler)
+      gossipSub.unsubscribe($self.topic, topicHandler)
   of PUBLISH:
-    discard await libp2p[].gossipSub.publish($self.topic, self.data.toSeq())
+    discard await gossipSub.publish($self.topic, self.data.toSeq())
   of ADD_VALIDATOR:
     # TODO:
     discard

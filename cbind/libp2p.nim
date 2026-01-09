@@ -203,7 +203,7 @@ proc libp2p_create_cid(
   RET_OK.cint
 
 proc libp2p_new(
-    callback: Libp2pCallback, userData: pointer
+    config: ptr Libp2pConfig, callback: Libp2pCallback, userData: pointer
 ): pointer {.dynlib, exportc, cdecl.} =
   ## Creates a new instance of the library's context
 
@@ -227,7 +227,7 @@ proc libp2p_new(
   let retCode = handleRequest(
     ctx,
     RequestType.LIFECYCLE,
-    LifecycleRequest.createShared(LifecycleMsgType.CREATE_LIBP2P, appCallbacks),
+    LifecycleRequest.createShared(LifecycleMsgType.CREATE_LIBP2P, appCallbacks, config),
     callback,
     userData,
   )
@@ -768,6 +768,9 @@ proc libp2p_get_value(
 
   if key.isNil() or keyLen == 0:
     failWithBufferMsg(callback, userData, "key is not set")
+
+  if quorumOverride == 0:
+    failWithBufferMsg(callback, userData, "quorum cannot be 0")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
