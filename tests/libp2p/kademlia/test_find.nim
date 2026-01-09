@@ -9,12 +9,15 @@
 
 {.used.}
 
-import chronos, chronicles, std/[sequtils, enumerate]
+import chronos, chronicles, std/enumerate, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[crypto, unittest]
 import ./utils.nim
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+
+proc getRandomPeerId(): PeerId =
+  PeerId.random(rng()).get()
 
 proc hasKey(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
@@ -133,7 +136,7 @@ suite "KadDHT Find":
     check res1.get().peerId == switch3.peerInfo.peerId
 
     # try to find peer that does not exist
-    let res2 = await kad2.findPeer(PeerId.random(rng()).get())
+    let res2 = await kad2.findPeer(getRandomPeerId())
     check res2.isErr()
 
   asyncTest "Find node via refresh stale buckets":
@@ -212,25 +215,55 @@ suite "KadDHT Find":
       # kad1 knows kad2 and kad3, should return both as closest peers
       response.closerPeers.len == 2
 
-  asyncTest "Lookup initializes with k closest from routing table":
+  asyncTest "Lookup initializes shortlist with k closest from routing table":
     var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await switch.stop()
 
     # Insert peers into routing table
     kad.populateRoutingTable(30)
+    let peersInTable = kad.getPeersfromRoutingTable()
+
+    # Initialize LookupState for a random target
+    let targetKey = getRandomPeerId().toKey()
+    let state = LookupState.init(kad, targetKey)
+
+    # Shortlist contains exactly k=20 peers
+    let k = kad.rtable.config.replication
+    check state.shortlist.len == k
+
+    # Calculate expected k closest peers
+    let expectedClosest =
+      peersInTable.sortPeers(targetKey, kad.rtable.config.hasher)[0 ..< k]
+
+    # Shortlist contains exactly the k closest peers
+    for peerId in expectedClosest:
+      check state.shortlist.hasKey(peerId)
+
+  asyncTest "Lookup selects alpha peers for concurrent querying":
+    var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await switch.stop()
+
+    # Set alpha=3 for easier testing
+    kad.config.alpha = 3
+
+    # Insert peers into routing table
+    kad.populateRoutingTable(10)
+    let peersInTable = kad.getPeersfromRoutingTable()
 
     # Initialize LookupState
-    let targetKey = PeerId.random(rng()).get().toKey()
+    let targetKey = getRandomPeerId().toKey()
     let state = LookupState.init(kad, targetKey)
-    let shortlistPeers = state.selectCloserPeers(1000, excludeResponded = false)
 
-    # Shortlist is bounded by k=20
-    let k = kad.rtable.config.replication
-    check shortlistPeers.len == k
+    # SelectCloserPeers returns exactly alpha peers when more are available
+    let toQuery = state.selectCloserPeers(kad.config.alpha)
 
-    # Calculate expected k closest from actual routing table contents
-    let peers = kad.getPeersfromRoutingTable()
-    let expectedClosest = peers.sortPeers(targetKey, kad.rtable.config.hasher)[0 ..< k]
+    # Exactly alpha=3 peers selected for concurrent query
+    check toQuery.len == kad.config.alpha
 
-    check shortlistPeers == expectedClosest
+    # Selected peers are the 3 closest to target
+    let expectedClosest = peersInTable.sortPeers(targetKey, kad.rtable.config.hasher)[
+      0 ..< kad.config.alpha
+    ]
+    check toQuery == expectedClosest
