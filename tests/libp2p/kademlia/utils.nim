@@ -84,10 +84,12 @@ template setupKadSwitch*(
   await switch.start()
   (switch, kad)
 
+proc randomPeerId*(): PeerId =
+  PeerId.random(rng()).get()
+
 proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:
-    let peerId = PeerId.random(rng()).get()
-    discard kad.rtable.insert(peerId)
+    discard kad.rtable.insert(randomPeerId())
 
 proc getPeersfromRoutingTable*(kad: KadDHT): seq[PeerId] =
   var peersInTable: seq[PeerId]
@@ -99,9 +101,10 @@ proc getPeersfromRoutingTable*(kad: KadDHT): seq[PeerId] =
 proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =
-  var distances = peers.mapIt((it, xorDistance(it, targetKey, hasher)))
-  distances.sort(
+  peers
+  .mapIt((it, xorDistance(it, targetKey, hasher)))
+  .sorted(
     proc(a, b: auto): int =
       cmp(a[1], b[1])
   )
-  distances.mapIt(it[0])
+  .mapIt(it[0])
