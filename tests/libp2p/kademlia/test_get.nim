@@ -51,34 +51,19 @@ suite "KadDHT Get":
       containsData(kad2, key, value)
 
   asyncTest "Get value that is locally present":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector())
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
-
-    discard await kad1.findNode(kad2.rtable.selfId)
-    discard await kad2.findNode(kad1.rtable.selfId)
+      await switch.stop()
 
     let
-      key = kad1.rtable.selfId
+      key = kad.rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kad1.dataTable.insert(key, value, $times.now().utc)
-    kad2.dataTable.insert(key, value, $times.now().utc)
+    kad.dataTable.insert(key, value, $times.now().utc)
 
     check:
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
-
-    discard await kad2.getValue(key)
-
-    check:
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
+      containsData(kad, key, value)
+      (await kad.getValue(key, quorumOverride = Opt.some(1))).get().value == value
 
   asyncTest "Divergent getVal responses from peers":
     var (switch2, kad2) =

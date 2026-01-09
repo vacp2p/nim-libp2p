@@ -152,17 +152,19 @@ suite "KadDHT Find":
     defer:
       await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
 
-    # Force kad1 to forget kad3 (it learned about it during bootstrap)
+    # Force kad1 to forget kad3
     for b in kad1.rtable.buckets.mitems:
       b.peers = b.peers.filterIt(it.nodeId != kad3.rtable.selfId)
-    check not kad1.hasKey(kad3.rtable.selfId)
 
     # Make kad2's bucket stale to trigger refresh
     let kad2BucketIdx =
       bucketIndex(kad1.rtable.selfId, kad2.rtable.selfId, kad1.rtable.config.hasher)
     kad1.rtable.buckets[kad2BucketIdx].peers[0].lastSeen = Moment.now() - 40.minutes
 
-    await kad1.refreshBuckets()
+    check kad1.rtable.buckets[kad2BucketIdx].isStale()
+    check not kad1.hasKey(kad3.rtable.selfId)
+
+    await kad1.bootstrap()
 
     # kad1 discovers kad3 via kad2
     check kad1.hasKey(kad3.rtable.selfId)
