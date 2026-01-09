@@ -62,6 +62,27 @@ proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool {.raises: [].}
 proc containsNoData*(kad: KadDHT, key: Key): bool {.raises: [].} =
   not containsData(kad, key, @[])
 
+template setupMockKadSwitch*(
+    validator: untyped, selector: untyped, bootstrapNodes: untyped = @[]
+): untyped =
+  let switch = createSwitch()
+  let kad = MockKadDHT.new(
+    switch,
+    bootstrapNodes,
+    config = KadDHTConfig.new(
+      validator,
+      selector,
+      timeout = chronos.seconds(1),
+      cleanupProvidersInterval = chronos.milliseconds(100),
+      providerExpirationInterval = chronos.seconds(1),
+      republishProvidedKeysInterval = chronos.milliseconds(50),
+    ),
+  )
+
+  switch.mount(kad)
+  await switch.start()
+  (switch, kad)
+
 template setupKadSwitch*(
     validator: untyped, selector: untyped, bootstrapNodes: untyped = @[]
 ): untyped =

@@ -102,7 +102,7 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
 proc insert*(rtable: var RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
-proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
+proc findClosest*(rtable: RoutingTable, target: Key, count: int): seq[Key] =
   var allNodes: seq[Key] = @[]
 
   for bucket in rtable.buckets:
@@ -112,18 +112,17 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
   allNodes.sort(
     proc(a, b: Key): int =
       cmp(
-        xorDistance(a, targetId, rtable.config.hasher),
-        xorDistance(b, targetId, rtable.config.hasher),
+        xorDistance(a, target, rtable.config.hasher),
+        xorDistance(b, target, rtable.config.hasher),
       )
   )
 
   return allNodes[0 ..< min(count, allNodes.len)]
 
-proc findClosestPeerIds*(rtable: RoutingTable, targetId: Key, count: int): seq[PeerId] =
-  return findClosest(rtable, targetId, count)
-    .mapIt(it.toPeerId())
-    .filterIt(it.isOk)
-    .mapIt(it.value())
+proc findClosestPeerIds*(rtable: RoutingTable, target: Key, count: int): seq[PeerId] =
+  return findClosest(rtable, target, count).mapIt(it.toPeerId()).filterIt(it.isOk).mapIt(
+      it.value()
+    )
 
 proc isStale*(bucket: Bucket): bool =
   if bucket.peers.len == 0:

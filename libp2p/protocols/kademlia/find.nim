@@ -107,14 +107,18 @@ proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   for p in peerInfos:
     if kad.rtable.insert(p.peerId):
       kad.switch.peerStore[AddressBook].extend(p.peerId, p.addrs)
+      debug "peer inserted",
+        peerId = p.peerId,
+        addrs = p.addrs,
+        peerStore = kad.switch.peerStore[AddressBook][p.peerId]
 
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
   kad.updatePeers(peerInfos)
 
-proc findNode*(
+method findNode*(
     kad: KadDHT, target: Key
-): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
+): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a `target` key.
 
   var state = LookupState.init(kad, target)
