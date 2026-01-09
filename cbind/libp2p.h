@@ -34,6 +34,30 @@ typedef void (*Libp2pBufferCallback)(int callerRet, const uint8_t *data,
                                    const char *msg, size_t len,
                                    void *userData);
 
+enum {
+  LIBP2P_CFG_GOSSIPSUB = 1 << 0,
+  LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF = 1 << 1,
+  LIBP2P_CFG_KAD = 1 << 2,
+  LIBP2P_CFG_DNS_RESOLVER = 1 << 3,
+  LIBP2P_CFG_KAD_BOOTSTRAP_NODES = 1 << 4,
+};
+
+typedef struct libp2p_bootstrap_node {
+  const char *peerId;
+  const char **multiaddrs;
+  size_t multiaddrsLen;
+} libp2p_bootstrap_node_t;
+
+typedef struct {
+  uint32_t flags;
+  int mount_gossipsub;
+  int gossipsub_trigger_self;
+  int mount_kad;
+  const char *dns_resolver;
+  const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
+  size_t kad_bootstrap_nodes_len;
+} libp2p_config_t;
+
 typedef void (*PubsubTopicHandler)(const char *topic, uint8_t *data, size_t len,
                                    void *userData);
 
@@ -116,7 +140,8 @@ int libp2p_create_cid(uint32_t version, const char *multicodec, const char *hash
                       const uint8_t *data, size_t dataLen, Libp2pCallback callback,
                       void *userData);
 
-libp2p_ctx_t *libp2p_new(Libp2pCallback callback, void *userData);
+libp2p_ctx_t *libp2p_new(const libp2p_config_t *config,
+                         Libp2pCallback callback, void *userData);
 
 int libp2p_destroy(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 

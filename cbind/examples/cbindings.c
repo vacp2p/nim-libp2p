@@ -52,36 +52,65 @@ libp2p_ctx_t *ctx2;
 
 int main(int argc, char **argv) {
   int status = 1;
-  PeerInfo pi = {0};
+  PeerInfo pInfo1 = {0};
+  PeerInfo pInfo2 = {0};
   char cid_buf[CID_BUF_SIZE] = {0};
 
-  ctx1 = libp2p_new(event_handler, NULL);
+  libp2p_config_t cfg1 = {0};
+  cfg1.flags =
+      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF | LIBP2P_CFG_KAD;
+  cfg1.mount_gossipsub = 1;
+  cfg1.gossipsub_trigger_self = 1;
+  cfg1.mount_kad = 1;
+
+  ctx1 = libp2p_new(&cfg1, event_handler, NULL);
   waitForCallback();
 
   libp2p_start(ctx1, event_handler, NULL);
   waitForCallback();
 
-  ctx2 = libp2p_new(event_handler, NULL);
+  // Obtaining the node's peerId and multiaddresses in which it is listening
+  libp2p_peerinfo(ctx1, peerinfo_handler, &pInfo1);
+  waitForCallback();
+
+  libp2p_config_t cfg2 = {0};
+  cfg2.flags = LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF |
+               LIBP2P_CFG_KAD | LIBP2P_CFG_KAD_BOOTSTRAP_NODES;
+  cfg2.mount_gossipsub = 1;
+  cfg2.gossipsub_trigger_self = 1;
+  cfg2.mount_kad = 1;
+  libp2p_bootstrap_node_t bootstrap_nodes[1] = {
+      {.peerId = pInfo1.peerId,
+       .multiaddrs = pInfo1.addrs,
+       .multiaddrsLen = pInfo1.addrCount},
+  };
+  cfg2.kad_bootstrap_nodes = bootstrap_nodes;
+  cfg2.kad_bootstrap_nodes_len = 1;
+
+  ctx2 = libp2p_new(&cfg2, event_handler, NULL);
   waitForCallback();
 
   libp2p_start(ctx2, event_handler, NULL);
   waitForCallback();
 
   // Obtaining the node's peerId and multiaddresses in which it is listening
-
-  libp2p_peerinfo(ctx2, peerinfo_handler, &pi);
+  libp2p_peerinfo(ctx2, peerinfo_handler, &pInfo2);
   waitForCallback();
 
-  libp2p_connect(ctx1, pi.peerId, pi.addrs, pi.addrCount, 0, event_handler,
-                 NULL);
+  libp2p_connect(ctx1, pInfo2.peerId, pInfo2.addrs, pInfo2.addrCount, 0,
+                 event_handler, NULL);
   waitForCallback();
 
-  // Use Direction_in for the list of peers that opened a connection to us
   printf("Retrieve list of peers we opened a connection to:\n");
   libp2p_connected_peers(ctx1, Direction_Out, peers_handler, NULL);
   waitForCallback();
 
-  libp2p_dial(ctx1, pi.peerId, "/ipfs/ping/1.0.0", connection_handler, NULL);
+  printf("Retrieve list of peers we received a connection from:\n");
+  libp2p_connected_peers(ctx1, Direction_In, peers_handler, NULL);
+  waitForCallback();
+
+  libp2p_dial(ctx1, pInfo2.peerId, "/ipfs/ping/1.0.0", connection_handler,
+              NULL);
   waitForCallback();
 
   uint8_t ping_payload[32] = {0};
@@ -124,7 +153,7 @@ int main(int argc, char **argv) {
 
   // Kademlia operations
   printf("Found nodes:\n");
-  libp2p_find_node(ctx1, pi.peerId, peers_handler, NULL);
+  libp2p_find_node(ctx1, pInfo2.peerId, peers_handler, NULL);
   waitForCallback();
 
   const uint8_t keyBytes[] = {0xde, 0xad, 0xbe, 0xef};
@@ -133,7 +162,7 @@ int main(int argc, char **argv) {
                    sizeof(valBytes) - 1, event_handler, NULL);
   waitForCallback();
 
-  libp2p_get_value(ctx2, keyBytes, sizeof(keyBytes), 0, get_value_handler,
+  libp2p_get_value(ctx2, keyBytes, sizeof(keyBytes), 1, get_value_handler,
                    NULL);
   waitForCallback();
 
@@ -159,7 +188,8 @@ int main(int argc, char **argv) {
   status = 0;
 
 cleanup:
-  free_peerinfo(&pi);
+  free_peerinfo(&pInfo1);
+  free_peerinfo(&pInfo2);
 
   libp2p_stop(ctx1, event_handler, NULL);
   waitForCallback();
@@ -299,8 +329,7 @@ static void get_value_handler(int callerRet, const uint8_t *data,
     printf("GetValue error(%d): %.*s\n", callerRet, (int)len,
            msg != NULL ? msg : "");
 
-    // TODO: once bootstrapping is enabled, uncomment this
-    // exit(1);
+    exit(1);
   }
 
   printf("GetValue received (%zu bytes): ", dataLen);

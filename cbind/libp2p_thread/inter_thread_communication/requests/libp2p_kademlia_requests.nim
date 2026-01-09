@@ -7,7 +7,7 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[sequtils]
+import std/sequtils
 import chronos, results, sets
 import ../../../[alloc, ffi_types]
 import ../../../../libp2p
@@ -160,12 +160,12 @@ proc buildProvidersResult(
   ok(resPtr)
 
 proc process*(
-    self: ptr KademliaRequest, kad: KadDHT
+    self: ptr KademliaRequest, kadOpt: Opt[KadDHT]
 ): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
-  if kad.isNil():
+  let kad = kadOpt.valueOr:
     return err("kad-dht not initialized")
 
   case self.operation
@@ -191,12 +191,12 @@ proc process*(
   ok("")
 
 proc processFindNode*(
-    self: ptr KademliaRequest, kad: KadDHT
+    self: ptr KademliaRequest, kadOpt: Opt[KadDHT]
 ): Future[Result[ptr FindNodeResult, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
-  if kad.isNil():
+  let kad = kadOpt.valueOr:
     return err("kad-dht not initialized")
 
   let target = PeerId.init($self[].peerId).valueOr:
@@ -228,12 +228,12 @@ proc processFindNode*(
   ok(resPtr)
 
 proc processGetValue*(
-    self: ptr KademliaRequest, kad: KadDHT
+    self: ptr KademliaRequest, kadOpt: Opt[KadDHT]
 ): Future[Result[ptr GetValueResult, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
-  if kad.isNil():
+  let kad = kadOpt.valueOr:
     return err("kad-dht not initialized")
 
   let res =
@@ -253,12 +253,12 @@ proc processGetValue*(
   buildGetValueResult(entry)
 
 proc processGetProviders*(
-    self: ptr KademliaRequest, kad: KadDHT
+    self: ptr KademliaRequest, kadOpt: Opt[KadDHT]
 ): Future[Result[ptr ProvidersResult, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
-  if kad.isNil():
+  let kad = kadOpt.valueOr:
     return err("kad-dht not initialized")
 
   let cid = Cid.init($self[].cid).valueOr:

@@ -95,7 +95,7 @@ proc getValue*(
   while received.len < quorum and candidates[].len > 0 and curTry < kad.config.retries:
     for chunk in candidates[].toSeq.toChunks(kad.config.alpha):
       let rpcBatch =
-        candidates[].mapIt(kad.switch.dispatchGetVal(it, key, received, candidates))
+        chunk.mapIt(kad.switch.dispatchGetVal(it, key, received, candidates))
       try:
         await rpcBatch.allFutures().wait(kad.config.timeout)
       except AsyncTimeoutError:

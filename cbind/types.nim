@@ -8,6 +8,7 @@
 # those terms.
 
 import std/tables
+import results
 import ../libp2p
 import ../libp2p/protocols/pubsub/gossipsub
 import ../libp2p/protocols/kademlia
@@ -26,7 +27,7 @@ type TopicHandlerEntry* = tuple[handler: TopicHandler, userData: pointer]
 
 type LibP2P* = ref object
   switch*: Switch
-  gossipSub*: GossipSub
-  kad*: KadDHT
+  gossipSub*: Opt[GossipSub]
+  kad*: Opt[KadDHT]
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
   connections*: Table[ptr Libp2pStream, Connection]
