@@ -289,7 +289,7 @@ suite "KadDHT - ProviderManager":
 
     # kad2 doesn't provide key3, but returns closerPeers
     let (rawProviders, closerPeers) =
-      await kad1.switch.dispatchGetProviders(kad2.switch.peerInfo.peerId, key3)
+      await kad1.dispatchGetProviders(kad2.switch.peerInfo.peerId, key3)
 
     check:
       rawProviders.len() == 0

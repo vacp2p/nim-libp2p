@@ -14,13 +14,13 @@ import ../protocol
 import ./[protobuf, types, find, put]
 
 proc dispatchGetVal(
-    switch: Switch,
+    kad: KadDHT,
     peer: PeerId,
     key: Key,
     received: ReceivedTable,
     candidates: CandidatePeers,
 ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-  let conn = await switch.dial(peer, KadCodec)
+  let conn = await kad.switch.dial(peer, KadCodec)
   defer:
     await conn.close()
 
@@ -33,11 +33,14 @@ proc dispatchGetVal(
 
   received[peer] = Opt.none(EntryRecord)
 
+  var closerPeers: seq[(PeerId, seq[MultiAddress])]
   for peer in reply.closerPeers:
-    let p = PeerId.init(peer.id).valueOr:
+    let pid = PeerId.init(peer.id).valueOr:
       debug "Invalid peer id received", peerId = peer.id, error = error
       continue
-    candidates[].incl(p)
+    closerPeers.add((pid, peer.addrs))
+    candidates[].incl(pid)
+  kad.updatePeers(closerPeers)
 
   let record = reply.record.valueOr:
     debug "GetValue returned empty record", msg = msg, reply = reply, conn = conn
@@ -95,7 +98,7 @@ proc getValue*(
   while received.len < quorum and candidates[].len > 0 and curTry < kad.config.retries:
     for chunk in candidates[].toSeq.toChunks(kad.config.alpha):
       let rpcBatch =
-        candidates[].mapIt(kad.switch.dispatchGetVal(it, key, received, candidates))
+        candidates[].mapIt(kad.dispatchGetVal(it, key, received, candidates))
       try:
         await rpcBatch.allFutures().wait(kad.config.timeout)
       except AsyncTimeoutError:

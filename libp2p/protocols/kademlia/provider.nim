@@ -174,11 +174,11 @@ proc handleAddProvider*(
     )
 
 proc dispatchGetProviders*(
-    switch: Switch, peer: PeerId, key: Key
+    kad: KadDHT, peer: PeerId, key: Key
 ): Future[(HashSet[Provider], seq[Peer])] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError])
 .} =
-  let conn = await switch.dial(peer, KadCodec)
+  let conn = await kad.switch.dial(peer, KadCodec)
   defer:
     await conn.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
@@ -190,12 +190,15 @@ proc dispatchGetProviders*(
 
   debug "Received reply for GetProviders", reply = reply
 
+  var closerPeers: seq[(PeerId, seq[MultiAddress])]
   var providers: HashSet[Provider]
   for peer in reply.providerPeers:
-    let p = PeerId.init(peer.id).valueOr:
+    let pid = PeerId.init(peer.id).valueOr:
       debug "Invalid peer id received", peerId = peer.id, error = error
       continue
+    closerPeers.add((pid, peer.addrs))
     providers.incl(peer)
+  kad.updatePeers(closerPeers)
 
   return (providers, reply.closerPeers)
 
@@ -229,7 +232,7 @@ proc getProviders*(
       if candidates.len() == 0:
         break
 
-      let rpcBatch = candidates.mapIt(kad.switch.dispatchGetProviders(it, key))
+      let rpcBatch = candidates.mapIt(kad.dispatchGetProviders(it, key))
 
       let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
       for (providers, closerPeers) in completedRPCBatch:
