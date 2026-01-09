@@ -18,66 +18,23 @@ export routingtable, protobuf, types, find, get, put, provider, ping
 logScope:
   topics = "kad-dht"
 
-proc bootstrapNode*(
-    kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
-) {.async: (raises: [CancelledError]).} =
-  ## Uses node with `peerId` and `addrs` as a bootstrap node
-
-  let msg =
-    try:
-      debug "trying to find self"
-      await kad.switch.dispatchFindNode(peerId, kad.rtable.selfId, Opt.some(addrs)).wait(
-        kad.config.timeout
-      )
-    except DialFailedError as e:
-      debug "Failed to dial bootstrap node",
-        target = peerId, addrs = addrs, description = e.msg
-      return
-    except LPStreamError as e:
-      debug "LPStreamError when dialing bootstrap node",
-        target = peerId, addrs = addrs, description = e.msg
-      return
-    except ValueError as e:
-      debug "Wrong reply message type from bootstrap node",
-        target = peerId, addrs = addrs, description = e.msg
-      return
-    except AsyncTimeoutError as e:
-      debug "Timeout error when dialing bootstrap node",
-        target = peerId, addrs = addrs, description = e.msg
-      return
-
-  for peer in msg.closerPeers:
-    let p = PeerId.init(peer.id).valueOr:
-      debug "Invalid peer id received", error = error
-      continue
-    discard kad.rtable.insert(p)
-
-    kad.switch.peerStore[AddressBook][p] = peer.addrs
-
-  # bootstrap node replied succesfully, add to routing table
-  discard kad.rtable.insert(peerId)
-
 proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  for (peerId, addrs) in kad.bootstrapNodes:
-    await kad.bootstrapNode(peerId, addrs)
+  ## Sends a findNode to find a random key for each non-empty k-bucket
+  ## Also sends a findNode to find itself to keep nearby peers up to date
 
-  let key = PeerId.random(kad.rng).valueOr:
-    doAssert(false, "this should never happen")
-    return
+  discard await kad.findNode(kad.rtable.selfId)
 
-  discard await kad.findNode(key.toKey())
-
-  info "Bootstrap lookup complete"
-
-proc refreshBuckets*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   for i in 0 ..< kad.rtable.buckets.len:
     if kad.rtable.buckets[i].isStale():
-      let randomKey = randomKeyInBucketRange(kad.rtable.selfId, i, kad.rng[])
+      let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng[])
       discard await kad.findNode(randomKey)
 
+  trace "Bootstrap complete"
+
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh buckets", kad.config.bucketRefreshTime:
-    await kad.refreshBuckets()
+  heartbeat "Refreshing buckets (bootstrapping)",
+    kad.config.bucketRefreshTime, sleepFirst = true:
+    await kad.bootstrap()
 
 proc new*(
     T: typedesc[KadDHT],
@@ -95,12 +52,14 @@ proc new*(
   let kad = T(
     rng: rng,
     switch: switch,
-    bootstrapNodes: bootstrapNodes,
     rtable: rtable,
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
   )
+
+  # Fill up buckets with initial bootstrap nodes
+  kad.updatePeers(bootstrapNodes)
 
   kad.codec = codec
   if client:
@@ -148,15 +107,15 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
+  await kad.bootstrap()
+
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
 
-  await kad.bootstrap()
-
   kad.started = true
 
-  info "Kad DHT started"
+  trace "Kad DHT started"
 
 method stop*(kad: KadDHT) {.async: (raises: []).} =
   if not kad.started:
