@@ -170,8 +170,8 @@ suite "KadDHT Find":
     check kad1.hasKey(kad3.rtable.selfId)
 
   asyncTest "Find node with empty key returns closest peers":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -181,7 +181,8 @@ suite "KadDHT Find":
 
     # Send FIND_NODE with empty key directly
     let emptyKey: Key = @[]
-    let response = await switch2.dispatchFindNode(switch1.peerInfo.peerId, emptyKey)
+    let response =
+      (await kad2.dispatchFindNode(switch1.peerInfo.peerId, emptyKey)).value()
 
     # Empty key is accepted and a valid response is returned
     check:
@@ -190,13 +191,13 @@ suite "KadDHT Find":
       response.closerPeers[0].id == kad2.rtable.selfId
 
   asyncTest "Find node for own PeerID returns closest peers":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
     )
-    var (switch3, kad3) = setupKadSwitch(
+    var (switch3, kad3) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -206,7 +207,8 @@ suite "KadDHT Find":
 
     # kad2 asks kad1 for peers closest to kad2's own PeerID
     let ownKey = kad2.rtable.selfId
-    let response = await switch2.dispatchFindNode(switch1.peerInfo.peerId, ownKey)
+    let response =
+      (await kad2.dispatchFindNode(switch1.peerInfo.peerId, ownKey)).value()
 
     let closerPeersIds = response.closerPeers.mapIt(it.id)
     check:
@@ -217,7 +219,7 @@ suite "KadDHT Find":
       kad3.rtable.selfId in closerPeersIds
 
   asyncTest "Lookup initializes shortlist with k closest from routing table":
-    var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    var (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await switch.stop()
 
@@ -242,7 +244,7 @@ suite "KadDHT Find":
       check state.shortlist.hasKey(peerId)
 
   asyncTest "Lookup selects alpha peers for concurrent querying":
-    var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    var (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await switch.stop()
 

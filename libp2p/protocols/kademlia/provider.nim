@@ -157,6 +157,10 @@ proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} 
 proc handleAddProvider*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
+  if not MultiHash.validate(msg.key):
+    error "Received key is an invalid Multihash", msg = msg, conn = conn, key = msg.key
+    return
+
   # filter out infos that do not match sender's
   let peerBytes = conn.peerId.getBytes()
 
@@ -191,7 +195,8 @@ proc dispatchGetProviders*(
 
   debug "Received reply for GetProviders", peer = peer, reply = reply
 
-  kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[conn.observedAddr.get()])])
+  conn.observedAddr.withValue(observedAddr):
+    kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
 
   return Opt.some(reply)
 

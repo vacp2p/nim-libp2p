@@ -183,19 +183,19 @@ method findNode*(
     discard
 
   let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
+    # findNode does not have a stop condition per se except 
+    # for when there's no more nodes to query to traverse the DHT
     false
 
+  let dispatchFind = proc(
+      kad: KadDHT, peer: PeerId, target: Key
+  ): Future[Opt[Message]] {.
+      async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+  .} =
+    return await dispatchFindNode(kad, peer, target)
+
   let state = await kad.iterativeLookup(
-    target,
-    proc(
-        kad: KadDHT, peer: PeerId, target: Key
-    ): Future[Opt[Message]] {.
-        async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
-    .} =
-      return await dispatchFindNode(kad, peer, target),
-    ignoreReply,
-    stop,
-    countFailedAsResponded = true,
+    target, dispatchFind, ignoreReply, stop, countFailedAsResponded = true
   )
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)

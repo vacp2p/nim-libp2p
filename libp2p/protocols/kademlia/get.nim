@@ -30,7 +30,8 @@ proc dispatchGetVal(
     error "GetValue reply decode fail", error = error, conn = conn
     return Opt.none(Message)
 
-  kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[conn.observedAddr.get()])])
+  conn.observedAddr.withValue(observedAddr):
+    kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
 
   return Opt.some(reply)
 
