@@ -8,9 +8,12 @@
 # those terms.
 {.used.}
 
-import std/[algorithm, sequtils, tables], results, chronos
+import std/[algorithm, sequtils, tables], results, chronos, chronicles
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[crypto]
+import ./mockkademlia
+
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =
@@ -62,6 +65,31 @@ proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool {.raises: [].}
 
 proc containsNoData*(kad: KadDHT, key: Key): bool {.raises: [].} =
   not containsData(kad, key, @[])
+
+proc setupMockKadSwitch*(
+    validator: EntryValidator,
+    selector: EntrySelector,
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+    cleanupProvidersInterval: Duration = chronos.milliseconds(100),
+    republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+): Future[(Switch, KadDHT)] {.async.} =
+  let switch = createSwitch()
+  let kad = MockKadDHT.new(
+    switch,
+    bootstrapNodes,
+    config = KadDHTConfig.new(
+      validator,
+      selector,
+      timeout = chronos.seconds(1),
+      cleanupProvidersInterval = cleanupProvidersInterval,
+      providerExpirationInterval = chronos.seconds(1),
+      republishProvidedKeysInterval = republishProvidedKeysInterval,
+    ),
+  )
+
+  switch.mount(kad)
+  await switch.start()
+  (switch, kad)
 
 proc setupKadSwitch*(
     validator: EntryValidator,

@@ -204,7 +204,7 @@ proc getProviders*(
 
   var allProviders: HashSet[Provider]
 
-  # Inlcude ourselves if we already provide the key
+  # Include ourselves if we already provide the key
   if kad.providerManager.providedKeys.provided.hasKey(key):
     allProviders.incl(kad.switch.peerInfo.toPeer())
 
@@ -220,11 +220,11 @@ proc getProviders*(
         continue
       allProviders.incl(provider)
 
-  let stopCond = proc(state: LookupState): bool {.gcsafe.} =
+  let stop = proc(state: LookupState): bool {.gcsafe.} =
     allProviders.len() >= kad.config.replication
 
   discard await kad.iterativeLookup(
-    key, dispatchGetProviders, onReply, stopCond, countFailedAsResponded = false
+    key, dispatchGetProviders, onReply, stop, countFailedAsResponded = false
   )
 
   return allProviders

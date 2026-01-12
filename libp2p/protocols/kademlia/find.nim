@@ -172,9 +172,9 @@ proc iterativeLookup*(
 
   return state
 
-proc findNode*(
+method findNode*(
     kad: KadDHT, target: Key
-): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
+): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a `target` key.
 
   let ignoreReply = proc(

@@ -10,12 +10,19 @@
 {.used.}
 
 from std/times import now, utc
-import chronos, chronicles
+import chronos, chronicles, sets
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
-import ./utils.nim
+import ./utils
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+
+proc getPeersFromRoutingTable*(kad: KadDHT): seq[PeerId] =
+  var peersInTable: seq[PeerId]
+  for bucket in kad.rtable.buckets:
+    for entry in bucket.peers:
+      peersInTable.add(entry.nodeId.toPeerId().get())
+  peersInTable
 
 suite "KadDHT Get":
   teardown:
@@ -221,3 +228,40 @@ suite "KadDHT Get":
       containsData(kad3, key, value)
       containsData(kad4, key, value)
       containsData(kad5, key, value)
+
+  asyncTest "Get updates routing table with closerPeers":
+    var (switch1, kad1) = await setupKadSwitch(
+      PermissiveValidator(), CandSelector(), @[], chronos.seconds(1), chronos.seconds(1)
+    )
+    var (switch2, kad2) = await setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+      chronos.seconds(1),
+      chronos.seconds(1),
+    )
+    var (switch3, kad3) = await setupMockKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+      chronos.seconds(1),
+      chronos.seconds(1),
+    )
+
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+
+    let
+      key = kad1.rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    # kad3 tries to get key from 1 when 2 does not have key (only 1 on routing table)
+    discard await kad3.getValue(key, quorumOverride = Opt.some(1))
+    check kad3.getPeersFromRoutingTable().toHashSet() ==
+      @[switch1.peerInfo.peerId, switch2.peerInfo.peerId].toHashSet()
+
+    # kad3 tries to get key from 1 when 2 has key (1 and 2 on routing table)
+    kad2.dataTable.insert(key, value, $times.now().utc)
+    discard await kad3.getValue(key, quorumOverride = Opt.some(1))
+    check kad3.getPeersFromRoutingTable().toHashSet() ==
+      @[switch1.peerInfo.peerId, switch2.peerInfo.peerId].toHashSet()

@@ -73,6 +73,7 @@ proc getValue*(
     received[peer] = Opt.none(EntryRecord)
 
     let reply = msgOpt.valueOr:
+      debug "Empty reply"
       return
 
     let record = reply.record.valueOr:
@@ -90,11 +91,11 @@ proc getValue*(
 
     received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
-  let stopCond = proc(state: LookupState): bool {.gcsafe.} =
+  let stop = proc(state: LookupState): bool {.gcsafe.} =
     received.len >= quorum
 
   discard await kad.iterativeLookup(
-    key, dispatchGetVal, onReply, stopCond, countFailedAsResponded = false
+    key, dispatchGetVal, onReply, stop, countFailedAsResponded = false
   )
 
   let best = ?kad.bestValidRecord(key, received, quorum)
