@@ -128,13 +128,13 @@ proc iterativeLookup*(
     target: Key,
     dispatch: DispatchProc,
     onReply: ReplyHandler,
-    stopCond: StopCond = nil,
+    stopCond: StopCond,
     countFailedAsResponded: bool = true,
 ): Future[LookupState] {.async: (raises: [CancelledError]).} =
   var state = LookupState.init(kad, target)
 
   while true:
-    if stopCond != nil and stopCond(state):
+    if stopCond(state):
       break
 
     let toQuery = state.selectCloserPeers(kad.config.alpha)
@@ -182,6 +182,9 @@ method findNode*(
   ): Future[void] {.async: (raises: []), gcsafe.} =
     discard
 
+  let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
+    false
+
   let state = await kad.iterativeLookup(
     target,
     proc(
@@ -191,6 +194,7 @@ method findNode*(
     .} =
       return await dispatchFindNode(kad, peer, target),
     ignoreReply,
+    stop,
     countFailedAsResponded = true,
   )
 
