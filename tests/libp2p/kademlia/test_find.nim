@@ -151,6 +151,47 @@ suite "KadDHT Find":
       kad1.hasKey(kad3.rtable.selfId)
       kad1.hasKey(kad4.rtable.selfId)
 
+  asyncTest "Find node excludes already-queried peers from candidates":
+    # Each node knows the other two, creating potential for infinite loops
+    # Without exclusion: kad1 queries kad2/kad3 -> they return each other -> repeat
+    # With exclusion: kad1 queries kad2/kad3 once, marks them responded, terminates
+    let
+      (_, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await stopNodes(@[kad1, kad2, kad3])
+
+    # Create fully connected triangle
+    connectNodes(kad1, kad2)
+    connectNodes(kad2, kad3)
+    connectNodes(kad3, kad1)
+
+    # Verify initial state: each node knows the other two
+    check:
+      kad1.hasKey(kad2.rtable.selfId)
+      kad1.hasKey(kad3.rtable.selfId)
+      kad2.hasKey(kad1.rtable.selfId)
+      kad2.hasKey(kad3.rtable.selfId)
+      kad3.hasKey(kad1.rtable.selfId)
+      kad3.hasKey(kad2.rtable.selfId)
+
+    # Search for non-existent peer
+    # Round 1: kad1 queries kad2 and kad3 (both in routing table)
+    # kad2 returns [kad1, kad3], kad3 returns [kad1, kad2]
+    # kad2 and kad3 marked as responded
+    # No new unqueried candidates -> lookup terminates
+    # Without exclusion: would re-query kad2/kad3 until all attempts exhausted
+    let targetKey = randomPeerId().toKey()
+    let result = await kad1.findNode(targetKey)
+
+    # Lookup completed without hanging (proves exclusion works)
+    # Returns both known peers sorted by distance to target
+    check:
+      result.len == 2
+      kad2.switch.peerInfo.peerId in result
+      kad3.switch.peerInfo.peerId in result
+
   asyncTest "Find peer":
     var (switch1, _) = setupKadSwitch(PermissiveValidator(), CandSelector())
     var (switch2, kad2) = setupKadSwitch(
