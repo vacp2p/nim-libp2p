@@ -9,12 +9,10 @@
 
 {.used.}
 
-import chronos, chronicles, std/enumerate, sequtils, tables
+import chronos, std/enumerate, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 proc hasKey(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
@@ -113,6 +111,45 @@ suite "KadDHT Find":
     check:
       kad2.hasKey(kad3.rtable.selfId)
       kad2.hasKey(kad4.rtable.selfId)
+
+  asyncTest "Find node accumulates peers from multiple responses":
+    let
+      (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch4, kad4) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await stopNodes(@[kad1, kad2, kad3, kad4])
+
+    # Connect nodes in a chain: kad1 <-> kad2 <-> kad3 <-> kad4
+    connectNodes(kad1, kad2)
+    connectNodes(kad2, kad3)
+    connectNodes(kad3, kad4)
+
+    # Verify initial state: each node only knows its neighbors
+    check:
+      kad1.hasKey(kad2.rtable.selfId)
+      not kad1.hasKey(kad3.rtable.selfId)
+      not kad1.hasKey(kad4.rtable.selfId)
+      kad2.hasKey(kad1.rtable.selfId)
+      kad2.hasKey(kad3.rtable.selfId)
+      not kad2.hasKey(kad4.rtable.selfId)
+      kad3.hasKey(kad2.rtable.selfId)
+      kad3.hasKey(kad4.rtable.selfId)
+      not kad3.hasKey(kad1.rtable.selfId)
+      kad4.hasKey(kad3.rtable.selfId)
+      not kad4.hasKey(kad1.rtable.selfId)
+      not kad4.hasKey(kad2.rtable.selfId)
+
+    # kad1 performs lookup for kad4
+    # Round 1: kad1 -> kad2, learns kad3
+    # Round 2: kad1 -> kad3, learns kad4
+    discard await kad1.findNode(kad4.rtable.selfId)
+
+    # kad1 accumulated kad3 and kad4 from iterative responses
+    check:
+      kad1.hasKey(kad3.rtable.selfId)
+      kad1.hasKey(kad4.rtable.selfId)
 
   asyncTest "Find peer":
     var (switch1, _) = setupKadSwitch(PermissiveValidator(), CandSelector())

@@ -84,6 +84,21 @@ template setupKadSwitch*(
   await switch.start()
   (switch, kad)
 
+proc stopNodes*(nodes: seq[KadDHT]) {.async.} =
+  await allFutures(nodes.mapIt(it.switch.stop()))
+
+proc connectNodes*(kad1, kad2: KadDHT) =
+  ## Bidirectionally connect two KadDHT instances.
+  # Add to routing tables
+  discard kad1.rtable.insert(kad2.switch.peerInfo.peerId)
+  discard kad2.rtable.insert(kad1.switch.peerInfo.peerId)
+
+  # Store addresses so nodes can dial each other
+  kad1.switch.peerStore[AddressBook][kad2.switch.peerInfo.peerId] =
+    kad2.switch.peerInfo.addrs
+  kad2.switch.peerStore[AddressBook][kad1.switch.peerInfo.peerId] =
+    kad1.switch.peerInfo.addrs
+
 proc randomPeerId*(): PeerId =
   PeerId.random(rng()).get()
 
