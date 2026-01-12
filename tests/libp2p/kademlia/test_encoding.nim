@@ -108,7 +108,7 @@ suite "KadDHT Protobuffers":
     let decoded = Peer.decode(initProtoBuffer(encoded.buffer)).get()
     check:
       decoded == peer
-      decoded.addrs.len == 4
+      decoded.addrs == maddrs
 
   test "message with empty closer/provider peers":
     let msg = Message(
