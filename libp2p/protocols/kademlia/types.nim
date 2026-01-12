@@ -194,20 +194,20 @@ type
   ProviderRecord* = object
     provider*: Provider
     expiresAt*: chronos.Moment
-    key*: Cid
+    key*: Key
 
   ProviderRecords* = ref object
     records*: HeapQueue[ProviderRecord]
     capacity*: int
 
   ProvidedKeys* = ref object
-    provided*: Table[Cid, chronos.Moment]
+    provided*: Table[Key, chronos.Moment]
     capacity*: int
 
   ProviderManager* = ref object
     providerRecords*: ProviderRecords
     providedKeys*: ProvidedKeys
-    knownKeys*: Table[Cid, HashSet[Provider]]
+    knownKeys*: Table[Key, HashSet[Provider]]
 
 proc new*(
     T: typedesc[ProviderManager], providerRecordCapacity: int, providedKeyCapacity: int

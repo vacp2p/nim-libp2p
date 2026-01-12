@@ -21,8 +21,8 @@ suite "KadDHT Put":
     checkTrackers()
 
   asyncTest "Simple put":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -46,8 +46,8 @@ suite "KadDHT Put":
       containsData(kad2, key, value)
 
   asyncTest "Change Validator":
-    var (switch1, kad1) = setupKadSwitch(RestrictiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(RestrictiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       RestrictiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -75,8 +75,8 @@ suite "KadDHT Put":
       containsData(kad2, key, value)
 
   asyncTest "Good Time":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
@@ -97,8 +97,8 @@ suite "KadDHT Put":
     doAssert(elapsed < times.initDuration(seconds = 2))
 
   asyncTest "Reselect":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), OthersSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), OthersSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       OthersSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
