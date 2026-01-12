@@ -15,9 +15,9 @@ import ./[routingtable, protobuf, types]
 
 type LookupState* = object
   kad: KadDHT
-  target: Key
-  shortlist: Table[PeerId, XorDistance]
-  responded: HashSet[PeerId]
+  target*: Key
+  shortlist*: Table[PeerId, XorDistance]
+  responded*: HashSet[PeerId]
   attempts: Table[PeerId, int]
 
 proc updateShortlist*(

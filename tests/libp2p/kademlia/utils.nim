@@ -8,8 +8,9 @@
 # those terms.
 {.used.}
 
-import std/tables, results, chronos
+import std/[algorithm, sequtils, tables], results, chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../tools/[crypto]
 
 type PermissiveValidator* = ref object of EntryValidator
 method isValid*(self: PermissiveValidator, key: Key, record: EntryRecord): bool =
@@ -82,3 +83,28 @@ template setupKadSwitch*(
   switch.mount(kad)
   await switch.start()
   (switch, kad)
+
+proc randomPeerId*(): PeerId =
+  PeerId.random(rng()).get()
+
+proc populateRoutingTable*(kad: KadDHT, count: int) =
+  for i in 0 ..< count:
+    discard kad.rtable.insert(randomPeerId())
+
+proc getPeersfromRoutingTable*(kad: KadDHT): seq[PeerId] =
+  var peersInTable: seq[PeerId]
+  for bucket in kad.rtable.buckets:
+    for entry in bucket.peers:
+      peersInTable.add(entry.nodeId.toPeerId().get())
+  peersInTable
+
+proc sortPeers*(
+    peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
+): seq[PeerId] =
+  peers
+  .mapIt((it, xorDistance(it, targetKey, hasher)))
+  .sorted(
+    proc(a, b: auto): int =
+      cmp(a[1], b[1])
+  )
+  .mapIt(it[0])

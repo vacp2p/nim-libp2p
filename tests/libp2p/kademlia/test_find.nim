@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, chronicles, std/[sequtils, enumerate]
+import chronos, chronicles, std/enumerate, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
@@ -133,7 +133,7 @@ suite "KadDHT Find":
     check res1.get().peerId == switch3.peerInfo.peerId
 
     # try to find peer that does not exist
-    let res2 = await kad2.findPeer(PeerId.random(newRng()).get())
+    let res2 = await kad2.findPeer(randomPeerId())
     check res2.isErr()
 
   asyncTest "Find node via refresh stale buckets":
@@ -168,3 +168,100 @@ suite "KadDHT Find":
 
     # kad1 discovers kad3 via kad2
     check kad1.hasKey(kad3.rtable.selfId)
+
+  asyncTest "Find node with empty key returns closest peers":
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
+    defer:
+      await allFutures(switch1.stop(), switch2.stop())
+
+    # Send FIND_NODE with empty key directly
+    let emptyKey: Key = @[]
+    let response = await switch2.dispatchFindNode(switch1.peerInfo.peerId, emptyKey)
+
+    # Empty key is accepted and a valid response is returned
+    check:
+      response.msgType == MessageType.findNode
+      response.closerPeers.len == 1
+      response.closerPeers[0].id == kad2.rtable.selfId
+
+  asyncTest "Find node for own PeerID returns closest peers":
+    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
+    var (switch3, kad3) = setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+    )
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+
+    # kad2 asks kad1 for peers closest to kad2's own PeerID
+    let ownKey = kad2.rtable.selfId
+    let response = await switch2.dispatchFindNode(switch1.peerInfo.peerId, ownKey)
+
+    let closerPeersIds = response.closerPeers.mapIt(it.id)
+    check:
+      response.msgType == MessageType.findNode
+      # kad1 knows kad2 and kad3, should return both as closest peers
+      response.closerPeers.len == 2
+      kad2.rtable.selfId in closerPeersIds
+      kad3.rtable.selfId in closerPeersIds
+
+  asyncTest "Lookup initializes shortlist with k closest from routing table":
+    var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await switch.stop()
+
+    # Insert peers into routing table
+    kad.populateRoutingTable(30)
+    let peersInTable = kad.getPeersfromRoutingTable()
+
+    # Initialize LookupState for a random target
+    let targetKey = randomPeerId().toKey()
+    let state = LookupState.init(kad, targetKey)
+
+    # Shortlist contains exactly k=20 peers
+    let k = kad.rtable.config.replication
+    check state.shortlist.len == k
+
+    # Calculate expected k closest peers
+    let expectedClosest =
+      peersInTable.sortPeers(targetKey, kad.rtable.config.hasher).take(k)
+
+    # Shortlist contains exactly the k closest peers
+    for peerId in expectedClosest:
+      check state.shortlist.hasKey(peerId)
+
+  asyncTest "Lookup selects alpha peers for concurrent querying":
+    var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await switch.stop()
+
+    # Set alpha=3 for easier testing
+    const alpha = 3
+    kad.config.alpha = alpha
+
+    # Insert peers into routing table
+    kad.populateRoutingTable(10)
+    let peersInTable = kad.getPeersfromRoutingTable()
+
+    # Initialize LookupState
+    let targetKey = randomPeerId().toKey()
+    let state = LookupState.init(kad, targetKey)
+
+    # SelectCloserPeers returns exactly alpha peers when more are available
+    let toQuery = state.selectCloserPeers(alpha)
+
+    # Selected peers are the 3 closest to target
+    let expectedClosest =
+      peersInTable.sortPeers(targetKey, kad.rtable.config.hasher).take(alpha)
+    check toQuery == expectedClosest
