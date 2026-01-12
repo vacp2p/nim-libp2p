@@ -13,6 +13,9 @@ import ../../[peerid, peerinfo, switch, multihash]
 import ../protocol
 import ./[routingtable, protobuf, types]
 
+logScope:
+  topics = "kad-dht find"
+
 type LookupState* = object
   kad: KadDHT
   target*: Key
