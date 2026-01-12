@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, std/enumerate, sequtils, tables
+import chronos, std/[enumerate, sets], sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
@@ -383,3 +383,124 @@ suite "KadDHT Find":
     let expectedClosest =
       peersInTable.sortPeers(targetKey, kad.rtable.config.hasher).take(alpha)
     check toQuery == expectedClosest
+
+  asyncTest "Shortlist excludes self peer from candidates":
+    let (_, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await stopNodes(@[kad])
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+
+    let selfPid = kad.switch.peerInfo.peerId
+    let otherPeer = randomPeerId()
+
+    # Manually add self and another peer to shortlist
+    state.shortlist[selfPid] = xorDistance(selfPid, targetKey, kad.rtable.config.hasher)
+    state.shortlist[otherPeer] =
+      xorDistance(otherPeer, targetKey, kad.rtable.config.hasher)
+
+    # Self should be excluded from selection
+    let selected = state.selectCloserPeers(10)
+
+    check:
+      selfPid notin selected
+      otherPeer in selected
+
+  asyncTest "updateShortlist ignores duplicate peers":
+    let (_, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await stopNodes(@[kad])
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+
+    let existingPeer = randomPeerId()
+    let newPeer = randomPeerId()
+
+    # Add existing peer to shortlist
+    state.shortlist[existingPeer] =
+      xorDistance(existingPeer, targetKey, kad.rtable.config.hasher)
+    let initialSize = state.shortlist.len
+
+    # Create message with existing peer + new peer + duplicate of new peer
+    let msg = Message(
+      msgType: MessageType.findNode,
+      closerPeers:
+        @[
+          Peer(id: existingPeer.toKey(), addrs: @[]),
+          Peer(id: newPeer.toKey(), addrs: @[]),
+          Peer(id: newPeer.toKey(), addrs: @[]), # Duplicate
+        ],
+    )
+
+    let added = state.updateShortlist(msg)
+
+    check:
+      # Only newPeer was added (existing and duplicate ignored)
+      added.len == 1
+      added[0].peerId == newPeer
+      state.shortlist.len == initialSize + 1
+
+  asyncTest "updateShortlist skips invalid peer IDs":
+    let (_, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await stopNodes(@[kad])
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+    let initialSize = state.shortlist.len
+
+    let validPeer = randomPeerId()
+
+    # Create message with invalid peer ID (empty/malformed) and valid peer
+    let msg = Message(
+      msgType: MessageType.findNode,
+      closerPeers:
+        @[
+          Peer(id: @[], addrs: @[]), # Invalid: empty
+          Peer(id: @[0x00, 0x01], addrs: @[]), # Invalid: malformed
+          Peer(id: validPeer.toKey(), addrs: @[]), # Valid
+        ],
+    )
+
+    let added = state.updateShortlist(msg)
+
+    check:
+      # Only valid peer was added
+      added.len == 1
+      added[0].peerId == validPeer
+      state.shortlist.len == initialSize + 1
+
+  asyncTest "selectCloserPeers excludes responded peers":
+    let (_, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await stopNodes(@[kad])
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+
+    let peer1 = randomPeerId()
+    let peer2 = randomPeerId()
+    let peer3 = randomPeerId()
+
+    state.shortlist[peer1] = xorDistance(peer1, targetKey, kad.rtable.config.hasher)
+    state.shortlist[peer2] = xorDistance(peer2, targetKey, kad.rtable.config.hasher)
+    state.shortlist[peer3] = xorDistance(peer3, targetKey, kad.rtable.config.hasher)
+
+    # Mark peer1 and peer2 as responded
+    state.responded.incl(peer1)
+    state.responded.incl(peer2)
+
+    # Only peer3 should be selectable
+    let selected = state.selectCloserPeers(10)
+
+    check:
+      selected.len == 1
+      peer1 notin selected
+      peer2 notin selected
+      peer3 in selected
+
+    # With excludeResponded=false, all are returned
+    let allPeers = state.selectCloserPeers(10, excludeResponded = false)
+    check allPeers.len == 3
