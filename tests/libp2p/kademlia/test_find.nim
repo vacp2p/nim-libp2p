@@ -294,6 +294,46 @@ suite "KadDHT Find":
       kad2.rtable.selfId in closerPeersIds
       kad3.rtable.selfId in closerPeersIds
 
+  asyncTest "Find node with empty routing table returns empty result":
+    let (_, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await stopNodes(@[kad1])
+
+    # Routing table is empty (no peers connected)
+    check kad1.getPeersfromRoutingTable().len == 0
+
+    let result = await kad1.findNode(randomPeerId().toKey())
+
+    # Returns empty - no peers to query
+    check result.len == 0
+
+  asyncTest "Find node continues on individual peer timeout":
+    # kad1 knows kad2 (will timeout) and kad3 (responds)
+    # kad3 knows kad4
+    let
+      (_, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad4) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await stopNodes(@[kad1, kad3, kad4])
+
+    connectNodes(kad1, kad2)
+    connectNodes(kad1, kad3)
+    connectNodes(kad3, kad4)
+
+    # Stop kad2 - it won't respond (causes timeout)
+    await switch2.stop()
+
+    check not kad1.hasKey(kad4.rtable.selfId)
+
+    # Lookup still succeeds via kad3 despite kad2 timeout
+    let result = await kad1.findNode(kad4.rtable.selfId)
+
+    check:
+      kad4.switch.peerInfo.peerId in result
+      kad1.hasKey(kad4.rtable.selfId)
+
   asyncTest "Lookup initializes shortlist with k closest from routing table":
     var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
