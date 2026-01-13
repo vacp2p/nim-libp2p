@@ -36,14 +36,14 @@ suite "KadDHT Bootstrap":
     check kad.rtable.buckets.len == 0
 
     kad.findNodeCalls = @[]
-    await kad.bootstrap(refreshStaleOnly = false)
+    await kad.bootstrap()
 
     # Only self lookup should occur
     check:
       kad.findNodeCalls.len == 1
       kad.findNodeCalls[0] == kad.rtable.selfId
 
-  asyncTest "bootstrap with refreshStaleOnly=true skips fresh buckets":
+  asyncTest "bootstrap skips fresh buckets":
     let (switch, kad) =
       await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
@@ -54,29 +54,12 @@ suite "KadDHT Bootstrap":
     check kad.countNonEmptyBuckets() >= 1
 
     kad.findNodeCalls = @[]
-    await kad.bootstrap(refreshStaleOnly = true)
+    await kad.bootstrap()
 
     # Only self lookup - fresh buckets are skipped
     check kad.findNodeCalls.len == 1
 
-  asyncTest "bootstrap with refreshStaleOnly=false refreshes all non-empty buckets":
-    let (switch, kad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
-    defer:
-      await switch.stop()
-
-    kad.populateRoutingTable(5)
-
-    let nonEmptyBucketCount = kad.countNonEmptyBuckets()
-    check nonEmptyBucketCount >= 1
-
-    kad.findNodeCalls = @[]
-    await kad.bootstrap(refreshStaleOnly = false)
-
-    # Self lookup + one lookup per non-empty bucket
-    check kad.findNodeCalls.len == 1 + nonEmptyBucketCount
-
-  asyncTest "bootstrap refreshes stale buckets when refreshStaleOnly=true":
+  asyncTest "bootstrap refreshes stale buckets":
     let (switch, kad) =
       await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
@@ -93,7 +76,24 @@ suite "KadDHT Bootstrap":
     check kad.rtable.buckets[bucketIdx].isStale()
 
     kad.findNodeCalls = @[]
-    await kad.bootstrap(refreshStaleOnly = true)
+    await kad.bootstrap()
 
     # Self lookup + stale bucket refresh
     check kad.findNodeCalls.len == 2
+
+  asyncTest "bootstrap with forceRefresh=true refreshes all non-empty buckets":
+    let (switch, kad) =
+      await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await switch.stop()
+
+    kad.populateRoutingTable(5)
+
+    let nonEmptyBucketCount = kad.countNonEmptyBuckets()
+    check nonEmptyBucketCount >= 1
+
+    kad.findNodeCalls = @[]
+    await kad.bootstrap(forceRefresh = true)
+
+    # Self lookup + one lookup per non-empty bucket
+    check kad.findNodeCalls.len == 1 + nonEmptyBucketCount

@@ -19,7 +19,7 @@ logScope:
   topics = "kad-dht"
 
 proc bootstrap*(
-    kad: KadDHT, refreshStaleOnly = true
+    kad: KadDHT, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
@@ -30,8 +30,8 @@ proc bootstrap*(
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
-    # skip fresh buckets if refreshStaleOnly
-    if refreshStaleOnly and not bucket.isStale():
+    # skip if refresh conditions not met (forceRefresh OR stale bucket) 
+    if not (forceRefresh or bucket.isStale()):
       continue
 
     let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng[])
@@ -115,7 +115,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
-  await kad.bootstrap(refreshStaleOnly = false)
+  await kad.bootstrap(forceRefresh = true)
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
