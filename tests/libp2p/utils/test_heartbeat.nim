@@ -73,6 +73,10 @@ when not defined(macosx):
 
       let hb = t()
       await sleepAsync(100.milliseconds)
-      await hb.cancelAndWait()
       check:
         i == 0
+
+      await sleepAsync(500.milliseconds)
+      await hb.cancelAndWait()
+      check:
+        i == 1
