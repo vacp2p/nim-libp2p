@@ -234,7 +234,7 @@ proc init*(
 
 type
   ReceivedTable* = TableRef[PeerId, Opt[EntryRecord]]
-  CandidatePeers* = ref HashSet[PeerId]
+  CandidatePeers* = seq[PeerId]
   LocalTable* = Table[Key, EntryRecord]
 
 proc insert*(

@@ -102,13 +102,7 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
 proc insert*(rtable: var RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
-proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
-  var allNodes: seq[Key] = @[]
-
-  for bucket in rtable.buckets:
-    for p in bucket.peers:
-      allNodes.add(p.nodeId)
-
+proc sortByXorDistance*(rtable: RoutingTable, allNodes: var seq[Key], targetId: Key) =
   allNodes.sort(
     proc(a, b: Key): int =
       cmp(
@@ -116,6 +110,15 @@ proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
         xorDistance(b, targetId, rtable.config.hasher),
       )
   )
+
+proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
+  var allNodes: seq[Key] = @[]
+
+  for bucket in rtable.buckets:
+    for p in bucket.peers:
+      allNodes.add(p.nodeId)
+
+  rtable.sortByXorDistance(allNodes, targetId)
 
   return allNodes[0 ..< min(count, allNodes.len)]
 

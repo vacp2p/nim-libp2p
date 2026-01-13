@@ -220,8 +220,10 @@ proc findPeer*(
 
   return ok(PeerInfo(peerId: target, addrs: kad.switch.peerStore[AddressBook][target]))
 
-proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
-  let closestPeerKeys = kad.rtable.findClosest(target, kad.config.replication).filterIt(
+proc findClosestPeers*(
+    kad: KadDHT, target: Key, amount: int = kad.config.replication
+): seq[Peer] =
+  let closestPeerKeys = kad.rtable.findClosest(target, amount).filterIt(
       it != kad.switch.peerInfo.peerId.toKey()
     )
 

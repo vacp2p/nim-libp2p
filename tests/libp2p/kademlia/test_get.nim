@@ -72,63 +72,6 @@ suite "KadDHT Get":
       containsData(kad, key, value)
       (await kad.getValue(key, quorumOverride = Opt.some(1))).get().value == value
 
-  asyncTest "Divergent getVal responses from peers":
-    var (switch2, kad2) =
-      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch3, kad3) =
-      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch4, kad4) =
-      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch5, kad5) =
-      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch1, kad1) = await setupKadSwitch(
-      DefaultEntryValidator(),
-      DefaultEntrySelector(),
-      @[
-        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
-        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
-        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
-        (switch5.peerInfo.peerId, switch5.peerInfo.addrs),
-      ],
-    )
-
-    defer:
-      await allFutures(
-        switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
-      )
-
-    discard await kad1.findNode(kad2.rtable.selfId)
-    discard await kad1.findNode(kad3.rtable.selfId)
-    discard await kad1.findNode(kad4.rtable.selfId)
-    discard await kad1.findNode(kad5.rtable.selfId)
-
-    let
-      key = kad4.rtable.selfId
-      bestValue = @[1.byte, 2, 3, 4, 5]
-      worstValue = @[1.byte, 2, 3, 4, 6]
-
-    kad2.dataTable.insert(key, bestValue, $times.now().utc)
-    kad3.dataTable.insert(key, worstValue, $times.now().utc)
-    kad4.dataTable.insert(key, bestValue, $times.now().utc)
-    kad5.dataTable.insert(key, bestValue, $times.now().utc)
-
-    check:
-      containsNoData(kad1, key)
-      containsData(kad2, key, bestValue)
-      containsData(kad3, key, worstValue)
-      containsData(kad4, key, bestValue)
-      containsData(kad5, key, bestValue)
-
-    discard await kad1.getValue(key, quorumOverride = Opt.some(3))
-
-    # now all have bestvalue
-    check:
-      containsData(kad1, key, bestValue)
-      containsData(kad2, key, bestValue)
-      containsData(kad3, key, bestValue)
-      containsData(kad4, key, bestValue)
-      containsData(kad5, key, bestValue)
-
   asyncTest "Could not achieve quorum":
     var (switch2, kad2) =
       await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
@@ -265,3 +208,61 @@ suite "KadDHT Get":
     discard await kad3.getValue(key, quorumOverride = Opt.some(1))
     check kad3.getPeersFromRoutingTable().toHashSet() ==
       @[switch1.peerInfo.peerId, switch2.peerInfo.peerId].toHashSet()
+
+  asyncTest "Divergent getVal responses from peers":
+    var (switch2, kad2) =
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch3, kad3) =
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch4, kad4) =
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch5, kad5) =
+      await setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
+    var (switch1, kad1) = await setupKadSwitch(
+      DefaultEntryValidator(),
+      DefaultEntrySelector(),
+      @[
+        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
+        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
+        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
+        (switch5.peerInfo.peerId, switch5.peerInfo.addrs),
+      ],
+    )
+
+    defer:
+      await allFutures(
+        switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
+      )
+
+    discard await kad1.findNode(kad2.rtable.selfId)
+    discard await kad1.findNode(kad3.rtable.selfId)
+    discard await kad1.findNode(kad4.rtable.selfId)
+    discard await kad1.findNode(kad5.rtable.selfId)
+
+    let
+      key = kad4.rtable.selfId
+      bestValue = @[1.byte, 2, 3, 4, 5]
+      worstValue = @[1.byte, 2, 3, 4, 6]
+
+    kad2.dataTable.insert(key, bestValue, $times.now().utc)
+    kad3.dataTable.insert(key, worstValue, $times.now().utc)
+    kad4.dataTable.insert(key, bestValue, $times.now().utc)
+    kad5.dataTable.insert(key, bestValue, $times.now().utc)
+
+    check:
+      containsNoData(kad1, key)
+      containsData(kad2, key, bestValue)
+      containsData(kad3, key, worstValue)
+      containsData(kad4, key, bestValue)
+      containsData(kad5, key, bestValue)
+
+    discard await kad1.getValue(key, quorumOverride = Opt.some(3))
+
+    # now all have bestvalue
+    check:
+      containsData(kad1, key, bestValue)
+      containsData(kad2, key, bestValue)
+      containsData(kad3, key, bestValue)
+      containsData(kad4, key, bestValue)
+      containsData(kad5, key, bestValue)
+
