@@ -13,11 +13,15 @@ import ../../[peerid, peerinfo, switch, multihash]
 import ../protocol
 import ./[routingtable, protobuf, types]
 
+type RespondedStatus* = enum
+  Failed
+  Success
+
 type LookupState* = object
   kad: KadDHT
   target*: Key
   shortlist*: Table[PeerId, XorDistance]
-  responded*: HashSet[PeerId]
+  responded*: Table[PeerId, RespondedStatus]
   attempts: Table[PeerId, int]
 
 type DispatchProc* = proc(kad: KadDHT, peer: PeerId, target: Key): Future[Opt[Message]] {.
@@ -85,8 +89,28 @@ proc selectCloserPeers*(
     # take at most alpha peers
     .take(amount)
 
+proc hasResponsesFromClosestAvailable(state: LookupState): bool {.raises: [], gcsafe.} =
+  ## True when all closest k AVAILABLE peers have responded.
+  let candidates = state.sortedShortlist(excludeResponded = false)
+  if candidates.len == 0:
+    return true
+
+  var closetsRespondedCnt = 0
+  for (c, _) in candidates:
+    if state.responded.hasKey(c):
+      try:
+        if state.responded[c] == RespondedStatus.Success:
+          closetsRespondedCnt.inc(1)
+      except KeyError:
+        raiseAssert "checked with hasKey"
+    else:
+      # It's a close peer but has not been queried yet
+      break
+
+  return closetsRespondedCnt >= state.kad.config.replication
+
 proc init*(T: type LookupState, kad: KadDHT, target: Key): T =
-  var res = LookupState(kad: kad, target: target, responded: initHashSet[PeerId]())
+  var res = LookupState(kad: kad, target: target)
   for pid in kad.rtable.findClosestPeerIds(target, kad.config.replication):
     res.shortlist[pid] = xorDistance(pid, target, kad.rtable.config.hasher)
 
@@ -129,7 +153,6 @@ proc iterativeLookup*(
     dispatch: DispatchProc,
     onReply: ReplyHandler,
     stopCond: StopCond,
-    countFailedAsResponded: bool = true,
 ): Future[LookupState] {.async: (raises: [CancelledError]).} =
   var state = LookupState.init(kad, target)
 
@@ -161,8 +184,8 @@ proc iterativeLookup*(
     for (fut, peerId) in zip(rpcBatch, toQuery):
       if not fut.completed():
         continue
-      if countFailedAsResponded or not fut.failed():
-        state.responded.incl(peerId)
+      state.responded[peerId] =
+        if fut.failed(): RespondedStatus.Failed else: RespondedStatus.Success
 
     for (peerId, msg) in completedRPCBatch:
       msg.withValue(reply):
@@ -183,9 +206,7 @@ method findNode*(
     discard
 
   let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
-    # findNode does not have a stop condition per se except 
-    # for when there's no more nodes to query to traverse the DHT
-    false
+    state.hasResponsesFromClosestAvailable()
 
   let dispatchFind = proc(
       kad: KadDHT, peer: PeerId, target: Key
@@ -194,9 +215,7 @@ method findNode*(
   .} =
     return await dispatchFindNode(kad, peer, target)
 
-  let state = await kad.iterativeLookup(
-    target, dispatchFind, ignoreReply, stop, countFailedAsResponded = true
-  )
+  let state = await kad.iterativeLookup(target, dispatchFind, ignoreReply, stop)
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 

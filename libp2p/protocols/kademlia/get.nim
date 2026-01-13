@@ -96,7 +96,7 @@ proc getValue*(
     received.len >= quorum
 
   discard await kad.iterativeLookup(
-    key, dispatchGetVal, onReply, stop, countFailedAsResponded = false
+    key, dispatchGetVal, onReply, stop
   )
 
   let best = ?kad.bestValidRecord(key, received, quorum)
