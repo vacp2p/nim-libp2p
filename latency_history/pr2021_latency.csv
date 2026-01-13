@@ -1,0 +1,3 @@
+Scenario,Nodes,TotalSent,TotalReceived,MinLatencyMs,MaxLatencyMs,AvgLatencyMs
+Base Test (QUIC),10,100,648,169.979,13388.967,5409.863
+Base Test (TCP),10,100,900,0.281,2.348,1.175
