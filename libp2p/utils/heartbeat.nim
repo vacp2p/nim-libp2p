@@ -18,7 +18,7 @@ template heartbeat*(
 ): untyped =
   var nextHeartbeat = Moment.now()
   if sleepFirst:
-    nextHeartbeat += interval
+    await sleepAsync(interval)
   while true:
     body
 

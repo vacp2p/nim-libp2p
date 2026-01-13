@@ -64,3 +64,15 @@ when not defined(macosx):
       # total 15
       check:
         i in 14 .. 17
+
+    asyncTest "heartbeat sleep first":
+      var i = 0
+      proc t() {.async.} =
+        heartbeat "shouldn't see this", 500.milliseconds, true:
+          i.inc()
+
+      let hb = t()
+      await sleepAsync(100.milliseconds)
+      await hb.cancelAndWait()
+      check:
+        i == 0
