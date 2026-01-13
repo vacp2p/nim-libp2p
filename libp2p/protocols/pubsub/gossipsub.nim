@@ -35,7 +35,9 @@ when defined(libp2p_gossipsub_1_4):
 import results
 export results
 
-import ./gossipsub/[types, scoring, behavior, preamblestore], ../../utils/heartbeat
+import
+  ./gossipsub/[types, scoring, behavior, preamblestore, extensions],
+  ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
 
@@ -356,36 +358,9 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
-proc handleTestExtension(g: GossipSub, peer: PubSubPeer, extensions: ControlExtensions) =
-  var peerSupportsTextExtension: bool = false
-  if extensions.testExtension.isNone():
-    # control messages does not have test extension, but maybe it was sent before
-    peerSupportsTextExtension = (peer.peerId in g.extensions.testExtensionPeers)
-  else:
-    # peer is now sending test extension control
-    peerSupportsTextExtension = true
-    if peer.peerId in g.extensions.testExtensionPeers:
-      # peer is missbehaving, node already received from this peer
-      # TODO penalty
-    else:
-      g.extensions.testExtensionPeers.add(peer.peerId)
-
-  if g.extensions.testExtension.isNone():
-    # this node does not support this extension
-    return
-  if not peerSupportsTextExtension:
-    # peer does not support this extension
-    return
-
-  let gossipExtensions = g.extensions.testExtension.get()
-  gossipExtensions.onPeerAdded(peer.peerId)
-
 proc handleExtensions(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
-  ## calls handlers for all canonical and experimental extensions
-  ## 
-  g.handleTestExtension(peer, control)
-  # call other extensions handling here
-  # g.handleFooExtension(peer, extensions)
+  control.extensions.withValue(ctrlExtensions):
+    g.extensionsState.handleRPC(peer.peerId, ctrlExtensions)
 
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   g.handleExtensions(peer, control)
@@ -1072,6 +1047,7 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
+  g.extensionsState = ExtensionsState.new()
 
 method getOrCreatePeer*(
     g: GossipSub,

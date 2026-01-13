@@ -14,6 +14,7 @@ import std/[options, tables, sets, heapqueue]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
+import extensions
 
 export options, tables, sets
 
@@ -193,13 +194,6 @@ type
     peers: seq[RoutingRecordsPair],
   ) {.gcsafe, raises: [].}
 
-  TestExtension* = object
-    onPeerAdded*: proc(peer: PeerId) {.gcsafe, raises: [].}
-
-  Extensions* = object
-    testExtension: Option[TestExtension]
-    testExtensionPeers: HashSet[PeerId]
-
   GossipSub* = ref object of FloodSub
     mesh*: PeerTable # peers that we send messages to when we are subscribed to the topic
     fanout*: PeerTable
@@ -217,7 +211,7 @@ type
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
-
+    extensionsState*: ExtensionsState
     peerStats*: Table[PeerId, PeerStats]
     parameters*: GossipSubParams
     topicParams*: Table[string, TopicParams]
