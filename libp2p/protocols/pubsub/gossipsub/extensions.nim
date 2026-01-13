@@ -8,14 +8,14 @@
 # those terms.
 
 import std/[options, sets, tables]
-import "../../.."/[peerid]
-import "../"/rpc/messages
+import ../../../[peerid]
+import ../rpc/messages
 
 type
   PeerExtensions = object
     testExtension: bool
 
-  PeerCallback = proc(peer: PeerId) {.gcsafe, raises: [].}
+  PeerCallback* = proc(peer: PeerId) {.gcsafe, raises: [].}
 
   TestExtensionConfig* = object
     onNagotiated*: PeerCallback
@@ -24,10 +24,10 @@ type
   ExtensionsState* = ref object
     sentExtensions: HashSet[PeerId] # extensions was sent to peer
     peerExtensions: Table[PeerId, PeerExtensions] # supported peer extensions
-    onMissbehave*: proc(peer: PeerId) {.gcsafe, raises: [].}
+    onMissbehave: PeerCallback
 
     # Extensions data & configuration:
-    testExtensionConfig*: Option[TestExtensionConfig]
+    testExtensionConfig: Option[TestExtensionConfig]
       # when config is set then this node supports "text extension"
 
 proc noopPeerCallback(peer: PeerId) {.gcsafe, raises: [].} =
@@ -47,10 +47,13 @@ proc new(
 
 proc new(
     T: typedesc[ExtensionsState],
+    onMissbehave: PeerCallback,
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
 ): T =
   ExtensionsState(
-    sentExtensions: initHashSet[PeerId](), testExtensionConfig: testExtensionConfig
+    onMissbehave: onMissbehave,
+    sentExtensions: initHashSet[PeerId](),
+    testExtensionConfig: testExtensionConfig,
   )
 
 # proc addPeer*(state: var ExtensionsState, peerId: PeerId) =

@@ -259,16 +259,16 @@ when defined(libp2p_gossipsub_1_4):
     expectedFields(
       ControlMessage,
       @[
-        "ihave", "iwant", "graft", "prune", "idontwant", "preamble", "imreceiving",
-        "extensions",
+        "ihave", "iwant", "graft", "prune", "idontwant", "extensions", "preamble",
+        "imreceiving",
       ],
     )
   proc byteSize(control: ControlMessage): int =
     control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
       control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
-      control.idontwant.foldl(a + b.byteSize, 0) +
+      control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions) +
       control.preamble.foldl(a + b.byteSize, 0) +
-      control.imreceiving.foldl(a + b.byteSize, 0) + byteSize(control.extensions)
+      control.imreceiving.foldl(a + b.byteSize, 0)
 
 else:
   static:
