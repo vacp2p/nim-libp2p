@@ -23,6 +23,16 @@ type LookupState* = object
   responded*: HashSet[PeerId]
   attempts: Table[PeerId, int]
 
+type DispatchProc* = proc(kad: KadDHT, peer: PeerId, target: Key): Future[Opt[Message]] {.
+  async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+.}
+
+type ReplyHandler* = proc(
+  peer: PeerId, msg: Opt[Message], state: var LookupState
+): Future[void] {.async: (raises: []), gcsafe.}
+
+type StopCond* = proc(state: LookupState): bool {.raises: [], gcsafe.}
+
 proc updateShortlist*(
     state: var LookupState, msg: Message
 ): seq[PeerInfo] {.raises: [].} =
@@ -86,15 +96,15 @@ proc init*(T: type LookupState, kad: KadDHT, target: Key): T =
   return res
 
 proc dispatchFindNode*(
-    switch: Switch,
+    kad: KadDHT,
     peer: PeerId,
     target: Key,
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
-): Future[Message] {.
-    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
+): Future[Opt[Message]] {.
+    async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
 .} =
-  let addrs = addrs.valueOr(switch.peerStore[AddressBook][peer])
-  let conn = await switch.dial(peer, addrs, KadCodec)
+  let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
+  let conn = await kad.switch.dial(peer, addrs, KadCodec)
   defer:
     await conn.close()
 
@@ -102,9 +112,10 @@ proc dispatchFindNode*(
   await conn.writeLp(msg.encode().buffer)
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
-    raise newException(ValueError, "FindNode reply decode fail")
+    debug "FindNode reply decode fail", error = error, conn = conn
+    return Opt.none(Message)
 
-  return reply
+  return Opt.some(reply)
 
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   for p in peerInfos:
@@ -115,35 +126,80 @@ proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
   kad.updatePeers(peerInfos)
 
-proc findNode*(
-    kad: KadDHT, target: Key
-): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
-  ## Iteratively search for the k closest peers to a `target` key.
-
+proc iterativeLookup*(
+    kad: KadDHT,
+    target: Key,
+    dispatch: DispatchProc,
+    onReply: ReplyHandler,
+    stopCond: StopCond,
+    countFailedAsResponded: bool = true,
+): Future[LookupState] {.async: (raises: [CancelledError]).} =
   var state = LookupState.init(kad, target)
 
   while true:
-    let toQuery = state.selectCloserPeers(kad.config.alpha)
+    if stopCond(state):
+      break
 
+    let toQuery = state.selectCloserPeers(kad.config.alpha)
     if toQuery.len() == 0:
       break
 
     for peerId in toQuery:
       state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
 
-    debug "Find node queries", peersToQuery = toQuery.mapIt(it.shortLog())
+    debug "Lookup queries", peersToQuery = toQuery.mapIt(it.shortLog())
+
+    let dispatchWithPeer = proc(
+        peerId: PeerId
+    ): Future[(PeerId, Opt[Message])] {.
+        async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+    .} =
+      let msg = await dispatch(kad, peerId, target)
+      return (peerId, msg)
 
     let
-      rpcBatch = toQuery.mapIt(kad.switch.dispatchFindNode(it, target))
+      rpcBatch = toQuery.mapIt(dispatchWithPeer(it))
       completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
 
     for (fut, peerId) in zip(rpcBatch, toQuery):
-      if fut.completed():
+      if not fut.completed():
+        continue
+      if countFailedAsResponded or not fut.failed():
         state.responded.incl(peerId)
 
-    for msg in completedRPCBatch:
-      let newPeerInfos = state.updateShortlist(msg)
-      kad.updatePeers(newPeerInfos)
+    for (peerId, msg) in completedRPCBatch:
+      msg.withValue(reply):
+        let newPeerInfos = state.updateShortlist(reply)
+        kad.updatePeers(newPeerInfos)
+      await onReply(peerId, msg, state)
+
+  return state
+
+method findNode*(
+    kad: KadDHT, target: Key
+): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
+  ## Iteratively search for the k closest peers to a `target` key.
+
+  let ignoreReply = proc(
+      _: PeerId, _: Opt[Message], _: var LookupState
+  ): Future[void] {.async: (raises: []), gcsafe.} =
+    discard
+
+  let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
+    # findNode does not have a stop condition per se except 
+    # for when there's no more nodes to query to traverse the DHT
+    false
+
+  let dispatchFind = proc(
+      kad: KadDHT, peer: PeerId, target: Key
+  ): Future[Opt[Message]] {.
+      async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+  .} =
+    return await dispatchFindNode(kad, peer, target)
+
+  let state = await kad.iterativeLookup(
+    target, dispatchFind, ignoreReply, stop, countFailedAsResponded = true
+  )
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 
