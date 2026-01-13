@@ -114,10 +114,10 @@ suite "KadDHT Find":
 
   asyncTest "Find node accumulates peers from multiple responses":
     let
-      (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
-      (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
-      (switch3, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
-      (switch4, kad4) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch2, kad2) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch3, kad3) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch4, kad4) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await stopNodes(@[kad1, kad2, kad3, kad4])
 
@@ -156,9 +156,9 @@ suite "KadDHT Find":
     # Without exclusion: kad1 queries kad2/kad3 -> they return each other -> repeat
     # With exclusion: kad1 queries kad2/kad3 once, marks them responded, terminates
     let
-      (_, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
-      (_, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
-      (_, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad2) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad3) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await stopNodes(@[kad1, kad2, kad3])
 
@@ -297,7 +297,7 @@ suite "KadDHT Find":
       kad3.rtable.selfId in closerPeersIds
 
   asyncTest "Find node with empty routing table returns empty result":
-    let (_, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let (_, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await stopNodes(@[kad1])
 
@@ -313,10 +313,10 @@ suite "KadDHT Find":
     # kad1 knows kad2 (will timeout) and kad3 (responds)
     # kad3 knows kad4
     let
-      (_, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
-      (switch2, kad2) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
-      (_, kad3) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
-      (_, kad4) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (switch2, kad2) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad3) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+      (_, kad4) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await stopNodes(@[kad1, kad3, kad4])
 
@@ -387,7 +387,7 @@ suite "KadDHT Find":
     check toQuery == expectedClosest
 
   asyncTest "Shortlist excludes self peer from candidates":
-    let (_, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let (_, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await stopNodes(@[kad])
 
@@ -410,7 +410,7 @@ suite "KadDHT Find":
       otherPeer in selected
 
   asyncTest "updateShortlist ignores duplicate peers":
-    let (_, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let (_, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await stopNodes(@[kad])
 
@@ -445,7 +445,7 @@ suite "KadDHT Find":
       state.shortlist.len == initialSize + 1
 
   asyncTest "updateShortlist skips invalid peer IDs":
-    let (_, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let (_, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await stopNodes(@[kad])
 
@@ -475,7 +475,7 @@ suite "KadDHT Find":
       state.shortlist.len == initialSize + 1
 
   asyncTest "selectCloserPeers excludes responded peers":
-    let (_, kad) = setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let (_, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector(), @[])
     defer:
       await stopNodes(@[kad])
 
