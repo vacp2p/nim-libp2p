@@ -11,7 +11,7 @@
 import std/[algorithm, sequtils, tables], results, chronos, chronicles
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[crypto]
-import ./mockkademlia
+import ./mock_kademlia
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
