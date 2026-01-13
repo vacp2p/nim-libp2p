@@ -265,3 +265,42 @@ suite "KadDHT Get":
     discard await kad3.getValue(key, quorumOverride = Opt.some(1))
     check kad3.getPeersFromRoutingTable().toHashSet() ==
       @[switch1.peerInfo.peerId, switch2.peerInfo.peerId].toHashSet()
+
+  asyncTest "Quorum handling is ignored if quorum is 0 or 1":
+    # three peers
+    var (switch1, kad1) = await setupKadSwitch(
+      PermissiveValidator(), CandSelector(), @[], chronos.seconds(1), chronos.seconds(1)
+    )
+    var (switch2, kad2) = await setupKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+      chronos.seconds(1),
+      chronos.seconds(1),
+    )
+    var (switch3, kad3) = await setupMockKadSwitch(
+      PermissiveValidator(),
+      CandSelector(),
+      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+      chronos.seconds(1),
+      chronos.seconds(1),
+    )
+
+    defer:
+      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+
+    let
+      key = kad1.rtable.selfId
+      value1 = @[1.byte, 1, 1, 1, 1]
+      value2 = @[2.byte, 2, 2, 2, 2]
+
+    # kad2 and kad3 have different values than kad1
+    kad1.dataTable.insert(key, value1, $times.now().utc)
+    kad2.dataTable.insert(key, value2, $times.now().utc)
+    kad3.dataTable.insert(key, value2, $times.now().utc)
+
+    # but when quorum is 0 or 1 we ignore remote values and use local value
+
+    check:
+      (await kad1.getValue(key, quorumOverride = Opt.some(0))).get().value == value1
+      (await kad1.getValue(key, quorumOverride = Opt.some(1))).get().value == value1
