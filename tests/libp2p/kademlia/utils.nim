@@ -116,6 +116,13 @@ proc setupKadSwitch*(
   await switch.start()
   (switch, kad)
 
+proc setupDefaultKadNodes*(count: int): Future[seq[KadDHT]] {.async.} =
+  var kads: seq[KadDHT]
+  for i in 0 ..< count:
+    var (_, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    kads.add(kad)
+  kads
+
 proc stopNodes*(nodes: seq[KadDHT]) {.async.} =
   await allFutures(nodes.mapIt(it.switch.stop()))
 
