@@ -14,22 +14,6 @@ import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
 
-proc hasKey(kad: KadDHT, key: Key): bool =
-  for b in kad.rtable.buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
-        return true
-  return false
-
-proc hasKeys(kad: KadDHT, keys: seq[Key]): bool =
-  keys.allIt(kad.hasKey(it))
-
-proc hasNoKeys(kad: KadDHT, keys: seq[Key]): bool =
-  keys.allIt(not kad.hasKey(it))
-
-proc pluckPeerIds(kads: seq[KadDHT]): seq[PeerId] =
-  kads.mapIt(it.switch.peerInfo.peerId)
-
 suite "KadDHT Find":
   teardown:
     checkTrackers()

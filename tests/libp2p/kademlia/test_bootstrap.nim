@@ -9,19 +9,12 @@
 
 {.used.}
 
-import chronos, chronicles
+import chronos, chronicles, sequtils
 import ../../../libp2p/[protocols/kademlia, peerid, switch]
 import ../../tools/unittest
 import ./[mock_kademlia, utils]
 
 trace "chronicles import required for activeChroniclesStream"
-
-proc countNonEmptyBuckets(kad: KadDHT): int =
-  var nonEmptyBucketCount = 0
-  for bucket in kad.rtable.buckets:
-    if bucket.peers.len > 0:
-      nonEmptyBucketCount += 1
-  nonEmptyBucketCount
 
 suite "KadDHT Bootstrap":
   teardown:
@@ -51,7 +44,7 @@ suite "KadDHT Bootstrap":
 
     # Add peers - they will be fresh (just added)
     kad.populateRoutingTable(5)
-    check kad.countNonEmptyBuckets() >= 1
+    check kad.getNonEmptyBuckets().len >= 1
 
     kad.findNodeCalls = @[]
     await kad.bootstrap()
@@ -65,21 +58,50 @@ suite "KadDHT Bootstrap":
     defer:
       await switch.stop()
 
-    let peerId = randomPeerId()
-    discard kad.rtable.insert(peerId)
+    # Add multiple peers to create multiple buckets
+    kad.populateRoutingTable(20)
 
-    # Make the bucket stale
-    let bucketIdx =
-      bucketIndex(kad.rtable.selfId, peerId.toKey(), kad.rtable.config.hasher)
-    kad.rtable.buckets[bucketIdx].peers[0].lastSeen = Moment.now() - 40.minutes
+    # Make all buckets stale
+    let bucketIndices = kad.getNonEmptyBuckets()
+    check bucketIndices.len >= 2
 
-    check kad.rtable.buckets[bucketIdx].isStale()
+    for index in bucketIndices:
+      makeBucketStale(kad.rtable.buckets[index])
 
     kad.findNodeCalls = @[]
     await kad.bootstrap()
 
-    # Self lookup + stale bucket refresh
-    check kad.findNodeCalls.len == 2
+    # Self lookup + one lookup per stale bucket
+    check kad.findNodeCalls.len == 1 + bucketIndices.len
+
+  asyncTest "bootstrap with mixed fresh and stale buckets refreshes only stale":
+    let (switch, kad) =
+      await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    defer:
+      await switch.stop()
+
+    kad.populateRoutingTable(20)
+
+    # Get non-empty bucket indices
+    let bucketIndices = kad.getNonEmptyBuckets()
+    check bucketIndices.len >= 2
+
+    # Make only the first bucket stale
+    let staleBucketIndex = bucketIndices[0]
+    makeBucketStale(kad.rtable.buckets[staleBucketIndex])
+    check kad.rtable.buckets[staleBucketIndex].isStale()
+
+    # Verify that the rest of non-empty buckets is fresh
+    for index in bucketIndices[1 ..^ 1]:
+      check not kad.rtable.buckets[index].isStale()
+
+    kad.findNodeCalls = @[]
+    await kad.bootstrap()
+
+    # Self lookup + only the stale bucket refresh
+    check:
+      kad.findNodeCalls.len == 2
+      kad.findNodeCalls[0] == kad.rtable.selfId # first call always self lookup
 
   asyncTest "bootstrap with forceRefresh=true refreshes all non-empty buckets":
     let (switch, kad) =
@@ -87,9 +109,9 @@ suite "KadDHT Bootstrap":
     defer:
       await switch.stop()
 
-    kad.populateRoutingTable(5)
+    kad.populateRoutingTable(20)
 
-    let nonEmptyBucketCount = kad.countNonEmptyBuckets()
+    let nonEmptyBucketCount = kad.getNonEmptyBuckets().len
     check nonEmptyBucketCount >= 1
 
     kad.findNodeCalls = @[]
@@ -97,3 +119,33 @@ suite "KadDHT Bootstrap":
 
     # Self lookup + one lookup per non-empty bucket
     check kad.findNodeCalls.len == 1 + nonEmptyBucketCount
+
+suite "KadDHT Bootstrap Component":
+  teardown:
+    checkTrackers()
+
+  asyncTest "bootstrap discovers new peers through network":
+    # 1 hub + 9 nodes bootstrapping from hub
+    let (hubSwitch, hubKad) =
+      await setupKadSwitch(PermissiveValidator(), CandSelector())
+
+    var switches: seq[Switch] = @[hubSwitch]
+    var kads: seq[KadDHT] = @[hubKad]
+
+    for _ in 0 ..< 9:
+      let (sw, kad) = await setupKadSwitch(
+        PermissiveValidator(),
+        CandSelector(),
+        @[(hubSwitch.peerInfo.peerId, hubSwitch.peerInfo.addrs)],
+      )
+      switches.add(sw)
+      kads.add(kad)
+
+    defer:
+      await allFutures(switches.mapIt(it.stop()))
+
+    # All nodes should know about all other nodes after bootstrap
+    for i, kad in kads:
+      for j, otherKad in kads:
+        if i != j:
+          check kad.hasKey(otherKad.rtable.selfId)

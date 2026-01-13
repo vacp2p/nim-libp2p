@@ -131,6 +131,22 @@ proc connectNodes*(kad1, kad2: KadDHT) =
   kad2.switch.peerStore[AddressBook][kad1.switch.peerInfo.peerId] =
     kad1.switch.peerInfo.addrs
 
+proc hasKey*(kad: KadDHT, key: Key): bool =
+  for b in kad.rtable.buckets:
+    for ent in b.peers:
+      if ent.nodeId == key:
+        return true
+  return false
+
+proc hasKeys*(kad: KadDHT, keys: seq[Key]): bool =
+  keys.allIt(kad.hasKey(it))
+
+proc hasNoKeys*(kad: KadDHT, keys: seq[Key]): bool =
+  keys.allIt(not kad.hasKey(it))
+
+proc pluckPeerIds*(kads: seq[KadDHT]): seq[PeerId] =
+  kads.mapIt(it.switch.peerInfo.peerId)
+
 proc randomPeerId*(): PeerId =
   PeerId.random(rng()).get()
 
@@ -144,6 +160,17 @@ proc getPeersfromRoutingTable*(kad: KadDHT): seq[PeerId] =
     for entry in bucket.peers:
       peersInTable.add(entry.nodeId.toPeerId().get())
   peersInTable
+
+proc getNonEmptyBuckets*(kad: KadDHT): seq[int] =
+  var bucketIndices: seq[int]
+  for i, bucket in kad.rtable.buckets:
+    if bucket.peers.len > 0:
+      bucketIndices.add(i)
+  bucketIndices
+
+proc makeBucketStale*(bucket: var Bucket) =
+  for peer in bucket.peers.mitems:
+    peer.lastSeen = Moment.now() - 40.minutes
 
 proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
