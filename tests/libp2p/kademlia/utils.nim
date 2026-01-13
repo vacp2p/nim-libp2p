@@ -72,7 +72,7 @@ proc setupMockKadSwitch*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
-): Future[(Switch, KadDHT)] {.async.} =
+): Future[(Switch, MockKadDHT)] {.async.} =
   let switch = createSwitch()
   let kad = MockKadDHT.new(
     switch,
