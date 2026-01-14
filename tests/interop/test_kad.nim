@@ -14,7 +14,7 @@ import ../../libp2p/[switch, builders, peerid, protocols/kademlia, wire]
 import ../tools/[crypto, unittest]
 import ./kad
 
-proc createSwitch(): Switch =
+proc createSwitch(mountKad = true): Switch =
   let switch = SwitchBuilder
     .new()
     .withRng(rng())
@@ -24,10 +24,10 @@ proc createSwitch(): Switch =
     .withNoise()
     .build()
 
-  let kad =
-    KadDHT.new(switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 1))
-
-  switch.mount(kad)
+  if mountKad:
+    let kad =
+      KadDHT.new(switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 2))
+    switch.mount(kad)
 
   switch
 
@@ -46,3 +46,23 @@ suite "KadDHT Interop Tests with Nim nodes":
     check await kadInteropTest(
       ourAddress, $switch.peerInfo.addrs[0], switch.peerInfo.peerId
     )
+
+  asyncTest "Fails when peer lacks KadDHT protocol":
+    # No KadDHT mounted
+    let switch = createSwitch(false)
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    const ourAddress = "/ip4/127.0.0.1/tcp/0"
+    check not await kadInteropTest(
+      ourAddress, $switch.peerInfo.addrs[0], switch.peerInfo.peerId, timeout = 3.seconds
+    )
+
+  asyncTest "Fails when peer is unreachable":
+    const unreachableAddress = "/ip4/127.0.0.1/tcp/59999"
+    let fakePeerId = PeerId.random().get()
+
+    const ourAddress = "/ip4/127.0.0.1/tcp/0"
+    check not await kadInteropTest(ourAddress, unreachableAddress, fakePeerId)

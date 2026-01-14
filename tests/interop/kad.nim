@@ -12,7 +12,10 @@ import ../../libp2p/[switch, builders, peerid, protocols/kademlia, wire]
 import ../tools/crypto
 
 proc kadInteropTest*(
-    ourAddr: string, otherAddr: string, otherPeerId: PeerId
+    ourAddr: string,
+    otherAddr: string,
+    otherPeerId: PeerId,
+    timeout: Duration = 5.minutes,
 ): Future[bool] {.async.} =
   ## Reusable Kademlia DHT interoperability test
   ## This proc can be used with any peer (nim-based or from other implementations)
@@ -29,7 +32,7 @@ proc kadInteropTest*(
   let kad = KadDHT.new(
     switch,
     bootstrapNodes = @[(otherPeerId, @[MultiAddress.init(otherAddr).get()])],
-    config = KadDHTConfig.new(quorum = 1),
+    config = KadDHTConfig.new(quorum = 2),
   )
 
   switch.mount(kad)
@@ -41,7 +44,7 @@ proc kadInteropTest*(
   let key: Key = "key".toBytes()
   let value = "value".toBytes()
 
-  let res = await kad.putValue(key, value)
+  let res = await kad.putValue(key, value).wait(timeout)
   if res.isErr():
     echo "putValue failed: ", res.error
     return false
@@ -50,8 +53,13 @@ proc kadInteropTest*(
   await sleepAsync(2.seconds)
 
   # try to get the inserted value from peer
-  if (await kad.getValue(key)).get().value != value:
-    echo "Get value did not return correct value"
+  let getRes = await kad.getValue(key).wait(timeout)
+  if getRes.isErr():
+    echo "getValue failed: ", getRes.error
+    return false
+
+  if getRes.get().value != value:
+    echo "getValue did not return correct value"
     return false
 
   return true
