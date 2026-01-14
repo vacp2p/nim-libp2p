@@ -77,6 +77,7 @@ proc onNagotiated(state: ExtensionsState, peerId: PeerId) =
 proc addPeer*(state: ExtensionsState, peerId: PeerId) =
   state.sentExtensions.incl(peerId)
 
+  # and if node has received control extensions from peer then extensions have nagotiated
   if peerId in state.peerExtensions:
     state.onNagotiated(peerId)
 
@@ -102,3 +103,9 @@ proc handleRPC*(
 
   # onHandleRPC event is always called
   state.onHandleRPC(peerId)
+
+proc makeControlExtensions*(state: ExtensionsState): ControlExtensions =
+  # creates ControlExtensions message that is sent to other peers,
+  # using configured state.
+
+  ControlExtensions(testExtension: some(state.testExtensionConfig.isSome()))

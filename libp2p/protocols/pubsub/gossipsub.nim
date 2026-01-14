@@ -112,6 +112,7 @@ proc init*(
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish = false,
+    testExtensionConfig = none(TestExtensionConfig),
 ): GossipSubParams =
   GossipSubParams(
     explicit: true,
@@ -150,6 +151,7 @@ proc init*(
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
+    testExtensionConfig: testExtensionConfig,
   )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -256,6 +258,30 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
   when defined(libp2p_gossipsub_1_4):
     peer.preambleBudget = PreamblePeerBudget
+
+  proc addPeer() =
+    g.extensionsState.addPeer(peer.peerId)
+    g.send(
+      peer,
+      RPCMsg(
+        control: some(
+          ControlMessage(extensions: some(g.extensionsState.makeControlExtensions()))
+        )
+      ),
+      false,
+    )
+
+  if peer.codec != "":
+    if peer.codec == GossipSubCodec_13:
+      addPeer()
+  else:
+    proc addPeerAfterConnected(): Future[void] {.async.} =
+      await peer.connectedFut
+
+      if peer.sendConn.protocol == GossipSubCodec_13:
+        addPeer()
+
+    asyncSpawn addPeerAfterConnected()
 
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
@@ -1047,7 +1073,13 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
-  g.extensionsState = ExtensionsState.new()
+
+  proc onMissbehaveExtensions(id: PeerId) {.gcsafe, raises: [].} =
+    g.peers.withValue(id, peer):
+      peer[].behaviourPenalty += 0.1
+
+  g.extensionsState =
+    ExtensionsState.new(onMissbehaveExtensions, g.parameters.testExtensionConfig)
 
 method getOrCreatePeer*(
     g: GossipSub,
@@ -1060,4 +1092,5 @@ method getOrCreatePeer*(
     peer.overheadRateLimitOpt =
       Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
   peer.maxNumElementsInNonPriorityQueue = g.parameters.maxNumElementsInNonPriorityQueue
+
   return peer

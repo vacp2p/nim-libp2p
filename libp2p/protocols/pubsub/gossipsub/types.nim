@@ -183,6 +183,9 @@ type
     # Broadcast an IDONTWANT message automatically when the message exceeds the IDONTWANT message size threshold
     sendIDontWantOnPublish*: bool
 
+    # Extensions configuration
+    testExtensionConfig*: Option[TestExtensionConfig]
+
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
   OngoingReceivesStore* = PreambleStore

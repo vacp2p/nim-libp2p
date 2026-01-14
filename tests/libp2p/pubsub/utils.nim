@@ -206,6 +206,7 @@ proc generateNodes*(
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
     disconnectBadPeers: bool = false,
+    testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
@@ -242,6 +243,7 @@ proc generateNodes*(
             p.publishThreshold = publishThreshold
             p.graylistThreshold = graylistThreshold
             p.disconnectBadPeers = disconnectBadPeers
+            p.testExtensionConfig = testExtensionConfig
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p
@@ -631,3 +633,15 @@ proc createCountPeerCallback*(): (ref int, PeerCallback) =
     inc counter[]
 
   (counter, cb)
+
+proc createCollectPeerCallback*(): (ref seq[PeerId], PeerCallback) =
+  let peers = new seq[PeerId]
+  peers[] = @[]
+
+  let cb: PeerCallback = proc(peerId: PeerId) {.closure, gcsafe.} =
+    peers[].add(peerId)
+
+  (peers, cb)
+
+proc pluckPeerId*[T: PubSub](nodes: seq[T]): seq[PeerId] =
+  nodes.mapIt(it.peerInfo.peerId)
