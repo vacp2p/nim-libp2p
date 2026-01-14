@@ -14,9 +14,12 @@ import ../../../libp2p/peerid
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 type MockKadDHT* = ref object of KadDHT
+  findNodeCalls*: seq[Key]
 
 method findNode*(
     kad: MockKadDHT, target: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
+  # Track all findNode calls
+  kad.findNodeCalls.add(target)
   ## Return only locally known peers
   return kad.rtable.findClosestPeerIds(target, kad.config.replication)
