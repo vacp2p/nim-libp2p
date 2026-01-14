@@ -108,7 +108,6 @@ type
     control*: Option[ControlMessage]
     ping*: seq[byte]
     pong*: seq[byte]
-    testExtension*: Option[TestExtension]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
   T(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
@@ -282,7 +281,7 @@ else:
 
 static:
   expectedFields(
-    RPCMsg, @["subscriptions", "messages", "control", "ping", "pong", "testExtension"]
+    RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"]
   )
 proc byteSize*(rpc: RPCMsg): int =
   result =
@@ -290,5 +289,3 @@ proc byteSize*(rpc: RPCMsg): int =
     rpc.pong.len
   rpc.control.withValue(ctrl):
     result += ctrl.byteSize
-  rpc.testExtension.withValue(te):
-    result += te.byteSize
