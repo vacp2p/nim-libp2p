@@ -27,6 +27,7 @@ import
     protocols/pubsub/pubsubpeer,
     protocols/pubsub/peertable,
     protocols/pubsub/gossipsub,
+    protocols/pubsub/gossipsub/extensions,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
@@ -621,3 +622,12 @@ proc addDirectPeerStar*[T: PubSub](nodes: seq[T]) {.async.} =
         futs.add(addDirectPeer(node, target))
 
   await allFuturesRaising(futs)
+
+proc createCountPeerCallback*(): (ref int, PeerCallback) =
+  let counter = new int
+  counter[] = 0
+
+  let cb: PeerCallback = proc(peerId: PeerId) {.closure, gcsafe.} =
+    inc counter[]
+
+  (counter, cb)
