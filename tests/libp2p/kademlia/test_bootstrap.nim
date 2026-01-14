@@ -9,12 +9,10 @@
 
 {.used.}
 
-import chronos, chronicles, sequtils
+import chronos, sequtils
 import ../../../libp2p/[protocols/kademlia, peerid, switch]
 import ../../tools/unittest
 import ./[mock_kademlia, utils]
-
-trace "chronicles import required for activeChroniclesStream"
 
 suite "KadDHT Bootstrap":
   teardown:
@@ -131,7 +129,6 @@ suite "KadDHT Bootstrap Component":
 
     var switches: seq[Switch] = @[hubSwitch]
     var kads: seq[KadDHT] = @[hubKad]
-
     for _ in 0 ..< 9:
       let (sw, kad) = await setupKadSwitch(
         PermissiveValidator(),
@@ -140,7 +137,6 @@ suite "KadDHT Bootstrap Component":
       )
       switches.add(sw)
       kads.add(kad)
-
     defer:
       await allFutures(switches.mapIt(it.stop()))
 
