@@ -16,9 +16,10 @@ export chronicles
 template heartbeat*(
     name: string, interval: Duration, sleepFirst: bool, body: untyped
 ): untyped =
-  var nextHeartbeat = Moment.now()
   if sleepFirst:
-    nextHeartbeat += interval
+    await sleepAsync(interval)
+
+  var nextHeartbeat = Moment.now()
   while true:
     body
 
