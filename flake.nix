@@ -31,18 +31,25 @@
 			version = "dev";
 			src = ./.;
 
-			nativeBuildInputs = [ pkgs.nim-2_2 pkgs.nimble pkgs.cacert pkgs.git ];
+			nativeBuildInputs = [ pkgs.nim-2_2 pkgs.git pkgs.nimble ];
 
-             buildPhase = ''
-				export HOME=$TMPDIR
+            buildPhase = ''
+              # export NIMBLE_DIR=$PWD/vendor/nimble
 
-				# Make sure Nimble sees the lockfile
-				cp ${./nimble.lock} nimble.lock
+              # Match libp2p.nimble compile flags
+              nim c \
+                --compileOnly \
+                --styleCheck:usages \
+                --styleCheck:error \
+                --skipUserCfg \
+                --threads:on \
+                --opt:speed \
+                -d:libp2p_autotls_support \
+                -d:libp2p_mix_experimental_exit_is_dest \
+                -d:libp2p_gossipsub_1_4 \
+                libp2p.nim
+            '';
 
-				# DO NOT refresh the registry
-				nimble install --depsOnly --noRefresh --verbose
-				nimble build --noRefresh --verbose
-			  '';
 		  };
 		}
 	  );
