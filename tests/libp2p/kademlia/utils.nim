@@ -116,10 +116,13 @@ proc setupKadSwitch*(
   await switch.start()
   (switch, kad)
 
-proc setupDefaultKadNodes*(count: int): Future[seq[KadDHT]] {.async.} =
+proc setupDefaultKadNodes*(
+    count: int, bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[]
+): Future[seq[KadDHT]] {.async.} =
   var kads: seq[KadDHT]
   for i in 0 ..< count:
-    var (_, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (_, kad) =
+      await setupKadSwitch(PermissiveValidator(), CandSelector(), bootstrapNodes)
     kads.add(kad)
   kads
 

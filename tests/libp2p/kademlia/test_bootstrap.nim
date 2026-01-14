@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, sequtils
+import chronos
 import ../../../libp2p/[protocols/kademlia, peerid, switch]
 import ../../tools/unittest
 import ./[mock_kademlia, utils]
@@ -127,18 +127,11 @@ suite "KadDHT Bootstrap Component":
     let (hubSwitch, hubKad) =
       await setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    var switches: seq[Switch] = @[hubSwitch]
-    var kads: seq[KadDHT] = @[hubKad]
-    for _ in 0 ..< 9:
-      let (sw, kad) = await setupKadSwitch(
-        PermissiveValidator(),
-        CandSelector(),
-        @[(hubSwitch.peerInfo.peerId, hubSwitch.peerInfo.addrs)],
-      )
-      switches.add(sw)
-      kads.add(kad)
+    let kads = await setupDefaultKadNodes(
+      9, @[(hubSwitch.peerInfo.peerId, hubSwitch.peerInfo.addrs)]
+    )
     defer:
-      await allFutures(switches.mapIt(it.stop()))
+      await stopNodes(kads & hubKad)
 
     # All nodes should know about all other nodes after bootstrap
     for i, kad in kads:
