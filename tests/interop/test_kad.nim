@@ -32,6 +32,8 @@ proc createSwitch(mountKad = true): Switch =
   switch
 
 suite "KadDHT Interop Tests with Nim nodes":
+  const ourAddress = "/ip4/127.0.0.1/tcp/0"
+
   teardown:
     checkTrackers()
 
@@ -42,7 +44,6 @@ suite "KadDHT Interop Tests with Nim nodes":
     defer:
       await switch.stop()
 
-    const ourAddress = "/ip4/127.0.0.1/tcp/0"
     check await kadInteropTest(
       ourAddress, $switch.peerInfo.addrs[0], switch.peerInfo.peerId
     )
@@ -55,7 +56,6 @@ suite "KadDHT Interop Tests with Nim nodes":
     defer:
       await switch.stop()
 
-    const ourAddress = "/ip4/127.0.0.1/tcp/0"
     check not await kadInteropTest(
       ourAddress, $switch.peerInfo.addrs[0], switch.peerInfo.peerId, timeout = 3.seconds
     )
@@ -64,5 +64,4 @@ suite "KadDHT Interop Tests with Nim nodes":
     const unreachableAddress = "/ip4/127.0.0.1/tcp/59999"
     let fakePeerId = PeerId.random().get()
 
-    const ourAddress = "/ip4/127.0.0.1/tcp/0"
     check not await kadInteropTest(ourAddress, unreachableAddress, fakePeerId)
