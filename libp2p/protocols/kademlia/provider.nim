@@ -228,9 +228,7 @@ proc getProviders*(
   let stop = proc(state: LookupState): bool {.gcsafe.} =
     allProviders.len() >= kad.config.replication
 
-  discard await kad.iterativeLookup(
-    key, dispatchGetProviders, onReply, stop, countFailedAsResponded = false
-  )
+  discard await kad.iterativeLookup(key, dispatchGetProviders, onReply, stop)
 
   return allProviders
 
