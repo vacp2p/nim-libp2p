@@ -19,7 +19,7 @@ suite "KadDHT Find":
     checkTrackers()
 
   asyncTest "Simple find node":
-    let kads = await setupDefaultKadNodes(3)
+    let kads = await setupKadSwitches(3)
     defer:
       await stopNodes(kads)
 
@@ -36,7 +36,7 @@ suite "KadDHT Find":
     check kads[1].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Relay find node":
-    let kads = await setupDefaultKadNodes(4)
+    let kads = await setupKadSwitches(4)
     defer:
       await stopNodes(kads)
 
@@ -58,7 +58,7 @@ suite "KadDHT Find":
       kads[1].hasKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
 
   asyncTest "Find node accumulates peers from multiple responses":
-    let kads = await setupDefaultKadNodes(4)
+    let kads = await setupKadSwitches(4)
     defer:
       await stopNodes(kads)
 
@@ -94,7 +94,7 @@ suite "KadDHT Find":
     # Each node knows the other two, creating potential for infinite loops
     # Without exclusion: kads[0] queries kads[1]/kads[2] -> they return each other -> repeat
     # With exclusion: kads[0] queries kads[1]/kads[2] once, marks them responded, terminates
-    let kads = await setupDefaultKadNodes(3)
+    let kads = await setupKadSwitches(3)
     defer:
       await stopNodes(kads)
 
@@ -126,7 +126,7 @@ suite "KadDHT Find":
       )
 
   asyncTest "Find peer":
-    let kads = await setupDefaultKadNodes(3)
+    let kads = await setupKadSwitches(3)
     defer:
       await stopNodes(kads)
 
@@ -143,7 +143,7 @@ suite "KadDHT Find":
 
   asyncTest "Find node via refresh stale buckets":
     # Setup: kads[0] <-> kads[1] <-> kads[2] (kads[0] doesn't initially know kads[2])
-    let kads = await setupDefaultKadNodes(3)
+    let kads = await setupKadSwitches(3)
     defer:
       await stopNodes(kads)
 
@@ -168,7 +168,7 @@ suite "KadDHT Find":
     check kads[0].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Find node with empty key returns closest peers":
-    let kads = await setupDefaultKadNodes(2)
+    let kads = await setupKadSwitches(2)
     defer:
       await stopNodes(kads)
 
@@ -186,7 +186,7 @@ suite "KadDHT Find":
       response.closerPeers[0].id == kads[1].rtable.selfId
 
   asyncTest "Find node for own PeerID returns closest peers":
-    let kads = await setupDefaultKadNodes(3)
+    let kads = await setupKadSwitches(3)
     defer:
       await stopNodes(kads)
 
@@ -208,7 +208,7 @@ suite "KadDHT Find":
       kads[2].rtable.selfId in closerPeersIds
 
   asyncTest "Find node with empty routing table returns empty result":
-    let kads = await setupDefaultKadNodes(1)
+    let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
 
@@ -223,7 +223,7 @@ suite "KadDHT Find":
   asyncTest "Find node continues on individual peer timeout":
     # kads[0] knows kads[1] (will timeout) and kads[2] (responds)
     # kads[2] knows kads[3]
-    let kads = await setupDefaultKadNodes(4)
+    let kads = await setupKadSwitches(4)
     defer:
       await stopNodes(kads)
 
@@ -244,7 +244,7 @@ suite "KadDHT Find":
       kads[0].hasKey(kads[3].rtable.selfId)
 
   asyncTest "Lookup initializes shortlist with k closest from routing table":
-    let kads = await setupDefaultKadNodes(1)
+    let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
 
@@ -269,7 +269,7 @@ suite "KadDHT Find":
       check state.shortlist.hasKey(peerId)
 
   asyncTest "Lookup selects alpha peers for concurrent querying":
-    let kads = await setupDefaultKadNodes(1)
+    let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
 
@@ -294,7 +294,7 @@ suite "KadDHT Find":
     check toQuery == expectedClosest
 
   asyncTest "Shortlist excludes self peer from candidates":
-    let kads = await setupDefaultKadNodes(1)
+    let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
 
@@ -318,7 +318,7 @@ suite "KadDHT Find":
       otherPeer in selected
 
   asyncTest "updateShortlist ignores duplicate peers":
-    let kads = await setupDefaultKadNodes(1)
+    let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
 
@@ -353,7 +353,7 @@ suite "KadDHT Find":
       state.shortlist.len == initialSize + 1
 
   asyncTest "updateShortlist skips invalid peer IDs":
-    let kads = await setupDefaultKadNodes(1)
+    let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
 
@@ -383,7 +383,7 @@ suite "KadDHT Find":
       state.shortlist.len == initialSize + 1
 
   asyncTest "selectCloserPeers excludes responded peers":
-    let kads = await setupDefaultKadNodes(1)
+    let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
 
