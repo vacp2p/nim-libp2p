@@ -21,6 +21,15 @@ proc hasKey(kad: KadDHT, key: Key): bool =
         return true
   return false
 
+proc hasKeys(kad: KadDHT, keys: seq[Key]): bool =
+  keys.allIt(kad.hasKey(it))
+
+proc hasNoKeys(kad: KadDHT, keys: seq[Key]): bool =
+  keys.allIt(not kad.hasKey(it))
+
+proc pluckPeerIds(kads: seq[KadDHT]): seq[PeerId] =
+  kads.mapIt(it.switch.peerInfo.peerId)
+
 suite "KadDHT Find":
   teardown:
     checkTrackers()
@@ -82,11 +91,8 @@ suite "KadDHT Find":
       await allFutures(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
 
     check:
-      kad1.hasKey(kad2.rtable.selfId)
+      kad1.hasKeys(@[kad2.rtable.selfId, kad3.rtable.selfId])
       kad2.hasKey(kad1.rtable.selfId)
-
-    check:
-      kad1.hasKey(kad3.rtable.selfId)
       kad3.hasKey(kad1.rtable.selfId)
 
     # kad3 knows about kad2 through kad1
@@ -98,8 +104,7 @@ suite "KadDHT Find":
 
     # kad 4 knows all peers of kad 3 too
     check:
-      kad4.hasKey(kad1.rtable.selfId)
-      kad4.hasKey(kad2.rtable.selfId)
+      kad4.hasKeys(@[kad1.rtable.selfId, kad2.rtable.selfId])
 
     # force kad2 forget kad3 and kad4
     for b in kad2.rtable.buckets.mitems:
@@ -109,8 +114,7 @@ suite "KadDHT Find":
 
     # kad2 relearns about kad 3 and 4
     check:
-      kad2.hasKey(kad3.rtable.selfId)
-      kad2.hasKey(kad4.rtable.selfId)
+      kad2.hasKeys(@[kad3.rtable.selfId, kad4.rtable.selfId])
 
   asyncTest "Find node accumulates peers from multiple responses":
     let
@@ -129,17 +133,16 @@ suite "KadDHT Find":
     # Verify initial state: each node only knows its neighbors
     check:
       kad1.hasKey(kad2.rtable.selfId)
-      not kad1.hasKey(kad3.rtable.selfId)
-      not kad1.hasKey(kad4.rtable.selfId)
-      kad2.hasKey(kad1.rtable.selfId)
-      kad2.hasKey(kad3.rtable.selfId)
+      kad1.hasNoKeys(@[kad3.rtable.selfId, kad4.rtable.selfId])
+
+      kad2.hasKeys(@[kad1.rtable.selfId, kad3.rtable.selfId])
       not kad2.hasKey(kad4.rtable.selfId)
-      kad3.hasKey(kad2.rtable.selfId)
-      kad3.hasKey(kad4.rtable.selfId)
+
+      kad3.hasKeys(@[kad2.rtable.selfId, kad4.rtable.selfId])
       not kad3.hasKey(kad1.rtable.selfId)
+
       kad4.hasKey(kad3.rtable.selfId)
-      not kad4.hasKey(kad1.rtable.selfId)
-      not kad4.hasKey(kad2.rtable.selfId)
+      kad4.hasNoKeys(@[kad1.rtable.selfId, kad2.rtable.selfId])
 
     # kad1 performs lookup for kad4
     # Round 1: kad1 -> kad2, learns kad3
@@ -148,8 +151,7 @@ suite "KadDHT Find":
 
     # kad1 accumulated kad3 and kad4 from iterative responses
     check:
-      kad1.hasKey(kad3.rtable.selfId)
-      kad1.hasKey(kad4.rtable.selfId)
+      kad1.hasKeys(@[kad3.rtable.selfId, kad4.rtable.selfId])
 
   asyncTest "Find node excludes already-queried peers from candidates":
     # Each node knows the other two, creating potential for infinite loops
@@ -169,12 +171,9 @@ suite "KadDHT Find":
 
     # Verify initial state: each node knows the other two
     check:
-      kad1.hasKey(kad2.rtable.selfId)
-      kad1.hasKey(kad3.rtable.selfId)
-      kad2.hasKey(kad1.rtable.selfId)
-      kad2.hasKey(kad3.rtable.selfId)
-      kad3.hasKey(kad1.rtable.selfId)
-      kad3.hasKey(kad2.rtable.selfId)
+      kad1.hasKeys(@[kad2.rtable.selfId, kad3.rtable.selfId])
+      kad2.hasKeys(@[kad1.rtable.selfId, kad3.rtable.selfId])
+      kad3.hasKeys(@[kad1.rtable.selfId, kad2.rtable.selfId])
 
     # Search for non-existent peer
     # Round 1: kad1 queries kad2 and kad3 (both in routing table)
@@ -187,10 +186,8 @@ suite "KadDHT Find":
 
     # Lookup completed without hanging (proves exclusion works)
     # Returns both known peers sorted by distance to target
-    check:
-      peerIds.len == 2
-      kad2.switch.peerInfo.peerId in peerIds
-      kad3.switch.peerInfo.peerId in peerIds
+    check peerIds ==
+      pluckPeerIds(@[kad2, kad3]).sortPeers(targetKey, kad1.rtable.config.hasher)
 
   asyncTest "Find peer":
     var (switch1, _) = await setupKadSwitch(PermissiveValidator(), CandSelector())
@@ -496,13 +493,9 @@ suite "KadDHT Find":
 
     # Only peer3 should be selectable
     let selected = state.selectCloserPeers(10)
-
-    check:
-      selected.len == 1
-      peer1 notin selected
-      peer2 notin selected
-      peer3 in selected
+    check selected == @[peer3]
 
     # With excludeResponded=false, all are returned
     let allPeers = state.selectCloserPeers(10, excludeResponded = false)
-    check allPeers.len == 3
+    check allPeers ==
+      @[peer1, peer2, peer3].sortPeers(targetKey, kad.rtable.config.hasher)
