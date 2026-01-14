@@ -9,12 +9,12 @@
 
 import chronos
 import ../../../../libp2p/[peerid, wire]
-import ../../../../tests/interop/kadTests
+import ../../../../tests/interop/kad
 
 const
-  PeerIdFile = "../rust-peer/peer.id"
-  PeerAddr = "/ip4/127.0.0.1/tcp/4141"
   OurAddr = "/ip4/127.0.0.1/tcp/3131"
+  PeerAddr = "/ip4/127.0.0.1/tcp/4141"
+  PeerIdFile = "../rust-peer/peer.id"
 
 when isMainModule:
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
@@ -23,7 +23,7 @@ when isMainModule:
     waitFor(sleepAsync(5.seconds))
 
     let otherPeerId = PeerId.init(readFile(PeerIdFile)).get()
-    let success = waitFor(kadInteropTest(otherPeerId, PeerAddr, OurAddr))
+    let success = waitFor(kadInteropTest(OurAddr, PeerAddr, otherPeerId))
     if success:
       echo "Kademlia introp test was successfull"
     else:

@@ -9,16 +9,17 @@
 
 import chronos, stew/byteutils
 import ../../libp2p/[switch, builders, peerid, protocols/kademlia, wire]
+import ../tools/crypto
 
-proc kadInteropTest*(otherPeerId: PeerId, otherAddr: string, ourAddr: string): Future[
-    bool
-] {.async.} =
+proc kadInteropTest*(
+    ourAddr: string, otherAddr: string, otherPeerId: PeerId
+): Future[bool] {.async.} =
   ## Reusable Kademlia DHT interoperability test
   ## This proc can be used with any peer (nim-based or from other implementations)
   ## The peer at otherAddr must already be running before calling this
   var switch = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng())
     .withAddresses(@[MultiAddress.init(ourAddr).tryGet()])
     .withTcpTransport()
     .withMplex()

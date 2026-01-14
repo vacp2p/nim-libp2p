@@ -9,47 +9,40 @@
 
 {.used.}
 
-import chronos, stew/byteutils
+import chronos
 import ../../libp2p/[switch, builders, peerid, protocols/kademlia, wire]
-import ../tools/[unittest]
-import ./kadTests
+import ../tools/[crypto, unittest]
+import ./kad
 
-suite "KadDHT Interop Tests":
-  # Create and keep a single node running for all tests
-  var switch1: Switch
-  var kad1: KadDHT
-  var peer1Id: PeerId
-  var peer1Addr: string
+proc createSwitch(): Switch =
+  let switch = SwitchBuilder
+    .new()
+    .withRng(rng())
+    .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
 
-  setup:
-    # Create first node once and reuse it across tests
-    switch1 = SwitchBuilder
-      .new()
-      .withRng(newRng())
-      .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .build()
+  let kad =
+    KadDHT.new(switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 1))
 
-    kad1 = KadDHT.new(
-      switch1, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 1)
-    )
+  switch.mount(kad)
 
-    switch1.mount(kad1)
-    await switch1.start()
+  switch
 
-    # Get the actual address and peer ID of the first node
-    peer1Id = switch1.peerInfo.peerId
-    peer1Addr = $switch1.peerInfo.addrs[0]
-
+suite "KadDHT Interop Tests with Nim nodes":
   teardown:
-    await switch1.stop()
     checkTrackers()
 
-  asyncTest "kadInteropTest with nim node":
-    let ourAddr = "/ip4/127.0.0.1/tcp/0"
+  asyncTest "Happy path":
+    let switch = createSwitch()
 
-    # Test using the kadInteropTest proc (same one used for rust interop)
-    let result = await kadInteropTest(peer1Id, peer1Addr, ourAddr)
-    check result == true
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    const ourAddress = "/ip4/127.0.0.1/tcp/0"
+    check await kadInteropTest(
+      ourAddress, $switch.peerInfo.addrs[0], switch.peerInfo.peerId
+    )
