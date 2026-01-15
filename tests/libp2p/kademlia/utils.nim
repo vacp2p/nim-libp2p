@@ -187,7 +187,7 @@ proc nonEmptyBuckets*(kad: KadDHT): seq[int] =
 
 proc makeBucketStale*(bucket: var Bucket) =
   for peer in bucket.peers.mitems:
-    peer.lastSeen = Moment.now() - 40.minutes
+    peer.lastSeen = Moment.now() - (DefaultBucketStaleTime + 1.minutes)
 
 proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
