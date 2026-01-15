@@ -58,7 +58,8 @@ suite "Kademlia discovery - FindRandom":
       entries.add(kad.rtable.selfId)
 
     let records = await kads[1].findRandom()
-    # check that all nodes are found
+
+    check records.len == 4
     for record in records:
       check switches.anyIt(it.peerInfo.peerId == record.peerId)
 

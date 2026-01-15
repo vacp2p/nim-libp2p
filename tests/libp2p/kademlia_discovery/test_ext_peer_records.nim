@@ -11,7 +11,6 @@
 
 import stew/byteutils
 import ../../../libp2p/[crypto/crypto, peerid, multiaddress, routing_record]
-import ../../../libp2p/protocols/kademlia_discovery/[types, protobuf]
 import ../../tools/[unittest, crypto]
 
 suite "Extended peer record":
@@ -25,10 +24,10 @@ suite "Extended peer record":
           MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
         ]
       services = @[ServiceInfo(id: "test_service", data: @[])]
-      extPR = ExtPeerRecord.init(peerId, multiAddresses, 42, services)
+      extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
       encoded = extPR.encode()
-      decoded = ExtPeerRecord.decode(encoded)
+      decoded = ExtendedPeerRecord.decode(encoded)
 
     check:
       decoded.isOk() == true
@@ -39,7 +38,7 @@ suite "Extended peer record":
       # from https://github.com/libp2p/go-libp2p-core/blob/b18a4c9c5629870bde2cd85ab3b87a507600d411/peer/record_test.go#L33
       # (with only 2 addresses)
       inputData = "0a2600240801122011bba3ed1721948cefb4e50b0a0bb5cad8a6b52dc7b1a40f4f6652105c91e2c4109bf59d8dd99d8ddb161a0a0a0804010203040600001a0a0a080401020304060001".hexToSeqByte()
-      decodedRecord = ExtPeerRecord.decode(inputData).tryGet()
+      decodedRecord = ExtendedPeerRecord.decode(inputData).tryGet()
 
     check:
       $decodedRecord.peerId == "12D3KooWB1b3qZxWJanuhtseF3DmPggHCtG36KZ9ixkqHtdKH9fh"
@@ -60,15 +59,15 @@ suite "Signed Extended Peer Record":
         ]
       services = @[ServiceInfo(id: "test_service", data: @[])]
 
-      extPR = ExtPeerRecord.init(peerId, multiAddresses, 42, services)
-      signedExtPR = SignedExtPeerRecord.init(privKey, extPR)
+      extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
+      signedExtPR = SignedExtendedPeerRecord.init(privKey, extPR)
 
     check signedExtPR.isOk() == true
 
     let encoded = signedExtPR.get().encode()
     check encoded.isOk() == true
 
-    let decoded = SignedExtPeerRecord.decode(encoded.get())
+    let decoded = SignedExtendedPeerRecord.decode(encoded.get())
     check:
       decoded.isOk() == true
       decoded.get() == signedExtPR.get()
@@ -84,8 +83,8 @@ suite "Signed Extended Peer Record":
           MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
         ]
       services = @[ServiceInfo(id: "test_service", data: @[])]
-      signedExtPR = SignedExtPeerRecord.init(
-        privKey2, ExtPeerRecord.init(peerId, multiAddresses, 42, services)
+      signedExtPR = SignedExtendedPeerRecord.init(
+        privKey2, ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
       )
 
     check signedExtPR.isOk() == true
@@ -94,7 +93,7 @@ suite "Signed Extended Peer Record":
 
     check:
       encoded.isOk() == true
-      SignedExtPeerRecord.decode(encoded.get()).error == EnvelopeInvalidSignature
+      SignedExtendedPeerRecord.decode(encoded.get()).error == EnvelopeInvalidSignature
 
   test "Decode doesn't fail if some addresses are invalid":
     let
@@ -103,10 +102,10 @@ suite "Signed Extended Peer Record":
       multiAddresses =
         @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
       services = @[ServiceInfo(id: "test_service", data: @[])]
-      extPR = ExtPeerRecord.init(peerId, multiAddresses, 42, services)
+      extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
       encoded = extPR.encode()
-      decoded = ExtPeerRecord.decode(encoded)
+      decoded = ExtendedPeerRecord.decode(encoded)
 
     check:
       decoded.isOk() == true
@@ -118,10 +117,10 @@ suite "Signed Extended Peer Record":
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = newSeq[MultiAddress]()
       services = @[ServiceInfo(id: "test_service", data: @[])]
-      extPR = ExtPeerRecord.init(peerId, multiAddresses, 42, services)
+      extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
       encoded = extPR.encode()
-      decoded = ExtPeerRecord.decode(encoded)
+      decoded = ExtendedPeerRecord.decode(encoded)
 
     check:
       decoded.isOk() == true
@@ -133,9 +132,9 @@ suite "Signed Extended Peer Record":
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress(), MultiAddress()]
       services = @[ServiceInfo(id: "test_service", data: @[])]
-      extPR = ExtPeerRecord.init(peerId, multiAddresses, 42, services)
+      extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
-    check ExtPeerRecord.decode(extPR.encode()).isErr
+    check ExtendedPeerRecord.decode(extPR.encode()).isErr
 
   test "Decode doesn't fail if there are no services":
     let
@@ -144,10 +143,10 @@ suite "Signed Extended Peer Record":
       multiAddresses =
         @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
       services: seq[ServiceInfo] = @[]
-      extPR = ExtPeerRecord.init(peerId, multiAddresses, 42, services)
+      extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
       encoded = extPR.encode()
-      decoded = ExtPeerRecord.decode(encoded)
+      decoded = ExtendedPeerRecord.decode(encoded)
 
     check:
       decoded.isOk() == true

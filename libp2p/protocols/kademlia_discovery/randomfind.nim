@@ -7,16 +7,19 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[tables, sequtils, sets]
+import std/[sequtils, sets]
 import chronos, chronicles, results
-import ../../[peerid, peerinfo, switch, multihash]
+import ../../[peerid, peerinfo, switch, multihash, routing_record]
 import ../protocol
 import ../kademlia/[types, find, get, protobuf]
-import ./[types, protobuf]
+import ./[types]
+
+logScope:
+  topics = "ext-kad-dht random find"
 
 proc findRandom*(
     disco: KademliaDiscovery
-): Future[seq[ExtPeerRecord]] {.async: (raises: [CancelledError]).} =
+): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
   ## Return all peer records on the path towards a random target ID.
 
   let randomPeerId = PeerId.random(disco.rng).valueOr:
@@ -25,53 +28,51 @@ proc findRandom*(
 
   let randomKey = randomPeerId.toKey()
 
-  var state = LookupState.init(disco, randomKey)
   var buffers: seq[seq[byte]]
+  let bufferReply = proc(
+      peerID: PeerId, _: Opt[Message], _: var LookupState
+  ): Future[void] {.async: (raises: []), gcsafe.} =
+    let res = catch:
+      await disco.dispatchGetVal(peerID, peerID.toKey())
 
-  while true:
-    let toQuery = state.selectCloserPeers(disco.config.alpha)
+    let msg = res.valueOr:
+      error "Failed to get value", error = res.error.msg
+      return
 
-    if toQuery.len() == 0:
-      break
+    let reply = msg.valueOr:
+      return
 
-    for peerId in toQuery:
-      state.attempts[peerId] = state.attempts.getOrDefault(peerId, 0) + 1
+    let record = reply.record.valueOr:
+      return
 
-    debug "Find random node queries", peersToQuery = toQuery.mapIt(it.shortLog())
+    let buffer = record.value.valueOr:
+      return
 
-    let
-      findRPCBatch = toQuery.mapIt(disco.dispatchFindNode(it, randomKey))
-      getRPCBatch = toQuery.mapIt(disco.dispatchGetVal(it, it.toKey()))
-      completedFindRPCBatch = await findRPCBatch.collectCompleted(disco.config.timeout)
-      completedGetRPCBatch = await getRPCBatch.collectCompleted(disco.config.timeout)
+    buffers.add(buffer)
 
-    for (fut, peerId) in zip(findRPCBatch, toQuery):
-      if fut.completed():
-        state.responded.incl(peerId)
+  let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
+    state.hasResponsesFromClosestAvailable()
 
-    for msg in completedFindRPCBatch:
-      msg.withValue(reply):
-        let newPeerInfos = state.updateShortlist(reply)
-        disco.updatePeers(newPeerInfos)
+  let dispatchFind = proc(
+      kad: KadDHT, peer: PeerId, target: Key
+  ): Future[Opt[Message]] {.
+      async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+  .} =
+    return await dispatchFindNode(kad, peer, target)
 
-    for msg in completedGetRPCBatch:
-      let reply = msg.valueOr:
-        continue
+  let state = await disco.iterativeLookup(randomKey, dispatchFind, bufferReply, stop)
 
-      let record = reply.record.valueOr:
-        continue
-
-      let buffer = record.value.valueOr:
-        continue
-
-      buffers.add(buffers)
-
-  var records: seq[ExtPeerRecord]
+  var records: seq[ExtendedPeerRecord]
   for buffer in buffers:
-    let xpr = ExtPeerRecord.decode(buffer).valueOr:
-      debug "cannot decode signed peer record", error
+    let sxpr = SignedExtendedPeerRecord.decode(buffer).valueOr:
+      debug "cannot decode signed extended peer record", error
       continue
 
-    records.add(xpr)
+    records.add(sxpr.data)
 
   return records
+
+proc filterByServices(
+    records: seq[ExtendedPeerRecord], services: HashSet[ServiceInfo]
+): seq[ExtendedPeerRecord] =
+  records.filterIt(it.services.anyIt(services.contains(it)))
