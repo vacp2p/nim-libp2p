@@ -175,3 +175,52 @@ suite "KadDHT Put":
 
     # Response should be identical to the request
     check response == request
+
+  asyncTest "PUT_VALUE with no record / no value - malformed message handling":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let conn = await kads[1].switch.dial(
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+    )
+
+    let key = kads[0].rtable.selfId
+
+    # PUT_VALUE with no record at all
+    let msgNoRecord = Message(
+      msgType: MessageType.putValue,
+      key: key,
+      record: Opt.none(Record),
+    )
+    await kads[0].handlePutValue(conn, msgNoRecord)
+ 
+    # No data should be stored
+    check kads[0].containsNoData(key)
+
+    # PUT_VALUE with record but no value
+    let msgNoValue = Message(
+      msgType: MessageType.putValue,
+      key: key,
+      record: Opt.some(Record(key: key, value: Opt.none(seq[byte]))),
+    )
+
+    await kads[0].handlePutValue(conn, msgNoValue)
+
+    # No data should be stored
+    check kads[0].containsNoData(key)
+
+  asyncTest "PUT_VALUE stores binary data with null and high bytes":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
+    let value = @[0.byte, 0xFF, 0, 0xFF] # nulls and high bytes interleaved
+
+    discard await kads[1].putValue(key, value)
+    check kads[0].containsData(key, value)
