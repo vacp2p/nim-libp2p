@@ -18,13 +18,14 @@ suite "KadDHT Put":
   teardown:
     checkTrackers()
 
-  asyncTest "Simple put":
+  asyncTest "PUT_VALUE stores record at both sender and target peer":
     let kads = await setupKadSwitches(2)
     defer:
       await stopNodes(kads)
 
     connectNodes(kads[0], kads[1])
 
+    # Both nodes start with empty data tables
     check:
       kads[0].dataTable.len == 0
       kads[1].dataTable.len == 0
@@ -33,37 +34,40 @@ suite "KadDHT Put":
     let value = @[1.byte, 2, 3, 4, 5]
     discard await kads[1].putValue(key, value)
 
+    # After putValue, both nodes should have the record
     check:
-      containsData(kads[0], key, value)
-      containsData(kads[1], key, value)
+      kads[0].containsData(key, value)
+      kads[1].containsData(key, value)
 
-  asyncTest "Change Validator":
+  asyncTest "PUT_VALUE requires validation on both sender and receiver":
     let kads = await setupKadSwitches(2, validator = RestrictiveValidator())
     defer:
       await stopNodes(kads)
 
     connectNodes(kads[0], kads[1])
 
-    check kads[0].dataTable.len == 0
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
 
+    # Both validators reject -> putValue fails, nothing stored
     check:
       (await kads[1].putValue(key, value)).isErr()
       kads[0].dataTable.len == 0
 
+    # Only receiver accepts -> sender validation still fails
     kads[0].config.validator = PermissiveValidator()
     check:
       (await kads[1].putValue(key, value)).isErr()
       kads[0].dataTable.len == 0
 
+    # Both validators accept -> putValue succeeds
     kads[1].config.validator = PermissiveValidator()
     check:
       (await kads[1].putValue(key, value)).isOk()
-      containsData(kads[0], key, value)
-      containsData(kads[1], key, value)
+      kads[0].containsData(key, value)
+      kads[1].containsData(key, value)
 
-  asyncTest "Good Time":
+  asyncTest "PUT_VALUE sets timeReceived in RFC3339 format":
     let kads = await setupKadSwitches(2)
     defer:
       await stopNodes(kads)
@@ -74,16 +78,16 @@ suite "KadDHT Put":
     let value = @[1.byte, 2, 3, 4, 5]
     discard await kads[1].putValue(key, value)
 
-    let time: string = kads[0].dataTable[key].time
-
+    # Parse the stored timestamp
+    let storedTime: string = kads[0].dataTable[key].time
     let now = times.now().utc
-    let parsed = time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
+    let parsed = storedTime.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
 
-    # get the diff between the stringified-parsed and the direct "now"
-    let elapsed = (now - parsed)
-    doAssert(elapsed < times.initDuration(seconds = 2))
+    # Timestamp should be very recent (within 2 seconds of now)
+    let elapsed = now - parsed
+    check elapsed < times.initDuration(seconds = 2)
 
-  asyncTest "Reselect":
+  asyncTest "PUT_VALUE uses selector to choose best value":
     let kads = await setupKadSwitches(2, selector = OthersSelector())
     defer:
       await stopNodes(kads)
@@ -92,15 +96,20 @@ suite "KadDHT Put":
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
-
-    discard await kads[0].putValue(key, value)
-    check containsData(kads[1], key, value)
-
     let emptyVal: seq[byte] = @[]
-    discard await kads[0].putValue(key, emptyVal)
-    check containsData(kads[1], key, value)
 
-    kads[1].config.selector = CandSelector()
-    kads[0].config.selector = CandSelector()
+    # Store initial value
+    discard await kads[0].putValue(key, value)
+    check kads[1].containsData(key, value)
+
+    # With OthersSelector, new value is rejected in favor of existing
     discard await kads[0].putValue(key, emptyVal)
-    check containsData(kads[1], key, emptyVal)
+    check kads[1].containsData(key, value)
+
+    # Switch to CandSelector (accepts first/new value)
+    kads[0].config.selector = CandSelector()
+    kads[1].config.selector = CandSelector()
+
+    # Now the new value replaces the old one
+    discard await kads[0].putValue(key, emptyVal)
+    check kads[1].containsData(key, emptyVal)
