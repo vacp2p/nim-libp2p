@@ -1024,6 +1024,23 @@ proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
     for id, addrs in g.parameters.directPeers:
       await g.addDirectPeer(id, addrs)
 
+proc createExtensionsState(g: GossipSub): ExtensionsState =
+  proc onMissbehaveExtensions(id: PeerId) {.gcsafe, raises: [].} =
+    g.peers.withValue(id, peer):
+      peer[].behaviourPenalty += 0.1
+
+  let testExtensionConfig = g.parameters.testExtensionConfig.valueOr:
+    # by default, parameters will not have this config. because param is mainly used
+    # in tests for testing purposes.
+
+    proc onNagotiated(id: PeerId) {.gcsafe, raises: [].} =
+      g.peers.withValue(id, peer):
+        g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
+
+    TestExtensionConfig(onNagotiated: onNagotiated)
+
+  return ExtensionsState.new(onMissbehaveExtensions, some(testExtensionConfig))
+
 method start*(
     g: GossipSub
 ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
@@ -1079,13 +1096,7 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
-
-  proc onMissbehaveExtensions(id: PeerId) {.gcsafe, raises: [].} =
-    g.peers.withValue(id, peer):
-      peer[].behaviourPenalty += 0.1
-
-  g.extensionsState =
-    ExtensionsState.new(onMissbehaveExtensions, g.parameters.testExtensionConfig)
+  g.extensionsState = g.createExtensionsState()
 
 method getOrCreatePeer*(
     g: GossipSub,

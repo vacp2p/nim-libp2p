@@ -100,12 +100,15 @@ type
     messageID*: MessageId
     messageLength*: uint32
 
+  TestExtensionRPC* = object
+
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
     control*: Option[ControlMessage]
     ping*: seq[byte]
     pong*: seq[byte]
+    testExtension*: Option[TestExtensionRPC]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
   T(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
@@ -248,6 +251,11 @@ proc byteSize(controlExtensions: Option[ControlExtensions]): int =
   else:
     4 # 4 byte for the bool aka uint32 - testExtension
 
+static:
+  expectedFields(TestExtensionRPC, @[])
+proc byteSize(testExtensions: TestExtensionRPC): int =
+  0 # type is empty
+
 when defined(libp2p_gossipsub_1_4):
   static:
     expectedFields(
@@ -275,10 +283,14 @@ else:
       control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions)
 
 static:
-  expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])
+  expectedFields(
+    RPCMsg, @["subscriptions", "messages", "control", "ping", "pong", "testExtension"]
+  )
 proc byteSize*(rpc: RPCMsg): int =
   result =
     rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) + rpc.ping.len +
     rpc.pong.len
   rpc.control.withValue(ctrl):
     result += ctrl.byteSize
+  rpc.testExtension.withValue(te):
+    result += te.byteSize

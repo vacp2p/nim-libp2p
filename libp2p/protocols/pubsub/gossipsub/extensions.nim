@@ -11,6 +11,9 @@ import std/[options, sets, tables]
 import ../../../[peerid]
 import ../rpc/messages
 
+proc noopPeerCallback(peer: PeerId) {.gcsafe, raises: [].} =
+  discard
+
 type
   PeerExtensions = object
     testExtension: bool
@@ -18,8 +21,8 @@ type
   PeerCallback* = proc(peer: PeerId) {.gcsafe, raises: [].}
 
   TestExtensionConfig* = object
-    onNagotiated: PeerCallback
-    onHandleRPC: PeerCallback
+    onNagotiated*: PeerCallback = noopPeerCallback
+    onHandleRPC*: PeerCallback = noopPeerCallback
 
   ExtensionsState* = ref object
     sentExtensions: HashSet[PeerId] # nodes extensions were sent to peer
@@ -29,16 +32,6 @@ type
     # Extensions data & configuration:
     testExtensionConfig: Option[TestExtensionConfig]
       # when config is set then this node supports "test extension"
-
-proc noopPeerCallback(peer: PeerId) {.gcsafe, raises: [].} =
-  discard
-
-proc new*(
-    T: typedesc[TestExtensionConfig],
-    onNagotiated: PeerCallback = noopPeerCallback,
-    onHandleRPC: PeerCallback = noopPeerCallback,
-): T =
-  T(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)
 
 proc new*(
     T: typedesc[ExtensionsState],

@@ -46,7 +46,8 @@ suite "GossipSub Extensions":
       (nagotiatedCount, onNagotiated) = createCountPeerCallback()
       (handleRPCCount, onHandleRPC) = createCountPeerCallback()
       state = ExtensionsState.new(
-        onMissbehave, some(TestExtensionConfig.new(onNagotiated, onHandleRPC))
+        onMissbehave,
+        some(TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)),
       )
 
     # nagotiated in order: handleRPC, addPeer
@@ -59,7 +60,8 @@ suite "GossipSub Extensions":
 
     # nagotiated in order: addPeer, handleRPC
     state = ExtensionsState.new(
-      onMissbehave, some(TestExtensionConfig.new(onNagotiated, onHandleRPC))
+      onMissbehave,
+      some(TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)),
     )
     state.addPeer(peerId)
     state.handleRPC(peerId, ControlExtensions())
@@ -75,7 +77,10 @@ suite "GossipSub Extensions":
         (nagotiatedCount, onNagotiated) = createCountPeerCallback()
         (handleRPCCount, onHandleRPC) = createCountPeerCallback()
         state = ExtensionsState.new(
-          onMissbehave, some(TestExtensionConfig.new(onNagotiated, onHandleRPC))
+          onMissbehave,
+          some(
+            TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)
+          ),
         )
 
       state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
@@ -96,7 +101,10 @@ suite "GossipSub Extensions":
         (nagotiatedCount, onNagotiated) = createCountPeerCallback()
         (handleRPCCount, onHandleRPC) = createCountPeerCallback()
         state = ExtensionsState.new(
-          onMissbehave, some(TestExtensionConfig.new(onNagotiated, onHandleRPC))
+          onMissbehave,
+          some(
+            TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)
+          ),
         )
 
       state.addPeer(peerId)

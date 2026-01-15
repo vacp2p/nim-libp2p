@@ -28,7 +28,9 @@ suite "GossipSub Extensions":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          testExtensionConfig = some(TestExtensionConfig.new(onNagotiated, onHandleRPC)),
+          testExtensionConfig = some(
+            TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)
+          ),
         )
         .toGossipSub()
 

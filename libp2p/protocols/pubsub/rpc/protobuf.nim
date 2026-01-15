@@ -449,6 +449,9 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
 
   # Canonical Extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
+  if msg.testExtension.isSome():
+    # if set write empty bytes, this will set filed tag
+    pb.write(6492434, newSeq[byte](0))
 
   if len(pb.buffer) > 0:
     pb.finish()
@@ -466,5 +469,11 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
 
   # Canonical Extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
+
+  var testExtension: seq[byte]
+  if ?pb.getField(6492434, testExtension):
+    rpcMsg.testExtension = some(TestExtensionRPC())
+  else:
+    rpcMsg.testExtension = none(TestExtensionRPC)
 
   ok(rpcMsg)
