@@ -64,6 +64,7 @@ type
 
   AgentBook* {.public.} = ref object of PeerBook[string]
   LastSeenBook* {.public.} = ref object of PeerBook[Opt[MultiAddress]]
+  LastSeenOutboundBook* {.public.} = ref object of PeerBook[Opt[MultiAddress]]
   ProtoVersionBook* {.public.} = ref object of PeerBook[string]
   SPRBook* {.public.} = ref object of PeerBook[Envelope]
 
@@ -150,11 +151,17 @@ proc updatePeerInfo*(
     peerStore: PeerStore,
     info: IdentifyInfo,
     observedAddr: Opt[MultiAddress] = Opt.none(MultiAddress),
+    direction: Opt[Direction] = Opt.none(Direction),
 ) =
   if len(info.addrs) > 0:
     peerStore[AddressBook][info.peerId] = info.addrs
 
   peerStore[LastSeenBook][info.peerId] = observedAddr
+
+  # Update LastSeenOutboundBook only for outbound connections
+  direction.withValue(dir):
+    if dir == Direction.Out:
+      peerStore[LastSeenOutboundBook][info.peerId] = observedAddr
 
   info.pubkey.withValue(pubkey):
     peerStore[KeyBook][info.peerId] = pubkey
@@ -189,7 +196,7 @@ proc cleanup*(peerStore: PeerStore, peerId: PeerId) =
     peerStore.toClean.delete(0)
 
 proc identify*(
-    peerStore: PeerStore, muxer: Muxer
+    peerStore: PeerStore, muxer: Muxer, dir: Direction
 ) {.
     async: (
       raises: [
@@ -216,7 +223,7 @@ proc identify*(
           knownAgent = shortAgent
         muxer.setShortAgent(knownAgent)
 
-      peerStore.updatePeerInfo(info, stream.observedAddr)
+      peerStore.updatePeerInfo(info, stream.observedAddr, Opt.some(dir))
   finally:
     await stream.closeWithEOF()
 

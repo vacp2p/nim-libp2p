@@ -228,7 +228,7 @@ proc upgrader(
   try:
     let muxed = await trans.upgrade(conn, Opt.none(PeerId))
     switch.connManager.storeMuxer(muxed)
-    await switch.peerStore.identify(muxed)
+    await switch.peerStore.identify(muxed, conn.transportDir)
     await switch.connManager.triggerPeerEvents(
       muxed.connection.peerId,
       PeerEvent(kind: PeerEventKind.Identified, initiator: false),
