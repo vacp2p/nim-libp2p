@@ -9,85 +9,72 @@
 
 {.used.}
 
-import std/[times, tables], chronos, chronicles
+import std/[times, tables], chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT Put":
   teardown:
     checkTrackers()
 
   asyncTest "Simple put":
-    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
-    discard await kad2.findNode(kad1.rtable.selfId)
+    connectNodes(kads[0], kads[1])
 
     check:
-      kad1.dataTable.len == 0
-      kad2.dataTable.len == 0
+      kads[0].dataTable.len == 0
+      kads[1].dataTable.len == 0
 
-    let key = kad1.rtable.selfId
+    let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
-    discard await kad2.putValue(key, value)
+    discard await kads[1].putValue(key, value)
 
     check:
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
+      containsData(kads[0], key, value)
+      containsData(kads[1], key, value)
 
   asyncTest "Change Validator":
-    var (switch1, kad1) = await setupKadSwitch(RestrictiveValidator(), CandSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      RestrictiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(2, validator = RestrictiveValidator())
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
 
-    check kad1.dataTable.len == 0
-    let key = kad1.rtable.selfId
+    connectNodes(kads[0], kads[1])
+
+    check kads[0].dataTable.len == 0
+    let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
 
     check:
-      (await kad2.putValue(key, value)).isErr()
-      kad1.dataTable.len == 0
+      (await kads[1].putValue(key, value)).isErr()
+      kads[0].dataTable.len == 0
 
-    kad1.config.validator = PermissiveValidator()
+    kads[0].config.validator = PermissiveValidator()
     check:
-      (await kad2.putValue(key, value)).isErr()
-      kad1.dataTable.len == 0
+      (await kads[1].putValue(key, value)).isErr()
+      kads[0].dataTable.len == 0
 
-    kad2.config.validator = PermissiveValidator()
+    kads[1].config.validator = PermissiveValidator()
     check:
-      (await kad2.putValue(key, value)).isOk()
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
+      (await kads[1].putValue(key, value)).isOk()
+      containsData(kads[0], key, value)
+      containsData(kads[1], key, value)
 
   asyncTest "Good Time":
-    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
-    let key = kad1.rtable.selfId
-    let value = @[1.byte, 2, 3, 4, 5]
-    discard await kad2.putValue(key, value)
+      await stopNodes(kads)
 
-    let time: string = kad1.dataTable[key].time
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
+    let value = @[1.byte, 2, 3, 4, 5]
+    discard await kads[1].putValue(key, value)
+
+    let time: string = kads[0].dataTable[key].time
 
     let now = times.now().utc
     let parsed = time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
@@ -97,25 +84,23 @@ suite "KadDHT Put":
     doAssert(elapsed < times.initDuration(seconds = 2))
 
   asyncTest "Reselect":
-    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), OthersSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      OthersSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(2, selector = OthersSelector())
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
-    let key = kad1.rtable.selfId
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
 
-    discard await kad1.putValue(key, value)
-    check containsData(kad2, key, value)
+    discard await kads[0].putValue(key, value)
+    check containsData(kads[1], key, value)
 
     let emptyVal: seq[byte] = @[]
-    discard await kad1.putValue(key, emptyVal)
-    check containsData(kad2, key, value)
+    discard await kads[0].putValue(key, emptyVal)
+    check containsData(kads[1], key, value)
 
-    kad2.config.selector = CandSelector()
-    kad1.config.selector = CandSelector()
-    discard await kad1.putValue(key, emptyVal)
-    check containsData(kad2, key, emptyVal)
+    kads[1].config.selector = CandSelector()
+    kads[0].config.selector = CandSelector()
+    discard await kads[0].putValue(key, emptyVal)
+    check containsData(kads[1], key, emptyVal)
