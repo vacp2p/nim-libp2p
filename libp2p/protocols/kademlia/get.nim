@@ -95,9 +95,7 @@ proc getValue*(
   let stop = proc(state: LookupState): bool {.gcsafe.} =
     received.len >= quorum
 
-  discard await kad.iterativeLookup(
-    key, dispatchGetVal, onReply, stop, countFailedAsResponded = false
-  )
+  discard await kad.iterativeLookup(key, dispatchGetVal, onReply, stop)
 
   let best = ?kad.bestValidRecord(key, received, quorum)
 
