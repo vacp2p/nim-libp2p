@@ -15,7 +15,7 @@ concurrency:
 jobs:
   run-transport-interop:
     name: Run transport interoperability tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Free Disk Space
         # For some reason we have space issues while running this action. Likely while building the image.
@@ -43,7 +43,7 @@ jobs:
 
   # run-hole-punching-interop:
   #   name: Run hole punching interoperability tests
-  #   runs-on: ubuntu-22.04
+  #   runs-on: ubuntu-24.04
   #   steps:
   #     - name: Free Disk Space
   #       # For some reason we have space issues while running this action. Likely while building the image.
@@ -69,7 +69,7 @@ jobs:
 
   run-autonatv2-interop:
     name: Run AutoNATv2 interoperability tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -98,7 +98,7 @@ jobs:
 
   run-kad-interop:
     name: Run Kademlia DHT interoperability tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
