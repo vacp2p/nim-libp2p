@@ -344,7 +344,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
   pubSubPeer.stopSendNonPriorityTask()
 
   g.extensionsState.removePeer(peer)
-  
+
   procCall FloodSub(g).unsubscribePeer(peer)
 
 proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool) =
