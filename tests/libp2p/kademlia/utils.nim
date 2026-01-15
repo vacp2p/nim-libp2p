@@ -178,7 +178,7 @@ proc getPeersfromRoutingTable*(kad: KadDHT): seq[PeerId] =
       peersInTable.add(entry.nodeId.toPeerId().get())
   peersInTable
 
-proc getNonEmptyBuckets*(kad: KadDHT): seq[int] =
+proc nonEmptyBuckets*(kad: KadDHT): seq[int] =
   var bucketIndices: seq[int]
   for i, bucket in kad.rtable.buckets:
     if bucket.peers.len > 0:

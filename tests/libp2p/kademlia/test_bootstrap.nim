@@ -42,7 +42,7 @@ suite "KadDHT Bootstrap":
 
     # Add peers - they will be fresh (just added)
     kad.populateRoutingTable(5)
-    check kad.getNonEmptyBuckets().len >= 1
+    check kad.nonEmptyBuckets().len >= 1
 
     kad.findNodeCalls = @[]
     await kad.bootstrap()
@@ -60,7 +60,7 @@ suite "KadDHT Bootstrap":
     kad.populateRoutingTable(20)
 
     # Make all buckets stale
-    let bucketIndices = kad.getNonEmptyBuckets()
+    let bucketIndices = kad.nonEmptyBuckets()
     check bucketIndices.len >= 2
 
     for index in bucketIndices:
@@ -70,7 +70,7 @@ suite "KadDHT Bootstrap":
     await kad.bootstrap()
 
     # Self lookup + one lookup per stale bucket
-    check kad.findNodeCalls.len == 1 + bucketIndices.len
+    check kad.findNodeCalls.len == bucketIndices.len + 1
 
   asyncTest "bootstrap with mixed fresh and stale buckets refreshes only stale":
     let (switch, kad) =
@@ -81,7 +81,7 @@ suite "KadDHT Bootstrap":
     kad.populateRoutingTable(20)
 
     # Get non-empty bucket indices
-    let bucketIndices = kad.getNonEmptyBuckets()
+    let bucketIndices = kad.nonEmptyBuckets()
     check bucketIndices.len >= 2
 
     # Make only the first bucket stale
@@ -109,14 +109,14 @@ suite "KadDHT Bootstrap":
 
     kad.populateRoutingTable(20)
 
-    let nonEmptyBucketCount = kad.getNonEmptyBuckets().len
+    let nonEmptyBucketCount = kad.nonEmptyBuckets().len
     check nonEmptyBucketCount >= 1
 
     kad.findNodeCalls = @[]
     await kad.bootstrap(forceRefresh = true)
 
     # Self lookup + one lookup per non-empty bucket
-    check kad.findNodeCalls.len == 1 + nonEmptyBucketCount
+    check kad.findNodeCalls.len == nonEmptyBucketCount + 1
 
 suite "KadDHT Bootstrap Component":
   teardown:
