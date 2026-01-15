@@ -146,7 +146,7 @@ proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
 
 proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
   var ipb = initProtoBuffer()
-  ipb.write(1, uint64(subs.subscribe))
+  ipb.write(1, subs.subscribe)
   ipb.write(2, subs.topic)
   ipb.finish()
   pb.write(field, ipb)

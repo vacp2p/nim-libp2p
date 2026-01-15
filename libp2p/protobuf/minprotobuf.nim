@@ -196,7 +196,7 @@ proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
     pb.offset += sizeof(T)
 
 proc write*(pb: var ProtoBuffer, field: int, value: bool) =
-  pb.write(field, uint32(value))
+  pb.write(field, uint64(value))
 
 proc writePacked*[T: ProtoScalar](
     pb: var ProtoBuffer, field: int, value: openArray[T]
