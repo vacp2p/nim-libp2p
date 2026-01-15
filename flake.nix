@@ -23,7 +23,8 @@
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-		  deps = import ./nix/deps.nix { inherit pkgs; };
+          deps = import ./nix/deps.nix { inherit pkgs; };
+		  nimDepsPath = deps.fetchedDeps;
         in {
           default = pkgs.stdenv.mkDerivation {
             pname = "nim-libp2p";
@@ -31,43 +32,46 @@
 
             src = ./.;
 
-            # Include all dependencies from deps.nix
             nativeBuildInputs = [
               pkgs.nim-2_2
               pkgs.git
               pkgs.nimble
+              pkgs.makeWrapper
             ] ++ builtins.attrValues deps;
 
             buildPhase = ''
-              export NIMBLE_PATH=/nonexistent
-
-              nim c \
-                --noNimblePath \
-                --path:${builtins.concatStringsSep ":" (builtins.attrValues deps)} \
-                --compileOnly \
-                --styleCheck:usages \
-                --styleCheck:error \
-                --skipUserCfg \
-                --threads:on \
-                --opt:speed \
-                -d:libp2p_autotls_support \
-                -d:libp2p_mix_experimental_exit_is_dest \
-                -d:libp2p_gossipsub_1_4 \
-                libp2p.nim
-            '';
+			  export NIMBLE_PATH=${nimDepsPath}
+			  echo ${nimDepsPath}
+			  ls ${nimDepsPath}
+			  nimble setup
+			  nim c \
+				--noNimblePath \
+				--path:${nimDepsPath} \
+				--compileOnly \
+				--styleCheck:usages \
+				--styleCheck:error \
+				--skipUserCfg \
+				--threads:on \
+				--opt:speed \
+				-d:libp2p_autotls_support \
+				-d:libp2p_mix_experimental_exit_is_dest \
+				-d:libp2p_gossipsub_1_4 \
+				libp2p.nim
+			'';
           };
         }
       );
 
       devShells = forAllSystems (system:
         let
-		  pkgs = import nixpkgs { inherit system; };
-		  deps = import ./nix/deps.nix { inherit pkgs; };
+          pkgs = import nixpkgs { inherit system; };
+          deps = import ./nix/deps.nix { inherit pkgs; };
         in {
           default = pkgs.mkShell {
             nativeBuildInputs = [
               pkgs.nim-2_2
               pkgs.nimble
+              pkgs.makeWrapper
             ] ++ builtins.attrValues deps;
           };
         }
