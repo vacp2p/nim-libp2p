@@ -90,8 +90,8 @@ suite "KadDHT Bootstrap":
     check kad.rtable.buckets[staleBucketIndex].isStale()
 
     # Verify that the rest of non-empty buckets is fresh
-    for index in bucketIndices[1 ..^ 1]:
-      check not kad.rtable.buckets[index].isStale()
+    for i in 1 ..< bucketIndices.len:
+      check not kad.rtable.buckets[bucketIndices[i]].isStale()
 
     kad.findNodeCalls = @[]
     await kad.bootstrap()
