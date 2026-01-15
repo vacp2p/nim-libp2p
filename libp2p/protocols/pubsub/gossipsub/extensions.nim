@@ -16,7 +16,7 @@ proc noopPeerCallback(peer: PeerId) {.gcsafe, raises: [].} =
 
 type
   PeerExtensions = object
-    testExtension: bool
+    testExtensionSupported: bool
 
   PeerCallback* = proc(peer: PeerId) {.gcsafe, raises: [].}
 
@@ -45,14 +45,14 @@ proc new*(
   )
 
 proc toPeerExtensions(ctrlExtensions: ControlExtensions): PeerExtensions =
-  let testExtension = ctrlExtensions.testExtension.valueOr:
+  let testExtensionSupported = ctrlExtensions.testExtension.valueOr:
     false
-  PeerExtensions(testExtension: testExtension)
+  PeerExtensions(testExtensionSupported: testExtensionSupported)
 
 proc isExtensionNagotiatedTestExtensions(state: ExtensionsState, peerId: PeerId): bool =
   # does both this node peer support "test extension"?
   state.testExtensionConfig.isSome() and
-    state.peerExtensions.getOrDefault(peerId).testExtension
+    state.peerExtensions.getOrDefault(peerId).testExtensionSupported
 
 proc onHandleRPC(state: ExtensionsState, peerId: PeerId) =
   # extensions event called when node receives every RPC message
