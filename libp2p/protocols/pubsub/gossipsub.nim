@@ -268,7 +268,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
           ControlMessage(extensions: some(g.extensionsState.makeControlExtensions()))
         )
       ),
-      false,
+      true,
     )
 
   # when peer has codecs use that value, otherwise wait for connection to be 
