@@ -24,43 +24,58 @@
       );
     in {
 	  packages = forAllSystems (system:
-		let pkgs = import nixpkgs { inherit system; };
-		in {
-		  default = pkgs.stdenv.mkDerivation {
-			pname = "nim-libp2p";
-			version = "dev";
-			src = ./.;
+      let
+        pkgs = import nixpkgs { inherit system; };
+        src = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type:
+            let
+              rel = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
+            in
+            # Include vendor and any other dirs you need
+            builtins.match "^(vendor|libp2p|cbind|config\\.nims|nimble\\.lock)/" rel != null;
+        };
+      in {
+        default = pkgs.stdenv.mkDerivation {
+          pname = "nim-libp2p";
+          version = "dev";
+          inherit src;
 
-			nativeBuildInputs = [ pkgs.nim-2_2 pkgs.git pkgs.nimble ];
+          nativeBuildInputs = [ pkgs.nim-2_2 pkgs.git pkgs.nimble ];
 
-            buildPhase = ''
-              # export NIMBLE_DIR=$PWD/vendor/nimble
+          buildPhase = ''
+            if [ ! -d vendor ]; then
+              echo "vendor/ missing. Run ./scripts/vendor.sh"
+              exit 1
+            fi
 
-              # Match libp2p.nimble compile flags
-              nim c \
-                --compileOnly \
-                --styleCheck:usages \
-                --styleCheck:error \
-                --skipUserCfg \
-                --threads:on \
-                --opt:speed \
-                -d:libp2p_autotls_support \
-                -d:libp2p_mix_experimental_exit_is_dest \
-                -d:libp2p_gossipsub_1_4 \
-                libp2p.nim
-            '';
+            export NIMBLE_PATH=/nonexistent
 
-		  };
-		}
-	  );
+            nim c \
+              --noNimblePath \
+              --path:vendor \
+              --compileOnly \
+              --styleCheck:usages \
+              --styleCheck:error \
+              --skipUserCfg \
+              --threads:on \
+              --opt:speed \
+              -d:libp2p_autotls_support \
+              -d:libp2p_mix_experimental_exit_is_dest \
+              -d:libp2p_gossipsub_1_4 \
+              libp2p.nim
+          '';
+        };
+      }
+    );
 
-	  devShells = forAllSystems (system:
-		let pkgs = import nixpkgs { inherit system; };
-		in {
-		  default = pkgs.mkShell {
-			nativeBuildInputs = [ pkgs.nim-2_2 pkgs.nimble ];
-		  };
-		}
-	  );
-	};
+    devShells = forAllSystems (system:
+      let pkgs = import nixpkgs { inherit system; };
+      in {
+        default = pkgs.mkShell {
+          nativeBuildInputs = [ pkgs.nim-2_2 pkgs.nimble ];
+        };
+      }
+    );
+  };
 }
