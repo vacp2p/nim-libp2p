@@ -61,14 +61,14 @@ proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool =
   let record = kad.dataTable.get(key).valueOr:
     checkpoint("containsData: key not found: " & $key.shortLog())
     return false
-  
+
   if record.value != value:
     checkpoint(
       "containsData: value mismatch for " & $key.shortLog() & " - expected: " & $value &
         ", got: " & $record.value
     )
     return false
-  
+
   true
 
 proc containsNoData*(kad: KadDHT, key: Key): bool =

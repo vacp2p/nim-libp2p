@@ -190,13 +190,10 @@ suite "KadDHT Put":
     let key = kads[0].rtable.selfId
 
     # PUT_VALUE with no record at all
-    let msgNoRecord = Message(
-      msgType: MessageType.putValue,
-      key: key,
-      record: Opt.none(Record),
-    )
+    let msgNoRecord =
+      Message(msgType: MessageType.putValue, key: key, record: Opt.none(Record))
     await kads[0].handlePutValue(conn, msgNoRecord)
- 
+
     # No data should be stored
     check kads[0].containsNoData(key)
 
