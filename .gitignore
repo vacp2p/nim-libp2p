@@ -29,8 +29,6 @@ tests/**/test*[^.]*
 !tests/**/Dockerfile
 tests/*.xml
 
-# vendor file (nix build)
-/vendor/
-/.nimble-cache/
-/.vendor-ready
+# vendor dir (nix build)
+/vendor
 /result
