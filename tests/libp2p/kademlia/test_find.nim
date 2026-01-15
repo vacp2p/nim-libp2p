@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, sets, sequtils, tables
+import chronos, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
@@ -399,8 +399,8 @@ suite "KadDHT Find":
     state.shortlist[peer3] = xorDistance(peer3, targetKey, kads[0].rtable.config.hasher)
 
     # Mark peer1 and peer2 as responded
-    state.responded.incl(peer1)
-    state.responded.incl(peer2)
+    state.responded[peer1] = RespondedStatus.Success
+    state.responded[peer2] = RespondedStatus.Success
 
     # Only peer3 should be selectable
     let selected = state.selectCloserPeers(10)
