@@ -58,7 +58,12 @@ suite "TCP transport":
   basicTransportTest(tcpTransProvider, addressIP4, validAddresses, invalidAddresses)
   connectionTransportTest(tcpTransProvider, addressIP4)
   connectionTransportTest(tcpTransProvider, addressIP6)
-  streamTransportTest(tcpTransProvider, addressIP4, streamProvider)
+  streamTransportTest(
+    tcpTransProvider,
+    MultiAddress.init(addressIP4).get(),
+    Opt.some(MultiAddress.init(addressIP6).get()),
+    streamProvider,
+  )
 
   # tcp specific tests
   tcpTests()
