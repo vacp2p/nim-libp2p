@@ -21,7 +21,7 @@ suite "GossipSub Extensions":
 
   asyncTest "TestExtensions":
     var
-      (nagotiatedPeers, onNagotiated) = createCollectPeerCallback()
+      (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
       (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
     let
       numberOfNodes = 2
@@ -29,7 +29,7 @@ suite "GossipSub Extensions":
           numberOfNodes,
           gossip = true,
           testExtensionConfig = some(
-            TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)
+            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
           ),
         )
         .toGossipSub()
@@ -41,8 +41,8 @@ suite "GossipSub Extensions":
     let nodesPeerIdSorted = pluckPeerId(nodes).sorted()
     untilTimeout:
       pre:
-        let nagotiatedPeersSorted = nagotiatedPeers[].sorted()
+        let negotiatedPeersSorted = negotiatedPeers[].sorted()
         let handleRPCPeersSorted = handleRPCPeers[].sorted()
       check:
-        nagotiatedPeersSorted == nodesPeerIdSorted
+        negotiatedPeersSorted == nodesPeerIdSorted
         handleRPCPeersSorted == nodesPeerIdSorted

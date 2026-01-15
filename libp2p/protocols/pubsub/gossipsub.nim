@@ -272,7 +272,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
     )
 
   # when peer has codecs use that value, otherwise wait for connection to be 
-  # established then use protocol nagotiated from connection. 
+  # established then use protocol negotiated from connection. 
   # after peer codec is known, gossip sends extensions control message as first message
   # to this peer.
   if peer.codec != "":
@@ -1033,11 +1033,11 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     # by default, parameters will not have this config. because param is mainly used
     # in tests for testing purposes.
 
-    proc onNagotiated(id: PeerId) {.gcsafe, raises: [].} =
+    proc onNegotiated(id: PeerId) {.gcsafe, raises: [].} =
       g.peers.withValue(id, peer):
         g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
 
-    TestExtensionConfig(onNagotiated: onNagotiated)
+    TestExtensionConfig(onNegotiated: onNegotiated)
 
   return ExtensionsState.new(onMissbehaveExtensions, some(testExtensionConfig))
 

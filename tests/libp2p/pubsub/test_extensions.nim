@@ -43,78 +43,78 @@ suite "GossipSub Extensions":
   test "testExtensions - extension is configured, peer is not supporting":
     var
       (reportCount, onMissbehave) = createCountPeerCallback()
-      (nagotiatedCount, onNagotiated) = createCountPeerCallback()
+      (negotiatedCount, onNegotiated) = createCountPeerCallback()
       (handleRPCCount, onHandleRPC) = createCountPeerCallback()
       state = ExtensionsState.new(
         onMissbehave,
-        some(TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)),
+        some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
       )
 
-    # nagotiated in order: handleRPC, addPeer
+    # negotiated in order: handleRPC, addPeer
     state.handleRPC(peerId, ControlExtensions())
     state.addPeer(peerId)
     check:
       reportCount[] == 0
-      nagotiatedCount[] == 0
+      negotiatedCount[] == 0
       handleRPCCount[] == 0
 
-    # nagotiated in order: addPeer, handleRPC
+    # negotiated in order: addPeer, handleRPC
     state = ExtensionsState.new(
       onMissbehave,
-      some(TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)),
+      some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
     )
     state.addPeer(peerId)
     state.handleRPC(peerId, ControlExtensions())
     check:
       reportCount[] == 0
-      nagotiatedCount[] == 0
+      negotiatedCount[] == 0
       handleRPCCount[] == 0
 
   test "testExtensions - extension is configured, peer is supporting":
     test "node receives rpc then adds peer":
       var
         (reportCount, onMissbehave) = createCountPeerCallback()
-        (nagotiatedCount, onNagotiated) = createCountPeerCallback()
+        (negotiatedCount, onNegotiated) = createCountPeerCallback()
         (handleRPCCount, onHandleRPC) = createCountPeerCallback()
         state = ExtensionsState.new(
           onMissbehave,
           some(
-            TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)
+            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
           ),
         )
 
       state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
       check:
         reportCount[] == 0
-        nagotiatedCount[] == 0
+        negotiatedCount[] == 0
         handleRPCCount[] == 1
 
       state.addPeer(peerId)
       check:
         reportCount[] == 0
-        nagotiatedCount[] == 1
+        negotiatedCount[] == 1
         handleRPCCount[] == 1
 
     test "node adds peer then receives rpc":
       var
         (reportCount, onMissbehave) = createCountPeerCallback()
-        (nagotiatedCount, onNagotiated) = createCountPeerCallback()
+        (negotiatedCount, onNegotiated) = createCountPeerCallback()
         (handleRPCCount, onHandleRPC) = createCountPeerCallback()
         state = ExtensionsState.new(
           onMissbehave,
           some(
-            TestExtensionConfig(onNagotiated: onNagotiated, onHandleRPC: onHandleRPC)
+            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
           ),
         )
 
       state.addPeer(peerId)
       check:
         reportCount[] == 0
-        nagotiatedCount[] == 0
+        negotiatedCount[] == 0
         handleRPCCount[] == 0
 
       state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
       check:
         reportCount[] == 0
-        nagotiatedCount[] == 1
+        negotiatedCount[] == 1
         handleRPCCount[] == 1
