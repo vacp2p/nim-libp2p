@@ -7,38 +7,23 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[hashes, tables, sequtils, sets, heapqueue, times]
-import chronos, chronicles, results, stew/byteutils, nimcrypto/sha2
+import std/[sequtils, sets, times]
+import chronos, results, stew/byteutils
 import ../../[peerid, switch, multihash, cid, multicodec, routing_record]
 import ../../protobuf/minprotobuf
 import ../kademlia/types
 
 const DefaultSelfSPRRereshTime* = 10.minutes
 
-type
-  ServiceInfo* = object
-    id*: string
-    data*: seq[byte]
-
-  ExtPeerRecord* = object
-    peerId*: PeerId
-    seqNo*: uint64
-    addresses*: seq[AddressInfo]
-    services*: seq[ServiceInfo]
-
-  KademliaDiscovery* = ref object of KadDHT
-    services*: HashSet[ServiceInfo]
-    selfSignedLoop*: Future[void]
-
-# This is for internal use only
-proc hash*(service: ServiceInfo): Hash =
-  return service.id.hash()
+type KademliaDiscovery* = ref object of KadDHT
+  services*: HashSet[ServiceInfo]
+  selfSignedLoop*: Future[void]
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
 
 proc init*(
-    T: typedesc[ExtPeerRecord],
+    T: typedesc[ExtendedPeerRecord],
     peerInfo: PeerInfo,
     seqNo: uint64 = getTime().toUnix().uint64,
     services: seq[ServiceInfo] = @[],
@@ -49,34 +34,6 @@ proc init*(
     addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
     services: services,
   )
-
-proc init*(
-    T: typedesc[ExtPeerRecord],
-    peerId: PeerId,
-    addresses: seq[MultiAddress],
-    seqNo: uint64 = getTime().toUnix().uint64,
-    services: seq[ServiceInfo] = @[],
-): T =
-  T(
-    peerId: peerId,
-    seqNo: seqNo,
-    addresses: addresses.mapIt(AddressInfo(address: it)),
-    services: services,
-  )
-
-type SignedExtPeerRecord* = SignedPayload[ExtPeerRecord]
-
-proc payloadDomain*(T: typedesc[ExtPeerRecord]): string =
-  $multiCodec("libp2p-peer-record")
-
-proc payloadType*(T: typedesc[ExtPeerRecord]): seq[byte] =
-  "/libp2p/logos-routing-record/".toBytes()
-
-proc checkValid*(spr: SignedExtPeerRecord): Result[void, EnvelopeError] =
-  if not spr.data.peerId.match(spr.envelope.publicKey):
-    err(EnvelopeInvalidSignature)
-  else:
-    ok()
 
 type ExtEntryValidator* = ref object of EntryValidator
 method isValid*(

@@ -11,9 +11,9 @@ import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo]
 import ./kademlia
-import ./kademlia_discovery/[randomfind, types, protobuf]
+import ./kademlia_discovery/[randomfind, types]
 
-export randomfind, types, protobuf
+export randomfind, types
 
 logScope:
   topics = "kad-disco"
@@ -27,9 +27,9 @@ proc refreshSelfSignedPeerRecord(
     peerInfo: PeerInfo = disco.switch.peerInfo
     services: seq[ServiceInfo] = disco.services.toSeq()
 
-  let extPeerRecord = SignedExtPeerRecord.init(
+  let extPeerRecord = SignedExtendedPeerRecord.init(
     peerInfo.privateKey,
-    ExtPeerRecord(
+    ExtendedPeerRecord(
       peerId: peerInfo.peerId,
       seqNo: getTime().toUnix().uint64,
       addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
