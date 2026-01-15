@@ -145,37 +145,6 @@ suite "KadDHT Put":
       kads[0].containsNoData(msgKey)
       kads[0].containsNoData(recordKey)
 
-  asyncTest "PUT_VALUE response echoes request":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
-
-    connectNodes(kads[0], kads[1])
-
-    let key = kads[0].rtable.selfId
-    let value = @[1.byte, 2, 3, 4, 5]
-
-    # Build the PUT_VALUE request message
-    let request = Message(
-      msgType: MessageType.putValue,
-      key: key,
-      record: Opt.some(Record(key: key, value: Opt.some(value))),
-    )
-
-    let conn = await kads[1].switch.dial(
-      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
-    )
-
-    # Call handlePutValue directly - it writes the response to conn
-    await kads[0].handlePutValue(conn, request)
-
-    # Read the echoed response
-    let responseBytes = await conn.readLp(MaxMsgSize)
-    let response = Message.decode(responseBytes).value()
-
-    # Response should be identical to the request
-    check response == request
-
   asyncTest "PUT_VALUE with no record / no value - malformed message handling":
     let kads = await setupKadSwitches(2)
     defer:
@@ -208,6 +177,37 @@ suite "KadDHT Put":
 
     # No data should be stored
     check kads[0].containsNoData(key)
+
+  asyncTest "PUT_VALUE response echoes request":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
+    let value = @[1.byte, 2, 3, 4, 5]
+
+    # Build the PUT_VALUE request message
+    let request = Message(
+      msgType: MessageType.putValue,
+      key: key,
+      record: Opt.some(Record(key: key, value: Opt.some(value))),
+    )
+
+    let conn = await kads[1].switch.dial(
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+    )
+
+    # Call handlePutValue directly - it writes the response to conn
+    await kads[0].handlePutValue(conn, request)
+
+    # Read the echoed response
+    let responseBytes = await conn.readLp(MaxMsgSize)
+    let response = Message.decode(responseBytes).value()
+
+    # Response should be identical to the request
+    check response == request
 
   asyncTest "PUT_VALUE stores binary data with null and high bytes":
     let kads = await setupKadSwitches(2)
