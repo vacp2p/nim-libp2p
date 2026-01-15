@@ -8,9 +8,9 @@
 # those terms.
 {.used.}
 
-import std/[algorithm, sequtils, tables], results, chronos, chronicles
+import std/[algorithm, sequtils], results, chronos, chronicles
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[crypto]
+import ../../tools/[crypto, unittest]
 import ./mock_kademlia
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
@@ -57,13 +57,21 @@ proc countBucketEntries*(buckets: seq[Bucket], key: Key): uint32 =
         res += 1
   return res
 
-proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool {.raises: [].} =
-  try:
-    kad.dataTable[key].value == value
-  except KeyError:
-    false
+proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool =
+  let record = kad.dataTable.get(key).valueOr:
+    checkpoint("containsData: key not found: " & $key.shortLog())
+    return false
+  
+  if record.value != value:
+    checkpoint(
+      "containsData: value mismatch for " & $key.shortLog() & " - expected: " & $value &
+        ", got: " & $record.value
+    )
+    return false
+  
+  true
 
-proc containsNoData*(kad: KadDHT, key: Key): bool {.raises: [].} =
+proc containsNoData*(kad: KadDHT, key: Key): bool =
   not containsData(kad, key, @[])
 
 proc setupMockKadSwitch*(

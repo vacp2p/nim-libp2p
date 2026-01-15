@@ -10,7 +10,7 @@
 {.used.}
 
 import std/[times, tables], chronos
-import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/[protocols/kademlia, switch, builders, multihash]
 import ../../tools/[unittest]
 import ./utils.nim
 
@@ -113,3 +113,33 @@ suite "KadDHT Put":
     # Now the new value replaces the old one
     discard await kads[0].putValue(key, emptyVal)
     check kads[1].containsData(key, emptyVal)
+
+  asyncTest "PUT_VALUE rejects mismatched Message.key and Record.key":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    # Create two different keys to simulate mismatch
+    let msgKey = MultiHash.digest("sha2-256", [byte 0, 1, 2, 3, 4]).get().toKey()
+    let recordKey = MultiHash.digest("sha2-256", [byte 0, 0, 0, 0, 0]).get().toKey()
+    check msgKey != recordKey
+
+    # Build a malformed PUT_VALUE message with mismatched keys
+    let msg = Message(
+      msgType: MessageType.putValue,
+      key: msgKey,
+      record: Opt.some(Record(key: recordKey, value: Opt.some(@[1.byte, 2, 3, 4, 5]))),
+    )
+
+    # Send directly via handlePutValue to test the validation logic
+    let conn = await kads[1].switch.dial(
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+    )
+    await kads[0].handlePutValue(conn, msg)
+
+    # Neither key should have data stored - the request should be rejected
+    check:
+      kads[0].containsNoData(msgKey)
+      kads[0].containsNoData(recordKey)
