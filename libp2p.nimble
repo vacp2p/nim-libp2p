@@ -9,9 +9,8 @@ skipDirs = @["cbind", "examples", "interop", "performance", "tests", "tools"]
 
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
-  "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1",
+  "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
   "websock >= 0.2.1", "json_serialization >= 0.4.2", "unittest2", "results",
-  "https://github.com/status-im/nim-stew.git#b66168735d6f3841c5239c3169d3fe5fe98b1257",
   "https://github.com/vacp2p/nim-lsquic#f3fe33462601ea34eb2e8e9c357c92e61f8d121b",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
