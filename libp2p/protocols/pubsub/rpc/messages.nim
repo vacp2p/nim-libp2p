@@ -100,8 +100,6 @@ type
     messageID*: MessageId
     messageLength*: uint32
 
-  TestExtension* = object
-
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
@@ -250,9 +248,6 @@ proc byteSize(controlExtensions: Option[ControlExtensions]): int =
   else:
     4 # 4 byte for the bool aka uint32 - testExtension
 
-proc byteSize(testExtensions: TestExtension): int =
-  4 # 4 byte for the bool aka uint32 - it exists or it doesn't
-
 when defined(libp2p_gossipsub_1_4):
   static:
     expectedFields(
@@ -280,9 +275,7 @@ else:
       control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions)
 
 static:
-  expectedFields(
-    RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"]
-  )
+  expectedFields(RPCMsg, @["subscriptions", "messages", "control", "ping", "pong"])
 proc byteSize*(rpc: RPCMsg): int =
   result =
     rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) + rpc.ping.len +

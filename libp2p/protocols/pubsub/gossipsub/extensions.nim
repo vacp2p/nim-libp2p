@@ -22,13 +22,13 @@ type
     onHandleRPC: PeerCallback
 
   ExtensionsState* = ref object
-    sentExtensions: HashSet[PeerId] # extensions was sent to peer
-    peerExtensions: Table[PeerId, PeerExtensions] # supported peer extensions
+    sentExtensions: HashSet[PeerId] # nodes extensions were sent to peer
+    peerExtensions: Table[PeerId, PeerExtensions] # received peer's extensions
     onMissbehave: PeerCallback
 
     # Extensions data & configuration:
     testExtensionConfig: Option[TestExtensionConfig]
-      # when config is set then this node supports "text extension"
+      # when config is set then this node supports "test extension"
 
 proc noopPeerCallback(peer: PeerId) {.gcsafe, raises: [].} =
   discard
@@ -57,7 +57,7 @@ proc toPeerExtensions(ctrlExtensions: ControlExtensions): PeerExtensions =
   PeerExtensions(testExtension: testExtension)
 
 proc isExtensionNagotiatedTestExtensions(state: ExtensionsState, peerId: PeerId): bool =
-  # this node supports "test extension" and peers supports it 
+  # does both this node peer support "test extension"?
   state.testExtensionConfig.isSome() and
     state.peerExtensions.getOrDefault(peerId).testExtension
 
@@ -75,13 +75,17 @@ proc onNagotiated(state: ExtensionsState, peerId: PeerId) =
     state.testExtensionConfig.get().onNagotiated(peerId)
 
 proc addPeer*(state: ExtensionsState, peerId: PeerId) =
+  # called after peer has connected to node and extensions control message is sent by gossipsub.
+
   state.sentExtensions.incl(peerId)
 
-  # and if node has received control extensions from peer then extensions have nagotiated
+  # when node has received control extensions from peer then extensions have nagotiated
   if peerId in state.peerExtensions:
     state.onNagotiated(peerId)
 
 proc removePeer*(state: ExtensionsState, peerId: PeerId) =
+  # called after peer has disconnected from node
+
   if state.peerExtensions.hasKey(peerId):
     state.peerExtensions.del(peerId)
   state.sentExtensions.excl(peerId)
@@ -91,13 +95,13 @@ proc handleRPC*(
 ) =
   if state.peerExtensions.hasKey(peerId):
     # peer is sending control message again but this node has already received extensions.
-    # this is protocol error, therfore nodes reports missbehaioir.
+    # this is protocol error, therfore nodes reports missbehaviour.
     state.onMissbehave(peerId)
   else:
     # peer is sending extensions control message for the first time
     state.peerExtensions[peerId] = ctrlExtensions.toPeerExtensions()
 
-    # and if node sent it's extensions then extensions have nagotiated
+    # when node has sent it's extensions then extensions have nagotiated
     if peerId in state.sentExtensions:
       state.onNagotiated(peerId)
 

@@ -259,7 +259,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   when defined(libp2p_gossipsub_1_4):
     peer.preambleBudget = PreamblePeerBudget
 
-  proc addPeer() =
+  proc sendExtensionsControl() =
     g.extensionsState.addPeer(peer.peerId)
     g.send(
       peer,
@@ -271,15 +271,19 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
       false,
     )
 
+  # when peer has codecs use that value, otherwise wait for connection to be 
+  # established then use protocol nagotiated from connection. 
+  # after peer codec is known, gossip sends extensions control message as first message
+  # to this peer.
   if peer.codec != "":
     if peer.codec == GossipSubCodec_13:
-      addPeer()
+      sendExtensionsControl()
   else:
     proc addPeerAfterConnected(): Future[void] {.async.} =
       await peer.connectedFut
 
       if peer.sendConn.protocol == GossipSubCodec_13:
-        addPeer()
+        sendExtensionsControl()
 
     asyncSpawn addPeerAfterConnected()
 
@@ -339,6 +343,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   pubSubPeer.stopSendNonPriorityTask()
 
+  g.extensionsState.removePeer(peer)
+  
   procCall FloodSub(g).unsubscribePeer(peer)
 
 proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool) =
