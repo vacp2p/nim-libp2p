@@ -82,12 +82,11 @@ proc handlePutValue*(
     error "Record key is different than Message key", msg = msg, conn = conn
     return
 
-  let entryRecord =
-    try:
-      EntryRecord(value: record.value.get(), time: $times.now().utc)
-    except KeyError:
-      error "No key, value or timeReceived in buffer", msg = msg, conn = conn
-      return
+  let value = record.value.valueOr:
+    error "No value in record", msg = msg, conn = conn
+    return
+
+  let entryRecord = EntryRecord(value: value, time: $times.now().utc)
 
   # Value sanitisation done. Start insertion process
   if not kad.config.validator.isValid(msg.key, entryRecord):
