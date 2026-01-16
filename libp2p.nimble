@@ -1,7 +1,7 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "1.14.3"
+version = "1.15.0"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
