@@ -179,7 +179,7 @@ proc populateRoutingTable*(kad: KadDHT, count: int) =
   for i in 0 ..< count:
     discard kad.rtable.insert(randomPeerId())
 
-proc getPeersfromRoutingTable*(kad: KadDHT): seq[PeerId] =
+proc getPeersFromRoutingTable*(kad: KadDHT): seq[PeerId] =
   var peersInTable: seq[PeerId]
   for bucket in kad.rtable.buckets:
     for entry in bucket.peers:
