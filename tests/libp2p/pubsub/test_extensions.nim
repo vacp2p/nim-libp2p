@@ -18,61 +18,37 @@ import ./utils
 suite "GossipSub Extensions":
   let peerId = PeerId.random(rng).get()
 
-  test "default unconfigured state":
-    # tets does not assert anything explictly, but it should not crash
-    # when unconfigured state is used
-    var state = ExtensionsState.new()
-    state.handleRPC(peerId, ControlExtensions())
-    state.addPeer(peerId)
-    state.handleRPC(peerId, ControlExtensions())
-    state.removePeer(peerId)
+  test "state":
+    # holds tests about ExtensionsState general functionality
 
-  test "state reports missbehaving":
-    var (reportedPeers, onMissbehave) = createCollectPeerCallback()
+    test "default unconfigured state":
+      # tets does not assert anything explictly, but it should not crash
+      # when unconfigured state is used
+      var state = ExtensionsState.new()
+      state.handleRPC(peerId, ControlExtensions())
+      state.addPeer(peerId)
+      state.addPeer(peerId)
+      state.handleRPC(peerId, ControlExtensions())
+      state.removePeer(peerId)
+      state.removePeer(peerId)
 
-    var state = ExtensionsState.new(onMissbehave)
+    test "state reports missbehaving":
+      var (reportedPeers, onMissbehave) = createCollectPeerCallback()
 
-    # peer sends ControlExtensions for the first time
-    state.handleRPC(peerId, ControlExtensions())
+      var state = ExtensionsState.new(onMissbehave)
 
-    # when peer sends ControlExtensions after that, missbehavior should be reported
-    for i in 1 ..< 5:
+      # peer sends ControlExtensions for the first time
       state.handleRPC(peerId, ControlExtensions())
 
-      check reportedPeers[] == repeat[PeerId](peerId, i)
+      # when peer sends ControlExtensions after that, missbehavior should be reported
+      for i in 1 ..< 5:
+        state.handleRPC(peerId, ControlExtensions())
+        check reportedPeers[] == repeat[PeerId](peerId, i)
 
-  test "testExtensions - extension is configured, peer is not supporting":
-    var
-      (reportedPeers, onMissbehave) = createCollectPeerCallback()
-      (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-      (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
-      state = ExtensionsState.new(
-        onMissbehave,
-        some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
-      )
+  test "testExtension":
+    # test holds all tests related to "Test Extension"
 
-    # negotiated in order: handleRPC, addPeer
-    state.handleRPC(peerId, ControlExtensions())
-    state.addPeer(peerId)
-    check:
-      reportedPeers[].len == 0
-      negotiatedPeers[].len == 0
-      handleRPCPeers[].len == 0
-
-    # negotiated in order: addPeer, handleRPC
-    state = ExtensionsState.new(
-      onMissbehave,
-      some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
-    )
-    state.addPeer(peerId)
-    state.handleRPC(peerId, ControlExtensions())
-    check:
-      reportedPeers[].len == 0
-      negotiatedPeers[].len == 0
-      handleRPCPeers[].len == 0
-
-  test "testExtensions - extension is configured, peer is supporting":
-    test "node receives rpc then adds peer":
+    test "extension is configured, peer is not supporting":
       var
         (reportedPeers, onMissbehave) = createCollectPeerCallback()
         (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
@@ -84,38 +60,98 @@ suite "GossipSub Extensions":
           ),
         )
 
-      state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
-      check:
-        reportedPeers[].len == 0
-        negotiatedPeers[].len == 0
-        handleRPCPeers[] == @[peerId]
-
-      state.addPeer(peerId)
-      check:
-        reportedPeers[].len == 0
-        negotiatedPeers[] == @[peerId]
-        handleRPCPeers[] == @[peerId]
-
-    test "node adds peer then receives rpc":
-      var
-        (reportedPeers, onMissbehave) = createCollectPeerCallback()
-        (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-        (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
-        state = ExtensionsState.new(
-          onMissbehave,
-          some(
-            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
-          ),
-        )
-
+      # negotiated in order: handleRPC, addPeer
+      state.handleRPC(peerId, ControlExtensions())
       state.addPeer(peerId)
       check:
         reportedPeers[].len == 0
         negotiatedPeers[].len == 0
         handleRPCPeers[].len == 0
 
-      state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
+      # negotiated in order: addPeer, handleRPC
+      state = ExtensionsState.new(
+        onMissbehave,
+        some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
+      )
+      state.addPeer(peerId)
+      state.handleRPC(peerId, ControlExtensions())
       check:
         reportedPeers[].len == 0
-        negotiatedPeers[] == @[peerId]
-        handleRPCPeers[] == @[peerId]
+        negotiatedPeers[].len == 0
+        handleRPCPeers[].len == 0
+
+    test "extension is configured, peer is supporting":
+      test "node receives rpc then adds peer":
+        var
+          (reportedPeers, onMissbehave) = createCollectPeerCallback()
+          (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
+          (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+          state = ExtensionsState.new(
+            onMissbehave,
+            some(
+              TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
+            ),
+          )
+
+        state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
+        check:
+          reportedPeers[].len == 0
+          negotiatedPeers[].len == 0
+          handleRPCPeers[] == @[peerId]
+
+        state.addPeer(peerId)
+        check:
+          reportedPeers[].len == 0
+          negotiatedPeers[] == @[peerId]
+          handleRPCPeers[] == @[peerId]
+
+      test "node adds peer then receives rpc":
+        var
+          (reportedPeers, onMissbehave) = createCollectPeerCallback()
+          (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
+          (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+          state = ExtensionsState.new(
+            onMissbehave,
+            some(
+              TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
+            ),
+          )
+
+        state.addPeer(peerId)
+        check:
+          reportedPeers[].len == 0
+          negotiatedPeers[].len == 0
+          handleRPCPeers[].len == 0
+
+        state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
+        check:
+          reportedPeers[].len == 0
+          negotiatedPeers[] == @[peerId]
+          handleRPCPeers[] == @[peerId]
+      
+      test "peer is removed right after sending control message":
+        var
+          (reportedPeers, onMissbehave) = createCollectPeerCallback()
+          (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
+          (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+          state = ExtensionsState.new(
+            onMissbehave,
+            some(
+              TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
+            ),
+          )
+        
+        # node receives, ControlExtensions message from peer
+        state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
+        
+        # then peer is removed right after (it disconnects)
+        state.removePeer(peerId)
+        
+        # then node sends ControlExtensions message
+        state.addPeer(peerId)
+
+        # should be no nagotiated peers, since peer was removed
+        check:
+          reportedPeers[].len == 0
+          negotiatedPeers[].len == 0 
+          handleRPCPeers[] ==  @[peerId]
