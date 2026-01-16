@@ -19,7 +19,7 @@ suite "GossipSub Extensions":
   teardown:
     checkTrackers()
 
-  asyncTest "TestExtensions":
+  asyncTest "TestExtension":
     var
       (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
       (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()

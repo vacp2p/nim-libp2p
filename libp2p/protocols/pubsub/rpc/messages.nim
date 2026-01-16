@@ -243,11 +243,11 @@ proc byteSize(controlIMreceiving: ControlIMReceiving): int =
 proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
 
+static:
+  expectedFields(ControlExtensions, @["testExtension"])
 proc byteSize(T: typedesc[ControlExtensions]): int =
   1 # 1 byte for the bool - testExtension
 
-static:
-  expectedFields(ControlExtensions, @["testExtension"])
 proc byteSize(controlExtensions: Option[ControlExtensions]): int =
   if controlExtensions.isNone:
     0

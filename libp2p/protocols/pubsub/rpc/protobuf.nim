@@ -17,7 +17,7 @@ import messages, ../../../peerid, ../../../utility, ../../../protobuf/minprotobu
 logScope:
   topics = "libp2p pubsubprotobuf"
 
-const filedIdRPCMsgTestExtensions = 6492434
+const filedIdRPCMsgTestExtension = 6492434
 
 when defined(libp2p_protobuf_metrics):
   import metrics
@@ -110,7 +110,7 @@ proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
   if extensions.testExtension.isSome():
-    ipb.write(filedIdRPCMsgTestExtensions, extensions.testExtension.get())
+    ipb.write(filedIdRPCMsgTestExtension, extensions.testExtension.get())
 
   if ipb.buffer.len > 0:
     ipb.finish()
@@ -296,7 +296,7 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
   # encoded with 4 bytes
 
   var testExtension: uint64
-  if ?pb.getField(filedIdRPCMsgTestExtensions, testExtension):
+  if ?pb.getField(filedIdRPCMsgTestExtension, testExtension):
     trace "decodeExtensions: read testExtension", testExtension = testExtension
     control.testExtension = some(bool(testExtension))
   else:
@@ -453,7 +453,7 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
   if msg.testExtension.isSome():
     # if set write empty bytes, this will set filed tag
-    pb.write(filedIdRPCMsgTestExtensions, newSeq[byte](0))
+    pb.write(filedIdRPCMsgTestExtension, newSeq[byte](0))
 
   if len(pb.buffer) > 0:
     pb.finish()
@@ -473,7 +473,7 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
 
   var testExtension: seq[byte]
-  if ?pb.getField(filedIdRPCMsgTestExtensions, testExtension):
+  if ?pb.getField(filedIdRPCMsgTestExtension, testExtension):
     rpcMsg.testExtension = some(TestExtensionRPC())
   else:
     rpcMsg.testExtension = none(TestExtensionRPC)

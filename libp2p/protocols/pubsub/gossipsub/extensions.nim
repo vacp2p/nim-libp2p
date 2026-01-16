@@ -49,7 +49,7 @@ proc toPeerExtensions(ctrlExtensions: ControlExtensions): PeerExtensions =
     false
   PeerExtensions(testExtensionSupported: testExtensionSupported)
 
-proc isExtensionNegotiatedTestExtensions(state: ExtensionsState, peerId: PeerId): bool =
+proc isExtensionNegotiatedTestExtension(state: ExtensionsState, peerId: PeerId): bool =
   # does both this node peer support "test extension"?
   state.testExtensionConfig.isSome() and
     state.peerExtensions.getOrDefault(peerId).testExtensionSupported
@@ -57,14 +57,14 @@ proc isExtensionNegotiatedTestExtensions(state: ExtensionsState, peerId: PeerId)
 proc onHandleRPC(state: ExtensionsState, peerId: PeerId) =
   # extensions event called when node receives every RPC message
 
-  if state.isExtensionNegotiatedTestExtensions(peerId):
+  if state.isExtensionNegotiatedTestExtension(peerId):
     state.testExtensionConfig.get().onHandleRPC(peerId)
 
 proc onNegotiated(state: ExtensionsState, peerId: PeerId) =
   # extension event called when both sides have negotiated (exchanged) extensions.
   # it will be called only once per connection session as soon as extensiosn are exchanged.
 
-  if state.isExtensionNegotiatedTestExtensions(peerId):
+  if state.isExtensionNegotiatedTestExtension(peerId):
     state.testExtensionConfig.get().onNegotiated(peerId)
 
 proc addPeer*(state: ExtensionsState, peerId: PeerId) =
