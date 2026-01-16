@@ -520,7 +520,12 @@ suite "GossipSub Component - Message Handling":
       not nodes[0].mesh.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
   asyncTest "GossipSub floodPublish with bandwidthEstimatebps":
-    let nodes = generateNodes(20, gossip = true).toGossipSub()
+    let nodes = generateNodes(
+        20,
+        gossip = true,
+        transport = TransportType.TCP, # use TCP becasue it's more reliable (temporarily)
+      )
+      .toGossipSub()
 
     nodes[0].parameters.floodPublish = true
     nodes[0].parameters.bandwidthEstimatebps = 100_000_000
