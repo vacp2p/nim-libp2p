@@ -156,6 +156,14 @@ proc connectNodes*(kad1, kad2: KadDHT) =
   kad2.switch.peerStore[AddressBook][kad1.switch.peerInfo.peerId] =
     kad1.switch.peerInfo.addrs
 
+proc connectNodesStar*(nodes: seq[KadDHT]) =
+  ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
+  ## 
+  for dialer in nodes:
+    for listener in nodes:
+      if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
+        connectNodes(dialer, listener)
+
 proc hasKey*(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
     for ent in b.peers:
