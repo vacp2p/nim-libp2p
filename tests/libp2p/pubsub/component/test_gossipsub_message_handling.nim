@@ -536,11 +536,11 @@ suite "GossipSub Component - Message Handling":
     # before publishing messages, wait for begining of Node0 heartbeat interval
     # to make sure that all publications are made within same heartbeat. 
     await nodes[0].waitForHeartbeatByEvent(1)
-
-    # becasue of bandwith configuration, the first message is deliver to less
-    # number of nodes, then the second message. 
-    # that's because first message is larger then the second.
     check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == 12
+
+    # do it again but with smaller message, and expect to be deliver to more nodes, 
+    # then the first message. that's because first message is larger then the second.
+    await nodes[0].waitForHeartbeatByEvent(1)
     check (await nodes[0].publish(topic, newSeq[byte](500_001))) == 17
 
   asyncTest "GossipSub floodPublish limit without bandwidthEstimatebps":
