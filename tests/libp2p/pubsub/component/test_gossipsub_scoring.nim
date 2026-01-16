@@ -57,22 +57,22 @@ suite "GossipSub Component - Scoring":
       handlerFut2.finished() == false
 
   asyncTest "Should not rate limit decodable messages below the size allowed":
-    let
-      nodes = generateNodes(
-          2,
-          gossip = true,
-          overheadRateLimit = Opt.some((20, 1.millis)),
-          verifySignature = false,
-            # Avoid being disconnected by failing signature verification
-        )
-        .toGossipSub()
-      rateLimitHits = currentRateLimitHits()
+    let nodes = generateNodes(
+        2,
+        gossip = true,
+        overheadRateLimit = Opt.some((20, 1.millis)),
+        verifySignature = false,
+          # Avoid being disconnected by failing signature verification
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
+
+    let rateLimitHits = currentRateLimitHits()
 
     nodes[0].broadcast(
       nodes[0].mesh[topic],
@@ -97,22 +97,22 @@ suite "GossipSub Component - Scoring":
       currentRateLimitHits() == rateLimitHits
 
   asyncTest "Should rate limit undecodable messages above the size allowed":
-    let
-      nodes = generateNodes(
-          2,
-          gossip = true,
-          overheadRateLimit = Opt.some((20, 1.millis)),
-          verifySignature = false,
-            # Avoid being disconnected by failing signature verification
-        )
-        .toGossipSub()
-      rateLimitHits = currentRateLimitHits()
+    let nodes = generateNodes(
+        2,
+        gossip = true,
+        overheadRateLimit = Opt.some((20, 1.millis)),
+        verifySignature = false,
+          # Avoid being disconnected by failing signature verification
+      )
+      .toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
+
+    let rateLimitHits = currentRateLimitHits()
 
     # Simulate sending an undecodable message
     await nodes[1].peers[nodes[0].switch.peerInfo.peerId].sendEncoded(
@@ -439,8 +439,8 @@ suite "GossipSub Component - Scoring":
       validatedMessageCount == messagesToSend * (numberOfNodes - 1)
       centerNode.getPeerTopicInfo(node1peerId, topic).invalidMessageDeliveries == 0.0
         # valid messages
-      centerNode.getPeerTopicInfo(node2peerId, topic).invalidMessageDeliveries == 5.0
-        # invalid messages
+      centerNode.getPeerTopicInfo(node2peerId, topic).invalidMessageDeliveries ==
+        messagesToSend.float64 # invalid messages
 
     # When scoring hartbeat occurs (2nd scoring heartbeat)
     # Then peer scores are calculated

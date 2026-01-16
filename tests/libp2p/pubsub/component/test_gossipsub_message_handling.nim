@@ -369,7 +369,7 @@ suite "GossipSub Component - Message Handling":
     let obs0 = PubSubObserver(onSend: onSend)
     let obs1 = PubSubObserver(onRecv: onRecv, onValidated: onValidated)
 
-    let nodes = generateNodes(2, gossip = true).toGossipSub()
+    let nodes = generateNodes(2, gossip = true, extensionsDisabled = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)

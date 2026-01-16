@@ -184,6 +184,7 @@ type
     sendIDontWantOnPublish*: bool
 
     # Extensions configuration
+    extensionsDisabled*: bool
     testExtensionConfig*: Option[TestExtensionConfig]
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]

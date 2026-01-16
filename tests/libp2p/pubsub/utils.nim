@@ -206,6 +206,7 @@ proc generateNodes*(
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
     disconnectBadPeers: bool = false,
+    extensionsDisabled: bool = false,
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
@@ -243,6 +244,7 @@ proc generateNodes*(
             p.publishThreshold = publishThreshold
             p.graylistThreshold = graylistThreshold
             p.disconnectBadPeers = disconnectBadPeers
+            p.extensionsDisabled = extensionsDisabled
             p.testExtensionConfig = testExtensionConfig
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)

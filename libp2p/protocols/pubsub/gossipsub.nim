@@ -75,6 +75,9 @@ when defined(libp2p_expensive_metrics):
     labels = ["id", "topic"],
   )
 
+proc gossipExtensionsSupported(proto: string): bool =
+  return proto == GossipSubCodec_13 or proto == GossipSubCodec_14
+
 proc init*(
     _: type[GossipSubParams],
     pruneBackoff = 1.minutes,
@@ -112,6 +115,7 @@ proc init*(
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish = false,
+    extensionsDisabled = false,
     testExtensionConfig = none(TestExtensionConfig),
 ): GossipSubParams =
   GossipSubParams(
@@ -151,6 +155,7 @@ proc init*(
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
+    extensionsDisabled: extensionsDisabled,
     testExtensionConfig: testExtensionConfig,
   )
 
@@ -275,17 +280,18 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   # established then use protocol negotiated from connection. 
   # after peer codec is known, gossip sends extensions control message as first message
   # to this peer.
-  if peer.codec != "":
-    if peer.codec == GossipSubCodec_13:
-      sendExtensionsControl()
-  else:
-    proc addPeerAfterConnected(): Future[void] {.async.} =
-      await peer.connectedFut
-
-      if peer.sendConn.protocol == GossipSubCodec_13:
+  if not g.parameters.extensionsDisabled:
+    if peer.codec != "":
+      if gossipExtensionsSupported(peer.codec):
         sendExtensionsControl()
+    else:
+      proc addPeerAfterConnected(): Future[void] {.async.} =
+        await peer.connectedFut
 
-    asyncSpawn addPeerAfterConnected()
+        if gossipExtensionsSupported(peer.sendConn.protocol):
+          sendExtensionsControl()
+
+      asyncSpawn addPeerAfterConnected()
 
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
@@ -1025,6 +1031,9 @@ proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
       await g.addDirectPeer(id, addrs)
 
 proc createExtensionsState(g: GossipSub): ExtensionsState =
+  if g.parameters.extensionsDisabled:
+    return ExtensionsState.new() # noop state
+
   proc onMissbehaveExtensions(id: PeerId) {.gcsafe, raises: [].} =
     g.peers.withValue(id, peer):
       peer[].behaviourPenalty += 0.1
