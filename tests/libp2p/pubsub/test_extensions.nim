@@ -22,7 +22,7 @@ suite "GossipSub Extensions":
     # holds tests about ExtensionsState general functionality
 
     test "default unconfigured state":
-      # tets does not assert anything explictly, but it should not crash
+      # test does not assert anything explictly, but it should not crash
       # when unconfigured state is used
       var state = ExtensionsState.new()
       state.handleRPC(peerId, ControlExtensions())
@@ -34,7 +34,6 @@ suite "GossipSub Extensions":
 
     test "state reports missbehaving":
       var (reportedPeers, onMissbehave) = createCollectPeerCallback()
-
       var state = ExtensionsState.new(onMissbehave)
 
       # peer sends ControlExtensions for the first time
@@ -44,6 +43,34 @@ suite "GossipSub Extensions":
       for i in 1 ..< 5:
         state.handleRPC(peerId, ControlExtensions())
         check reportedPeers[] == repeat[PeerId](peerId, i)
+
+    test "state reports missbehaving - many peers":
+      var (reportedPeers, onMissbehave) = createCollectPeerCallback()
+      var state = ExtensionsState.new(onMissbehave)
+
+      var peers = newSeq[PeerId]()
+      for i in 0 ..< 5:
+        let pid = PeerId.random(rng).get()
+        state.handleRPC(pid, ControlExtensions())
+        state.handleRPC(pid, ControlExtensions())
+        peers.add(pid)
+
+        check reportedPeers[] == peers
+
+    test "state peer is removed":
+      var (reportedPeers, onMissbehave) = createCollectPeerCallback()
+      var state = ExtensionsState.new(onMissbehave)
+
+      for i in 0 ..< 5:
+        let pid = PeerId.random(rng).get()
+        state.handleRPC(pid, ControlExtensions())
+
+        # when peer is removed state is cleared, so second handleRPC()
+        # call will not cause missbehaviour
+        state.removePeer(pid)
+        state.handleRPC(pid, ControlExtensions())
+
+        check reportedPeers[].len == 0
 
   test "testExtension":
     # test holds all tests related to "Test Extension"
@@ -128,30 +155,3 @@ suite "GossipSub Extensions":
           reportedPeers[].len == 0
           negotiatedPeers[] == @[peerId]
           handleRPCPeers[] == @[peerId]
-      
-      test "peer is removed right after sending control message":
-        var
-          (reportedPeers, onMissbehave) = createCollectPeerCallback()
-          (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-          (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
-          state = ExtensionsState.new(
-            onMissbehave,
-            some(
-              TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
-            ),
-          )
-        
-        # node receives, ControlExtensions message from peer
-        state.handleRPC(peerId, ControlExtensions(testExtension: some(true)))
-        
-        # then peer is removed right after (it disconnects)
-        state.removePeer(peerId)
-        
-        # then node sends ControlExtensions message
-        state.addPeer(peerId)
-
-        # should be no nagotiated peers, since peer was removed
-        check:
-          reportedPeers[].len == 0
-          negotiatedPeers[].len == 0 
-          handleRPCPeers[] ==  @[peerId]
