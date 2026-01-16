@@ -539,7 +539,7 @@ suite "GossipSub Component - Message Handling":
     check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == 12
 
     # do it again but with smaller message, and expect to be deliver to more nodes, 
-    # then the first message. that's because first message is larger then the second.
+    # then the first message. that's because second message is smaller then the first.
     await nodes[0].waitForHeartbeatByEvent(1)
     check (await nodes[0].publish(topic, newSeq[byte](500_001))) == 17
 
