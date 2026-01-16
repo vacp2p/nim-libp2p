@@ -14,11 +14,13 @@ import std/[options, tables, sets, heapqueue]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
+import extensions
 
 export options, tables, sets
 
 const
   GossipSubCodec_14* = "/meshsub/1.4.0"
+  GossipSubCodec_13* = "/meshsub/1.3.0"
   GossipSubCodec_12* = "/meshsub/1.2.0"
   GossipSubCodec_11* = "/meshsub/1.1.0"
   GossipSubCodec_10* = "/meshsub/1.0.0"
@@ -181,6 +183,10 @@ type
     # Broadcast an IDONTWANT message automatically when the message exceeds the IDONTWANT message size threshold
     sendIDontWantOnPublish*: bool
 
+    # Extensions configuration
+    extensionsDisabled*: bool
+    testExtensionConfig*: Option[TestExtensionConfig]
+
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
   OngoingReceivesStore* = PreambleStore
@@ -209,7 +215,7 @@ type
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
-
+    extensionsState*: ExtensionsState
     peerStats*: Table[PeerId, PeerStats]
     parameters*: GossipSubParams
     topicParams*: Table[string, TopicParams]

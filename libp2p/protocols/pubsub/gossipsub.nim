@@ -35,7 +35,9 @@ when defined(libp2p_gossipsub_1_4):
 import results
 export results
 
-import ./gossipsub/[types, scoring, behavior, preamblestore], ../../utils/heartbeat
+import
+  ./gossipsub/[types, scoring, behavior, preamblestore, extensions],
+  ../../utils/heartbeat
 
 export types, scoring, behavior, pubsub
 
@@ -72,6 +74,9 @@ when defined(libp2p_expensive_metrics):
     "number of messages received",
     labels = ["id", "topic"],
   )
+
+proc gossipExtensionsSupported(proto: string): bool =
+  return proto == GossipSubCodec_13 or proto == GossipSubCodec_14
 
 proc init*(
     _: type[GossipSubParams],
@@ -110,6 +115,8 @@ proc init*(
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish = false,
+    extensionsDisabled = false,
+    testExtensionConfig = none(TestExtensionConfig),
 ): GossipSubParams =
   GossipSubParams(
     explicit: true,
@@ -148,6 +155,8 @@ proc init*(
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
+    extensionsDisabled: extensionsDisabled,
+    testExtensionConfig: testExtensionConfig,
   )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -233,6 +242,7 @@ method init*(g: GossipSub) =
   when defined(libp2p_gossipsub_1_4):
     g.codecs &= GossipSubCodec_14
 
+  g.codecs &= GossipSubCodec_13
   g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
@@ -253,6 +263,35 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
   when defined(libp2p_gossipsub_1_4):
     peer.preambleBudget = PreamblePeerBudget
+
+  proc sendExtensionsControl() =
+    g.extensionsState.addPeer(peer.peerId)
+    g.send(
+      peer,
+      RPCMsg(
+        control: some(
+          ControlMessage(extensions: some(g.extensionsState.makeControlExtensions()))
+        )
+      ),
+      true,
+    )
+
+  # when peer has codecs use that value, otherwise wait for connection to be 
+  # established then use protocol negotiated from connection. 
+  # after peer codec is known, gossip sends extensions control message as first message
+  # to this peer.
+  if not g.parameters.extensionsDisabled:
+    if peer.codec != "":
+      if gossipExtensionsSupported(peer.codec):
+        sendExtensionsControl()
+    else:
+      proc addPeerAfterConnected(): Future[void] {.async.} =
+        await peer.connectedFut
+
+        if gossipExtensionsSupported(peer.sendConn.protocol):
+          sendExtensionsControl()
+
+      asyncSpawn addPeerAfterConnected()
 
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
@@ -310,6 +349,8 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   pubSubPeer.stopSendNonPriorityTask()
 
+  g.extensionsState.removePeer(peer)
+
   procCall FloodSub(g).unsubscribePeer(peer)
 
 proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool) =
@@ -355,7 +396,13 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
+proc handleExtensions(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
+  control.extensions.withValue(ctrlExtensions):
+    g.extensionsState.handleRPC(peer.peerId, ctrlExtensions)
+
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
+  g.handleExtensions(peer, control)
+
   g.handlePrune(peer, control.prune)
 
   var respControl: ControlMessage
@@ -983,6 +1030,26 @@ proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
     for id, addrs in g.parameters.directPeers:
       await g.addDirectPeer(id, addrs)
 
+proc createExtensionsState(g: GossipSub): ExtensionsState =
+  if g.parameters.extensionsDisabled:
+    return ExtensionsState.new() # noop state
+
+  proc onMissbehaveExtensions(id: PeerId) {.gcsafe, raises: [].} =
+    g.peers.withValue(id, peer):
+      peer[].behaviourPenalty += 0.1
+
+  let testExtensionConfig = g.parameters.testExtensionConfig.valueOr:
+    # by default, parameters will not have this config. because param is mainly used
+    # in tests for testing purposes.
+
+    proc onNegotiated(id: PeerId) {.gcsafe, raises: [].} =
+      g.peers.withValue(id, peer):
+        g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
+
+    TestExtensionConfig(onNegotiated: onNegotiated)
+
+  return ExtensionsState.new(onMissbehaveExtensions, some(testExtensionConfig))
+
 method start*(
     g: GossipSub
 ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
@@ -1038,6 +1105,7 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
 
   # init gossip stuff
   g.mcache = MCache.init(g.parameters.historyGossip, g.parameters.historyLength)
+  g.extensionsState = g.createExtensionsState()
 
 method getOrCreatePeer*(
     g: GossipSub,
@@ -1050,4 +1118,5 @@ method getOrCreatePeer*(
     peer.overheadRateLimitOpt =
       Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
   peer.maxNumElementsInNonPriorityQueue = g.parameters.maxNumElementsInNonPriorityQueue
+
   return peer

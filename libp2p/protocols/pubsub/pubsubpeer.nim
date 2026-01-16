@@ -126,7 +126,7 @@ type
     onEvent*: OnEvent # Connectivity updates for peer
     codec*: string # the protocol that this peer joined from
     sendConn*: Connection # cached send connection
-    connectedFut: Future[void]
+    connectedFut*: Future[void]
     address*: Option[MultiAddress]
     peerId*: PeerId
     handler*: RPCHandler

@@ -27,6 +27,7 @@ import
     protocols/pubsub/pubsubpeer,
     protocols/pubsub/peertable,
     protocols/pubsub/gossipsub,
+    protocols/pubsub/gossipsub/extensions,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
@@ -205,6 +206,8 @@ proc generateNodes*(
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
     disconnectBadPeers: bool = false,
+    extensionsDisabled: bool = false,
+    testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
@@ -241,6 +244,8 @@ proc generateNodes*(
             p.publishThreshold = publishThreshold
             p.graylistThreshold = graylistThreshold
             p.disconnectBadPeers = disconnectBadPeers
+            p.extensionsDisabled = extensionsDisabled
+            p.testExtensionConfig = testExtensionConfig
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p
@@ -621,3 +626,15 @@ proc addDirectPeerStar*[T: PubSub](nodes: seq[T]) {.async.} =
         futs.add(addDirectPeer(node, target))
 
   await allFuturesRaising(futs)
+
+proc createCollectPeerCallback*(): (ref seq[PeerId], PeerCallback) =
+  let peers = new seq[PeerId]
+  peers[] = @[]
+
+  let cb: PeerCallback = proc(peerId: PeerId) {.closure, gcsafe.} =
+    peers[].add(peerId)
+
+  (peers, cb)
+
+proc pluckPeerId*[T: PubSub](nodes: seq[T]): seq[PeerId] =
+  nodes.mapIt(it.peerInfo.peerId)
