@@ -48,6 +48,9 @@ proc waitForHeartbeatByEvent*[T: PubSub](node: T, multiplier: int = 1) {.async.}
     node.heartbeatEvents &= evnt
     await evnt.wait()
 
+proc waitForNextHeartbeat*[T: PubSub](node: T) {.async.} =
+  await node.waitForHeartbeatByEvent(1)
+
 type
   TestGossipSub* = ref object of GossipSub
   DValues* = object
