@@ -533,6 +533,10 @@ suite "GossipSub Component - Message Handling":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
+    # before publishing messages, wait for begining of Node0 heartbeat interval
+    # to make sure that all publications are made within same heartbeat. 
+    await nodes[0].waitForHeartbeatByEvent(1)
+
     # becasue of bandwith configuration, the first message is deliver to less
     # number of nodes, then the second message. 
     # that's because first message is larger then the second.
