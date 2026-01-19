@@ -29,7 +29,7 @@ method handleGetValue*(
 ) {.async: (raises: [CancelledError]).} =
   let wrongKey = kad.mismatchedRecordKey.valueOr:
     # No malicious behavior - call base implementation
-    await get.handleGetValue(kad, conn, msg)
+    await handleGetValue(KadDHT(kad), conn, msg)
     return
 
   # Malicious behavior: return record with wrong Record.key

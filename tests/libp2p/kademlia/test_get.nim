@@ -256,7 +256,7 @@ suite "KadDHT Get":
 
     let
       requestedKey = victim.rtable.selfId
-      wrongKey = @[0xFF.byte, 0xFF, 0xFF, 0xFF]
+      wrongKey = @[1.byte, 1, 1, 1]
 
     let (maliciousSwitch, malicious) = await setupMockKadSwitch(
       PermissiveValidator(), CandSelector(), mismatchedRecordKey = Opt.some(wrongKey)
