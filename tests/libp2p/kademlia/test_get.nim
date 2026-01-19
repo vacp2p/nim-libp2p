@@ -262,7 +262,7 @@ suite "KadDHT Get":
     let (maliciousSwitch, malicious) = await setupMockKadSwitch(
       PermissiveValidator(), CandSelector(), mismatchedRecordKey = Opt.some(wrongKey)
     )
- 
+
     defer:
       await victimSwitch.stop()
       await maliciousSwitch.stop()

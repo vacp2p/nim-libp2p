@@ -81,6 +81,11 @@ proc getValue*(
       debug "GetValue returned empty record", reply = reply
       return
 
+    if record.key != key:
+      debug "GetValue returned record with mismatched key",
+        expected = key, got = record.key
+      return
+
     let value = record.value.valueOr:
       debug "GetValue returned record with no value", reply = reply
       return
