@@ -262,7 +262,7 @@ suite "GossipSub Component - Heartbeat":
 
     # Before publishing messages, wait for begining of Node1 heartbeat interval
     # to futher increase chances of all publications to be received within same heartbeat. 
-    await nodes[1].waitForHeartbeatByEvent(1)
+    await nodes[1].waitForNextHeartbeat()
 
     # When Node0 sends large messages to the topic
     # (it will also send iDontWants control messages)
