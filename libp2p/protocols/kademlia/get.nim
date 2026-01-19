@@ -13,6 +13,9 @@ import ../../[peerid, switch, multihash]
 import ../protocol
 import ./[protobuf, types, find, put]
 
+logScope:
+  topics = "kad-dht get"
+
 proc dispatchGetVal(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Opt[Message]] {.
