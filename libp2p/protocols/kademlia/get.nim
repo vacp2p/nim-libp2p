@@ -124,9 +124,9 @@ proc getValue*(
 
   ok(best)
 
-proc handleGetValue*(
+method handleGetValue*(
     kad: KadDHT, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
+) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key
 
   let entryRecord = kad.dataTable.get(key).valueOr:

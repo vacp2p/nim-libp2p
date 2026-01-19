@@ -7,14 +7,17 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
+import std/times
 import chronos, chronicles
-import ../../../libp2p/protocols/kademlia/[types, routingtable]
-import ../../../libp2p/peerid
+import ../../../libp2p/protocols/kademlia/[types, routingtable, protobuf, get]
+import ../../../libp2p/[peerid, stream/connection]
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 type MockKadDHT* = ref object of KadDHT
   findNodeCalls*: seq[Key]
+  mismatchedRecordKey*: Opt[Key]
+    ## If set, handleGetValue returns Record.key with this value
 
 method findNode*(
     kad: MockKadDHT, target: Key
@@ -23,3 +26,30 @@ method findNode*(
   kad.findNodeCalls.add(target)
   ## Return only locally known peers
   return kad.rtable.findClosestPeerIds(target, kad.config.replication)
+
+method handleGetValue*(
+    kad: MockKadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let wrongKey = kad.mismatchedRecordKey.valueOr:
+    # No malicious behavior - call base implementation
+    await get.handleGetValue(kad, conn, msg)
+    return
+
+  # Malicious behavior: return record with wrong Record.key
+  let maliciousResponse = Message(
+    msgType: MessageType.getValue,
+    key: msg.key, # Message.key matches request (looks legitimate)
+    record: Opt.some(
+      Record(
+        key: wrongKey, # Record.key does NOT match - this is the attack
+        value: Opt.some(@[1.byte, 2, 3, 4]),
+        timeReceived: Opt.some($times.now().utc),
+      )
+    ),
+    closerPeers: @[],
+  )
+
+  try:
+    await conn.writeLp(maliciousResponse.encode().buffer)
+  except LPStreamError as exc:
+    debug "Failed to send malicious get-value response", conn = conn, err = exc.msg

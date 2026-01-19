@@ -247,3 +247,38 @@ suite "KadDHT Get":
         valueLocal
       (await kads[0].getValue(key, quorumOverride = Opt.some(1))).get().value ==
         valueLocal
+
+  asyncTest "GET_VALUE rejects record where Record.key does not match requested key":
+    # Create a normal node (victim) and a malicious node
+    # The malicious node returns GET_VALUE responses with Record.key != requested key
+    let (victimSwitch, victim) =
+      await setupKadSwitch(PermissiveValidator(), CandSelector())
+
+    # Create a different key that the malicious node will put in Record.key
+    let
+      requestedKey = victim.rtable.selfId
+      wrongKey = @[0xFF.byte, 0xFF, 0xFF, 0xFF] # clearly different from requestedKey
+
+    let (maliciousSwitch, malicious) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), mismatchedRecordKey = Opt.some(wrongKey)
+    )
+ 
+    defer:
+      await victimSwitch.stop()
+      await maliciousSwitch.stop()
+
+    # Connect victim to malicious node
+    connectNodes(victim, malicious)
+
+    # Victim should NOT have any data for the requested key
+    check victim.containsNoData(requestedKey)
+
+    # When victim calls getValue, malicious node returns a record with wrong Record.key
+    # The implementation SHOULD reject this response because Record.key != requested key
+    let record = await victim.getValue(requestedKey, quorumOverride = Opt.some(1))
+
+    # Expected behavior: getValue should fail because the only response has mismatched key
+    check:
+      record.isErr()
+      victim.containsNoData(requestedKey)
+      victim.containsNoData(wrongKey)
