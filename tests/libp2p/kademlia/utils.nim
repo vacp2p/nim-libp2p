@@ -72,7 +72,7 @@ proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool =
   true
 
 proc containsNoData*(kad: KadDHT, key: Key): bool =
-  not containsData(kad, key, @[])
+  kad.dataTable.get(key).isNone()
 
 proc setupMockKadSwitch*(
     validator: EntryValidator,
@@ -80,6 +80,7 @@ proc setupMockKadSwitch*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+    mismatchedRecordKey: Opt[Key] = Opt.none(Key),
 ): Future[(Switch, MockKadDHT)] {.async.} =
   let switch = createSwitch()
   let kad = MockKadDHT.new(
@@ -94,6 +95,7 @@ proc setupMockKadSwitch*(
       republishProvidedKeysInterval = republishProvidedKeysInterval,
     ),
   )
+  kad.mismatchedRecordKey = mismatchedRecordKey
 
   switch.mount(kad)
   await switch.start()

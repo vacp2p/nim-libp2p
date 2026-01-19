@@ -13,6 +13,9 @@ import ../../[peerid, switch, multihash]
 import ../protocol
 import ./[protobuf, types, find, put]
 
+logScope:
+  topics = "kad-dht get"
+
 proc dispatchGetVal(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Opt[Message]] {.
@@ -81,6 +84,11 @@ proc getValue*(
       debug "GetValue returned empty record", reply = reply
       return
 
+    if record.key != key:
+      debug "GetValue returned record with mismatched key",
+        expected = key, got = record.key
+      return
+
     let value = record.value.valueOr:
       debug "GetValue returned record with no value", reply = reply
       return
@@ -124,9 +132,9 @@ proc getValue*(
 
   ok(best)
 
-proc handleGetValue*(
+method handleGetValue*(
     kad: KadDHT, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
+) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key
 
   let entryRecord = kad.dataTable.get(key).valueOr:
