@@ -29,6 +29,6 @@ tests/**/test*[^.]*
 !tests/**/Dockerfile
 tests/*.xml
 
-# vendor dir (nix build)
-/vendor
-/result
+# nix-related lock files (auto generated)
+nimble.lock
+nix/deps.nix

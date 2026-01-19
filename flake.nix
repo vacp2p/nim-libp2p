@@ -42,13 +42,10 @@
             ];
 
             buildPhase = ''
-              ls -R ${deps.bearssl}/bearssl/csources
-
-              ls ${deps.bearssl}
-
               nim c \
                 --noNimblePath \
                 ${nimPathArgs} \
+                --path:${deps.dnsclient}/src \
                 --compileOnly \
                 --styleCheck:usages \
                 --styleCheck:error \
