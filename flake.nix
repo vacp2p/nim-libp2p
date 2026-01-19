@@ -24,7 +24,10 @@
         let
           pkgs = import nixpkgs { inherit system; };
           deps = import ./nix/deps.nix { inherit pkgs; };
-		  nimDepsPath = deps.fetchedDeps;
+          nimPathArgs =
+            builtins.concatStringsSep " "
+              (map (p: "--path:${p}")
+                   (builtins.attrValues deps));
         in {
           default = pkgs.stdenv.mkDerivation {
             pname = "nim-libp2p";
@@ -36,23 +39,27 @@
               pkgs.nim-2_2
               pkgs.git
               pkgs.nimble
-            ] ++ builtins.attrValues deps;
+            ];
 
             buildPhase = ''
-			  export NIMBLE_PATH=${nimDepsPath}
-			  nim c \
-				--path:${nimDepsPath} \
-				--compileOnly \
-				--styleCheck:usages \
-				--styleCheck:error \
-				--skipUserCfg \
-				--threads:on \
-				--opt:speed \
-				-d:libp2p_autotls_support \
-				-d:libp2p_mix_experimental_exit_is_dest \
-				-d:libp2p_gossipsub_1_4 \
-				libp2p.nim
-			'';
+              ls -R ${deps.bearssl}/bearssl/csources
+
+              ls ${deps.bearssl}
+
+              nim c \
+                --noNimblePath \
+                ${nimPathArgs} \
+                --compileOnly \
+                --styleCheck:usages \
+                --styleCheck:error \
+                --skipUserCfg \
+                --threads:on \
+                --opt:speed \
+                -d:libp2p_autotls_support \
+                -d:libp2p_mix_experimental_exit_is_dest \
+                -d:libp2p_gossipsub_1_4 \
+                libp2p.nim
+            '';
           };
         }
       );
