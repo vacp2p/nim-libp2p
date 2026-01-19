@@ -417,7 +417,7 @@ method getOrCreatePeer*(
   p.peers[peerId] = pubSubPeer
   pubSubPeer.observers = p.observers
 
-  onNewPeer(p, pubSubPeer)
+  p.onNewPeer(pubSubPeer)
 
   # metrics
   libp2p_pubsub_peers.set(p.peers.len.int64)
