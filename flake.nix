@@ -36,16 +36,11 @@
               pkgs.nim-2_2
               pkgs.git
               pkgs.nimble
-              pkgs.makeWrapper
             ] ++ builtins.attrValues deps;
 
             buildPhase = ''
 			  export NIMBLE_PATH=${nimDepsPath}
-			  echo ${nimDepsPath}
-			  ls ${nimDepsPath}
-			  nimble setup
 			  nim c \
-				--noNimblePath \
 				--path:${nimDepsPath} \
 				--compileOnly \
 				--styleCheck:usages \

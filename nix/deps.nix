@@ -11,141 +11,141 @@ let
       rev = "26f2ef3ae0ec72a2a75bfe557e02e88f6a31c189";
       sha256 = "1n8n36kad50m97b64y7bzzknz9n7szffxhp0bqpk3g2v7zpda8sw";
     }}
-    mkdir -p $out/unittest2
-    cp -r $src/* $out/unittest2/
+    mkdir -p $out/pkgs2/unittest2
+    cp -r $src/* $out/pkgs2/unittest2/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-bearssl";
       rev = "11e798b62b8e6beabe958e048e9e24c7e0f9ee63";
       sha256 = "1mrzi7g6b8w3gphl5w9why0dssswsljla35hbhvm76fjvj6vvzqn";
     }}
-    mkdir -p $out/bearssl
-    cp -r $src/* $out/bearssl/
+    mkdir -p $out/pkgs2/bearssl
+    cp -r $src/* $out/pkgs2/bearssl/
     src=${pkgs.fetchgit {
       url = "https://github.com/vacp2p/bearssl_pkey_decoder";
       rev = "21dd3710df9345ed2ad8bf8f882761e07863b8e0";
       sha256 = "0bl3f147zmkazbhdkr4cj1nipf9rqiw3g4hh1j424k9hpl55zdpg";
     }}
-    mkdir -p $out/bearssl_pkey_decoder
-    cp -r $src/* $out/bearssl_pkey_decoder/
+    mkdir -p $out/pkgs2/bearssl_pkey_decoder
+    cp -r $src/* $out/pkgs2/bearssl_pkey_decoder/
     src=${pkgs.fetchgit {
       url = "https://github.com/arnetheduck/nim-results";
       rev = "df8113dda4c2d74d460a8fa98252b0b771bf1f27";
       sha256 = "1h7amas16sbhlr7zb7n3jb5434k98ji375vzw72k1fsc86vnmcr9";
     }}
-    mkdir -p $out/results
-    cp -r $src/* $out/results/
+    mkdir -p $out/pkgs2/results
+    cp -r $src/* $out/pkgs2/results/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-stew";
       rev = "b66168735d6f3841c5239c3169d3fe5fe98b1257";
       sha256 = "10n71vfa6klzd9dmal96jy0hiqk04gaj8wc9g91z6fclryf0yq92";
     }}
-    mkdir -p $out/stew
-    cp -r $src/* $out/stew/
+    mkdir -p $out/pkgs2/stew
+    cp -r $src/* $out/pkgs2/stew/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-faststreams";
       rev = "ce27581a3e881f782f482cb66dc5b07a02bd615e";
       sha256 = "0y6bw2scnmr8cxj4fg18w7f34l2bh9qwg5nhlgd84m9fpr5bqarn";
     }}
-    mkdir -p $out/faststreams
-    cp -r $src/* $out/faststreams/
+    mkdir -p $out/pkgs2/faststreams
+    cp -r $src/* $out/pkgs2/faststreams/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-serialization";
       rev = "b0f2fa32960ea532a184394b0f27be37bd80248b";
       sha256 = "0wip1fjx7ka39ck1g1xvmyarzq1p5dlngpqil6zff8k8z5skiz27";
     }}
-    mkdir -p $out/serialization
-    cp -r $src/* $out/serialization/
+    mkdir -p $out/pkgs2/serialization
+    cp -r $src/* $out/pkgs2/serialization/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-json-serialization";
       rev = "c343b0e243d9e17e2c40f3a8a24340f7c4a71d44";
       sha256 = "0i8sq51nqj8lshf6bfixaz9a7sq0ahsbvq3chkxdvv4khsqvam91";
     }}
-    mkdir -p $out/json_serialization
-    cp -r $src/* $out/json_serialization/
+    mkdir -p $out/pkgs2/json_serialization
+    cp -r $src/* $out/pkgs2/json_serialization/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-testutils";
       rev = "e4d37dc1652d5c63afb89907efb5a5e812261797";
       sha256 = "0nv0a9jm5b1rn3y52cxvyj8xz3jg235mp0xbirfp2cda0icgy1si";
     }}
-    mkdir -p $out/testutils
-    cp -r $src/* $out/testutils/
+    mkdir -p $out/pkgs2/testutils
+    cp -r $src/* $out/pkgs2/testutils/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-chronicles";
       rev = "27ec507429a4eb81edc20f28292ee8ec420be05b";
       sha256 = "1xx9fcfwgcaizq3s7i3s03mclz253r5j8va38l9ycl19fcbc96z9";
     }}
-    mkdir -p $out/chronicles
-    cp -r $src/* $out/chronicles/
+    mkdir -p $out/pkgs2/chronicles
+    cp -r $src/* $out/pkgs2/chronicles/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-http-utils";
       rev = "c53852d9e24205b6363bba517fa8ee7bde823691";
       sha256 = "1b332smfyp2yvhvfjrfqy4kvh9pc5w6hqh17f1yclz5z1j5xdpf1";
     }}
-    mkdir -p $out/httputils
-    cp -r $src/* $out/httputils/
+    mkdir -p $out/pkgs2/httputils
+    cp -r $src/* $out/pkgs2/httputils/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-chronos";
       rev = "712f9937e46a9ba1949230e8e119d776aea1c6bb";
       sha256 = "1x3ljjcflm5lv7bm49w38c3b3kbls05i7lclv8hpi0hgf8g6k9xa";
     }}
-    mkdir -p $out/chronos
-    cp -r $src/* $out/chronos/
+    mkdir -p $out/pkgs2/chronos
+    cp -r $src/* $out/pkgs2/chronos/
     src=${pkgs.fetchgit {
       url = "https://github.com/ba0f3/dnsclient.nim";
       rev = "23214235d4784d24aceed99bbfe153379ea557c8";
       sha256 = "03mf3lw5c0m5nq9ppa49nylrl8ibkv2zzlc0wyhqg7w09kz6hks6";
     }}
-    mkdir -p $out/dnsclient
-    cp -r $src/* $out/dnsclient/
+    mkdir -p $out/pkgs2/dnsclient
+    cp -r $src/* $out/pkgs2/dnsclient/
     src=${pkgs.fetchgit {
       url = "https://github.com/vacp2p/nim-jwt.git";
       rev = "18f8378de52b241f321c1f9ea905456e89b95c6f";
       sha256 = "1986czmszdxj6g9yr7xn1fx8y2y9mwpb3f1bn9nc6973qawsdm0p";
     }}
-    mkdir -p $out/jwt
-    cp -r $src/* $out/jwt/
+    mkdir -p $out/pkgs2/jwt
+    cp -r $src/* $out/pkgs2/jwt/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-zlib";
       rev = "c71efff5fd1721362b3363dc7d0e2a4c0dbc6453";
       sha256 = "0y7a70iknvrj6j53pfyda89yp82lf60y926ij0yqc6c0ixkgzrcp";
     }}
-    mkdir -p $out/zlib
-    cp -r $src/* $out/zlib/
+    mkdir -p $out/pkgs2/zlib
+    cp -r $src/* $out/pkgs2/zlib/
     src=${pkgs.fetchgit {
       url = "https://github.com/cheatfate/nimcrypto";
       rev = "b3dbc9c4d08e58c5b7bfad6dc7ef2ee52f2f4c08";
       sha256 = "1v4rz42lwcazs6isi3kmjylkisr84mh0kgmlqycx4i885dn3g0l4";
     }}
-    mkdir -p $out/nimcrypto
-    cp -r $src/* $out/nimcrypto/
+    mkdir -p $out/pkgs2/nimcrypto
+    cp -r $src/* $out/pkgs2/nimcrypto/
     src=${pkgs.fetchgit {
       url = "https://github.com/vacp2p/nim-lsquic";
       rev = "f3fe33462601ea34eb2e8e9c357c92e61f8d121b";
       sha256 = "1y1a34pnxdw4v0ys0xxlivdbm4crdy2kji4ajxmhb6sn5kv3f2h5";
     }}
-    mkdir -p $out/lsquic
-    cp -r $src/* $out/lsquic/
+    mkdir -p $out/pkgs2/lsquic
+    cp -r $src/* $out/pkgs2/lsquic/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-metrics";
       rev = "11d0cddfb0e711aa2a8c75d1892ae24a64c299fc";
       sha256 = "1jrf2cf7v3iqjsk6grzvivxic1shhaxnvab6d35rxs2kcy6b5dv0";
     }}
-    mkdir -p $out/metrics
-    cp -r $src/* $out/metrics/
+    mkdir -p $out/pkgs2/metrics
+    cp -r $src/* $out/pkgs2/metrics/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-secp256k1";
       rev = "b526c4b436809aa1cfe650026d796cf7b8328b91";
       sha256 = "0xrkjbngxrbwf4bf1xmy1wnl48ycddcddglna4bqpdqrpjcr1n30";
     }}
-    mkdir -p $out/secp256k1
-    cp -r $src/* $out/secp256k1/
+    mkdir -p $out/pkgs2/secp256k1
+    cp -r $src/* $out/pkgs2/secp256k1/
     src=${pkgs.fetchgit {
       url = "https://github.com/status-im/nim-websock";
       rev = "35ae76f1559e835c80f9c1a3943bf995d3dd9eb5";
       sha256 = "1j6dklzb6b6bv2aiglbiyflja2vdpmyxfirv98f49y62mykq0yrw";
     }}
-    mkdir -p $out/websock
-    cp -r $src/* $out/websock/
+    mkdir -p $out/pkgs2/websock
+    cp -r $src/* $out/pkgs2/websock/
   '';
 in
 {

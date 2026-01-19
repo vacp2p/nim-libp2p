@@ -17,6 +17,7 @@ if ! command -v nix-prefetch-git >/dev/null; then
   exit 1
 fi
 
+nimble lock
 if [ ! -f "$LOCKFILE" ]; then
   echo "error: nimble.lock not found (run 'nimble lock')"
   exit 1
@@ -65,8 +66,8 @@ jq -c '
       rev = "$rev";
       sha256 = "$sha";
     }}
-    mkdir -p \$out/$name
-    cp -r \$src/* \$out/$name/
+    mkdir -p \$out/pkgs2/$name
+    cp -r \$src/* \$out/pkgs2/$name/
 EOF
 
   echo "[*] Added $name"
