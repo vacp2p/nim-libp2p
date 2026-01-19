@@ -13,7 +13,7 @@ from std/times import now, utc
 import chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
-import ./utils
+import ./[mock_kademlia, utils]
 
 suite "KadDHT Get":
   teardown:
@@ -249,27 +249,19 @@ suite "KadDHT Get":
         valueLocal
 
   asyncTest "GET_VALUE rejects record where Record.key does not match requested key":
-    # Create a normal node (victim) and a malicious node
-    # The malicious node returns GET_VALUE responses with Record.key != requested key
-    let (victimSwitch, victim) =
-      await setupKadSwitch(PermissiveValidator(), CandSelector())
-
     let
-      requestedKey = victim.rtable.selfId
-      wrongKey = @[1.byte, 1, 1, 1]
-
-    let (maliciousSwitch, malicious) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), mismatchedRecordKey = Opt.some(wrongKey)
-    )
-
+      (victimSwitch, victim) =
+        await setupKadSwitch(PermissiveValidator(), CandSelector())
+      (maliciousSwitch, malicious) = await setupMockKadSwitch(
+        PermissiveValidator(), CandSelector(), getValueResponse = MismatchedKey
+      )
     defer:
       await victimSwitch.stop()
       await maliciousSwitch.stop()
 
-    # Connect victim to malicious node
     connectNodes(victim, malicious)
 
-    # Victim doesn't have any data for the requested key
+    let requestedKey = victim.rtable.selfId
     check victim.containsNoData(requestedKey)
 
     # When victim calls getValue, malicious node returns a record with wrong Record.key
@@ -279,4 +271,49 @@ suite "KadDHT Get":
     check:
       record.isErr()
       victim.containsNoData(requestedKey)
-      victim.containsNoData(wrongKey)
+
+  asyncTest "GET_VALUE rejects response without record":
+    let
+      (victimSwitch, victim) =
+        await setupKadSwitch(PermissiveValidator(), CandSelector())
+      (maliciousSwitch, malicious) = await setupMockKadSwitch(
+        PermissiveValidator(), CandSelector(), getValueResponse = EmptyRecord
+      )
+    defer:
+      await victimSwitch.stop()
+      await maliciousSwitch.stop()
+
+    connectNodes(victim, malicious)
+
+    let requestedKey = victim.rtable.selfId
+    check victim.containsNoData(requestedKey)
+
+    # When victim calls getValue, malicious node returns a response without record
+    let record = await victim.getValue(requestedKey, quorumOverride = Opt.some(1))
+
+    check:
+      record.isErr()
+      victim.containsNoData(requestedKey)
+
+  asyncTest "GET_VALUE rejects record without value":
+    let
+      (victimSwitch, victim) =
+        await setupKadSwitch(PermissiveValidator(), CandSelector())
+      (maliciousSwitch, malicious) = await setupMockKadSwitch(
+        PermissiveValidator(), CandSelector(), getValueResponse = NoValue
+      )
+    defer:
+      await victimSwitch.stop()
+      await maliciousSwitch.stop()
+
+    connectNodes(victim, malicious)
+
+    let requestedKey = victim.rtable.selfId
+    check victim.containsNoData(requestedKey)
+
+    # When victim calls getValue, malicious node returns a record without value
+    let record = await victim.getValue(requestedKey, quorumOverride = Opt.some(1))
+
+    check:
+      record.isErr()
+      victim.containsNoData(requestedKey)

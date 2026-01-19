@@ -80,7 +80,7 @@ proc setupMockKadSwitch*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
-    mismatchedRecordKey: Opt[Key] = Opt.none(Key),
+    getValueResponse: GetValueResponseType = Normal,
 ): Future[(Switch, MockKadDHT)] {.async.} =
   let switch = createSwitch()
   let kad = MockKadDHT.new(
@@ -95,7 +95,7 @@ proc setupMockKadSwitch*(
       republishProvidedKeysInterval = republishProvidedKeysInterval,
     ),
   )
-  kad.mismatchedRecordKey = mismatchedRecordKey
+  kad.getValueResponse = getValueResponse
 
   switch.mount(kad)
   await switch.start()
