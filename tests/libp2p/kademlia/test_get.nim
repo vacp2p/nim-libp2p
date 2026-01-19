@@ -254,10 +254,9 @@ suite "KadDHT Get":
     let (victimSwitch, victim) =
       await setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    # Create a different key that the malicious node will put in Record.key
     let
       requestedKey = victim.rtable.selfId
-      wrongKey = @[0xFF.byte, 0xFF, 0xFF, 0xFF] # clearly different from requestedKey
+      wrongKey = @[0xFF.byte, 0xFF, 0xFF, 0xFF]
 
     let (maliciousSwitch, malicious) = await setupMockKadSwitch(
       PermissiveValidator(), CandSelector(), mismatchedRecordKey = Opt.some(wrongKey)
@@ -270,14 +269,13 @@ suite "KadDHT Get":
     # Connect victim to malicious node
     connectNodes(victim, malicious)
 
-    # Victim should NOT have any data for the requested key
+    # Victim doesn't have any data for the requested key
     check victim.containsNoData(requestedKey)
 
     # When victim calls getValue, malicious node returns a record with wrong Record.key
-    # The implementation SHOULD reject this response because Record.key != requested key
     let record = await victim.getValue(requestedKey, quorumOverride = Opt.some(1))
 
-    # Expected behavior: getValue should fail because the only response has mismatched key
+    # getValue should fail because the only response has mismatched key
     check:
       record.isErr()
       victim.containsNoData(requestedKey)

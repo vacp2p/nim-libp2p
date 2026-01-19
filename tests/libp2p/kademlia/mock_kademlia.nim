@@ -7,12 +7,9 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/times
-import chronos, chronicles
+import chronos, chronicles, std/times
 import ../../../libp2p/protocols/kademlia/[types, routingtable, protobuf, get]
 import ../../../libp2p/[peerid, stream/connection]
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 type MockKadDHT* = ref object of KadDHT
   findNodeCalls*: seq[Key]
@@ -38,10 +35,10 @@ method handleGetValue*(
   # Malicious behavior: return record with wrong Record.key
   let maliciousResponse = Message(
     msgType: MessageType.getValue,
-    key: msg.key, # Message.key matches request (looks legitimate)
+    key: msg.key, # Message.key matches request
     record: Opt.some(
       Record(
-        key: wrongKey, # Record.key does NOT match - this is the attack
+        key: wrongKey, # Record.key does NOT match
         value: Opt.some(@[1.byte, 2, 3, 4]),
         timeReceived: Opt.some($times.now().utc),
       )
