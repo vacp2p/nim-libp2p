@@ -213,7 +213,7 @@ suite "KadDHT Find":
       await stopNodes(kads)
 
     # Routing table is empty (no peers connected)
-    check kads[0].getPeersfromRoutingTable().len == 0
+    check kads[0].getPeersFromRoutingTable().len == 0
 
     let peerIds = await kads[0].findNode(randomPeerId().toKey())
 
@@ -250,7 +250,7 @@ suite "KadDHT Find":
 
     # Insert peers into routing table
     kads[0].populateRoutingTable(30)
-    let peersInTable = kads[0].getPeersfromRoutingTable()
+    let peersInTable = kads[0].getPeersFromRoutingTable()
 
     # Initialize LookupState for a random target
     let targetKey = randomPeerId().toKey()
@@ -279,7 +279,7 @@ suite "KadDHT Find":
 
     # Insert peers into routing table
     kads[0].populateRoutingTable(10)
-    let peersInTable = kads[0].getPeersfromRoutingTable()
+    let peersInTable = kads[0].getPeersFromRoutingTable()
 
     # Initialize LookupState
     let targetKey = randomPeerId().toKey()
