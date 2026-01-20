@@ -82,8 +82,8 @@
 
   chronos = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-chronos";
-    rev = "0646c444fce7c7ed08ef6f2c9a7abfd172ffe655";
-    sha256 = "1r499jl0lhnjq7hgddwgjl0gh3y1mprnqkhk0h6yh3cwgsmr5ym9";
+    rev = "712f9937e46a9ba1949230e8e119d776aea1c6bb";
+    sha256 = "1x3ljjcflm5lv7bm49w38c3b3kbls05i7lclv8hpi0hgf8g6k9xa";
     fetchSubmodules = true;
   };
 
@@ -117,8 +117,8 @@
 
   lsquic = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-lsquic";
-    rev = "f3fe33462601ea34eb2e8e9c357c92e61f8d121b";
-    sha256 = "0n6igvv3rv4wy6hif0xbvjz9jcja0ncshfs02zhpn63r3bblg6x4";
+    rev = "d94c6dc59ec343cfbbde3dd93ee2d69d49f9c512";
+    sha256 = "182mqmip40965h49y5zdzarc845yi42ld1mbak399sxk1d0s4l8j";
     fetchSubmodules = true;
   };
 

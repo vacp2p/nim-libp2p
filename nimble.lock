@@ -143,7 +143,7 @@
     },
     "chronos": {
       "version": "4.0.4",
-      "vcsRevision": "0646c444fce7c7ed08ef6f2c9a7abfd172ffe655",
+      "vcsRevision": "712f9937e46a9ba1949230e8e119d776aea1c6bb",
       "url": "https://github.com/status-im/nim-chronos",
       "downloadMethod": "git",
       "dependencies": [
@@ -154,7 +154,7 @@
         "unittest2"
       ],
       "checksums": {
-        "sha1": "455802a90204d8ad6b31d53f2efff8ebfe4c834a"
+        "sha1": "03e96742e7148c38767c028c23a99cf316672f1c"
       }
     },
     "dnsclient": {
@@ -205,7 +205,7 @@
     },
     "lsquic": {
       "version": "0.0.1",
-      "vcsRevision": "f3fe33462601ea34eb2e8e9c357c92e61f8d121b",
+      "vcsRevision": "d94c6dc59ec343cfbbde3dd93ee2d69d49f9c512",
       "url": "https://github.com/vacp2p/nim-lsquic",
       "downloadMethod": "git",
       "dependencies": [
@@ -217,7 +217,7 @@
         "chronicles"
       ],
       "checksums": {
-        "sha1": "407b39ad3e84ad794b76df8d63ecafb749af6f4f"
+        "sha1": "d9108601eb0a4703b25000e83e32b35d788a2d9e"
       }
     },
     "metrics": {
