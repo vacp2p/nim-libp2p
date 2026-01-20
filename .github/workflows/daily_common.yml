@@ -90,6 +90,7 @@ jobs:
           nimble --version
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          nimble setup
           nimble test
 
       - name: Run integration tests

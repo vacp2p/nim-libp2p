@@ -107,7 +107,8 @@ jobs:
           nimble --version
           gcc --version
 
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" 
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          nimble setup
           nimble test
 
       - name: Fix xml newlines

@@ -72,6 +72,7 @@ jobs:
         run: |
           cd performance
           nimble install
+          nimble setup
 
       - name: Run performance tests
         if: env.TEST_MODE == 'performance'

@@ -115,6 +115,7 @@ jobs:
       - name: Run Nim and Rust together
         run: |
           nimble install
+          nimble setup
           cd interop/kad/rust-peer
           cargo run &
 
