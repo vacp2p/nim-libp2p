@@ -41,7 +41,7 @@ method handleGetValue*(
         msgType: MessageType.getValue,
         key: msg.key,
         record: Opt.some(
-          Record(
+          protobuf.Record(
             key: @[1.byte, 1, 1, 1],
             value: Opt.some(@[1.byte, 2, 3, 4]),
             timeReceived: Opt.some($times.now().utc),
@@ -53,7 +53,7 @@ method handleGetValue*(
       Message(
         msgType: MessageType.getValue,
         key: msg.key,
-        record: Opt.none(Record),
+        record: Opt.none(protobuf.Record),
         closerPeers: @[],
       )
     of NoValue:
@@ -61,7 +61,7 @@ method handleGetValue*(
         msgType: MessageType.getValue,
         key: msg.key,
         record: Opt.some(
-          Record(
+          protobuf.Record(
             key: msg.key,
             value: Opt.none(seq[byte]),
             timeReceived: Opt.some($times.now().utc),
