@@ -28,7 +28,3 @@ tests/**/test*[^.]*
 !tests/**/*.*
 !tests/**/Dockerfile
 tests/*.xml
-
-# nix-related lock files (auto generated)
-nimble.lock
-nix/deps.nix
