@@ -172,7 +172,7 @@ suite "Message":
 
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
   # check value before & after decoding equal using protoc cmd tool for reference
-  asyncTest "ControlMessage RPCMsg encoding and decoding":
+  asyncTest "RPCMsg:ControlMessage - encoding and decoding":
     let id: seq[byte] = @[123]
     let message = RPCMsg(
       control: some(
@@ -200,3 +200,12 @@ suite "Message":
     let actualDecoded = decodeRpcMsg(expectedEncoded).value
     check:
       actualDecoded == message
+
+  asyncTest "RPCMsg:testExtension - encoding and decoding":
+    let messageWith = RPCMsg(testExtension: some(TestExtensionRPC()))
+    var decoded = decodeRpcMsg(encodeRpcMsg(messageWith, true)).value
+    check decoded.testExtension.isSome()
+
+    let messageWithout = RPCMsg(testExtension: none(TestExtensionRPC))
+    decoded = decodeRpcMsg(encodeRpcMsg(messageWithout, true)).value
+    check decoded.testExtension.isNone()

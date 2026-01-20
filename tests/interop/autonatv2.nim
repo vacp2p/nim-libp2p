@@ -16,6 +16,7 @@ import
     protocols/connectivity/autonatv2/service,
     protocols/connectivity/autonatv2/types,
   ]
+import ../tools/crypto
 
 proc autonatInteropTest*(
     ourAddr: string,
@@ -25,7 +26,7 @@ proc autonatInteropTest*(
 ): Future[bool] {.async.} =
   var switch = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng())
     .withAddresses(@[MultiAddress.init(ourAddr).get()])
     .withAutonatV2Server()
     .withAutonatV2(

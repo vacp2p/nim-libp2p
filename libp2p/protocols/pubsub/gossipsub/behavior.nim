@@ -369,7 +369,6 @@ when defined(libp2p_gossipsub_1_4):
       return 0
 
     let vals = p.toSeq().mapIt(it.bandwidthTracking.download.value()).sorted()
-    echo vals
     let mid = vals.len div 2
     if vals.len mod 2 == 0:
       (vals[mid - 1] + vals[mid]) / 2

@@ -9,113 +9,215 @@
 
 {.used.}
 
-import std/[times, tables], chronos, chronicles
-import ../../../libp2p/[protocols/kademlia, switch, builders]
+import std/[times, tables], chronos
+import ../../../libp2p/[protocols/kademlia, switch, builders, multihash]
 import ../../tools/[unittest]
 import ./utils.nim
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT Put":
   teardown:
     checkTrackers()
 
-  asyncTest "Simple put":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+  asyncTest "PUT_VALUE stores record at both sender and target peer":
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
-    discard await kad2.findNode(kad1.rtable.selfId)
+    connectNodes(kads[0], kads[1])
 
+    # Both nodes start with empty data tables
     check:
-      kad1.dataTable.len == 0
-      kad2.dataTable.len == 0
+      kads[0].dataTable.len == 0
+      kads[1].dataTable.len == 0
 
-    let key = kad1.rtable.selfId
+    let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
-    discard await kad2.putValue(key, value)
+    discard await kads[1].putValue(key, value)
 
+    # After putValue, both nodes should have the record
     check:
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
+      kads[0].containsData(key, value)
+      kads[1].containsData(key, value)
 
-  asyncTest "Change Validator":
-    var (switch1, kad1) = setupKadSwitch(RestrictiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
-      RestrictiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+  asyncTest "PUT_VALUE requires validation on both sender and receiver":
+    let kads = await setupKadSwitches(2, validator = RestrictiveValidator())
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
 
-    check kad1.dataTable.len == 0
-    let key = kad1.rtable.selfId
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
 
+    # Both validators reject -> putValue fails, nothing stored
     check:
-      (await kad2.putValue(key, value)).isErr()
-      kad1.dataTable.len == 0
+      (await kads[1].putValue(key, value)).isErr()
+      kads[0].dataTable.len == 0
 
-    kad1.config.validator = PermissiveValidator()
+    # Only receiver accepts -> sender validation still fails
+    kads[0].config.validator = PermissiveValidator()
     check:
-      (await kad2.putValue(key, value)).isErr()
-      kad1.dataTable.len == 0
+      (await kads[1].putValue(key, value)).isErr()
+      kads[0].dataTable.len == 0
 
-    kad2.config.validator = PermissiveValidator()
+    # Both validators accept -> putValue succeeds
+    kads[1].config.validator = PermissiveValidator()
     check:
-      (await kad2.putValue(key, value)).isOk()
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
+      (await kads[1].putValue(key, value)).isOk()
+      kads[0].containsData(key, value)
+      kads[1].containsData(key, value)
 
-  asyncTest "Good Time":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+  asyncTest "PUT_VALUE sets timeReceived in RFC3339 format":
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
-    let key = kad1.rtable.selfId
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
-    discard await kad2.putValue(key, value)
+    discard await kads[1].putValue(key, value)
 
-    let time: string = kad1.dataTable[key].time
-
+    # Parse the stored timestamp
+    let storedTime: string = kads[0].dataTable[key].time
     let now = times.now().utc
-    let parsed = time.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
+    let parsed = storedTime.parse(initTimeFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"), utc())
 
-    # get the diff between the stringified-parsed and the direct "now"
-    let elapsed = (now - parsed)
-    doAssert(elapsed < times.initDuration(seconds = 2))
+    # Timestamp should be very recent (within 2 seconds of now)
+    let elapsed = now - parsed
+    check elapsed < times.initDuration(seconds = 2)
 
-  asyncTest "Reselect":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), OthersSelector())
-    var (switch2, kad2) = setupKadSwitch(
-      PermissiveValidator(),
-      OthersSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+  asyncTest "PUT_VALUE uses selector to choose best value":
+    let kads = await setupKadSwitches(2, selector = OthersSelector())
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
-    let key = kad1.rtable.selfId
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
+    let value = @[1.byte, 2, 3, 4, 5]
+    let emptyVal: seq[byte] = @[]
+
+    # Store initial value
+    discard await kads[0].putValue(key, value)
+    check kads[1].containsData(key, value)
+
+    # With OthersSelector, new value is rejected in favor of existing
+    discard await kads[0].putValue(key, emptyVal)
+    check kads[1].containsData(key, value)
+
+    # Switch to CandSelector (accepts first/new value)
+    kads[0].config.selector = CandSelector()
+    kads[1].config.selector = CandSelector()
+
+    # Now the new value replaces the old one
+    discard await kads[0].putValue(key, emptyVal)
+    check kads[1].containsData(key, emptyVal)
+
+  asyncTest "PUT_VALUE rejects mismatched Message.key and Record.key":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    # Create two different keys to simulate mismatch
+    let msgKey = MultiHash.digest("sha2-256", [byte 0, 1, 2, 3, 4]).get().toKey()
+    let recordKey = MultiHash.digest("sha2-256", [byte 0, 0, 0, 0, 0]).get().toKey()
+    check msgKey != recordKey
+
+    # Build a malformed PUT_VALUE message with mismatched keys
+    let msg = Message(
+      msgType: MessageType.putValue,
+      key: msgKey,
+      record: Opt.some(Record(key: recordKey, value: Opt.some(@[1.byte, 2, 3, 4, 5]))),
+    )
+
+    # Send directly via handlePutValue to test the validation logic
+    let conn = await kads[1].switch.dial(
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+    )
+
+    await kads[0].handlePutValue(conn, msg)
+
+    # Neither key should have data stored - the request should be rejected
+    check:
+      kads[0].containsNoData(msgKey)
+      kads[0].containsNoData(recordKey)
+
+  asyncTest "PUT_VALUE with no record / no value - malformed message handling":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let conn = await kads[1].switch.dial(
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+    )
+
+    let key = kads[0].rtable.selfId
+
+    # PUT_VALUE with no record at all
+    let msgNoRecord =
+      Message(msgType: MessageType.putValue, key: key, record: Opt.none(Record))
+    await kads[0].handlePutValue(conn, msgNoRecord)
+
+    # No data should be stored
+    check kads[0].containsNoData(key)
+
+    # PUT_VALUE with record but no value
+    let msgNoValue = Message(
+      msgType: MessageType.putValue,
+      key: key,
+      record: Opt.some(Record(key: key, value: Opt.none(seq[byte]))),
+    )
+
+    await kads[0].handlePutValue(conn, msgNoValue)
+
+    # No data should be stored
+    check kads[0].containsNoData(key)
+
+  asyncTest "PUT_VALUE response echoes request":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
 
-    discard await kad1.putValue(key, value)
-    check containsData(kad2, key, value)
+    # Build the PUT_VALUE request message
+    let request = Message(
+      msgType: MessageType.putValue,
+      key: key,
+      record: Opt.some(Record(key: key, value: Opt.some(value))),
+    )
 
-    let emptyVal: seq[byte] = @[]
-    discard await kad1.putValue(key, emptyVal)
-    check containsData(kad2, key, value)
+    let conn = await kads[1].switch.dial(
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+    )
 
-    kad2.config.selector = CandSelector()
-    kad1.config.selector = CandSelector()
-    discard await kad1.putValue(key, emptyVal)
-    check containsData(kad2, key, emptyVal)
+    # Call handlePutValue directly - it writes the response to conn
+    await kads[0].handlePutValue(conn, request)
+
+    # Read the echoed response
+    let responseBytes = await conn.readLp(MaxMsgSize)
+    let response = Message.decode(responseBytes).value()
+
+    # Response should be identical to the request
+    check response == request
+
+  asyncTest "PUT_VALUE stores binary data with null and high bytes":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
+    let value = @[0.byte, 0xFF, 0, 0xFF] # nulls and high bytes interleaved
+
+    discard await kads[1].putValue(key, value)
+    check kads[0].containsData(key, value)

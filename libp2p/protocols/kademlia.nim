@@ -18,16 +18,24 @@ export routingtable, protobuf, types, find, get, put, provider, ping
 logScope:
   topics = "kad-dht"
 
-proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  ## Sends a findNode to find a random key for each non-empty k-bucket
-  ## Also sends a findNode to find itself to keep nearby peers up to date
+proc bootstrap*(
+    kad: KadDHT, forceRefresh = false
+) {.async: (raises: [CancelledError]).} =
+  ## Sends a findNode to find itself to keep nearby peers up to date
+  ## Also sends a findNode to find a random key for each non-empty k-bucket
 
   discard await kad.findNode(kad.rtable.selfId)
 
-  for i in 0 ..< kad.rtable.buckets.len:
-    if kad.rtable.buckets[i].isStale():
-      let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng[])
-      discard await kad.findNode(randomKey)
+  for i, bucket in kad.rtable.buckets:
+    # skip empty buckets
+    if bucket.peers.len == 0:
+      continue
+    # skip if refresh conditions not met (forceRefresh OR stale bucket) 
+    if not (forceRefresh or bucket.isStale()):
+      continue
+
+    let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng[])
+    discard await kad.findNode(randomKey)
 
   trace "Bootstrap complete"
 
@@ -107,7 +115,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
-  await kad.bootstrap()
+  await kad.bootstrap(forceRefresh = true)
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()

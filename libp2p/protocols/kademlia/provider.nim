@@ -26,7 +26,7 @@ proc `<`*(a: ProviderRecord, b: chronos.Moment): bool {.inline.} =
 
 proc deleteOldest(pk: ProvidedKeys) =
   ## Delete oldest provided key from ProvidedKeys
-  var oldest: Cid
+  var oldest: Key
   var oldestMoment = chronos.Moment.now()
   for key, moment in pk.provided:
     if oldestMoment > moment:
@@ -40,11 +40,11 @@ proc isFull*(pk: ProvidedKeys): bool {.inline.} =
 proc len*(pk: ProvidedKeys): int {.inline.} =
   pk.provided.len()
 
-proc hasKey*(pk: ProvidedKeys, c: Cid): bool {.inline.} =
-  pk.provided.hasKey(c)
+proc hasKey*(pk: ProvidedKeys, k: Key): bool {.inline.} =
+  pk.provided.hasKey(k)
 
-proc del*(pk: ProvidedKeys, c: Cid) {.inline.} =
-  pk.provided.del(c)
+proc del*(pk: ProvidedKeys, k: Key) {.inline.} =
+  pk.provided.del(k)
 
 proc pop*(pr: ProviderRecords): ProviderRecord {.inline.} =
   pr.records.pop()
@@ -100,46 +100,50 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
     raiseAssert("checked with hasKey")
 
 proc dispatchAddProvider(
-    switch: Switch, peer: PeerId, cid: Cid
+    switch: Switch, peer: PeerId, key: Key
 ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-  let conn = await switch.dial(peer, KadCodec)
+  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], KadCodec)
   defer:
     await conn.close()
 
   let msg = Message(
     msgType: MessageType.addProvider,
-    key: cid.toKey(),
+    key: key,
     providerPeers: @[switch.peerInfo.toPeer()],
   )
   await conn.writeLp(msg.encode().buffer)
 
-proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gcsafe.} =
+proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
   ## Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self's peerInfo to each of them
 
-  let peers = await kad.findNode(cid.toKey())
+  let peers = await kad.findNode(key)
   for chunk in peers.toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchAddProvider(it, cid))
+    let rpcBatch = chunk.mapIt(kad.switch.dispatchAddProvider(it, key))
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
     except AsyncTimeoutError:
       # Dispatch will timeout if any of the calls don't receive a response (which is normal)
       discard
 
+proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gcsafe.} =
+  await addProvider(kad, cid.toKey())
+
 proc startProviding*(kad: KadDHT, c: Cid) {.async: (raises: [CancelledError]).} =
   if kad.providerManager.providedKeys.isFull():
     kad.providerManager.providedKeys.deleteOldest()
 
-  kad.providerManager.providedKeys.provided[c] = chronos.Moment.now()
-  await kad.addProvider(c)
+  let k = c.toKey()
+  kad.providerManager.providedKeys.provided[k] = chronos.Moment.now()
+  await kad.addProvider(k)
 
 proc stopProviding*(kad: KadDHT, c: Cid) =
-  kad.providerManager.providedKeys.del(c)
+  kad.providerManager.providedKeys.del(c.toKey())
 
 proc manageRepublishProvidedKeys*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "republish provided keys", kad.config.republishProvidedKeysInterval:
     let providedKeys = kad.providerManager.providedKeys.provided
-    for c in providedKeys.keys():
-      await kad.addProvider(c)
+    for k in providedKeys.keys():
+      await kad.addProvider(k)
 
 proc anyExpired(pr: ProviderRecords): bool =
   pr.len() > 0 and pr.records[0] < chronos.Moment.now()
@@ -153,8 +157,8 @@ proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} 
 proc handleAddProvider*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  if Cid.init(msg.key).isErr():
-    error "Received key is an invalid CID", msg = msg, conn = conn, key = msg.key
+  if not MultiHash.validate(msg.key):
+    error "Received key is an invalid Multihash", msg = msg, conn = conn, key = msg.key
     return
 
   # filter out infos that do not match sender's
@@ -169,16 +173,17 @@ proc handleAddProvider*(
       ProviderRecord(
         provider: peer,
         expiresAt: chronos.Moment.now() + kad.config.providerExpirationInterval,
-        key: msg.key.toCid(),
+        key: msg.key,
       )
     )
 
 proc dispatchGetProviders*(
-    switch: Switch, peer: PeerId, key: Key
-): Future[(HashSet[Provider], seq[Peer])] {.
-    async: (raises: [CancelledError, DialFailedError, LPStreamError])
+    kad: KadDHT, peer: PeerId, key: Key
+): Future[Opt[Message]] {.
+    async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
 .} =
-  let conn = await switch.dial(peer, KadCodec)
+  let conn =
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], KadCodec)
   defer:
     await conn.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
@@ -186,27 +191,14 @@ proc dispatchGetProviders*(
 
   let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
     error "GetProviders reply decode fail", error = error, conn = conn
-    return
+    return Opt.none(Message)
 
-  debug "Received reply for GetProviders", reply = reply
+  debug "Received reply for GetProviders", peer = peer, reply = reply
 
-  var providers: HashSet[Provider]
-  for peer in reply.providerPeers:
-    let p = PeerId.init(peer.id).valueOr:
-      debug "Invalid peer id received", peerId = peer.id, error = error
-      continue
-    providers.incl(peer)
+  conn.observedAddr.withValue(observedAddr):
+    kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
 
-  return (providers, reply.closerPeers)
-
-proc nextCandidates(
-    allCandidates: HashSet[PeerId], visitedCandidates: HashSet[PeerId], alpha: int
-): seq[PeerId] =
-  let unvisitedCandidates = allCandidates - visitedCandidates
-  if unvisitedCandidates.len() == 0:
-    return @[]
-
-  return unvisitedCandidates.toSeq()[0 .. min(alpha, unvisitedCandidates.len() - 1)]
+  return Opt.some(reply)
 
 proc getProviders*(
     kad: KadDHT, key: Key
@@ -215,58 +207,39 @@ proc getProviders*(
 .} =
   ## Get providers for a given `key` from the nodes closest to that `key`.
 
-  var
-    allCandidates: HashSet[PeerId] = (await kad.findNode(key)).toHashSet()
-    visitedCandidates: HashSet[PeerId]
-    failedCandidates: HashSet[PeerId]
-    allProviders: HashSet[Provider]
+  var allProviders: HashSet[Provider]
 
-  for retry in 0 .. kad.config.retries:
-    # run until we find at least K providers
-    while allProviders.len() < kad.config.replication:
-      let candidates =
-        nextCandidates(allCandidates, visitedCandidates, kad.config.alpha)
-      if candidates.len() == 0:
-        break
+  # Include ourselves if we already provide the key
+  if kad.providerManager.providedKeys.provided.hasKey(key):
+    allProviders.incl(kad.switch.peerInfo.toPeer())
 
-      let rpcBatch = candidates.mapIt(kad.switch.dispatchGetProviders(it, key))
+  let onReply = proc(
+      peerId: PeerId, msgOpt: Opt[Message], state: var LookupState
+  ): Future[void] {.async: (raises: []), gcsafe.} =
+    let reply = msgOpt.valueOr:
+      return
 
-      let completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
-      for (providers, closerPeers) in completedRPCBatch:
-        allProviders.incl(providers)
-        allCandidates.incl(closerPeers.toPeerIds().toHashSet())
+    for provider in reply.providerPeers:
+      if not PeerId.init(provider.id).isOk():
+        debug "Invalid peer id received", peerId = provider.id
+        continue
+      allProviders.incl(provider)
 
-      visitedCandidates.incl(candidates.toHashSet())
+  let stop = proc(state: LookupState): bool {.gcsafe.} =
+    allProviders.len() >= kad.config.replication
 
-      for (cand, fut) in zip(candidates, rpcBatch):
-        if not fut.completed():
-          failedCandidates.incl(cand)
-
-    # stop condition is satisfied
-    if allProviders.len() >= kad.config.replication:
-      return allProviders
-
-    # stop condition is not satisfied, but we can't retry (no peers have failed)
-    if failedCandidates.len == 0:
-      break
-
-    visitedCandidates = visitedCandidates - failedCandidates
-      # we need to visit failed peers again
-    failedCandidates.clear()
-    debug "Retrying to fetch get providers", attempt = retry + 1
+  discard await kad.iterativeLookup(key, dispatchGetProviders, onReply, stop)
 
   return allProviders
 
 proc handleGetProviders*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let cid = msg.key.toCid()
-
   var providers =
-    kad.providerManager.knownKeys.getOrDefault(cid, initHashSet[Provider]())
+    kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
 
   # check if we are providing the key as well
-  if kad.providerManager.providedKeys.provided.hasKey(cid):
+  if kad.providerManager.providedKeys.provided.hasKey(msg.key):
     providers.incl(kad.switch.peerInfo.toPeer())
 
   try:

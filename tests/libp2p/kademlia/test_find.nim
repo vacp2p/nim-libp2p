@@ -9,162 +9,404 @@
 
 {.used.}
 
-import chronos, chronicles, std/[sequtils, enumerate]
+import chronos, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
-
-proc hasKey(kad: KadDHT, key: Key): bool =
-  for b in kad.rtable.buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
-        return true
-  return false
 
 suite "KadDHT Find":
   teardown:
     checkTrackers()
 
   asyncTest "Simple find node":
-    let swarmSize = 3
-    var switches: seq[Switch]
-    var kads: seq[KadDHT]
-    for i in 0 ..< swarmSize:
-      var (switch, kad) =
-        if i == 0:
-          setupKadSwitch(PermissiveValidator(), CandSelector())
-        else:
-          setupKadSwitch(
-            PermissiveValidator(),
-            CandSelector(),
-            @[(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)],
-          )
-      switches.add(switch)
-      kads.add(kad)
+    let kads = await setupKadSwitches(3)
+    defer:
+      await stopNodes(kads)
 
-    var entries = @[kads[0].rtable.selfId]
+    # Connect nodes: kads[0] <-> kads[1], kad0 <-> kads[2]
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
 
-    #  All the nodes that bootstropped off kad[0] have exactly 1 of each previous nodes, + kads[0], in their buckets
-    for i, kad in enumerate(kads[1 ..^ 1]):
-      for id in entries:
-        check kad.hasKey(id)
-      entries.add(kad.rtable.selfId)
+    # kads[1] doesn't know kads[2] yet
+    check not kads[1].hasKey(kads[2].rtable.selfId)
 
     discard await kads[1].findNode(kads[2].rtable.selfId)
 
-    # assert that every node has exactly one entry for the id of every other node
-    for id in entries:
-      for k in kads:
-        if k.rtable.selfId == id:
-          continue
-        check k.hasKey(id)
-    await switches.mapIt(it.stop()).allFutures()
+    # After findNode, kads[1] discovers kads[2] through kad[0]
+    check kads[1].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Relay find node":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
-    var (switch3, kad3) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
-    var (switch4, kad4) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch3.peerInfo.peerId, switch3.peerInfo.addrs)],
-    )
-
+    let kads = await setupKadSwitches(4)
     defer:
-      await allFutures(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+      await stopNodes(kads)
+
+    # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2], kads[2] <-> kads[3]
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+    connectNodes(kads[2], kads[3])
 
     check:
-      kad1.hasKey(kad2.rtable.selfId)
-      kad2.hasKey(kad1.rtable.selfId)
+      kads[0].hasKeys(@[kads[1].rtable.selfId, kads[2].rtable.selfId])
+      kads[2].hasKey(kads[3].rtable.selfId)
+      # kads[1] doesn't know kads[2], kads[3] yet
+      kads[1].hasNoKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
 
+    discard await kads[1].findNode(kads[3].rtable.selfId)
+
+    # kads[1] discovers kads[2] and kads[3] through relay
     check:
-      kad1.hasKey(kad3.rtable.selfId)
-      kad3.hasKey(kad1.rtable.selfId)
+      kads[1].hasKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
 
-    # kad3 knows about kad2 through kad1
-    check kad3.hasKey(kad2.rtable.selfId)
+  asyncTest "Find node accumulates peers from multiple responses":
+    let kads = await setupKadSwitches(4)
+    defer:
+      await stopNodes(kads)
 
+    # Connect nodes in a chain: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[1], kads[2])
+    connectNodes(kads[2], kads[3])
+
+    # Verify initial state: each node only knows its neighbors
     check:
-      kad3.hasKey(kad4.rtable.selfId)
-      kad4.hasKey(kad3.rtable.selfId)
+      kads[0].hasKey(kads[1].rtable.selfId)
+      kads[0].hasNoKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
 
-    # kad 4 knows all peers of kad 3 too
+      kads[1].hasKeys(@[kads[0].rtable.selfId, kads[2].rtable.selfId])
+      not kads[1].hasKey(kads[3].rtable.selfId)
+
+      kads[2].hasKeys(@[kads[1].rtable.selfId, kads[3].rtable.selfId])
+      not kads[2].hasKey(kads[0].rtable.selfId)
+
+      kads[3].hasKey(kads[2].rtable.selfId)
+      kads[3].hasNoKeys(@[kads[0].rtable.selfId, kads[1].rtable.selfId])
+
+    # kads[0] performs lookup for kads[3]
+    # Round 1: kads[0] -> kads[1], learns kads[2]
+    # Round 2: kads[0] -> kads[2], learns kads[3]
+    discard await kads[0].findNode(kads[3].rtable.selfId)
+
+    # kads[0] accumulated kads[2] and kads[3] from iterative responses
     check:
-      kad4.hasKey(kad1.rtable.selfId)
-      kad4.hasKey(kad2.rtable.selfId)
+      kads[0].hasKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
 
-    # force kad2 forget kad3 and kad4
-    for b in kad2.rtable.buckets.mitems:
-      b.peers = b.peers.filterIt(it.nodeId == kad1.rtable.selfId)
+  asyncTest "Find node excludes already-queried peers from candidates":
+    # Each node knows the other two, creating potential for infinite loops
+    # Without exclusion: kads[0] queries kads[1]/kads[2] -> they return each other -> repeat
+    # With exclusion: kads[0] queries kads[1]/kads[2] once, marks them responded, terminates
+    let kads = await setupKadSwitches(3)
+    defer:
+      await stopNodes(kads)
 
-    discard await kad2.findNode(kad4.rtable.selfId)
+    # Create fully connected triangle
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[1], kads[2])
+    connectNodes(kads[2], kads[0])
 
-    # kad2 relearns about kad 3 and 4
+    # Verify initial state: each node knows the other two
     check:
-      kad2.hasKey(kad3.rtable.selfId)
-      kad2.hasKey(kad4.rtable.selfId)
+      kads[0].hasKeys(@[kads[1].rtable.selfId, kads[2].rtable.selfId])
+      kads[1].hasKeys(@[kads[0].rtable.selfId, kads[2].rtable.selfId])
+      kads[2].hasKeys(@[kads[0].rtable.selfId, kads[1].rtable.selfId])
+
+    # Search for non-existent peer
+    # Round 1: kads[0] queries kads[1] and kads[2] (both in routing table)
+    # kads[1] returns [kads[0], kads[2]], kads[2] returns [kads[0], kads[1]]
+    # kads[1] and kads[2] marked as responded
+    # No new unqueried candidates -> lookup terminates
+    # Without exclusion: would re-query kads[1]/kads[2] until all attempts exhausted
+    let targetKey = randomPeerId().toKey()
+    let peerIds = await kads[0].findNode(targetKey)
+
+    # Lookup completed without hanging (proves exclusion works)
+    # Returns both known peers sorted by distance to target
+    check peerIds ==
+      pluckPeerIds(@[kads[1], kads[2]]).sortPeers(
+        targetKey, kads[0].rtable.config.hasher
+      )
 
   asyncTest "Find peer":
-    var (switch1, _) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
-    var (switch3, kad3) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(3)
     defer:
-      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+      await stopNodes(kads)
 
-    let res1 = await kad2.findPeer(switch3.peerInfo.peerId)
-    check res1.get().peerId == switch3.peerInfo.peerId
+    # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+
+    let res1 = await kads[1].findPeer(kads[2].switch.peerInfo.peerId)
+    check res1.get().peerId == kads[2].switch.peerInfo.peerId
 
     # try to find peer that does not exist
-    let res2 = await kad2.findPeer(PeerId.random(newRng()).get())
+    let res2 = await kads[1].findPeer(randomPeerId())
     check res2.isErr()
 
   asyncTest "Find node via refresh stale buckets":
-    # Setup: kad1 -> kad2 -> kad3 (kad1 doesn't know kad3)
-    let (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    let (switch2, kad2) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
-    let (switch3, kad3) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch2.peerInfo.peerId, switch2.peerInfo.addrs)],
-    )
+    # Setup: kads[0] <-> kads[1] <-> kads[2] (kads[0] doesn't initially know kads[2])
+    let kads = await setupKadSwitches(3)
     defer:
-      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+      await stopNodes(kads)
 
-    # Force kad1 to forget kad3
-    for b in kad1.rtable.buckets.mitems:
-      b.peers = b.peers.filterIt(it.nodeId != kad3.rtable.selfId)
+    # Connect: kads[0] <-> kads[1], kads[1] <-> kads[2]
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[1], kads[2])
 
-    # Make kad2's bucket stale to trigger refresh
-    let kad2BucketIdx =
-      bucketIndex(kad1.rtable.selfId, kad2.rtable.selfId, kad1.rtable.config.hasher)
-    kad1.rtable.buckets[kad2BucketIdx].peers[0].lastSeen = Moment.now() - 40.minutes
+    check not kads[0].hasKey(kads[2].rtable.selfId)
 
-    check kad1.rtable.buckets[kad2BucketIdx].isStale()
-    check not kad1.hasKey(kad3.rtable.selfId)
+    # Make kads[1]'s bucket stale to trigger refresh
+    let bucketIdx = bucketIndex(
+      kads[0].rtable.selfId, kads[1].rtable.selfId, kads[0].rtable.config.hasher
+    )
+    makeBucketStale(kads[0].rtable.buckets[bucketIdx])
 
-    await kad1.bootstrap()
+    check kads[0].rtable.buckets[bucketIdx].isStale()
+    check not kads[0].hasKey(kads[2].rtable.selfId)
 
-    # kad1 discovers kad3 via kad2
-    check kad1.hasKey(kad3.rtable.selfId)
+    await kads[0].bootstrap()
+
+    # kads[0] discovers kads[2] via kads[1]
+    check kads[0].hasKey(kads[2].rtable.selfId)
+
+  asyncTest "Find node with empty key returns closest peers":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    # Send FIND_NODE with empty key directly
+    let emptyKey: Key = @[]
+    let response =
+      (await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, emptyKey)).value()
+
+    # Empty key is accepted and a valid response is returned
+    check:
+      response.msgType == MessageType.findNode
+      response.closerPeers.len == 1
+      response.closerPeers[0].id == kads[1].rtable.selfId
+
+  asyncTest "Find node for own PeerID returns closest peers":
+    let kads = await setupKadSwitches(3)
+    defer:
+      await stopNodes(kads)
+
+    # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+
+    # kads[1] asks kads[0] for peers closest to kads[1]'s own PeerID
+    let ownKey = kads[1].rtable.selfId
+    let response =
+      (await kads[1].dispatchFindNode(kads[0].switch.peerInfo.peerId, ownKey)).value()
+
+    let closerPeersIds = response.closerPeers.mapIt(it.id)
+    check:
+      response.msgType == MessageType.findNode
+      # kads[0] knows kads[1] and kads[2], should return both as closest peers
+      response.closerPeers.len == 2
+      kads[1].rtable.selfId in closerPeersIds
+      kads[2].rtable.selfId in closerPeersIds
+
+  asyncTest "Find node with empty routing table returns empty result":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    # Routing table is empty (no peers connected)
+    check kads[0].getPeersFromRoutingTable().len == 0
+
+    let peerIds = await kads[0].findNode(randomPeerId().toKey())
+
+    # Returns empty - no peers to query
+    check peerIds.len == 0
+
+  asyncTest "Find node continues on individual peer timeout":
+    # kads[0] knows kads[1] (will timeout) and kads[2] (responds)
+    # kads[2] knows kads[3]
+    let kads = await setupKadSwitches(4)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+    connectNodes(kads[2], kads[3])
+
+    # Stop kads[1] - it won't respond (causes timeout)
+    await kads[1].switch.stop()
+
+    check not kads[0].hasKey(kads[3].rtable.selfId)
+
+    # Lookup still succeeds via kads[2] despite kads[1] timeout
+    let peerIds = await kads[0].findNode(kads[3].rtable.selfId)
+
+    check:
+      kads[3].switch.peerInfo.peerId in peerIds
+      kads[0].hasKey(kads[3].rtable.selfId)
+
+  asyncTest "Lookup initializes shortlist with k closest from routing table":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    # Insert peers into routing table
+    kads[0].populateRoutingTable(30)
+    let peersInTable = kads[0].getPeersFromRoutingTable()
+
+    # Initialize LookupState for a random target
+    let targetKey = randomPeerId().toKey()
+    let state = LookupState.init(kads[0], targetKey)
+
+    # Shortlist contains exactly k=20 peers
+    let k = kads[0].rtable.config.replication
+    check state.shortlist.len == k
+
+    # Calculate expected k closest peers
+    let expectedClosest =
+      peersInTable.sortPeers(targetKey, kads[0].rtable.config.hasher).take(k)
+
+    # Shortlist contains exactly the k closest peers
+    for peerId in expectedClosest:
+      check state.shortlist.hasKey(peerId)
+
+  asyncTest "Lookup selects alpha peers for concurrent querying":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    # Set alpha=3 for easier testing
+    const alpha = 3
+    kads[0].config.alpha = alpha
+
+    # Insert peers into routing table
+    kads[0].populateRoutingTable(10)
+    let peersInTable = kads[0].getPeersFromRoutingTable()
+
+    # Initialize LookupState
+    let targetKey = randomPeerId().toKey()
+    let state = LookupState.init(kads[0], targetKey)
+
+    # SelectCloserPeers returns exactly alpha peers when more are available
+    let toQuery = state.selectCloserPeers(alpha)
+
+    # Selected peers are the 3 closest to target
+    let expectedClosest =
+      peersInTable.sortPeers(targetKey, kads[0].rtable.config.hasher).take(alpha)
+    check toQuery == expectedClosest
+
+  asyncTest "Shortlist excludes self peer from candidates":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kads[0], targetKey)
+
+    let selfPid = kads[0].switch.peerInfo.peerId
+    let otherPeer = randomPeerId()
+
+    # Manually add self and another peer to shortlist
+    state.shortlist[selfPid] =
+      xorDistance(selfPid, targetKey, kads[0].rtable.config.hasher)
+    state.shortlist[otherPeer] =
+      xorDistance(otherPeer, targetKey, kads[0].rtable.config.hasher)
+
+    # Self should be excluded from selection
+    let selected = state.selectCloserPeers(10)
+
+    check:
+      selfPid notin selected
+      otherPeer in selected
+
+  asyncTest "updateShortlist ignores duplicate peers":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kads[0], targetKey)
+
+    let existingPeer = randomPeerId()
+    let newPeer = randomPeerId()
+
+    # Add existing peer to shortlist
+    state.shortlist[existingPeer] =
+      xorDistance(existingPeer, targetKey, kads[0].rtable.config.hasher)
+    let initialSize = state.shortlist.len
+
+    # Create message with existing peer + new peer + duplicate of new peer
+    let msg = Message(
+      msgType: MessageType.findNode,
+      closerPeers:
+        @[
+          Peer(id: existingPeer.toKey(), addrs: @[]),
+          Peer(id: newPeer.toKey(), addrs: @[]),
+          Peer(id: newPeer.toKey(), addrs: @[]), # Duplicate
+        ],
+    )
+
+    let added = state.updateShortlist(msg)
+
+    check:
+      # Only newPeer was added (existing and duplicate ignored)
+      added.len == 1
+      added[0].peerId == newPeer
+      state.shortlist.len == initialSize + 1
+
+  asyncTest "updateShortlist skips invalid peer IDs":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kads[0], targetKey)
+    let initialSize = state.shortlist.len
+
+    let validPeer = randomPeerId()
+
+    # Create message with invalid peer ID (empty/malformed) and valid peer
+    let msg = Message(
+      msgType: MessageType.findNode,
+      closerPeers:
+        @[
+          Peer(id: @[], addrs: @[]), # Invalid: empty
+          Peer(id: @[0x00, 0x01], addrs: @[]), # Invalid: malformed
+          Peer(id: validPeer.toKey(), addrs: @[]), # Valid
+        ],
+    )
+
+    let added = state.updateShortlist(msg)
+
+    check:
+      # Only valid peer was added
+      added.len == 1
+      added[0].peerId == validPeer
+      state.shortlist.len == initialSize + 1
+
+  asyncTest "selectCloserPeers excludes responded peers":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kads[0], targetKey)
+
+    let peer1 = randomPeerId()
+    let peer2 = randomPeerId()
+    let peer3 = randomPeerId()
+
+    state.shortlist[peer1] = xorDistance(peer1, targetKey, kads[0].rtable.config.hasher)
+    state.shortlist[peer2] = xorDistance(peer2, targetKey, kads[0].rtable.config.hasher)
+    state.shortlist[peer3] = xorDistance(peer3, targetKey, kads[0].rtable.config.hasher)
+
+    # Mark peer1 and peer2 as responded
+    state.responded[peer1] = RespondedStatus.Success
+    state.responded[peer2] = RespondedStatus.Success
+
+    # Only peer3 should be selectable
+    let selected = state.selectCloserPeers(10)
+    check selected == @[peer3]
+
+    # With excludeResponded=false, all are returned
+    let allPeers = state.selectCloserPeers(10, excludeResponded = false)
+    check allPeers ==
+      @[peer1, peer2, peer3].sortPeers(targetKey, kads[0].rtable.config.hasher)

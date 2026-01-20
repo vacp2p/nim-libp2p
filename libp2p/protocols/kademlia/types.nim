@@ -20,6 +20,8 @@ const
   DefaultMaxBuckets* = 256
   DefaultTimeout* = 5.seconds
   DefaultBucketRefreshTime* = 10.minutes
+  DefaultBucketStaleTime* = 30.minutes
+    # peer not seen for this duration marks bucket stale
   DefaultRetries* = 5
   DefaultReplication* = 20 ## aka `k` in the spec
   DefaultAlpha* = 10 # concurrency parameter
@@ -194,20 +196,20 @@ type
   ProviderRecord* = object
     provider*: Provider
     expiresAt*: chronos.Moment
-    key*: Cid
+    key*: Key
 
   ProviderRecords* = ref object
     records*: HeapQueue[ProviderRecord]
     capacity*: int
 
   ProvidedKeys* = ref object
-    provided*: Table[Cid, chronos.Moment]
+    provided*: Table[Key, chronos.Moment]
     capacity*: int
 
   ProviderManager* = ref object
     providerRecords*: ProviderRecords
     providedKeys*: ProvidedKeys
-    knownKeys*: Table[Cid, HashSet[Provider]]
+    knownKeys*: Table[Key, HashSet[Provider]]
 
 proc new*(
     T: typedesc[ProviderManager], providerRecordCapacity: int, providedKeyCapacity: int

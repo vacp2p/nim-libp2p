@@ -129,7 +129,7 @@ proc isStale*(bucket: Bucket): bool =
   if bucket.peers.len == 0:
     return true
   for p in bucket.peers:
-    if Moment.now() - p.lastSeen > 30.minutes:
+    if Moment.now() - p.lastSeen > DefaultBucketStaleTime:
       return true
   return false
 

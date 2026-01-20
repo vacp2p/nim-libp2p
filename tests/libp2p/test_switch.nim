@@ -881,6 +881,56 @@ suite "Switch":
       switch1.peerInfo.peerId notin switch2.peerStore[AddressBook]
       switch1.peerInfo.peerId notin switch2.peerStore[ProtoBook]
 
+  asyncTest "e2e LastSeenOutboundBook tracks outbound connections":
+    let handleFinished = newWaitGroup(1)
+    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+      try:
+        let msg = string.fromBytes(await conn.readLp(1024))
+        check "Hello!" == msg
+        await conn.writeLp("Hello!")
+      except LPStreamError:
+        raiseAssert "Unexpected LPStreamError in LastSeenOutboundBook test handler"
+      finally:
+        await conn.close()
+        handleFinished.done()
+
+    let testProto = new TestProto
+    testProto.codec = TestCodec
+    testProto.handler = handle
+
+    let switch1 = newStandardSwitch()
+    switch1.mount(testProto)
+
+    let switch2 = newStandardSwitch()
+    await switch1.start()
+    await switch2.start()
+
+    # Switch2 dials switch1 (outbound from switch2's perspective)
+    let conn =
+      await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
+
+    check switch1.isConnected(switch2.peerInfo.peerId)
+    check switch2.isConnected(switch1.peerInfo.peerId)
+
+    await conn.writeLp("Hello!")
+    let msg = string.fromBytes(await conn.readLp(1024))
+    check "Hello!" == msg
+    await conn.close()
+
+    await allFuturesRaising(
+      handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
+    )
+
+    # Switch2 dialed switch1, so switch2 should have switch1 in LastSeenOutboundBook
+    check:
+      # Switch2 made an outbound connection to switch1
+      switch2.peerStore[LastSeenOutboundBook][switch1.peerInfo.peerId].isSome()
+      # Switch1 received an inbound connection from switch2, so NO entry in LastSeenOutboundBook
+      switch1.peerStore[LastSeenOutboundBook][switch2.peerInfo.peerId].isNone()
+      # Both should have entries in regular LastSeenBook (stores all connections)
+      switch2.peerStore[LastSeenBook][switch1.peerInfo.peerId].isSome()
+      switch1.peerStore[LastSeenBook][switch2.peerInfo.peerId].isSome()
+
   asyncTest "e2e should allow multiple local addresses":
     when defined(windows):
       # this randomly locks the Windows CI job

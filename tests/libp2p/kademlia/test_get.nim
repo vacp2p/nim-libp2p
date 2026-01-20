@@ -10,214 +10,273 @@
 {.used.}
 
 from std/times import now, utc
-import chronos, chronicles
+import chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
-import ./utils.nim
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+import ./utils
 
 suite "KadDHT Get":
   teardown:
     checkTrackers()
 
   asyncTest "Get from peer":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
-    discard await kad2.findNode(kad1.rtable.selfId)
+    connectNodes(kads[0], kads[1])
 
     let
-      key = kad1.rtable.selfId
+      key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kad1.dataTable.insert(key, value, $times.now().utc)
+    kads[0].dataTable.insert(key, value, $times.now().utc)
 
     check:
-      containsData(kad1, key, value)
-      containsNoData(kad2, key)
+      kads[0].containsData(key, value)
+      kads[1].containsNoData(key)
 
-    discard await kad2.getValue(key, quorumOverride = Opt.some(1))
+    let record = await kads[1].getValue(key, quorumOverride = Opt.some(1))
 
     check:
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
+      record.get().value == value
+      kads[0].containsData(key, value)
+      kads[1].containsData(key, value)
 
   asyncTest "Get value that is locally present":
-    var (switch, kad) = setupKadSwitch(PermissiveValidator(), CandSelector())
+    let kads = await setupKadSwitches(1)
     defer:
-      await switch.stop()
+      await stopNodes(kads)
 
     let
-      key = kad.rtable.selfId
+      key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kad.dataTable.insert(key, value, $times.now().utc)
+    kads[0].dataTable.insert(key, value, $times.now().utc)
 
     check:
-      containsData(kad, key, value)
-      (await kad.getValue(key, quorumOverride = Opt.some(1))).get().value == value
+      kads[0].containsData(key, value)
+      (await kads[0].getValue(key, quorumOverride = Opt.some(1))).get().value == value
 
   asyncTest "Divergent getVal responses from peers":
-    var (switch2, kad2) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch3, kad3) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch4, kad4) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch5, kad5) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch1, kad1) = setupKadSwitch(
-      DefaultEntryValidator(),
-      DefaultEntrySelector(),
-      @[
-        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
-        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
-        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
-        (switch5.peerInfo.peerId, switch5.peerInfo.addrs),
-      ],
-    )
-
+    let kads =
+      await setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     defer:
-      await allFutures(
-        switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
-      )
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
-    discard await kad1.findNode(kad3.rtable.selfId)
-    discard await kad1.findNode(kad4.rtable.selfId)
-    discard await kad1.findNode(kad5.rtable.selfId)
+    connectNodesStar(kads)
 
     let
-      key = kad4.rtable.selfId
+      key = kads[0].rtable.selfId
       bestValue = @[1.byte, 2, 3, 4, 5]
       worstValue = @[1.byte, 2, 3, 4, 6]
 
-    kad2.dataTable.insert(key, bestValue, $times.now().utc)
-    kad3.dataTable.insert(key, worstValue, $times.now().utc)
-    kad4.dataTable.insert(key, bestValue, $times.now().utc)
-    kad5.dataTable.insert(key, bestValue, $times.now().utc)
+    kads[1].dataTable.insert(key, bestValue, $times.now().utc)
+    kads[2].dataTable.insert(key, worstValue, $times.now().utc)
+    kads[3].dataTable.insert(key, bestValue, $times.now().utc)
+    kads[4].dataTable.insert(key, bestValue, $times.now().utc)
 
     check:
-      containsNoData(kad1, key)
-      containsData(kad2, key, bestValue)
-      containsData(kad3, key, worstValue)
-      containsData(kad4, key, bestValue)
-      containsData(kad5, key, bestValue)
+      kads[0].containsNoData(key)
+      kads[1].containsData(key, bestValue)
+      kads[2].containsData(key, worstValue)
+      kads[3].containsData(key, bestValue)
+      kads[4].containsData(key, bestValue)
 
-    discard await kad1.getValue(key, quorumOverride = Opt.some(3))
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(3))
 
     # now all have bestvalue
     check:
-      containsData(kad1, key, bestValue)
-      containsData(kad2, key, bestValue)
-      containsData(kad3, key, bestValue)
-      containsData(kad4, key, bestValue)
-      containsData(kad5, key, bestValue)
+      record.get().value == bestValue
+      kads[0].containsData(key, bestValue)
+      kads[1].containsData(key, bestValue)
+      kads[2].containsData(key, bestValue)
+      kads[3].containsData(key, bestValue)
+      kads[4].containsData(key, bestValue)
 
   asyncTest "Could not achieve quorum":
-    var (switch2, kad2) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch3, kad3) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch4, kad4) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch5, kad5) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch1, kad1) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[
-        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
-        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
-        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
-        (switch5.peerInfo.peerId, switch5.peerInfo.addrs),
-      ],
-    )
+    let kads =
+      await setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     defer:
-      await allFutures(
-        switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
-      )
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
-    discard await kad1.findNode(kad3.rtable.selfId)
-    discard await kad1.findNode(kad4.rtable.selfId)
-    discard await kad1.findNode(kad5.rtable.selfId)
+    connectNodesStar(kads)
 
     let
-      key = kad4.rtable.selfId
+      key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kad2.dataTable.insert(key, value, $times.now().utc)
+    kads[1].dataTable.insert(key, value, $times.now().utc)
 
     check:
-      containsNoData(kad1, key)
-      containsData(kad2, key, value)
-      containsNoData(kad3, key)
-      containsNoData(kad4, key)
-      containsNoData(kad5, key)
+      kads[0].containsNoData(key)
+      kads[1].containsData(key, value)
+      kads[2].containsNoData(key)
+      kads[3].containsNoData(key)
+      kads[4].containsNoData(key)
 
-    let getValueRes = (await kad1.getValue(key))
-    check getValueRes.isErr()
-    check getValueRes.error() ==
-      "Not enough valid records to achieve quorum, needed 5 got 1"
+    let record = await kads[0].getValue(key)
+    check record.isErr()
+    check record.error() == "Not enough valid records to achieve quorum, needed 5 got 1"
 
   asyncTest "Update peers with empty values":
-    var (switch2, kad2) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch3, kad3) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch4, kad4) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch5, kad5) =
-      setupKadSwitch(DefaultEntryValidator(), DefaultEntrySelector())
-    var (switch1, kad1) = setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[
-        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
-        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
-        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
-        (switch5.peerInfo.peerId, switch5.peerInfo.addrs),
-      ],
-    )
+    let kads =
+      await setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     defer:
-      await allFutures(
-        switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
-      )
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
-    discard await kad1.findNode(kad3.rtable.selfId)
-    discard await kad1.findNode(kad4.rtable.selfId)
-    discard await kad1.findNode(kad5.rtable.selfId)
+    connectNodesStar(kads)
 
     let
-      key = kad4.rtable.selfId
+      key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kad2.dataTable.insert(key, value, $times.now().utc)
+    kads[1].dataTable.insert(key, value, $times.now().utc)
 
     check:
-      containsNoData(kad1, key)
-      containsData(kad2, key, value)
-      containsNoData(kad3, key)
-      containsNoData(kad4, key)
-      containsNoData(kad5, key)
+      kads[0].containsNoData(key)
+      kads[1].containsData(key, value)
+      kads[2].containsNoData(key)
+      kads[3].containsNoData(key)
+      kads[4].containsNoData(key)
 
     # 1 is enough to make a decision
-    discard await kad1.getValue(key, quorumOverride = Opt.some(1))
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(1))
 
     # peers are updated
     check:
-      containsData(kad1, key, value)
-      containsData(kad2, key, value)
-      containsData(kad3, key, value)
-      containsData(kad4, key, value)
-      containsData(kad5, key, value)
+      record.get().value == value
+      kads[0].containsData(key, value)
+      kads[1].containsData(key, value)
+      kads[2].containsData(key, value)
+      kads[3].containsData(key, value)
+      kads[4].containsData(key, value)
+
+  asyncTest "Get updates routing table with closerPeers (no record)":
+    # kads[2] <---> kads[0] (hub) <---> kads[1]
+    let kads = await setupKadSwitches(
+      3,
+      PermissiveValidator(),
+      CandSelector(),
+      @[],
+      chronos.seconds(1),
+      chronos.seconds(1),
+    )
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+
+    let key = kads[0].rtable.selfId
+
+    check:
+      kads[2].hasKey(kads[0].rtable.selfId)
+      not kads[2].hasKey(kads[1].rtable.selfId)
+
+    # When kads[0] doesn't have the value, handleGetValue returns only closerPeers
+    let record = await kads[2].getValue(key, quorumOverride = Opt.some(1))
+
+    # kads[2] should discover kads[1] through the closerPeers in the response
+    check:
+      record.isErr()
+      kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+
+  asyncTest "Get updates routing table with closerPeers (with record)":
+    # kads[2] <---> kads[0] (hub) <---> kads[1]
+    let kads = await setupKadSwitches(
+      3,
+      PermissiveValidator(),
+      CandSelector(),
+      @[],
+      chronos.seconds(1),
+      chronos.seconds(1),
+    )
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    kads[0].dataTable.insert(key, value, $times.now().utc)
+
+    check:
+      kads[2].hasKey(kads[0].rtable.selfId)
+      not kads[2].hasKey(kads[1].rtable.selfId)
+
+    # When kads[0] has the value, handleGetValue returns both record and closerPeers
+    let record = await kads[2].getValue(key, quorumOverride = Opt.some(1))
+
+    # kads[2] should discover kads[1] through the closerPeers in the response.
+    check:
+      record.get().value == value
+      kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+
+  asyncTest "Quorum handling is ignored if quorum is 0 or 1":
+    let kads = await setupKadSwitches(
+      3,
+      PermissiveValidator(),
+      CandSelector(),
+      @[],
+      chronos.seconds(1),
+      chronos.seconds(1),
+    )
+    defer:
+      await stopNodes(kads)
+
+    connectNodesStar(kads)
+
+    let
+      key = kads[0].rtable.selfId
+      valueLocal = @[1.byte, 1, 1, 1, 1]
+      valueRemote = @[2.byte, 2, 2, 2, 2]
+
+    # kad2 and kad3 have different values than kad1
+    kads[0].dataTable.insert(key, valueLocal, $times.now().utc)
+    kads[1].dataTable.insert(key, valueRemote, $times.now().utc)
+    kads[2].dataTable.insert(key, valueRemote, $times.now().utc)
+
+    # but when quorum is 0 or 1 we ignore remote values and use local value
+
+    check:
+      (await kads[0].getValue(key, quorumOverride = Opt.some(0))).get().value ==
+        valueLocal
+      (await kads[0].getValue(key, quorumOverride = Opt.some(1))).get().value ==
+        valueLocal
+
+  asyncTest "GET_VALUE rejects record where Record.key does not match requested key":
+    # Create a normal node (victim) and a malicious node
+    # The malicious node returns GET_VALUE responses with Record.key != requested key
+    let (victimSwitch, victim) =
+      await setupKadSwitch(PermissiveValidator(), CandSelector())
+
+    let
+      requestedKey = victim.rtable.selfId
+      wrongKey = @[1.byte, 1, 1, 1]
+
+    let (maliciousSwitch, malicious) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), mismatchedRecordKey = Opt.some(wrongKey)
+    )
+
+    defer:
+      await victimSwitch.stop()
+      await maliciousSwitch.stop()
+
+    # Connect victim to malicious node
+    connectNodes(victim, malicious)
+
+    # Victim doesn't have any data for the requested key
+    check victim.containsNoData(requestedKey)
+
+    # When victim calls getValue, malicious node returns a record with wrong Record.key
+    let record = await victim.getValue(requestedKey, quorumOverride = Opt.some(1))
+
+    # getValue should fail because the only response has mismatched key
+    check:
+      record.isErr()
+      victim.containsNoData(requestedKey)
+      victim.containsNoData(wrongKey)

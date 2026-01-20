@@ -21,8 +21,8 @@ suite "KadDHT Ping":
     checkTrackers()
 
   asyncTest "Simple ping":
-    var (switch1, kad1) = setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = setupKadSwitch(
+    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    var (switch2, kad2) = await setupKadSwitch(
       PermissiveValidator(),
       CandSelector(),
       @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],

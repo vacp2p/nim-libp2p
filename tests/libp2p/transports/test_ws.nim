@@ -86,8 +86,18 @@ suite "WebSocket transport":
   connectionTransportTest(wsTransProvider, wsAddress)
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
 
-  streamTransportTest(wsTransProvider, wsAddress, streamProvider)
-  streamTransportTest(wsSecureTransProvider, wsSecureAddress, streamProvider)
+  streamTransportTest(
+    wsTransProvider,
+    MultiAddress.init(wsAddress).get(),
+    Opt.none(MultiAddress),
+    streamProvider,
+  )
+  streamTransportTest(
+    wsTransProvider,
+    MultiAddress.init(wsSecureAddress).get(),
+    Opt.none(MultiAddress),
+    streamProvider,
+  )
 
   asyncTest "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]

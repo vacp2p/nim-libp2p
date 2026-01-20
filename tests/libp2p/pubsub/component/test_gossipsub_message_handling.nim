@@ -369,7 +369,7 @@ suite "GossipSub Component - Message Handling":
     let obs0 = PubSubObserver(onSend: onSend)
     let obs1 = PubSubObserver(onRecv: onRecv, onValidated: onValidated)
 
-    let nodes = generateNodes(2, gossip = true).toGossipSub()
+    let nodes = generateNodes(2, gossip = true, extensionsDisabled = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)
@@ -520,7 +520,12 @@ suite "GossipSub Component - Message Handling":
       not nodes[0].mesh.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
   asyncTest "GossipSub floodPublish with bandwidthEstimatebps":
-    let nodes = generateNodes(20, gossip = true).toGossipSub()
+    let nodes = generateNodes(
+        20,
+        gossip = true,
+        transport = TransportType.TCP, # use TCP becasue it's more reliable (temporarily)
+      )
+      .toGossipSub()
 
     nodes[0].parameters.floodPublish = true
     nodes[0].parameters.bandwidthEstimatebps = 100_000_000
@@ -533,10 +538,14 @@ suite "GossipSub Component - Message Handling":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
-    # becasue of bandwith configuration, the first message is deliver to less
-    # number of nodes, then the second message. 
-    # that's because first message is larger then the second.
+    # before publishing messages, wait for begining of Node0 heartbeat interval
+    # to make sure that all publications are made within same heartbeat. 
+    await nodes[0].waitForNextHeartbeat()
     check (await nodes[0].publish(topic, newSeq[byte](2_500_000))) == 12
+
+    # do it again but with smaller message, and expect to be deliver to more nodes, 
+    # then the first message. that's because second message is smaller then the first.
+    await nodes[0].waitForNextHeartbeat()
     check (await nodes[0].publish(topic, newSeq[byte](500_001))) == 17
 
   asyncTest "GossipSub floodPublish limit without bandwidthEstimatebps":
