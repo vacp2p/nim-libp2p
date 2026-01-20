@@ -252,14 +252,14 @@ suite "KadDHT Get":
     let
       (victimSwitch, victim) =
         await setupKadSwitch(PermissiveValidator(), CandSelector())
-      (maliciousSwitch, malicious) = await setupMockKadSwitch(
+      (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
         PermissiveValidator(), CandSelector(), getValueResponse = MismatchedKey
       )
     defer:
       await victimSwitch.stop()
       await maliciousSwitch.stop()
 
-    connectNodes(victim, malicious)
+    connectNodes(victim, maliciousKad)
 
     let requestedKey = victim.rtable.selfId
     check victim.containsNoData(requestedKey)
@@ -276,14 +276,14 @@ suite "KadDHT Get":
     let
       (victimSwitch, victim) =
         await setupKadSwitch(PermissiveValidator(), CandSelector())
-      (maliciousSwitch, malicious) = await setupMockKadSwitch(
+      (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
         PermissiveValidator(), CandSelector(), getValueResponse = EmptyRecord
       )
     defer:
       await victimSwitch.stop()
       await maliciousSwitch.stop()
 
-    connectNodes(victim, malicious)
+    connectNodes(victim, maliciousKad)
 
     let requestedKey = victim.rtable.selfId
     check victim.containsNoData(requestedKey)
@@ -299,14 +299,14 @@ suite "KadDHT Get":
     let
       (victimSwitch, victim) =
         await setupKadSwitch(PermissiveValidator(), CandSelector())
-      (maliciousSwitch, malicious) = await setupMockKadSwitch(
+      (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
         PermissiveValidator(), CandSelector(), getValueResponse = NoValue
       )
     defer:
       await victimSwitch.stop()
       await maliciousSwitch.stop()
 
-    connectNodes(victim, malicious)
+    connectNodes(victim, maliciousKad)
 
     let requestedKey = victim.rtable.selfId
     check victim.containsNoData(requestedKey)
@@ -317,3 +317,134 @@ suite "KadDHT Get":
     check:
       record.isErr()
       victim.containsNoData(requestedKey)
+
+  asyncTest "GET_VALUE succeeds with some peers returning mismatched keys":
+    let kads = await setupKadSwitches(3)
+    let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), getValueResponse = MismatchedKey
+    )
+    defer:
+      await stopNodes(kads)
+      await maliciousSwitch.stop()
+
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+    connectNodes(kads[0], maliciousKad)
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    # Good nodes have valid records
+    kads[1].dataTable.insert(key, value, $times.now().utc)
+    kads[2].dataTable.insert(key, value, $times.now().utc)
+    # maliciousKad will return mismatched key
+
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(2))
+
+    check:
+      record.isOk()
+      record.get().value == value
+      maliciousKad.containsData(key, value) # malicious node was updated
+
+  asyncTest "GET_VALUE rejects records that fail validation":
+    # Use RestrictiveValidator which rejects all records
+    let kads = await setupKadSwitches(2, RestrictiveValidator(), CandSelector())
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    # Insert directly into dataTable
+    kads[1].dataTable.insert(key, value, $times.now().utc)
+
+    check:
+      kads[1].containsData(key, value)
+      kads[0].containsNoData(key)
+
+    # getValue should fail because RestrictiveValidator rejects the record
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(1))
+
+    check:
+      record.isErr()
+      kads[0].containsNoData(key)
+
+  asyncTest "GET_VALUE succeeds when some peers are offline":
+    let kads = await setupKadSwitches(4)
+
+    connectNodesStar(kads)
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    # All peers have the record
+    kads[1].dataTable.insert(key, value, $times.now().utc)
+    kads[2].dataTable.insert(key, value, $times.now().utc)
+    kads[3].dataTable.insert(key, value, $times.now().utc)
+
+    # Stop one peer before query
+    await kads[3].switch.stop()
+
+    defer:
+      await kads[0].switch.stop()
+      await kads[1].switch.stop()
+      await kads[2].switch.stop()
+
+    # Query should still succeed with remaining peers (quorum=2)
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(2))
+
+    check:
+      record.isOk()
+      record.get().value == value
+
+  asyncTest "GET_VALUE fails when too many peers are offline":
+    let kads = await setupKadSwitches(4)
+
+    connectNodesStar(kads)
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    # All peers have the record
+    kads[1].dataTable.insert(key, value, $times.now().utc)
+    kads[2].dataTable.insert(key, value, $times.now().utc)
+    kads[3].dataTable.insert(key, value, $times.now().utc)
+
+    # Stop two peers before query
+    await kads[2].switch.stop()
+    await kads[3].switch.stop()
+
+    defer:
+      await kads[0].switch.stop()
+      await kads[1].switch.stop()
+
+    # Query should fail - need quorum of 3 but only 1 peer available
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(3))
+
+    check:
+      record.isErr()
+
+  asyncTest "GET_VALUE retrieves binary data with null and high bytes":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[0.byte, 0xFF, 0, 0xFF]
+
+    kads[0].dataTable.insert(key, value, $times.now().utc)
+
+    let record = await kads[1].getValue(key, quorumOverride = Opt.some(1))
+
+    check:
+      record.isOk()
+      record.get().value == value
