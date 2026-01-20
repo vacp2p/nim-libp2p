@@ -42,6 +42,11 @@
             ];
 
             buildPhase = ''
+              # make sure nim writes to a writable dir
+              export HOME=$TMPDIR
+              export XDG_CACHE_HOME=$TMPDIR/.cache
+              export NIMBLE_DIR=$TMPDIR/.nimble
+
               nim c \
                 --noNimblePath \
                 ${nimPathArgs} \
@@ -71,7 +76,7 @@
               pkgs.nim-2_2
               pkgs.nimble
               pkgs.makeWrapper
-            ] ++ builtins.attrValues deps;
+            ];
           };
         }
       );
