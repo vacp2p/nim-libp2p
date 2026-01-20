@@ -23,11 +23,16 @@
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          deps = import ./nix/deps.nix { inherit pkgs; };
-          nimPathArgs =
+          libp2pDeps = import ./nix/libp2p-deps.nix { inherit pkgs; };
+          libp2pPathArgs =
             builtins.concatStringsSep " "
               (map (p: "--path:${p}")
-                   (builtins.attrValues deps));
+                   (builtins.attrValues libp2pDeps));
+          cbindDeps = import ./nix/cbind-deps.nix { inherit pkgs; };
+          cbindPathArgs =
+            builtins.concatStringsSep " "
+              (map (p: "--path:${p}")
+                   (builtins.attrValues cbindDeps));
         in {
           default = pkgs.stdenv.mkDerivation {
             pname = "nim-libp2p";
@@ -47,10 +52,14 @@
               export XDG_CACHE_HOME=$TMPDIR/.cache
               export NIMBLE_DIR=$TMPDIR/.nimble
 
+              mkdir -p build
+              mkdir -p $TMPDIR/nimcache
+
+              echo "== Building pure Nim objects =="
               nim c \
                 --noNimblePath \
-                ${nimPathArgs} \
-                --path:${deps.dnsclient}/src \
+                ${libp2pPathArgs} \
+                --path:${libp2pDeps.dnsclient}/src \
                 --compileOnly \
                 --styleCheck:usages \
                 --styleCheck:error \
@@ -61,6 +70,42 @@
                 -d:libp2p_mix_experimental_exit_is_dest \
                 -d:libp2p_gossipsub_1_4 \
                 libp2p.nim
+
+              echo "== Building C bindings (shared lib) =="
+              nim c \
+                --noNimblePath \
+                ${cbindPathArgs} \
+                ${libp2pPathArgs} \
+                --path:${libp2pDeps.dnsclient}/src \
+                --out:build/libp2p.so \
+                --app:lib \
+                --threads:on \
+                --opt:size \
+                --noMain \
+                --mm:refc \
+                --header \
+                --undef:metrics \
+                --nimMainPrefix:libp2p \
+                --nimcache:$TMPDIR/nimcache \
+                cbind/libp2p.nim
+
+              echo "== Building C bindings (static lib) =="
+              nim c \
+                --noNimblePath \
+                ${cbindPathArgs} \
+                ${libp2pPathArgs} \
+                --path:${libp2pDeps.dnsclient}/src \
+                --out:build/libp2p.a \
+                --app:staticlib \
+                --threads:on \
+                --opt:size \
+                --noMain \
+                --mm:refc \
+                --header \
+                --undef:metrics \
+                --nimMainPrefix:libp2p \
+                --nimcache:$TMPDIR/nimcache \
+                cbind/libp2p.nim
             '';
           };
         }
