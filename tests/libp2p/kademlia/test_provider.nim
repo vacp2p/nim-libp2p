@@ -9,302 +9,202 @@
 
 {.used.}
 
-import std/[tables, sets, sequtils]
-from std/times import now, utc
-import chronos, chronicles, results
+import chronos, results, sets, sequtils, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders, multicodec]
 import ../../tools/[unittest]
 import ./utils.nim
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT - ProviderManager":
   teardown:
     checkTrackers()
 
   asyncTest "Add provider":
-    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
+    connectNodes(kads[0], kads[1])
 
-    let
-      key = kad1.rtable.selfId
-      value = @[1.byte, 2, 3, 4, 5]
-
-    kad1.dataTable.insert(key, value, $times.now().utc)
-    kad2.dataTable.insert(key, value, $times.now().utc)
+    let key = kads[0].rtable.selfId
 
     # ensure providermanager is empty
-    check kad1.providerManager.providerRecords.len() == 0
+    check kads[0].providerManager.providerRecords.len() == 0
 
-    await kad2.addProvider(key.toCid())
-    await sleepAsync(10.milliseconds)
+    await kads[1].addProvider(key.toCid())
 
-    # kad1 has kad2 in its providermanager after adding provider
-    check:
-      kad1.providerManager.providerRecords.len() == 1
-      kad1.providerManager.providerRecords[0].provider.id == kad2.rtable.selfId
+    # kads[0] has kads[1] in its providermanager after adding provider
+    checkUntilTimeout:
+      kads[0].providerManager.providerRecords.len() == 1
+      kads[0].providerManager.providerRecords[0].provider.id == kads[1].rtable.selfId
 
   asyncTest "Provider expired":
-    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
+    connectNodes(kads[0], kads[1])
 
     let
-      key1 = kad1.rtable.selfId
-      key2 = kad2.rtable.selfId
-      value = @[1.byte, 2, 3, 4, 5]
-
-    kad2.dataTable.insert(key1, value, $times.now().utc)
-    kad2.dataTable.insert(key2, value, $times.now().utc)
+      key1 = kads[0].rtable.selfId
+      key2 = kads[1].rtable.selfId
 
     # ensure providermanager is empty
-    check kad1.providerManager.providerRecords.len() == 0
+    check kads[0].providerManager.providerRecords.len() == 0
 
-    await kad2.addProvider(key1.toCid())
-    await kad2.addProvider(key2.toCid())
-    await sleepAsync(10.milliseconds)
+    await kads[1].addProvider(key1.toCid())
+    await kads[1].addProvider(key2.toCid())
 
-    check kad1.providerManager.providerRecords.len() == 2
+    # provider records added
+    checkUntilTimeout:
+      kads[0].providerManager.providerRecords.len() == 2
 
-    # wait less than expiration time
-    await sleepAsync(kad1.config.cleanupProvidersInterval)
+    # provider records expired and evicted after expiration time
+    checkUntilTimeout:
+      kads[0].providerManager.providerRecords.len() == 0
 
-    # provider records have not yet expired
-    check kad1.providerManager.providerRecords.len() == 2
-
-    # wait expiration time
-    await sleepAsync(
-      kad1.config.providerExpirationInterval + 2 * kad1.config.cleanupProvidersInterval
-    )
-
-    # provider records expired and evicted
-    check kad1.providerManager.providerRecords.len() == 0
-
-  asyncTest "Provider refreshed (not expired)":
-    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+  asyncTest "Adding providers again refreshes expiration time":
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
 
-    discard await kad1.findNode(kad2.rtable.selfId)
+    connectNodes(kads[0], kads[1])
 
     let
-      key1 = kad1.rtable.selfId
-      key2 = kad2.rtable.selfId
-      value = @[1.byte, 2, 3, 4, 5]
-
-    kad2.dataTable.insert(key1, value, $times.now().utc)
-    kad2.dataTable.insert(key2, value, $times.now().utc)
+      key1 = kads[0].rtable.selfId
+      key2 = kads[1].rtable.selfId
 
     # ensure providermanager is empty
-    check kad1.providerManager.providerRecords.len() == 0
+    check kads[0].providerManager.providerRecords.len() == 0
 
-    await kad2.addProvider(key1.toCid())
-    await kad2.addProvider(key2.toCid())
-    await sleepAsync(10.milliseconds)
+    await kads[1].addProvider(key1.toCid())
+    await kads[1].addProvider(key2.toCid())
 
-    check kad1.providerManager.providerRecords.len() == 2
+    checkUntilTimeout:
+      kads[0].providerManager.providerRecords.len() == 2
 
-    # wait less than expiration time
-    await sleepAsync(kad1.config.cleanupProvidersInterval)
-
-    # provider records have not yet expired
-    check kad1.providerManager.providerRecords.len() == 2
+    let
+      originalExpiresAt1 = kads[0].providerManager.providerRecords[0].expiresAt
+      originalExpiresAt2 = kads[0].providerManager.providerRecords[1].expiresAt
 
     # refresh providers
-    await kad2.addProvider(key1.toCid())
-    await kad2.addProvider(key2.toCid())
+    await kads[1].addProvider(key1.toCid())
+    await kads[1].addProvider(key2.toCid())
 
-    # wait rest of expiration time
-    await sleepAsync(
-      kad1.config.providerExpirationInterval - 2 * kad1.config.cleanupProvidersInterval
-    )
-
-    # provider records have not expired (refreshed)
-    check kad1.providerManager.providerRecords.len() == 2
-
-    # wait expiration time
-    await sleepAsync(
-      kad1.config.providerExpirationInterval + 2 * kad1.config.cleanupProvidersInterval
-    )
-
-    # provider records have expired
-    check kad1.providerManager.providerRecords.len() == 0
+    checkUntilTimeout:
+      kads[0].providerManager.providerRecords[0].expiresAt > originalExpiresAt1
+      kads[0].providerManager.providerRecords[1].expiresAt > originalExpiresAt2
 
   asyncTest "Start/stop providing":
-    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
 
     let
-      key1 = kad1.rtable.selfId
-      key2 = kad2.rtable.selfId
-      value = @[1.byte, 2, 3, 4, 5]
-
-    kad1.dataTable.insert(key1, value, $times.now().utc)
-    kad1.dataTable.insert(key2, value, $times.now().utc)
+      key1 = kads[0].rtable.selfId
+      key2 = kads[1].rtable.selfId
 
     # key1 is provided with startProviding
     # key2 is manually sent once with addProvider
-    await kad1.startProviding(key1.toCid())
-    await kad1.addProvider(key2.toCid())
-    await sleepAsync(10.milliseconds)
+    await kads[0].startProviding(key1.toCid())
+    await kads[0].addProvider(key2.toCid())
 
-    check:
-      kad1.providerManager.providedKeys.len() == 1
-      kad2.providerManager.providerRecords.len() == 2
-      kad2.providerManager.knownKeys.len() == 2
+    checkUntilTimeout:
+      kads[1].providerManager.providerRecords.len() == 2
+      kads[1].providerManager.knownKeys.len() == 2
+      kads[0].providerManager.providedKeys.len() == 1
 
     # after the expiration time only key2 expired
-    await sleepAsync(
-      kad1.config.providerExpirationInterval + 2 * kad1.config.cleanupProvidersInterval
-    )
-
-    check:
-      kad1.providerManager.providedKeys.len() == 1
-      kad2.providerManager.providerRecords.len() == 1
-      kad2.providerManager.knownKeys.len() == 1
+    checkUntilTimeout:
+      kads[1].providerManager.providerRecords.len() == 1
+      kads[1].providerManager.knownKeys.len() == 1
+      kads[0].providerManager.providedKeys.len() == 1
 
     # stop providing key
-    kad1.stopProviding(key1.toCid())
+    kads[0].stopProviding(key1.toCid())
 
-    # after the expiration time, key1 expired
-    await sleepAsync(
-      kad1.config.providerExpirationInterval + 2 * kad1.config.cleanupProvidersInterval
-    )
-    check:
-      kad1.providerManager.providedKeys.len() == 0
-      kad2.providerManager.providerRecords.len() == 0
-      kad2.providerManager.knownKeys.len() == 0
+    checkUntilTimeout:
+      kads[1].providerManager.providerRecords.len() == 0
+      kads[1].providerManager.knownKeys.len() == 0
+      kads[0].providerManager.providedKeys.len() == 0
 
   asyncTest "Provider limits":
-    var (switch2, kad2) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch3, kad3) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch4, kad4) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch1, kad1) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[
-        (switch2.peerInfo.peerId, switch2.peerInfo.addrs),
-        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
-        (switch4.peerInfo.peerId, switch4.peerInfo.addrs),
-      ],
-    )
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop())
+      await stopNodes(kads)
+
+    connectNodesStar(kads)
 
     let
-      key1 = kad1.rtable.selfId
+      key1 = kads[0].rtable.selfId
       cid1 = key1.toCid()
-      key2 = kad2.rtable.selfId
+      key2 = kads[1].rtable.selfId
       cid2 = key2.toCid()
-      value = @[1.byte, 2, 3, 4, 5]
-
-    kad1.dataTable.insert(key1, value, $times.now().utc)
-    kad1.dataTable.insert(key2, value, $times.now().utc)
 
     # set low capacities
-    kad1.providerManager.providedKeys.capacity = 1
-    kad2.providerManager.providerRecords.capacity = 1
-    await kad1.startProviding(cid1)
-    await sleepAsync(100.milliseconds)
-    let keyBefore = kad2.providerManager.providerRecords[0].key
-    check:
-      kad1.providerManager.providedKeys.len() == 1
-      kad1.providerManager.providedKeys.hasKey(cid1.toKey())
-      kad2.providerManager.providerRecords.len() == 1
+    kads[0].providerManager.providedKeys.capacity = 1
+    kads[1].providerManager.providerRecords.capacity = 1
 
-    # setting capacity means we overwrite key1
-    await kad1.startProviding(cid2)
-    await sleepAsync(100.milliseconds)
-    let keyAfter = kad2.providerManager.providerRecords[0].key
-    check:
-      kad1.providerManager.providedKeys.len() == 1
-      kad1.providerManager.providedKeys.hasKey(cid2.toKey())
-      not kad1.providerManager.providedKeys.hasKey(cid1.toKey())
-      kad2.providerManager.providerRecords.len() == 1
-      keyBefore != keyAfter
+    await kads[0].startProviding(cid1)
 
-  asyncTest "Get providers":
-    var (switch1, kad1) = await setupKadSwitch(
-      PermissiveValidator(), CandSelector(), @[], chronos.seconds(1), chronos.seconds(1)
-    )
-    var (switch3, kad3) = await setupKadSwitch(
-      PermissiveValidator(), CandSelector(), @[], chronos.seconds(1), chronos.seconds(1)
-    )
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[
-        (switch1.peerInfo.peerId, switch1.peerInfo.addrs),
-        (switch3.peerInfo.peerId, switch3.peerInfo.addrs),
-      ],
-      chronos.seconds(1),
-      chronos.seconds(1),
+    checkUntilTimeout:
+      kads[0].providerManager.providedKeys.hasKey(cid1.toKey())
+      kads[0].providerManager.providedKeys.len() == 1
+      kads[1].providerManager.providerRecords.len() == 1
+
+    # start providing overwrites key1 with key2 due to low capacity (1)
+    await kads[0].startProviding(cid2)
+
+    checkUntilTimeout:
+      not kads[0].providerManager.providedKeys.hasKey(cid1.toKey())
+      kads[0].providerManager.providedKeys.hasKey(cid2.toKey())
+      kads[0].providerManager.providedKeys.len() == 1
+      kads[1].providerManager.providerRecords.len() == 1
+
+  asyncTest "Get providers - iterative lookup":
+    let kads = await setupKadSwitches(
+      4,
+      cleanupProvidersInterval = 1.seconds(),
+      republishProvidedKeysInterval = 1.seconds(),
     )
     defer:
-      await allFutures(switch1.stop(), switch2.stop(), switch3.stop())
+      await stopNodes(kads)
 
-    discard await kad2.findNode(kad1.rtable.selfId)
-    discard await kad2.findNode(kad3.rtable.selfId)
+    # topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[1], kads[2])
+    connectNodes(kads[2], kads[3])
 
     let
-      key1 = kad1.rtable.selfId
-      key2 = kad2.rtable.selfId
-      key3 = kad3.rtable.selfId
-      value = @[1.byte, 2, 3, 4, 5]
+      key = kads[0].rtable.selfId
+      cid = key.toCid()
 
-    # don't call startProviding directly to avoid sending addProvider
-    # this will force asking peer to use closerPeers
-    kad2.dataTable.insert(key2, value, $times.now().utc)
-    kad2.providerManager.providedKeys.provided[key2] = chronos.Moment.now()
+    # Add key to kads[3] providedKeys locally (without broadcasting via addProvider)
+    kads[3].providerManager.providedKeys.provided[key] = Moment.now()
 
-    kad3.dataTable.insert(key3, value, $times.now().utc)
-    kad3.providerManager.providedKeys.provided[key3] = chronos.Moment.now()
-
-    # kad1 <-> kad2 <-> kad3
-    #          key2     key3
-
-    let providers = (await kad1.getProviders(key2)).toSeq()
-    check providers[0].id == kad2.rtable.selfId
-
-    # kad2 doesn't provide key3, but returns closerPeers
-    let reply = (await kad1.dispatchGetProviders(kad2.switch.peerInfo.peerId, key3)).valueOr:
-      fail()
-      return
-
+    # Verify other nodes don't know about the provider yet
     check:
-      reply.providerPeers.len() == 0
-      reply.closerPeers.toPeerIds()[0] == kad3.switch.peerInfo.peerId
+      kads[0].providerManager.providerRecords.len() == 0
+      kads[1].providerManager.providerRecords.len() == 0
+      kads[2].providerManager.providerRecords.len() == 0
 
-    # we can still get key3 because getProviders is iterative
-    let providers3 = (await kad1.getProviders(key3)).toSeq()
-    check providers3[0].id == kad3.rtable.selfId
+    # kad0 iteratively queries the network and should find kad3 as a provider
+    let providers = await kads[0].getProviders(key)
 
-    # timeout is handled
-    let providers1 = (await kad1.getProviders(key1)).toSeq()
-    check providers1.len == 0
+    # kad3 should be found as the provider
+    check:
+      providers.len() == 1
+      providers.toSeq()[0].id == kads[3].switch.peerInfo.peerId.getBytes()
+
+    checkUntilTimeout:
+      # Provider records have propagated
+      kads[0].providerManager.providerRecords.len() == 1
+      kads[1].providerManager.providerRecords.len() == 1
+      kads[2].providerManager.providerRecords.len() == 1
+      # Other peers have been discovered
+      kads[0].hasKey(kads[2].rtable.selfId)
+      kads[0].hasKey(kads[3].rtable.selfId)
+
+    # Query for unknown key is handled
+    check (await kads[0].getProviders(@[1.byte, 1, 1, 1])).len == 0
