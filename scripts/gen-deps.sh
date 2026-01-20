@@ -68,7 +68,7 @@ EOF
 nimble lock
 generate_deps \
   "nimble.lock" \
-  "nix/libp2p-deps.nix"
+  "nix/deps.nix"
 
 # C bindings deps
 (

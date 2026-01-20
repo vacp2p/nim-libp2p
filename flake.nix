@@ -23,11 +23,11 @@
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          libp2pDeps = import ./nix/libp2p-deps.nix { inherit pkgs; };
-          libp2pPathArgs =
+          deps = import ./nix/deps.nix { inherit pkgs; };
+          pathArgs =
             builtins.concatStringsSep " "
               (map (p: "--path:${p}")
-                   (builtins.attrValues libp2pDeps));
+                   (builtins.attrValues deps));
           cbindDeps = import ./nix/cbind-deps.nix { inherit pkgs; };
           cbindPathArgs =
             builtins.concatStringsSep " "
@@ -58,8 +58,8 @@
               echo "== Building pure Nim objects =="
               nim c \
                 --noNimblePath \
-                ${libp2pPathArgs} \
-                --path:${libp2pDeps.dnsclient}/src \
+                ${pathArgs} \
+                --path:${deps.dnsclient}/src \
                 --compileOnly \
                 --styleCheck:usages \
                 --styleCheck:error \
@@ -70,13 +70,36 @@
                 -d:libp2p_mix_experimental_exit_is_dest \
                 -d:libp2p_gossipsub_1_4 \
                 libp2p.nim
+            '';
+          };
+
+          cbind = pkgs.stdenv.mkDerivation {
+            pname = "nim-libp2p-cbind";
+            version = "dev";
+
+            src = ./.;
+
+            nativeBuildInputs = [
+              pkgs.nim-2_2
+              pkgs.git
+              pkgs.nimble
+            ];
+
+            buildPhase = ''
+              # make sure nim writes to a writable dir
+              export HOME=$TMPDIR
+              export XDG_CACHE_HOME=$TMPDIR/.cache
+              export NIMBLE_DIR=$TMPDIR/.nimble
+
+              mkdir -p build
+              mkdir -p $TMPDIR/nimcache
 
               echo "== Building C bindings (shared lib) =="
               nim c \
                 --noNimblePath \
                 ${cbindPathArgs} \
-                ${libp2pPathArgs} \
-                --path:${libp2pDeps.dnsclient}/src \
+                ${pathArgs} \
+                --path:${deps.dnsclient}/src \
                 --out:build/libp2p.so \
                 --app:lib \
                 --threads:on \
@@ -93,8 +116,8 @@
               nim c \
                 --noNimblePath \
                 ${cbindPathArgs} \
-                ${libp2pPathArgs} \
-                --path:${libp2pDeps.dnsclient}/src \
+                ${pathArgs} \
+                --path:${deps.dnsclient}/src \
                 --out:build/libp2p.a \
                 --app:staticlib \
                 --threads:on \
