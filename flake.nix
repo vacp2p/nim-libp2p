@@ -136,9 +136,10 @@
             '';
 
             installPhase = ''
-              cp build/libp2p.${libExt}  $out/lib/
-              cp build/libp2p.a          $out/lib/
-              cp build/libp2p.h          $out/include/
+              mkdir -p $out
+              cp build/libp2p.${libExt}  $out/
+              cp build/libp2p.a          $out/
+              cp build/libp2p.h          $out/
             '';
           };
         }
