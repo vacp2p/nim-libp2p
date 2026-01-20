@@ -16,7 +16,8 @@ It provides a basis for future development and invites community experimentation
 
 - **Sphinx Packet Format**: Guarantees anonymity through fixed-size packets and layered encryption.
 - **Random Path Selection**: Routes messages through randomly selected mix nodes.
-- **Pluggable Components**: Allows for customizable spam protection, peer discovery, and incentivization mechanisms. (To be developed)
+- **Spam Protection Interface**: Standardized interface for integrating spam protection mechanisms. See [spam_protection.md](spam_protection.md) for details.
+- **Pluggable Components**: Allows for customizable peer discovery and incentivization mechanisms. (To be developed)
 
 ## Usage
 
@@ -50,6 +51,31 @@ let conn = mixProto.toConnection(
 let response = await pingProto.ping(conn)
 ```
 
+
+## Spam Protection
+
+The Mix protocol includes a flexible spam protection interface that allows custom mechanisms to be integrated. By default, spam protection is disabled (nil).
+
+```nim
+# Create a custom spam protection instance
+let spamProtection = MySpamProtection.new()
+
+# Configure spam protection
+let config = initSpamProtectionConfig(
+  architecture = SpamProtectionArchitecture.PerHopGeneration
+)
+
+# Initialize MixProtocol with spam protection
+let mixProto = MixProtocol.new(
+  mixNodeInfo,
+  pubNodeInfo,
+  switch,
+  spamProtection = spamProtection,
+  spamProtectionConfig = config
+)
+```
+
+For detailed information on implementing custom spam protection mechanisms, see [spam_protection.md](spam_protection.md).
 
 ## Using experimental `exit == destination`
 

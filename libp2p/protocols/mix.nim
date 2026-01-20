@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import ./mix/[mix_protocol, mix_node, entry_connection, exit_layer]
+import ./mix/[mix_protocol, mix_node, entry_connection, exit_layer, spam_protection]
 import ../stream/connection
 import chronos
 import ../utils/sequninit
@@ -26,6 +26,16 @@ export DestReadBehavior
 export registerDestReadBehavior
 export MixNodes
 export initMixMultiAddrByIndex
+
+# Spam protection exports
+export SpamProtectionInterface
+export SpamProtectionArchitecture
+export SpamProtectionConfig
+export EncodedProofData
+export BindingData
+export initSpamProtectionConfig
+export generateProof
+export verifyProof
 
 proc readLp*(maxSize: int): DestReadBehavior =
   ## Create a read behavior that reads length-prefixed messages (varint-encoded length).
