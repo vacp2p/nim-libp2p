@@ -52,9 +52,7 @@ type
     key*: seq[byte]
 
   ControlExtensions* = object
-    # Canonical extensions fields: 
-    # Currently empty. Future canonical extensions should be added here along with
-    # a reference to their specification.
+    partialMessageExtension*: Option[bool]
 
     # Experimental extensions fields:
     testExtension*: Option[bool]
@@ -133,10 +131,16 @@ func shortLogOpt[T](s: Option[T]): string =
 
 func shortLog*(so: Option[ControlExtensions]): auto =
   if so.isNone():
-    (testExtension: "<unset>")
+    (
+      testExtension: "<unset>", #
+      partialMessageExtension: "<unset>",
+    )
   else:
     let s = so.get()
-    (testExtension: shortLogOpt(s.testExtension))
+    (
+      testExtension: shortLogOpt(s.testExtension),
+      partialMessageExtension: shortLogOpt(s.partialMessageExtension),
+    )
 
 func shortLog*(c: ControlMessage): auto =
   when defined(libp2p_gossipsub_1_4):
@@ -238,9 +242,11 @@ proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
 
 static:
-  expectedFields(ControlExtensions, @["testExtension"])
+  expectedFields(ControlExtensions, @["partialMessageExtension", "testExtension"])
 proc byteSize(T: typedesc[ControlExtensions]): int =
-  1 # 1 byte for the bool - testExtension
+  # 1 byte for the bool - testExtension
+  # 1 byte for the bool - partialMessageExtension
+  1 + 1
 
 proc byteSize(controlExtensions: Option[ControlExtensions]): int =
   if controlExtensions.isNone:

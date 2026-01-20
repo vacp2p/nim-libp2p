@@ -4,62 +4,79 @@
 import std/[options, sets, tables]
 import ../../../[peerid]
 import ../rpc/messages
+import ./[extensions_types, extension_test, extension_partial_message]
 
-proc noopPeerCallback(peer: PeerId) {.gcsafe, raises: [].} =
-  discard
+export PeerCallback, TestExtensionConfig, PartialMessageExtensionConfig
 
 type
   PeerExtensions = object
     testExtensionSupported: bool
-
-  PeerCallback* = proc(peer: PeerId) {.gcsafe, raises: [].}
-
-  TestExtensionConfig* = object
-    onNegotiated*: PeerCallback = noopPeerCallback
-    onHandleRPC*: PeerCallback = noopPeerCallback
+    partialMessageExtensionSupported: bool
 
   ExtensionsState* = ref object
     sentExtensions: HashSet[PeerId] # nodes extensions were sent to peer
     peerExtensions: Table[PeerId, PeerExtensions] # received peer's extensions
     onMissbehave: PeerCallback
 
-    # Extensions data & configuration:
-    testExtensionConfig: Option[TestExtensionConfig]
-      # when config is set then this node supports "test extension"
+    # All extensions logic
+    testExtension: Option[Extension]
+    partialMessageExtension: Option[Extension]
 
 proc new*(
     T: typedesc[ExtensionsState],
     onMissbehave: PeerCallback = noopPeerCallback,
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
+    partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
+      none(PartialMessageExtensionConfig),
 ): T =
   T(
     onMissbehave: onMissbehave,
     sentExtensions: initHashSet[PeerId](),
-    testExtensionConfig: testExtensionConfig,
+    testExtension: TestExtension.new(testExtensionConfig),
+    partialMessageExtension: PartialMessageExtension.new(partialMessageExtensionConfig),
   )
 
 proc toPeerExtensions(ctrlExtensions: ControlExtensions): PeerExtensions =
   let testExtensionSupported = ctrlExtensions.testExtension.valueOr:
     false
-  PeerExtensions(testExtensionSupported: testExtensionSupported)
+  let partialMessageExtensionSupported = ctrlExtensions.partialMessageExtension.valueOr:
+    false
 
-proc isExtensionNegotiated_TestExtension(state: ExtensionsState, peerId: PeerId): bool =
+  PeerExtensions(
+    testExtensionSupported: testExtensionSupported,
+    partialMessageExtensionSupported: partialMessageExtensionSupported,
+  )
+
+proc isNegotiated_TestExtension(state: ExtensionsState, peerId: PeerId): bool =
   # does both this node peer support "test extension"?
-  state.testExtensionConfig.isSome() and
+  state.testExtension.isSome() and
     state.peerExtensions.getOrDefault(peerId).testExtensionSupported
+
+proc isNegotiated_PartialMessageExtension(
+    state: ExtensionsState, peerId: PeerId
+): bool =
+  # does both this node peer support "partial message extension"?
+  state.partialMessageExtension.isSome() and
+    state.peerExtensions.getOrDefault(peerId).partialMessageExtensionSupported
 
 proc onHandleRPC(state: ExtensionsState, peerId: PeerId) =
   # extensions event called when node receives every RPC message
 
-  if state.isExtensionNegotiated_TestExtension(peerId):
-    state.testExtensionConfig.get().onHandleRPC(peerId)
+  if state.isNegotiated_TestExtension(peerId):
+    state.testExtension.get().onHandleRPC(peerId)
+
+  if state.isNegotiated_PartialMessageExtension(peerId):
+    state.partialMessageExtension.get().onHandleRPC(peerId)
 
 proc onNegotiated(state: ExtensionsState, peerId: PeerId) =
   # extension event called when both sides have negotiated (exchanged) extensions.
   # it will be called only once per connection session as soon as extensiosn are exchanged.
 
-  if state.isExtensionNegotiated_TestExtension(peerId):
-    state.testExtensionConfig.get().onNegotiated(peerId)
+  if state.isNegotiated_TestExtension(peerId):
+    state.testExtension.get().onNegotiated(peerId)
+
+  if state.isNegotiated_PartialMessageExtension(peerId):
+    state.partialMessageExtension.get().onNegotiated(peerId)
 
 proc addPeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has connected to node and extensions control message is sent by gossipsub.
@@ -99,4 +116,7 @@ proc makeControlExtensions*(state: ExtensionsState): ControlExtensions =
   # creates ControlExtensions message that is sent to other peers,
   # using configured state.
 
-  ControlExtensions(testExtension: some(state.testExtensionConfig.isSome()))
+  ControlExtensions(
+    testExtension: some(state.testExtension.isSome()),
+    partialMessageExtension: some(state.partialMessageExtension.isSome()),
+  )

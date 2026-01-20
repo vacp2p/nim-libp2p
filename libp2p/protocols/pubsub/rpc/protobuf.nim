@@ -101,6 +101,9 @@ proc write*(pb: var ProtoBuffer, field: int, imreceiving: ControlIMReceiving) =
 proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
   var ipb = initProtoBuffer()
 
+  if extensions.partialMessageExtension.isSome():
+    ipb.write(10, extensions.partialMessageExtension.get())
+
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
   if extensions.testExtension.isSome():
@@ -285,6 +288,15 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
 
   trace "decodeExtensions: decoding message"
   var control = ControlExtensions()
+
+  var partialMessageExtension: uint64
+  if ?pb.getField(10, partialMessageExtension):
+    trace "decodeExtensions: read partialMessageExtension",
+      partialMessageExtension = partialMessageExtension
+    control.partialMessageExtension = some(bool(partialMessageExtension))
+  else:
+    trace "decodeExtensions: partialMessageExtension is missing"
+    control.partialMessageExtension = none(bool)
 
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
