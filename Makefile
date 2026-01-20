@@ -5,8 +5,10 @@ all: build
 nimble.lock:
 	nimble lock
 
-deps: nimble.lock
+nix/deps.nix: nimble.lock
 	./scripts/gen-deps.sh nimble.lock nix/deps.nix
+
+deps: nix/deps.nix
 
 build: deps
 	nix build
@@ -14,8 +16,10 @@ build: deps
 cbind/nimble.lock:
 	cd cbind && nimble lock
 
-cbind-deps: deps cbind/nimble.lock
+nix/cbind-deps.nix: cbind/nimble.lock
 	./scripts/gen-deps.sh cbind/nimble.lock nix/cbind-deps.nix
+
+cbind-deps: nix/cbind-deps.nix
 
 cbind: cbind-deps
 	nix build .#cbind

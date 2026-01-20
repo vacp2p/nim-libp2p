@@ -28,3 +28,6 @@ tests/**/test*[^.]*
 !tests/**/*.*
 !tests/**/Dockerfile
 tests/*.xml
+
+# nix builds
+result

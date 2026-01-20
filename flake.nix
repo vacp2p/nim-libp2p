@@ -139,7 +139,7 @@
               mkdir -p $out
               cp build/libp2p.${libExt}  $out/
               cp build/libp2p.a          $out/
-              cp build/libp2p.h          $out/
+              cp cbind/libp2p.h          $out/
             '';
           };
         }
