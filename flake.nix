@@ -33,6 +33,10 @@
             builtins.concatStringsSep " "
               (map (p: "--path:${p}")
                    (builtins.attrValues cbindDeps));
+          libExt =
+            if pkgs.stdenv.hostPlatform.isWindows then "dll"
+            else if pkgs.stdenv.hostPlatform.isDarwin then "dylib"
+            else "so";
         in {
           default = pkgs.stdenv.mkDerivation {
             pname = "nim-libp2p";
@@ -94,13 +98,13 @@
               mkdir -p build
               mkdir -p $TMPDIR/nimcache
 
-              echo "== Building C bindings (shared lib) =="
+              echo "== Building C bindings (dynamic/shared) =="
               nim c \
                 --noNimblePath \
                 ${cbindPathArgs} \
                 ${pathArgs} \
                 --path:${deps.dnsclient}/src \
-                --out:build/libp2p.so \
+                --out:build/libp2p.${libExt} \
                 --app:lib \
                 --threads:on \
                 --opt:size \
@@ -112,7 +116,7 @@
                 --nimcache:$TMPDIR/nimcache \
                 cbind/libp2p.nim
 
-              echo "== Building C bindings (static lib) =="
+              echo "== Building C bindings (static) =="
               nim c \
                 --noNimblePath \
                 ${cbindPathArgs} \
@@ -129,6 +133,12 @@
                 --nimMainPrefix:libp2p \
                 --nimcache:$TMPDIR/nimcache \
                 cbind/libp2p.nim
+            '';
+
+            installPhase = ''
+              cp build/libp2p.${libExt}  $out/lib/
+              cp build/libp2p.a          $out/lib/
+              cp build/libp2p.h          $out/include/
             '';
           };
         }
