@@ -36,10 +36,10 @@ proc new*(
     partialMessageExtension: PartialMessageExtension.new(partialMessageExtensionConfig),
   )
 
-proc toPeerExtensions(ctrlExtensions: ControlExtensions): PeerExtensions =
-  let testExtensionSupported = ctrlExtensions.testExtension.valueOr:
+proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
+  let testExtensionSupported = ce.testExtension.valueOr:
     false
-  let partialMessageExtensionSupported = ctrlExtensions.partialMessageExtension.valueOr:
+  let partialMessageExtensionSupported = ce.partialMessageExtension.valueOr:
     false
 
   PeerExtensions(
