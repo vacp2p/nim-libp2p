@@ -48,14 +48,14 @@ proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
   )
 
 proc isNegotiated_TestExtension(state: ExtensionsState, peerId: PeerId): bool =
-  # does both this node peer support "test extension"?
+  # does both this node and peer support "test extension"?
   state.testExtension.isSome() and
     state.peerExtensions.getOrDefault(peerId).testExtensionSupported
 
 proc isNegotiated_PartialMessageExtension(
     state: ExtensionsState, peerId: PeerId
 ): bool =
-  # does both this node peer support "partial message extension"?
+  # does both this node and peer support "partial message extension"?
   state.partialMessageExtension.isSome() and
     state.peerExtensions.getOrDefault(peerId).partialMessageExtensionSupported
 
