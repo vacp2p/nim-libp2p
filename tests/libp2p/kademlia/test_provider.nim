@@ -360,3 +360,44 @@ suite "KadDHT - ProviderManager":
       providers.len() == 2
       kads[1].rtable.selfId in providers.mapIt(it.id)
       kads[2].rtable.selfId in providers.mapIt(it.id)
+
+  asyncTest "Provider address storage policy - addresses may be omitted":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    let senderKad = kads[0]
+
+    var (receiverSwitch, receiverKad) =
+      await setupMockKadSwitch(PermissiveValidator(), CandSelector())
+    defer:
+      await receiverSwitch.stop()
+
+    connectNodes(senderKad, receiverKad)
+
+    check receiverKad.providerManager.providerRecords.len() == 0
+
+    # Inject message with provider that has no addresses
+    let
+      targetKey = senderKad.rtable.selfId
+      # Provider with empty addresses
+      providerWithNoAddrs = Peer(
+        id: senderKad.switch.peerInfo.peerId.getBytes(),
+        addrs: @[],
+        connection: ConnectionType.connected,
+      )
+    receiverKad.handleAddProviderMessage = Opt.some(
+      Message(
+        msgType: MessageType.addProvider,
+        key: targetKey,
+        providerPeers: @[providerWithNoAddrs],
+      )
+    )
+    await senderKad.addProvider(targetKey.toCid())
+
+    # Provider should be stored even without addresses
+    checkUntilTimeout:
+      receiverKad.providerManager.providerRecords.len() == 1
+      receiverKad.providerManager.providerRecords[0].provider.id ==
+        senderKad.switch.peerInfo.peerId.getBytes()
+      receiverKad.providerManager.providerRecords[0].provider.addrs.len() == 0
