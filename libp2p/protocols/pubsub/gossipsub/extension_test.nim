@@ -7,7 +7,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[options]
 import ../../../[peerid]
 import ./[extensions_types]
 
@@ -22,13 +21,10 @@ type
 proc new*(T: typedesc[TestExtension], config: TestExtensionConfig): Extension =
   TestExtension(config: config)
 
-proc new*(
-    T: typedesc[TestExtension], config: Option[TestExtensionConfig]
-): Option[Extension] =
-  config.withValue(c):
-    some(TestExtension.new(c))
-  else:
-    none(Extension)
+method isSupported*(
+    ext: TestExtension, pe: PeerExtensions
+): bool {.gcsafe, raises: [].} =
+  return pe.testExtension
 
 method onNegotiated*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   ext.config.onNegotiated(peerId)

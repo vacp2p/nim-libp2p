@@ -12,9 +12,19 @@ import ../../../[peerid]
 proc noopPeerCallback*(peer: PeerId) {.gcsafe, raises: [].} =
   discard
 
-type PeerCallback* = proc(peer: PeerId) {.gcsafe, raises: [].}
+type
+  PeerExtensions* = object
+    testExtension*: bool
+    partialMessageExtension*: bool
 
-type Extension* = ref object of RootObj
+  PeerCallback* = proc(peer: PeerId) {.gcsafe, raises: [].}
+
+  Extension* = ref object of RootObj # base type of all extensions
+
+method isSupported*(
+    ext: Extension, pe: PeerExtensions
+): bool {.base, gcsafe, raises: [].} =
+  raiseAssert "must be implemented"
 
 method onNegotiated*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"

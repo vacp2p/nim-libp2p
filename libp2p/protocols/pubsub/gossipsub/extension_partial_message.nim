@@ -7,7 +7,6 @@
 # This file may not be copied, modified, or distributed except according to
 # those terms.
 
-import std/[options]
 import ../../../[peerid]
 import ./[extensions_types]
 
@@ -22,13 +21,10 @@ proc new*(
 ): Extension =
   PartialMessageExtension(config: config)
 
-proc new*(
-    T: typedesc[PartialMessageExtension], config: Option[PartialMessageExtensionConfig]
-): Option[Extension] =
-  config.withValue(c):
-    some(PartialMessageExtension.new(c))
-  else:
-    none(Extension)
+method isSupported*(
+    ext: PartialMessageExtension, pe: PeerExtensions
+): bool {.gcsafe, raises: [].} =
+  return pe.partialMessageExtension
 
 method onNegotiated*(
     ext: PartialMessageExtension, peerId: PeerId
