@@ -14,6 +14,9 @@ import ../../utils/heartbeat
 import ../protocol
 import ./[protobuf, types, find]
 
+logScope:
+  topics = "kad-dht provider"
+
 proc `==`*(a, b: ProviderRecord): bool {.inline.} =
   a.provider.id == b.provider.id and a.key == b.key
 
