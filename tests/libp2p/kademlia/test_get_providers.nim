@@ -128,3 +128,33 @@ suite "KadDHT - Get Providers":
     check:
       providers.len() == 1
       kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
+
+  asyncTest "GetProviders uses multihash for CID convergence":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    # Create two CIDs with same multihash but different codecs
+    let
+      testData = @[1.byte, 2, 3, 4, 5]
+      mhash = MultiHash.digest("sha2-256", testData).get()
+      cidDagPb = Cid.init(CIDv1, multiCodec("dag-pb"), mhash).get()
+      cidRaw = Cid.init(CIDv1, multiCodec("raw"), mhash).get()
+      expectedKey = mhash.toKey()
+
+    # Verify CIDs are different but map to same key
+    check:
+      cidDagPb.data.buffer != cidRaw.data.buffer
+      cidDagPb.toKey() == cidRaw.toKey()
+
+    # kads[1] announces as provider using dag-pb CID key
+    kads[1].providerManager.providedKeys.provided[expectedKey] = Moment.now()
+
+    # kads[0] queries using raw CID - should find the same provider
+    let providers = await kads[0].getProviders(cidRaw.toKey())
+
+    check:
+      providers.len() == 1
+      providers.toSeq()[0].id == kads[1].switch.peerInfo.peerId.getBytes()
