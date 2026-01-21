@@ -56,9 +56,6 @@
               export XDG_CACHE_HOME=$TMPDIR/.cache
               export NIMBLE_DIR=$TMPDIR/.nimble
 
-              mkdir -p build
-              mkdir -p $TMPDIR/nimcache
-
               echo "== Building pure Nim objects =="
               nim c \
                 --noNimblePath \
@@ -94,9 +91,11 @@
               export HOME=$TMPDIR
               export XDG_CACHE_HOME=$TMPDIR/.cache
               export NIMBLE_DIR=$TMPDIR/.nimble
+              export NIMCACHE=$TMPDIR/nimcache
+
 
               mkdir -p build
-              mkdir -p $TMPDIR/nimcache
+              mkdir -p $NIMCACHE
 
               echo "== Building C bindings (dynamic/shared) =="
               nim c \
@@ -113,7 +112,7 @@
                 --header \
                 --undef:metrics \
                 --nimMainPrefix:libp2p \
-                --nimcache:$TMPDIR/nimcache \
+                --nimcache:$NIMCACHE \
                 cbind/libp2p.nim
 
               echo "== Building C bindings (static) =="
@@ -131,7 +130,7 @@
                 --header \
                 --undef:metrics \
                 --nimMainPrefix:libp2p \
-                --nimcache:$TMPDIR/nimcache \
+                --nimcache:$NIMCACHE \
                 cbind/libp2p.nim
             '';
 
