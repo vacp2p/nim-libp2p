@@ -1,4 +1,4 @@
-.PHONY: all build deps cbind-deps cbind clean
+.PHONY: all build deps cbind clean
 
 all: build
 
@@ -13,17 +13,11 @@ deps: nix/deps.nix
 build: deps
 	nix build
 
-cbind/nimble.lock:
-	cd cbind && nimble lock
-
-nix/cbind-deps.nix: cbind/nimble.lock
-	./tools/gen-deps.sh cbind/nimble.lock nix/cbind-deps.nix
-
-cbind-deps: nix/cbind-deps.nix
-
-cbind: cbind-deps
-	nix build .#cbind
+# Delegate to cbind/Makefile
+cbind:
+	$(MAKE) -C cbind
 
 clean:
-	$(RM) nimble.lock cbind/nimble.lock nix/deps.nix nix/cbind-deps.nix
+	$(RM) nimble.lock nix/deps.nix
+	$(MAKE) -C cbind clean
 
