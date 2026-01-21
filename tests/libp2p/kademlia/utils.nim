@@ -80,7 +80,7 @@ proc setupMockKadSwitch*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
-    getValueResponse: GetValueResponseType = Normal,
+    getValueResponse: Opt[Message] = Opt.none(Message),
 ): Future[(Switch, MockKadDHT)] {.async.} =
   let switch = createSwitch()
   let kad = MockKadDHT.new(

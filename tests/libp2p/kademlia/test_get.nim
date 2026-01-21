@@ -13,7 +13,7 @@ from std/times import now, utc
 import chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
-import ./[mock_kademlia, utils]
+import ./utils
 
 suite "KadDHT Get":
   teardown:
@@ -249,79 +249,139 @@ suite "KadDHT Get":
         valueLocal
 
   asyncTest "GET_VALUE rejects record where Record.key does not match requested key":
+    let (victimSwitch, victimKad) =
+      await setupKadSwitch(PermissiveValidator(), CandSelector())
+
+    # Get value response with mismatched recored key
     let
-      (victimSwitch, victimKad) =
-        await setupKadSwitch(PermissiveValidator(), CandSelector())
-      (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
-        PermissiveValidator(), CandSelector(), getValueResponse = MismatchedKey
+      key = victimKad.rtable.selfId
+      wrongKey = @[1.byte, 1, 1, 1]
+      mockMessage = Message(
+        msgType: MessageType.getValue,
+        key: key,
+        record: Opt.some(
+          protobuf.Record(
+            key: wrongKey,
+            value: Opt.some(@[1.byte, 2, 3, 4]),
+            timeReceived: Opt.some($times.now().utc),
+          )
+        ),
+        closerPeers: @[],
       )
+
+    let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
+    )
     defer:
       await victimSwitch.stop()
       await maliciousSwitch.stop()
 
     connectNodes(victimKad, maliciousKad)
 
-    let requestedKey = victimKad.rtable.selfId
-    check victimKad.containsNoData(requestedKey)
+    check victimKad.containsNoData(key)
 
     # When victim calls getValue, malicious node returns a record with wrong Record.key
-    let record = await victimKad.getValue(requestedKey, quorumOverride = Opt.some(1))
+    let record = await victimKad.getValue(key, quorumOverride = Opt.some(1))
 
     # getValue should fail because the only response has mismatched key
     check:
       record.isErr()
-      victimKad.containsNoData(requestedKey)
+      victimKad.containsNoData(key)
+      victimKad.containsNoData(wrongKey)
 
   asyncTest "GET_VALUE rejects response without record":
+    let (victimSwitch, victimKad) =
+      await setupKadSwitch(PermissiveValidator(), CandSelector())
+
+    # Get value response with empty record
     let
-      (victimSwitch, victimKad) =
-        await setupKadSwitch(PermissiveValidator(), CandSelector())
-      (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
-        PermissiveValidator(), CandSelector(), getValueResponse = EmptyRecord
+      key = victimKad.rtable.selfId
+      mockMessage = Message(
+        msgType: MessageType.getValue,
+        key: key,
+        record: Opt.none(protobuf.Record),
+        closerPeers: @[],
       )
+
+    let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
+    )
     defer:
       await victimSwitch.stop()
       await maliciousSwitch.stop()
 
     connectNodes(victimKad, maliciousKad)
 
-    let requestedKey = victimKad.rtable.selfId
-    check victimKad.containsNoData(requestedKey)
+    check victimKad.containsNoData(key)
 
     # When victim calls getValue, malicious node returns a response without record
-    let record = await victimKad.getValue(requestedKey, quorumOverride = Opt.some(1))
+    let record = await victimKad.getValue(key, quorumOverride = Opt.some(1))
 
     check:
       record.isErr()
-      victimKad.containsNoData(requestedKey)
+      victimKad.containsNoData(key)
 
   asyncTest "GET_VALUE rejects record without value":
+    let (victimSwitch, victimKad) =
+      await setupKadSwitch(PermissiveValidator(), CandSelector())
+
+    # Get value response with empty record value
     let
-      (victimSwitch, victimKad) =
-        await setupKadSwitch(PermissiveValidator(), CandSelector())
-      (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
-        PermissiveValidator(), CandSelector(), getValueResponse = NoValue
+      key = victimKad.rtable.selfId
+      mockMessage = Message(
+        msgType: MessageType.getValue,
+        key: key,
+        record: Opt.some(
+          protobuf.Record(
+            key: key,
+            value: Opt.none(seq[byte]),
+            timeReceived: Opt.some($times.now().utc),
+          )
+        ),
+        closerPeers: @[],
       )
+
+    let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
+    )
     defer:
       await victimSwitch.stop()
       await maliciousSwitch.stop()
 
     connectNodes(victimKad, maliciousKad)
 
-    let requestedKey = victimKad.rtable.selfId
-    check victimKad.containsNoData(requestedKey)
+    check victimKad.containsNoData(key)
 
     # When victim calls getValue, malicious node returns a record without value
-    let record = await victimKad.getValue(requestedKey, quorumOverride = Opt.some(1))
+    let record = await victimKad.getValue(key, quorumOverride = Opt.some(1))
 
     check:
       record.isErr()
-      victimKad.containsNoData(requestedKey)
+      victimKad.containsNoData(key)
 
   asyncTest "GET_VALUE succeeds with some peers returning mismatched keys":
     let kads = await setupKadSwitches(3)
+
+    # Get value response with mismatched recored key
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+      wrongKey = @[1.byte, 1, 1, 1]
+      mockMessage = Message(
+        msgType: MessageType.getValue,
+        key: key,
+        record: Opt.some(
+          protobuf.Record(
+            key: wrongKey,
+            value: Opt.some(@[1.byte, 2, 3, 4]),
+            timeReceived: Opt.some($times.now().utc),
+          )
+        ),
+        closerPeers: @[],
+      )
+
     let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = MismatchedKey
+      PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
     )
     defer:
       await stopNodes(kads)
@@ -330,10 +390,6 @@ suite "KadDHT Get":
     connectNodes(kads[0], kads[1])
     connectNodes(kads[0], kads[2])
     connectNodes(kads[0], maliciousKad)
-
-    let
-      key = kads[0].rtable.selfId
-      value = @[1.byte, 2, 3, 4, 5]
 
     # Good nodes have valid records
     kads[1].dataTable.insert(key, value, $times.now().utc)
