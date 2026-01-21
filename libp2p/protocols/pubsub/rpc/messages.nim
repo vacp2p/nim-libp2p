@@ -132,14 +132,14 @@ func shortLogOpt[T](s: Option[T]): string =
 func shortLog*(so: Option[ControlExtensions]): auto =
   if so.isNone():
     (
-      testExtension: "<unset>", #
-      partialMessageExtension: "<unset>",
+      partialMessageExtension: "<unset>", #
+      testExtension: "<unset>",
     )
   else:
     let s = so.get()
     (
-      testExtension: shortLogOpt(s.testExtension),
       partialMessageExtension: shortLogOpt(s.partialMessageExtension),
+      testExtension: shortLogOpt(s.testExtension),
     )
 
 func shortLog*(c: ControlMessage): auto =
@@ -244,8 +244,8 @@ proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
 static:
   expectedFields(ControlExtensions, @["partialMessageExtension", "testExtension"])
 proc byteSize(T: typedesc[ControlExtensions]): int =
-  # 1 byte for the bool - testExtension
   # 1 byte for the bool - partialMessageExtension
+  # 1 byte for the bool - testExtension
   1 + 1
 
 proc byteSize(controlExtensions: Option[ControlExtensions]): int =
