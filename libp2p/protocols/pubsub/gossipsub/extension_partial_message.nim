@@ -34,6 +34,11 @@ method onNegotiated*(
 ) {.gcsafe, raises: [].} =
   discard # TODO
 
+method onRemovePeer*(
+    ext: PartialMessageExtension, peerId: PeerId
+) {.gcsafe, raises: [].} =
+  discard # TODO
+
 method onHandleRPC*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =

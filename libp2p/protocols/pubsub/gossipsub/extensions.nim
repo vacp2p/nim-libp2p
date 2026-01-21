@@ -73,6 +73,13 @@ proc onHeartbeat(state: ExtensionsState) =
   for _, e in state.extensions:
     e.onHeartbeat()
 
+proc onRemovePeer(state: ExtensionsState, peerId: PeerId) =
+  # extension event called when peer disconnects from gossipsub
+
+  for _, e in state.extensions:
+    if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
+      e.onRemovePeer(peerId)
+
 proc heartbeat*(state: ExtensionsState) =
   # triggers heartbeat event in extensions state
 
@@ -90,6 +97,10 @@ proc addPeer*(state: ExtensionsState, peerId: PeerId) =
 proc removePeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has disconnected from node
 
+  # first delegate event to extensions
+  state.onRemovePeer(peerId)
+
+  # then remove all data from sate associated with peer
   if state.peerExtensions.hasKey(peerId):
     state.peerExtensions.del(peerId)
   state.sentExtensions.excl(peerId)

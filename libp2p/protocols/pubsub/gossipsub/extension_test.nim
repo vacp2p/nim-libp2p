@@ -32,5 +32,8 @@ method onHeartbeat*(ext: TestExtension) {.gcsafe, raises: [].} =
 method onNegotiated*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   ext.config.onNegotiated(peerId)
 
+method onRemovePeer*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
+  discard # should not do anything
+
 method onHandleRPC*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   ext.config.onHandleRPC(peerId)

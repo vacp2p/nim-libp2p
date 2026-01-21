@@ -32,5 +32,8 @@ method onHeartbeat*(ext: Extension) {.base, gcsafe, raises: [].} =
 method onNegotiated*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"
 
+method onRemovePeer*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
+  raiseAssert "must be implemented"
+
 method onHandleRPC*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"
