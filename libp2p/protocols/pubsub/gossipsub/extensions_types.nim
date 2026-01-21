@@ -26,6 +26,9 @@ method isSupported*(
 ): bool {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"
 
+method onHeartbeat*(ext: Extension) {.base, gcsafe, raises: [].} =
+  raiseAssert "must be implemented"
+
 method onNegotiated*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"
 

@@ -26,6 +26,9 @@ method isSupported*(
 ): bool {.gcsafe, raises: [].} =
   return pe.testExtension
 
+method onHeartbeat*(ext: TestExtension) {.gcsafe, raises: [].} =
+  discard # should not do anything
+
 method onNegotiated*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   ext.config.onNegotiated(peerId)
 

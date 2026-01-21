@@ -26,12 +26,15 @@ method isSupported*(
 ): bool {.gcsafe, raises: [].} =
   return pe.partialMessageExtension
 
+method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
+  discard # TODO
+
 method onNegotiated*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
-  discard
+  discard # TODO
 
 method onHandleRPC*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
-  discard
+  discard # TODO

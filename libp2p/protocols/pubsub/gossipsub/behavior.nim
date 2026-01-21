@@ -5,7 +5,7 @@
 
 import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
-import "."/[types, scoring]
+import "."/[types, scoring, extensions]
 import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
 import
@@ -876,6 +876,8 @@ proc onHeartbeat(g: GossipSub) =
     g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
 
   g.mcache.shift() # shift the cache
+
+  g.extensionsState.heartbeat()
 
 proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:

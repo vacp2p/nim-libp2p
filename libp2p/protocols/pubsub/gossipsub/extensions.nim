@@ -67,6 +67,17 @@ proc onNegotiated(state: ExtensionsState, peerId: PeerId) =
     if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
       e.onNegotiated(peerId)
 
+proc onHeartbeat(state: ExtensionsState) =
+  # extension event called on every gossipsub heartbeat
+
+  for _, e in state.extensions:
+    e.onHeartbeat()
+
+proc heartbeat*(state: ExtensionsState) =
+  # triggers heartbeat event in extensions state
+
+  state.onHeartbeat()
+
 proc addPeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has connected to node and extensions control message is sent by gossipsub.
 
