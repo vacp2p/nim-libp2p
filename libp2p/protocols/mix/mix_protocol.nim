@@ -157,20 +157,32 @@ proc generateAndAppendProof(
 
   ok(appendResult.get())
 
-proc extractAndVerifyProof(
+proc extractProof(
     mixProto: MixProtocol, packetWithProof: var seq[byte], label: string
-): Result[seq[byte], string] =
-  ## Extract and verify spam protection proof from the packet.
-  ## Returns the Sphinx packet without proof, or an error if verification fails.
+): Result[(seq[byte], EncodedProofData), string] =
+  ## Extract spam protection proof from the packet without verifying.
+  ## Returns the Sphinx packet and the extracted proof.
   if not mixProto.isSpamProtectionEnabled():
-    return ok(packetWithProof)
+    return ok((packetWithProof, EncodedProofData(newSeq[byte](0))))
 
   let extractResult = extractProofFromPacket(packetWithProof, mixProto.spamProtection)
   if extractResult.isErr:
     mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_EXTRACTION_FAILED"])
     return err(fmt"Failed to extract spam protection proof: {extractResult.error()}")
 
-  let (sphinxPacket, proof) = extractResult.get()
+  ok(extractResult.get())
+
+proc verifyProof(
+    mixProto: MixProtocol,
+    sphinxPacket: seq[byte],
+    proof: EncodedProofData,
+    label: string,
+): Result[void, string] =
+  ## Verify a previously extracted spam protection proof.
+  ## Returns ok if verification passes, error otherwise.
+  if not mixProto.isSpamProtectionEnabled():
+    return ok()
+
   let bindingData = BindingData(sphinxPacket)
 
   let verifyResult = mixProto.spamProtection.verifyProof(proof, bindingData)
@@ -183,6 +195,19 @@ proc extractAndVerifyProof(
     return err("Spam protection proof verification failed")
 
   trace "Spam protection proof verified successfully"
+  ok()
+
+proc extractAndVerifyProof(
+    mixProto: MixProtocol, packetWithProof: var seq[byte], label: string
+): Result[seq[byte], string] =
+  ## Extract and verify spam protection proof from the packet.
+  ## Returns the Sphinx packet without proof, or an error if verification fails.
+  let (sphinxPacket, proof) = mixProto.extractProof(packetWithProof, label).valueOr:
+    return err(error)
+
+  mixProto.verifyProof(sphinxPacket, proof, label).isOkOr:
+    return err(error)
+
   ok(sphinxPacket)
 
 proc handleMixMessages(
@@ -202,22 +227,38 @@ proc handleMixMessages(
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "NO_DATA"])
     return # No data, end of stream
 
-  # Per-hop spam protection: Extract and verify proof BEFORE Sphinx decryption
-  var sphinxBytes = receivedBytes
-  let verifiedSphinx = mixProto.extractAndVerifyProof(sphinxBytes, "Intermediate/Exit").valueOr:
-    error "Spam protection verification failed", err = error
+  # Step 1: Extract spam proof
+  # Note: extractProof takes var to enable zero-copy truncation
+  let (sphinxBytes, spamProof) = mixProto.extractProof(
+    receivedBytes, "Intermediate/Exit"
+  ).valueOr:
+    error "Spam proof extraction failed", err = error
     return
-  sphinxBytes = verifiedSphinx
 
-  # Process the packet
+  # Step 2: Deserialize and check replay
   let (peerId, multiAddr, _, mixPrivKey, _, _) = mixProto.mixNodeInfo.get()
-
-  let sphinxPacket = SphinxPacket.deserialize(sphinxBytes).valueOr:
-    error "Sphinx packet deserialization error", err = error
+  let (sphinxPacket, isReplay, sharedSecret) = validateAndCheckReplay(
+    sphinxBytes, mixPrivKey, mixProto.tagManager
+  ).valueOr:
+    error "Sphinx validation or replay check failed", err = error
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "INVALID_SPHINX"])
     return
 
-  let processedSP = processSphinxPacket(sphinxPacket, mixPrivKey, mixProto.tagManager).valueOr:
+  if isReplay:
+    mix_messages_error.inc(labelValues = ["Intermediate/Exit", "DUPLICATE"])
+    return
+
+  # Step 3: Verify spam proof
+  # Only done after replay check passes to avoid wasting cycles on duplicates
+  mixProto.verifyProof(sphinxBytes, spamProof, "Intermediate/Exit").isOkOr:
+    error "Spam protection verification failed", err = error
+    return
+
+  # Step 4: Full Sphinx processing
+  # Reuse the shared secret computed in step 2 to avoid duplicate EC multiplication
+  let processedSP = processSphinxPacket(
+    sphinxPacket, mixPrivKey, mixProto.tagManager, Opt.some(sharedSecret)
+  ).valueOr:
     error "Failed to process Sphinx packet", err = error
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "INVALID_SPHINX"])
     return
