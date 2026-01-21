@@ -56,6 +56,7 @@
               export XDG_CACHE_HOME=$TMPDIR/.cache
               export NIMBLE_DIR=$TMPDIR/.nimble
 
+              # changes in this run script should be also reflected on libp2p.nimble
               echo "== Building pure Nim objects =="
               nim c \
                 --noNimblePath \
