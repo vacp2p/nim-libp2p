@@ -15,7 +15,7 @@ import
 import ../../tools/[unittest]
 import ./[mock_kademlia, utils]
 
-suite "KadDHT - ProviderManager":
+suite "KadDHT - Add Provider":
   teardown:
     checkTrackers()
 
