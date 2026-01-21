@@ -6,7 +6,7 @@ nimble.lock:
 	nimble lock
 
 nix/deps.nix: nimble.lock
-	./scripts/gen-deps.sh nimble.lock nix/deps.nix
+	./tools/gen-deps.sh nimble.lock nix/deps.nix
 
 deps: nix/deps.nix
 
@@ -17,7 +17,7 @@ cbind/nimble.lock:
 	cd cbind && nimble lock
 
 nix/cbind-deps.nix: cbind/nimble.lock
-	./scripts/gen-deps.sh cbind/nimble.lock nix/cbind-deps.nix
+	./tools/gen-deps.sh cbind/nimble.lock nix/cbind-deps.nix
 
 cbind-deps: nix/cbind-deps.nix
 
