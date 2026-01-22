@@ -49,8 +49,7 @@ type MixProtocol* = ref object of LPProtocol
   connCreds: Table[SURBIdentifier, ConnCreds]
   destReadBehavior: TableRef[string, DestReadBehavior]
   connPool: Table[PeerId, Connection]
-  spamProtection: SpamProtectionInterface
-  spamProtectionConfig: SpamProtectionConfig
+  spamProtection: Opt[SpamProtection]
 
 proc hasDestReadBehavior*(mixProto: MixProtocol, codec: string): bool =
   return mixProto.destReadBehavior.hasKey(codec)
@@ -130,32 +129,35 @@ proc writeLp(
 # Spam protection helper functions
 
 proc isSpamProtectionEnabled(mixProto: MixProtocol): bool {.inline.} =
-  ## Check if spam protection is enabled and configured for per-hop generation.
-  ## Uses nil check - nil means spam protection is disabled.
-  not mixProto.spamProtection.isNil and
-    mixProto.spamProtection.architecture == SpamProtectionArchitecture.PerHopGeneration
+  mixProto.spamProtection.isOk
 
 proc generateAndAppendProof(
     mixProto: MixProtocol, packet: seq[byte], label: string
 ): Result[seq[byte], string] =
   ## Generate spam protection proof and append it to the packet.
-  ## Returns the packet with proof appended, or an error.
-  if not mixProto.isSpamProtectionEnabled():
+  ## Returns the packet with proof appended if spam protection is enabled, or an error.
+  let spamProtection = mixProto.spamProtection.valueOr:
     return ok(packet)
 
   let bindingData = BindingData(packet)
-  let proofResult = mixProto.spamProtection.generateProof(bindingData)
-  if proofResult.isErr:
-    mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_GEN_FAILED"])
-    return err(fmt"Failed to generate spam protection proof: {proofResult.error()}")
+  let proof = spamProtection
+    .generateProof(bindingData)
+    .mapErr(
+      proc(e: string): string =
+        mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_GEN_FAILED"])
+        fmt"Failed to generate spam protection proof: {e}"
+    ).valueOr:
+      return err(error)
 
-  let proof = proofResult.get()
-  let appendResult = appendProofToPacket(packet, proof)
-  if appendResult.isErr:
-    mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_EMBED_FAILED"])
-    return err(fmt"Failed to append spam protection proof: {appendResult.error()}")
+  let packetWithProof = appendProofToPacket(packet, proof)
+    .mapErr(
+      proc(e: string): string =
+        mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_EMBED_FAILED"])
+        fmt"Failed to append spam protection proof: {e}"
+    ).valueOr:
+      return err(error)
 
-  ok(appendResult.get())
+  ok(packetWithProof)
 
 proc extractProof(
     mixProto: MixProtocol, packetWithProof: var seq[byte], label: string
@@ -165,12 +167,18 @@ proc extractProof(
   if not mixProto.isSpamProtectionEnabled():
     return ok((packetWithProof, EncodedProofData(newSeq[byte](0))))
 
-  let extractResult = extractProofFromPacket(packetWithProof, mixProto.spamProtection)
-  if extractResult.isErr:
-    mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_EXTRACTION_FAILED"])
-    return err(fmt"Failed to extract spam protection proof: {extractResult.error()}")
+  let spamProtection = mixProto.spamProtection.valueOr:
+    return ok((packetWithProof, EncodedProofData(newSeq[byte](0))))
 
-  ok(extractResult.get())
+  let proof = extractProofFromPacket(packetWithProof, spamProtection)
+    .mapErr(
+      proc(e: string): string =
+        mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_EXTRACTION_FAILED"])
+        fmt"Failed to extract spam protection proof: {e}"
+    ).valueOr:
+      return err(error)
+
+  ok(proof)
 
 proc verifyProof(
     mixProto: MixProtocol,
@@ -179,13 +187,12 @@ proc verifyProof(
     label: string,
 ): Result[void, string] =
   ## Verify a previously extracted spam protection proof.
-  ## Returns ok if verification passes, error otherwise.
   if not mixProto.isSpamProtectionEnabled():
     return ok()
 
   let bindingData = BindingData(sphinxPacket)
 
-  let verifyResult = mixProto.spamProtection.verifyProof(proof, bindingData)
+  let verifyResult = mixProto.spamProtection.get().verifyProof(proof, bindingData)
   if verifyResult.isErr:
     mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_VERIFY_ERROR"])
     return err(fmt"Spam protection proof verification error: {verifyResult.error()}")
@@ -201,12 +208,9 @@ proc extractAndVerifyProof(
     mixProto: MixProtocol, packetWithProof: var seq[byte], label: string
 ): Result[seq[byte], string] =
   ## Extract and verify spam protection proof from the packet.
-  ## Returns the Sphinx packet without proof, or an error if verification fails.
-  let (sphinxPacket, proof) = mixProto.extractProof(packetWithProof, label).valueOr:
-    return err(error)
+  let (sphinxPacket, proof) = ?mixProto.extractProof(packetWithProof, label)
 
-  mixProto.verifyProof(sphinxPacket, proof, label).isOkOr:
-    return err(error)
+  ?mixProto.verifyProof(sphinxPacket, proof, label)
 
   ok(sphinxPacket)
 
@@ -236,11 +240,15 @@ proc handleMixMessages(
     return
 
   # Step 2: Deserialize and check replay
-  let (peerId, multiAddr, _, mixPrivKey, _, _) = mixProto.mixNodeInfo.get()
-  let (sphinxPacket, isReplay, sharedSecret) = validateAndCheckReplay(
-    sphinxBytes, mixPrivKey, mixProto.tagManager
+  let sphinxPacket = SphinxPacket.deserialize(sphinxBytes).valueOr:
+    error "Sphinx deserialization failed", err = error
+    mix_messages_error.inc(labelValues = ["Intermediate/Exit", "INVALID_SPHINX"])
+    return
+
+  let (isReplay, sharedSecret) = checkReplay(
+    sphinxPacket, mixProto.mixNodeInfo.mixPrivKey, mixProto.tagManager
   ).valueOr:
-    error "Sphinx validation or replay check failed", err = error
+    error "Replay check failed", err = error
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "INVALID_SPHINX"])
     return
 
@@ -257,7 +265,10 @@ proc handleMixMessages(
   # Step 4: Full Sphinx processing
   # Reuse the shared secret computed in step 2 to avoid duplicate EC multiplication
   let processedSP = processSphinxPacket(
-    sphinxPacket, mixPrivKey, mixProto.tagManager, Opt.some(sharedSecret)
+    sphinxPacket,
+    mixProto.mixNodeInfo.mixPrivKey,
+    mixProto.tagManager,
+    Opt.some(sharedSecret),
   ).valueOr:
     error "Failed to process Sphinx packet", err = error
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "INVALID_SPHINX"])
@@ -292,7 +303,9 @@ proc handleMixMessages(
       return
 
     trace "Exit node - Received mix message",
-      peerId, message = deserialized.message, codec = deserialized.codec
+      peerId = mixProto.mixNodeInfo.peerId,
+      message = deserialized.message,
+      codec = deserialized.codec
 
     when defined(enable_mix_benchmarks):
       benchmarkLog "Exit",
@@ -356,7 +369,8 @@ proc handleMixMessages(
 
     await connCred.incoming.put(deserialized.message)
   of Intermediate:
-    trace "# Intermediate: ", peerId, multiAddr
+    trace "Intermediate node processing",
+      peerId = mixProto.mixNodeInfo.peerId, multiAddr = mixProto.mixNodeInfo.multiAddr
     # Add delay
     mix_messages_recvd.inc(labelValues = ["Intermediate"])
     await sleepAsync(milliseconds(processedSP.delayMs))
@@ -375,7 +389,7 @@ proc handleMixMessages(
         startTime,
         metadata,
         Opt.some(fromPeerId),
-        Opt.some(peerId)
+        Opt.some(nodeInfo.peerId)
 
     # Per-hop spam protection: Generate fresh proof for next hop and append
     let outgoingPacket = mixProto.generateAndAppendProof(
@@ -402,6 +416,13 @@ proc handleMixMessages(
   of InvalidMAC:
     mix_messages_error.inc(labelValues = ["Intermediate/Exit", "INVALID_MAC"])
 
+proc proofSize(sp: Opt[SpamProtection]): int =
+  ## Helper to get proof size from optional spam protection.
+  ## Returns 0 if spam protection is None.
+  if sp.isNone:
+    return 0
+  return sp.get().proofSize
+
 proc handleMixNodeConnection(
     mixProto: MixProtocol, conn: Connection
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
@@ -415,12 +436,7 @@ proc handleMixNodeConnection(
       await conn.readExactly(addr metadataBytes[0], MetadataSize)
 
     # Calculate maximum wire packet size including spam protection proof
-    let proofSize =
-      if mixProto.spamProtection.isNil:
-        0
-      else:
-        mixProto.spamProtection.proofSize()
-    let maxWireSize = PacketSize + proofSize
+    let maxWireSize = PacketSize + mixProto.spamProtection.proofSize()
     let receivedBytes = await conn.readLp(maxWireSize)
     asyncSpawn mixProto.handleMixMessages(conn.peerId, receivedBytes, metadataBytes)
 
@@ -795,8 +811,7 @@ proc init*(
     switch: Switch,
     tagManager: TagManager = TagManager.new(),
     rng: ref HmacDrbgContext = newRng(),
-    spamProtection: SpamProtectionInterface = nil,
-    spamProtectionConfig: SpamProtectionConfig = initSpamProtectionConfig(),
+    spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
 ) =
   mixProto.mixNodeInfo = mixNodeInfo
   mixProto.pubNodeInfo = pubNodeInfo
@@ -804,15 +819,8 @@ proc init*(
   mixProto.tagManager = tagManager
   mixProto.destReadBehavior = newTable[string, DestReadBehavior]()
 
-  # Initialize spam protection (nil means disabled)
+  # Initialize spam protection (Opt.none means disabled)
   mixProto.spamProtection = spamProtection
-  if not spamProtection.isNil:
-    # Validate configuration matches the spam protection instance
-    let validationResult = validateConfig(spamProtectionConfig, spamProtection)
-    if validationResult.isErr:
-      error "Spam protection configuration validation failed",
-        err = validationResult.error()
-  mixProto.spamProtectionConfig = spamProtectionConfig
 
   let onReplyDialer = proc(
       surb: SURB, message: seq[byte]
@@ -837,14 +845,10 @@ proc new*(
     switch: Switch,
     tagManager: TagManager = TagManager.new(),
     rng: ref HmacDrbgContext = newRng(),
-    spamProtection: SpamProtectionInterface = nil,
-    spamProtectionConfig: SpamProtectionConfig = initSpamProtectionConfig(),
+    spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
 ): T =
   let mixProto = new(T)
-  mixProto.init(
-    mixNodeInfo, pubNodeInfo, switch, tagManager, rng, spamProtection,
-    spamProtectionConfig,
-  )
+  mixProto.init(mixNodeInfo, pubNodeInfo, switch, tagManager, rng, spamProtection)
   mixProto
 
 proc new*(
@@ -853,8 +857,7 @@ proc new*(
     switch: Switch,
     nodeFolderInfoPath: string = ".",
     rng: ref HmacDrbgContext = newRng(),
-    spamProtection: SpamProtectionInterface = nil,
-    spamProtectionConfig: SpamProtectionConfig = initSpamProtectionConfig(),
+    spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
 ): Result[T, string] =
   ## Constructs a new `MixProtocol` instance for the mix node at `index`,
   ## loading its private info from `nodeInfo` and the public info of all other nodes from `pubInfo`.
@@ -867,13 +870,7 @@ proc new*(
     return err("Failed to load mix pub info for index " & $index & " - err: " & error)
 
   let mixProto = MixProtocol.new(
-    mixNodeInfo,
-    pubNodeInfo,
-    switch,
-    TagManager.new(),
-    rng,
-    spamProtection,
-    spamProtectionConfig,
+    mixNodeInfo, pubNodeInfo, switch, TagManager.new(), rng, spamProtection
   )
 
   return ok(mixProto)

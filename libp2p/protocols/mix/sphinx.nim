@@ -300,16 +300,6 @@ proc checkReplay*(
 
   ok((isDuplicate, s))
 
-proc validateAndCheckReplay*(
-    sphinxBytes: openArray[byte], privateKey: FieldElement, tm: var TagManager
-): Result[(SphinxPacket, bool, FieldElement), string] =
-  ## Deserialize and check replay in one step.
-  ## Returns (sphinxPacket, isReplay, sharedSecret).
-  ## This is a convenience function for the protocol layer.
-  let sphinxPacket = ?SphinxPacket.deserialize(sphinxBytes)
-  let (isReplay, sharedSecret) = ?checkReplay(sphinxPacket, privateKey, tm)
-  ok((sphinxPacket, isReplay, sharedSecret))
-
 proc processSphinxPacket*(
     sphinxPacket: SphinxPacket,
     privateKey: FieldElement,
@@ -321,13 +311,10 @@ proc processSphinxPacket*(
     (alpha, beta, gamma) = header.get()
 
   # Compute shared secret (or reuse if provided)
-  let s =
-    if sharedSecret.isSome:
-      sharedSecret.get()
-    else:
-      let alphaFE = bytesToFieldElement(alpha).valueOr:
-        return err("Error in bytes to field element conversion: " & error)
-      multiplyPointWithScalars(alphaFE, [privateKey])
+  let s = sharedSecret.valueOr:
+    let alphaFE = bytesToFieldElement(alpha).valueOr:
+      return err("Error in bytes to field element conversion: " & error)
+    multiplyPointWithScalars(alphaFE, [privateKey])
 
   let sBytes = fieldElementToBytes(s)
 
@@ -344,7 +331,7 @@ proc processSphinxPacket*(
 
   # Add tag if it wasn't already added by checkReplay
   if sharedSecret.isNone:
-    addTag(tm, s)
+    tm.addTag(s)
 
   # Derive AES key and IV
   let

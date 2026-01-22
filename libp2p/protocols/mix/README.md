@@ -27,7 +27,7 @@ let mixProto = MixProtocol.new(index, numberOfNodes, switch).valueOr:
   return
 
 # Exit node will forward any message it receives to its destination,
-# but if the protocol requires reading a response, we need to 
+# but if the protocol requires reading a response, we need to
 # register how should the exit node will read them.
 # Use either readExactly or readLp.
 # In this example we assume we're gonna use Ping protocol
@@ -51,7 +51,6 @@ let conn = mixProto.toConnection(
 let response = await pingProto.ping(conn)
 ```
 
-
 ## Spam Protection
 
 The Mix protocol includes a flexible spam protection interface that allows custom mechanisms to be integrated. By default, spam protection is disabled (nil).
@@ -60,18 +59,12 @@ The Mix protocol includes a flexible spam protection interface that allows custo
 # Create a custom spam protection instance
 let spamProtection = MySpamProtection.new()
 
-# Configure spam protection
-let config = initSpamProtectionConfig(
-  architecture = SpamProtectionArchitecture.PerHopGeneration
-)
-
 # Initialize MixProtocol with spam protection
 let mixProto = MixProtocol.new(
   mixNodeInfo,
   pubNodeInfo,
   switch,
-  spamProtection = spamProtection,
-  spamProtectionConfig = config
+  spamProtection = spamProtection
 )
 ```
 
@@ -101,8 +94,6 @@ let conn = mixProto.toConnection(
     theCodec,
   ).expect("should build connection")
 ```
-
-
 
 ## RFC and Further Reading
 

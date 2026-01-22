@@ -28,12 +28,9 @@ export MixNodes
 export initMixMultiAddrByIndex
 
 # Spam protection exports
-export SpamProtectionInterface
-export SpamProtectionArchitecture
-export SpamProtectionConfig
+export SpamProtection
 export EncodedProofData
 export BindingData
-export initSpamProtectionConfig
 export generateProof
 export verifyProof
 

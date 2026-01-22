@@ -9,7 +9,8 @@
 
 {.used.}
 
-import chronos, results, options, std/[enumerate, sequtils], os
+import chronos, results, std/[enumerate, sequtils], os
+import ./utils
 import
   ../../../libp2p/[
     protocols/mix,
@@ -23,7 +24,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/unittest
+import ../../tools/[unittest, crypto]
 
 # Import test spam protection implementations
 import ./test_spam_protection
@@ -36,16 +37,9 @@ const
 proc createSwitch(
     multiAddr: MultiAddress, libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey)
 ): Switch =
-  var rng = HmacDrbgContext.new()
-  let privKey = PrivateKey(
-    scheme: Secp256k1,
-    skkey:
-      if libp2pPrivKey.isSome:
-        libp2pPrivKey.get()
-      else:
-        let keyPair = SkKeyPair.random(rng[])
-        keyPair.seckey,
-  )
+  var rng = rng()
+  let skkey = libp2pPrivKey.valueOr(SkKeyPair.random(rng[]).seckey)
+  let privKey = PrivateKey(scheme: Secp256k1, skkey: skkey)
   return
     newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
 
@@ -88,23 +82,18 @@ suite "Spam Protection Integration Tests":
   asyncTest "e2e with rate limiting spam protection":
     # Each node gets its own spam protection instance with independent rate limit
     # This reflects real-world deployment where each node independently enforces limits
-    let spamConfig =
-      initSpamProtectionConfig(SpamProtectionArchitecture.PerHopGeneration)
 
     var mixProto: seq[MixProtocol] = @[]
     for index, _ in enumerate(switches):
       # Each node creates its own spam protection instance
-      let spamProtection = newTestRateLimitSpamProtection(
-        RateLimitPerNode, SpamProtectionArchitecture.PerHopGeneration
-      )
+      let spamProtection = newTestRateLimitSpamProtection(RateLimitPerNode)
 
       let proto = MixProtocol
         .new(
           index,
           switches.len,
           switches[index],
-          spamProtection = spamProtection,
-          spamProtectionConfig = spamConfig,
+          spamProtection = Opt.some(SpamProtection(spamProtection)),
         )
         .expect("should have initialized mix protocol")
 
