@@ -34,6 +34,12 @@ type
   SubOpts* = object
     subscribe*: bool
     topic*: string
+    # When true, it signals the receiver that the sender prefers partial messages.
+    requestsPartial*: Option[bool]
+    # When true, it signals the receiver that the sender supports sending partial
+    # messages on this topic.
+    # When requestsPartial is true, this is assumed to be true.
+    supportsSendingPartial*: Option[bool]
 
   MessageId* = seq[byte]
 
@@ -94,13 +100,21 @@ type
 
   TestExtensionRPC* = object
 
+  PartialMessageExtensionRPC* = object
+    topicID*: string
+    gorupID*: seq[byte]
+    partialMessage*: seq[byte]
+    partsMetadata*: seq[byte]
+
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
     control*: Option[ControlMessage]
+    partialMessageExtension*: Option[PartialMessageExtensionRPC]
+    testExtension*: Option[TestExtensionRPC]
+    # should be experimental extension in future
     ping*: seq[byte]
     pong*: seq[byte]
-    testExtension*: Option[TestExtensionRPC]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
   T(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
@@ -185,9 +199,14 @@ proc byteSize(peerInfo: PeerInfoMsg): int =
   peerInfo.peerId.len + peerInfo.signedPeerRecord.len
 
 static:
-  expectedFields(SubOpts, @["subscribe", "topic"])
+  expectedFields(
+    SubOpts, @["subscribe", "topic", "requestsPartial", "supportsSendingPartial"]
+  )
 proc byteSize(subOpts: SubOpts): int =
-  1 + subOpts.topic.len # 1 byte for the bool
+  1 + # subscribe: 1 byte for the bool
+  subOpts.topic.len + # topic
+  1 + # requestsPartial: 1 byte for bool
+  1 # supportsSendingPartial: 1 byte for bool
 
 static:
   expectedFields(Message, @["fromPeer", "data", "seqno", "topic", "signature", "key"])
@@ -259,6 +278,17 @@ static:
 proc byteSize(testExtensions: TestExtensionRPC): int =
   0 # type is empty
 
+static:
+  expectedFields(
+    PartialMessageExtensionRPC,
+    @["topicID", "gorupID", "partialMessage", "partsMetadata"],
+  )
+proc byteSize(pme: PartialMessageExtensionRPC): int =
+  pme.topicID.len + #
+  pme.gorupID.len + #
+  pme.partialMessage.len + #
+  pme.partsMetadata.len
+
 when defined(libp2p_gossipsub_1_4):
   static:
     expectedFields(
@@ -287,7 +317,11 @@ else:
 
 static:
   expectedFields(
-    RPCMsg, @["subscriptions", "messages", "control", "ping", "pong", "testExtension"]
+    RPCMsg,
+    @[
+      "subscriptions", "messages", "control", "partialMessageExtension",
+      "testExtension", "ping", "pong",
+    ],
   )
 proc byteSize*(rpc: RPCMsg): int =
   result =
@@ -295,5 +329,7 @@ proc byteSize*(rpc: RPCMsg): int =
     rpc.pong.len
   rpc.control.withValue(ctrl):
     result += ctrl.byteSize
+  rpc.partialMessageExtension.withValue(pme):
+    result += pme.byteSize
   rpc.testExtension.withValue(te):
     result += te.byteSize
