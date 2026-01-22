@@ -157,9 +157,9 @@ proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} 
       let expired = kad.providerManager.providerRecords.pop()
       kad.providerManager.removeProviderRecord(expired)
 
-proc handleAddProvider*(
+method handleAddProvider*(
     kad: KadDHT, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
+) {.base, async: (raises: [CancelledError]).} =
   if not MultiHash.validate(msg.key):
     error "Received key is an invalid Multihash", msg = msg, conn = conn, key = msg.key
     return

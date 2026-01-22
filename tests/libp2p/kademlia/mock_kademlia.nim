@@ -8,12 +8,13 @@
 # those terms.
 
 import chronos, chronicles
-import ../../../libp2p/protocols/kademlia/[types, routingtable, protobuf, get]
+import ../../../libp2p/protocols/kademlia/[types, routingtable, protobuf, get, provider]
 import ../../../libp2p/[peerid, stream/connection]
 
 type MockKadDHT* = ref object of KadDHT
   findNodeCalls*: seq[Key]
   getValueResponse*: Opt[Message]
+  handleAddProviderMessage*: Opt[Message]
 
 method findNode*(
     kad: MockKadDHT, target: Key
@@ -31,4 +32,11 @@ method handleGetValue*(
   try:
     await conn.writeLp(response.encode().buffer)
   except LPStreamError as exc:
-    debug "Failed to send mock get-value response", conn = conn, err = exc.msg
+    debug "Failed to send malicious get-value response", conn = conn, err = exc.msg
+
+method handleAddProvider*(
+    kad: MockKadDHT, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  await procCall handleAddProvider(
+    KadDHT(kad), conn, kad.handleAddProviderMessage.valueOr(msg)
+  )

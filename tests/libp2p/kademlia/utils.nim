@@ -81,6 +81,7 @@ proc setupMockKadSwitch*(
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     getValueResponse: Opt[Message] = Opt.none(Message),
+    handleAddProviderMessage: Opt[Message] = Opt.none(Message),
 ): Future[(Switch, MockKadDHT)] {.async.} =
   let switch = createSwitch()
   let kad = MockKadDHT.new(
@@ -96,6 +97,7 @@ proc setupMockKadSwitch*(
     ),
   )
   kad.getValueResponse = getValueResponse
+  kad.handleAddProviderMessage = handleAddProviderMessage
 
   switch.mount(kad)
   await switch.start()
