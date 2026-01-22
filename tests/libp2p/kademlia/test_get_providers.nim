@@ -291,7 +291,7 @@ suite "KadDHT - Get Providers":
     check:
       response.get().closerPeers.len() == 3
 
-  asyncTest "GetProviders aggregates providers from multiple peers":
+  asyncTest "Get providers aggregates providers from multiple peers":
     # Topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3] <-> kads[4]
     let kads = await setupKadSwitches(5)
     defer:
