@@ -8,7 +8,7 @@
 # those terms.
 {.used.}
 
-import std/[algorithm, sequtils], results, chronos, chronicles
+import algorithm, chronos, chronicles, results, sequtils, sets
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[crypto, unittest]
 import ./mock_kademlia
@@ -109,6 +109,7 @@ proc setupKadSwitch*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+    replication: int = DefaultReplication,
 ): Future[(Switch, KadDHT)] {.async.} =
   let switch = createSwitch()
   let kad = KadDHT.new(
@@ -121,6 +122,7 @@ proc setupKadSwitch*(
       cleanupProvidersInterval = cleanupProvidersInterval,
       providerExpirationInterval = chronos.seconds(1),
       republishProvidedKeysInterval = republishProvidedKeysInterval,
+      replication = replication,
     ),
   )
 
@@ -135,12 +137,13 @@ proc setupKadSwitches*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+    replication: int = DefaultReplication,
 ): Future[seq[KadDHT]] {.async.} =
   var kads: seq[KadDHT]
   for i in 0 ..< count:
     var (_, kad) = await setupKadSwitch(
       validator, selector, bootstrapNodes, cleanupProvidersInterval,
-      republishProvidedKeysInterval,
+      republishProvidedKeysInterval, replication,
     )
     kads.add(kad)
   kads
@@ -183,6 +186,13 @@ proc hasNoKeys*(kad: KadDHT, keys: seq[Key]): bool =
 
 proc pluckPeerIds*(kads: seq[KadDHT]): seq[PeerId] =
   kads.mapIt(it.switch.peerInfo.peerId)
+
+proc containsPeer*(providers: HashSet[Peer], node: KadDHT): bool =
+  let providerIds = providers.toSeq().mapIt(it.id)
+  node.switch.peerInfo.peerId.getBytes() in providerIds
+
+proc toPeer*(node: KadDHT): Peer =
+  node.switch.peerInfo.toPeer()
 
 proc randomPeerId*(): PeerId =
   PeerId.random(rng()).get()
