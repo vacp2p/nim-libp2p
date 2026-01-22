@@ -186,11 +186,22 @@ func shortLog*(msg: Message): auto =
     key: msg.key.shortLog,
   )
 
+func shortLog*(pme: PartialMessageExtensionRPC): auto =
+  (
+    topicID: pme.topicID.shortLog,
+    gorupID: pme.gorupID.shortLog,
+    partialMessage: pme.partialMessage.shortLog,
+    partsMetadata: pme.partsMetadata.shortLog,
+  )
+
 func shortLog*(m: RPCMsg): auto =
   (
     subscriptions: m.subscriptions,
     messages: mapIt(m.messages, it.shortLog),
     control: m.control.get(ControlMessage()).shortLog,
+    partialMessageExtension:
+      m.partialMessageExtension.get(PartialMessageExtensionRPC()).shortLog,
+    testExtension: m.testExtension.shortLogOpt,
   )
 
 static:
@@ -198,15 +209,18 @@ static:
 proc byteSize(peerInfo: PeerInfoMsg): int =
   peerInfo.peerId.len + peerInfo.signedPeerRecord.len
 
+proc byteSize(v: Option[bool]): int =
+  if v.isSome(): 1 else: 0
+
 static:
   expectedFields(
     SubOpts, @["subscribe", "topic", "requestsPartial", "supportsSendingPartial"]
   )
 proc byteSize(subOpts: SubOpts): int =
   1 + # subscribe: 1 byte for the bool
-  subOpts.topic.len + # topic
-  1 + # requestsPartial: 1 byte for bool
-  1 # supportsSendingPartial: 1 byte for bool
+  subOpts.topic.len + #
+  subOpts.requestsPartial.byteSize() + #
+  subOpts.supportsSendingPartial.byteSize()
 
 static:
   expectedFields(Message, @["fromPeer", "data", "seqno", "topic", "signature", "key"])
@@ -262,16 +276,15 @@ proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
 
 static:
   expectedFields(ControlExtensions, @["partialMessageExtension", "testExtension"])
-proc byteSize(T: typedesc[ControlExtensions]): int =
-  # 1 byte for the bool - partialMessageExtension
-  # 1 byte for the bool - testExtension
-  1 + 1
+proc byteSize(controlExtensions: ControlExtensions): int =
+  controlExtensions.partialMessageExtension.byteSize() + #
+  controlExtensions.testExtension.byteSize()
 
 proc byteSize(controlExtensions: Option[ControlExtensions]): int =
-  if controlExtensions.isNone:
-    0
+  controlExtensions.withValue(ce):
+    ce.byteSize()
   else:
-    ControlExtensions.byteSize()
+    0
 
 static:
   expectedFields(TestExtensionRPC, @[])

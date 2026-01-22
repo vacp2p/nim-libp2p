@@ -160,8 +160,13 @@ suite "Message":
     var rpcMsg = RPCMsg(
       subscriptions:
         @[
-          SubOpts(subscribe: true, topic: "a".repeat(12)), # 1 + 12 + 1 + 1 = 15 bytes
-          SubOpts(subscribe: false, topic: "b".repeat(14)), # 1 + 14 + 1 + 1 = 17 bytes
+          SubOpts(
+            subscribe: true,
+            topic: "a".repeat(12),
+            requestsPartial: some(true),
+            supportsSendingPartial: some(true),
+          ), # 1 + 12 + 1 + 1 = 15 bytes
+          SubOpts(subscribe: false, topic: "b".repeat(14)), # 1 + 14 = 15 bytes
         ],
       messages: @[msg, msg], # 16 * 2 = 32 bytes
       ping: @[1'u8, 2], # 2 bytes
@@ -170,7 +175,7 @@ suite "Message":
       partialMessageExtension: some(partialMessageExtensionRPC), # 4 bytes
     )
 
-    check byteSize(rpcMsg) == 32 + 32 + 2 + 2 + 38 + 4 # Total: 110 bytes
+    check byteSize(rpcMsg) == 30 + 32 + 2 + 2 + 38 + 4 # Total: 108 bytes
 
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
   # check value before & after decoding equal using protoc cmd tool for reference
