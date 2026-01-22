@@ -290,3 +290,32 @@ suite "KadDHT - Get Providers":
     # kads[0] knows 6 peers but should only return k=3 in closerPeers
     check:
       response.get().closerPeers.len() == 3
+
+  asyncTest "GetProviders aggregates providers from multiple peers":
+    # Topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3] <-> kads[4]
+    let kads = await setupKadSwitches(5)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[1], kads[2])
+    connectNodes(kads[2], kads[3])
+    connectNodes(kads[3], kads[4])
+
+    let key = @[1.byte, 2, 3, 4, 5]
+
+    # kads[1 .. 4] are providers
+    kads[1].providerManager.providedKeys.provided[key] = Moment.now()
+    kads[2].providerManager.providedKeys.provided[key] = Moment.now()
+    kads[3].providerManager.providedKeys.provided[key] = Moment.now()
+    kads[4].providerManager.providedKeys.provided[key] = Moment.now()
+
+    let providers = await kads[0].getProviders(key)
+
+    # Result should contain all providers
+    check:
+      providers.len() == 4
+      providers.containsPeer(kads[1])
+      providers.containsPeer(kads[2])
+      providers.containsPeer(kads[3])
+      providers.containsPeer(kads[4])

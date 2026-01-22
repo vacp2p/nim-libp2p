@@ -149,6 +149,7 @@ proc setupKadSwitches*(
   kads
 
 proc stopNodes*(nodes: seq[KadDHT]) {.async.} =
+  await allFutures(nodes.mapIt(it.stop()))
   await allFutures(nodes.mapIt(it.switch.stop()))
 
 proc connectNodes*(kad1, kad2: KadDHT) =
