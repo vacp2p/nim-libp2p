@@ -1,6 +1,3 @@
-when defined(linux) and defined(amd64):
-  {.used.}
-
 # Nim-LibP2P
 # Copyright (c) 2023-2025 Status Research & Development GmbH
 # Licensed under either of
@@ -9,6 +6,10 @@ when defined(linux) and defined(amd64):
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
+
+
+when defined(linux) and defined(amd64):
+  {.used.}
 
 when defined(libp2p_autotls_support):
   import test_autotls_integration, test_peer_id_auth_integration, test_ws_integration
