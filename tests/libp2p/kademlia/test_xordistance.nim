@@ -9,7 +9,7 @@
 
 {.used.}
 
-import chronos, chronicles, stew/byteutils
+import chronos, stew/byteutils
 import
   ../../../libp2p/[
     cid,
@@ -21,8 +21,6 @@ import
     protocols/kademlia/types,
   ]
 import ../../tools/[crypto, unittest]
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT XOR Distance":
   test "countLeadingZeroBits works":
