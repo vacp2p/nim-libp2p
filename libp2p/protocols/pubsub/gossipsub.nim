@@ -11,6 +11,7 @@ import chronos/ratelimit
 import
   ./pubsub,
   ./floodsub,
+  ./gossipsub/partial_message,
   ./pubsubpeer,
   ./peertable,
   ./mcache,
@@ -994,6 +995,11 @@ method publish*(
 
   trace "Published message to peers", peers = peers.len
   return peers.len
+
+proc publishPartial*(
+    g: GossipSub, topic: string, pm: PartialMessage
+): Future[int] {.async: (raises: []).} =
+  g.extensionsState.publishPartial(topic, pm)
 
 proc maintainDirectPeer(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]

@@ -18,7 +18,7 @@ type
   TestExtension* = ref object of Extension
     config: TestExtensionConfig
 
-proc new*(T: typedesc[TestExtension], config: TestExtensionConfig): Extension =
+proc new*(T: typedesc[TestExtension], config: TestExtensionConfig): TestExtension =
   TestExtension(config: config)
 
 method isSupported*(

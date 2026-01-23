@@ -4,7 +4,7 @@
 import std/[options, sets, tables]
 import ../../../[peerid]
 import ../rpc/messages
-import ./[extensions_types, extension_test, extension_partial_message]
+import ./[extensions_types, extension_test, extension_partial_message, partial_message]
 
 export PeerCallback, TestExtensionConfig, PartialMessageExtensionConfig
 
@@ -13,8 +13,9 @@ type ExtensionsState* = ref object
   peerExtensions: Table[PeerId, PeerExtensions]
     # tells what peer capabilities are (what extensions are supported)
   onMissbehave: PeerCallback
-  extensions: seq[Extension]
   nodeExtensions: ControlExtensions # tells what this nodes capabilities are 
+  extensions: seq[Extension]
+  partialMessageExtension: Option[PartialMessageExtension]
 
 proc new*(
     T: typedesc[ExtensionsState],
@@ -25,20 +26,24 @@ proc new*(
 ): T =
   var nodeExtensions = ControlExtensions()
   var extensions = newSeq[Extension]()
+  var partialMessageExtension: Option[PartialMessageExtension] =
+    none(PartialMessageExtension)
 
   testExtensionConfig.withValue(c):
     extensions.add(TestExtension.new(c))
     nodeExtensions.testExtension = some(true)
 
   partialMessageExtensionConfig.withValue(c):
-    extensions.add(PartialMessageExtension.new(c))
+    partialMessageExtension = some(PartialMessageExtension.new(c))
+    extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = some(true)
 
   T(
     onMissbehave: onMissbehave,
     sentExtensions: initHashSet[PeerId](),
-    extensions: extensions,
     nodeExtensions: nodeExtensions,
+    extensions: extensions,
+    partialMessageExtension: partialMessageExtension,
   )
 
 proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
@@ -125,3 +130,9 @@ proc handleRPC*(
 
 proc makeControlExtensions*(state: ExtensionsState): ControlExtensions =
   return state.nodeExtensions
+
+proc publishPartial*(state: ExtensionsState, topic: string, pm: PartialMessage) =
+  state.partialMessageExtension.withValue(e):
+    e.publishPartial(topic, pm)
+  else:
+    raiseAssert "partial message extension is not configured"

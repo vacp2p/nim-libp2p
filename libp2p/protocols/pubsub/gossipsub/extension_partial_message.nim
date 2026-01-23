@@ -8,7 +8,7 @@
 # those terms.
 
 import ../../../[peerid]
-import ./[extensions_types]
+import ./[extensions_types, partial_message]
 
 type
   PartialMessageExtensionConfig* = object
@@ -18,7 +18,7 @@ type
 
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
-): Extension =
+): PartialMessageExtension =
   PartialMessageExtension(config: config)
 
 method isSupported*(
@@ -42,4 +42,7 @@ method onRemovePeer*(
 method onHandleRPC*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
+  discard # TODO
+
+proc publishPartial*(ext: PartialMessageExtension, topic: string, pm: PartialMessage) =
   discard # TODO
