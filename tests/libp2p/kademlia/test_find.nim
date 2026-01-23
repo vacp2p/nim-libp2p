@@ -90,6 +90,11 @@ suite "KadDHT Find":
     check:
       kads[0].hasKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
 
+    # Queried nodes learned about kads[0]
+    check:
+      kads[2].hasKey(kads[0].rtable.selfId)
+      kads[3].hasKey(kads[0].rtable.selfId)
+
   asyncTest "Find node excludes already-queried peers from candidates":
     # Each node knows the other two, creating potential for infinite loops
     # Without exclusion: kads[0] queries kads[1]/kads[2] -> they return each other -> repeat
@@ -470,6 +475,61 @@ suite "KadDHT Find":
     state.responded[sorted[2]] = RespondedStatus.Success
     check not state.hasResponsesFromClosestAvailable()
 
-    # Now fill the gap
+    # Now fill the gap, stop condition satisfied
     state.responded[sorted[1]] = RespondedStatus.Success
     check state.hasResponsesFromClosestAvailable()
+
+  asyncTest "Lookup stop condition does not count failed responses":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kads[0], targetKey)
+
+    var peers: seq[PeerId]
+    for i in 0 ..< 4:
+      peers.add(randomPeerId())
+      state.shortlist[peers[i]] =
+        xorDistance(peers[i], targetKey, kads[0].rtable.config.hasher)
+    let sorted = peers.sortPeers(targetKey, kads[0].rtable.config.hasher)
+
+    kads[0].config.replication = 3
+
+    # Closest peer failed, next two succeeded
+    state.responded[sorted[0]] = RespondedStatus.Failed
+    state.responded[sorted[1]] = RespondedStatus.Success
+    state.responded[sorted[2]] = RespondedStatus.Success
+
+    # Not satisfied, need 3 successes
+    check not state.hasResponsesFromClosestAvailable()
+
+    # 4th peer succeeds, stop condition satisfied
+    state.responded[sorted[3]] = RespondedStatus.Success
+    check state.hasResponsesFromClosestAvailable()
+
+  asyncTest "selectCloserPeers excludes peers that exhausted retries":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    const maxRetries = 3
+    kads[0].config.retries = maxRetries
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kads[0], targetKey)
+
+    let peer1 = randomPeerId()
+    let peer2 = randomPeerId()
+    state.shortlist[peer1] = xorDistance(peer1, targetKey, kads[0].rtable.config.hasher)
+    state.shortlist[peer2] = xorDistance(peer2, targetKey, kads[0].rtable.config.hasher)
+
+    check state.selectCloserPeers(10).len == 2
+
+    # peer1 at max retries — still selectable
+    state.attempts[peer1] = maxRetries
+    check peer1 in state.selectCloserPeers(10)
+
+    # peer1 exceeds retries — excluded
+    state.attempts[peer1] = maxRetries + 1
+    check peer1 notin state.selectCloserPeers(10)

@@ -25,7 +25,7 @@ type LookupState* = object
   target*: Key
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
-  attempts: Table[PeerId, int]
+  attempts*: Table[PeerId, int]
 
 type DispatchProc* = proc(kad: KadDHT, peer: PeerId, target: Key): Future[Opt[Message]] {.
   async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
@@ -92,7 +92,9 @@ proc selectCloserPeers*(
     # take at most alpha peers
     .take(amount)
 
-proc hasResponsesFromClosestAvailable*(state: LookupState): bool {.raises: [], gcsafe.} =
+proc hasResponsesFromClosestAvailable*(
+    state: LookupState
+): bool {.raises: [], gcsafe.} =
   ## True when all closest k AVAILABLE peers have responded.
   let candidates = state.sortedShortlist(excludeResponded = false)
   if candidates.len == 0:
