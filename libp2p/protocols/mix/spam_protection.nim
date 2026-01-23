@@ -134,8 +134,7 @@ proc appendProofToPacket*(
   ## This is called when generating fresh proof for next hop.
   ##
   ## Returns: Complete packet with proof appended
-  if proof.len == 0: # note override len
+  if proof.len == 0:
     return ok(sphinxPacket)
 
-  let proofBytes: seq[byte] = proof # note better just cast if possible
-  ok(sphinxPacket & proofBytes)
+  ok(sphinxPacket & seq[byte](proof))
