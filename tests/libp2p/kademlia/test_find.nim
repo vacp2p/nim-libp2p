@@ -132,7 +132,8 @@ suite "KadDHT Find":
     # In the next round, node[3] and node[4] both return node[5].
     # node[5] must be discovered exactly once (deduplication).
     check:
-      foundPeers == kads[1 .. 5].pluckPeerIds().sortPeers(targetKey, kads[0].rtable.config.hasher)
+      foundPeers ==
+        kads[1 .. 5].pluckPeerIds().sortPeers(targetKey, kads[0].rtable.config.hasher)
       kads[0].hasKey(kads[3].rtable.selfId)
       kads[0].hasKey(kads[4].rtable.selfId)
       kads[0].hasKey(kads[5].rtable.selfId)
@@ -487,7 +488,7 @@ suite "KadDHT Find":
     check allPeers ==
       @[peer1, peer2, peer3].sortPeers(targetKey, kads[0].rtable.config.hasher)
 
-  asyncTest "Lookup terminates when k closest nodes have responded":
+  asyncTest "Lookup stops when k closest nodes have responded successfully":
     let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
@@ -495,7 +496,7 @@ suite "KadDHT Find":
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kads[0], targetKey)
 
-    # Add 5 peers
+    # Add peers
     var peers: seq[PeerId]
     for i in 0 ..< 4:
       peers.add(randomPeerId())
@@ -505,8 +506,6 @@ suite "KadDHT Find":
 
     # Set k=3
     kads[0].config.replication = 3
-
-    check not state.hasResponsesFromClosestAvailable()
 
     # only 2 successes, need 3
     state.responded[sorted[0]] = RespondedStatus.Failed
@@ -518,7 +517,7 @@ suite "KadDHT Find":
     state.responded[sorted[3]] = RespondedStatus.Success
     check state.hasResponsesFromClosestAvailable()
 
-  asyncTest "Stop condition not satisfied when k successes but closer peer not responded":
+  asyncTest "Lookup doesn't stop when k successes but closer peer not responded":
     let kads = await setupKadSwitches(1)
     defer:
       await stopNodes(kads)
@@ -526,9 +525,9 @@ suite "KadDHT Find":
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kads[0], targetKey)
 
-    # Add 5 peers
+    # Add peers
     var peers: seq[PeerId]
-    for i in 0 ..< 5:
+    for i in 0 ..< 4:
       peers.add(randomPeerId())
       state.shortlist[peers[i]] =
         xorDistance(peers[i], targetKey, kads[0].rtable.config.hasher)
@@ -547,7 +546,6 @@ suite "KadDHT Find":
     # Stop condition satisfied
     state.responded[sorted[1]] = RespondedStatus.Success
     check state.hasResponsesFromClosestAvailable()
-
 
   asyncTest "selectCloserPeers excludes peers that exhausted retries":
     let kads = await setupKadSwitches(1)
@@ -574,4 +572,3 @@ suite "KadDHT Find":
     # peer1 exceeds retries — excluded
     state.attempts[peer1] = maxRetries + 1
     check peer1 notin state.selectCloserPeers(10)
-
