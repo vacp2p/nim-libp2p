@@ -19,7 +19,7 @@ suite "KadDHT - Get Providers":
   teardown:
     checkTrackers()
 
-  asyncTest "Get providers - iterative lookup":
+  asyncTest "Get providers uses iterative lookup":
     let kads = await setupKadSwitches(
       4,
       cleanupProvidersInterval = 1.seconds(),
@@ -66,7 +66,7 @@ suite "KadDHT - Get Providers":
     # Query for unknown key is handled
     check (await kads[0].getProviders(@[1.byte, 1, 1, 1])).len == 0
 
-  asyncTest "Get providers updates routing table with closerPeers (no providers)":
+  asyncTest "Get providers updates routing table with closerPeers when no providers are returned":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = await setupKadSwitches(
       3,
