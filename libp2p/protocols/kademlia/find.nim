@@ -92,7 +92,7 @@ proc selectCloserPeers*(
     # take at most alpha peers
     .take(amount)
 
-proc hasResponsesFromClosestAvailable(state: LookupState): bool {.raises: [], gcsafe.} =
+proc hasResponsesFromClosestAvailable*(state: LookupState): bool {.raises: [], gcsafe.} =
   ## True when all closest k AVAILABLE peers have responded.
   let candidates = state.sortedShortlist(excludeResponded = false)
   if candidates.len == 0:

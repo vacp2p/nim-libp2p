@@ -410,3 +410,66 @@ suite "KadDHT Find":
     let allPeers = state.selectCloserPeers(10, excludeResponded = false)
     check allPeers ==
       @[peer1, peer2, peer3].sortPeers(targetKey, kads[0].rtable.config.hasher)
+
+  asyncTest "Lookup terminates when k closest nodes have responded":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kads[0], targetKey)
+
+    # Add 5 peers
+    var peers: seq[PeerId]
+    for i in 0 ..< 5:
+      peers.add(randomPeerId())
+      state.shortlist[peers[i]] =
+        xorDistance(peers[i], targetKey, kads[0].rtable.config.hasher)
+    let sorted = peers.sortPeers(targetKey, kads[0].rtable.config.hasher)
+
+    # Set k=3 for easier testing
+    kads[0].config.replication = 3
+
+    check not state.hasResponsesFromClosestAvailable()
+
+    # Mark only the 2 closest as responded (not enough for k=3)
+    state.responded[sorted[0]] = RespondedStatus.Success
+    state.responded[sorted[1]] = RespondedStatus.Success
+    check not state.hasResponsesFromClosestAvailable()
+
+    # Mark the 3rd closest as responded (now k=3 closest all responded)
+    state.responded[sorted[2]] = RespondedStatus.Success
+    check state.hasResponsesFromClosestAvailable()
+
+    # Peers beyond k are NOT responded, but stop condition is still true
+    check not state.responded.hasKey(sorted[3])
+    check not state.responded.hasKey(sorted[4])
+
+  asyncTest "Lookup stop condition requires contiguous closest responses":
+    let kads = await setupKadSwitches(1)
+    defer:
+      await stopNodes(kads)
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kads[0], targetKey)
+
+    # Add 5 peers
+    var peers: seq[PeerId]
+    for i in 0 ..< 5:
+      peers.add(randomPeerId())
+      state.shortlist[peers[i]] =
+        xorDistance(peers[i], targetKey, kads[0].rtable.config.hasher)
+    let sorted = peers.sortPeers(targetKey, kads[0].rtable.config.hasher)
+
+    # Set k=3 for easier testing
+    kads[0].config.replication = 3
+
+    # Respond from the 1st closest and 3rd closest, but NOT the 2nd
+    # The gap means the condition is not satisfied
+    state.responded[sorted[0]] = RespondedStatus.Success
+    state.responded[sorted[2]] = RespondedStatus.Success
+    check not state.hasResponsesFromClosestAvailable()
+
+    # Now fill the gap
+    state.responded[sorted[1]] = RespondedStatus.Success
+    check state.hasResponsesFromClosestAvailable()
