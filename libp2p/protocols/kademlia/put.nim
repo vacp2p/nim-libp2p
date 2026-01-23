@@ -13,6 +13,9 @@ import ../../[peerid, switch, multihash]
 import ../protocol
 import ./[protobuf, types, find]
 
+logScope:
+  topics = "kad-dht put"
+
 proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   ## Returns whether `value` is a better value than what we have locally
   ## Always returns `true` if we don't have the value locally
