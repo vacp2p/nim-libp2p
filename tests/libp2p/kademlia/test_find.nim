@@ -106,31 +106,27 @@ suite "KadDHT Find":
     defer:
       await stopNodes(kads)
 
-    # Force alpha=2 to ensure both branches are queried in parallel
+    # Set alpha=2 to ensure both branches are queried in parallel
     kads[0].config.alpha = 2
 
-    connectNodes(kads[0], kads[1]) # 
-    connectNodes(kads[0], kads[2]) # 
-    connectNodes(kads[1], kads[3]) # branch 1
-    connectNodes(kads[2], kads[4]) # branch 2
-    connectNodes(kads[3], kads[5]) # convergence
-    connectNodes(kads[4], kads[5]) # convergence
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+    connectNodes(kads[1], kads[3])
+    connectNodes(kads[2], kads[4])
+    connectNodes(kads[3], kads[5])
+    connectNodes(kads[4], kads[5])
 
-    # Verify initial state: node[0] knows only node[1] and node[2]
+    # Verify initial state
     check:
       kads[0].hasKeys(@[kads[1].rtable.selfId, kads[2].rtable.selfId])
       kads[0].hasNoKeys(
         @[kads[3].rtable.selfId, kads[4].rtable.selfId, kads[5].rtable.selfId]
       )
 
-    # Use a random target
     let targetKey = randomPeerId().toKey()
     let foundPeers = await kads[0].findNode(targetKey)
 
-    # Since alpha=2, node[0] queries node[1] AND node[2] in the SAME batch.
-    # node[1] returns node[3], node[2] returns node[4].
-    # In the next round, node[3] and node[4] both return node[5].
-    # node[5] must be discovered exactly once (deduplication).
+    # Results from both branches are merged and deduplicated
     check:
       foundPeers ==
         kads[1 .. 5].pluckPeerIds().sortPeers(targetKey, kads[0].rtable.config.hasher)
