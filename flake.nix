@@ -136,10 +136,11 @@
             '';
 
             installPhase = ''
-              mkdir -p $out
-              cp build/libp2p.${libExt}  $out/
-              cp build/libp2p.a          $out/
-              cp cbind/libp2p.h          $out/
+              mkdir -p $out/lib
+              mkdir -p $out/include
+              cp build/libp2p.${libExt}  $out/lib
+              cp build/libp2p.a          $out/lib
+              cp cbind/libp2p.h          $out/include
             '';
           };
         }
