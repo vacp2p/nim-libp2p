@@ -12,13 +12,13 @@
 import unittest2
 import results
 import ../../../libp2p/protocols/mix/spam_protection
-import ./utils
+import ./spam_protection_impl
 
-const testPacketData: BindingData = @[1.byte, 2, 3, 4, 5]
+const testPacketData = @[1.byte, 2, 3, 4, 5]
 
 suite "Spam Protection - Per Hop Proof Generation":
   test "Proof generation and verification cycle":
-    let spamProtection = newTestPoWSpamProtection(2)
+    let spamProtection = newPoWSpamProtection(2)
 
     # Simulate node generating proof for packet
     let packetData = testPacketData
@@ -33,35 +33,35 @@ suite "Spam Protection - Per Hop Proof Generation":
     check spamProtection.verificationCount == 1
 
   test "Proof verification fails with wrong binding data":
-    let spamProtection = newTestPoWSpamProtection(2)
+    let spamProtection = newPoWSpamProtection(2)
 
     let originalPacket = testPacketData
     let proof = spamProtection.generateProof(originalPacket).get()
 
     # Try to verify with different packet
-    let differentPacket: BindingData = @[1.byte, 2, 3, 4, 6]
+    let differentPacket = @[1.byte, 2, 3, 4, 6]
     let verifyResult = spamProtection.verifyProof(proof, differentPacket)
 
     check verifyResult.isOk()
     check verifyResult.get() == false
 
   test "Proof verification rejects malformed proofs":
-    let spamProtection = newTestPoWSpamProtection(2)
+    let spamProtection = newPoWSpamProtection(2)
 
     let packetData = testPacketData
 
     # Malformed proof (wrong size)
-    let malformedProof: EncodedProofData = @[1.byte, 2, 3]
+    let malformedProof = @[1.byte, 2, 3]
     let verifyResult = spamProtection.verifyProof(malformedProof, packetData)
 
     check verifyResult.isOk()
     check verifyResult.get() == false
 
   test "Multiple proofs can be generated for different packets":
-    let spamProtection = newTestPoWSpamProtection(2)
+    let spamProtection = newPoWSpamProtection(2)
 
     let packet1 = testPacketData
-    let packet2: BindingData = @[4.byte, 5, 6]
+    let packet2 = @[4.byte, 5, 6]
 
     let proof1 = spamProtection.generateProof(packet1).get()
     let proof2 = spamProtection.generateProof(packet2).get()
@@ -75,7 +75,7 @@ suite "Spam Protection - Per Hop Proof Generation":
     check spamProtection.verifyProof(proof2, packet1).get() == false
 
   test "Rate limiting blocks packets exceeding limit":
-    let spamProtection = newTestRateLimitSpamProtection(3)
+    let spamProtection = newRateLimitSpamProtection(3)
 
     let packetData = testPacketData
 
@@ -91,10 +91,10 @@ suite "Spam Protection - Per Hop Proof Generation":
     check valid4 == false
 
   test "Per-hop proofs are independently generated":
-    let spamProtection = newTestRateLimitSpamProtection(10)
+    let spamProtection = newRateLimitSpamProtection(10)
 
     let packet1 = testPacketData
-    let packet2: BindingData = @[4.byte, 5, 6]
+    let packet2 = @[4.byte, 5, 6]
 
     # Generate fresh proofs for each packet
     let proof1 = spamProtection.generateProof(packet1).get()
@@ -107,9 +107,9 @@ suite "Spam Protection - Per Hop Proof Generation":
 suite "Spam Protection - Packet Integration":
   test "Proof can be appended and extracted from packet":
     let sphinxPacket = @[1.byte, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    let proof = EncodedProofData(@[77.byte, 88, 99, 11, 22, 33, 44, 55])
+    let proof = @[77.byte, 88, 99, 11, 22, 33, 44, 55]
 
-    let spamProtection = newTestPoWSpamProtection(2)
+    let spamProtection = newPoWSpamProtection(2)
 
     # Append proof to packet
     var packetWithProof = appendProofToPacket(sphinxPacket, proof).get()
@@ -117,27 +117,25 @@ suite "Spam Protection - Packet Integration":
     # Extract proof from packet (mutates packetWithProof)
     let (extractedSphinx, extractedProof) =
       extractProofFromPacket(packetWithProof, spamProtection).get()
-    let originalProof: seq[byte] = proof
-    check extractedProof == originalProof
+    check extractedProof == proof
     check extractedSphinx == sphinxPacket
 
   test "Packet structure maintained after proof append/extract":
     let sphinxPacket = @[1.byte, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-    let proof = EncodedProofData(@[100.byte, 101, 102, 103, 104, 105, 106, 107])
+    let proof = @[100.byte, 101, 102, 103, 104, 105, 106, 107]
 
-    let spamProtection = newTestPoWSpamProtection(2)
+    let spamProtection = newPoWSpamProtection(2)
 
     let packetWithProof = appendProofToPacket(sphinxPacket, proof).get()
 
     # Check packet structure: [sphinx][proof]
     check packetWithProof.len == sphinxPacket.len + 8
     check packetWithProof[0 ..< sphinxPacket.len] == sphinxPacket
-    let proofBytes: seq[byte] = proof
-    check packetWithProof[^8 ..^ 1] == proofBytes
+    check packetWithProof[^8 ..^ 1] == proof
 
 suite "Spam Protection - Edge Cases":
   test "extractProofFromPacket fails when packet too small":
-    let spamProtection = newTestPoWSpamProtection(2)
+    let spamProtection = newPoWSpamProtection(2)
 
     # Create a packet smaller than proof size (8 bytes)
     var tinyPacket = @[1.byte, 2, 3] # Only 3 bytes, but proof needs 8
@@ -148,13 +146,13 @@ suite "Spam Protection - Edge Cases":
 
   test "appendProofToPacket with empty proof returns original packet":
     let sphinxPacket = testPacketData
-    let emptyProof = EncodedProofData(newSeq[byte](0))
+    let emptyProof = newSeq[byte](0)
 
     check appendProofToPacket(sphinxPacket, emptyProof).get() == sphinxPacket
 
   test "extractProofFromPacket with zero proof size returns packet unchanged":
     # Create a spam protection with zero proof size
-    let spamProtection = newTestRateLimitSpamProtection(10)
+    let spamProtection = newRateLimitSpamProtection(10)
     spamProtection.proofSize = 0
 
     var packet: seq[byte] = testPacketData

@@ -29,8 +29,6 @@ export initMixMultiAddrByIndex
 
 # Spam protection exports
 export SpamProtection
-export EncodedProofData
-export BindingData
 export generateProof
 export verifyProof
 

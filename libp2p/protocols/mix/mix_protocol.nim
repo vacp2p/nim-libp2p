@@ -139,7 +139,7 @@ proc generateAndAppendProof(
   let spamProtection = mixProto.spamProtection.valueOr:
     return ok(packet)
 
-  let bindingData = BindingData(packet)
+  let bindingData = packet
   let proof = spamProtection
     .generateProof(bindingData)
     .mapErr(
@@ -161,16 +161,14 @@ proc generateAndAppendProof(
 
 proc extractProof(
     mixProto: MixProtocol, packetWithProof: var seq[byte], label: string
-): Result[(seq[byte], EncodedProofData), string] =
+): Result[tuple[sphinxPacket: seq[byte], proof: seq[byte]], string] =
   ## Extract spam protection proof from the packet without verifying.
   ## Returns the Sphinx packet and the extracted proof.
-  if not mixProto.isSpamProtectionEnabled():
-    return ok((packetWithProof, EncodedProofData(newSeq[byte](0))))
 
   let spamProtection = mixProto.spamProtection.valueOr:
-    return ok((packetWithProof, EncodedProofData(newSeq[byte](0))))
+    return ok((sphinxPacket: packetWithProof, proof: newSeq[byte](0)))
 
-  let proof = extractProofFromPacket(packetWithProof, spamProtection)
+  let (packet, proofData) = extractProofFromPacket(packetWithProof, spamProtection)
     .mapErr(
       proc(e: string): string =
         mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_EXTRACTION_FAILED"])
@@ -178,26 +176,22 @@ proc extractProof(
     ).valueOr:
       return err(error)
 
-  ok(proof)
+  ok((sphinxPacket: packet, proof: proofData))
 
 proc verifyProof(
-    mixProto: MixProtocol,
-    sphinxPacket: seq[byte],
-    proof: EncodedProofData,
-    label: string,
+    mixProto: MixProtocol, sphinxPacket: seq[byte], proof: seq[byte], label: string
 ): Result[void, string] =
   ## Verify a previously extracted spam protection proof.
-  if not mixProto.isSpamProtectionEnabled():
+  let spamProtection = mixProto.spamProtection.valueOr:
     return ok()
 
-  let bindingData = BindingData(sphinxPacket)
+  let bindingData = sphinxPacket
 
-  let verifyResult = mixProto.spamProtection.get().verifyProof(proof, bindingData)
-  if verifyResult.isErr:
+  let verifyResult = spamProtection.verifyProof(proof, bindingData).valueOr:
     mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_VERIFY_ERROR"])
-    return err(fmt"Spam protection proof verification error: {verifyResult.error()}")
+    return err(fmt"Spam protection proof verification error: {error}")
 
-  if not verifyResult.get():
+  if not verifyResult:
     mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_INVALID"])
     return err("Spam protection proof verification failed")
 

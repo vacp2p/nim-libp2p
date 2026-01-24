@@ -10,7 +10,7 @@
 {.used.}
 
 import chronos, results, std/[enumerate, sequtils], os
-import ./utils
+import ./spam_protection_impl
 import
   ../../../libp2p/[
     protocols/mix,
@@ -27,7 +27,7 @@ import
 import ../../tools/[unittest, crypto]
 
 # Import test spam protection implementations
-import ./test_spam_protection
+import ./test_spam_protection_interface
 
 const
   NumMixNodes = 10
@@ -86,7 +86,7 @@ suite "Spam Protection Integration Tests":
     var mixProto: seq[MixProtocol] = @[]
     for index, _ in enumerate(switches):
       # Each node creates its own spam protection instance
-      let spamProtection = newTestRateLimitSpamProtection(RateLimitPerNode)
+      let spamProtection = newRateLimitSpamProtection(RateLimitPerNode)
 
       let proto = MixProtocol
         .new(

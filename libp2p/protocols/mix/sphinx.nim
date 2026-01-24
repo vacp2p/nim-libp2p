@@ -276,7 +276,7 @@ template extractSurbId(data: seq[byte]): SURBIdentifier =
 
 proc checkReplay*(
     sphinxPacket: SphinxPacket, privateKey: FieldElement, tm: var TagManager
-): Result[(bool, FieldElement), string] =
+): Result[tuple[isReplay: bool, sharedSecret: FieldElement], string] =
   ## Check if a Sphinx packet is a replay without doing full processing.
   ## Returns (isReplay, sharedSecret) to enable reuse of expensive EC multiplication.
   ## If not a replay, the tag is immediately added to prevent race conditions.
@@ -298,7 +298,7 @@ proc checkReplay*(
   if not isDuplicate:
     addTag(tm, s)
 
-  ok((isDuplicate, s))
+  ok((isReplay: isDuplicate, sharedSecret: s))
 
 proc processSphinxPacket*(
     sphinxPacket: SphinxPacket,

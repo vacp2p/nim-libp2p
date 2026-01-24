@@ -19,20 +19,20 @@ const
 
 type
   # Simple Proof-of-Work implementation for testing
-  TestPoWSpamProtection* = ref object of SpamProtection
+  PoWSpamProtection* = ref object of SpamProtection
     difficulty*: int
     verificationCount*: int # Track how many verifications were performed
 
-proc newTestPoWSpamProtection*(difficulty: int = 2): TestPoWSpamProtection =
-  TestPoWSpamProtection(
+proc newPoWSpamProtection*(difficulty: int = 2): PoWSpamProtection =
+  PoWSpamProtection(
     proofSize: PoWProofSize, difficulty: difficulty, verificationCount: 0
   )
 
 method generateProof*(
-    self: TestPoWSpamProtection, bindingData: BindingData
-): Result[EncodedProofData, string] =
+    self: PoWSpamProtection, bindingData: seq[byte]
+): Result[seq[byte], string] =
   # Simplified PoW: find nonce where last byte of hash has 'difficulty' leading zeros
-  let bindingBytes: seq[byte] = bindingData
+  let bindingBytes = bindingData
   var nonce: uint64 = 0
   while nonce < MaxPoWIterations:
     var testData =
@@ -55,32 +55,28 @@ method generateProof*(
     # Check if hash meets difficulty (leading zeros in binary representation)
     if (hash and byte((1 shl self.difficulty) - 1)) == 0:
       return ok(
-        EncodedProofData(
-          @[
-            byte(nonce shr 56),
-            byte(nonce shr 48),
-            byte(nonce shr 40),
-            byte(nonce shr 32),
-            byte(nonce shr 24),
-            byte(nonce shr 16),
-            byte(nonce shr 8),
-            byte(nonce),
-          ]
-        )
+        @[
+          byte(nonce shr 56),
+          byte(nonce shr 48),
+          byte(nonce shr 40),
+          byte(nonce shr 32),
+          byte(nonce shr 24),
+          byte(nonce shr 16),
+          byte(nonce shr 8),
+          byte(nonce),
+        ]
       )
     nonce += 1
 
   err("Failed to find valid nonce")
 
 method verifyProof*(
-    self: TestPoWSpamProtection,
-    encodedProofData: EncodedProofData,
-    bindingData: BindingData,
+    self: PoWSpamProtection, encodedProofData: seq[byte], bindingData: seq[byte]
 ): Result[bool, string] =
   self.verificationCount += 1
 
-  let proofBytes: seq[byte] = encodedProofData
-  let bindingBytes: seq[byte] = bindingData
+  let proofBytes = encodedProofData
+  let bindingBytes = bindingData
 
   if proofBytes.len != 8:
     return ok(false)
@@ -98,15 +94,15 @@ method verifyProof*(
 
 type
   # Rate limiting implementation for testing per-hop generation
-  TestRateLimitSpamProtection* = ref object of SpamProtection
+  RateLimitSpamProtection* = ref object of SpamProtection
     maxPacketsPerWindow*: int
     packetCount*: int
     lastResetTime*: int
 
-proc newTestRateLimitSpamProtection*(
+proc newRateLimitSpamProtection*(
     maxPacketsPerWindow: int = 10
-): TestRateLimitSpamProtection =
-  TestRateLimitSpamProtection(
+): RateLimitSpamProtection =
+  RateLimitSpamProtection(
     proofSize: RateLimitProofSize,
     maxPacketsPerWindow: maxPacketsPerWindow,
     packetCount: 0,
@@ -114,27 +110,23 @@ proc newTestRateLimitSpamProtection*(
   )
 
 method generateProof*(
-    self: TestRateLimitSpamProtection, bindingData: BindingData
-): Result[EncodedProofData, string] =
+    self: RateLimitSpamProtection, bindingData: seq[byte]
+): Result[seq[byte], string] =
   # Generate timestamp-based proof
   let timestamp = 12345 # Simplified timestamp
   ok(
-    EncodedProofData(
-      @[
-        byte(timestamp shr 24),
-        byte(timestamp shr 16),
-        byte(timestamp shr 8),
-        byte(timestamp),
-      ]
-    )
+    @[
+      byte(timestamp shr 24),
+      byte(timestamp shr 16),
+      byte(timestamp shr 8),
+      byte(timestamp),
+    ]
   )
 
 method verifyProof*(
-    self: TestRateLimitSpamProtection,
-    encodedProofData: EncodedProofData,
-    bindingData: BindingData,
+    self: RateLimitSpamProtection, encodedProofData: seq[byte], bindingData: seq[byte]
 ): Result[bool, string] =
-  let proofBytes: seq[byte] = encodedProofData
+  let proofBytes = encodedProofData
   if proofBytes.len != 4:
     return ok(false)
 

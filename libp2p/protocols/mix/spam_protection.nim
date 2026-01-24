@@ -14,38 +14,15 @@
 
 import results
 
-type
-  EncodedProofData* = distinct seq[byte]
-    ## Serialized bytes containing proof and verification metadata.
-    ## Opaque to the Mix Protocol layer.
-
-  BindingData* = distinct seq[byte]
-    ## Packet-specific data against which proof is bound and verified.
-    ## For sender-generated: decrypted payload the hop will see
-    ## For per-hop: complete outgoing Sphinx packet state
-
-  SpamProtection* = ref object of RootObj
-    ## Abstract interface that spam protection mechanisms must implement
-    ## to integrate with the Mix Protocol.
-    ## Uses per-hop proof generation architecture.
-    proofSize*: int
-
-# Allow conversion to/from seq[byte] for the distinct types
-converter toSeqByte*(data: EncodedProofData): seq[byte] =
-  seq[byte](data)
-
-converter toEncodedProofData*(data: seq[byte]): EncodedProofData =
-  EncodedProofData(data)
-
-converter toSeqByteBinding*(data: BindingData): seq[byte] =
-  seq[byte](data)
-
-converter toBindingData*(data: seq[byte]): BindingData =
-  BindingData(data)
+type SpamProtection* = ref object of RootObj
+  ## Abstract interface that spam protection mechanisms must implement
+  ## to integrate with the Mix Protocol.
+  ## Uses per-hop proof generation architecture.
+  proofSize*: int
 
 method generateProof*(
-    self: SpamProtection, bindingData: BindingData
-): Result[EncodedProofData, string] {.base, gcsafe, raises: [].} =
+    self: SpamProtection, bindingData: seq[byte]
+): Result[seq[byte], string] {.base, gcsafe, raises: [].} =
   ## Generate a spam protection proof bound to specific packet data.
   ##
   ## Parameters:
@@ -65,7 +42,7 @@ method generateProof*(
   raiseAssert "generateProof must be implemented by concrete spam protection types"
 
 method verifyProof*(
-    self: SpamProtection, encodedProofData: EncodedProofData, bindingData: BindingData
+    self: SpamProtection, encodedProofData: seq[byte], bindingData: seq[byte]
 ): Result[bool, string] {.base, gcsafe, raises: [].} =
   ## Validate that a proof is correct and properly bound to packet data.
   ##
@@ -101,7 +78,7 @@ method verifyProof*(
 
 proc extractProofFromPacket*(
     packetWithProof: var seq[byte], spamProtection: SpamProtection
-): Result[(seq[byte], EncodedProofData), string] =
+): Result[(seq[byte], seq[byte]), string] =
   ## Extract spam protection proof from end of packet and return both
   ## the Sphinx packet (without proof) and the extracted proof.
   ## This is called by intermediary nodes before Sphinx decryption.
@@ -113,7 +90,7 @@ proc extractProofFromPacket*(
   ## Returns: (sphinxPacket, proof)
   let proofSize = spamProtection.proofSize
   if proofSize == 0:
-    return ok((packetWithProof, EncodedProofData(newSeq[byte](0))))
+    return ok((packetWithProof, newSeq[byte](0)))
 
   if packetWithProof.len < proofSize:
     return err("Packet too small to contain proof")
@@ -125,10 +102,10 @@ proc extractProofFromPacket*(
   # Truncate the packet in-place to remove proof (zero-copy for Sphinx packet)
   packetWithProof.setLen(proofStartIdx)
 
-  ok((packetWithProof, EncodedProofData(proofBytes)))
+  ok((packetWithProof, proofBytes))
 
 proc appendProofToPacket*(
-    sphinxPacket: seq[byte], proof: EncodedProofData
+    sphinxPacket: seq[byte], proof: seq[byte]
 ): Result[seq[byte], string] =
   ## Append spam protection proof to end of Sphinx packet.
   ## This is called when generating fresh proof for next hop.
@@ -137,4 +114,4 @@ proc appendProofToPacket*(
   if proof.len == 0:
     return ok(sphinxPacket)
 
-  ok(sphinxPacket & seq[byte](proof))
+  ok(sphinxPacket & proof)
