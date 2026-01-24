@@ -1,11 +1,5 @@
-# Nim-LibP2P
-# Copyright (c) 2023-2025 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH 
 
 {.used.}
 
@@ -91,7 +85,7 @@ suite "Spam Protection - Per Hop Proof Generation":
     check valid4 == false
 
   test "Per-hop proofs are independently generated":
-    let spamProtection = newRateLimitSpamProtection(10)
+    let spamProtection = newTestRateLimitSpamProtection(10)
 
     let packet1 = testPacketData
     let packet2 = @[4.byte, 5, 6]
@@ -135,7 +129,7 @@ suite "Spam Protection - Packet Integration":
 
 suite "Spam Protection - Edge Cases":
   test "extractProofFromPacket fails when packet too small":
-    let spamProtection = newPoWSpamProtection(2)
+    let spamProtection = newTestPoWSpamProtection(2)
 
     # Create a packet smaller than proof size (8 bytes)
     var tinyPacket = @[1.byte, 2, 3] # Only 3 bytes, but proof needs 8
