@@ -85,7 +85,7 @@ suite "Spam Protection - Per Hop Proof Generation":
     check valid4 == false
 
   test "Per-hop proofs are independently generated":
-    let spamProtection = newTestRateLimitSpamProtection(10)
+    let spamProtection = newRateLimitSpamProtection(10)
 
     let packet1 = testPacketData
     let packet2 = @[4.byte, 5, 6]
@@ -129,7 +129,7 @@ suite "Spam Protection - Packet Integration":
 
 suite "Spam Protection - Edge Cases":
   test "extractProofFromPacket fails when packet too small":
-    let spamProtection = newTestPoWSpamProtection(2)
+    let spamProtection = newPoWSpamProtection(2)
 
     # Create a packet smaller than proof size (8 bytes)
     var tinyPacket = @[1.byte, 2, 3] # Only 3 bytes, but proof needs 8
