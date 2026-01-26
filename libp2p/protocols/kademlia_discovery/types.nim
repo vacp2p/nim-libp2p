@@ -1,19 +1,19 @@
-# Nim-LibP2P
-# Copyright (c) 2023-2025 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH 
 
 import std/[sequtils, sets, times]
 import chronos, results, stew/byteutils
-import ../../[peerid, switch, multihash, cid, multicodec, routing_record]
+import
+  ../../[
+    peerid, switch, multihash, cid, multicodec, routing_record, extended_peer_record
+  ]
 import ../../protobuf/minprotobuf
 import ../kademlia/types
 
-const DefaultSelfSPRRereshTime* = 10.minutes
+const
+  DefaultSelfSPRRereshTime* = 10.minutes
+
+  ExtendedKademliaDiscoveryCodec* = "/logos/kad/1.0.0"
 
 type KademliaDiscovery* = ref object of KadDHT
   services*: HashSet[ServiceInfo]

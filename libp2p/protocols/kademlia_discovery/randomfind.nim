@@ -1,23 +1,17 @@
-# Nim-LibP2P
-# Copyright (c) 2023-2025 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH 
 
 import std/[sequtils, sets]
 import chronos, chronicles, results
-import ../../[peerid, peerinfo, switch, multihash, routing_record]
+import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
 import ../protocol
 import ../kademlia/[types, find, get, protobuf]
 import ./[types]
 
 logScope:
-  topics = "ext-kad-dht random find"
+  topics = "ext-kad-dht random records"
 
-proc findRandom*(
+proc randomRecords*(
     disco: KademliaDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
   ## Return all peer records on the path towards a random target ID.
@@ -28,39 +22,32 @@ proc findRandom*(
 
   let randomKey = randomPeerId.toKey()
 
+  let queue = newAsyncQueue[(PeerId, Opt[Message])]()
+  let findRes = catch:
+    await disco.findNode(randomKey, queue)
+  if findRes.isErr:
+    error "kad find node failed", error = findRes.error.msg
+
   var buffers: seq[seq[byte]]
-  let bufferReply = proc(
-      peerID: PeerId, _: Opt[Message], _: var LookupState
-  ): Future[void] {.async: (raises: []), gcsafe.} =
+  while not queue.empty():
+    let (peerId, _) = await queue.popFirst()
+
     let res = catch:
-      await disco.dispatchGetVal(peerID, peerID.toKey())
+      await disco.dispatchGetVal(peerId, peerId.toKey())
+    let msgOpt = res.valueOr:
+      error "kad getValue failed", error = res.error.msg
+      continue
 
-    let msg = res.valueOr:
-      error "Failed to get value", error = res.error.msg
-      return
-
-    let reply = msg.valueOr:
-      return
+    let reply = msgOpt.valueOr:
+      continue
 
     let record = reply.record.valueOr:
-      return
+      continue
 
     let buffer = record.value.valueOr:
-      return
+      continue
 
     buffers.add(buffer)
-
-  let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
-    state.hasResponsesFromClosestAvailable()
-
-  let dispatchFind = proc(
-      kad: KadDHT, peer: PeerId, target: Key
-  ): Future[Opt[Message]] {.
-      async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
-  .} =
-    return await dispatchFindNode(kad, peer, target)
-
-  let state = await disco.iterativeLookup(randomKey, dispatchFind, bufferReply, stop)
 
   var records: seq[ExtendedPeerRecord]
   for buffer in buffers:
@@ -72,7 +59,14 @@ proc findRandom*(
 
   return records
 
-proc filterByServices(
+proc filterByServices*(
     records: seq[ExtendedPeerRecord], services: HashSet[ServiceInfo]
 ): seq[ExtendedPeerRecord] =
   records.filterIt(it.services.anyIt(services.contains(it)))
+
+proc lookup*(
+    disco: KademliaDiscovery, service: ServiceInfo
+): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
+  let records = await disco.randomRecords()
+
+  return records.filterByServices(@[service].toHashSet())

@@ -1,15 +1,9 @@
-# Nim-LibP2P
-# Copyright (c) 2023-2025 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH 
 
 import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
-import ../[peerid, switch, multihash, peerinfo]
+import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
 import ./kademlia_discovery/[randomfind, types]
 
@@ -55,12 +49,12 @@ proc maintainSelfSignedPeerRecord(
   heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
     await disco.refreshSelfSignedPeerRecord()
 
-proc addService*(disco: KademliaDiscovery, service: ServiceInfo): bool =
+proc startAdvertising*(disco: KademliaDiscovery, service: ServiceInfo): bool =
   ## Include this service in the set of services this node provides.
 
   return disco.services.containsOrIncl(service)
 
-proc removeService*(disco: KademliaDiscovery, service: ServiceInfo): bool =
+proc stopAdvertising*(disco: KademliaDiscovery, service: ServiceInfo): bool =
   ## Exclude this service from the set of services this node provides.
 
   return disco.services.missingOrExcl(service)
