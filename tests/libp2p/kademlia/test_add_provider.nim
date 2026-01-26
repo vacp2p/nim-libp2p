@@ -9,7 +9,7 @@ import
 import ../../tools/[unittest]
 import ./[mock_kademlia, utils]
 
-suite "KadDHT - ProviderManager":
+suite "KadDHT - Add Provider":
   teardown:
     checkTrackers()
 
@@ -156,53 +156,6 @@ suite "KadDHT - ProviderManager":
       kads[0].providerManager.providedKeys.hasKey(cid2.toKey())
       kads[0].providerManager.providedKeys.len() == 1
       kads[1].providerManager.providerRecords.len() == 1
-
-  asyncTest "Get providers - iterative lookup":
-    let kads = await setupKadSwitches(
-      4,
-      cleanupProvidersInterval = 1.seconds(),
-      republishProvidedKeysInterval = 1.seconds(),
-    )
-    defer:
-      await stopNodes(kads)
-
-    # topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[1], kads[2])
-    connectNodes(kads[2], kads[3])
-
-    let
-      key = kads[0].rtable.selfId
-      cid = key.toCid()
-
-    # Add key to kads[3] providedKeys locally (without broadcasting via addProvider)
-    kads[3].providerManager.providedKeys.provided[key] = Moment.now()
-
-    # Verify other nodes don't know about the provider yet
-    check:
-      kads[0].providerManager.providerRecords.len() == 0
-      kads[1].providerManager.providerRecords.len() == 0
-      kads[2].providerManager.providerRecords.len() == 0
-
-    # kad0 iteratively queries the network and should find kad3 as a provider
-    let providers = await kads[0].getProviders(key)
-
-    # kad3 should be found as the provider
-    check:
-      providers.len() == 1
-      providers.toSeq()[0].id == kads[3].switch.peerInfo.peerId.getBytes()
-
-    checkUntilTimeout:
-      # Provider records have propagated
-      kads[0].providerManager.providerRecords.len() == 1
-      kads[1].providerManager.providerRecords.len() == 1
-      kads[2].providerManager.providerRecords.len() == 1
-      # Other peers have been discovered
-      kads[0].hasKey(kads[2].rtable.selfId)
-      kads[0].hasKey(kads[3].rtable.selfId)
-
-    # Query for unknown key is handled
-    check (await kads[0].getProviders(@[1.byte, 1, 1, 1])).len == 0
 
   asyncTest "Add provider accepts matching PeerID and rejects mismatched PeerID":
     # Setup sender and imposter KadDHT instances
