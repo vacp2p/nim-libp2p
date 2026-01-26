@@ -102,7 +102,7 @@ type
 
   PartialMessageExtensionRPC* = object
     topicID*: string
-    gorupID*: seq[byte]
+    groupID*: seq[byte]
     partialMessage*: seq[byte]
     partsMetadata*: seq[byte]
 
@@ -189,7 +189,7 @@ func shortLog*(msg: Message): auto =
 func shortLog*(pme: PartialMessageExtensionRPC): auto =
   (
     topicID: pme.topicID.shortLog,
-    gorupID: pme.gorupID.shortLog,
+    groupID: pme.groupID.shortLog,
     partialMessage: pme.partialMessage.shortLog,
     partsMetadata: pme.partsMetadata.shortLog,
   )
@@ -294,11 +294,11 @@ proc byteSize(testExtensions: TestExtensionRPC): int =
 static:
   expectedFields(
     PartialMessageExtensionRPC,
-    @["topicID", "gorupID", "partialMessage", "partsMetadata"],
+    @["topicID", "groupID", "partialMessage", "partsMetadata"],
   )
 proc byteSize(pme: PartialMessageExtensionRPC): int =
   pme.topicID.len + #
-  pme.gorupID.len + #
+  pme.groupID.len + #
   pme.partialMessage.len + #
   pme.partsMetadata.len
 

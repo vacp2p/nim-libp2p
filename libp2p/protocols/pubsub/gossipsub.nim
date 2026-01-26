@@ -112,6 +112,7 @@ proc init*(
     sendIDontWantOnPublish = false,
     extensionsDisabled = false,
     testExtensionConfig = none(TestExtensionConfig),
+    partialMessageExtensionConfig = none(PartialMessageExtensionConfig),
 ): GossipSubParams =
   GossipSubParams(
     explicit: true,
@@ -152,6 +153,7 @@ proc init*(
     sendIDontWantOnPublish: sendIDontWantOnPublish,
     extensionsDisabled: extensionsDisabled,
     testExtensionConfig: testExtensionConfig,
+    partialMessageExtensionConfig: partialMessageExtensionConfig,
   )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -1048,7 +1050,15 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     TestExtensionConfig(onNegotiated: onNegotiated)
 
-  return ExtensionsState.new(onMissbehaveExtensions, some(testExtensionConfig))
+  let partialMessageExtensionConfig = g.parameters.partialMessageExtensionConfig.valueOr:
+    # TODO
+    PartialMessageExtensionConfig()
+
+  return ExtensionsState.new(
+    onMissbehaveExtensions,
+    some(testExtensionConfig),
+    some(partialMessageExtensionConfig),
+  )
 
 method start*(
     g: GossipSub

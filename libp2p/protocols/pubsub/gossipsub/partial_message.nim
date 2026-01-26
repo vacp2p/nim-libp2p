@@ -7,11 +7,13 @@ type PartialMessage* = object
   ## how a message is split into parts and recombined, as well as how missing and
   ## available parts are represented.
 
-method groupID*(m: PartialMessage): seq[byte] {.base, gcsafe.} =
+method groupID*(m: PartialMessage): seq[byte] {.base, gcsafe, raises: [].} =
   raiseAssert "groupID needs to be implemented"
 
-method partsMetadata*(m: PartialMessage): seq[byte] {.base, gcsafe.} =
+method partsMetadata*(m: PartialMessage): seq[byte] {.base, gcsafe, raises: [].} =
   raiseAssert "partsMetadata needs to be implemented"
 
-method partialMessage*(m: PartialMessage): seq[byte] {.base, gcsafe.} =
+method partialMessage*(
+    m: PartialMessage, metadata: seq[byte]
+): seq[byte] {.base, gcsafe, raises: [].} =
   raiseAssert "partialMessage needs to be implemented"

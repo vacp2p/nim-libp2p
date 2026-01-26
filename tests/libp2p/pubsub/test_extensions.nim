@@ -66,18 +66,20 @@ suite "GossipSub Extensions":
 
         check reportedPeers[].len == 0
 
-  test "testExtension":
+  test "Test Extension":
     # test holds all tests related to "Test Extension"
 
     test "extension is configured, peer is not supporting":
       var
         (reportedPeers, onMissbehave) = createCollectPeerCallback()
         (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-        (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+        (handleRPCPeers, onHandleControlRPC) = createCollectPeerCallback()
         state = ExtensionsState.new(
           onMissbehave,
           some(
-            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
+            TestExtensionConfig(
+              onNegotiated: onNegotiated, onHandleControlRPC: onHandleControlRPC
+            )
           ),
         )
 
@@ -92,7 +94,11 @@ suite "GossipSub Extensions":
       # negotiated in order: addPeer, handleRPC
       state = ExtensionsState.new(
         onMissbehave,
-        some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
+        some(
+          TestExtensionConfig(
+            onNegotiated: onNegotiated, onHandleControlRPC: onHandleControlRPC
+          )
+        ),
       )
       state.addPeer(peerId)
       state.handleRPC(peerId, ControlExtensions())
@@ -106,11 +112,13 @@ suite "GossipSub Extensions":
         var
           (reportedPeers, onMissbehave) = createCollectPeerCallback()
           (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-          (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+          (handleRPCPeers, onHandleControlRPC) = createCollectPeerCallback()
           state = ExtensionsState.new(
             onMissbehave,
             some(
-              TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
+              TestExtensionConfig(
+                onNegotiated: onNegotiated, onHandleControlRPC: onHandleControlRPC
+              )
             ),
           )
 
@@ -130,11 +138,13 @@ suite "GossipSub Extensions":
         var
           (reportedPeers, onMissbehave) = createCollectPeerCallback()
           (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-          (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+          (handleRPCPeers, onHandleControlRPC) = createCollectPeerCallback()
           state = ExtensionsState.new(
             onMissbehave,
             some(
-              TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
+              TestExtensionConfig(
+                onNegotiated: onNegotiated, onHandleControlRPC: onHandleControlRPC
+              )
             ),
           )
 
@@ -149,3 +159,15 @@ suite "GossipSub Extensions":
           reportedPeers[].len == 0
           negotiatedPeers[] == @[peerId]
           handleRPCPeers[] == @[peerId]
+  
+  test "Partial Message Extension":
+    var (reportedPeers, onMissbehave) = createCollectPeerCallback()
+    let state = ExtensionsState.new(
+      onMissbehave,
+      none(TestExtensionConfig),
+      some(
+        PartialMessageExtensionConfig(
+          # TODO
+        )
+      ),
+    )

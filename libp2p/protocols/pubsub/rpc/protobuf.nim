@@ -154,7 +154,7 @@ proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
 proc write*(pb: var ProtoBuffer, field: int, pme: PartialMessageExtensionRPC) =
   var ipb = initProtoBuffer()
   ipb.write(1, pme.topicID)
-  ipb.write(2, pme.gorupID)
+  ipb.write(2, pme.groupID)
   ipb.write(3, pme.partialMessage)
   ipb.write(4, pme.partsMetadata)
 
@@ -519,10 +519,10 @@ proc decodePartialMessageExtensionRPC*(
   else:
     trace "decodePartialMessageExtensionRPC: topic is missing"
 
-  if ?pbp.getField(2, pme.gorupID):
-    trace "decodePartialMessageExtensionRPC: read gorupID", gorupID = pme.gorupID
+  if ?pbp.getField(2, pme.groupID):
+    trace "decodePartialMessageExtensionRPC: read groupID", groupID = pme.groupID
   else:
-    trace "decodePartialMessageExtensionRPC: gorupID is missing"
+    trace "decodePartialMessageExtensionRPC: groupID is missing"
 
   if ?pbp.getField(3, pme.partialMessage):
     trace "decodePartialMessageExtensionRPC: read partialMessage",

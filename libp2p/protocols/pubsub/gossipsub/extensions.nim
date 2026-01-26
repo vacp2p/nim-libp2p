@@ -57,12 +57,12 @@ proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
     partialMessageExtension: partialMessageExtension,
   )
 
-proc onHandleRPC(state: ExtensionsState, peerId: PeerId) =
+proc onHandleControlRPC(state: ExtensionsState, peerId: PeerId) =
   # extensions event called when node receives every RPC message.
 
   for _, e in state.extensions:
     if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
-      e.onHandleRPC(peerId)
+      e.onHandleControlRPC(peerId)
 
 proc onNegotiated(state: ExtensionsState, peerId: PeerId) =
   # extension event called when both sides have negotiated (exchanged) extensions.
@@ -125,8 +125,8 @@ proc handleRPC*(
     if peerId in state.sentExtensions:
       state.onNegotiated(peerId)
 
-  # onHandleRPC event is always called
-  state.onHandleRPC(peerId)
+  # onHandleControlRPC event is always called
+  state.onHandleControlRPC(peerId)
 
 proc makeControlExtensions*(state: ExtensionsState): ControlExtensions =
   return state.nodeExtensions

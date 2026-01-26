@@ -7,7 +7,7 @@ import ./[extensions_types]
 type
   TestExtensionConfig* = object
     onNegotiated*: PeerCallback = noopPeerCallback
-    onHandleRPC*: PeerCallback = noopPeerCallback
+    onHandleControlRPC*: PeerCallback = noopPeerCallback
 
   TestExtension* = ref object of Extension
     config: TestExtensionConfig
@@ -21,13 +21,13 @@ method isSupported*(
   return pe.testExtension
 
 method onHeartbeat*(ext: TestExtension) {.gcsafe, raises: [].} =
-  discard # should not do anything
+  discard # NOOP
 
 method onNegotiated*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   ext.config.onNegotiated(peerId)
 
 method onRemovePeer*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
-  discard # should not do anything
+  discard # NOOP
 
-method onHandleRPC*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
-  ext.config.onHandleRPC(peerId)
+method onHandleControlRPC*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
+  ext.config.onHandleControlRPC(peerId)

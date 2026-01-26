@@ -29,5 +29,7 @@ method onNegotiated*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].
 method onRemovePeer*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"
 
-method onHandleRPC*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
+method onHandleControlRPC*(
+    ext: Extension, peerId: PeerId
+) {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"
