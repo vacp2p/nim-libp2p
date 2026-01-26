@@ -159,15 +159,14 @@ suite "GossipSub Extensions":
           reportedPeers[].len == 0
           negotiatedPeers[] == @[peerId]
           handleRPCPeers[] == @[peerId]
-  
+
   test "Partial Message Extension":
     var (reportedPeers, onMissbehave) = createCollectPeerCallback()
     let state = ExtensionsState.new(
       onMissbehave,
       none(TestExtensionConfig),
       some(
-        PartialMessageExtensionConfig(
-          # TODO
+        PartialMessageExtensionConfig( # TODO
         )
       ),
     )
