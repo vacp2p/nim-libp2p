@@ -74,8 +74,7 @@ suite "KadDHT Iterative Lookup":
     let otherPeer = randomPeerId()
 
     # Manually add self and another peer to shortlist
-    state.shortlist[selfPid] =
-      xorDistance(selfPid, targetKey, kad.rtable.config.hasher)
+    state.shortlist[selfPid] = xorDistance(selfPid, targetKey, kad.rtable.config.hasher)
     state.shortlist[otherPeer] =
       xorDistance(otherPeer, targetKey, kad.rtable.config.hasher)
 

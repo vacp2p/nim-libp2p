@@ -116,7 +116,8 @@ suite "KadDHT Bootstrap Component":
     let hubKad = await setupKadSwitch()
 
     let kads = await setupKadSwitches(
-      9, bootstrapNodes = @[(hubKad.switch.peerInfo.peerId, hubKad.switch.peerInfo.addrs)]
+      9,
+      bootstrapNodes = @[(hubKad.switch.peerInfo.peerId, hubKad.switch.peerInfo.addrs)],
     )
     defer:
       await stopNodes(kads & hubKad)

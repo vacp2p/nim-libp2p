@@ -243,7 +243,7 @@ suite "KadDHT Get":
         valueLocal
 
   asyncTest "Get value rejects record where Record.key does not match requested key":
-    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    let kad = await setupKadSwitch()
 
     let
       key = kad.rtable.selfId
@@ -263,12 +263,9 @@ suite "KadDHT Get":
         )
       )
 
-    let (mockSwitch, mockKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
-    )
+    let mockKad = await setupMockKadSwitch(getValueResponse = getValueResponse)
     defer:
-      await switch.stop()
-      await mockSwitch.stop()
+      await stopNodes(@[kad, mockKad])
 
     connectNodes(kad, mockKad)
 
@@ -284,7 +281,7 @@ suite "KadDHT Get":
       kad.containsNoData(wrongKey)
 
   asyncTest "Get value rejects response without record":
-    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    let kad = await setupKadSwitch()
 
     let
       key = kad.rtable.selfId
@@ -297,12 +294,9 @@ suite "KadDHT Get":
         )
       )
 
-    let (mockSwitch, mockKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
-    )
+    let mockKad = await setupMockKadSwitch(getValueResponse = getValueResponse)
     defer:
-      await switch.stop()
-      await mockSwitch.stop()
+      await stopNodes(@[kad, mockKad])
 
     connectNodes(kad, mockKad)
 
@@ -316,7 +310,7 @@ suite "KadDHT Get":
       kad.containsNoData(key)
 
   asyncTest "Get value rejects record without value":
-    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+    let kad = await setupKadSwitch()
 
     let
       key = kad.rtable.selfId
@@ -335,12 +329,9 @@ suite "KadDHT Get":
         )
       )
 
-    let (mockSwitch, mockKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
-    )
+    let mockKad = await setupMockKadSwitch(getValueResponse = getValueResponse)
     defer:
-      await switch.stop()
-      await mockSwitch.stop()
+      await stopNodes(@[kad, mockKad])
 
     connectNodes(kad, mockKad)
 
@@ -375,12 +366,9 @@ suite "KadDHT Get":
         )
       )
 
-    let (mockSwitch, mockKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
-    )
+    let mockKad = await setupMockKadSwitch(getValueResponse = getValueResponse)
     defer:
-      await stopNodes(kads)
-      await mockSwitch.stop()
+      await stopNodes(kads & mockKad)
 
     connectNodes(kads[0], kads[1])
     connectNodes(kads[0], kads[2])

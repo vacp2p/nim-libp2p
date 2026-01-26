@@ -94,7 +94,8 @@ proc setupMockKadSwitch*(
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
 ): Future[MockKadDHT] {.async.} =
-  let kad = setupMockKad(config, bootstrapNodes, getValueResponse, handleAddProviderMessage)
+  let kad =
+    setupMockKad(config, bootstrapNodes, getValueResponse, handleAddProviderMessage)
   await kad.switch.start()
   kad
 
@@ -108,7 +109,9 @@ proc setupKadSwitches*(
 ): Future[seq[KadDHT]] {.async.} =
   var kads: seq[KadDHT]
   for i in 0 ..< count:
-    let config = newTestKadConfig(validator, selector, cleanupProvidersInterval, republishProvidedKeysInterval)
+    let config = newTestKadConfig(
+      validator, selector, cleanupProvidersInterval, republishProvidedKeysInterval
+    )
     kads.add(await setupKadSwitch(config, bootstrapNodes))
   kads
 
