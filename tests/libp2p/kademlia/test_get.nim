@@ -245,25 +245,26 @@ suite "KadDHT Get":
   asyncTest "Get value rejects record where Record.key does not match requested key":
     let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    # Get value response with mismatched recored key
     let
       key = kad.rtable.selfId
       wrongKey = @[1.byte, 1, 1, 1]
-      mockMessage = Message(
-        msgType: MessageType.getValue,
-        key: key,
-        record: Opt.some(
-          protobuf.Record(
-            key: wrongKey,
-            value: Opt.some(@[1.byte, 2, 3, 4]),
-            timeReceived: Opt.some($times.now().utc),
-          )
-        ),
-        closerPeers: @[],
+      getValueResponse = Opt.some(
+        Message(
+          msgType: MessageType.getValue,
+          key: key,
+          record: Opt.some(
+            protobuf.Record(
+              key: wrongKey, # get value response with mismatched recored key
+              value: Opt.some(@[1.byte, 2, 3, 4]),
+              timeReceived: Opt.some($times.now().utc),
+            )
+          ),
+          closerPeers: @[],
+        )
       )
 
     let (mockSwitch, mockKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
+      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
     )
     defer:
       await switch.stop()
@@ -285,18 +286,19 @@ suite "KadDHT Get":
   asyncTest "Get value rejects response without record":
     let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    # Get value response with empty record
     let
       key = kad.rtable.selfId
-      mockMessage = Message(
-        msgType: MessageType.getValue,
-        key: key,
-        record: Opt.none(protobuf.Record),
-        closerPeers: @[],
+      getValueResponse = Opt.some(
+        Message(
+          msgType: MessageType.getValue,
+          key: key,
+          record: Opt.none(protobuf.Record), # get value response with empty record
+          closerPeers: @[],
+        )
       )
 
     let (mockSwitch, mockKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
+      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
     )
     defer:
       await switch.stop()
@@ -316,24 +318,25 @@ suite "KadDHT Get":
   asyncTest "Get value rejects record without value":
     let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
 
-    # Get value response with empty record value
     let
       key = kad.rtable.selfId
-      mockMessage = Message(
-        msgType: MessageType.getValue,
-        key: key,
-        record: Opt.some(
-          protobuf.Record(
-            key: key,
-            value: Opt.none(seq[byte]),
-            timeReceived: Opt.some($times.now().utc),
-          )
-        ),
-        closerPeers: @[],
+      getValueResponse = Opt.some(
+        Message(
+          msgType: MessageType.getValue,
+          key: key,
+          record: Opt.some(
+            protobuf.Record(
+              key: key,
+              value: Opt.none(seq[byte]), # get value response with empty record value
+              timeReceived: Opt.some($times.now().utc),
+            )
+          ),
+          closerPeers: @[],
+        )
       )
 
     let (mockSwitch, mockKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
+      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
     )
     defer:
       await switch.stop()
@@ -353,26 +356,27 @@ suite "KadDHT Get":
   asyncTest "Get value succeeds with some peers returning mismatched keys":
     let kads = await setupKadSwitches(3)
 
-    # Get value response with mismatched recored key
     let
       key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
       wrongKey = @[1.byte, 1, 1, 1]
-      mockMessage = Message(
-        msgType: MessageType.getValue,
-        key: key,
-        record: Opt.some(
-          protobuf.Record(
-            key: wrongKey,
-            value: Opt.some(@[1.byte, 2, 3, 4]),
-            timeReceived: Opt.some($times.now().utc),
-          )
-        ),
-        closerPeers: @[],
+      getValueResponse = Opt.some(
+        Message(
+          msgType: MessageType.getValue,
+          key: key,
+          record: Opt.some(
+            protobuf.Record(
+              key: wrongKey, # get value response with mismatched recored key
+              value: Opt.some(value),
+              timeReceived: Opt.some($times.now().utc),
+            )
+          ),
+          closerPeers: @[],
+        )
       )
 
     let (mockSwitch, mockKad) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
+      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
     )
     defer:
       await stopNodes(kads)
