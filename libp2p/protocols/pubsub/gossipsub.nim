@@ -1051,8 +1051,16 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     TestExtensionConfig(onNegotiated: onNegotiated)
 
   let partialMessageExtensionConfig = g.parameters.partialMessageExtensionConfig.valueOr:
-    # TODO
-    PartialMessageExtensionConfig()
+    let sendRPCProc = proc(
+        peerID: PeerId, rpc: PartialMessageExtensionRPC
+    ) {.gcsafe, raises: [].} =
+      # TODO
+      discard
+    let mashPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+      # TODO
+      return newSeq[PeerId]()
+
+    PartialMessageExtensionConfig(sendRPC: sendRPCProc, mashPeers: mashPeersProc)
 
   return ExtensionsState.new(
     onMissbehaveExtensions,

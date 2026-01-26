@@ -7,10 +7,13 @@ import ../rpc/messages
 import ./[extensions_types, partial_message]
 
 type
-  PartialMessageGossipsub* = object # interface
+  SendRPCProc =
+    proc(peerID: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
+  MashPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
 
   PartialMessageExtensionConfig* = object
-    gossipsub*: PartialMessageGossipsub
+    sendRPC*: SendRPCProc
+    mashPeers*: MashPeersProc
 
   PeerState = ref object
     partsMetadata: seq[byte]
@@ -19,23 +22,16 @@ type
     peerState: Table[PeerId, PeerState]
 
   PartialMessageExtension* = ref object of Extension
-    gossipsub: PartialMessageGossipsub
+    sendRPC: SendRPCProc
+    mashPeers: MashPeersProc
     groupState: Table[string, GroupState]
-
-method mashPeers*(
-    g: PartialMessageGossipsub, topic: string
-): seq[PeerId] {.base, gcsafe, raises: [].} =
-  raiseAssert "Should be implemented"
-
-method sendRPC*(
-    g: PartialMessageGossipsub, peerID: PeerId, rpc: PartialMessageExtensionRPC
-) {.base, gcsafe, raises: [].} =
-  raiseAssert "Should be implemented"
 
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
 ): PartialMessageExtension =
-  PartialMessageExtension(gossipsub: config.gossipsub)
+  doAssert(config.sendRPC != nil, "config.sendRPC must be set")
+  doAssert(config.mashPeers != nil, "config.mashPeers must be set")
+  PartialMessageExtension(sendRPC: config.sendRPC, mashPeers: config.mashPeers)
 
 method isSupported*(
     ext: PartialMessageExtension, pe: PeerExtensions
@@ -113,8 +109,8 @@ proc publishPartial*(
 
     # if there are any changes send RPC
     if hasChanges:
-      ext.gossipsub.sendRPC(peer, rpc)
+      ext.sendRPC(peer, rpc)
 
-  let peers = ext.gossipsub.mashPeers(topic)
+  let peers = ext.mashPeers(topic)
   for _, p in peers:
     publishPartialToPeer(p)
