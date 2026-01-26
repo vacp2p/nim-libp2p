@@ -43,23 +43,25 @@ proc createSwitch*(): Switch =
   .withNoise()
   .build()
 
-proc newTestKadConfig*(
+proc testKadConfig*(
     validator: EntryValidator = PermissiveValidator(),
     selector: EntrySelector = CandSelector(),
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+    replication: int = DefaultReplication,
 ): KadDHTConfig =
   KadDHTConfig.new(
     validator,
     selector,
     timeout = chronos.seconds(1),
-    cleanupProvidersInterval = cleanupProvidersInterval,
     providerExpirationInterval = chronos.seconds(1),
+    cleanupProvidersInterval = cleanupProvidersInterval,
     republishProvidedKeysInterval = republishProvidedKeysInterval,
+    replication = replication,
   )
 
 proc setupKad*(
-    config: KadDHTConfig = newTestKadConfig(),
+    config: KadDHTConfig = testKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
 ): KadDHT =
   let switch = createSwitch()
@@ -68,7 +70,7 @@ proc setupKad*(
   kad
 
 proc setupMockKad*(
-    config: KadDHTConfig = newTestKadConfig(),
+    config: KadDHTConfig = testKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
@@ -81,7 +83,7 @@ proc setupMockKad*(
   kad
 
 proc setupKadSwitch*(
-    config: KadDHTConfig = newTestKadConfig(),
+    config: KadDHTConfig = testKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
 ): Future[KadDHT] {.async.} =
   let kad = setupKad(config, bootstrapNodes)
@@ -89,7 +91,7 @@ proc setupKadSwitch*(
   kad
 
 proc setupMockKadSwitch*(
-    config: KadDHTConfig = newTestKadConfig(),
+    config: KadDHTConfig = testKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
@@ -106,11 +108,16 @@ proc setupKadSwitches*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+    replication: int = DefaultReplication,
 ): Future[seq[KadDHT]] {.async.} =
   var kads: seq[KadDHT]
   for i in 0 ..< count:
-    let config = newTestKadConfig(
-      validator, selector, cleanupProvidersInterval, republishProvidedKeysInterval
+    let config = testKadConfig(
+      validator,
+      selector,
+      cleanupProvidersInterval,
+      republishProvidedKeysInterval,
+      replication = replication,
     )
     kads.add(await setupKadSwitch(config, bootstrapNodes))
   kads
