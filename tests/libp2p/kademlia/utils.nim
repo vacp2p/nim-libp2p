@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH 
 {.used.}
 
-import algorithm, chronos, chronicles, results, sequtils, sets
+import algorithm, chronos, chronicles, results, sequtils, sets, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[crypto, unittest]
 import ./mock_kademlia
@@ -166,6 +166,12 @@ proc connectNodesStar*(nodes: seq[KadDHT]) =
       if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
         connectNodes(dialer, listener)
 
+proc connectNodesHub*(hub: KadDHT, nodes: seq[KadDHT]) =
+  ## Hub: hub-1, hub-2, hub-3,...
+  ## 
+  for i in 0 ..< nodes.len:
+    connectNodes(hub, nodes[i])
+
 proc hasKey*(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
     for ent in b.peers:
@@ -224,3 +230,12 @@ proc sortPeers*(
       cmp(a[1], b[1])
   )
   .mapIt(it[0])
+
+proc addRandomPeers*(
+    state: var LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
+): seq[PeerId] =
+  var peers: seq[PeerId]
+  for i in 0 ..< count:
+    peers.add(randomPeerId())
+    state.shortlist[peers[i]] = xorDistance(peers[i], target, hasher)
+  peers.sortPeers(target, hasher)
