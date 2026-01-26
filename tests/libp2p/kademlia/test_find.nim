@@ -139,8 +139,7 @@ suite "KadDHT Find":
     kads[0].config.replication = k
 
     # Node[0] is directly connected to all other nodes
-    for i in 1 ..< nodeCount:
-      connectNodes(kads[0], kads[i])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
     check kads[0].getPeersFromRoutingTable().len == nodeCount - 1
 
     let targetKey = kads[1].rtable.selfId
@@ -487,24 +486,19 @@ suite "KadDHT Find":
     var state = LookupState.init(kads[0], targetKey)
 
     # Add peers
-    var peers: seq[PeerId]
-    for i in 0 ..< 4:
-      peers.add(randomPeerId())
-      state.shortlist[peers[i]] =
-        xorDistance(peers[i], targetKey, kads[0].rtable.config.hasher)
-    let sorted = peers.sortPeers(targetKey, kads[0].rtable.config.hasher)
+    let peers = state.addRandomPeers(4, targetKey, kads[0].rtable.config.hasher)
 
     # Set k=3
     kads[0].config.replication = 3
 
     # only 2 successes, need 3
-    state.responded[sorted[0]] = RespondedStatus.Failed
-    state.responded[sorted[1]] = RespondedStatus.Success
-    state.responded[sorted[2]] = RespondedStatus.Success
+    state.responded[peers[0]] = RespondedStatus.Failed
+    state.responded[peers[1]] = RespondedStatus.Success
+    state.responded[peers[2]] = RespondedStatus.Success
     check not state.hasResponsesFromClosestAvailable()
 
     # stop condition met
-    state.responded[sorted[3]] = RespondedStatus.Success
+    state.responded[peers[3]] = RespondedStatus.Success
     check state.hasResponsesFromClosestAvailable()
 
   asyncTest "Lookup doesn't stop when k successes but closer peer not responded":
@@ -516,25 +510,20 @@ suite "KadDHT Find":
     var state = LookupState.init(kads[0], targetKey)
 
     # Add peers
-    var peers: seq[PeerId]
-    for i in 0 ..< 4:
-      peers.add(randomPeerId())
-      state.shortlist[peers[i]] =
-        xorDistance(peers[i], targetKey, kads[0].rtable.config.hasher)
-    let sorted = peers.sortPeers(targetKey, kads[0].rtable.config.hasher)
+    let peers = state.addRandomPeers(4, targetKey, kads[0].rtable.config.hasher)
 
     # Set k=3
     kads[0].config.replication = 3
 
     # Respond from 0, 2 and 3, but not 1
     # The gap means the condition is not satisfied
-    state.responded[sorted[0]] = RespondedStatus.Success
-    state.responded[sorted[2]] = RespondedStatus.Success
-    state.responded[sorted[3]] = RespondedStatus.Success
+    state.responded[peers[0]] = RespondedStatus.Success
+    state.responded[peers[2]] = RespondedStatus.Success
+    state.responded[peers[3]] = RespondedStatus.Success
     check not state.hasResponsesFromClosestAvailable()
 
     # Stop condition satisfied
-    state.responded[sorted[1]] = RespondedStatus.Success
+    state.responded[peers[1]] = RespondedStatus.Success
     check state.hasResponsesFromClosestAvailable()
 
   asyncTest "selectCloserPeers excludes peers that exhausted retries":
