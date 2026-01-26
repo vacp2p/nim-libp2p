@@ -168,10 +168,9 @@ suite "KadDHT - Add Provider":
       imposterKad = kads[1]
 
     # Setup receiver
-    var (receiverSwitch, receiverKad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector())
+    var receiverKad = await setupMockKadSwitch()
     defer:
-      await receiverSwitch.stop()
+      await receiverKad.switch.stop()
 
     connectNodes(senderKad, receiverKad)
 
@@ -211,10 +210,9 @@ suite "KadDHT - Add Provider":
     let senderKad = kads[0]
 
     # Setup receiver with mock that injects invalid multihash key
-    var (receiverSwitch, receiverKad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector())
+    var receiverKad = await setupMockKadSwitch()
     defer:
-      await receiverSwitch.stop()
+      await receiverKad.switch.stop()
 
     connectNodes(senderKad, receiverKad)
 
@@ -315,10 +313,9 @@ suite "KadDHT - Add Provider":
 
     let senderKad = kads[0]
 
-    var (receiverSwitch, receiverKad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector())
+    var receiverKad = await setupMockKadSwitch()
     defer:
-      await receiverSwitch.stop()
+      await receiverKad.switch.stop()
 
     connectNodes(senderKad, receiverKad)
 

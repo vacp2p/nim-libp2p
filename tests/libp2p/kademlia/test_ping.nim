@@ -13,16 +13,12 @@ suite "KadDHT Ping":
     checkTrackers()
 
   asyncTest "Simple ping":
-    var (switch1, kad1) = await setupKadSwitch(PermissiveValidator(), CandSelector())
-    var (switch2, kad2) = await setupKadSwitch(
-      PermissiveValidator(),
-      CandSelector(),
-      @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
-    )
-
+    let kads = await setupKadSwitches(2)
     defer:
-      await allFutures(switch1.stop(), switch2.stop())
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
 
     check:
-      await kad1.ping(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-      await kad2.ping(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
+      await kads[0].ping(kads[1].switch.peerInfo.peerId, kads[1].switch.peerInfo.addrs)
+      await kads[1].ping(kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs)
