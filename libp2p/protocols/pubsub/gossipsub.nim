@@ -1044,21 +1044,22 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     # by default, parameters will not have this config. because param is mainly used
     # in tests for testing purposes.
 
-    proc onNegotiated(id: PeerId) {.gcsafe, raises: [].} =
-      g.peers.withValue(id, peer):
+    proc onNegotiated(peerId: PeerId) {.gcsafe, raises: [].} =
+      g.peers.withValue(peerId, peer):
         g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
 
     TestExtensionConfig(onNegotiated: onNegotiated)
 
   let partialMessageExtensionConfig = g.parameters.partialMessageExtensionConfig.valueOr:
     let sendRPCProc = proc(
-        peerID: PeerId, rpc: PartialMessageExtensionRPC
+        peerId: PeerId, rpc: PartialMessageExtensionRPC
     ) {.gcsafe, raises: [].} =
-      # TODO
-      discard
+      g.peers.withValue(peerId, peer):
+        g.send(peer[], RPCMsg(partialMessageExtension: some(rpc)), false)
+      
     let mashPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
-      # TODO
-      return newSeq[PeerId]()
+      let peers = g.makePeersForPublishDefault(topic, newSeq[byte](0))
+      return peers.mapIt(it.peerId)
 
     PartialMessageExtensionConfig(sendRPC: sendRPCProc, mashPeers: mashPeersProc)
 
