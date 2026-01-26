@@ -1,11 +1,5 @@
-# Nim-LibP2P
-# Copyright (c) 2023-2025 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH 
 
 import results, sequtils, stew/endians2
 import ./[crypto, curve25519, serialization, tag_manager]
@@ -280,23 +274,52 @@ template extractSurbId(data: seq[byte]): SURBIdentifier =
   copyMem(addr id[0], addr data[startIndex], SurbIdLen)
   id
 
-proc processSphinxPacket*(
+proc checkReplay*(
     sphinxPacket: SphinxPacket, privateKey: FieldElement, tm: var TagManager
-): Result[ProcessedSphinxPacket, string] =
+): Result[tuple[isReplay: bool, sharedSecret: FieldElement], string] =
+  ## Check if a Sphinx packet is a replay without doing full processing.
+  ## Returns (isReplay, sharedSecret) to enable reuse of expensive EC multiplication.
+  ## If not a replay, the tag is immediately added to prevent race conditions.
   let
-    (header, payload) = sphinxPacket.get()
-    (alpha, beta, gamma) = header.get()
+    (header, _) = sphinxPacket.get()
+    (alpha, _, _) = header.get()
 
   # Compute shared secret
   let alphaFE = bytesToFieldElement(alpha).valueOr:
     return err("Error in bytes to field element conversion: " & error)
 
-  let
-    s = multiplyPointWithScalars(alphaFE, [privateKey])
-    sBytes = fieldElementToBytes(s)
+  let s = multiplyPointWithScalars(alphaFE, [privateKey])
 
   # Check if the tag has been seen
-  if isTagSeen(tm, s):
+  let isDuplicate = isTagSeen(tm, s)
+
+  # If not a duplicate, immediately add the tag to prevent race conditions
+  # (in case another packet with the same tag arrives before full processing)
+  if not isDuplicate:
+    addTag(tm, s)
+
+  ok((isReplay: isDuplicate, sharedSecret: s))
+
+proc processSphinxPacket*(
+    sphinxPacket: SphinxPacket,
+    privateKey: FieldElement,
+    tm: var TagManager,
+    sharedSecret: Opt[FieldElement] = Opt.none(FieldElement),
+): Result[ProcessedSphinxPacket, string] =
+  let
+    (header, payload) = sphinxPacket.get()
+    (alpha, beta, gamma) = header.get()
+
+  # Compute shared secret (or reuse if provided)
+  let s = sharedSecret.valueOr:
+    let alphaFE = bytesToFieldElement(alpha).valueOr:
+      return err("Error in bytes to field element conversion: " & error)
+    multiplyPointWithScalars(alphaFE, [privateKey])
+
+  let sBytes = fieldElementToBytes(s)
+
+  # Check if the tag has been seen (only if we didn't get pre-validated sharedSecret)
+  if sharedSecret.isNone and isTagSeen(tm, s):
     return ok(ProcessedSphinxPacket(status: Duplicate))
 
   # Compute MAC
@@ -306,8 +329,9 @@ proc processSphinxPacket*(
     # If MAC not verified
     return ok(ProcessedSphinxPacket(status: InvalidMAC))
 
-  # Store the tag as seen
-  addTag(tm, s)
+  # Add tag if it wasn't already added by checkReplay
+  if sharedSecret.isNone:
+    tm.addTag(s)
 
   # Derive AES key and IV
   let

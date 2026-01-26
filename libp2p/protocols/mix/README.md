@@ -16,7 +16,8 @@ It provides a basis for future development and invites community experimentation
 
 - **Sphinx Packet Format**: Guarantees anonymity through fixed-size packets and layered encryption.
 - **Random Path Selection**: Routes messages through randomly selected mix nodes.
-- **Pluggable Components**: Allows for customizable spam protection, peer discovery, and incentivization mechanisms. (To be developed)
+- **Spam Protection Interface**: Standardized interface for integrating spam protection mechanisms. See [spam_protection.md](spam_protection.md) for details.
+- **Pluggable Components**: Allows for customizable peer discovery and incentivization mechanisms. (To be developed)
 
 ## Usage
 
@@ -26,7 +27,7 @@ let mixProto = MixProtocol.new(index, numberOfNodes, switch).valueOr:
   return
 
 # Exit node will forward any message it receives to its destination,
-# but if the protocol requires reading a response, we need to 
+# but if the protocol requires reading a response, we need to
 # register how should the exit node will read them.
 # Use either readExactly or readLp.
 # In this example we assume we're gonna use Ping protocol
@@ -50,6 +51,24 @@ let conn = mixProto.toConnection(
 let response = await pingProto.ping(conn)
 ```
 
+## Spam Protection
+
+The Mix protocol includes a flexible spam protection interface that allows custom mechanisms to be integrated. By default, spam protection is disabled (nil).
+
+```nim
+# Create a custom spam protection instance
+let spamProtection = MySpamProtection.new()
+
+# Initialize MixProtocol with spam protection
+let mixProto = MixProtocol.new(
+  mixNodeInfo,
+  pubNodeInfo,
+  switch,
+  spamProtection = spamProtection
+)
+```
+
+For detailed information on implementing custom spam protection mechanisms, see [spam_protection.md](spam_protection.md).
 
 ## Using experimental `exit == destination`
 
@@ -75,8 +94,6 @@ let conn = mixProto.toConnection(
     theCodec,
   ).expect("should build connection")
 ```
-
-
 
 ## RFC and Further Reading
 

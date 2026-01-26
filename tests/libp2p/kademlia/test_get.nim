@@ -1,11 +1,5 @@
-# Nim-LibP2P
-# Copyright (c) 2023-2025 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH 
 
 {.used.}
 
@@ -248,35 +242,260 @@ suite "KadDHT Get":
       (await kads[0].getValue(key, quorumOverride = Opt.some(1))).get().value ==
         valueLocal
 
-  asyncTest "GET_VALUE rejects record where Record.key does not match requested key":
-    # Create a normal node (victim) and a malicious node
-    # The malicious node returns GET_VALUE responses with Record.key != requested key
-    let (victimSwitch, victim) =
-      await setupKadSwitch(PermissiveValidator(), CandSelector())
+  asyncTest "Get value rejects record where Record.key does not match requested key":
+    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
 
     let
-      requestedKey = victim.rtable.selfId
+      key = kad.rtable.selfId
       wrongKey = @[1.byte, 1, 1, 1]
+      getValueResponse = Opt.some(
+        Message(
+          msgType: MessageType.getValue,
+          key: key,
+          record: Opt.some(
+            protobuf.Record(
+              key: wrongKey, # get value response with mismatched recored key
+              value: Opt.some(@[1.byte, 2, 3, 4]),
+              timeReceived: Opt.some($times.now().utc),
+            )
+          ),
+          closerPeers: @[],
+        )
+      )
 
-    let (maliciousSwitch, malicious) = await setupMockKadSwitch(
-      PermissiveValidator(), CandSelector(), mismatchedRecordKey = Opt.some(wrongKey)
+    let (mockSwitch, mockKad) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
     )
-
     defer:
-      await victimSwitch.stop()
-      await maliciousSwitch.stop()
+      await switch.stop()
+      await mockSwitch.stop()
 
-    # Connect victim to malicious node
-    connectNodes(victim, malicious)
+    connectNodes(kad, mockKad)
 
-    # Victim doesn't have any data for the requested key
-    check victim.containsNoData(requestedKey)
+    check kad.containsNoData(key)
 
-    # When victim calls getValue, malicious node returns a record with wrong Record.key
-    let record = await victim.getValue(requestedKey, quorumOverride = Opt.some(1))
+    # Mock node returns a record with wrong Record.key
+    let record = await kad.getValue(key, quorumOverride = Opt.some(1))
 
     # getValue should fail because the only response has mismatched key
     check:
       record.isErr()
-      victim.containsNoData(requestedKey)
-      victim.containsNoData(wrongKey)
+      kad.containsNoData(key)
+      kad.containsNoData(wrongKey)
+
+  asyncTest "Get value rejects response without record":
+    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+
+    let
+      key = kad.rtable.selfId
+      getValueResponse = Opt.some(
+        Message(
+          msgType: MessageType.getValue,
+          key: key,
+          record: Opt.none(protobuf.Record), # get value response with empty record
+          closerPeers: @[],
+        )
+      )
+
+    let (mockSwitch, mockKad) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
+    )
+    defer:
+      await switch.stop()
+      await mockSwitch.stop()
+
+    connectNodes(kad, mockKad)
+
+    check kad.containsNoData(key)
+
+    # Mock node returns a response without record
+    let record = await kad.getValue(key, quorumOverride = Opt.some(1))
+
+    check:
+      record.isErr()
+      kad.containsNoData(key)
+
+  asyncTest "Get value rejects record without value":
+    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
+
+    let
+      key = kad.rtable.selfId
+      getValueResponse = Opt.some(
+        Message(
+          msgType: MessageType.getValue,
+          key: key,
+          record: Opt.some(
+            protobuf.Record(
+              key: key,
+              value: Opt.none(seq[byte]), # get value response with empty record value
+              timeReceived: Opt.some($times.now().utc),
+            )
+          ),
+          closerPeers: @[],
+        )
+      )
+
+    let (mockSwitch, mockKad) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
+    )
+    defer:
+      await switch.stop()
+      await mockSwitch.stop()
+
+    connectNodes(kad, mockKad)
+
+    check kad.containsNoData(key)
+
+    # Mock node returns a record without value
+    let record = await kad.getValue(key, quorumOverride = Opt.some(1))
+
+    check:
+      record.isErr()
+      kad.containsNoData(key)
+
+  asyncTest "Get value succeeds with some peers returning mismatched keys":
+    let kads = await setupKadSwitches(3)
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+      wrongKey = @[1.byte, 1, 1, 1]
+      getValueResponse = Opt.some(
+        Message(
+          msgType: MessageType.getValue,
+          key: key,
+          record: Opt.some(
+            protobuf.Record(
+              key: wrongKey, # get value response with mismatched recored key
+              value: Opt.some(value),
+              timeReceived: Opt.some($times.now().utc),
+            )
+          ),
+          closerPeers: @[],
+        )
+      )
+
+    let (mockSwitch, mockKad) = await setupMockKadSwitch(
+      PermissiveValidator(), CandSelector(), getValueResponse = getValueResponse
+    )
+    defer:
+      await stopNodes(kads)
+      await mockSwitch.stop()
+
+    connectNodes(kads[0], kads[1])
+    connectNodes(kads[0], kads[2])
+    connectNodes(kads[0], mockKad)
+
+    # Compliant nodes have valid records
+    kads[1].dataTable.insert(key, value, $times.now().utc)
+    kads[2].dataTable.insert(key, value, $times.now().utc)
+    # mockKad will return mismatched key
+
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(2))
+
+    check:
+      record.isOk()
+      record.get().value == value
+      mockKad.containsData(key, value) # mock node was updated
+
+  asyncTest "Get value rejects records that fail validation":
+    # Use RestrictiveValidator which rejects all records
+    let kads = await setupKadSwitches(2, RestrictiveValidator(), CandSelector())
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    # Insert directly into dataTable
+    kads[1].dataTable.insert(key, value, $times.now().utc)
+
+    check:
+      kads[1].containsData(key, value)
+      kads[0].containsNoData(key)
+
+    # getValue should fail because RestrictiveValidator rejects the record
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(1))
+
+    check:
+      record.isErr()
+      kads[0].containsNoData(key)
+
+  asyncTest "Get value succeeds when some peers are offline":
+    let kads = await setupKadSwitches(4)
+
+    connectNodesStar(kads)
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    # All peers have the record
+    kads[1].dataTable.insert(key, value, $times.now().utc)
+    kads[2].dataTable.insert(key, value, $times.now().utc)
+    kads[3].dataTable.insert(key, value, $times.now().utc)
+
+    # Stop one peer before query
+    await kads[3].switch.stop()
+
+    defer:
+      await kads[0].switch.stop()
+      await kads[1].switch.stop()
+      await kads[2].switch.stop()
+
+    # Query should still succeed with remaining peers (quorum=2)
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(2))
+
+    check:
+      record.isOk()
+      record.get().value == value
+
+  asyncTest "Get value fails when too many peers are offline":
+    let kads = await setupKadSwitches(4)
+
+    connectNodesStar(kads)
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[1.byte, 2, 3, 4, 5]
+
+    # All peers have the record
+    kads[1].dataTable.insert(key, value, $times.now().utc)
+    kads[2].dataTable.insert(key, value, $times.now().utc)
+    kads[3].dataTable.insert(key, value, $times.now().utc)
+
+    # Stop two peers before query
+    await kads[2].switch.stop()
+    await kads[3].switch.stop()
+
+    defer:
+      await kads[0].switch.stop()
+      await kads[1].switch.stop()
+
+    # Query should fail - need quorum of 3 but only 1 peer available
+    let record = await kads[0].getValue(key, quorumOverride = Opt.some(3))
+
+    check:
+      record.isErr()
+
+  asyncTest "Get value retrieves binary data with null and high bytes":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let
+      key = kads[0].rtable.selfId
+      value = @[0.byte, 0xFF, 0, 0xFF]
+
+    kads[0].dataTable.insert(key, value, $times.now().utc)
+
+    let record = await kads[1].getValue(key, quorumOverride = Opt.some(1))
+
+    check:
+      record.isOk()
+      record.get().value == value
