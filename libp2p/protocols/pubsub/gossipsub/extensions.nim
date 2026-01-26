@@ -36,11 +36,11 @@ proc new*(
     nodeExtensions.testExtension = some(true)
 
   partialMessageExtensionConfig.withValue(c):
-    var cnew = c
-    cnew.isSupported = proc(peerId: PeerId): bool {.gcsafe, raises: [].} =
+    var cVar = c # var is needed to set isSupported
+    cVar.isSupported = proc(peerId: PeerId): bool {.gcsafe, raises: [].} =
       let peerExt = state.peerExtensions.getOrDefault(peerId)
       return state.partialMessageExtension.get().isSupported(peerExt)
-    partialMessageExtension = some(PartialMessageExtension.new(cnew))
+    partialMessageExtension = some(PartialMessageExtension.new(cVar))
     extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = some(true)
 
@@ -142,6 +142,7 @@ proc publishPartial*(state: ExtensionsState, topic: string, pm: PartialMessage) 
   state.partialMessageExtension.withValue(e):
     e.publishPartial(topic, pm)
   else:
+    # must raise becasue this is called by user
     raiseAssert "partial message extension is not configured"
 
 proc onSubscribe*(
@@ -154,3 +155,4 @@ proc onSubscribe*(
 ) =
   state.partialMessageExtension.withValue(e):
     e.onSubscribe(peerId, topic, subscribe, requestsPartial, supportsSendingPartial)
+  # noop when extension is not set, becasue this proc is called everytime by gossipsub

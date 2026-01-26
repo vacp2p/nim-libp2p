@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import tables
+import tables, strutils
 import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, partial_message]
+
+const
+  minHeartbeatsTillEviction = 3
+  keyDelimiter = "::"
 
 type
   SendRPCProc =
@@ -16,30 +20,42 @@ type
     sendRPC*: SendRPCProc
     publishToPeers*: PublishToPeersProc
     isSupported*: IsSupportedProc
+    heartbeatsTillEviction*: int
 
   PeerGroupState = ref object
     partsMetadata: seq[byte]
 
   GroupState = ref object
     peerState: Table[PeerId, PeerGroupState]
+    heartbeatsTillEviction: int
 
   SubState = ref object
     requestsPartial: bool
     supportsSendingPartial: bool
 
   PeerTopicKey = string
+  TopicGroupKey = string
 
   PartialMessageExtension* = ref object of Extension
     sendRPC: SendRPCProc
     publishToPeers: PublishToPeersProc
     isSupported: IsSupportedProc
-    groupState: Table[string, GroupState]
+    heartbeatsTillEviction: int
+    groupState: Table[TopicGroupKey, GroupState]
     peerSubs: Table[PeerTopicKey, SubState]
 
 proc new(
     T: typedesc[PeerTopicKey], peerId: PeerId, topic: string
 ): PeerTopicKey {.inline.} =
-  $peerId & "::" & topic
+  $peerId & keyDelimiter & topic
+
+proc hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
+  return ($peerId & keyDelimiter) in cast[string](key)
+
+proc new(
+    T: typedesc[TopicGroupKey], topic: string, groupID: seq[byte]
+): TopicGroupKey {.inline.} =
+  topic & keyDelimiter & cast[string](groupID)
 
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
@@ -52,6 +68,8 @@ proc new*(
     sendRPC: config.sendRPC,
     publishToPeers: config.publishToPeers,
     isSupported: config.isSupported,
+    heartbeatsTillEviction:
+      max(config.heartbeatsTillEviction, minHeartbeatsTillEviction),
   )
 
 method isSupported*(
@@ -60,7 +78,14 @@ method isSupported*(
   return pe.partialMessageExtension
 
 method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
-  discard # TODO
+  # reduce heartbeatsTillEviction and remove those that hit 0
+  var toRemove: seq[TopicGroupKey] = @[]
+  for key, group in ext.groupState:
+    group.heartbeatsTillEviction.dec
+    if group.heartbeatsTillEviction <= 0:
+      toRemove.add(key)
+  for key in toRemove:
+    ext.groupState.del(key)
 
 method onNegotiated*(
     ext: PartialMessageExtension, peerId: PeerId
@@ -70,7 +95,17 @@ method onNegotiated*(
 method onRemovePeer*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
-  discard # TODO
+  # remove peer data in group
+  for key, group in ext.groupState:
+    group.peerState.del(peerId)
+
+  # remove sub options for this peer
+  var toRemove: seq[PeerTopicKey] = @[]
+  for key, _ in ext.peerSubs:
+    if key.hasPeer(peerId):
+      toRemove.add(key)
+  for key in toRemove:
+    ext.groupState.del(key)
 
 method onHandleControlRPC*(
     ext: PartialMessageExtension, peerId: PeerId
@@ -103,7 +138,7 @@ proc onSubscribe*(
 proc getGroupState(
     ext: PartialMessageExtension, topic: string, groupID: seq[byte]
 ): GroupState =
-  let key = topic & "::" & cast[string](groupID)
+  let key = TopicGroupKey.new(topic, groupID)
 
   if key notin ext.groupState:
     ext.groupState[key] = GroupState()
@@ -128,6 +163,8 @@ proc publishPartial*(
   let groupID = pm.groupID()
   let partsMetada = pm.partsMetadata()
   let groupState = ext.getGroupState(topic, groupID)
+
+  groupState.heartbeatsTillEviction = ext.heartbeatsTillEviction
 
   proc publishPartialToPeer(peer: PeerId) {.raises: [].} =
     var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: groupID)
@@ -157,9 +194,16 @@ proc publishPartial*(
 
   let peers = ext.publishToPeers(topic)
   for _, p in peers:
+    # peer needs to support this extension (and needs to be nagotiated)
     if not ext.isSupported(p):
       continue
 
-    let subopt = ext.peerSubs.getOrDefault(PeerTopicKey.new(p, topic))
-    if subopt.requestsPartial:
+    # publish if peer requested partial for topic
+    let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(p, topic))
+    if peerSubOpt.requestsPartial:
+      publishPartialToPeer(p)
+
+    # or node requested partial and peer supports sending partials
+    let nodeRequestedPartial = false # TODO
+    if nodeRequestedPartial and peerSubOpt.supportsSendingPartial:
       publishPartialToPeer(p)
