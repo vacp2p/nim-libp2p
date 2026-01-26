@@ -242,13 +242,12 @@ suite "KadDHT Get":
       (await kads[0].getValue(key, quorumOverride = Opt.some(1))).get().value ==
         valueLocal
 
-  asyncTest "GET_VALUE rejects record where Record.key does not match requested key":
-    let (victimSwitch, victimKad) =
-      await setupKadSwitch(PermissiveValidator(), CandSelector())
+  asyncTest "Get value rejects record where Record.key does not match requested key":
+    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
 
     # Get value response with mismatched recored key
     let
-      key = victimKad.rtable.selfId
+      key = kad.rtable.selfId
       wrongKey = @[1.byte, 1, 1, 1]
       mockMessage = Message(
         msgType: MessageType.getValue,
@@ -263,33 +262,32 @@ suite "KadDHT Get":
         closerPeers: @[],
       )
 
-    let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
+    let (mockSwitch, mockKad) = await setupMockKadSwitch(
       PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
     )
     defer:
-      await victimSwitch.stop()
-      await maliciousSwitch.stop()
+      await switch.stop()
+      await mockSwitch.stop()
 
-    connectNodes(victimKad, maliciousKad)
+    connectNodes(kad, mockKad)
 
-    check victimKad.containsNoData(key)
+    check kad.containsNoData(key)
 
-    # When victim calls getValue, malicious node returns a record with wrong Record.key
-    let record = await victimKad.getValue(key, quorumOverride = Opt.some(1))
+    # Mock node returns a record with wrong Record.key
+    let record = await kad.getValue(key, quorumOverride = Opt.some(1))
 
     # getValue should fail because the only response has mismatched key
     check:
       record.isErr()
-      victimKad.containsNoData(key)
-      victimKad.containsNoData(wrongKey)
+      kad.containsNoData(key)
+      kad.containsNoData(wrongKey)
 
-  asyncTest "GET_VALUE rejects response without record":
-    let (victimSwitch, victimKad) =
-      await setupKadSwitch(PermissiveValidator(), CandSelector())
+  asyncTest "Get value rejects response without record":
+    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
 
     # Get value response with empty record
     let
-      key = victimKad.rtable.selfId
+      key = kad.rtable.selfId
       mockMessage = Message(
         msgType: MessageType.getValue,
         key: key,
@@ -297,31 +295,30 @@ suite "KadDHT Get":
         closerPeers: @[],
       )
 
-    let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
+    let (mockSwitch, mockKad) = await setupMockKadSwitch(
       PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
     )
     defer:
-      await victimSwitch.stop()
-      await maliciousSwitch.stop()
+      await switch.stop()
+      await mockSwitch.stop()
 
-    connectNodes(victimKad, maliciousKad)
+    connectNodes(kad, mockKad)
 
-    check victimKad.containsNoData(key)
+    check kad.containsNoData(key)
 
-    # When victim calls getValue, malicious node returns a response without record
-    let record = await victimKad.getValue(key, quorumOverride = Opt.some(1))
+    # Mock node returns a response without record
+    let record = await kad.getValue(key, quorumOverride = Opt.some(1))
 
     check:
       record.isErr()
-      victimKad.containsNoData(key)
+      kad.containsNoData(key)
 
-  asyncTest "GET_VALUE rejects record without value":
-    let (victimSwitch, victimKad) =
-      await setupKadSwitch(PermissiveValidator(), CandSelector())
+  asyncTest "Get value rejects record without value":
+    let (switch, kad) = await setupKadSwitch(PermissiveValidator(), CandSelector())
 
     # Get value response with empty record value
     let
-      key = victimKad.rtable.selfId
+      key = kad.rtable.selfId
       mockMessage = Message(
         msgType: MessageType.getValue,
         key: key,
@@ -335,25 +332,25 @@ suite "KadDHT Get":
         closerPeers: @[],
       )
 
-    let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
+    let (mockSwitch, mockKad) = await setupMockKadSwitch(
       PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
     )
     defer:
-      await victimSwitch.stop()
-      await maliciousSwitch.stop()
+      await switch.stop()
+      await mockSwitch.stop()
 
-    connectNodes(victimKad, maliciousKad)
+    connectNodes(kad, mockKad)
 
-    check victimKad.containsNoData(key)
+    check kad.containsNoData(key)
 
-    # When victim calls getValue, malicious node returns a record without value
-    let record = await victimKad.getValue(key, quorumOverride = Opt.some(1))
+    # Mock node returns a record without value
+    let record = await kad.getValue(key, quorumOverride = Opt.some(1))
 
     check:
       record.isErr()
-      victimKad.containsNoData(key)
+      kad.containsNoData(key)
 
-  asyncTest "GET_VALUE succeeds with some peers returning mismatched keys":
+  asyncTest "Get value succeeds with some peers returning mismatched keys":
     let kads = await setupKadSwitches(3)
 
     # Get value response with mismatched recored key
@@ -374,30 +371,30 @@ suite "KadDHT Get":
         closerPeers: @[],
       )
 
-    let (maliciousSwitch, maliciousKad) = await setupMockKadSwitch(
+    let (mockSwitch, mockKad) = await setupMockKadSwitch(
       PermissiveValidator(), CandSelector(), getValueResponse = Opt.some(mockMessage)
     )
     defer:
       await stopNodes(kads)
-      await maliciousSwitch.stop()
+      await mockSwitch.stop()
 
     connectNodes(kads[0], kads[1])
     connectNodes(kads[0], kads[2])
-    connectNodes(kads[0], maliciousKad)
+    connectNodes(kads[0], mockKad)
 
     # Good nodes have valid records
     kads[1].dataTable.insert(key, value, $times.now().utc)
     kads[2].dataTable.insert(key, value, $times.now().utc)
-    # maliciousKad will return mismatched key
+    # mockKad will return mismatched key
 
     let record = await kads[0].getValue(key, quorumOverride = Opt.some(2))
 
     check:
       record.isOk()
       record.get().value == value
-      maliciousKad.containsData(key, value) # malicious node was updated
+      mockKad.containsData(key, value) # mock node was updated
 
-  asyncTest "GET_VALUE rejects records that fail validation":
+  asyncTest "Get value rejects records that fail validation":
     # Use RestrictiveValidator which rejects all records
     let kads = await setupKadSwitches(2, RestrictiveValidator(), CandSelector())
     defer:
@@ -423,7 +420,7 @@ suite "KadDHT Get":
       record.isErr()
       kads[0].containsNoData(key)
 
-  asyncTest "GET_VALUE succeeds when some peers are offline":
+  asyncTest "Get value succeeds when some peers are offline":
     let kads = await setupKadSwitches(4)
 
     connectNodesStar(kads)
@@ -452,7 +449,7 @@ suite "KadDHT Get":
       record.isOk()
       record.get().value == value
 
-  asyncTest "GET_VALUE fails when too many peers are offline":
+  asyncTest "Get value fails when too many peers are offline":
     let kads = await setupKadSwitches(4)
 
     connectNodesStar(kads)
@@ -480,7 +477,7 @@ suite "KadDHT Get":
     check:
       record.isErr()
 
-  asyncTest "GET_VALUE retrieves binary data with null and high bytes":
+  asyncTest "Get value retrieves binary data with null and high bytes":
     let kads = await setupKadSwitches(2)
     defer:
       await stopNodes(kads)
