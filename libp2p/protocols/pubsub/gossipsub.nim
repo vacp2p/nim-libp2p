@@ -350,10 +350,21 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   procCall FloodSub(g).unsubscribePeer(peer)
 
-proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool) =
+proc handleSubscribe(
+    g: GossipSub,
+    peer: PubSubPeer,
+    topic: string,
+    subscribe: bool,
+    requestsPartial: Option[bool],
+    supportsSendingPartial: Option[bool],
+) =
   logScope:
     peer
     topic
+
+  g.extensionsState.onSubscribe(
+    peer.peerId, topic, subscribe, requestsPartial, supportsSendingPartial
+  )
 
   if subscribe:
     # this is a workaround for a race condition
@@ -706,7 +717,9 @@ method rpcHandler*(
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    g.handleSubscribe(peer, sub.topic, sub.subscribe)
+    g.handleSubscribe(
+      peer, sub.topic, sub.subscribe, sub.requestsPartial, sub.supportsSendingPartial
+    )
 
   # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well
@@ -857,7 +870,7 @@ proc makePeersForPublishUsingCustomConn(
     )
 
 proc makePeersForPublishDefault(
-    g: GossipSub, topic: string, data: seq[byte]
+    g: GossipSub, topic: string, data: seq[byte] = @[]
 ): HashSet[PubSubPeer] =
   var peers: HashSet[PubSubPeer]
 
@@ -1040,10 +1053,10 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.peers.withValue(id, peer):
       peer[].behaviourPenalty += 0.1
 
-  let testExtensionConfig = g.parameters.testExtensionConfig.valueOr:
-    # by default, parameters will not have this config. because param is mainly used
-    # in tests for testing purposes.
+  # by default, parameters will not have these configs. because param is mainly used
+  # in tests for testing purposes.
 
+  let testExtensionConfig = g.parameters.testExtensionConfig.valueOr:
     proc onNegotiated(peerId: PeerId) {.gcsafe, raises: [].} =
       g.peers.withValue(peerId, peer):
         g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
@@ -1051,17 +1064,17 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     TestExtensionConfig(onNegotiated: onNegotiated)
 
   let partialMessageExtensionConfig = g.parameters.partialMessageExtensionConfig.valueOr:
-    let sendRPCProc = proc(
+    let sendRPC = proc(
         peerId: PeerId, rpc: PartialMessageExtensionRPC
     ) {.gcsafe, raises: [].} =
       g.peers.withValue(peerId, peer):
         g.send(peer[], RPCMsg(partialMessageExtension: some(rpc)), false)
-      
-    let mashPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
-      let peers = g.makePeersForPublishDefault(topic, newSeq[byte](0))
+
+    let publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+      let peers = g.makePeersForPublishDefault(topic)
       return peers.mapIt(it.peerId)
 
-    PartialMessageExtensionConfig(sendRPC: sendRPCProc, mashPeers: mashPeersProc)
+    PartialMessageExtensionConfig(sendRPC: sendRPC, publishToPeers: publishToPeers)
 
   return ExtensionsState.new(
     onMissbehaveExtensions,

@@ -24,6 +24,8 @@ proc new*(
     partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
       none(PartialMessageExtensionConfig),
 ): T =
+  var state: T
+
   var nodeExtensions = ControlExtensions()
   var extensions = newSeq[Extension]()
   var partialMessageExtension: Option[PartialMessageExtension] =
@@ -34,17 +36,22 @@ proc new*(
     nodeExtensions.testExtension = some(true)
 
   partialMessageExtensionConfig.withValue(c):
-    partialMessageExtension = some(PartialMessageExtension.new(c))
+    var cnew = c
+    cnew.isSupported = proc(peerId: PeerId): bool {.gcsafe, raises: [].} =
+      let peerExt = state.peerExtensions.getOrDefault(peerId)
+      return state.partialMessageExtension.get().isSupported(peerExt)
+    partialMessageExtension = some(PartialMessageExtension.new(cnew))
     extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = some(true)
 
-  T(
+  state = T(
     onMissbehave: onMissbehave,
     sentExtensions: initHashSet[PeerId](),
     nodeExtensions: nodeExtensions,
     extensions: extensions,
     partialMessageExtension: partialMessageExtension,
   )
+  return state
 
 proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
   let testExtension = ce.testExtension.valueOr:
@@ -136,3 +143,14 @@ proc publishPartial*(state: ExtensionsState, topic: string, pm: PartialMessage) 
     e.publishPartial(topic, pm)
   else:
     raiseAssert "partial message extension is not configured"
+
+proc onSubscribe*(
+    state: ExtensionsState,
+    peerId: PeerId,
+    topic: string,
+    subscribe: bool,
+    requestsPartial: Option[bool],
+    supportsSendingPartial: Option[bool],
+) =
+  state.partialMessageExtension.withValue(e):
+    e.onSubscribe(peerId, topic, subscribe, requestsPartial, supportsSendingPartial)

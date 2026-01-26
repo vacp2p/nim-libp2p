@@ -162,17 +162,17 @@ suite "GossipSub Extensions":
 
   test "Partial Message Extension":
     var (reportedPeers, onMissbehave) = createCollectPeerCallback()
-    let sendRPCProc = proc(
+    let sendRPC = proc(
         peerID: PeerId, rpc: PartialMessageExtensionRPC
     ) {.gcsafe, raises: [].} =
       discard
-    let mashPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+    let publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
       return newSeq[PeerId]()
 
     let state = ExtensionsState.new(
       onMissbehave,
       none(TestExtensionConfig),
       some(
-        PartialMessageExtensionConfig(sendRPC: sendRPCProc, mashPeers: mashPeersProc)
+        PartialMessageExtensionConfig(sendRPC: sendRPC, publishToPeers: publishToPeers)
       ),
     )

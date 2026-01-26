@@ -9,29 +9,50 @@ import ./[extensions_types, partial_message]
 type
   SendRPCProc =
     proc(peerID: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
-  MashPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
+  PublishToPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
+  IsSupportedProc = proc(peer: PeerId): bool {.gcsafe, raises: [].}
 
   PartialMessageExtensionConfig* = object
     sendRPC*: SendRPCProc
-    mashPeers*: MashPeersProc
+    publishToPeers*: PublishToPeersProc
+    isSupported*: IsSupportedProc
 
-  PeerState = ref object
+  PeerGroupState = ref object
     partsMetadata: seq[byte]
 
   GroupState = ref object
-    peerState: Table[PeerId, PeerState]
+    peerState: Table[PeerId, PeerGroupState]
+
+  SubState = ref object
+    requestsPartial: bool
+    supportsSendingPartial: bool
+
+  PeerTopicKey = string
 
   PartialMessageExtension* = ref object of Extension
     sendRPC: SendRPCProc
-    mashPeers: MashPeersProc
+    publishToPeers: PublishToPeersProc
+    isSupported: IsSupportedProc
     groupState: Table[string, GroupState]
+    peerSubs: Table[PeerTopicKey, SubState]
+
+proc new(
+    T: typedesc[PeerTopicKey], peerId: PeerId, topic: string
+): PeerTopicKey {.inline.} =
+  $peerId & "::" & topic
 
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
 ): PartialMessageExtension =
   doAssert(config.sendRPC != nil, "config.sendRPC must be set")
-  doAssert(config.mashPeers != nil, "config.mashPeers must be set")
-  PartialMessageExtension(sendRPC: config.sendRPC, mashPeers: config.mashPeers)
+  doAssert(config.publishToPeers != nil, "config.publishToPeers must be set")
+  doAssert(config.isSupported != nil, "config.isSupported must be set")
+
+  PartialMessageExtension(
+    sendRPC: config.sendRPC,
+    publishToPeers: config.publishToPeers,
+    isSupported: config.isSupported,
+  )
 
 method isSupported*(
     ext: PartialMessageExtension, pe: PeerExtensions
@@ -56,6 +77,29 @@ method onHandleControlRPC*(
 ) {.gcsafe, raises: [].} =
   discard # TODO
 
+proc onSubscribe*(
+    ext: PartialMessageExtension,
+    peerId: PeerId,
+    topic: string,
+    subscribe: bool,
+    requestsPartial: Option[bool],
+    supportsSendingPartial: Option[bool],
+) =
+  let key = PeerTopicKey.new(peerId, topic)
+  if subscribe:
+    let rp = requestsPartial.valueOr:
+      false
+    let ssp = supportsSendingPartial.valueOr:
+      false
+
+    ext.peerSubs[key] = SubState(
+      requestsPartial: rp,
+      supportsSendingPartial: rp or ssp,
+        # when peer requested partial, then they must support it
+    )
+  else:
+    ext.peerSubs.del(key)
+
 proc getGroupState(
     ext: PartialMessageExtension, topic: string, groupID: seq[byte]
 ): GroupState =
@@ -67,16 +111,16 @@ proc getGroupState(
   try:
     return ext.groupState[key]
   except KeyError:
-    discard # can never happen
+    raiseAssert "checked with if"
 
-proc getPeerState(gs: GroupState, peerId: PeerId): PeerState =
+proc getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   if peerId notin gs.peerState:
-    gs.peerState[peerId] = PeerState()
+    gs.peerState[peerId] = PeerGroupState()
 
   try:
     return gs.peerState[peerId]
   except KeyError:
-    discard # can never happen
+    raiseAssert "checked with if"
 
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
@@ -111,6 +155,11 @@ proc publishPartial*(
     if hasChanges:
       ext.sendRPC(peer, rpc)
 
-  let peers = ext.mashPeers(topic)
+  let peers = ext.publishToPeers(topic)
   for _, p in peers:
-    publishPartialToPeer(p)
+    if not ext.isSupported(p):
+      continue
+
+    let subopt = ext.peerSubs.getOrDefault(PeerTopicKey.new(p, topic))
+    if subopt.requestsPartial:
+      publishPartialToPeer(p)
