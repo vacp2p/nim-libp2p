@@ -59,34 +59,33 @@ proc newTestKadConfig*(
   )
 
 proc setupKad*(
-    switch: Switch,
     config: KadDHTConfig = newTestKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
 ): KadDHT =
+  let switch = createSwitch()
   let kad = KadDHT.new(switch, bootstrapNodes, config)
-  switch.mount(kad)
+  kad.switch.mount(kad)
   kad
 
 proc setupMockKad*(
-    switch: Switch,
     config: KadDHTConfig = newTestKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
 ): MockKadDHT =
+  let switch = createSwitch()
   let kad = MockKadDHT.new(switch, bootstrapNodes, config)
   kad.getValueResponse = getValueResponse
   kad.handleAddProviderMessage = handleAddProviderMessage
-  switch.mount(kad)
+  kad.switch.mount(kad)
   kad
 
 proc setupKadSwitch*(
     config: KadDHTConfig = newTestKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
 ): Future[KadDHT] {.async.} =
-  let switch = createSwitch()
-  let kad = setupKad(switch, config, bootstrapNodes)
-  await switch.start()
+  let kad = setupKad(config, bootstrapNodes)
+  await kad.switch.start()
   kad
 
 proc setupMockKadSwitch*(
@@ -95,9 +94,8 @@ proc setupMockKadSwitch*(
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
 ): Future[MockKadDHT] {.async.} =
-  let switch = createSwitch()
-  let kad = setupMockKad(switch, config, bootstrapNodes, getValueResponse, handleAddProviderMessage)
-  await switch.start()
+  let kad = setupMockKad(config, bootstrapNodes, getValueResponse, handleAddProviderMessage)
+  await kad.switch.start()
   kad
 
 proc setupKadSwitches*(
