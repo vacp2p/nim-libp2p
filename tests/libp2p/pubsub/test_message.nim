@@ -152,7 +152,7 @@ suite "Message":
 
     var partialMessageExtensionRPC = PartialMessageExtensionRPC(
       topicID: "a", # 1 byte
-      gorupID: @[1'u8], # 1 byte
+      groupID: @[1'u8], # 1 byte
       partialMessage: @[1'u8], # 1 byte
       partsMetadata: @[1'u8], # 1 byte
     )
