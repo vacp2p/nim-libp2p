@@ -382,7 +382,7 @@ suite "KadDHT Get":
     connectNodes(kads[0], kads[2])
     connectNodes(kads[0], mockKad)
 
-    # Good nodes have valid records
+    # Compliant nodes have valid records
     kads[1].dataTable.insert(key, value, $times.now().utc)
     kads[2].dataTable.insert(key, value, $times.now().utc)
     # mockKad will return mismatched key
