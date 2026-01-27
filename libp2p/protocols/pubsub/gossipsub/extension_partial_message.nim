@@ -191,8 +191,6 @@ proc publishPartial*(
 
     # if partsMetada was changed, rpc sets new metadata 
     if peerState.sentPartsMetadata != msgPartsMetadata:
-      if msgPartsMetadata.len == 0:
-        warn "message parts metadata is empty"
       hasChanges = true
       rpc.partsMetadata = msgPartsMetadata
       peerState.sentPartsMetadata = msgPartsMetadata
