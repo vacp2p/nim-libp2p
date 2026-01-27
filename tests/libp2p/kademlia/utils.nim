@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH 
 {.used.}
 
-import std/[algorithm, sequtils], results, chronos, chronicles
+import algorithm, chronos, chronicles, results, sequtils, sets, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[crypto, unittest]
 import ./mock_kademlia
@@ -74,7 +74,7 @@ proc setupMockKadSwitch*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
-    mismatchedRecordKey: Opt[Key] = Opt.none(Key),
+    getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
 ): Future[(Switch, MockKadDHT)] {.async.} =
   let switch = createSwitch()
@@ -90,7 +90,7 @@ proc setupMockKadSwitch*(
       republishProvidedKeysInterval = republishProvidedKeysInterval,
     ),
   )
-  kad.mismatchedRecordKey = mismatchedRecordKey
+  kad.getValueResponse = getValueResponse
   kad.handleAddProviderMessage = handleAddProviderMessage
 
   switch.mount(kad)
@@ -103,6 +103,7 @@ proc setupKadSwitch*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+    replication: int = DefaultReplication,
 ): Future[(Switch, KadDHT)] {.async.} =
   let switch = createSwitch()
   let kad = KadDHT.new(
@@ -115,6 +116,7 @@ proc setupKadSwitch*(
       cleanupProvidersInterval = cleanupProvidersInterval,
       providerExpirationInterval = chronos.seconds(1),
       republishProvidedKeysInterval = republishProvidedKeysInterval,
+      replication = replication,
     ),
   )
 
@@ -129,17 +131,19 @@ proc setupKadSwitches*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
+    replication: int = DefaultReplication,
 ): Future[seq[KadDHT]] {.async.} =
   var kads: seq[KadDHT]
   for i in 0 ..< count:
     var (_, kad) = await setupKadSwitch(
       validator, selector, bootstrapNodes, cleanupProvidersInterval,
-      republishProvidedKeysInterval,
+      republishProvidedKeysInterval, replication,
     )
     kads.add(kad)
   kads
 
 proc stopNodes*(nodes: seq[KadDHT]) {.async.} =
+  await allFutures(nodes.mapIt(it.stop()))
   await allFutures(nodes.mapIt(it.switch.stop()))
 
 proc connectNodes*(kad1, kad2: KadDHT) =
@@ -162,6 +166,12 @@ proc connectNodesStar*(nodes: seq[KadDHT]) =
       if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
         connectNodes(dialer, listener)
 
+proc connectNodesHub*(hub: KadDHT, nodes: seq[KadDHT]) =
+  ## Hub: hub-1, hub-2, hub-3,...
+  ## 
+  for i in 0 ..< nodes.len:
+    connectNodes(hub, nodes[i])
+
 proc hasKey*(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
     for ent in b.peers:
@@ -177,6 +187,13 @@ proc hasNoKeys*(kad: KadDHT, keys: seq[Key]): bool =
 
 proc pluckPeerIds*(kads: seq[KadDHT]): seq[PeerId] =
   kads.mapIt(it.switch.peerInfo.peerId)
+
+proc containsPeer*(providers: HashSet[Peer], node: KadDHT): bool =
+  let providerIds = providers.toSeq().mapIt(it.id)
+  node.switch.peerInfo.peerId.getBytes() in providerIds
+
+proc toPeer*(node: KadDHT): Peer =
+  node.switch.peerInfo.toPeer()
 
 proc randomPeerId*(): PeerId =
   PeerId.random(rng()).get()
@@ -213,3 +230,12 @@ proc sortPeers*(
       cmp(a[1], b[1])
   )
   .mapIt(it[0])
+
+proc addRandomPeers*(
+    state: var LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
+): seq[PeerId] =
+  var peers: seq[PeerId]
+  for i in 0 ..< count:
+    peers.add(randomPeerId())
+    state.shortlist[peers[i]] = xorDistance(peers[i], target, hasher)
+  peers.sortPeers(target, hasher)

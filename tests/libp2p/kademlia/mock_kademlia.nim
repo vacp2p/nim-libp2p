@@ -1,48 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import chronos, chronicles, std/times
+import chronos, chronicles
 import ../../../libp2p/protocols/kademlia/[types, routingtable, protobuf, get, provider]
 import ../../../libp2p/[peerid, stream/connection]
 
 type MockKadDHT* = ref object of KadDHT
   findNodeCalls*: seq[Key]
-  mismatchedRecordKey*: Opt[Key]
-    ## If set, handleGetValue returns Record.key with this value
+  getValueResponse*: Opt[Message]
   handleAddProviderMessage*: Opt[Message]
 
 method findNode*(
     kad: MockKadDHT, target: Key
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
-  # Track all findNode calls
   kad.findNodeCalls.add(target)
-  ## Return only locally known peers
   return kad.rtable.findClosestPeerIds(target, kad.config.replication)
 
 method handleGetValue*(
     kad: MockKadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let wrongKey = kad.mismatchedRecordKey.valueOr:
-    # No malicious behavior - call base implementation
+  let response = kad.getValueResponse.valueOr:
     await handleGetValue(KadDHT(kad), conn, msg)
     return
 
-  # Malicious behavior: return record with wrong Record.key
-  let maliciousResponse = Message(
-    msgType: MessageType.getValue,
-    key: msg.key, # Message.key matches request
-    record: Opt.some(
-      Record(
-        key: wrongKey, # Record.key does NOT match
-        value: Opt.some(@[1.byte, 2, 3, 4]),
-        timeReceived: Opt.some($times.now().utc),
-      )
-    ),
-    closerPeers: @[],
-  )
-
   try:
-    await conn.writeLp(maliciousResponse.encode().buffer)
+    await conn.writeLp(response.encode().buffer)
   except LPStreamError as exc:
     debug "Failed to send malicious get-value response", conn = conn, err = exc.msg
 
