@@ -206,8 +206,9 @@ proc publishPartial*(
         # to avoid any error with future messages.
         peerState.partsMetadata = newSeq[byte](0)
       else:
-        peerState.partsMetadata = ext.mergeMetadata(peerState.partsMetadata, msgPartsMetadata)
-        
+        peerState.partsMetadata =
+          ext.mergeMetadata(peerState.partsMetadata, msgPartsMetadata)
+
         let data = result.get()
         rpc.partialMessage = data
         hasChanges = hasChanges or data.len > 0
