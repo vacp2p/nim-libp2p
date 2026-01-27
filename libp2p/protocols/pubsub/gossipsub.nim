@@ -288,7 +288,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
       proc addPeerAfterConnected(): Future[void] {.async.} =
         await peer.connectedFut
 
-        if gossipExtensionsSupported(peer.sendConn.protocol):
+        if peer.sendConn != nil and gossipExtensionsSupported(peer.sendConn.protocol):
           sendExtensionsControl()
 
       asyncSpawn addPeerAfterConnected()

@@ -297,13 +297,13 @@ proc connectOnce(
     # Careful to race conditions here.
     # Topic subscription relies on either connectedFut
     # to be completed, or onEvent to be called later
-    p.connectedFut.complete()
     p.sendConn = newConn
     p.address =
       if p.sendConn.observedAddr.isSome:
         some(p.sendConn.observedAddr.get)
       else:
         none(MultiAddress)
+    p.connectedFut.complete()
 
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.StreamOpened))
