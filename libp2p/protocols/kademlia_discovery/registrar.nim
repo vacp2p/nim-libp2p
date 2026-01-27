@@ -29,14 +29,10 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: float64) {.raises: [].
       if now - adTime > advertExpiry.int64:
         # Expired - remove from IP tree
         for addr in ad.addrs:
-          let ipOpt = addr.getIp()
-          if ipOpt.isNone():
-            continue
-          let ip = ipOpt.unsafeGet()
-          try:
-            registrar.ipTree.removeIp(ip)
-          except ValueError:
-            discard
+          let ip = addr.getIp()
+          if ip.isSome():
+            discard registrar.ipTree.removeIp(ip.unsafeGet())
+              # Silently ignore IPv6 or non-existent IPs during cleanup
         toDelete.add((serviceId, ad))
         ads.delete(i)
       else:
@@ -67,12 +63,11 @@ proc waitingTime*(
   # Extract IP from first multiaddress
   var ipSim = 0.0
   if ad.addrs.len > 0:
-    let ipOpt = ad.addrs[0].getIp()
-    if ipOpt.isSome():
-      try:
-        ipSim = registrar.ipTree.ipScore(ipOpt.unsafeGet())
-      except ValueError:
-        discard
+    let ip = ad.addrs[0].getIp()
+    if ip.isSome():
+      let scoreRes = registrar.ipTree.ipScore(ip.unsafeGet())
+      if scoreRes.isOk():
+        ipSim = scoreRes.get()
 
   return
     discoConf.advertExpiry * occupancy * (serviceSim + ipSim + discoConf.safetyParam)
@@ -109,6 +104,19 @@ proc getPeers*(
 
   return found.toSeq()
 
+proc sendRegisterReject*(conn: Connection) {.async: (raises: []).} =
+  ## Helper to send a rejection response
+  let writeRes = catch:
+    await conn.writeLp(
+      Message(
+        msgType: MessageType.register,
+        status: Opt.some(uint32(RegistrationStatus.Rejected.ord)),
+        closerPeers: @[],
+      ).encode().buffer
+    )
+  if writeRes.isErr:
+    debug "Failed to send register response", err = writeRes.error.msg
+
 proc handleGetAds*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: []).} =
@@ -135,15 +143,13 @@ proc handleGetAds*(
 
   var closerPeers: seq[Peer] = @[]
   for peerKey in closerPeerKeys:
-    let peerIdRes = peerKey.toPeerId()
-    if peerIdRes.isOk:
-      let peerId = peerIdRes.get()
-      let addrs = disco.switch.peerStore[AddressBook][peerId]
-      closerPeers.add(
-        Peer(
-          id: peerId.getBytes(), addrs: addrs, connection: ConnectionType.notConnected
-        )
-      )
+    let peerId = peerKey.toPeerId().valueOr:
+      debug "Failed to convert key to peer id", error = error
+      continue
+    let addrs = disco.switch.peerStore[AddressBook][peerId]
+    closerPeers.add(
+      Peer(id: peerId.getBytes(), addrs: addrs, connection: ConnectionType.notConnected)
+    )
 
   # Send response
   let writeRes = catch:
@@ -157,55 +163,43 @@ proc handleRegister*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   ## Handle REGISTER request following RFC algorithm
+
+  proc sendReject() {.async: (raises: []).} =
+    ## Send rejection response - helper using catch:
+    let writeRes = catch:
+      await conn.writeLp(
+        Message(
+          msgType: MessageType.register,
+          status: Opt.some(uint32(RegistrationStatus.Rejected.ord)),
+          closerPeers: @[],
+        ).encode().buffer
+      )
+    if writeRes.isErr:
+      debug "Failed to send register response", err = writeRes.error.msg
+
   # Decode the advertisement
   if msg.ad.isSome():
     let adBuf = msg.ad.get()
-    let adRes = Advertisement.decode(adBuf)
-    if adRes.isErr:
+    let ad = Advertisement.decode(adBuf).valueOr:
       # Invalid advertisement, reject
-      try:
-        await conn.writeLp(
-          Message(
-            msgType: MessageType.register,
-            status: Opt.some(uint32(RegistrationStatus.Rejected.ord)),
-            closerPeers: @[],
-          ).encode().buffer
-        )
-      except LPStreamError as exc:
-        debug "Failed to send register response", err = exc.msg
+      debug "Invalid advertisement received", err = error
+      await sendReject()
       return
 
-    let ad = adRes.get()
     let now = getTime().toUnix()
 
     # Verify signature
     var publicKey: PublicKey
     if not ad.peerId.extractPublicKey(publicKey):
       # Can't extract public key, reject
-      try:
-        await conn.writeLp(
-          Message(
-            msgType: MessageType.register,
-            status: Opt.some(uint32(RegistrationStatus.Rejected.ord)),
-            closerPeers: @[],
-          ).encode().buffer
-        )
-      except LPStreamError as exc:
-        debug "Failed to send register response", err = exc.msg
+      debug "Failed to extract public key from peer id"
+      await sendReject()
       return
 
     if not ad.verify(publicKey):
       # Invalid signature, reject
-      try:
-        await conn.writeLp(
-          Message(
-            msgType: MessageType.register,
-            status: Opt.some(uint32(RegistrationStatus.Rejected.ord)),
-            closerPeers: @[],
-          ).encode().buffer
-        )
-      except LPStreamError as exc:
-        debug "Failed to send register response", err = exc.msg
+      debug "Invalid advertisement signature"
+      await sendReject()
       return
 
     # Prune expired ads first
@@ -222,26 +216,29 @@ proc handleRegister*(
     if msg.ticket.isSome():
       let ticketBuf = msg.ticket.get()
       let ticketRes = Ticket.decode(ticketBuf)
-      if ticketRes.isOk:
-        let decodedTicket = ticketRes.get()
+      if ticketRes.isOk():
+        let ticketVal = ticketRes.get()
 
         # Verify ticket signature with registrar's key
-        let registrarKey = disco.switch.peerInfo.privateKey
-        let pubKeyRes = registrarKey.getPublicKey()
-        if pubKeyRes.isOk:
+        let pubKeyRes = disco.switch.peerInfo.privateKey.getPublicKey()
+        if pubKeyRes.isOk():
           let registrarPubKey = pubKeyRes.get()
-          if decodedTicket.verify(registrarPubKey):
+          if ticketVal.verify(registrarPubKey):
             # Verify ticket.ad matches current ad
-            if decodedTicket.ad.serviceId == ad.serviceId and
-                decodedTicket.ad.peerId == ad.peerId:
+            if ticketVal.ad.serviceId == ad.serviceId and
+                ticketVal.ad.peerId == ad.peerId:
               # Verify retry within registration window (±1 second)
-              let elapsed = now - decodedTicket.t_init
+              let elapsed = now - ticketVal.t_init
               let delta = disco.discoConf.registerationWindow.seconds.int64
 
               if abs(elapsed) <= delta + 1:
                 # Valid retry, calculate remaining time
-                let waitSoFar = float64(now - decodedTicket.t_init)
+                let waitSoFar = float64(now - ticketVal.t_init)
                 t_remaining = t_wait - waitSoFar
+        else:
+          debug "Failed to get registrar public key", err = pubKeyRes.error
+      else:
+        debug "Invalid ticket received", err = ticketRes.error
 
     if t_remaining <= 0:
       # Accept the advertisement
@@ -265,15 +262,12 @@ proc handleRegister*(
 
         # Update IP tree
         for addr in ad.addrs:
-          let ipOpt = addr.getIp()
-          if ipOpt.isSome():
-            try:
-              disco.registrar.ipTree.insertIp(ipOpt.unsafeGet())
-            except ValueError:
-              discard
+          let ip = addr.getIp()
+          if ip.isSome():
+            discard disco.registrar.ipTree.insertIp(ip.unsafeGet())
 
       # Send Confirmed response
-      try:
+      let writeRes = catch:
         await conn.writeLp(
           Message(
             msgType: MessageType.register,
@@ -281,18 +275,17 @@ proc handleRegister*(
             closerPeers: @[],
           ).encode().buffer
         )
-      except LPStreamError as exc:
-        debug "Failed to send register response", err = exc.msg
+      if writeRes.isErr:
+        debug "Failed to send register response", err = writeRes.error.msg
     else:
       # Send Wait response with ticket
       ticket.t_wait_for = min(disco.discoConf.advertExpiry.uint32, t_remaining.uint32)
       ticket.t_mod = now
 
       # Sign ticket with registrar's key
-      let registrarKey = disco.switch.peerInfo.privateKey
-      let signRes = ticket.sign(registrarKey)
+      let signRes = ticket.sign(disco.switch.peerInfo.privateKey)
       if signRes.isOk:
-        try:
+        let writeRes = catch:
           await conn.writeLp(
             Message(
               msgType: MessageType.register,
@@ -301,29 +294,12 @@ proc handleRegister*(
               closerPeers: @[],
             ).encode().buffer
           )
-        except LPStreamError as exc:
-          debug "Failed to send register response", err = exc.msg
+        if writeRes.isErr:
+          debug "Failed to send register response", err = writeRes.error.msg
       else:
         # Signing failed, reject
-        try:
-          await conn.writeLp(
-            Message(
-              msgType: MessageType.register,
-              status: Opt.some(uint32(RegistrationStatus.Rejected.ord)),
-              closerPeers: @[],
-            ).encode().buffer
-          )
-        except LPStreamError as exc:
-          debug "Failed to send register response", err = exc.msg
+        debug "Failed to sign ticket", err = signRes.error
+        await sendReject()
   else:
     # No ad provided, reject
-    try:
-      await conn.writeLp(
-        Message(
-          msgType: MessageType.register,
-          status: Opt.some(uint32(RegistrationStatus.Rejected.ord)),
-          closerPeers: @[],
-        ).encode().buffer
-      )
-    except LPStreamError as exc:
-      debug "Failed to send register response", err = exc.msg
+    await sendReject()
