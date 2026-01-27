@@ -104,6 +104,7 @@ suite "Signed Extended Peer Record":
     check:
       decoded.isOk() == true
       decoded.get().addresses.len == 1
+      extPR == decoded.get()
 
   test "Decode doesn't fail if there are no addresses":
     let
@@ -119,6 +120,7 @@ suite "Signed Extended Peer Record":
     check:
       decoded.isOk() == true
       decoded.get().addresses.len == 0
+      extPR == decoded.get()
 
   test "Decode fails if all addresses are invalid":
     let
@@ -145,3 +147,4 @@ suite "Signed Extended Peer Record":
     check:
       decoded.isOk() == true
       decoded.get().services.len == 0
+      extPR == decoded.get()

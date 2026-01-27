@@ -6,6 +6,16 @@ import results, chronos
 import ../../../libp2p/[switch, builders]
 import ../../../libp2p/protocols/[kad_disco, kademlia]
 
+template checkEncodeDecode*(obj: untyped) =
+  check obj == decode(typeof(obj), obj.encode()).get()
+
+proc hasKey*(kad: KademliaDiscovery, key: Key): bool =
+  for b in kad.rtable.buckets:
+    for ent in b.peers:
+      if ent.nodeId == key:
+        return true
+  return false
+
 proc createSwitch*(): Switch =
   SwitchBuilder
   .new()

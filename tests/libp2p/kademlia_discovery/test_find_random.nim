@@ -11,13 +11,6 @@ import ./utils.nim
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
-proc hasKey(kad: KademliaDiscovery, key: Key): bool =
-  for b in kad.rtable.buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
-        return true
-  return false
-
 suite "Kademlia discovery - FindRandom":
   teardown:
     checkTrackers()
