@@ -277,8 +277,8 @@ suite "KadDHT Find":
     # Returns empty - no peers to query
     check peerIds.len == 0
 
-  asyncTest "Find node continues on individual peer timeout":
-    # kads[0] knows kads[1] (will timeout) and kads[2] (responds)
+  asyncTest "Find node continues when peer fails immediately":
+    # kads[0] knows kads[1] (will fail immediately) and kads[2] (responds)
     # kads[2] knows kads[3]
     let kads = await setupKadSwitches(4)
     defer:
@@ -288,14 +288,39 @@ suite "KadDHT Find":
     connectNodes(kads[0], kads[2])
     connectNodes(kads[2], kads[3])
 
-    # Stop kads[1] - it won't respond (causes timeout)
+    # Stop kads[1] - dial will fail immediately with DialFailedError
+    # This is marked as RespondedStatus.Failed and NOT retried
     await kads[1].switch.stop()
 
     check not kads[0].hasKey(kads[3].rtable.selfId)
 
-    # Lookup still succeeds via kads[2] despite kads[1] timeout
+    # Lookup still succeeds via kads[2] despite kads[1] failure
     let peerIds = await kads[0].findNode(kads[3].rtable.selfId)
 
     check:
       kads[3].switch.peerInfo.peerId in peerIds
       kads[0].hasKey(kads[3].rtable.selfId)
+
+  asyncTest "Find node retries timed-out peer until max retries exhausted":
+    # Test the retry path: peer that doesn't finish within timeout gets retried
+    const retries = 5
+    let kad = await setupKadSwitch(
+      config = testKadConfig(timeout = 100.milliseconds, retries = retries)
+    )
+    let mockKad =
+      await setupMockKadSwitch(handleFindNodeDelay = 500.milliseconds) # > timeout
+    let responsiveKad = await setupKadSwitch()
+    defer:
+      await stopNodes(@[kad, mockKad, responsiveKad])
+
+    connectNodes(kad, mockKad)
+    connectNodes(kad, responsiveKad)
+
+    check mockKad.handleFindNodeCalls == 0
+
+    let result = await kad.findNode(mockKad.rtable.selfId)
+
+    # Lookup terminates gracefully after retry exhaustion
+    check:
+      responsiveKad.switch.peerInfo.peerId in result
+      mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)
