@@ -95,11 +95,11 @@ method onNegotiated*(
 method onRemovePeer*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
-  # remove peer data in group
+  # remove peer data from groupState
   for key, group in ext.groupState:
     group.peerState.del(peerId)
 
-  # remove sub options for this peer
+  # remove subscription options for this peer 
   var toRemove: seq[PeerTopicKey] = @[]
   for key, _ in ext.peerSubs:
     if key.hasPeer(peerId):
@@ -118,7 +118,7 @@ proc onHandleSubscribe(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOpt
     ext.peerSubs[key] = SubState(
       requestsPartial: rp,
       supportsSendingPartial: rp or ssp,
-        # when peer requested partial, then they must support it
+        # when peer requested partial, then, by spec, they must support it
     )
   else:
     ext.peerSubs.del(key)
@@ -134,8 +134,8 @@ method onHandleRPC*(
   for subRPC in rpc.subscriptions:
     ext.onHandleSubscribe(peerId, subRPC)
 
-  rpc.partialMessageExtension.withValue(partialExt):
-    ext.onHandlePartial(peerId, partialExt)
+  rpc.partialMessageExtension.withValue(partialExtRPC):
+    ext.onHandlePartial(peerId, partialExtRPC)
 
 proc getGroupState(
     ext: PartialMessageExtension, topic: string, groupID: seq[byte]

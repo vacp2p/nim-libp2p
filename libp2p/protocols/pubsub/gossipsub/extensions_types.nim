@@ -19,18 +19,18 @@ type
 method isSupported*(
     ext: Extension, pe: PeerExtensions
 ): bool {.base, gcsafe, raises: [].} =
-  raiseAssert "must be implemented"
+  raiseAssert "isSupported: must be implemented"
 
 method onHeartbeat*(ext: Extension) {.base, gcsafe, raises: [].} =
-  raiseAssert "must be implemented"
+  raiseAssert "onHeartbeat: must be implemented"
 
 method onNegotiated*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
-  raiseAssert "must be implemented"
+  raiseAssert "onNegotiated: must be implemented"
 
 method onRemovePeer*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
-  raiseAssert "must be implemented"
+  raiseAssert "onRemovePeer: must be implemented"
 
 method onHandleRPC*(
     ext: Extension, peerId: PeerId, rpc: RPCMsg
 ) {.base, gcsafe, raises: [].} =
-  raiseAssert "must be implemented"
+  raiseAssert "onHandleRPC: must be implemented"

@@ -8,12 +8,12 @@ type PartialMessage* = object
   ## available parts are represented.
 
 method groupID*(m: PartialMessage): seq[byte] {.base, gcsafe, raises: [].} =
-  raiseAssert "groupID needs to be implemented"
+  raiseAssert "groupID: must be implemented"
 
 method partsMetadata*(m: PartialMessage): seq[byte] {.base, gcsafe, raises: [].} =
-  raiseAssert "partsMetadata needs to be implemented"
+  raiseAssert "partsMetadata: must be implemented"
 
 method partialMessage*(
     m: PartialMessage, metadata: seq[byte]
 ): seq[byte] {.base, gcsafe, raises: [].} =
-  raiseAssert "partialMessage needs to be implemented"
+  raiseAssert "partialMessage: must be implemented"
