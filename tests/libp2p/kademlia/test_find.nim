@@ -18,8 +18,7 @@ suite "KadDHT Find":
       await stopNodes(kads)
 
     # Connect nodes: kads[0] <-> kads[1], kad0 <-> kads[2]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     # kads[1] doesn't know kads[2] yet
     check not kads[1].hasKey(kads[2].rtable.selfId)
@@ -57,9 +56,7 @@ suite "KadDHT Find":
       await stopNodes(kads)
 
     # Connect nodes in a chain: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[1], kads[2])
-    connectNodes(kads[2], kads[3])
+    connectNodesChain(kads)
 
     # Verify initial state: each node only knows its neighbors
     check:
@@ -165,9 +162,7 @@ suite "KadDHT Find":
       await stopNodes(kads)
 
     # Create fully connected triangle
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[1], kads[2])
-    connectNodes(kads[2], kads[0])
+    connectNodesStar(kads)
 
     # Verify initial state: each node knows the other two
     check:
@@ -197,8 +192,7 @@ suite "KadDHT Find":
       await stopNodes(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     let res1 = await kads[1].findPeer(kads[2].switch.peerInfo.peerId)
     check res1.get().peerId == kads[2].switch.peerInfo.peerId
@@ -213,9 +207,7 @@ suite "KadDHT Find":
     defer:
       await stopNodes(kads)
 
-    # Connect: kads[0] <-> kads[1], kads[1] <-> kads[2]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[1], kads[2])
+    connectNodesChain(kads)
 
     check not kads[0].hasKey(kads[2].rtable.selfId)
 
@@ -257,8 +249,7 @@ suite "KadDHT Find":
       await stopNodes(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     # kads[1] asks kads[0] for peers closest to kads[1]'s own PeerID
     let ownKey = kads[1].rtable.selfId

@@ -280,8 +280,7 @@ suite "KadDHT - Add Provider":
       await stopNodes(kads)
 
     # kads[0] is receiver, kads[1] and kads[2] are providers
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     let targetCid = kads[0].rtable.selfId.toCid()
 

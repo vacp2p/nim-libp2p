@@ -159,8 +159,7 @@ suite "KadDHT Get":
     defer:
       await stopNodes(kads)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -189,8 +188,7 @@ suite "KadDHT Get":
     defer:
       await stopNodes(kads)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     let
       key = kads[0].rtable.selfId
@@ -370,9 +368,7 @@ suite "KadDHT Get":
     defer:
       await stopNodes(kads & mockKad)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
-    connectNodes(kads[0], mockKad)
+    connectNodesHub(kads[0], kads[1 ..^ 1] & mockKad)
 
     # Compliant nodes have valid records
     kads[1].dataTable.insert(key, value, $times.now().utc)

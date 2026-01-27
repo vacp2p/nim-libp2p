@@ -152,6 +152,12 @@ proc connectNodesHub*(hub: KadDHT, nodes: seq[KadDHT]) =
   for i in 0 ..< nodes.len:
     connectNodes(hub, nodes[i])
 
+proc connectNodesChain*(nodes: seq[KadDHT]) =
+  ## Chain: 1-2-3-4-5
+  ## 
+  for i in 0 ..< nodes.len - 1:
+    connectNodes(nodes[i], nodes[i + 1])
+
 proc hasKey*(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
     for ent in b.peers:
