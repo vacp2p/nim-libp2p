@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
+import std/options
 import ../../protobuf/minprotobuf
 import ../../varint
 import ../../utility
@@ -21,6 +22,8 @@ type
     getProviders = 3
     findNode = 4
     ping = 5 # Deprecated
+    register = 6 # REGISTER for Logos Capability Discovery
+    getAds = 7 # GET_ADS for Logos Capability Discovery
 
   ConnectionType* = enum
     notConnected = 0
@@ -39,6 +42,10 @@ type
     record*: Opt[Record]
     closerPeers*: seq[Peer]
     providerPeers*: seq[Peer]
+    ad*: Opt[seq[byte]]
+    ads*: seq[seq[byte]]
+    ticket*: Opt[seq[byte]]
+    status*: Opt[uint32]
 
 proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.}
 
@@ -76,6 +83,18 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
 
   for peer in msg.providerPeers:
     pb.write(9, peer.encode())
+
+  msg.ad.withValue(adBuf):
+    pb.write(3, adBuf)
+
+  for adBuf in msg.ads:
+    pb.write(2, adBuf)
+
+  msg.ticket.withValue(ticketBuf):
+    pb.write(4, ticketBuf)
+
+  msg.status.withValue(statusVal):
+    pb.write(2, statusVal)
 
   pb.finish()
 
@@ -140,7 +159,11 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   discard ?pb.getField(2, m.key)
 
   if ?pb.getField(3, recPb):
-    m.record = Opt.some(?Record.decode(initProtoBuffer(recPb)))
+    # Could be either a Record or an Advertisement depending on message type
+    if msgType in {MessageType.putValue, MessageType.getValue}:
+      m.record = Opt.some(?Record.decode(initProtoBuffer(recPb)))
+    else:
+      m.ad = Opt.some(recPb)
 
   discard ?pb.getRepeatedField(8, closerPbs)
   for ppb in closerPbs:
@@ -149,6 +172,18 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   discard ?pb.getRepeatedField(9, providerPbs)
   for ppb in providerPbs:
     m.providerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
+
+  var adBufs: seq[seq[byte]]
+  discard ?pb.getRepeatedField(2, adBufs)
+  m.ads = adBufs
+
+  var ticketBuf: seq[byte]
+  if ?pb.getField(4, ticketBuf):
+    m.ticket = Opt.some(ticketBuf)
+
+  var statusVal: uint32
+  if ?pb.getField(2, statusVal):
+    m.status = Opt.some(statusVal)
 
   return ok(m)
 
