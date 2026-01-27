@@ -8,13 +8,6 @@ import ../../../libp2p/protocols/[kademlia, kad_disco]
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils
 
-proc hasKey(kad: KademliaDiscovery, key: Key): bool =
-  for b in kad.rtable.buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
-        return true
-  return false
-
 suite "Kademlia discovery - FindRandom":
   teardown:
     checkTrackers()
