@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 {.used.}
 
 import results, chronos
 import ../../../libp2p/[switch, builders]
-import ../../../libp2p/protocols/kad_disco
+import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../tools/crypto
 
 proc createSwitch*(): Switch =
