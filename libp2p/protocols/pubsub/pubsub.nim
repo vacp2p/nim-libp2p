@@ -61,6 +61,9 @@ declarePublicCounter(
   libp2p_pubsub_messages_published, "published messages", labels = ["topic"]
 )
 declarePublicCounter(
+  libp2p_pubsub_messages_published_partial, "published partial messages", labels = ["topic"]
+)
+declarePublicCounter(
   libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages", labels = ["topic"]
 )
 

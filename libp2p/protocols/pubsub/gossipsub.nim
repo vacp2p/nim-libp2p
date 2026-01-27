@@ -991,13 +991,23 @@ method publish*(
   else:
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
 
-  trace "Published message to peers", peers = peers.len
+  trace "Published message to peers", count = peers.len
+
   return peers.len
 
 proc publishPartial*(
     g: GossipSub, topic: string, pm: PartialMessage
 ): Future[int] {.async: (raises: []).} =
-  g.extensionsState.publishPartial(topic, pm)
+  let count = g.extensionsState.publishPartial(topic, pm)
+
+  if g.knownTopics.contains(topic):
+    libp2p_pubsub_messages_published_partial.inc(count.int64, labelValues = [topic])
+  else:
+    libp2p_pubsub_messages_published_partial.inc(count.int64, labelValues = ["generic"])
+
+  trace "Published partial message to peers", count = count
+
+  return count
 
 proc maintainDirectPeer(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]

@@ -161,7 +161,7 @@ proc getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
 
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
-) {.raises: [].} =
+): int {.raises: [].} =
   let groupID = pm.groupID()
   let partsMetada = pm.partsMetadata()
   let groupState = ext.getGroupState(topic, groupID)
@@ -194,6 +194,8 @@ proc publishPartial*(
     if hasChanges:
       ext.sendRPC(peer, rpc)
 
+  var publishedToCount: int = 0
+
   let peers = ext.publishToPeers(topic)
   for _, p in peers:
     # peer needs to support this extension (and needs to be nagotiated)
@@ -204,8 +206,12 @@ proc publishPartial*(
     let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(p, topic))
     if peerSubOpt.requestsPartial:
       publishPartialToPeer(p)
+      publishedToCount.inc
 
     # or node requested partial and peer supports sending partials
     let nodeRequestedPartial = false # TODO
     if nodeRequestedPartial and peerSubOpt.supportsSendingPartial:
       publishPartialToPeer(p)
+      publishedToCount.inc
+
+  return publishedToCount
