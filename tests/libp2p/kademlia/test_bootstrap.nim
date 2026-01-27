@@ -13,10 +13,9 @@ suite "KadDHT Bootstrap":
     checkTrackers()
 
   asyncTest "bootstrap calls findNode on self first and skips empty buckets":
-    let (switch, kad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let kad = await setupMockKadSwitch()
     defer:
-      await switch.stop()
+      await kad.switch.stop()
 
     check kad.rtable.buckets.len == 0
 
@@ -29,10 +28,9 @@ suite "KadDHT Bootstrap":
       kad.findNodeCalls[0] == kad.rtable.selfId
 
   asyncTest "bootstrap skips fresh buckets":
-    let (switch, kad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let kad = await setupMockKadSwitch()
     defer:
-      await switch.stop()
+      await kad.switch.stop()
 
     # Add peers - they will be fresh (just added)
     kad.populateRoutingTable(5)
@@ -45,10 +43,9 @@ suite "KadDHT Bootstrap":
     check kad.findNodeCalls.len == 1
 
   asyncTest "bootstrap refreshes stale buckets":
-    let (switch, kad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let kad = await setupMockKadSwitch()
     defer:
-      await switch.stop()
+      await kad.switch.stop()
 
     # Add multiple peers to create multiple buckets
     kad.populateRoutingTable(20)
@@ -67,10 +64,9 @@ suite "KadDHT Bootstrap":
     check kad.findNodeCalls.len == bucketIndices.len + 1
 
   asyncTest "bootstrap with mixed fresh and stale buckets refreshes only stale":
-    let (switch, kad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let kad = await setupMockKadSwitch()
     defer:
-      await switch.stop()
+      await kad.switch.stop()
 
     kad.populateRoutingTable(20)
 
@@ -96,10 +92,9 @@ suite "KadDHT Bootstrap":
       kad.findNodeCalls[0] == kad.rtable.selfId # first call always self lookup
 
   asyncTest "bootstrap with forceRefresh=true refreshes all non-empty buckets":
-    let (switch, kad) =
-      await setupMockKadSwitch(PermissiveValidator(), CandSelector(), @[])
+    let kad = await setupMockKadSwitch()
     defer:
-      await switch.stop()
+      await kad.switch.stop()
 
     kad.populateRoutingTable(20)
 
@@ -118,11 +113,11 @@ suite "KadDHT Bootstrap Component":
 
   asyncTest "bootstrap discovers new peers through network":
     # 1 hub + 9 nodes bootstrapping from hub
-    let (hubSwitch, hubKad) =
-      await setupKadSwitch(PermissiveValidator(), CandSelector())
+    let hubKad = await setupKadSwitch()
 
     let kads = await setupKadSwitches(
-      9, bootstrapNodes = @[(hubSwitch.peerInfo.peerId, hubSwitch.peerInfo.addrs)]
+      9,
+      bootstrapNodes = @[(hubKad.switch.peerInfo.peerId, hubKad.switch.peerInfo.addrs)],
     )
     defer:
       await stopNodes(kads & hubKad)
