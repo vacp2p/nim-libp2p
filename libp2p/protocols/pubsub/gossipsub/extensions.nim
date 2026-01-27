@@ -118,13 +118,13 @@ proc removePeer*(state: ExtensionsState, peerId: PeerId) =
   state.sentExtensions.excl(peerId)
 
 proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
-  if state.peerExtensions.hasKey(peerId):
-    # peer is sending control message again but this node has already received extensions.
-    # this is protocol error, therfore nodes reports missbehaviour.
-    state.onMissbehave(peerId)
-  else:
-    # peer is sending extensions control message for the first time
-    if rpc.control.isSome() and rpc.control.get().extensions.isSome():
+  if rpc.control.isSome() and rpc.control.get().extensions.isSome():
+    if state.peerExtensions.hasKey(peerId):
+      # peer is sending control message again but this node has already received extensions.
+      # this is protocol error, therfore nodes reports missbehaviour.
+      state.onMissbehave(peerId)
+    else:
+      # peer is sending extensions control message for the first time
       let ctrlExtensions = rpc.control.get().extensions.get()
       state.peerExtensions[peerId] = ctrlExtensions.toPeerExtensions()
 

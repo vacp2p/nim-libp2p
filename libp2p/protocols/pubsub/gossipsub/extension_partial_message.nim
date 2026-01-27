@@ -90,7 +90,7 @@ method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
 method onNegotiated*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
-  discard # TODO
+  discard # NOOP
 
 method onRemovePeer*(
     ext: PartialMessageExtension, peerId: PeerId
