@@ -14,7 +14,6 @@ import
     crypto/crypto,
     multicodec,
     protobuf/minprotobuf,
-    utils/semaphore,
     builders,
     utils/offsettedseq,
   ]
