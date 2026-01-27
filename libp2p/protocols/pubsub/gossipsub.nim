@@ -350,21 +350,10 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
 
   procCall FloodSub(g).unsubscribePeer(peer)
 
-proc handleSubscribe(
-    g: GossipSub,
-    peer: PubSubPeer,
-    topic: string,
-    subscribe: bool,
-    requestsPartial: Option[bool],
-    supportsSendingPartial: Option[bool],
-) =
+proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: bool) =
   logScope:
     peer
     topic
-
-  g.extensionsState.onSubscribe(
-    peer.peerId, topic, subscribe, requestsPartial, supportsSendingPartial
-  )
 
   if subscribe:
     # this is a workaround for a race condition
@@ -404,13 +393,7 @@ proc handleSubscribe(
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
-proc handleExtensions(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
-  control.extensions.withValue(ctrlExtensions):
-    g.extensionsState.handleRPC(peer.peerId, ctrlExtensions)
-
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
-  g.handleExtensions(peer, control)
-
   g.handlePrune(peer, control.prune)
 
   var respControl: ControlMessage
@@ -713,13 +696,13 @@ method rpcHandler*(
     g.send(peer, RPCMsg(pong: rpcMsg.ping), isHighPriority = true)
     peer.pingBudget.dec
 
+  g.extensionsState.handleRPC(peer.peerId, rpcMsg)
+
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub(): untyped =
       rpcMsg.subscriptions[i]
 
-    g.handleSubscribe(
-      peer, sub.topic, sub.subscribe, sub.requestsPartial, sub.supportsSendingPartial
-    )
+    g.handleSubscribe(peer, sub.topic, sub.subscribe)
 
   # the above call applied limits to subs number
   # in gossipsub we want to apply scoring as well

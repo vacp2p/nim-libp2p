@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH 
 
 import ../../../[peerid]
+import ../rpc/messages
 
 proc noopPeerCallback*(peer: PeerId) {.gcsafe, raises: [].} =
   discard
@@ -29,7 +30,7 @@ method onNegotiated*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].
 method onRemovePeer*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"
 
-method onHandleControlRPC*(
-    ext: Extension, peerId: PeerId
+method onHandleRPC*(
+    ext: Extension, peerId: PeerId, rpc: RPCMsg
 ) {.base, gcsafe, raises: [].} =
   raiseAssert "must be implemented"

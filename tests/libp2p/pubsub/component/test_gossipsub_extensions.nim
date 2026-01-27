@@ -16,16 +16,14 @@ suite "GossipSub Extensions":
   asyncTest "TestExtension":
     var
       (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-      (handleRPCPeers, onHandleControlRPC) = createCollectPeerCallback()
+      (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
     let
       numberOfNodes = 2
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
           testExtensionConfig = some(
-            TestExtensionConfig(
-              onNegotiated: onNegotiated, onHandleControlRPC: onHandleControlRPC
-            )
+            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
           ),
         )
         .toGossipSub()

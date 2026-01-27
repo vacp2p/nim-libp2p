@@ -2,12 +2,13 @@
 # Copyright (c) Status Research & Development GmbH 
 
 import ../../../[peerid]
+import ../rpc/messages
 import ./[extensions_types]
 
 type
   TestExtensionConfig* = object
     onNegotiated*: PeerCallback = noopPeerCallback
-    onHandleControlRPC*: PeerCallback = noopPeerCallback
+    onHandleRPC*: PeerCallback = noopPeerCallback
 
   TestExtension* = ref object of Extension
     config: TestExtensionConfig
@@ -29,5 +30,7 @@ method onNegotiated*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} 
 method onRemovePeer*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   discard # NOOP
 
-method onHandleControlRPC*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
-  ext.config.onHandleControlRPC(peerId)
+method onHandleRPC*(
+    ext: TestExtension, peerId: PeerId, rcp: RPCMsg
+) {.gcsafe, raises: [].} =
+  ext.config.onHandleRPC(peerId)

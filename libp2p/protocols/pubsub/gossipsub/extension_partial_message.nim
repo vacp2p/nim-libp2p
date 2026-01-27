@@ -107,24 +107,12 @@ method onRemovePeer*(
   for key in toRemove:
     ext.groupState.del(key)
 
-method onHandleControlRPC*(
-    ext: PartialMessageExtension, peerId: PeerId
-) {.gcsafe, raises: [].} =
-  discard # TODO
-
-proc onSubscribe*(
-    ext: PartialMessageExtension,
-    peerId: PeerId,
-    topic: string,
-    subscribe: bool,
-    requestsPartial: Option[bool],
-    supportsSendingPartial: Option[bool],
-) =
-  let key = PeerTopicKey.new(peerId, topic)
-  if subscribe:
-    let rp = requestsPartial.valueOr:
+proc onHandleSubscribe(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOpts) =
+  let key = PeerTopicKey.new(peerId, rpc.topic)
+  if rpc.subscribe:
+    let rp = rpc.requestsPartial.valueOr:
       false
-    let ssp = supportsSendingPartial.valueOr:
+    let ssp = rpc.supportsSendingPartial.valueOr:
       false
 
     ext.peerSubs[key] = SubState(
@@ -134,6 +122,20 @@ proc onSubscribe*(
     )
   else:
     ext.peerSubs.del(key)
+
+proc onHandlePartial(
+    ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
+) =
+  discard # TODO
+
+method onHandleRPC*(
+    ext: PartialMessageExtension, peerId: PeerId, rpc: RPCMsg
+) {.gcsafe, raises: [].} =
+  for subRPC in rpc.subscriptions:
+    ext.onHandleSubscribe(peerId, subRPC)
+
+  rpc.partialMessageExtension.withValue(partialExt):
+    ext.onHandlePartial(peerId, partialExt)
 
 proc getGroupState(
     ext: PartialMessageExtension, topic: string, groupID: seq[byte]
