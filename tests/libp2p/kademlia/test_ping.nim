@@ -3,12 +3,10 @@
 
 {.used.}
 
-import chronos, chronicles
+import chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[unittest]
 import ./utils.nim
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT Ping":
   teardown:
