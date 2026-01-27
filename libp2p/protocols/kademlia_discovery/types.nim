@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[sequtils, sets, times]
 import chronos, results, stew/byteutils
@@ -10,29 +10,123 @@ import
 import ../../protobuf/minprotobuf
 import ../kademlia/types
 
+export multiaddress
+
 const
-  DefaultSelfSPRRereshTime* = 10.minutes
+  Default_K_register* = 3 # max active registrations per bucket
+  Default_K_lookup* = 5 # registrars queried per bucket during lookup
+  Default_F_lookup* = 30 # stop when we have this many advertisers
+  Default_F_return* = 10 # max ads returned by a single registrar
+  Default_E* = 900.0 # advertisement expiry
+  Default_C* = 1_000.0 # advertisement cache capacity
+  Default_P_occ* = 10.0 # occupancy exponent
+  Default_G* = 1e-7 # safety parameter
+  Default_Delta* = chronos.seconds(1) # registration window
+  Default_M_buckets* = 16 # number of buckets in AdvT/DiscT/RegT
+
+  DefaultSelfSPRRereshTime* = chronos.minutes(10)
 
   ExtendedKademliaDiscoveryCodec* = "/logos/kad/1.0.0"
 
-type KademliaDiscovery* = ref object of KadDHT
-  services*: HashSet[ServiceInfo]
-  selfSignedLoop*: Future[void]
+type
+  RegistrationStatus* = enum
+    Confirmed = 0
+    Rejected = 1
+    Wait = 2
 
-proc toKey*(service: ServiceInfo): Key =
-  return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
+  ServiceId* = Key
 
-proc init*(
-    T: typedesc[ExtendedPeerRecord],
-    peerInfo: PeerInfo,
-    seqNo: uint64 = getTime().toUnix().uint64,
-    services: seq[ServiceInfo] = @[],
-): T =
-  T(
-    peerId: peerInfo.peerId,
-    seqNo: seqNo,
-    addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-    services: services,
+  Advertisement* = object
+    serviceId*: ServiceId
+    peerId*: PeerId
+    addrs*: seq[MultiAddress]
+    signature*: seq[byte]
+    metadata*: seq[byte]
+    timestamp*: int64
+
+  Ticket* = object
+    ad*: Advertisement
+    t_init*: int64
+    t_mod*: int64
+    t_wait_for*: uint32
+    signature*: seq[byte]
+
+  IpTreeNode* = ref object
+    counter*: int
+    left*, right*: IpTreeNode
+
+  IpTree* = ref object
+    root*: IpTreeNode
+
+  Registrar* = ref object
+    cache*: OrderedTable[ServiceId, seq[Advertisement]] # service Id → list of ads
+    cacheTimestamps*: Table[Advertisement, int64] # ad → insertion time
+    ipTree*: IpTree
+
+  AdvertiseTable* = RoutingTable
+
+  Advertiser* = ref object
+    advTable*: Table[ServiceId, AdvertiseTable]
+    ongoing*: Table[ServiceId, OrderedTable[int, seq[PeerId]]]
+      # bucket → active registrars
+
+  SearchTable* = RoutingTable
+
+  Discoverer* = ref object
+    discTable*: Table[ServiceId, SearchTable]
+
+  KademliaDiscoveryConfig* = object
+    kRegister*: int
+    kLookup*: int
+    fLookup*: int
+    fReturn*: int
+    advertExpiry*: float64
+    advertCacheCap*: float64
+    occupancyExp*: float64
+    safetyParam*: float64
+    registerationWindow*: chronos.Duration
+    bucketsCount*: int
+    signedRecordRefreshInterval*: chronos.Duration
+
+  KademliaDiscovery* = ref object of KadDHT
+    registrar*: Registrar
+    advertiser*: Advertiser
+    discoverer*: Discoverer
+
+    selfSignedLoop*: Future[void]
+    discovererLoop*: Future[void]
+    advertiserLoop*: Future[void]
+
+    services*: HashSet[ServiceInfo]
+
+    discoConf*: KademliaDiscoveryConfig
+
+proc new*(
+    T: typedesc[KademliaDiscoveryConfig],
+    kRegister = Default_K_register,
+    kLookup = Default_K_lookup,
+    fLookup = Default_F_lookup,
+    fReturn = Default_F_return,
+    advertExpiry = Default_E,
+    advertCacheCap = Default_C,
+    occupancyExp = Default_P_occ,
+    safetyParam = Default_G,
+    registerationWindow = Default_Delta,
+    bucketsCount = Default_M_buckets,
+    signedRecordRefreshInterval = DefaultSelfSPRRereshTime,
+): T {.raises: [].} =
+  KademliaDiscoveryConfig(
+    kRegister: kRegister,
+    kLookup: kLookup,
+    fLookup: fLookup,
+    fReturn: fReturn,
+    advertExpiry: advertExpiry,
+    advertCacheCap: advertCacheCap,
+    occupancyExp: occupancyExp,
+    safetyParam: safetyParam,
+    registerationWindow: registerationWindow,
+    bucketsCount: bucketsCount,
+    signedRecordRefreshInterval: signedRecordRefreshInterval,
   )
 
 type ExtEntryValidator* = ref object of EntryValidator

@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 {.used.}
 
 import chronicles, chronos, results
 import ../../../libp2p/[switch, builders]
 import ../../../libp2p/protocols/[kad_disco, kademlia]
-import ../../tools/[crypto]
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+import ../../tools/crypto
 
 proc createSwitch*(): Switch =
   SwitchBuilder
