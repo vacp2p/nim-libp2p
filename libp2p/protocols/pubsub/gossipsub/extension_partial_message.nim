@@ -77,7 +77,7 @@ method isSupported*(
 ): bool {.gcsafe, raises: [].} =
   return pe.partialMessageExtension
 
-method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
+proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   # reduce heartbeatsTillEviction and remove those that hit 0
   var toRemove: seq[TopicGroupKey] = @[]
   for key, group in ext.groupState:
@@ -87,6 +87,15 @@ method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
   for key in toRemove:
     ext.groupState.del(key)
 
+proc gossipThePartsMetadata(ext: PartialMessageExtension) =
+  # TODO: `partsMetadata` can be used during heartbeat gossip to inform non-mesh topic
+  # peers about parts this node has.
+  discard
+
+method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
+  ext.reduceHeartbeatsTillEviction()
+  ext.gossipThePartsMetadata()
+
 method onNegotiated*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
@@ -95,11 +104,11 @@ method onNegotiated*(
 method onRemovePeer*(
     ext: PartialMessageExtension, peerId: PeerId
 ) {.gcsafe, raises: [].} =
-  # remove peer data from groupState
+  # remove peer data from _groupState_
   for key, group in ext.groupState:
     group.peerState.del(peerId)
 
-  # remove subscription options for this peer 
+  # remove peer subscription options from _peerSubs_
   var toRemove: seq[PeerTopicKey] = @[]
   for key, _ in ext.peerSubs:
     if key.hasPeer(peerId):
@@ -182,7 +191,7 @@ proc publishPartial*(
       if data.len > 0:
         hasChanges = true
         rpc.partialMessage = data
-        # state.newParts(data)  ???
+        # TODO state.newParts(data)  ???
 
     # if partsMetada was changed, rpc sets new metadata 
     if lastPartsMetadata != partsMetada:
@@ -195,7 +204,6 @@ proc publishPartial*(
       ext.sendRPC(peer, rpc)
 
   var publishedToCount: int = 0
-
   let peers = ext.publishToPeers(topic)
   for _, p in peers:
     # peer needs to support this extension (and needs to be nagotiated)

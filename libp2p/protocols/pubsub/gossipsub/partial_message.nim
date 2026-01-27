@@ -8,12 +8,20 @@ type PartialMessage* = object
   ## available parts are represented.
 
 method groupID*(m: PartialMessage): seq[byte] {.base, gcsafe, raises: [].} =
+  ## An identifier to some full message. This must not depend on
+  ## knowing the full message, so it can not simply be a hash of the full message.
   raiseAssert "groupID: must be implemented"
 
 method partsMetadata*(m: PartialMessage): seq[byte] {.base, gcsafe, raises: [].} =
+  ## Returns metadata about the parts this partial message contains and
+  ## possibly implicitly, the parts it wants.
   raiseAssert "partsMetadata: must be implemented"
 
 method partialMessage*(
     m: PartialMessage, metadata: seq[byte]
 ): seq[byte] {.base, gcsafe, raises: [].} =
+  ## Takes in the opaque request metadata and returns a encoded partial message that 
+  ## fulfills as much of the request as possible.
+  ## 
+  ## An empty metadata should be treated the same as a request for all parts.
   raiseAssert "partialMessage: must be implemented"
