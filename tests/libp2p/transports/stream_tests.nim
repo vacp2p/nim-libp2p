@@ -478,7 +478,9 @@ template streamTransportTest*(
     const chunkSize = 64
     const chunkCount = 32
     const messageSize = chunkSize * chunkCount
+    const errorClientId: byte = 0xff
     const numConnections = 5
+    doAssert numConnections < errorClientId
     var serverReadOrder: seq[byte] = @[]
 
     # Track when stream handlers complete
@@ -509,10 +511,18 @@ template streamTransportTest*(
                 # Doing this improves likelihood of parallel data transition on the connections.
                 await sleepAsync(rand(20 .. 100).milliseconds)
 
-              check receivedData == newData(messageSize, byte(handlerIndex))
+              let
+                # Get the client ID from any byte of the data; can't depend on accept/dial order.
+                clientId =
+                  if receivedData.len > 0:
+                    receivedData[0]
+                  else:
+                    errorClientId
+
+              check receivedData == newData(messageSize, clientId)
 
               # Send back ID
-              await stream.write(@[byte(receivedData[0])])
+              await stream.write(@[clientId])
 
               # Signal that this stream handler is done
               serverStreamHandlerFuts[handlerIndex].complete()
