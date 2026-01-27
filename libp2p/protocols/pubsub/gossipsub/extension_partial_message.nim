@@ -107,7 +107,7 @@ method onRemovePeer*(
   for key in toRemove:
     ext.groupState.del(key)
 
-proc onHandleSubscribe(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOpts) =
+proc handleSubscribe(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOpts) =
   let key = PeerTopicKey.new(peerId, rpc.topic)
   if rpc.subscribe:
     let rp = rpc.requestsPartial.valueOr:
@@ -123,7 +123,7 @@ proc onHandleSubscribe(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOpt
   else:
     ext.peerSubs.del(key)
 
-proc onHandlePartial(
+proc handlePartial(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
   discard # TODO
@@ -132,10 +132,10 @@ method onHandleRPC*(
     ext: PartialMessageExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
   for subRPC in rpc.subscriptions:
-    ext.onHandleSubscribe(peerId, subRPC)
+    ext.handleSubscribe(peerId, subRPC)
 
   rpc.partialMessageExtension.withValue(partialExtRPC):
-    ext.onHandlePartial(peerId, partialExtRPC)
+    ext.handlePartial(peerId, partialExtRPC)
 
 proc getGroupState(
     ext: PartialMessageExtension, topic: string, groupID: seq[byte]
