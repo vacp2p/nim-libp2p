@@ -1,3 +1,5 @@
+[← Docs Index](../../README.md)
+
 # Mix
 
 A custom protocol designed to enable anonymous communication in peer-to-peer networks.

@@ -1,3 +1,5 @@
+[← Mix Protocol](README.md)
+
 # Spam Protection Interface
 
 A pluggable interface for integrating spam protection mechanisms into the Mix protocol, as specified in [section 9.6 of the MIX specification](https://github.com/vacp2p/rfc-index/blob/main/vac/raw/mix.md#96-spam-protection-interface).
