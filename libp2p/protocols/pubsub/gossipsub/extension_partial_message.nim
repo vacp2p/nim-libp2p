@@ -59,9 +59,9 @@ proc hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
   return ($peerId & keyDelimiter) in cast[string](key)
 
 proc new(
-    T: typedesc[TopicGroupKey], topic: string, groupID: seq[byte]
+    T: typedesc[TopicGroupKey], topic: string, groupId: GroupId
 ): TopicGroupKey {.inline.} =
-  topic & keyDelimiter & cast[string](groupID)
+  topic & keyDelimiter & cast[string](groupId)
 
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
@@ -84,7 +84,7 @@ method isSupported*(
   return pe.partialMessageExtension
 
 proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
-  # reduce heartbeatsTillEviction and remove those that hit 0
+  # reduce heartbeatsTillEviction and remove groups that hit 0
   var toRemove: seq[TopicGroupKey] = @[]
   for key, group in ext.groupState:
     group.heartbeatsTillEviction.dec
@@ -153,9 +153,9 @@ method onHandleRPC*(
     ext.handlePartial(peerId, partialExtRPC)
 
 proc getGroupState(
-    ext: PartialMessageExtension, topic: string, groupID: seq[byte]
+    ext: PartialMessageExtension, topic: string, groupId: GroupId
 ): GroupState =
-  let key = TopicGroupKey.new(topic, groupID)
+  let key = TopicGroupKey.new(topic, groupId)
 
   if key notin ext.groupState:
     ext.groupState[key] = GroupState()
@@ -177,14 +177,14 @@ proc getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
-  let msgGroupID = pm.groupID()
+  let msgGroupId = pm.groupId()
   let msgPartsMetadata = pm.partsMetadata()
-  let groupState = ext.getGroupState(topic, msgGroupID)
+  let groupState = ext.getGroupState(topic, msgGroupId)
 
   groupState.heartbeatsTillEviction = ext.heartbeatsTillEviction
 
   proc publishPartialToPeer(peer: PeerId) {.raises: [].} =
-    var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: msgGroupID)
+    var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: msgGroupId)
     var peerState = groupState.getPeerState(peer)
     var peerRequestsPartial: bool = true
     var hasChanges: bool = false
@@ -200,7 +200,7 @@ proc publishPartial*(
     # if peer has requested partial messages, attempt to fulfill any 
     # parts that peer is missing.
     if peerRequestsPartial:
-      let result = pm.partialMessage(peerState.partsMetadata)
+      let result = pm.materializeParts(peerState.partsMetadata)
       if result.isErr():
         # there might be error with last PartsMetadata so it is discarded,
         # to avoid any error with future messages.
