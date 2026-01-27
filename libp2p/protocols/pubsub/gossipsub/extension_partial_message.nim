@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import tables, strutils
+import tables, strutils, chronicles
 import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, partial_message]
+
+logScope:
+  topics = "libp2p partial message"
 
 const
   minHeartbeatsTillEviction = 3
@@ -15,6 +18,7 @@ type
     proc(peerID: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
   PublishToPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
   IsSupportedProc = proc(peer: PeerId): bool {.gcsafe, raises: [].}
+  MergeMetadataProc = proc(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].}
 
   PartialMessageExtensionConfig* = object
     sendRPC*: SendRPCProc
@@ -23,7 +27,8 @@ type
     heartbeatsTillEviction*: int
 
   PeerGroupState = ref object
-    partsMetadata: seq[byte]
+    partsMetadata: PartsMetadata
+    sentPartsMetadata: PartsMetadata
 
   GroupState = ref object
     peerState: Table[PeerId, PeerGroupState]
@@ -39,6 +44,7 @@ type
   PartialMessageExtension* = ref object of Extension
     sendRPC: SendRPCProc
     publishToPeers: PublishToPeersProc
+    mergeMetadata: MergeMetadataProc
     isSupported: IsSupportedProc
     heartbeatsTillEviction: int
     groupState: Table[TopicGroupKey, GroupState]
@@ -171,33 +177,40 @@ proc getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
-  let groupID = pm.groupID()
-  let partsMetada = pm.partsMetadata()
-  let groupState = ext.getGroupState(topic, groupID)
+  let msgGroupID = pm.groupID()
+  let msgPartsMetadata = pm.partsMetadata()
+  let groupState = ext.getGroupState(topic, msgGroupID)
 
   groupState.heartbeatsTillEviction = ext.heartbeatsTillEviction
 
   proc publishPartialToPeer(peer: PeerId) {.raises: [].} =
-    var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: groupID)
-    let peerState = groupState.getPeerState(peer)
-    var lastPartsMetadata = peerState.partsMetadata
+    var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: msgGroupID)
+    var peerState = groupState.getPeerState(peer)
     var peerRequestsPartial: bool = true
     var hasChanges: bool = false
+
+    # if partsMetada was changed, rpc sets new metadata 
+    if peerState.sentPartsMetadata != msgPartsMetadata:
+      if msgPartsMetadata.len == 0:
+        warn "message parts metadata is empty"
+      hasChanges = true
+      rpc.partsMetadata = msgPartsMetadata
+      peerState.sentPartsMetadata = msgPartsMetadata
 
     # if peer has requested partial messages, attempt to fulfill any 
     # parts that peer is missing.
     if peerRequestsPartial:
-      let data = pm.partialMessage(lastPartsMetadata)
-      if data.len > 0:
-        hasChanges = true
+      let result = pm.partialMessage(peerState.partsMetadata)
+      if result.isErr():
+        # there might be error with last PartsMetadata so it is discarded,
+        # to avoid any error with future messages.
+        peerState.partsMetadata = newSeq[byte](0)
+      else:
+        peerState.partsMetadata = ext.mergeMetadata(peerState.partsMetadata, msgPartsMetadata)
+        
+        let data = result.get()
         rpc.partialMessage = data
-        # TODO state.newParts(data)  ???
-
-    # if partsMetada was changed, rpc sets new metadata 
-    if lastPartsMetadata != partsMetada:
-      hasChanges = true
-      rpc.partsMetadata = partsMetada
-      peerState.partsMetadata = partsMetada
+        hasChanges = hasChanges or data.len > 0
 
     # if there are any changes send RPC
     if hasChanges:
