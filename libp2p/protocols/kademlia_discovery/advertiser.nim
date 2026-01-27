@@ -37,6 +37,23 @@ proc removeProvidedService*(advertiser: Advertiser, serviceId: ServiceId) =
   if serviceId in advertiser.advTable:
     advertiser.advTable.del(serviceId)
 
+proc emptyTicket(): Ticket =
+  ## Helper to create an empty ticket for error cases
+  Ticket(
+    ad: Advertisement(
+      serviceId: @[],
+      peerId: PeerId(data: @[]),
+      addrs: @[],
+      signature: @[],
+      metadata: @[],
+      timestamp: 0,
+    ),
+    t_init: 0,
+    t_mod: 0,
+    t_wait_for: 0,
+    signature: @[],
+  )
+
 proc sendRegister*(
     kad: KadDHT,
     peerId: PeerId,
@@ -49,21 +66,7 @@ proc sendRegister*(
   ## Send REGISTER request to a peer
   let addrs = kad.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
-    let emptyTicket = Ticket(
-      ad: Advertisement(
-        serviceId: @[],
-        peerId: PeerId(data: @[]),
-        addrs: @[],
-        signature: @[],
-        metadata: @[],
-        timestamp: 0,
-      ),
-      t_init: 0,
-      t_mod: 0,
-      t_wait_for: 0,
-      signature: @[],
-    )
-    return (RegistrationStatus.Rejected, emptyTicket, @[])
+    return (RegistrationStatus.Rejected, emptyTicket(), @[])
 
   let conn = await kad.switch.dial(peerId, addrs, codec)
   defer:
@@ -78,26 +81,9 @@ proc sendRegister*(
   await conn.writeLp(msg.encode().buffer)
 
   let replyBuf = await conn.readLp(MaxMsgSize)
-  let replyRes = Message.decode(replyBuf)
-
-  if replyRes.isErr:
-    let emptyTicket = Ticket(
-      ad: Advertisement(
-        serviceId: @[],
-        peerId: PeerId(data: @[]),
-        addrs: @[],
-        signature: @[],
-        metadata: @[],
-        timestamp: 0,
-      ),
-      t_init: 0,
-      t_mod: 0,
-      t_wait_for: 0,
-      signature: @[],
-    )
-    return (RegistrationStatus.Rejected, emptyTicket, @[])
-
-  let reply = replyRes.get()
+  let reply = Message.decode(replyBuf).valueOr:
+    debug "Failed to decode register response", err = error
+    return (RegistrationStatus.Rejected, emptyTicket(), @[])
 
   let status =
     if reply.status.isSome():
@@ -111,32 +97,20 @@ proc sendRegister*(
     else:
       RegistrationStatus.Rejected
 
-  var ticket = Ticket(
-    ad: Advertisement(
-      serviceId: @[],
-      peerId: PeerId(data: @[]),
-      addrs: @[],
-      signature: @[],
-      metadata: @[],
-      timestamp: 0,
-    ),
-    t_init: 0,
-    t_mod: 0,
-    t_wait_for: 0,
-    signature: @[],
-  )
+  var responseTicket = emptyTicket()
   if reply.ticket.isSome():
-    let ticketRes = Ticket.decode(reply.ticket.get())
-    if ticketRes.isOk:
-      ticket = ticketRes.get()
+    responseTicket = Ticket.decode(reply.ticket.get()).valueOr:
+      debug "Failed to decode ticket", err = error
+      emptyTicket()
 
   var closerPeers: seq[PeerId] = @[]
   for peer in reply.closerPeers:
-    let peerIdRes = PeerId.init(peer.id)
-    if peerIdRes.isOk:
-      closerPeers.add(peerIdRes.get())
+    let peerId = PeerId.init(peer.id).valueOr:
+      debug "Failed to decode peer id", err = error
+      continue
+    closerPeers.add(peerId)
 
-  return (status, ticket, closerPeers)
+  return (status, responseTicket, closerPeers)
 
 proc advertiseSingle(
     disco: KademliaDiscovery, registrar: PeerId, ad: Advertisement, bucketIdx: int
@@ -219,12 +193,9 @@ proc advertiseService*(disco: KademliaDiscovery, serviceId: ServiceId) {.async.}
 
       let numPeers = min(numToRegister, bucket.peers.len)
       for i in 0 ..< numPeers:
-        let peerIdRes = bucket.peers[i].nodeId.toPeerId()
-        if peerIdRes.isErr:
-          error "cannot convert key to peer id", error = peerIdRes.error
+        let peerId = bucket.peers[i].nodeId.toPeerId().valueOr:
+          error "Cannot convert key to peer id", error = error
           continue
-
-        let peerId = peerIdRes.get()
 
         # Track as ongoing
         if bucketIdx notin disco.advertiser.ongoing[serviceId]:
