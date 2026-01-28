@@ -181,7 +181,7 @@ proc iterativeLookup*(
       completedRPCBatch = await rpcBatch.collectCompleted(kad.config.timeout)
 
     for (fut, peerId) in zip(rpcBatch, toQuery):
-      if not fut.completed():
+      if not fut.finished():
         continue
       state.responded[peerId] =
         if fut.failed(): RespondedStatus.Failed else: RespondedStatus.Success
@@ -245,9 +245,9 @@ proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
 
   return kad.switch.toPeers(closestPeerKeys)
 
-proc handleFindNode*(
+method handleFindNode*(
     kad: KadDHT, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
+) {.base, async: (raises: [CancelledError]).} =
   let target = msg.key
 
   try:
