@@ -7,14 +7,13 @@ import ./[extensions_types]
 
 type
   TestExtensionConfig* = object
-    onNegotiated*: PeerCallback = noopPeerCallback
-    onHandleRPC*: PeerCallback = noopPeerCallback
+    onNegotiated*: PeerCallback
 
   TestExtension* = ref object of Extension
-    config: TestExtensionConfig
+    onNegotiated: PeerCallback
 
 proc new*(T: typedesc[TestExtension], config: TestExtensionConfig): TestExtension =
-  TestExtension(config: config)
+  TestExtension(onNegotiated: config.onNegotiated)
 
 method isSupported*(
     ext: TestExtension, pe: PeerExtensions
@@ -25,7 +24,7 @@ method onHeartbeat*(ext: TestExtension) {.gcsafe, raises: [].} =
   discard # NOOP
 
 method onNegotiated*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
-  ext.config.onNegotiated(peerId)
+  ext.onNegotiated(peerId)
 
 method onRemovePeer*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   discard # NOOP
@@ -33,4 +32,4 @@ method onRemovePeer*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} 
 method onHandleRPC*(
     ext: TestExtension, peerId: PeerId, rcp: RPCMsg
 ) {.gcsafe, raises: [].} =
-  ext.config.onHandleRPC(peerId)
+  discard # NOOP

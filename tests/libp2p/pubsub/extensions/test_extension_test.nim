@@ -18,12 +18,8 @@ suite "GossipSub Extensions :: Test Extension":
   let peerId = PeerId.random(rng).get()
 
   test "basic test":
-    var
-      (negotiatedPeers, onNegotiatedCb) = createCollectPeerCallback()
-      (handleRPCPeers, onHandleRPCCb) = createCollectPeerCallback()
-    let ext = TestExtension.new(
-      TestExtensionConfig(onNegotiated: onNegotiatedCb, onHandleRPC: onHandleRPCCb)
-    )
+    var (negotiatedPeers, onNegotiatedCb) = createCollectPeerCallback()
+    let ext = TestExtension.new(TestExtensionConfig(onNegotiated: onNegotiatedCb))
 
     check:
       ext.isSupported(PeerExtensions()) == false
@@ -32,7 +28,3 @@ suite "GossipSub Extensions :: Test Extension":
     ext.onNegotiated(peerId)
     check:
       negotiatedPeers[] == @[peerId]
-
-    ext.onHandleRPC(peerId, makeRPC())
-    check:
-      handleRPCPeers[] == @[peerId]

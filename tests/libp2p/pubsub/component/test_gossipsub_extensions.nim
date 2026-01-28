@@ -14,17 +14,13 @@ suite "GossipSub Extensions":
     checkTrackers()
 
   asyncTest "TestExtension":
-    var
-      (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-      (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+    var (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
     let
       numberOfNodes = 2
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          testExtensionConfig = some(
-            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
-          ),
+          testExtensionConfig = some(TestExtensionConfig(onNegotiated: onNegotiated)),
         )
         .toGossipSub()
 
@@ -36,7 +32,5 @@ suite "GossipSub Extensions":
     untilTimeout:
       pre:
         let negotiatedPeersSorted = negotiatedPeers[].sorted()
-        let handleRPCPeersSorted = handleRPCPeers[].sorted()
       check:
         negotiatedPeersSorted == nodesPeerIdSorted
-        handleRPCPeersSorted == nodesPeerIdSorted
