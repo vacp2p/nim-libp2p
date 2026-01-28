@@ -25,6 +25,8 @@ suite "GossipSub Extensions :: State":
     state.handleRPC(peerId, makeRPC())
     state.removePeer(peerId)
     state.removePeer(peerId)
+    state.heartbeat()
+    discard state.makeControlExtensions()
 
   test "state reports missbehaving":
     var (reportedPeers, onMissbehave) = createCollectPeerCallback()
@@ -65,3 +67,7 @@ suite "GossipSub Extensions :: State":
       state.handleRPC(pid, makeRPC())
 
       check reportedPeers[].len == 0
+
+  test "state with callback extensions":
+    discard
+    # TODO

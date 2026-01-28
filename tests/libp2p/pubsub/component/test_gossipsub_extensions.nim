@@ -9,11 +9,11 @@ import
 import ../../../tools/unittest
 import ../utils
 
-suite "GossipSub Extensions":
+suite "GossipSub Component - Extensions":
   teardown:
     checkTrackers()
 
-  asyncTest "TestExtension":
+  asyncTest "Test Extension":
     var (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
     let
       numberOfNodes = 2
@@ -34,3 +34,19 @@ suite "GossipSub Extensions":
         let negotiatedPeersSorted = negotiatedPeers[].sorted()
       check:
         negotiatedPeersSorted == nodesPeerIdSorted
+
+  asyncTest "Partial Message Extension":
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+            # partialMessageExtensionConfig = some(PrtialMessageExtensionConfig()),
+        )
+        .toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    await connectNodes(nodes[0], nodes[1])
+
+    # TODO

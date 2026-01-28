@@ -7,12 +7,9 @@ import chronos, results, options
 import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/
-    [gossipsub/extension_test, gossipsub/extensions_types, rpc/messages]
+    [gossipsub/extension_test, gossipsub/extensions_types]
 import ../../../tools/[unittest, crypto]
 import ../utils
-
-proc makeRPC(extensions: ControlExtensions = ControlExtensions()): RPCMsg =
-  RPCMsg(control: some(ControlMessage(extensions: some(extensions))))
 
 suite "GossipSub Extensions :: Test Extension":
   let peerId = PeerId.random(rng).get()
