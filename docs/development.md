@@ -1,15 +1,16 @@
 # Development
 
 Clone the repository and install the dependencies:
+
 ```sh
 git clone https://github.com/vacp2p/nim-libp2p
 cd nim-libp2p
 nimble install -dy
 ```
+
 You can use `nix develop` to start a shell with Nim and Nimble.
 
 nimble 0.20.1 is required for running `nimble test`. At time of writing, this is not available in nixpkgs: If using `nix develop`, follow up with `nimble install nimble`, and use that (typically `~/.nimble/bin/nimble`).
-
 
 ## Getting Started
 
@@ -26,12 +27,15 @@ nim c -r examples/helloworld.nim
 Try out the chat example, where you can chat between two instances.
 
 Run chat example (first instance):
+
 ```bash
 nim c -r examples/directchat.nim
 ```
+
 This will output a peer ID such as `QmbmHfVvouKammmQDJck4hz33WvVktNEe7pasxz2HgseRu` which you can use in second instance to connect to it.
 
 Then run chat example again (second instance):
+
 ```bash
 nim c -r examples/directchat.nim
 ```
@@ -45,7 +49,9 @@ And then use peer ID from first instance to connect to it, by typing in second i
 ![Chat example](https://imgur.com/caYRu8K.gif)
 
 ## Testing
+
 Run unit tests:
+
 ```sh
 # run all the unit tests
 nimble test
@@ -86,7 +92,6 @@ nim-libp2p uses [nph](https://github.com/arnetheduck/nph) to format code.
 
 Do `nimble install nph@v0.6.1` once to install nph, then `nimble format` (or `nph ./. *.nim`) to format code.
 
-
 ## Logs
 
 nim-libp2p uses [chronicles](https://github.com/status-im/nim-chronicles) library for structured logging.
@@ -101,4 +106,8 @@ where `chronicles_log_level` can have following values: `none`, `error`, `warn`,
 
 If you are overwhelmed with logs, you can disable topics that aren’t relevant and increase the logging level for the ones that matter most:
 
-```-d:chronicles_enabled_topics:switch:TRACE,quictransport:INFO```
+`-d:chronicles_enabled_topics:switch:TRACE,quictransport:INFO`
+
+---
+
+[← Back to README](../README.md)
