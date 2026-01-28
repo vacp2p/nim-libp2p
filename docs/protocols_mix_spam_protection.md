@@ -1,4 +1,4 @@
-[← Mix Protocol](README.md)
+[← Mix Protocol](protocols_mix.md)
 
 # Spam Protection Interface
 
@@ -27,7 +27,7 @@ When spam protection is disabled (nil):
 
 ## Example Implementations
 
-See [test_spam_protection_interface.nim](../../tests/libp2p/mix/test_spam_protection_interface.nim) for example implementations:
+See [test_spam_protection_interface.nim](../tests/libp2p/mix/test_spam_protection_interface.nim) for example implementations:
 
 - **Proof-of-Work**: Requires computational work to generate proofs
 - **Rate Limiting**: Tracks and limits packet rates per node
@@ -38,3 +38,7 @@ For detailed specification and security considerations, see:
 
 - [MIX Protocol Specification](https://github.com/vacp2p/rfc-index/blob/main/vac/raw/mix.md)
 - [Spam Protection Interface (Section 9.6)](https://github.com/vacp2p/rfc-index/blob/main/vac/raw/mix.md#96-spam-protection-interface)
+
+---
+
+[← Back to README](../README.md)

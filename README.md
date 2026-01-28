@@ -44,12 +44,8 @@ You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-lib
 
 ## Development
 
-Read the [development guide](docs/development.md) to get started with the project and testing.
-
-Additional resources:
-
-- [Compile time flags](docs/compile_time_flags.md) - all available compile-time options
-- [Common hurdles](docs/common_hurdles.md) - frequently encountered issues and solutions
+See the [development guide](docs/development.md) to get started with the project and testing.
+For more details, refer to the [documentation](docs/README.md).
 
 ## Contributors
 
@@ -96,36 +92,36 @@ at your option. These files may not be copied, modified, or distributed except a
 
 List of packages modules implemented in nim-libp2p:
 
-| Name                                                      | Description                                                                                                 |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **Libp2p**                                                |                                                                                                             |
-| [libp2p](libp2p/switch.nim)                               | The core of the project                                                                                     |
-| [connmanager](libp2p/connmanager.nim)                     | Connection manager                                                                                          |
-| [identify / push identify](libp2p/protocols/identify.nim) | [Identify](https://docs.libp2p.io/concepts/fundamentals/protocols/#identify) protocol                       |
-| [ping](libp2p/protocols/ping.nim)                         | [Ping](https://docs.libp2p.io/concepts/fundamentals/protocols/#ping) protocol                               |
-| **Transports**                                            |                                                                                                             |
-| [libp2p-tcp](libp2p/transports/tcptransport.nim)          | TCP transport                                                                                               |
-| [libp2p-ws](libp2p/transports/wstransport.nim)            | WebSocket & WebSocket Secure transport                                                                      |
-| [libp2p-tor](libp2p/transports/tortransport.nim)          | Tor Transport                                                                                               |
-| [libp2p-quic](libp2p/transports/quictransport.nim)        | Quic Transport                                                                                              |
-| [libp2p-memory](libp2p/transports/memorytransport.nim)    | Memory Transport                                                                                            |
-| **Secure Channels**                                       |                                                                                                             |
-| [libp2p-noise](libp2p/protocols/secure/noise.nim)         | [Noise](https://docs.libp2p.io/concepts/secure-comm/noise/) secure channel                                  |
-| [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim) | Plain Text for development purposes                                                                         |
-| **Stream Multiplexers**                                   |                                                                                                             |
-| [libp2p-mplex](libp2p/muxers/mplex/mplex.nim)             | [MPlex](https://github.com/libp2p/specs/tree/master/mplex) multiplexer                                      |
-| [libp2p-yamux](libp2p/muxers/yamux/yamux.nim)             | [Yamux](https://docs.libp2p.io/concepts/multiplex/yamux/) multiplexer                                       |
-| **Data Types**                                            |                                                                                                             |
-| [peer-id](libp2p/peerid.nim)                              | [Cryptographic identifiers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-id)                    |
-| [peer-store](libp2p/peerstore.nim)                        | [Address book of known peers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-store)               |
-| [multiaddress](libp2p/multiaddress.nim)                   | [Composable network addresses](https://github.com/multiformats/multiaddr)                                   |
-| [signed-envelope](libp2p/signed_envelope.nim)             | [Signed generic data container](https://github.com/libp2p/specs/blob/master/RFC/0002-signed-envelopes.md)   |
+| Name                                                      | Description                                                                                                |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Libp2p**                                                |                                                                                                            |
+| [libp2p](libp2p/switch.nim)                               | The core of the project                                                                                    |
+| [connmanager](libp2p/connmanager.nim)                     | Connection manager                                                                                         |
+| [identify / push identify](libp2p/protocols/identify.nim) | [Identify](https://docs.libp2p.io/concepts/fundamentals/protocols/#identify) protocol                      |
+| [ping](libp2p/protocols/ping.nim)                         | [Ping](https://docs.libp2p.io/concepts/fundamentals/protocols/#ping) protocol                              |
+| **Transports**                                            |                                                                                                            |
+| [libp2p-tcp](libp2p/transports/tcptransport.nim)          | TCP transport                                                                                              |
+| [libp2p-ws](libp2p/transports/wstransport.nim)            | WebSocket & WebSocket Secure transport                                                                     |
+| [libp2p-tor](libp2p/transports/tortransport.nim)          | Tor Transport                                                                                              |
+| [libp2p-quic](libp2p/transports/quictransport.nim)        | Quic Transport                                                                                             |
+| [libp2p-memory](libp2p/transports/memorytransport.nim)    | Memory Transport                                                                                           |
+| **Secure Channels**                                       |                                                                                                            |
+| [libp2p-noise](libp2p/protocols/secure/noise.nim)         | [Noise](https://docs.libp2p.io/concepts/secure-comm/noise/) secure channel                                 |
+| [libp2p-plaintext](libp2p/protocols/secure/plaintext.nim) | Plain Text for development purposes                                                                        |
+| **Stream Multiplexers**                                   |                                                                                                            |
+| [libp2p-mplex](libp2p/muxers/mplex/mplex.nim)             | [MPlex](https://github.com/libp2p/specs/tree/master/mplex) multiplexer                                     |
+| [libp2p-yamux](libp2p/muxers/yamux/yamux.nim)             | [Yamux](https://docs.libp2p.io/concepts/multiplex/yamux/) multiplexer                                      |
+| **Data Types**                                            |                                                                                                            |
+| [peer-id](libp2p/peerid.nim)                              | [Cryptographic identifiers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-id)                   |
+| [peer-store](libp2p/peerstore.nim)                        | [Address book of known peers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-store)              |
+| [multiaddress](libp2p/multiaddress.nim)                   | [Composable network addresses](https://github.com/multiformats/multiaddr)                                  |
+| [signed-envelope](libp2p/signed_envelope.nim)             | [Signed generic data container](https://github.com/libp2p/specs/blob/master/RFC/0002-signed-envelopes.md)  |
 | [routing-record](libp2p/routing_record.nim)               | [Signed peer dialing information](https://github.com/libp2p/specs/blob/master/RFC/0003-routing-records.md) |
-| [discovery manager](libp2p/discovery/discoverymngr.nim)   | Discovery Manager                                                                                           |
-| **Utilities**                                             |                                                                                                             |
-| [libp2p-crypto](libp2p/crypto)                            | Cryptographic backend                                                                                       |
-| [libp2p-crypto-secp256k1](libp2p/crypto/secp.nim)         |                                                                                                             |
-| **Pubsub**                                                |                                                                                                             |
-| [libp2p-pubsub](libp2p/protocols/pubsub/pubsub.nim)       | Pub-Sub generic interface                                                                                   |
-| [libp2p-floodsub](libp2p/protocols/pubsub/floodsub.nim)   | FloodSub implementation                                                                                     |
-| [libp2p-gossipsub](libp2p/protocols/pubsub/gossipsub.nim) | [GossipSub](https://docs.libp2p.io/concepts/publish-subscribe/) implementation                              |
+| [discovery manager](libp2p/discovery/discoverymngr.nim)   | Discovery Manager                                                                                          |
+| **Utilities**                                             |                                                                                                            |
+| [libp2p-crypto](libp2p/crypto)                            | Cryptographic backend                                                                                      |
+| [libp2p-crypto-secp256k1](libp2p/crypto/secp.nim)         |                                                                                                            |
+| **Pubsub**                                                |                                                                                                            |
+| [libp2p-pubsub](libp2p/protocols/pubsub/pubsub.nim)       | Pub-Sub generic interface                                                                                  |
+| [libp2p-floodsub](libp2p/protocols/pubsub/floodsub.nim)   | FloodSub implementation                                                                                    |
+| [libp2p-gossipsub](libp2p/protocols/pubsub/gossipsub.nim) | [GossipSub](https://docs.libp2p.io/concepts/publish-subscribe/) implementation                             |

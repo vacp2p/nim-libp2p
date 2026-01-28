@@ -1,4 +1,4 @@
-[← Docs Index](../../README.md)
+[← Back to README](../README.md)
 
 # Hole Punching Interop Tests
 
@@ -34,3 +34,7 @@ make
 cd /your/path/to/test-plans/hole-punch-interop
 npm run test -- --extra-version=/your/path/to/nim-libp2p/interop/hole-punching/version.json --name-filter=nim-libp2p-head
 ```
+
+---
+
+[← Back to README](../README.md)
