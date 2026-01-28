@@ -1,3 +1,5 @@
+[← Back to README](../README.md)
+
 # Mix
 
 A custom protocol designed to enable anonymous communication in peer-to-peer networks.
@@ -16,7 +18,7 @@ It provides a basis for future development and invites community experimentation
 
 - **Sphinx Packet Format**: Guarantees anonymity through fixed-size packets and layered encryption.
 - **Random Path Selection**: Routes messages through randomly selected mix nodes.
-- **Spam Protection Interface**: Standardized interface for integrating spam protection mechanisms. See [spam_protection.md](spam_protection.md) for details.
+- **Spam Protection Interface**: Standardized interface for integrating spam protection mechanisms. See [Spam Protection](protocols_mix_spam_protection.md) for details.
 - **Pluggable Components**: Allows for customizable peer discovery and incentivization mechanisms. (To be developed)
 
 ## Usage
@@ -68,7 +70,7 @@ let mixProto = MixProtocol.new(
 )
 ```
 
-For detailed information on implementing custom spam protection mechanisms, see [spam_protection.md](spam_protection.md).
+For detailed information on implementing custom spam protection mechanisms, see [Spam Protection](protocols_mix_spam_protection.md).
 
 ## Using experimental `exit == destination`
 
@@ -103,3 +105,7 @@ For a detailed technical specification and discussion, please refer to the [Mix 
 
 Thanks to the libp2p community and all contributors for their feedback and insights throughout the development
 of the Mix protocol.
+
+---
+
+[← Back to README](../README.md)
