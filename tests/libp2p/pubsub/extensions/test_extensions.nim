@@ -22,7 +22,7 @@ suite "GossipSub Extensions :: State":
     state.handleRPC(peerId, RPCMsg())
     state.addPeer(peerId)
     state.addPeer(peerId)
-    state.handleRPC(peerId, RPCMsg())
+    state.handleRPC(peerId, makeRPC())
     state.removePeer(peerId)
     state.removePeer(peerId)
 

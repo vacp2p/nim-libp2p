@@ -6,8 +6,12 @@
 import chronos, results
 import ../../../../libp2p/peerid
 import
-  ../../../../libp2p/protocols/pubsub/
-    [gossipsub/extension_partial_message, gossipsub/partial_message, gossipsub/extensions_types, rpc/messages]
+  ../../../../libp2p/protocols/pubsub/[
+    gossipsub/extension_partial_message,
+    gossipsub/partial_message,
+    gossipsub/extensions_types,
+    rpc/messages,
+  ]
 import ../../../tools/[unittest]
 import ../utils
 

@@ -5,7 +5,9 @@
 
 import chronos, results, options
 import ../../../../libp2p/peerid
-import ../../../../libp2p/protocols/pubsub/[gossipsub/extension_test, gossipsub/extensions_types,  rpc/messages]
+import
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub/extension_test, gossipsub/extensions_types, rpc/messages]
 import ../../../tools/[unittest, crypto]
 import ../utils
 
@@ -19,7 +21,9 @@ suite "GossipSub Extensions :: Test Extension":
     var
       (negotiatedPeers, onNegotiatedCb) = createCollectPeerCallback()
       (handleRPCPeers, onHandleRPCCb) = createCollectPeerCallback()
-    let ext = TestExtension.new(TestExtensionConfig(onNegotiated: onNegotiatedCb, onHandleRPC: onHandleRPCCb))
+    let ext = TestExtension.new(
+      TestExtensionConfig(onNegotiated: onNegotiatedCb, onHandleRPC: onHandleRPCCb)
+    )
 
     check:
       ext.isSupported(PeerExtensions()) == false
