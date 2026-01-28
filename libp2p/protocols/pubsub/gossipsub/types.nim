@@ -178,8 +178,8 @@ type
     sendIDontWantOnPublish*: bool
 
     # Extensions configuration
-    extensionsDisabled*: bool
     testExtensionConfig*: Option[TestExtensionConfig]
+    partialMessageExtensionConfig*: Option[PartialMessageExtensionConfig]
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]

@@ -11,6 +11,7 @@ import chronos/ratelimit
 import
   ./pubsub,
   ./floodsub,
+  ./gossipsub/partial_message,
   ./pubsubpeer,
   ./peertable,
   ./mcache,
@@ -109,8 +110,8 @@ proc init*(
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish = false,
-    extensionsDisabled = false,
     testExtensionConfig = none(TestExtensionConfig),
+    partialMessageExtensionConfig = none(PartialMessageExtensionConfig),
 ): GossipSubParams =
   GossipSubParams(
     explicit: true,
@@ -149,8 +150,8 @@ proc init*(
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
-    extensionsDisabled: extensionsDisabled,
     testExtensionConfig: testExtensionConfig,
+    partialMessageExtensionConfig: partialMessageExtensionConfig,
   )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -241,6 +242,11 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
 
+proc usesExtensions(g: GossipSub): bool =
+  return
+    g.parameters.testExtensionConfig.isSome() or #
+    g.parameters.partialMessageExtensionConfig.isSome()
+
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
     # Make sure stats and peer information match, even when reloading peer stats
@@ -274,7 +280,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   # established then use protocol negotiated from connection. 
   # after peer codec is known, gossip sends extensions control message as first message
   # to this peer.
-  if not g.parameters.extensionsDisabled:
+  if g.usesExtensions():
     if peer.codec != "":
       if gossipExtensionsSupported(peer.codec):
         sendExtensionsControl()
@@ -390,13 +396,7 @@ proc handleSubscribe(g: GossipSub, peer: PubSubPeer, topic: string, subscribe: b
 
   trace "gossip peers", peers = g.gossipsub.peers(topic), topic
 
-proc handleExtensions(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
-  control.extensions.withValue(ctrlExtensions):
-    g.extensionsState.handleRPC(peer.peerId, ctrlExtensions)
-
 proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
-  g.handleExtensions(peer, control)
-
   g.handlePrune(peer, control.prune)
 
   var respControl: ControlMessage
@@ -699,6 +699,8 @@ method rpcHandler*(
     g.send(peer, RPCMsg(pong: rpcMsg.ping), isHighPriority = true)
     peer.pingBudget.dec
 
+  g.extensionsState.handleRPC(peer.peerId, rpcMsg)
+
   for i in 0 ..< min(g.topicsHigh, rpcMsg.subscriptions.len):
     template sub(): untyped =
       rpcMsg.subscriptions[i]
@@ -854,7 +856,7 @@ proc makePeersForPublishUsingCustomConn(
     )
 
 proc makePeersForPublishDefault(
-    g: GossipSub, topic: string, data: seq[byte]
+    g: GossipSub, topic: string, data: seq[byte] = @[]
 ): HashSet[PubSubPeer] =
   var peers: HashSet[PubSubPeer]
 
@@ -992,8 +994,23 @@ method publish*(
   else:
     libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
 
-  trace "Published message to peers", peers = peers.len
+  trace "Published message to peers", count = peers.len
+
   return peers.len
+
+proc publishPartial*(
+    g: GossipSub, topic: string, pm: PartialMessage
+): Future[int] {.async: (raises: []).} =
+  let count = g.extensionsState.publishPartial(topic, pm)
+
+  if g.knownTopics.contains(topic):
+    libp2p_pubsub_messages_published_partial.inc(count.int64, labelValues = [topic])
+  else:
+    libp2p_pubsub_messages_published_partial.inc(count.int64, labelValues = ["generic"])
+
+  trace "Published partial message to peers", count = count
+
+  return count
 
 proc maintainDirectPeer(
     g: GossipSub, id: PeerId, addrs: seq[MultiAddress]
@@ -1025,24 +1042,50 @@ proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
       await g.addDirectPeer(id, addrs)
 
 proc createExtensionsState(g: GossipSub): ExtensionsState =
-  if g.parameters.extensionsDisabled:
-    return ExtensionsState.new() # noop state
+  if not g.usesExtensions():
+    # use noop state when no extensions are used
+    return ExtensionsState.new()
 
   proc onMissbehaveExtensions(id: PeerId) {.gcsafe, raises: [].} =
     g.peers.withValue(id, peer):
       peer[].behaviourPenalty += 0.1
 
-  let testExtensionConfig = g.parameters.testExtensionConfig.valueOr:
-    # by default, parameters will not have this config. because param is mainly used
-    # in tests for testing purposes.
+  # when extensions config is not set then that extensions is disabled.
+  # config params (callbacks) are set here with default gossipsub behavior only if 
+  # these params are not set. 
 
-    proc onNegotiated(id: PeerId) {.gcsafe, raises: [].} =
-      g.peers.withValue(id, peer):
-        g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
+  g.parameters.testExtensionConfig.withValue(cfg):
+    var cfgVar = cfg
 
-    TestExtensionConfig(onNegotiated: onNegotiated)
+    if cfgVar.onNegotiated.isNil:
+      cfgVar.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
+        g.peers.withValue(peerId, peer):
+          g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
 
-  return ExtensionsState.new(onMissbehaveExtensions, some(testExtensionConfig))
+    g.parameters.testExtensionConfig = some(cfgVar)
+
+  g.parameters.partialMessageExtensionConfig.withValue(cfg):
+    var cfgVar = cfg
+
+    if cfgVar.sendRPC.isNil:
+      cfgVar.sendRPC = proc(
+          peerId: PeerId, rpc: PartialMessageExtensionRPC
+      ) {.gcsafe, raises: [].} =
+        g.peers.withValue(peerId, peer):
+          g.send(peer[], RPCMsg(partialMessageExtension: some(rpc)), false)
+
+    if cfgVar.publishToPeers.isNil:
+      cfgVar.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+        let peers = g.makePeersForPublishDefault(topic)
+        return peers.mapIt(it.peerId)
+
+    g.parameters.partialMessageExtensionConfig = some(cfgVar)
+
+  return ExtensionsState.new(
+    onMissbehaveExtensions, #
+    g.parameters.testExtensionConfig, # 
+    g.parameters.partialMessageExtensionConfig,
+  )
 
 method start*(
     g: GossipSub

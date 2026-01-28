@@ -5,26 +5,23 @@
 
 import chronos, algorithm
 import
-  ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub, gossipsub/extensions, gossipsub/partial_message, rpc/message]
 import ../../../tools/unittest
 import ../utils
 
-suite "GossipSub Extensions":
+suite "GossipSub Component - Extensions":
   teardown:
     checkTrackers()
 
-  asyncTest "TestExtension":
-    var
-      (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-      (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+  asyncTest "Test Extension":
+    var (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
     let
       numberOfNodes = 2
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          testExtensionConfig = some(
-            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
-          ),
+          testExtensionConfig = some(TestExtensionConfig(onNegotiated: onNegotiated)),
         )
         .toGossipSub()
 
@@ -36,7 +33,40 @@ suite "GossipSub Extensions":
     untilTimeout:
       pre:
         let negotiatedPeersSorted = negotiatedPeers[].sorted()
-        let handleRPCPeersSorted = handleRPCPeers[].sorted()
       check:
         negotiatedPeersSorted == nodesPeerIdSorted
-        handleRPCPeersSorted == nodesPeerIdSorted
+
+  asyncTest "Partial Message Extension":
+    proc validateRPC(
+        rpc: PartialMessageExtensionRPC
+    ): Result[void, string] {.gcsafe, raises: [].} =
+      ok()
+
+    proc onIncomingRPC(
+        peer: PeerId, rpc: PartialMessageExtensionRPC
+    ) {.gcsafe, raises: [].} =
+      discard
+
+    proc mergeMetadata(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].} =
+      return a
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          partialMessageExtensionConfig = some(
+            PartialMessageExtensionConfig(
+              validateRPC: validateRPC,
+              onIncomingRPC: onIncomingRPC,
+              mergeMetadata: mergeMetadata,
+            )
+          ),
+        )
+        .toGossipSub()
+
+    startNodesAndDeferStop(nodes)
+
+    await connectNodes(nodes[0], nodes[1])
+
+    # TODO

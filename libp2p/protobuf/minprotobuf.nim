@@ -5,7 +5,7 @@
 
 {.push raises: [].}
 
-import ../varint, ../utility, stew/endians2, results
+import ../varint, ../utility, stew/endians2, results, options
 import ../utils/sequninit
 export results, utility
 
@@ -571,6 +571,28 @@ proc getField*(
     output = initProtoBuffer(buffer)
     ok(true)
   else:
+    ok(false)
+
+proc getField*(
+    pb: ProtoBuffer, field: int, output: var bool
+): ProtoResult[bool] {.inline.} =
+  var boolValue: uint64
+  if ?pb.getField(field, boolValue):
+    output = bool(boolValue)
+    ok(true)
+  else:
+    output = false
+    ok(false)
+
+proc getField*(
+    pb: ProtoBuffer, field: int, output: var Option[bool]
+): ProtoResult[bool] {.inline.} =
+  var boolValue: uint64
+  if ?pb.getField(field, boolValue):
+    output = some(bool(boolValue))
+    ok(true)
+  else:
+    output = none(bool)
     ok(false)
 
 proc getRequiredField*[T](
