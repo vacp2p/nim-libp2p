@@ -183,10 +183,9 @@ proc publishPartial*(
 
   groupState.heartbeatsTillEviction = ext.heartbeatsTillEviction
 
-  proc publishPartialToPeer(peer: PeerId) {.raises: [].} =
+  proc publishPartialToPeer(peer: PeerId, peerRequestsPartial: bool) {.raises: [].} =
     var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: msgGroupId)
     var peerState = groupState.getPeerState(peer)
-    var peerRequestsPartial: bool = true
     var hasChanges: bool = false
 
     # if partsMetada was changed, rpc sets new metadata 
@@ -218,20 +217,24 @@ proc publishPartial*(
   var publishedToCount: int = 0
   let peers = ext.publishToPeers(topic)
   for _, p in peers:
-    # peer needs to support this extension (and needs to be nagotiated)
+    # peer needs to support this extension
     if not ext.isSupported(p):
       continue
 
-    # publish if peer requested partial for topic
     let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(p, topic))
-    if peerSubOpt.requestsPartial:
-      publishPartialToPeer(p)
-      publishedToCount.inc
 
-    # or node requested partial and peer supports sending partials
-    let nodeRequestedPartial = false # TODO
-    if nodeRequestedPartial and peerSubOpt.supportsSendingPartial:
-      publishPartialToPeer(p)
+    # publish parital message if ...
+    if peerSubOpt.requestsPartial:
+      # 1) peer requested partial for topic (peer wants to receive partial message)
+      publishPartialToPeer(p, true)
       publishedToCount.inc
+    elif peerSubOpt.supportsSendingPartial:
+      # 2) peer supports sending partial for topic and
+      # this node wants to receive partial message for this topic.
+
+      let nodeRequestedPartial = false # TODO
+      if nodeRequestedPartial:
+        publishPartialToPeer(p, false)
+        publishedToCount.inc
 
   return publishedToCount
