@@ -52,7 +52,6 @@ jobs:
       - name: Run test suite with coverage flags
         run: |
           export NIMFLAGS="--lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage"
-          nimble setup
           nimble test
 
       - name: Run coverage
