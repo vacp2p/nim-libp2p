@@ -3,7 +3,9 @@
 
   nixConfig = {
     extra-substituters = [ "https://nix-cache.status.im/" ];
-    extra-trusted-public-keys = [ "nix-cache.status.im-1:x/93lOfLU+duPplwMSBR+OlY4+mo+dCN7n0mr4oPwgY=" ];
+    extra-trusted-public-keys = [
+      "nix-cache.status.im-1:x/93lOfLU+duPplwMSBR+OlY4+mo+dCN7n0mr4oPwgY="
+    ];
   };
 
   inputs = {
@@ -17,131 +19,20 @@
         "x86_64-darwin" "aarch64-darwin"
         "x86_64-windows"
       ];
-      forEach = nixpkgs.lib.genAttrs;
-      forAllSystems = forEach systems;
+      forAllSystems = nixpkgs.lib.genAttrs systems;
     in {
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          deps = import ./nix/deps.nix { inherit pkgs; };
-          pathArgs =
-            builtins.concatStringsSep " "
-              (map (p: "--path:${p}")
-                   (builtins.attrValues deps));
-          cbindDeps = import ./nix/cbind-deps.nix { inherit pkgs; };
-          cbindPathArgs =
-            builtins.concatStringsSep " "
-              (map (p: "--path:${p}")
-                   (builtins.attrValues cbindDeps));
-          libExt =
-            if pkgs.stdenv.hostPlatform.isWindows then "dll"
-            else if pkgs.stdenv.hostPlatform.isDarwin then "dylib"
-            else "so";
         in {
-          default = pkgs.stdenv.mkDerivation {
-            pname = "nim-libp2p";
-            version = "dev";
-
+          default = import ./nix/default.nix {
+            inherit pkgs;
             src = ./.;
-
-            nativeBuildInputs = [
-              pkgs.nim-2_2
-              pkgs.git
-              pkgs.nimble
-            ];
-
-            buildPhase = ''
-              # make sure nim writes to a writable dir
-              export HOME=$TMPDIR
-              export XDG_CACHE_HOME=$TMPDIR/.cache
-              export NIMBLE_DIR=$TMPDIR/.nimble
-
-              # changes in this run script should be also reflected on libp2p.nimble
-              echo "== Building pure Nim objects =="
-              nim c \
-                --noNimblePath \
-                ${pathArgs} \
-                --path:${deps.dnsclient}/src \
-                --compileOnly \
-                --styleCheck:usages \
-                --styleCheck:error \
-                --skipUserCfg \
-                --threads:on \
-                --opt:speed \
-                -d:libp2p_autotls_support \
-                -d:libp2p_mix_experimental_exit_is_dest \
-                -d:libp2p_gossipsub_1_4 \
-                libp2p.nim
-            '';
           };
 
-          cbind = pkgs.stdenv.mkDerivation {
-            pname = "nim-libp2p-cbind";
-            version = "dev";
-
+          cbind = import ./nix/cbind.nix {
+            inherit pkgs;
             src = ./.;
-
-            nativeBuildInputs = [
-              pkgs.nim-2_2
-              pkgs.git
-              pkgs.nimble
-            ];
-
-            buildPhase = ''
-              # make sure nim writes to a writable dir
-              export HOME=$TMPDIR
-              export XDG_CACHE_HOME=$TMPDIR/.cache
-              export NIMBLE_DIR=$TMPDIR/.nimble
-              export NIMCACHE=$TMPDIR/nimcache
-
-
-              mkdir -p build
-              mkdir -p $NIMCACHE
-
-              echo "== Building C bindings (dynamic/shared) =="
-              nim c \
-                --noNimblePath \
-                ${cbindPathArgs} \
-                ${pathArgs} \
-                --path:${deps.dnsclient}/src \
-                --out:build/libp2p.${libExt} \
-                --app:lib \
-                --threads:on \
-                --opt:size \
-                --noMain \
-                --mm:refc \
-                --header \
-                --undef:metrics \
-                --nimMainPrefix:libp2p \
-                --nimcache:$NIMCACHE \
-                cbind/libp2p.nim
-
-              echo "== Building C bindings (static) =="
-              nim c \
-                --noNimblePath \
-                ${cbindPathArgs} \
-                ${pathArgs} \
-                --path:${deps.dnsclient}/src \
-                --out:build/libp2p.a \
-                --app:staticlib \
-                --threads:on \
-                --opt:size \
-                --noMain \
-                --mm:refc \
-                --header \
-                --undef:metrics \
-                --nimMainPrefix:libp2p \
-                --nimcache:$NIMCACHE \
-                cbind/libp2p.nim
-            '';
-
-            installPhase = ''
-              mkdir -p $out/lib
-              mkdir -p $out/include
-              cp build/libp2p.${libExt}  $out/lib
-              cp build/libp2p.a          $out/lib
-              cp cbind/libp2p.h          $out/include
-            '';
           };
         }
       );
@@ -149,7 +40,6 @@
       devShells = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          deps = import ./nix/deps.nix { inherit pkgs; };
         in {
           default = pkgs.mkShell {
             nativeBuildInputs = [
