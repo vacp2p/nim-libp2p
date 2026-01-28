@@ -28,7 +28,6 @@ import
     transports/tcptransport,
     transports/wstransport,
     transports/quictransport,
-    utils/semaphore,
   ]
 import ../tools/[unittest, trackers, futures, crypto, sync]
 

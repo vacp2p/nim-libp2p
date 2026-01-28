@@ -12,7 +12,7 @@ import
   ../../../multiaddress,
   ../../../multicodec,
   ../../../peerid,
-  ../../../utils/[semaphore, future],
+  ../../../utils/[future],
   ../../../errors
 import types
 
