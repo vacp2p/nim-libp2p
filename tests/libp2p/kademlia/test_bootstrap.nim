@@ -127,3 +127,18 @@ suite "KadDHT Bootstrap Component":
       for j, otherKad in kads:
         if i != j:
           check kad.hasKey(otherKad.rtable.selfId)
+
+  asyncTest "bootstrap with unreachable peer completes gracefully":
+    # Fake bootstrap peer with valid address format
+    let fakePeerId = randomPeerId()
+    let fakeAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/59999").get()]
+
+    let config = testKadConfig(timeout = chronos.milliseconds(100))
+    let kad =
+      await setupKadSwitch(config = config, bootstrapNodes = @[(fakePeerId, fakeAddrs)])
+    defer:
+      await kad.switch.stop()
+
+    check:
+      kad.hasKey(fakePeerId.toKey()) # fake peer should be in routing table
+      kad.started # node should be operational
