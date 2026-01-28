@@ -10,7 +10,7 @@ skipDirs = @["cbind", "examples", "interop", "performance", "tests", "tools"]
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
-  "websock >= 0.2.1", "unittest2", "results",
+  "websock >= 0.2.1", "unittest2", "results", "serialization",
   "https://github.com/vacp2p/nim-lsquic#309286a782a75a817bb47d62abdc36bdd4002d2f",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
@@ -21,6 +21,7 @@ let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
 let flags = getEnv("NIMFLAGS", "") # Extra flags for the compiler
 let verbose = getEnv("V", "") notin ["", "0"]
 
+# changes in run configs should be also reflected on flake.nix
 let cfg =
   " --styleCheck:usages --styleCheck:error" &
   (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
