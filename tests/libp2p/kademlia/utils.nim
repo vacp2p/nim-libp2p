@@ -49,15 +49,18 @@ proc testKadConfig*(
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     replication: int = DefaultReplication,
+    timeout = chronos.seconds(1),
+    retries: int = DefaultRetries,
 ): KadDHTConfig =
   KadDHTConfig.new(
     validator,
     selector,
-    timeout = chronos.seconds(1),
+    timeout = timeout,
     providerExpirationInterval = chronos.seconds(1),
     cleanupProvidersInterval = cleanupProvidersInterval,
     republishProvidedKeysInterval = republishProvidedKeysInterval,
     replication = replication,
+    retries = retries,
   )
 
 proc setupKad*(
@@ -74,11 +77,13 @@ proc setupMockKad*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
+    handleFindNodeDelay: Duration = ZeroDuration,
 ): MockKadDHT =
   let switch = createSwitch()
   let kad = MockKadDHT.new(switch, bootstrapNodes, config)
   kad.getValueResponse = getValueResponse
   kad.handleAddProviderMessage = handleAddProviderMessage
+  kad.handleFindNodeDelay = handleFindNodeDelay
   kad.switch.mount(kad)
   kad
 
@@ -95,9 +100,12 @@ proc setupMockKadSwitch*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
+    handleFindNodeDelay: Duration = ZeroDuration,
 ): Future[MockKadDHT] {.async.} =
-  let kad =
-    setupMockKad(config, bootstrapNodes, getValueResponse, handleAddProviderMessage)
+  let kad = setupMockKad(
+    config, bootstrapNodes, getValueResponse, handleAddProviderMessage,
+    handleFindNodeDelay,
+  )
   await kad.switch.start()
   kad
 
