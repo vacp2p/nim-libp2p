@@ -318,9 +318,9 @@ suite "KadDHT Find":
 
     check mockKad.handleFindNodeCalls == 0
 
-    let result = await kad.findNode(mockKad.rtable.selfId)
+    let peerIds = await kad.findNode(mockKad.rtable.selfId)
 
     # Lookup terminates gracefully after retry exhaustion
     check:
-      responsiveKad.switch.peerInfo.peerId in result
+      responsiveKad.switch.peerInfo.peerId in peerIds
       mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)
