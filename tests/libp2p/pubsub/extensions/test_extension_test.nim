@@ -20,7 +20,10 @@ suite "GossipSub Extensions :: Test Extension":
       (reportedPeers, onMissbehave) = createCollectPeerCallback()
       (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
       (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
-      ext = TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
+      state = ExtensionsState.new(
+        onMissbehave,
+        some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
+      )
 
     # negotiated in order: handleRPC, addPeer
     state.handleRPC(peerId, makeRPC())
