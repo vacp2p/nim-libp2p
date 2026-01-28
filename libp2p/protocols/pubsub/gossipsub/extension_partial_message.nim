@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import tables, strutils, chronicles
+import tables, strutils, chronicles, results
 import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, partial_message]
@@ -16,14 +16,24 @@ const
 type
   SendRPCProc =
     proc(peerID: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
+  ValidateRPCProc =
+    proc(rpc: PartialMessageExtensionRPC): Result[void, string] {.gcsafe, raises: [].}
+  OnIncomingRPCProc =
+    proc(peer: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
   PublishToPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
   IsSupportedProc = proc(peer: PeerId): bool {.gcsafe, raises: [].}
   MergeMetadataProc = proc(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].}
 
   PartialMessageExtensionConfig* = object
+    # 
+    # configuration set by node
     sendRPC*: SendRPCProc
     publishToPeers*: PublishToPeersProc
     isSupported*: IsSupportedProc
+    # configuration set by user
+    mergeMetadata*: MergeMetadataProc
+    validateRPC*: ValidateRPCProc
+    onIncomingRPC*: OnIncomingRPCProc
     heartbeatsTillEviction*: int
 
   PeerGroupState = ref object
@@ -44,8 +54,10 @@ type
   PartialMessageExtension* = ref object of Extension
     sendRPC: SendRPCProc
     publishToPeers: PublishToPeersProc
-    mergeMetadata: MergeMetadataProc
     isSupported: IsSupportedProc
+    mergeMetadata: MergeMetadataProc
+    validateRPC: ValidateRPCProc
+    onIncomingRPC: OnIncomingRPCProc
     heartbeatsTillEviction: int
     groupState: Table[TopicGroupKey, GroupState]
     peerSubs: Table[PeerTopicKey, SubState]
@@ -69,19 +81,20 @@ proc new*(
   doAssert(config.sendRPC != nil, "config.sendRPC must be set")
   doAssert(config.publishToPeers != nil, "config.publishToPeers must be set")
   doAssert(config.isSupported != nil, "config.isSupported must be set")
+  doAssert(config.mergeMetadata != nil, "config.mergeMetadata must be set")
+  doAssert(config.validateRPC != nil, "config.validateRPC must be set")
+  doAssert(config.onIncomingRPC != nil, "config.onIncomingRPC must be set")
 
   PartialMessageExtension(
     sendRPC: config.sendRPC,
     publishToPeers: config.publishToPeers,
     isSupported: config.isSupported,
+    mergeMetadata: config.mergeMetadata,
+    validateRPC: config.validateRPC,
+    onIncomingRPC: config.onIncomingRPC,
     heartbeatsTillEviction:
       max(config.heartbeatsTillEviction, minHeartbeatsTillEviction),
   )
-
-method isSupported*(
-    ext: PartialMessageExtension, pe: PeerExtensions
-): bool {.gcsafe, raises: [].} =
-  return pe.partialMessageExtension
 
 proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   # reduce heartbeatsTillEviction and remove groups that hit 0
@@ -93,10 +106,37 @@ proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   for key in toRemove:
     ext.groupState.del(key)
 
+proc getGroupState(
+    ext: PartialMessageExtension, topic: string, groupId: GroupId
+): GroupState =
+  let key = TopicGroupKey.new(topic, groupId)
+
+  if key notin ext.groupState:
+    ext.groupState[key] = GroupState()
+
+  try:
+    return ext.groupState[key]
+  except KeyError:
+    raiseAssert "checked with if"
+
+proc getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
+  if peerId notin gs.peerState:
+    gs.peerState[peerId] = PeerGroupState()
+
+  try:
+    return gs.peerState[peerId]
+  except KeyError:
+    raiseAssert "checked with if"
+
 proc gossipThePartsMetadata(ext: PartialMessageExtension) =
   # TODO: `partsMetadata` can be used during heartbeat gossip to inform non-mesh topic
   # peers about parts this node has.
   discard
+
+method isSupported*(
+    ext: PartialMessageExtension, pe: PeerExtensions
+): bool {.gcsafe, raises: [].} =
+  return pe.partialMessageExtension
 
 method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
   ext.reduceHeartbeatsTillEviction()
@@ -141,7 +181,18 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  discard # TODO
+  let result = ext.validateRPC(rpc)
+  if result.isErr():
+    debug "Partial message extensions received invalid RPC", msg = result.error
+    return
+
+  if rpc.partsMetadata.len > 0:
+    var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
+    var peerState = groupState.getPeerState(peerId)
+    peerState.partsMetadata =
+      ext.mergeMetadata(peerState.partsMetadata, rpc.partsMetadata)
+
+  ext.onIncomingRPC(peerId, rpc)
 
 method onHandleRPC*(
     ext: PartialMessageExtension, peerId: PeerId, rpc: RPCMsg
@@ -152,34 +203,12 @@ method onHandleRPC*(
   rpc.partialMessageExtension.withValue(partialExtRPC):
     ext.handlePartialRPC(peerId, partialExtRPC)
 
-proc getGroupState(
-    ext: PartialMessageExtension, topic: string, groupId: GroupId
-): GroupState =
-  let key = TopicGroupKey.new(topic, groupId)
-
-  if key notin ext.groupState:
-    ext.groupState[key] = GroupState()
-
-  try:
-    return ext.groupState[key]
-  except KeyError:
-    raiseAssert "checked with if"
-
-proc getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
-  if peerId notin gs.peerState:
-    gs.peerState[peerId] = PeerGroupState()
-
-  try:
-    return gs.peerState[peerId]
-  except KeyError:
-    raiseAssert "checked with if"
-
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
   let msgGroupId = pm.groupId()
   let msgPartsMetadata = pm.partsMetadata()
-  let groupState = ext.getGroupState(topic, msgGroupId)
+  var groupState = ext.getGroupState(topic, msgGroupId)
 
   groupState.heartbeatsTillEviction = ext.heartbeatsTillEviction
 
