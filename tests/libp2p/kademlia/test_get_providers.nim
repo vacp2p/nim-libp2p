@@ -23,9 +23,7 @@ suite "KadDHT - Get Providers":
       await stopNodes(kads)
 
     # topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[1], kads[2])
-    connectNodes(kads[2], kads[3])
+    connectNodesChain(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -73,8 +71,7 @@ suite "KadDHT - Get Providers":
     defer:
       await stopNodes(kads)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -103,8 +100,7 @@ suite "KadDHT - Get Providers":
     defer:
       await stopNodes(kads)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -233,8 +229,7 @@ suite "KadDHT - Get Providers":
       await stopNodes(kads)
 
     # kads[0] <-> kads[1] <-> kads[2]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[1], kads[2])
+    connectNodesChain(kads)
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -268,12 +263,7 @@ suite "KadDHT - Get Providers":
 
     # kads[0] is the hub, connected to kads[1..6] (6 peers)
     # kads[1] will directly dispatch GET_PROVIDERS to kads[0]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
-    connectNodes(kads[0], kads[3])
-    connectNodes(kads[0], kads[4])
-    connectNodes(kads[0], kads[5])
-    connectNodes(kads[0], kads[6])
+    connectNodesHub(kads[0], kads[1 ..^ 1])
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -291,10 +281,7 @@ suite "KadDHT - Get Providers":
     defer:
       await stopNodes(kads)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[1], kads[2])
-    connectNodes(kads[2], kads[3])
-    connectNodes(kads[3], kads[4])
+    connectNodesChain(kads)
 
     let key = @[1.byte, 2, 3, 4, 5]
 

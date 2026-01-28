@@ -43,86 +43,71 @@ proc createSwitch*(): Switch =
   .withNoise()
   .build()
 
-proc countBucketEntries*(buckets: seq[Bucket], key: Key): uint32 =
-  var res: uint32 = 0
-  for b in buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
-        res += 1
-  return res
-
-proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool =
-  let record = kad.dataTable.get(key).valueOr:
-    checkpoint("containsData: key not found: " & $key.shortLog())
-    return false
-
-  if record.value != value:
-    checkpoint(
-      "containsData: value mismatch for " & $key.shortLog() & " - expected: " & $value &
-        ", got: " & $record.value
-    )
-    return false
-
-  true
-
-proc containsNoData*(kad: KadDHT, key: Key): bool =
-  kad.dataTable.get(key).isNone()
-
-proc setupMockKadSwitch*(
-    validator: EntryValidator,
-    selector: EntrySelector,
-    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
-    cleanupProvidersInterval: Duration = chronos.milliseconds(100),
-    republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
-    getValueResponse: Opt[Message] = Opt.none(Message),
-    handleAddProviderMessage: Opt[Message] = Opt.none(Message),
-): Future[(Switch, MockKadDHT)] {.async.} =
-  let switch = createSwitch()
-  let kad = MockKadDHT.new(
-    switch,
-    bootstrapNodes,
-    config = KadDHTConfig.new(
-      validator,
-      selector,
-      timeout = chronos.seconds(1),
-      cleanupProvidersInterval = cleanupProvidersInterval,
-      providerExpirationInterval = chronos.seconds(1),
-      republishProvidedKeysInterval = republishProvidedKeysInterval,
-    ),
-  )
-  kad.getValueResponse = getValueResponse
-  kad.handleAddProviderMessage = handleAddProviderMessage
-
-  switch.mount(kad)
-  await switch.start()
-  (switch, kad)
-
-proc setupKadSwitch*(
-    validator: EntryValidator,
-    selector: EntrySelector,
-    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+proc testKadConfig*(
+    validator: EntryValidator = PermissiveValidator(),
+    selector: EntrySelector = CandSelector(),
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     replication: int = DefaultReplication,
-): Future[(Switch, KadDHT)] {.async.} =
-  let switch = createSwitch()
-  let kad = KadDHT.new(
-    switch,
-    bootstrapNodes,
-    config = KadDHTConfig.new(
-      validator,
-      selector,
-      timeout = chronos.seconds(1),
-      cleanupProvidersInterval = cleanupProvidersInterval,
-      providerExpirationInterval = chronos.seconds(1),
-      republishProvidedKeysInterval = republishProvidedKeysInterval,
-      replication = replication,
-    ),
+    timeout = chronos.seconds(1),
+    retries: int = DefaultRetries,
+): KadDHTConfig =
+  KadDHTConfig.new(
+    validator,
+    selector,
+    timeout = timeout,
+    providerExpirationInterval = chronos.seconds(1),
+    cleanupProvidersInterval = cleanupProvidersInterval,
+    republishProvidedKeysInterval = republishProvidedKeysInterval,
+    replication = replication,
+    retries = retries,
   )
 
-  switch.mount(kad)
-  await switch.start()
-  (switch, kad)
+proc setupKad*(
+    config: KadDHTConfig = testKadConfig(),
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+): KadDHT =
+  let switch = createSwitch()
+  let kad = KadDHT.new(switch, bootstrapNodes, config)
+  kad.switch.mount(kad)
+  kad
+
+proc setupMockKad*(
+    config: KadDHTConfig = testKadConfig(),
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+    getValueResponse: Opt[Message] = Opt.none(Message),
+    handleAddProviderMessage: Opt[Message] = Opt.none(Message),
+    handleFindNodeDelay: Duration = ZeroDuration,
+): MockKadDHT =
+  let switch = createSwitch()
+  let kad = MockKadDHT.new(switch, bootstrapNodes, config)
+  kad.getValueResponse = getValueResponse
+  kad.handleAddProviderMessage = handleAddProviderMessage
+  kad.handleFindNodeDelay = handleFindNodeDelay
+  kad.switch.mount(kad)
+  kad
+
+proc setupKadSwitch*(
+    config: KadDHTConfig = testKadConfig(),
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+): Future[KadDHT] {.async.} =
+  let kad = setupKad(config, bootstrapNodes)
+  await kad.switch.start()
+  kad
+
+proc setupMockKadSwitch*(
+    config: KadDHTConfig = testKadConfig(),
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+    getValueResponse: Opt[Message] = Opt.none(Message),
+    handleAddProviderMessage: Opt[Message] = Opt.none(Message),
+    handleFindNodeDelay: Duration = ZeroDuration,
+): Future[MockKadDHT] {.async.} =
+  let kad = setupMockKad(
+    config, bootstrapNodes, getValueResponse, handleAddProviderMessage,
+    handleFindNodeDelay,
+  )
+  await kad.switch.start()
+  kad
 
 proc setupKadSwitches*(
     count: int,
@@ -135,11 +120,14 @@ proc setupKadSwitches*(
 ): Future[seq[KadDHT]] {.async.} =
   var kads: seq[KadDHT]
   for i in 0 ..< count:
-    var (_, kad) = await setupKadSwitch(
-      validator, selector, bootstrapNodes, cleanupProvidersInterval,
-      republishProvidedKeysInterval, replication,
+    let config = testKadConfig(
+      validator,
+      selector,
+      cleanupProvidersInterval,
+      republishProvidedKeysInterval,
+      replication = replication,
     )
-    kads.add(kad)
+    kads.add(await setupKadSwitch(config, bootstrapNodes))
   kads
 
 proc stopNodes*(nodes: seq[KadDHT]) {.async.} =
@@ -172,6 +160,12 @@ proc connectNodesHub*(hub: KadDHT, nodes: seq[KadDHT]) =
   for i in 0 ..< nodes.len:
     connectNodes(hub, nodes[i])
 
+proc connectNodesChain*(nodes: seq[KadDHT]) =
+  ## Chain: 1-2-3-4-5
+  ## 
+  for i in 0 ..< nodes.len - 1:
+    connectNodes(nodes[i], nodes[i + 1])
+
 proc hasKey*(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:
     for ent in b.peers:
@@ -184,6 +178,31 @@ proc hasKeys*(kad: KadDHT, keys: seq[Key]): bool =
 
 proc hasNoKeys*(kad: KadDHT, keys: seq[Key]): bool =
   keys.allIt(not kad.hasKey(it))
+
+proc countBucketEntries*(buckets: seq[Bucket], key: Key): uint32 =
+  var res: uint32 = 0
+  for b in buckets:
+    for ent in b.peers:
+      if ent.nodeId == key:
+        res += 1
+  return res
+
+proc containsData*(kad: KadDHT, key: Key, value: seq[byte]): bool =
+  let record = kad.dataTable.get(key).valueOr:
+    checkpoint("containsData: key not found: " & $key.shortLog())
+    return false
+
+  if record.value != value:
+    checkpoint(
+      "containsData: value mismatch for " & $key.shortLog() & " - expected: " & $value &
+        ", got: " & $record.value
+    )
+    return false
+
+  true
+
+proc containsNoData*(kad: KadDHT, key: Key): bool =
+  kad.dataTable.get(key).isNone()
 
 proc pluckPeerIds*(kads: seq[KadDHT]): seq[PeerId] =
   kads.mapIt(it.switch.peerInfo.peerId)
