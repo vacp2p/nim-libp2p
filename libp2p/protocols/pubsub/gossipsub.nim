@@ -110,7 +110,6 @@ proc init*(
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish = false,
-    extensionsDisabled = false,
     testExtensionConfig = none(TestExtensionConfig),
     partialMessageExtensionConfig = none(PartialMessageExtensionConfig),
 ): GossipSubParams =
@@ -151,7 +150,6 @@ proc init*(
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
-    extensionsDisabled: extensionsDisabled,
     testExtensionConfig: testExtensionConfig,
     partialMessageExtensionConfig: partialMessageExtensionConfig,
   )
@@ -244,6 +242,11 @@ method init*(g: GossipSub) =
   g.codecs &= GossipSubCodec_11
   g.codecs &= GossipSubCodec_10
 
+proc usesExtensions(g: GossipSub): bool =
+  return
+    g.parameters.testExtensionConfig.isSome() or #
+    g.parameters.partialMessageExtensionConfig.isSome()
+
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
     # Make sure stats and peer information match, even when reloading peer stats
@@ -277,7 +280,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   # established then use protocol negotiated from connection. 
   # after peer codec is known, gossip sends extensions control message as first message
   # to this peer.
-  if not g.parameters.extensionsDisabled:
+  if g.usesExtensions():
     if peer.codec != "":
       if gossipExtensionsSupported(peer.codec):
         sendExtensionsControl()
@@ -1039,40 +1042,49 @@ proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
       await g.addDirectPeer(id, addrs)
 
 proc createExtensionsState(g: GossipSub): ExtensionsState =
-  if g.parameters.extensionsDisabled:
-    return ExtensionsState.new() # noop state
+  if not g.usesExtensions():
+    # use noop state when no extensions are used
+    return ExtensionsState.new()
 
   proc onMissbehaveExtensions(id: PeerId) {.gcsafe, raises: [].} =
     g.peers.withValue(id, peer):
       peer[].behaviourPenalty += 0.1
 
-  # by default, parameters will not have these configs. because param is mainly used
-  # in tests for testing purposes.
+  # when extensions config is not set then that extensions is disabled.
+  # config params (callbacks) are set here with default gossipsub behavior only if 
+  # these params are not set. 
 
-  let testExtensionConfig = g.parameters.testExtensionConfig.valueOr:
-    proc onNegotiated(peerId: PeerId) {.gcsafe, raises: [].} =
-      g.peers.withValue(peerId, peer):
-        g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
+  g.parameters.testExtensionConfig.withValue(cfg):
+    var cfgVar = cfg
 
-    TestExtensionConfig(onNegotiated: onNegotiated)
+    if cfgVar.onNegotiated.isNil:
+      cfgVar.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
+        g.peers.withValue(peerId, peer):
+          g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
 
-  let partialMessageExtensionConfig = g.parameters.partialMessageExtensionConfig.valueOr:
-    let sendRPC = proc(
-        peerId: PeerId, rpc: PartialMessageExtensionRPC
-    ) {.gcsafe, raises: [].} =
-      g.peers.withValue(peerId, peer):
-        g.send(peer[], RPCMsg(partialMessageExtension: some(rpc)), false)
+    g.parameters.testExtensionConfig = some(cfgVar)
 
-    let publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
-      let peers = g.makePeersForPublishDefault(topic)
-      return peers.mapIt(it.peerId)
+  g.parameters.partialMessageExtensionConfig.withValue(cfg):
+    var cfgVar = cfg
 
-    PartialMessageExtensionConfig(sendRPC: sendRPC, publishToPeers: publishToPeers)
+    if cfgVar.sendRPC.isNil:
+      cfgVar.sendRPC = proc(
+          peerId: PeerId, rpc: PartialMessageExtensionRPC
+      ) {.gcsafe, raises: [].} =
+        g.peers.withValue(peerId, peer):
+          g.send(peer[], RPCMsg(partialMessageExtension: some(rpc)), false)
+
+    if cfgVar.publishToPeers.isNil:
+      cfgVar.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+        let peers = g.makePeersForPublishDefault(topic)
+        return peers.mapIt(it.peerId)
+
+    g.parameters.partialMessageExtensionConfig = some(cfgVar)
 
   return ExtensionsState.new(
-    onMissbehaveExtensions,
-    some(testExtensionConfig),
-    some(partialMessageExtensionConfig),
+    onMissbehaveExtensions, #
+    g.parameters.testExtensionConfig, # 
+    g.parameters.partialMessageExtensionConfig,
   )
 
 method start*(
