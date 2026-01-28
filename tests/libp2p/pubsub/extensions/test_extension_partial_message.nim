@@ -17,25 +17,28 @@ import ../utils
 
 suite "GossipSub Extensions :: Partial Message Extension":
   test "basic test":
-    let sendRPC = proc(
+    proc sendRPC(
         peerID: PeerId, rpc: PartialMessageExtensionRPC
     ) {.gcsafe, raises: [].} =
       discard
-    let publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+
+    proc publishToPeers(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
       return newSeq[PeerId]()
-    let isSupportedCb = proc(peer: PeerId): bool {.gcsafe, raises: [].} =
+
+    proc isSupportedCb(peer: PeerId): bool {.gcsafe, raises: [].} =
       return true
-    let validateRPC = proc(
+
+    proc validateRPC(
         rpc: PartialMessageExtensionRPC
     ): Result[void, string] {.gcsafe, raises: [].} =
       ok()
-    let onIncomingRPC = proc(
+
+    proc onIncomingRPC(
         peer: PeerId, rpc: PartialMessageExtensionRPC
     ) {.gcsafe, raises: [].} =
       discard
-    let mergeMetadata = proc(
-        a, b: PartsMetadata
-    ): PartsMetadata {.gcsafe, raises: [].} =
+
+    proc mergeMetadata(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].} =
       return a
 
     let cfg = PartialMessageExtensionConfig(
