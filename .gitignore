@@ -31,3 +31,4 @@ tests/*.xml
 
 # nix builds
 result
+nimble.lock

@@ -115,32 +115,3 @@
     fetchSubmodules = true;
   };
 
-  lsquic = pkgs.fetchgit {
-    url = "https://github.com/vacp2p/nim-lsquic";
-    rev = "d94c6dc59ec343cfbbde3dd93ee2d69d49f9c512";
-    sha256 = "182mqmip40965h49y5zdzarc845yi42ld1mbak399sxk1d0s4l8j";
-    fetchSubmodules = true;
-  };
-
-  metrics = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-metrics";
-    rev = "11d0cddfb0e711aa2a8c75d1892ae24a64c299fc";
-    sha256 = "1jrf2cf7v3iqjsk6grzvivxic1shhaxnvab6d35rxs2kcy6b5dv0";
-    fetchSubmodules = true;
-  };
-
-  secp256k1 = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-secp256k1";
-    rev = "b526c4b436809aa1cfe650026d796cf7b8328b91";
-    sha256 = "1cl1ic6zw0mkg0zk9z6kjs5jwf2152gk0ybapwg8qradcnf7jd87";
-    fetchSubmodules = true;
-  };
-
-  websock = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-websock";
-    rev = "35ae76f1559e835c80f9c1a3943bf995d3dd9eb5";
-    sha256 = "1j6dklzb6b6bv2aiglbiyflja2vdpmyxfirv98f49y62mykq0yrw";
-    fetchSubmodules = true;
-  };
-
-}

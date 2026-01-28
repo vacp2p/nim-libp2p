@@ -38,8 +38,14 @@ command -v jq >/dev/null || { echo "error: jq required"; exit 1; }
 command -v nix-prefetch-git >/dev/null || { echo "error: nix-prefetch-git required"; exit 1; }
 
 if [[ ! -f "$LOCKFILE" ]]; then
-  echo "error: lockfile not found: $LOCKFILE"
-  exit 1
+  echo "[!] $LOCKFILE not found"
+  echo "[*] Generating $LOCKFILE"
+
+  (
+    LOCKDIR="$(dirname "$LOCKFILE")"
+    cd "$LOCKDIR" || { echo "error: $LOCKDIR does not exist"; exit 1; }
+    nimble lock
+  )
 fi
 
 echo "[*] Generating $OUTFILE from $LOCKFILE"
