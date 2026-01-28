@@ -5,7 +5,7 @@
 
 import chronos, results, options
 import ../../../../libp2p/peerid
-import ../../../../libp2p/protocols/pubsub/[gossipsub/extensions, rpc/messages]
+import ../../../../libp2p/protocols/pubsub/[gossipsub/extension_test, gossipsub/extensions_types,  rpc/messages]
 import ../../../tools/[unittest, crypto]
 import ../utils
 
@@ -15,81 +15,20 @@ proc makeRPC(extensions: ControlExtensions = ControlExtensions()): RPCMsg =
 suite "GossipSub Extensions :: Test Extension":
   let peerId = PeerId.random(rng).get()
 
-  test "extension is configured, peer is not supporting":
+  test "basic test":
     var
-      (reportedPeers, onMissbehave) = createCollectPeerCallback()
-      (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-      (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
-      state = ExtensionsState.new(
-        onMissbehave,
-        some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
-      )
+      (negotiatedPeers, onNegotiatedCb) = createCollectPeerCallback()
+      (handleRPCPeers, onHandleRPCCb) = createCollectPeerCallback()
+    let ext = TestExtension.new(TestExtensionConfig(onNegotiated: onNegotiatedCb, onHandleRPC: onHandleRPCCb))
 
-    # negotiated in order: handleRPC, addPeer
-    state.handleRPC(peerId, makeRPC())
-    state.addPeer(peerId)
     check:
-      reportedPeers[].len == 0
-      negotiatedPeers[].len == 0
-      handleRPCPeers[].len == 0
+      ext.isSupported(PeerExtensions()) == false
+      ext.isSupported(PeerExtensions(testExtension: true)) == true
 
-    # negotiated in order: addPeer, handleRPC
-    state = ExtensionsState.new(
-      onMissbehave,
-      some(TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)),
-    )
-    state.addPeer(peerId)
-    state.handleRPC(peerId, makeRPC())
+    ext.onNegotiated(peerId)
     check:
-      reportedPeers[].len == 0
-      negotiatedPeers[].len == 0
-      handleRPCPeers[].len == 0
+      negotiatedPeers[] == @[peerId]
 
-  test "extension is configured, peer is supporting":
-    test "node receives rpc then adds peer":
-      var
-        (reportedPeers, onMissbehave) = createCollectPeerCallback()
-        (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-        (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
-        state = ExtensionsState.new(
-          onMissbehave,
-          some(
-            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
-          ),
-        )
-
-      state.handleRPC(peerId, makeRPC(ControlExtensions(testExtension: some(true))))
-      check:
-        reportedPeers[].len == 0
-        negotiatedPeers[].len == 0
-        handleRPCPeers[] == @[peerId]
-
-      state.addPeer(peerId)
-      check:
-        reportedPeers[].len == 0
-        negotiatedPeers[] == @[peerId]
-        handleRPCPeers[] == @[peerId]
-
-    test "node adds peer then receives rpc":
-      var
-        (reportedPeers, onMissbehave) = createCollectPeerCallback()
-        (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-        (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
-        state = ExtensionsState.new(
-          onMissbehave,
-          some(
-            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
-          ),
-        )
-
-      state.addPeer(peerId)
-      check:
-        reportedPeers[].len == 0
-        negotiatedPeers[].len == 0
-        handleRPCPeers[].len == 0
-
-      state.handleRPC(peerId, makeRPC(ControlExtensions(testExtension: some(true))))
-      check:
-        reportedPeers[].len == 0
-        negotiatedPeers[] == @[peerId]
-        handleRPCPeers[] == @[peerId]
+    ext.onHandleRPC(peerId, makeRPC())
+    check:
+      handleRPCPeers[] == @[peerId]
