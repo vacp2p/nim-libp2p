@@ -196,6 +196,33 @@ proc libp2p_create_cid(
   callback(RET_OK.cint, addr cidStr[0], cast[csize_t](len(cidStr)), userData)
   RET_OK.cint
 
+proc newPrivateKey*(scheme: PrivateKeyScheme): Libp2pPrivateKey {.cdecl.} =
+  var key: PrivateKey
+
+  case scheme
+  of PrivateKeyScheme.RSA:
+    key = PrivateKey(
+      scheme: scheme,
+      rsakey: generateRsaKey()
+    )
+  of PrivateKeyScheme.Ed25519:
+    key = PrivateKey(
+      scheme: scheme,
+      edkey: generateEd25519Key()
+    )
+  of PrivateKeyScheme.Secp256k1:
+    key = PrivateKey(
+      scheme: scheme,
+      skkey: generateSecp256k1Key()
+    )
+  of PrivateKeyScheme.ECDSA:
+    key = PrivateKey(
+      scheme: scheme,
+      eckey: generateEcdsaKey()
+    )
+
+  return Libp2pPrivateKey(data: cast[pointer](create(key)))
+
 proc libp2p_new(
     config: ptr Libp2pConfig, callback: Libp2pCallback, userData: pointer
 ): pointer {.dynlib, exportc, cdecl.} =

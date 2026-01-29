@@ -98,7 +98,12 @@ proc parseBootstrapNodes(config: Libp2pConfig): seq[(PeerId, seq[MultiAddress])]
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
-  let switch = newStandardSwitch(nameResolver = dnsResolver)
+
+  var privKey = Opt.none(PrivateKey)
+  if config.passPrivKey != 0:
+    privKey = Opt.some(cast[ptr PrivateKey](config.privKey.data))
+
+  let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
 
   var gossipSub = Opt.none(GossipSub)
   if config.mountGossipsub != 0:

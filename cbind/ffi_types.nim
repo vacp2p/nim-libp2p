@@ -56,6 +56,15 @@ type GetProvidersCallback* = proc(
 type Libp2pStream* = object
   conn*: pointer
 
+type PrivateKeyScheme* {.size: sizeof(cint).} = enum
+  RSA
+  Ed25519
+  Secp256k1
+  ECDSA
+
+type Libp2pPrivateKey* = object
+  data*: pointer
+
 type ConnectionCallback* = proc(
   callerRet: cint,
   conn: ptr Libp2pStream,
@@ -82,6 +91,8 @@ type Libp2pBootstrapNode* = object
 
 type Libp2pConfig* = object
   flags*: uint32
+  passPrivKey*: cint
+  privKey*: Libp2pPrivateKey
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
   mountKad*: cint

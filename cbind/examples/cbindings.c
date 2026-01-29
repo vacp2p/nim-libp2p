@@ -63,6 +63,9 @@ int main(int argc, char **argv) {
   cfg1.gossipsub_trigger_self = 1;
   cfg1.mount_kad = 1;
 
+  cfg1.pass_priv_key = 1;
+  cfg1.priv_key = libp2p_new_private_key(RSA);
+
   ctx1 = libp2p_new(&cfg1, event_handler, NULL);
   waitForCallback();
 
