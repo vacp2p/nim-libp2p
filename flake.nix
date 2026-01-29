@@ -3,7 +3,9 @@
 
   nixConfig = {
     extra-substituters = [ "https://nix-cache.status.im/" ];
-    extra-trusted-public-keys = [ "nix-cache.status.im-1:x/93lOfLU+duPplwMSBR+OlY4+mo+dCN7n0mr4oPwgY=" ];
+    extra-trusted-public-keys = [
+      "nix-cache.status.im-1:x/93lOfLU+duPplwMSBR+OlY4+mo+dCN7n0mr4oPwgY="
+    ];
   };
 
   inputs = {
@@ -12,23 +14,42 @@
 
   outputs = { self, nixpkgs }:
     let
-      stableSystems = [
+      systems = [
         "x86_64-linux" "aarch64-linux" "armv7a-linux"
         "x86_64-darwin" "aarch64-darwin"
         "x86_64-windows"
       ];
-      forEach = nixpkgs.lib.genAttrs;
-      forAllSystems = forEach stableSystems;
-      pkgsFor = forEach stableSystems (
-        system: import nixpkgs { inherit system; }
+      forAllSystems = nixpkgs.lib.genAttrs systems;
+    in {
+      packages = forAllSystems (system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in {
+          default = import ./nix/default.nix {
+            inherit pkgs;
+            src = ./.;
+          };
+
+          cbind = import ./nix/cbind.nix {
+            inherit pkgs;
+            src = ./.;
+          };
+        }
       );
-    in rec {
-      devShells = forAllSystems (system: {
-        default = pkgsFor.${system}.mkShell {
-          nativeBuildInputs = with pkgsFor.${system}; [
-            nim-2_2 nimble
-          ];
-        };
-      });
+
+      devShells = forAllSystems (system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in {
+          default = pkgs.mkShell {
+            nativeBuildInputs = [
+              pkgs.nim-2_2
+              pkgs.nimble
+              pkgs.makeWrapper
+            ];
+          };
+        }
+      );
     };
 }
+
