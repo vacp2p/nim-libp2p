@@ -136,25 +136,45 @@ suite "KadDHT - Add Provider":
       cid1 = key1.toCid()
       key2 = kads[1].rtable.selfId
       cid2 = key2.toCid()
+      mhash3 = MultiHash.digest("sha2-256", @[1.byte, 2, 3]).get()
+      cid3 = Cid.init(CIDv1, multiCodec("raw"), mhash3).get()
 
-    # set low capacities
-    kads[0].providerManager.providedKeys.capacity = 1
+    kads[0].providerManager.providedKeys.capacity = 2 # max keys THIS node can
     kads[1].providerManager.providerRecords.capacity = 1
+      # max provider records THIS node stores from others
 
     await kads[0].startProviding(cid1)
 
     checkUntilTimeout:
       kads[0].providerManager.providedKeys.hasKey(cid1.toKey())
       kads[0].providerManager.providedKeys.len() == 1
+      kads[1].providerManager.knownKeys.hasKey(cid1.toKey())
       kads[1].providerManager.providerRecords.len() == 1
 
-    # start providing overwrites key1 with key2 due to low capacity (1)
     await kads[0].startProviding(cid2)
 
     checkUntilTimeout:
+      # kads[0] (sender): capacity=2, so both cid1 and cid2 fit
+      kads[0].providerManager.providedKeys.hasKey(cid1.toKey())
+      kads[0].providerManager.providedKeys.hasKey(cid2.toKey())
+      kads[0].providerManager.providedKeys.len() == 2
+      # kads[1] (receiver): capacity=1, cid1 evicted, only cid2 remains
+      not kads[1].providerManager.knownKeys.hasKey(cid1.toKey())
+      kads[1].providerManager.knownKeys.hasKey(cid2.toKey())
+      kads[1].providerManager.providerRecords.len() == 1
+
+    await kads[0].startProviding(cid3)
+
+    checkUntilTimeout:
+      # kads[0] (sender): cid1 (oldest) evicted, cid2 and cid3 remain
       not kads[0].providerManager.providedKeys.hasKey(cid1.toKey())
       kads[0].providerManager.providedKeys.hasKey(cid2.toKey())
-      kads[0].providerManager.providedKeys.len() == 1
+      kads[0].providerManager.providedKeys.hasKey(cid3.toKey())
+      kads[0].providerManager.providedKeys.len() == 2
+      # kads[1] (receiver): capacity=1, cid2 evicted, only cid3 remains
+      not kads[1].providerManager.knownKeys.hasKey(cid1.toKey())
+      not kads[1].providerManager.knownKeys.hasKey(cid2.toKey())
+      kads[1].providerManager.knownKeys.hasKey(cid3.toKey())
       kads[1].providerManager.providerRecords.len() == 1
 
   asyncTest "Add provider accepts matching PeerID and rejects mismatched PeerID":
