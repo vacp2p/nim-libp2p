@@ -20,9 +20,9 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   return true
 
 proc dispatchPutVal*(
-    switch: Switch, peer: PeerId, key: Key, value: seq[byte]
+    switch: Switch, peer: PeerId, key: Key, value: seq[byte], codec: string
 ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], KadCodec)
+  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
   defer:
     await conn.close()
   let msg = Message(
@@ -58,7 +58,7 @@ proc putValue*(
   kad.dataTable.insert(key, value, $times.now().utc)
 
   for chunk in peers.toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value))
+    let rpcBatch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec))
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
     except AsyncTimeoutError:
