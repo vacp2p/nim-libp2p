@@ -65,10 +65,16 @@ type
 
   AdvertiseTable* = RoutingTable
 
+  PendingAction* = tuple
+    scheduledTime: Moment
+    serviceId: ServiceId
+    registrar: PeerId
+    bucketIdx: int
+    ticket: Opt[Ticket]
+
   Advertiser* = ref object
     advTable*: Table[ServiceId, AdvertiseTable]
-    ongoing*: Table[ServiceId, OrderedTable[int, seq[PeerId]]]
-      # bucket → active registrars
+    actionQueue*: seq[PendingAction] # Time-ordered queue of pending actions
 
   SearchTable* = RoutingTable
 
