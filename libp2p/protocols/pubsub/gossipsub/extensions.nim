@@ -9,13 +9,16 @@ import ./[extensions_types, extension_test, extension_partial_message, partial_m
 export PeerCallback, TestExtensionConfig, PartialMessageExtensionConfig
 
 type ExtensionsState* = ref object
-  sentExtensions: HashSet[PeerId] # nodes extensions were sent to peer
+  sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions
   peerExtensions: Table[PeerId, PeerExtensions]
-    # tells what peer capabilities are (what extensions are supported)
-  onMissbehave: PeerCallback
-  nodeExtensions: ControlExtensions # tells what this nodes capabilities are 
+    # tells what peer capabilities are (what extensions are supported by them)
+  onMissbehave: PeerCallback # callback when peer does not follow extensions protocol
+  nodeExtensions: ControlExtensions # tells what node's capabilities are
   extensions: seq[Extension]
+    # list of all extensions. state will delegate events to all elements of this list.
   partialMessageExtension: Option[PartialMessageExtension]
+    # partialMessageExtension is needed to expose specific functionality of PartialMessageExtension 
+    # via state.
 
 proc new*(
     T: typedesc[ExtensionsState],
@@ -36,11 +39,11 @@ proc new*(
     nodeExtensions.testExtension = some(true)
 
   partialMessageExtensionConfig.withValue(c):
-    var cVar = c # var is needed to set isSupported
-    cVar.isSupported = proc(peerId: PeerId): bool {.gcsafe, raises: [].} =
+    var cfg = c # var is needed to set isSupported
+    cfg.isSupported = proc(peerId: PeerId): bool {.gcsafe, raises: [].} =
       let peerExt = state.peerExtensions.getOrDefault(peerId)
       return state.partialMessageExtension.get().isSupported(peerExt)
-    partialMessageExtension = some(PartialMessageExtension.new(cVar))
+    partialMessageExtension = some(PartialMessageExtension.new(cfg))
     extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = some(true)
 
@@ -65,7 +68,7 @@ proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
   )
 
 proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rcp: RPCMsg) =
-  # extensions event called when node receives every RPC message.
+  # extension event called when node receives every RPC message.
 
   for _, e in state.extensions:
     if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
@@ -73,27 +76,27 @@ proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rcp: RPCMsg) =
 
 proc onNegotiated(state: ExtensionsState, peerId: PeerId) =
   # extension event called when both sides have negotiated (exchanged) extensions.
-  # it will be called only once per connection session as soon as extensiosn are exchanged.
+  # it will be called only once per connection session as soon as extensions are exchanged.
 
   for _, e in state.extensions:
     if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
       e.onNegotiated(peerId)
 
 proc onHeartbeat(state: ExtensionsState) =
-  # extension event called on every gossipsub heartbeat
+  # extension event called on every gossipsub heartbeat.
 
   for _, e in state.extensions:
     e.onHeartbeat()
 
 proc onRemovePeer(state: ExtensionsState, peerId: PeerId) =
-  # extension event called when peer disconnects from gossipsub
+  # extension event called when peer disconnects from gossipsub.
 
   for _, e in state.extensions:
     if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
       e.onRemovePeer(peerId)
 
 proc heartbeat*(state: ExtensionsState) =
-  # triggers heartbeat event in extensions state
+  # triggers heartbeat event in extensions state.
 
   state.onHeartbeat()
 
@@ -109,7 +112,7 @@ proc addPeer*(state: ExtensionsState, peerId: PeerId) =
 proc removePeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has disconnected from node
 
-  # first delegate event to extensions
+  # first delegate event to all extensions
   state.onRemovePeer(peerId)
 
   # then remove all data from sate associated with peer
@@ -142,13 +145,13 @@ proc publishPartial*(state: ExtensionsState, topic: string, pm: PartialMessage):
   state.partialMessageExtension.withValue(e):
     return e.publishPartial(topic, pm)
   else:
-    # fails becasue this proc is called by user
+    # raises becasue this proc is called by user
     raiseAssert "partial message extension is not configured"
 
 proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string): bool =
   state.partialMessageExtension.withValue(e):
     return e.peerRequestsPartial(peerId, topic)
   else:
-    # should not fail becasue this is called whenever IDONTWANT is being sent.
-    # so when extension is not configured it should return false.
+    # should not raise, becasue this is called whenever IDONTWANT is being sent.
+    # so when extension is not configured it should return false, backwards compatabile beahviour.
     return false

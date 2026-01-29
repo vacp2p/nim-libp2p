@@ -9,17 +9,19 @@ proc noopPeerCallback*(peer: PeerId) {.gcsafe, raises: [].} =
 
 type
   PeerExtensions* = object # holds all capabilities that are supported with extensions.
-    testExtension*: bool
-    partialMessageExtension*: bool
+    testExtension*: bool # is "test extension" supported? 
+    partialMessageExtension*: bool # is "partial message extension" supported?
 
   PeerCallback* = proc(peer: PeerId) {.gcsafe, raises: [].}
 
-  Extension* = ref object of RootObj # base type of all extensions
+  Extension* = ref object of RootObj
+    #
+    # base type of all extensions
 
 method isSupported*(
     ext: Extension, pe: PeerExtensions
 ): bool {.base, gcsafe, raises: [].} =
-  ## should return _true_ if this extension implementation is supported by
+  ## should return _true_ if this extension is supported by
   ## provided PeerExtensions.
   raiseAssert "isSupported: must be implemented"
 
@@ -29,7 +31,7 @@ method onHeartbeat*(ext: Extension) {.base, gcsafe, raises: [].} =
 
 method onNegotiated*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
   # called as soon as node and peer have nagotiated extensions and both support 
-  # this extensions.
+  # this extension.
   raiseAssert "onNegotiated: must be implemented"
 
 method onRemovePeer*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =

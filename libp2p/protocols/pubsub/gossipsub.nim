@@ -1060,42 +1060,43 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.peers.withValue(id, peer):
       peer[].behaviourPenalty += 0.1
 
-  # when extensions config is not set then that extensions is disabled.
-  # config params (callbacks) are set here with default gossipsub behavior only if 
-  # these params are not set. 
+  # when extension config is not set then that extension is disabled.
+  # config params (callbacks) are set with default gossipsub behavior only if 
+  # these params are not set. they can be set with non default behaviour in
+  # unit tests.
 
-  g.parameters.testExtensionConfig.withValue(cfg):
-    var cfgVar = cfg
+  g.parameters.testExtensionConfig.withValue(c):
+    var cfg = c
 
-    if cfgVar.onNegotiated.isNil:
-      cfgVar.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
+    if cfg.onNegotiated.isNil:
+      cfg.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
           g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
 
-    g.parameters.testExtensionConfig = some(cfgVar)
+    g.parameters.testExtensionConfig = some(cfg)
 
-  g.parameters.partialMessageExtensionConfig.withValue(cfg):
-    var cfgVar = cfg
+  g.parameters.partialMessageExtensionConfig.withValue(c):
+    var cfg = c
 
-    if cfgVar.sendRPC.isNil:
-      cfgVar.sendRPC = proc(
+    if cfg.sendRPC.isNil:
+      cfg.sendRPC = proc(
           peerId: PeerId, rpc: PartialMessageExtensionRPC
       ) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
           g.send(peer[], RPCMsg(partialMessageExtension: some(rpc)), false)
 
-    if cfgVar.publishToPeers.isNil:
-      cfgVar.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+    if cfg.publishToPeers.isNil:
+      cfg.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
         let peers = g.makePeersForPublishDefault(topic)
         return peers.mapIt(it.peerId)
 
-    if cfgVar.isRequestPartialByNode.isNil:
-      cfgVar.isRequestPartialByNode = proc(topic: string): bool {.gcsafe, raises: [].} =
+    if cfg.isRequestPartialByNode.isNil:
+      cfg.isRequestPartialByNode = proc(topic: string): bool {.gcsafe, raises: [].} =
         g.topics.withValue(topic, topicData):
           return topicData[].requestsPartial
         return false
 
-    g.parameters.partialMessageExtensionConfig = some(cfgVar)
+    g.parameters.partialMessageExtensionConfig = some(cfg)
 
   return ExtensionsState.new(
     onMissbehaveExtensions, #

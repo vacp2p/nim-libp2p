@@ -14,16 +14,40 @@ const
   keyDelimiter = "::"
 
 type
+  PublishToPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
+    # implements logic for getting list of peers that should be considered when 
+    # publishing to the topic.
+    # default implementation is set by gossipsub.
+
   SendRPCProc =
     proc(peerID: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
+    # implements logic for sending PartialMessageExtensionRPC to the peer.
+    # default implementation is set by gossipsub.
+
+  IsRequestPartialByNodeProc = proc(topic: string): bool {.gcsafe, raises: [].}
+    # implements logic for checking if this node is requesting partial messages
+    # for topic.
+    # default implementation is set by gossipsub.
+
+  IsSupportedProc = proc(peer: PeerId): bool {.gcsafe, raises: [].}
+    # implements logic for checking if peer supports this "partial message" extension.
+    # default implementation is set by extensions state.
+
   ValidateRPCProc =
     proc(rpc: PartialMessageExtensionRPC): Result[void, string] {.gcsafe, raises: [].}
+    # implements logic for performing sanity checks on PartialMessageExtensionRPC.
+    # when error is returned extension will not proces PartialMessageExtensionRPC.
+    # needs to be implemented by application.
+
   OnIncomingRPCProc =
     proc(peer: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
-  IsRequestPartialByNodeProc = proc(topic: string): bool {.gcsafe, raises: [].}
-  PublishToPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
-  IsSupportedProc = proc(peer: PeerId): bool {.gcsafe, raises: [].}
+    # called when PartialMessageExtensionRPC is received and ValidateRPCProc did not return
+    # error for this message.
+    # needs to be implemented by application.
+
   MergeMetadataProc = proc(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].}
+    # implements logic for merging two PartsMetadata into one.
+    # needs to be implemented by application.
 
   PartialMessageExtensionConfig* = object
     # 
@@ -32,7 +56,8 @@ type
     publishToPeers*: PublishToPeersProc
     isSupported*: IsSupportedProc
     isRequestPartialByNode*: IsRequestPartialByNodeProc
-    # configuration set by user
+
+    # configuration set by application
     mergeMetadata*: MergeMetadataProc
     validateRPC*: ValidateRPCProc
     onIncomingRPC*: OnIncomingRPCProc
