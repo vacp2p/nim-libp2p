@@ -122,6 +122,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     kad: kad,
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
+    protocolHandlers: initTable[string, ProtocolHandlerEntry](),
   )
 
 proc createShared*(
