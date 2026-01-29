@@ -139,9 +139,9 @@ suite "KadDHT - Add Provider":
       mhash3 = MultiHash.digest("sha2-256", @[1.byte, 2, 3]).get()
       cid3 = Cid.init(CIDv1, multiCodec("raw"), mhash3).get()
 
-    kads[0].providerManager.providedKeys.capacity = 2 # max keys THIS node can
+    kads[0].providerManager.providedKeys.capacity = 2 # max keys node can store
     kads[1].providerManager.providerRecords.capacity = 1
-      # max provider records THIS node stores from others
+      # max provider records node stores from others
 
     await kads[0].startProviding(cid1)
 
@@ -405,8 +405,7 @@ suite "KadDHT - Add Provider":
     # Stop one receiver to simulate failure
     await kads[2].switch.stop()
     defer:
-      await kads[0].switch.stop()
-      await kads[1].switch.stop()
+      await stopNodes(@[kads[0], kads[1]])
 
     # Add provider should complete despite one peer failing
     await kads[0].addProvider(key.toCid())
