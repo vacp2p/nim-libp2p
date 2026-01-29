@@ -6,12 +6,8 @@
 import chronos, results
 import ../../../../libp2p/peerid
 import
-  ../../../../libp2p/protocols/pubsub/[
-    gossipsub/extension_partial_message,
-    gossipsub/partial_message,
-    gossipsub/extensions_types,
-    rpc/messages,
-  ]
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub/extension_partial_message, gossipsub/extensions_types, rpc/messages]
 import ../../../tools/[unittest]
 import ../utils
 
@@ -41,9 +37,6 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ) {.gcsafe, raises: [].} =
       discard
 
-    proc mergeMetadata(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].} =
-      return a
-
     let cfg = PartialMessageExtensionConfig(
       sendRPC: sendRPC,
       publishToPeers: publishToPeers,
@@ -51,7 +44,6 @@ suite "GossipSub Extensions :: Partial Message Extension":
       isRequestPartialByNode: isRequestPartialByNode,
       validateRPC: validateRPC,
       onIncomingRPC: onIncomingRPC,
-      mergeMetadata: mergeMetadata,
     )
     let ext = PartialMessageExtension.new(cfg)
 

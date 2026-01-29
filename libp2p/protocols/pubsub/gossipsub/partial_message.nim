@@ -18,7 +18,8 @@ type
     ## The data may represent a complete message, a partial message, or be empty.
     ## The encoding and structure of the parts are application-defined.
 
-  PartsMetadata* = seq[byte]
+  PartsMetadata* = object
+    data*: seq[byte]
     ## Opaque, encoded metadata describing PartialMessage.
     ##
     ## This metadata MAY describe:
@@ -39,6 +40,13 @@ type
     ##
     ## Implementations define how messages are partitioned into parts, how parts
     ## are encoded, and how availability and requests for parts are represented.
+
+converter toPartsMetadata*(data: seq[byte]): PartsMetadata =
+  PartsMetadata(data: data)
+
+method merge*(a, b: PartsMetadata): PartsMetadata {.base, gcsafe, raises: [].} =
+  ## Merges two PartsMetadata objects into single.
+  raiseAssert "merge: must be implemented"
 
 method groupId*(m: PartialMessage): GroupId {.base, gcsafe, raises: [].} =
   ## Returns the GroupId identifying the logical full message this instance

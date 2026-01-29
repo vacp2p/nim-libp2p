@@ -45,10 +45,6 @@ type
     # error for this message.
     # needs to be implemented by application.
 
-  MergeMetadataProc = proc(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].}
-    # implements logic for merging two PartsMetadata into one.
-    # needs to be implemented by application.
-
   PartialMessageExtensionConfig* = object
     # 
     # configuration set by node
@@ -58,7 +54,6 @@ type
     isRequestPartialByNode*: IsRequestPartialByNodeProc
 
     # configuration set by application
-    mergeMetadata*: MergeMetadataProc
     validateRPC*: ValidateRPCProc
     onIncomingRPC*: OnIncomingRPCProc
     heartbeatsTillEviction*: int
@@ -83,7 +78,6 @@ type
     publishToPeers: PublishToPeersProc
     isSupported: IsSupportedProc
     isRequestPartialByNode: IsRequestPartialByNodeProc
-    mergeMetadata: MergeMetadataProc
     validateRPC: ValidateRPCProc
     onIncomingRPC: OnIncomingRPCProc
     heartbeatsTillEviction: int
@@ -112,7 +106,6 @@ proc new*(
   doAssert(
     config.isRequestPartialByNode != nil, "config.isRequestPartialByNode must be set"
   )
-  doAssert(config.mergeMetadata != nil, "config.mergeMetadata must be set")
   doAssert(config.validateRPC != nil, "config.validateRPC must be set")
   doAssert(config.onIncomingRPC != nil, "config.onIncomingRPC must be set")
 
@@ -121,7 +114,6 @@ proc new*(
     publishToPeers: config.publishToPeers,
     isSupported: config.isSupported,
     isRequestPartialByNode: config.isRequestPartialByNode,
-    mergeMetadata: config.mergeMetadata,
     validateRPC: config.validateRPC,
     onIncomingRPC: config.onIncomingRPC,
     heartbeatsTillEviction:
@@ -227,8 +219,7 @@ proc handlePartialRPC(
   if rpc.partsMetadata.len > 0:
     var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
     var peerState = groupState.getPeerState(peerId)
-    peerState.partsMetadata =
-      ext.mergeMetadata(peerState.partsMetadata, rpc.partsMetadata)
+    peerState.partsMetadata = merge(peerState.partsMetadata, rpc.partsMetadata)
 
   ext.onIncomingRPC(peerId, rpc)
 
@@ -258,7 +249,7 @@ proc publishPartial*(
     # if partsMetada was changed, rpc sets new metadata 
     if peerState.sentPartsMetadata != msgPartsMetadata:
       hasChanges = true
-      rpc.partsMetadata = msgPartsMetadata
+      rpc.partsMetadata = msgPartsMetadata.data
       peerState.sentPartsMetadata = msgPartsMetadata
 
     # if peer has requested partial messages, attempt to fulfill any 
@@ -270,8 +261,7 @@ proc publishPartial*(
         # to avoid any error with future messages.
         peerState.partsMetadata = newSeq[byte](0)
       else:
-        peerState.partsMetadata =
-          ext.mergeMetadata(peerState.partsMetadata, msgPartsMetadata)
+        peerState.partsMetadata = merge(peerState.partsMetadata, msgPartsMetadata)
 
         let data = result.get()
         rpc.partialMessage = data

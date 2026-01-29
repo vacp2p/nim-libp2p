@@ -5,8 +5,7 @@
 
 import chronos, algorithm
 import
-  ../../../../libp2p/protocols/pubsub/
-    [gossipsub, gossipsub/extensions, gossipsub/partial_message, rpc/message]
+  ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
 import ../../../tools/unittest
 import ../utils
 
@@ -47,9 +46,6 @@ suite "GossipSub Component - Extensions":
     ) {.gcsafe, raises: [].} =
       discard
 
-    proc mergeMetadata(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].} =
-      return a
-
     let
       numberOfNodes = 2
       nodes = generateNodes(
@@ -57,9 +53,7 @@ suite "GossipSub Component - Extensions":
           gossip = true,
           partialMessageExtensionConfig = some(
             PartialMessageExtensionConfig(
-              validateRPC: validateRPC,
-              onIncomingRPC: onIncomingRPC,
-              mergeMetadata: mergeMetadata,
+              validateRPC: validateRPC, onIncomingRPC: onIncomingRPC
             )
           ),
         )
