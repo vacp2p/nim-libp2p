@@ -477,9 +477,13 @@ proc sendIDontWant(
   # cost a dishonest peer can incur in short time (since the IDONTWANT is
   # small).
 
-  # IDONTWANT is only supported by >= GossipSubCodec_12
   let peers = peersToSendIDontWant.filterIt(
-    it.codec != GossipSubCodec_10 and it.codec != GossipSubCodec_11
+    (it.codec != GossipSubCodec_10 and it.codec != GossipSubCodec_11) and
+      #
+      # IDONTWANT is only supported by >= GossipSubCodec_12
+    (not g.extensionsState.peerRequestsPartial(it.peerId, msg.topic))
+      #
+      # skip sending IDONTWANT if peer has requested partial for topic
   )
 
   g.broadcast(
@@ -1078,6 +1082,12 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
       cfgVar.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
         let peers = g.makePeersForPublishDefault(topic)
         return peers.mapIt(it.peerId)
+
+    if cfgVar.isRequestPartialByNode.isNil:
+      cfgVar.isRequestPartialByNode = proc(topic: string): bool {.gcsafe, raises: [].} =
+        g.topics.withValue(topic, topicData):
+          return topicData[].requestsPartial
+        return false
 
     g.parameters.partialMessageExtensionConfig = some(cfgVar)
 

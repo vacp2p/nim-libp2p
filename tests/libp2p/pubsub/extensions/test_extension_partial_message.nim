@@ -25,6 +25,9 @@ suite "GossipSub Extensions :: Partial Message Extension":
     proc publishToPeers(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
       return newSeq[PeerId]()
 
+    proc isRequestPartialByNode(topic: string): bool {.gcsafe, raises: [].} =
+      return false
+
     proc isSupportedCb(peer: PeerId): bool {.gcsafe, raises: [].} =
       return true
 
@@ -45,6 +48,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
       sendRPC: sendRPC,
       publishToPeers: publishToPeers,
       isSupported: isSupportedCb,
+      isRequestPartialByNode: isRequestPartialByNode,
       validateRPC: validateRPC,
       onIncomingRPC: onIncomingRPC,
       mergeMetadata: mergeMetadata,

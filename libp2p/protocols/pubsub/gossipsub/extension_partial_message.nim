@@ -20,6 +20,7 @@ type
     proc(rpc: PartialMessageExtensionRPC): Result[void, string] {.gcsafe, raises: [].}
   OnIncomingRPCProc =
     proc(peer: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
+  IsRequestPartialByNodeProc = proc(topic: string): bool {.gcsafe, raises: [].}
   PublishToPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
   IsSupportedProc = proc(peer: PeerId): bool {.gcsafe, raises: [].}
   MergeMetadataProc = proc(a, b: PartsMetadata): PartsMetadata {.gcsafe, raises: [].}
@@ -30,6 +31,7 @@ type
     sendRPC*: SendRPCProc
     publishToPeers*: PublishToPeersProc
     isSupported*: IsSupportedProc
+    isRequestPartialByNode*: IsRequestPartialByNodeProc
     # configuration set by user
     mergeMetadata*: MergeMetadataProc
     validateRPC*: ValidateRPCProc
@@ -55,6 +57,7 @@ type
     sendRPC: SendRPCProc
     publishToPeers: PublishToPeersProc
     isSupported: IsSupportedProc
+    isRequestPartialByNode: IsRequestPartialByNodeProc
     mergeMetadata: MergeMetadataProc
     validateRPC: ValidateRPCProc
     onIncomingRPC: OnIncomingRPCProc
@@ -81,6 +84,9 @@ proc new*(
   doAssert(config.sendRPC != nil, "config.sendRPC must be set")
   doAssert(config.publishToPeers != nil, "config.publishToPeers must be set")
   doAssert(config.isSupported != nil, "config.isSupported must be set")
+  doAssert(
+    config.isRequestPartialByNode != nil, "config.isRequestPartialByNode must be set"
+  )
   doAssert(config.mergeMetadata != nil, "config.mergeMetadata must be set")
   doAssert(config.validateRPC != nil, "config.validateRPC must be set")
   doAssert(config.onIncomingRPC != nil, "config.onIncomingRPC must be set")
@@ -89,6 +95,7 @@ proc new*(
     sendRPC: config.sendRPC,
     publishToPeers: config.publishToPeers,
     isSupported: config.isSupported,
+    isRequestPartialByNode: config.isRequestPartialByNode,
     mergeMetadata: config.mergeMetadata,
     validateRPC: config.validateRPC,
     onIncomingRPC: config.onIncomingRPC,
@@ -132,6 +139,10 @@ proc gossipThePartsMetadata(ext: PartialMessageExtension) =
   # TODO: `partsMetadata` can be used during heartbeat gossip to inform non-mesh topic
   # peers about parts this node has.
   discard
+
+proc peerRequestsPartial*(ext: PartialMessageExtension, peerId: PeerId, topic: string): bool = 
+  let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(peerId, topic))
+  return peerSubOpt.requestsPartial
 
 method isSupported*(
     ext: PartialMessageExtension, pe: PeerExtensions
@@ -257,13 +268,10 @@ proc publishPartial*(
       # 1) peer requested partial for topic (peer wants to receive partial message)
       publishPartialToPeer(p, true)
       publishedToCount.inc
-    elif peerSubOpt.supportsSendingPartial:
+    elif peerSubOpt.supportsSendingPartial and ext.isRequestPartialByNode(topic):
       # 2) peer supports sending partial for topic and
       # this node wants to receive partial message for this topic.
-
-      let nodeRequestedPartial = false # TODO
-      if nodeRequestedPartial:
-        publishPartialToPeer(p, false)
-        publishedToCount.inc
+      publishPartialToPeer(p, false)
+      publishedToCount.inc
 
   return publishedToCount

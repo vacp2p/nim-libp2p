@@ -142,4 +142,13 @@ proc publishPartial*(state: ExtensionsState, topic: string, pm: PartialMessage):
   state.partialMessageExtension.withValue(e):
     return e.publishPartial(topic, pm)
   else:
+    # fails becasue this proc is called by user
     raiseAssert "partial message extension is not configured"
+
+proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string): bool = 
+  state.partialMessageExtension.withValue(e):
+    return e.peerRequestsPartial(peerId, topic)
+  else:
+    # should not fail becasue this is called whenever IDONTWANT is being sent.
+    # so when extension is not configured it should return false.
+    return false
