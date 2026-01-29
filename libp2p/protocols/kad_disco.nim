@@ -18,11 +18,6 @@ proc refreshSearchTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
 
   return
 
-proc refreshAdvertiseTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
-  #TODO fix this
-
-  return
-
 proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: []).} =
   let updateRes = catch:
     await disco.switch.peerInfo.update()
@@ -68,12 +63,6 @@ proc maintainSearchTables(
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh search tables", disco.config.bucketRefreshTime:
     await disco.refreshSearchTables()
-
-proc maintainAdvertiseTables(
-    disco: KademliaDiscovery
-) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh advertise tables", disco.config.bucketRefreshTime:
-    await disco.refreshAdvertiseTables()
 
 proc new*(
     T: typedesc[KademliaDiscovery],
@@ -160,7 +149,7 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
 
   disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
   disco.discovererLoop = disco.maintainSearchTables()
-  disco.advertiserLoop = disco.maintainAdvertiseTables()
+  disco.advertiserLoop = disco.runAdvertiserLoop()
 
   await procCall start(KadDHT(disco))
 
