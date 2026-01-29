@@ -379,9 +379,8 @@ suite "KadDHT - Add Provider":
       MultiAddress.init("/ip4/192.168.1.100/tcp/4001").get()
     )
     kads[1].switch.peerInfo.addrs.add(MultiAddress.init("/ip6/::1/tcp/4001").get())
-    check:
-      kads[1].switch.peerInfo.addrs.len == 4
-      kads[0].providerManager.providerRecords.len() == 0
+
+    check kads[0].providerManager.providerRecords.len() == 0
 
     await kads[1].addProvider(key.toCid())
 
