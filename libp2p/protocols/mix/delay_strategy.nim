@@ -67,7 +67,7 @@ method computeDelay*(
     return err("RNG is nil")
   let randVal = rng[].generate(uint64)
   let u = (float64(randVal) + 1.0) / (float64(high(uint64)) + 1.0)
-  let delay = -float64(meanDelayMs) * ln(u)
+  let delay = abs(float64(meanDelayMs) * ln(u))
   ok(min(delay, float64(high(uint16))).uint16)
 
 proc defaultDelayStrategy*(): DelayStrategy =
