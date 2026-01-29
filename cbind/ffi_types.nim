@@ -79,6 +79,7 @@ const Libp2pCfgKad* = 1'u32 shl 2
 const Libp2pCfgDnsResolver* = 1'u32 shl 3
 const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 4
 const Libp2pCfgPrivateKey* = 1'u32 shl 5
+const Libp2pCfgMix* = 1'u32 shl 5
 
 type Libp2pBootstrapNode* = object
   peerId*: cstring
@@ -90,6 +91,10 @@ type Libp2pConfig* = object
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
   mountKad*: cint
+  mountMix*: cint
+  mixIndex*: cint
+  mixNodesLen*: cint
+  mixNodeInfoPath*: cstring
   dnsResolver*: cstring
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
@@ -99,6 +104,10 @@ type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
   RET_ERR = 1
   RET_MISSING_CALLBACK = 2
+
+type MixReadBehaviorKind* {.size: sizeof(cint).} = enum
+  MIX_READ_EXACTLY = 0
+  MIX_READ_LP = 1
 
 ### End of exported types
 ################################################################################

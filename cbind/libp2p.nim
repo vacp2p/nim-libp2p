@@ -438,6 +438,71 @@ proc libp2p_dial(
 
   return RET_OK.cint
 
+proc libp2p_mix_dial(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    multiaddr: cstring,
+    proto: cstring,
+    callback: ConnectionCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil() or multiaddr.isNil() or proto.isNil():
+    let msg = "peerId, multiaddr, or proto is nil"
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.MIX_DIAL, peerId = peerId, multiaddr = multiaddr, proto = proto
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_mix_register_dest_read_behavior(
+    ctx: ptr LibP2PContext,
+    proto: cstring,
+    behavior: MixReadBehaviorKind,
+    sizeParam: cuint,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if proto.isNil():
+    let msg = "proto is nil"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.MIX_REGISTER_DEST_READ,
+      proto = proto,
+      mixReadBehaviorKind = behavior.cint,
+      mixReadBehaviorParam = sizeParam.cint,
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
 proc libp2p_stream_readExactly(
     ctx: ptr LibP2PContext,
     conn: ptr Libp2pStream,

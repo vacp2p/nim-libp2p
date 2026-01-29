@@ -17,6 +17,7 @@ import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
 import ../../../../libp2p/protocols/ping
+import ../../../../libp2p/protocols/mix
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -36,6 +37,10 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     mountGossipsub: 1,
     gossipsubTriggerSelf: 1,
     mountKad: 1,
+    mountMix: 0,
+    mixIndex: 0,
+    mixNodesLen: 0,
+    mixNodeInfoPath: ".".cstring,
     dnsResolver: DefaultDnsResolver.cstring,
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
@@ -51,6 +56,12 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     resolved.gossipsubTriggerSelf = config[].gossipsubTriggerSelf
   if (flags and Libp2pCfgKad) != 0'u32:
     resolved.mountKad = config[].mountKad
+  if (flags and Libp2pCfgMix) != 0'u32:
+    resolved.mountMix = config[].mountMix
+    resolved.mixIndex = config[].mixIndex
+    resolved.mixNodesLen = config[].mixNodesLen
+    if not config[].mixNodeInfoPath.isNil() and config[].mixNodeInfoPath[0] != '\0':
+      resolved.mixNodeInfoPath = config[].mixNodeInfoPath
   if (flags and Libp2pCfgDnsResolver) != 0'u32:
     if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
       resolved.dnsResolver = config[].dnsResolver
@@ -130,10 +141,26 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     switch.mount(k)
     kad = Opt.some(k)
 
+  var mix = Opt.none(MixProtocol)
+  if config.mountMix != 0:
+    if config.mixNodesLen <= 0:
+      raise newException(LPError, "failed to create mix protocol: not enough mix nodes")
+    let mixProto =
+      MixProtocol.new(
+        config.mixIndex.int,
+        config.mixNodesLen.int,
+        switch,
+        nodeFolderInfoPath = $config.mixNodeInfoPath,
+      ).valueOr:
+        raise newException(LPError, "failed to create mix protocol: " & error)
+    switch.mount(mixProto)
+    mix = Opt.some(mixProto)
+
   LibP2P(
     switch: switch,
     gossipSub: gossipSub,
     kad: kad,
+    mix: mix,
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
   )
@@ -151,6 +178,7 @@ proc createShared*(
   ret[].appCallbacks = appCallbacks
   ret[].config = applyConfigDefaults(config)
   ret[].config.dnsResolver = ret[].config.dnsResolver.alloc()
+  ret[].config.mixNodeInfoPath = ret[].config.mixNodeInfoPath.alloc()
   ret[].config.kadBootstrapNodes = nil
   ret[].config.kadBootstrapNodesLen = 0
   if not config.isNil() and (config[].flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
@@ -183,6 +211,8 @@ proc destroyShared(self: ptr LifecycleRequest) =
   # TODO: Deallocate parameters of GC'd types from the shared memory
   if not self[].config.dnsResolver.isNil():
     deallocShared(self[].config.dnsResolver)
+  if not self[].config.mixNodeInfoPath.isNil():
+    deallocShared(self[].config.mixNodeInfoPath)
   if not self[].config.kadBootstrapNodes.isNil():
     let nodes =
       cast[ptr UncheckedArray[Libp2pBootstrapNode]](self[].config.kadBootstrapNodes)
@@ -209,6 +239,10 @@ proc process*(
       return err("could not create libp2p node: " & $exc.msg)
     except LPError as exc:
       return err("could not create libp2p node: " & $exc.msg)
+    except OSError as exc:
+      return err("could not create libp2p node: " & exc.msg)
+    except IOError as exc:
+      return err("could not create libp2p node: " & exc.msg)
   of START_NODE:
     try:
       await libp2p.switch.start()

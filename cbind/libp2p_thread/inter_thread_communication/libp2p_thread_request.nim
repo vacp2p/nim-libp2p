@@ -281,6 +281,10 @@ proc processStream(
   case req[].operation
   of StreamMsgType.DIAL:
     handleConnectionRes(await req.processDial(libp2p), request)
+  of StreamMsgType.MIX_DIAL:
+    handleConnectionRes(await req.processMixDial(libp2p), request)
+  of StreamMsgType.MIX_REGISTER_DEST_READ:
+    handleRes(await req.processMixRegisterDestRead(libp2p), request)
   of StreamMsgType.CLOSE, StreamMsgType.CLOSE_WITH_EOF:
     handleRes(await req.processClose(libp2p), request)
   of StreamMsgType.RELEASE:
