@@ -97,6 +97,10 @@ let conn = mixProto.toConnection(
   ).expect("should build connection")
 ```
 
+## Example
+
+A complete working example demonstrating the Mix protocol with Ping can be found at [examples/mix_ping.nim](../examples/mix_ping.nim).
+
 ## RFC and Further Reading
 
 For a detailed technical specification and discussion, please refer to the [Mix Protocol RFC](https://rfc.vac.dev/vac/raw/mix/).
