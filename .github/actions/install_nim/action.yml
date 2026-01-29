@@ -72,7 +72,7 @@ runs:
         steps.windows-dlls-cache.outputs.cache-hit != 'true' &&
         inputs.os == 'Windows'
       run: |
-        mkdir external
+        mkdir -p external
         curl -L "https://nim-lang.org/download/windeps.zip" -o external/windeps.zip
         7z x external/windeps.zip -oexternal/dlls
 

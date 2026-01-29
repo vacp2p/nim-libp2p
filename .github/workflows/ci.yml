@@ -50,7 +50,7 @@ jobs:
           - platform:
               os: windows
             builder: windows-2022
-            shell: msys2 {0}
+            shell: bash
 
     defaults:
       run:
@@ -81,15 +81,25 @@ jobs:
           # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
           key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
-      - name: Install runtime deps (windows)
-        if: ${{ matrix.platform.os == 'windows'}}
+      - name: Restore llvm-mingw (Windows) from cache
+        if: runner.os == 'Windows'
+        id: windows-mingw-cache
+        uses: actions/cache@v4
+        with:
+          path: external/mingw-${{ matrix.platform.cpu }}
+          key: 'mingw-llvm-17-${{ matrix.platform.cpu }}'
+
+      - name: Install llvm-mingw dependency (Windows)
+        if: >
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows'
         run: |
-          pacman -S --noconfirm base-devel gcc nasm
-          
-      - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
-        run: |
-          nimble install_pinned
+          mkdir -p external
+          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
+          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
+          curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.platform.cpu }}.zip"
+          7z x -y "external/mingw-${{ matrix.platform.cpu }}.zip" -oexternal/mingw-${{ matrix.platform.cpu }}/
+          mv external/mingw-${{ matrix.platform.cpu }}/**/* ./external/mingw-${{ matrix.platform.cpu }}
 
       - name: Use gcc 14
         if: ${{ matrix.platform.os == 'linux-gcc-14'}}
@@ -100,6 +110,25 @@ jobs:
           # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows'
+        run: |
+          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.platform.cpu }}/bin" >> $GITHUB_PATH
+          echo "." >> $GITHUB_PATH
+
+      - name: Install nasm (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --no-progress -y
+          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
       - name: Run tests
         id: run-tests
         run: |
@@ -107,7 +136,11 @@ jobs:
           nimble --version
           gcc --version
 
-          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}" 
+          export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+
+          if [[ '${{ runner.os }}' == 'Windows' ]]; then
+            export NIMFLAGS="${NIMFLAGS} --cc:clang"
+          fi
           nimble test
 
       - name: Fix xml newlines
