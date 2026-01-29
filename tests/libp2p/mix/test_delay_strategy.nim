@@ -3,7 +3,7 @@
 
 {.used.}
 
-import std/sequtils
+import std/[sets]
 import ../../../libp2p/crypto/crypto
 import ../../../libp2p/protocols/mix/delay_strategy
 import ../../tools/[unittest, crypto]
@@ -13,54 +13,50 @@ const
   NumSamples = 10
   Tolerance = 0.2 # 20% tolerance for statistical tests
 
-suite "delay_strategy_tests":
-  test "NoSamplingDelayStrategy generateDelay returns values in [0, 2]":
+suite "DelayStrategy":
+  test "NoSamplingDelayStrategy generateForEntry returns values in [0, 2]":
     let
-      strategy = NoSamplingDelayStrategy.new()
       rng = rng()
+      strategy = NoSamplingDelayStrategy.new(rng)
 
     for _ in 0 ..< NumIterations:
-      let delay = strategy.generateDelay(rng).valueOr:
+      let delay = strategy.generateForEntry().valueOr:
         raiseAssert error
       check delay <= 2
 
-  test "NoSamplingDelayStrategy computeDelay returns encoded value":
+  test "NoSamplingDelayStrategy generateForIntermediate returns encoded value":
     let
-      strategy = NoSamplingDelayStrategy.new()
       rng = rng()
+      strategy = NoSamplingDelayStrategy.new(rng)
 
     check:
-      strategy.computeDelay(rng, 100).get() == 100
-      strategy.computeDelay(rng, 200).get() == 200
+      strategy.generateForIntermediate(100) == 100
+      strategy.generateForIntermediate(200) == 200
 
-  test "ExponentialDelayStrategy generateDelay returns configured mean":
+  test "ExponentialDelayStrategy generateForEntry returns configured mean":
     let rng = rng()
 
     check:
-      ExponentialDelayStrategy.new(50).generateDelay(rng).get() == 50
-      ExponentialDelayStrategy.new(100).generateDelay(rng).get() == 100
+      ExponentialDelayStrategy.new(50, rng).generateForEntry().get() == 50
+      ExponentialDelayStrategy.new(100, rng).generateForEntry().get() == 100
 
-  test "ExponentialDelayStrategy computeDelay returns 0 for mean 0":
+  test "ExponentialDelayStrategy generateForIntermediate returns 0 for mean 0":
     let
-      strategy = ExponentialDelayStrategy.new()
+      strategy = ExponentialDelayStrategy.new(0, rng)
       rng = rng()
 
-    check strategy.computeDelay(rng, 0).get() == 0
+    check strategy.generateForIntermediate(0) == 0
 
-  test "ExponentialDelayStrategy computeDelay samples from exponential distribution":
+  test "ExponentialDelayStrategy generateForIntermediate samples from exponential distribution":
     let
-      strategy = ExponentialDelayStrategy.new()
       rng = rng()
+      strategy = ExponentialDelayStrategy.new(100, rng)
       meanDelayMs: uint16 = 100
       numSamples = 1000
-
-    var
-      sum: float64 = 0
-      samples: seq[uint16] = @[]
+    var sum: float64 = 0
 
     for _ in 0 ..< numSamples:
-      let delay = strategy.computeDelay(rng, meanDelayMs).get()
-      samples.add(delay)
+      let delay = strategy.generateForIntermediate(meanDelayMs)
       sum += float64(delay)
 
     let empiricalMean = sum / float64(numSamples)
@@ -71,13 +67,13 @@ suite "delay_strategy_tests":
 
   test "ExponentialDelayStrategy produces variable delays":
     let
-      strategy = ExponentialDelayStrategy.new()
       rng = rng()
+      strategy = ExponentialDelayStrategy.new(100, rng)
       meanDelayMs: uint16 = 100
 
-    var delays: seq[uint16] = @[]
+    var delays = initHashSet[uint16]()
     for _ in 0 ..< NumSamples:
-      let delay = strategy.computeDelay(rng, meanDelayMs).get()
-      delays.add(delay)
+      let delay = strategy.generateForIntermediate(meanDelayMs)
+      delays.incl(delay)
 
-    check delays.anyIt(it != delays[0])
+    check delays.len > NumSamples div 2

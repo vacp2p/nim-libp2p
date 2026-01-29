@@ -8,38 +8,38 @@ import bearssl/rand
 import ../../crypto/crypto
 
 type DelayStrategy* = ref object of RootObj ## Abstract interface for delay strategies.
+  rng: ref HmacDrbgContext
 
 import results
 
-method generateDelay*(
-    self: DelayStrategy, rng: ref HmacDrbgContext
+method generateForEntry*(
+    self: DelayStrategy
 ): Result[uint16, string] {.base, gcsafe, raises: [].} =
-  ## Generate delay value to encode in packet (called by sender).
-  raiseAssert "generateDelay must be implemented by concrete delay strategy types"
+  ## Generate delay value to encode in packet (called by sender/entry node).
 
-method computeDelay*(
-    self: DelayStrategy, rng: ref HmacDrbgContext, encodedDelayMs: uint16
-): Result[uint16, string] {.base, gcsafe, raises: [].} =
-  ## Compute actual delay from encoded value (called by intermediate node).
-  raiseAssert "computeDelay must be implemented by concrete delay strategy types"
+method generateForIntermediate*(
+    self: DelayStrategy, encodedDelayMs: uint16
+): uint16 {.base, gcsafe, raises: [].} =
+  ## Generate actual delay from encoded value (called by intermediate node).
+  ## implementation should return some default value in case of errors
 
 type NoSamplingDelayStrategy* = ref object of DelayStrategy
   ## Default strategy: generates random delays [0-2]ms, uses them directly.
 
-proc new*(T: typedesc[NoSamplingDelayStrategy]): T =
-  T()
+proc new*(T: typedesc[NoSamplingDelayStrategy], rng: ref HmacDrbgContext): T =
+  T(rng: rng)
 
-method generateDelay*(
-    self: NoSamplingDelayStrategy, rng: ref HmacDrbgContext
+method generateForEntry*(
+    self: NoSamplingDelayStrategy
 ): Result[uint16, string] {.gcsafe, raises: [].} =
-  if rng.isNil:
+  if self.rng.isNil:
     return err("RNG is nil")
-  ok((rng[].generate(uint64) mod 3).uint16)
+  ok((self.rng[].generate(uint64) mod 3).uint16)
 
-method computeDelay*(
-    self: NoSamplingDelayStrategy, rng: ref HmacDrbgContext, encodedDelayMs: uint16
-): Result[uint16, string] {.gcsafe, raises: [].} =
-  ok(encodedDelayMs)
+method generateForIntermediate*(
+    self: NoSamplingDelayStrategy, encodedDelayMs: uint16
+): uint16 {.gcsafe, raises: [].} =
+  encodedDelayMs
 
 const DefaultMeanDelayMs* = 100
 
@@ -48,34 +48,33 @@ type ExponentialDelayStrategy* = ref object of DelayStrategy
   meanDelayMs: uint16
 
 proc new*(
-    T: typedesc[ExponentialDelayStrategy], meanDelayMs: uint16 = DefaultMeanDelayMs
+    T: typedesc[ExponentialDelayStrategy],
+    meanDelayMs: uint16 = DefaultMeanDelayMs,
+    rng: ref HmacDrbgContext,
 ): T =
-  T(meanDelayMs: meanDelayMs)
+  T(meanDelayMs: meanDelayMs, rng: rng)
 
-method generateDelay*(
-    self: ExponentialDelayStrategy, rng: ref HmacDrbgContext
+method generateForEntry*(
+    self: ExponentialDelayStrategy
 ): Result[uint16, string] {.gcsafe, raises: [].} =
   ok(self.meanDelayMs)
 
-method computeDelay*(
-    self: ExponentialDelayStrategy, rng: ref HmacDrbgContext, meanDelayMs: uint16
-): Result[uint16, string] {.gcsafe, raises: [].} =
+method generateForIntermediate*(
+    self: ExponentialDelayStrategy, meanDelayMs: uint16
+): uint16 {.gcsafe, raises: [].} =
   ## Samples from exponential distribution: delay = -mean * ln(U)
+  ## Fall back to no delay in case of errors
   if meanDelayMs == 0:
-    return ok(0u16)
-  if rng.isNil:
-    return err("RNG is nil")
-  let randVal = rng[].generate(uint64)
+    return 0u16
+  if self.rng.isNil:
+    return 0u16
+  let randVal = self.rng[].generate(uint64)
   let u = (float64(randVal) + 1.0) / (float64(high(uint64)) + 1.0)
-  let delay = abs(float64(meanDelayMs) * ln(u))
-  ok(min(delay, float64(high(uint16))).uint16)
-
-proc defaultDelayStrategy*(): DelayStrategy =
-  ## Returns NoSamplingDelayStrategy (backward compatible).
-  NoSamplingDelayStrategy.new()
+  let delay = -float64(meanDelayMs) * ln(u)
+  min(delay, float64(high(uint16))).uint16
 
 proc exponentialDelayStrategy*(
-    meanDelayMs: uint16 = DefaultMeanDelayMs
+    meanDelayMs: uint16 = DefaultMeanDelayMs, rng: ref HmacDrbgContext
 ): DelayStrategy =
   ## Returns ExponentialDelayStrategy (recommended per spec).
-  ExponentialDelayStrategy.new(meanDelayMs)
+  ExponentialDelayStrategy.new(meanDelayMs, rng)

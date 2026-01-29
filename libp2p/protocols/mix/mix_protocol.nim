@@ -368,12 +368,7 @@ proc handleMixMessages(
     trace "Intermediate node processing",
       peerId = mixProto.mixNodeInfo.peerId, multiAddr = mixProto.mixNodeInfo.multiAddr
     mix_messages_recvd.inc(labelValues = ["Intermediate"])
-    let actualDelayMs = mixProto.delayStrategy.computeDelay(
-      mixProto.rng, processedSP.delayMs.uint16
-    ).valueOr:
-      trace "Failed to compute delay", err = error
-      mix_messages_error.inc(labelValues = ["Intermediate", "NON_RECOVERABLE"])
-      return
+    let actualDelayMs = mixProto.delayStrategy.generateForIntermediate(processedSP.delayMs.uint16)
     trace "Computed delay", encodedDelayMs = processedSP.delayMs, actualDelayMs
     await sleepAsync(milliseconds(actualDelayMs.int))
 
@@ -482,7 +477,7 @@ proc buildSurb(
         availableIndices.del(randomIndexPosition)
         debug "Selected mix node for surbs: ", indexInPath = i, peerId = randPeerId
         let mixPubInfo = mixProto.pubNodeInfo.getOrDefault(randPeerId)
-        let delayMillisec = mixProto.delayStrategy.generateDelay(mixProto.rng).valueOr:
+        let delayMillisec = mixProto.delayStrategy.generateForEntry().valueOr:
           mix_messages_error.inc(labelValues = ["Entry/SURB", "NON_RECOVERABLE"])
           return err("failed to generate delay: " & error)
         (mixPubInfo.peerId, mixPubInfo.multiAddr, mixPubInfo.mixPubKey, delayMillisec)
@@ -747,7 +742,7 @@ proc anonymizeLocalProtocolSend*(
 
     let delayMillisec =
       if hop.len != PathLength - 1:
-        mixProto.delayStrategy.generateDelay(mixProto.rng).valueOr:
+        mixProto.delayStrategy.generateForEntry().valueOr:
           mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
           return err("failed to generate delay: " & error)
       else:
@@ -812,7 +807,7 @@ proc init*(
     tagManager: TagManager = TagManager.new(),
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
-    delayStrategy: DelayStrategy = defaultDelayStrategy(),
+    delayStrategy: DelayStrategy,
 ) =
   mixProto.mixNodeInfo = mixNodeInfo
   mixProto.pubNodeInfo = pubNodeInfo
@@ -847,11 +842,16 @@ proc new*(
     tagManager: TagManager = TagManager.new(),
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
-    delayStrategy: DelayStrategy = defaultDelayStrategy(),
+    delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ): T =
+  let actualDelayStrategy =
+    if delayStrategy.isSome:
+      delayStrategy.get
+    else:
+      NoSamplingDelayStrategy.new(rng)
   let mixProto = new(T)
   mixProto.init(
-    mixNodeInfo, pubNodeInfo, switch, tagManager, rng, spamProtection, delayStrategy
+    mixNodeInfo, pubNodeInfo, switch, tagManager, rng, spamProtection, actualDelayStrategy
   )
   mixProto
 
@@ -862,7 +862,7 @@ proc new*(
     nodeFolderInfoPath: string = ".",
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
-    delayStrategy: DelayStrategy = defaultDelayStrategy(),
+    delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ): Result[T, string] =
   ## Constructs a new `MixProtocol` instance for the mix node at `index`,
   ## loading its private info from `nodeInfo` and the public info of all other nodes from `pubInfo`.
