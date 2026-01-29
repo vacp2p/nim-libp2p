@@ -942,6 +942,12 @@ method publish*(
     else:
       g.makePeersForPublishDefault(topic, data)
 
+  peers = peers.filterIt(
+    (not g.extensionsState.peerRequestsPartial(it.peerId, topic))
+      #
+      # skip sending *full message* if peer has requested partial for topic
+  )
+
   if peers.len == 0:
     let topicPeers = g.gossipsub.getOrDefault(topic).toSeq()
     debug "No peers for topic, skipping publish",
