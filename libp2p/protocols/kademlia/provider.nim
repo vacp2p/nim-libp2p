@@ -97,9 +97,9 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
     raiseAssert("checked with hasKey")
 
 proc dispatchAddProvider(
-    switch: Switch, peer: PeerId, key: Key
+    switch: Switch, peer: PeerId, key: Key, codec: string
 ) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], KadCodec)
+  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
   defer:
     await conn.close()
 
@@ -115,7 +115,7 @@ proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gc
 
   let peers = await kad.findNode(key)
   for chunk in peers.toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchAddProvider(it, key))
+    let rpcBatch = chunk.mapIt(kad.switch.dispatchAddProvider(it, key, kad.codec))
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
     except AsyncTimeoutError:
@@ -180,7 +180,7 @@ proc dispatchGetProviders*(
     async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
 .} =
   let conn =
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], KadCodec)
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
   defer:
     await conn.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
