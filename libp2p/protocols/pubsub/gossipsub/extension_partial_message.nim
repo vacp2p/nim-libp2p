@@ -140,7 +140,9 @@ proc gossipThePartsMetadata(ext: PartialMessageExtension) =
   # peers about parts this node has.
   discard
 
-proc peerRequestsPartial*(ext: PartialMessageExtension, peerId: PeerId, topic: string): bool = 
+proc peerRequestsPartial*(
+    ext: PartialMessageExtension, peerId: PeerId, topic: string
+): bool =
   let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(peerId, topic))
   return peerSubOpt.requestsPartial
 

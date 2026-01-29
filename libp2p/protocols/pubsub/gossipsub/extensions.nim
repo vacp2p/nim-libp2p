@@ -145,7 +145,7 @@ proc publishPartial*(state: ExtensionsState, topic: string, pm: PartialMessage):
     # fails becasue this proc is called by user
     raiseAssert "partial message extension is not configured"
 
-proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string): bool = 
+proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string): bool =
   state.partialMessageExtension.withValue(e):
     return e.peerRequestsPartial(peerId, topic)
   else:
