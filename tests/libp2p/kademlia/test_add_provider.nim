@@ -364,3 +364,54 @@ suite "KadDHT - Add Provider":
       receiverKad.providerManager.providerRecords[0].provider.id ==
         senderKad.switch.peerInfo.peerId.getBytes()
       receiverKad.providerManager.providerRecords[0].provider.addrs.len() == 0
+
+  asyncTest "Add provider includes local multiaddresses":
+    let kads = await setupKadSwitches(2)
+    defer:
+      await stopNodes(kads)
+
+    connectNodes(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
+
+    # Inject additional multiaddresses to verify all are included
+    kads[1].switch.peerInfo.addrs.add(
+      MultiAddress.init("/ip4/192.168.1.100/tcp/4001").get()
+    )
+    kads[1].switch.peerInfo.addrs.add(MultiAddress.init("/ip6/::1/tcp/4001").get())
+    check:
+      kads[1].switch.peerInfo.addrs.len == 4
+      kads[0].providerManager.providerRecords.len() == 0
+
+    await kads[1].addProvider(key.toCid())
+
+    # Verify provider record includes sender's multiaddresses
+    checkUntilTimeout:
+      kads[0].providerManager.providerRecords.len() == 1
+
+    let storedProvider = kads[0].providerManager.providerRecords[0].provider
+    check:
+      storedProvider.id == kads[1].rtable.selfId
+      storedProvider.addrs == kads[1].switch.peerInfo.addrs
+
+  asyncTest "Add provider completes when some peers fail":
+    let kads = await setupKadSwitches(3)
+
+    # Setup: kads[0] is sender, kads[1] and kads[2] are potential receivers
+    connectNodesHub(kads[0], kads[1 ..^ 1])
+
+    let key = kads[0].rtable.selfId
+
+    # Stop one receiver to simulate failure
+    await kads[2].switch.stop()
+    defer:
+      await kads[0].switch.stop()
+      await kads[1].switch.stop()
+
+    # Add provider should complete despite one peer failing
+    await kads[0].addProvider(key.toCid())
+
+    # Verify provider was stored at the successful receiver
+    checkUntilTimeout:
+      kads[1].providerManager.providerRecords.len() == 1
+      kads[1].providerManager.providerRecords[0].provider.id == kads[0].rtable.selfId
