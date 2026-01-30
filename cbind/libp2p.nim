@@ -201,10 +201,7 @@ proc newPrivateKey*(scheme: PrivateKeyScheme): Libp2pPrivateKey {.cdecl.} =
 
   case scheme
   of PrivateKeyScheme.RSA:
-    key = PrivateKey(
-      scheme: scheme,
-      rsakey: generateRsaKey()
-    )
+    key = PrivateKey(scheme: scheme, rsakey: generateRsaKey())
   of PrivateKeyScheme.Ed25519:
     key = PrivateKey(
       scheme: scheme,
