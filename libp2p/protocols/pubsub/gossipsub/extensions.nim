@@ -124,7 +124,7 @@ proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   if rpc.control.isSome() and rpc.control.get().extensions.isSome():
     if state.peerExtensions.hasKey(peerId):
       # peer is sending control message again but this node has already received extensions.
-      # this is protocol error, therfore nodes reports missbehaviour.
+      # this is protocol error, therfore nodes reports misbehaviour.
       state.onMissbehave(peerId)
     else:
       # peer is sending extensions control message for the first time
