@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -7,7 +7,7 @@ import chronicles, chronos, std/[sequtils, enumerate]
 import ../../../libp2p/[switch, builders]
 import ../../../libp2p/protocols/[kademlia, kad_disco]
 import ../../tools/[unittest]
-import ./utils.nim
+import ../capability_discovery/utils
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 

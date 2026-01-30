@@ -4,7 +4,7 @@
 
 import results
 import ../../../libp2p/[multiaddress, peerid, protobuf/minprotobuf, crypto/crypto]
-import ../../../libp2p/protocols/kademlia_discovery/[types, protobuf]
+import ../../../libp2p/protocols/capability_discovery/[types, protobuf]
 import ../../tools/[unittest, crypto]
 import ./utils.nim
 

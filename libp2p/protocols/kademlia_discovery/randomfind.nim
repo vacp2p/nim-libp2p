@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[sequtils, sets]
 import chronos, chronicles, results
@@ -37,40 +37,6 @@ proc randomRecords*(
     let msgOpt = res.valueOr:
       error "kad getValue failed", error = res.error.msg
       continue
-
-    let reply = msgOpt.valueOr:
-      continue
-
-    let record = reply.record.valueOr:
-      continue
-
-    let buffer = record.value.valueOr:
-      continue
-
-    buffers.add(buffer)
-
-  var records: seq[ExtendedPeerRecord]
-  for buffer in buffers:
-    let sxpr = SignedExtendedPeerRecord.decode(buffer).valueOr:
-      debug "cannot decode signed extended peer record", error
-      continue
-
-    records.add(sxpr.data)
-
-  return records
-
-proc filterByServices*(
-    records: seq[ExtendedPeerRecord], services: HashSet[ServiceInfo]
-): seq[ExtendedPeerRecord] =
-  records.filterIt(it.services.anyIt(services.contains(it)))
-
-proc lookup*(
-    disco: KademliaDiscovery, service: ServiceInfo
-): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  let records = await disco.randomRecords()
-
-  return records.filterByServices(@[service].toHashSet())
-  let peerIds = await disco.findNode(randomKey)
 
     let reply = msgOpt.valueOr:
       continue
