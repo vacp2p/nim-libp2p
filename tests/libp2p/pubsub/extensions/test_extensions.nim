@@ -16,7 +16,7 @@ suite "GossipSub Extensions :: State":
   let peerId = PeerId.random(rng).get()
 
   test "default unconfigured state":
-    # test does not assert anything explictly, but it should not crash
+    # test does not assert anything explicitly, but it should not crash
     # when unconfigured state is used
     var state = ExtensionsState.new()
     state.handleRPC(peerId, RPCMsg())
