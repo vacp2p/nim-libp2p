@@ -12,6 +12,8 @@ export routingtable, protobuf, types, find, get, put, provider, ping
 logScope:
   topics = "kad-dht"
 
+const KadCodec = "/ipfs/kad/1.0.0"
+
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =

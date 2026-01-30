@@ -235,3 +235,27 @@ suite "KadDHT Iterative Lookup":
     # peer1 exceeds retries — excluded
     state.attempts[peer1] = maxRetries + 1
     check peer1 notin state.selectCloserPeers(10)
+
+  test "updateShortlist handles response with more than k peers":
+    let kad = setupKad()
+    kad.config.replication = 3 # small k for testing
+
+    let targetKey = randomPeerId().toKey()
+    var state = LookupState.init(kad, targetKey)
+    let initialSize = state.shortlist.len
+
+    # Create message with 10 peers (more than k=3)
+    var peers: seq[Peer]
+    for i in 0 ..< 10:
+      peers.add(Peer(id: randomPeerId().toKey(), addrs: @[]))
+
+    let msg = Message(msgType: MessageType.findNode, closerPeers: peers)
+    let added = state.updateShortlist(msg)
+
+    check:
+      # All 10 peers added to shortlist (not capped at k)
+      added.len == peers.len
+      state.shortlist.len == initialSize + peers.len
+
+      # But selectCloserPeers only returns k=3
+      state.selectCloserPeers(kad.config.replication).len == kad.config.replication

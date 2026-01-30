@@ -124,7 +124,7 @@ proc dispatchFindNode*(
     async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
 .} =
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
-  let conn = await kad.switch.dial(peer, addrs, KadCodec)
+  let conn = await kad.switch.dial(peer, addrs, kad.codec)
   defer:
     await conn.close()
 

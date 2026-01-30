@@ -129,7 +129,7 @@ suite "KadDHT Put":
 
     # Send directly via handlePutValue to test the validation logic
     let conn = await kads[1].switch.dial(
-      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec
     )
 
     await kads[0].handlePutValue(conn, msg)
@@ -147,7 +147,7 @@ suite "KadDHT Put":
     connectNodes(kads[0], kads[1])
 
     let conn = await kads[1].switch.dial(
-      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec
     )
 
     let key = kads[0].rtable.selfId
@@ -190,7 +190,7 @@ suite "KadDHT Put":
     )
 
     let conn = await kads[1].switch.dial(
-      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec
     )
 
     # Call handlePutValue directly - it writes the response to conn

@@ -11,7 +11,7 @@ proc ping*(
 ): Future[bool] {.
     async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
 .} =
-  let conn = await kad.switch.dial(peerId, addrs, KadCodec)
+  let conn = await kad.switch.dial(peerId, addrs, kad.codec)
   defer:
     await conn.close()
 
