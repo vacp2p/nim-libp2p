@@ -4,7 +4,7 @@
 
 import std/net
 import results
-import ../../../libp2p/protocols/kademlia_discovery/[types, iptree]
+import ../../../libp2p/protocols/capability_discovery/[types, iptree]
 import ../../tools/unittest
 
 suite "IpTree":
