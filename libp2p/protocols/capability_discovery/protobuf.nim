@@ -1,12 +1,157 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sets]
+import std/[tables, sets, times]
 import chronos, results, stew/endians2
 import ../../[peerid, switch, multihash, cid, multicodec, multiaddress, routing_record]
 import ../../protobuf/minprotobuf
 import ../../crypto/crypto
+import ../../extended_peer_record
+import ../../signed_envelope
 import ./types
+
+# Helper procs for hex encoding/decoding
+proc bytesToHex*(bytes: seq[byte]): string =
+  result = newStringOfCap(bytes.len * 2)
+  for b in bytes:
+    let hexChars = "0123456789abcdef"
+    result.add(hexChars[(b.int shr 4) and 0xF])
+    result.add(hexChars[b.int and 0xF])
+
+proc hexToBytes*(s: string): seq[byte] =
+  result = newSeqOfCap[byte](s.len div 2)
+  var i = 0
+  while i < s.len:
+    if i + 1 < s.len:
+      let c1 = s[i].byte - '0'.byte
+      let c2 = s[i + 1].byte - '0'.byte
+      # Handle a-f
+      let v1 =
+        if c1 > 9:
+          c1 - 39
+        else:
+          c1
+      let v2 =
+        if c2 > 9:
+          c2 - 39
+        else:
+          c2
+      result.add((v1.uint8 shl 4) or v2.uint8)
+    i += 2
+
+# XPR (Extensible Peer Record) for Logos Capability Discovery
+# Uses ExtendedPeerRecord structure but with different domain/payload type per RFC
+
+#TODO instead of the below logic, it would be best to modify extended_peer_record.nim
+
+const
+  XprRoutingDomain* = "libp2p-routing-state"
+  XprPayloadType* = "/libp2p/extensible-peer-record/"
+
+type XprAdvertisement* = SignedExtendedPeerRecord
+
+proc xprPayloadDomain*(T: typedesc[XprAdvertisement]): string =
+  ## Domain for XPR in Logos Capability Discovery
+  XprRoutingDomain
+
+proc xprPayloadTypeBytes*(): seq[byte] =
+  ## Payload type for XPR in Logos Capability Discovery
+  cast[seq[byte]](XprPayloadType)
+
+proc createXprAdvertisement*(
+    peerId: PeerId,
+    addrs: seq[MultiAddress],
+    serviceId: ServiceId,
+    privateKey: PrivateKey,
+    metadata: seq[byte] = @[],
+): Result[XprAdvertisement, string] =
+  ## Create an XPR-encoded advertisement for Logos Capability Discovery
+
+  # Create service info from service ID
+  # The service ID is SHA-256 hash of the protocol ID
+  # We include it as the data field in ServiceInfo
+  let serviceInfo = ServiceInfo(
+    id: serviceId.bytesToHex(), # Store hex representation for identification
+    data: metadata,
+  )
+
+  # Create ExtendedPeerRecord
+  let extRecord = ExtendedPeerRecord.init(
+    peerId = peerId,
+    addresses = addrs,
+    seqNo = getTime().toUnix().uint64,
+    services = @[serviceInfo],
+  )
+
+  # Create signed envelope with correct domain and payload type
+  let envelopeRes = Envelope.init(
+    privateKey, xprPayloadTypeBytes(), extRecord.encode(), XprRoutingDomain
+  )
+  if envelopeRes.isErr:
+    return err("Failed to create envelope: " & $envelopeRes.error)
+
+  return ok(XprAdvertisement(envelope: envelopeRes.get(), data: extRecord))
+
+proc verifyXprAdvertisement*(xpr: XprAdvertisement, serviceId: ServiceId): bool =
+  ## Verify an XPR advertisement according to RFC spec:
+  ## 1. Envelope domain == "libp2p-routing-state"
+  ## 2. Payload type == "/libp2p/extensible-peer-record/"
+  ## 3. Signature is valid
+  ## 4. Service advertised matches serviceId
+
+  # Check domain
+  if xpr.envelope.domain != XprRoutingDomain:
+    return false
+
+  # Check payload type
+  if xpr.envelope.payloadType != xprPayloadTypeBytes():
+    return false
+
+  # Check signature validity (already done during decode)
+  # Check peer ID matches public key
+  if not xpr.data.peerId.match(xpr.envelope.publicKey):
+    return false
+
+  # Check if service is advertised
+  # We need to find the service that matches the serviceId
+  let serviceIdHex = bytesToHex(serviceId)
+  for service in xpr.data.services:
+    # Check if the service ID hash matches
+    if service.id == serviceIdHex:
+      return true
+
+  return false
+
+proc toXprAdvertisement*(ad: Advertisement): Result[XprAdvertisement, string] =
+  ## Convert an Advertisement to XPR format
+  ## This requires the private key to sign, so caller must provide it
+  ## Returns an error if we don't have the private key
+  err(
+    "Cannot convert Advertisement to XPR without private key - use createXprAdvertisement instead"
+  )
+
+proc toAdvertisement*(xpr: XprAdvertisement): Advertisement =
+  ## Convert an XPR advertisement to the internal Advertisement format
+  var serviceIdBytes: seq[byte]
+  if xpr.data.services.len > 0:
+    serviceIdBytes = hexToBytes(xpr.data.services[0].id)
+
+  var addrs: seq[MultiAddress] = @[]
+  for addrInfo in xpr.data.addresses:
+    addrs.add(addrInfo.address)
+
+  Advertisement(
+    serviceId: serviceIdBytes,
+    peerId: xpr.data.peerId,
+    addrs: addrs,
+    signature: xpr.envelope.signature.getBytes(),
+    metadata:
+      if xpr.data.services.len > 0:
+        xpr.data.services[0].data
+      else:
+        @[],
+    timestamp: xpr.data.seqNo.int64,
+  )
 
 proc encode*(ad: Advertisement): seq[byte] =
   ## Encode Advertisement to protobuf format

@@ -4,7 +4,7 @@
 
 import results
 import ../../../libp2p/[peerid, crypto/crypto, multiaddress]
-import ../../../libp2p/protocols/kademlia_discovery/[types, protobuf]
+import ../../../libp2p/protocols/capability_discovery/[types, protobuf]
 import ../../tools/[unittest, crypto]
 
 suite "Kademlia Discovery Signatures":

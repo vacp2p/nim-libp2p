@@ -4,56 +4,14 @@
 
 import std/[options]
 import chronos, chronicles, results
-import ../../../libp2p/[peerid, crypto/crypto, multiaddress, switch, builders]
-import ../../../libp2p/protocols/[kademlia, kad_disco]
-import ../../../libp2p/protocols/kademlia_discovery/[types, protobuf, advertiser]
-import ../../tools/[unittest, crypto]
+import ../../../libp2p/[crypto/crypto, multiaddress]
+import ../../../libp2p/protocols/[kad_disco, kademlia]
+import ../../../libp2p/protocols/kademlia_discovery/[types]
+import ../../../libp2p/protocols/capability_discovery/[protobuf, advertiser]
+import ../../tools/unittest
+import ./utils
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
-
-# Test helpers to create mock peers
-proc makePeerId(): PeerId =
-  PeerId.init(PrivateKey.random(rng[]).get()).get()
-
-proc makeServiceId(): ServiceId =
-  @[1'u8, 2, 3, 4]
-
-proc makeServiceId(id: byte): ServiceId =
-  @[id, 2'u8, 3, 4]
-
-# Helper to create a mock KademliaDiscovery for testing advertiser functionality
-proc createMockDiscovery(): KademliaDiscovery =
-  let switch = SwitchBuilder
-    .new()
-    .withRng(newRng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
-
-  let kad = KademliaDiscovery.new(
-    switch,
-    bootstrapNodes = @[],
-    config = KadDHTConfig.new(
-      ExtEntryValidator(),
-      ExtEntrySelector(),
-      timeout = chronos.seconds(1),
-      cleanupProvidersInterval = chronos.milliseconds(100),
-      providerExpirationInterval = chronos.seconds(1),
-      republishProvidedKeysInterval = chronos.milliseconds(50),
-    ),
-    discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16),
-  )
-
-  switch.mount(kad)
-  kad
-
-# Helper to populate routing table with peers
-proc populateRoutingTable(kad: KademliaDiscovery, peers: seq[PeerId]) =
-  for peer in peers:
-    let key = peer.toKey()
-    discard kad.rtable.insert(key)
 
 # ============================================================================
 # 1. Pure Function Tests (No Mocking Required)
@@ -241,7 +199,7 @@ suite "Kademlia Discovery Advertiser - Service Management":
 
   test "addProvidedService with different K_register":
     let kad = KademliaDiscovery.new(
-      createMockDiscovery().switch,
+      createSwitch(),
       bootstrapNodes = @[],
       config = KadDHTConfig.new(
         ExtEntryValidator(), ExtEntrySelector(), timeout = chronos.seconds(1)
@@ -381,7 +339,7 @@ suite "Kademlia Discovery Advertiser - Rescheduling Logic":
   test "addProvidedService with different bucketsCount":
     for bc in [8, 16, 32]:
       let kad = KademliaDiscovery.new(
-        createMockDiscovery().switch,
+        createSwitch(),
         bootstrapNodes = @[],
         config = KadDHTConfig.new(
           ExtEntryValidator(), ExtEntrySelector(), timeout = chronos.seconds(1)
