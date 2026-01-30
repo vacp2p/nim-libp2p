@@ -134,23 +134,10 @@ proc getGroupState(
     ext: PartialMessageExtension, topic: string, groupId: GroupId
 ): GroupState =
   let key = TopicGroupKey.new(topic, groupId)
-
-  if key notin ext.groupState:
-    ext.groupState[key] = GroupState()
-
-  try:
-    return ext.groupState[key]
-  except KeyError:
-    raiseAssert "checked with if"
+  return ext.groupState.mgetOrPut(key, GroupState())
 
 proc getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
-  if peerId notin gs.peerState:
-    gs.peerState[peerId] = PeerGroupState()
-
-  try:
-    return gs.peerState[peerId]
-  except KeyError:
-    raiseAssert "checked with if"
+  return gs.peerState.mgetOrPut(peerId, PeerGroupState())
 
 proc gossipThePartsMetadata(ext: PartialMessageExtension) =
   # TODO: `partsMetadata` can be used during heartbeat gossip to inform non-mesh topic
