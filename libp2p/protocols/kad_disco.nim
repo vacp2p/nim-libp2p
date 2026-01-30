@@ -6,17 +6,15 @@ import chronos, chronicles, results
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./kademlia_discovery/[types, registrar, advertiser, discoverer, randomfind]
+import ./kademlia_discovery/types as kad_types
+import ./kademlia_discovery/randomfind
+import ./capability_discovery/types as cap_types
+import ./capability_discovery/[registrar, advertiser, discoverer]
 
-export types, randomfind
+export kad_types, randomfind, cap_types, registrar, advertiser, discoverer
 
 logScope:
   topics = "kad-disco"
-
-proc refreshSearchTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
-  #TODO fix this
-
-  return
 
 proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: []).} =
   let updateRes = catch:
@@ -71,8 +69,7 @@ proc new*(
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
     client: bool = false,
-    #TODO change this to logos codec and also the hard-coded values in kademlia
-    codec: string = KadCodec,
+    codec: string = LogosCapabilityDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
     discoConf: KademliaDiscoveryConfig = KademliaDiscoveryConfig.new(),
 ): T {.raises: [].} =
@@ -161,22 +158,16 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
 
   await procCall stop(KadDHT(disco))
 
-  disco.selfSignedLoop.cancelSoon()
-  disco.selfSignedLoop = nil
+  if not disco.selfSignedLoop.isNil:
+    disco.selfSignedLoop.cancelSoon()
+    disco.selfSignedLoop = nil
 
-  disco.maintenanceLoop.cancelSoon()
-  disco.maintenanceLoop = nil
+  if not disco.discovererLoop.isNil:
+    disco.discovererLoop.cancelSoon()
+    disco.discovererLoop = nil
 
-  disco.republishLoop.cancelSoon()
-  disco.republishLoop = nil
-
-  disco.expiredLoop.cancelSoon()
-  disco.expiredLoop = nil
-
-  disco.discovererLoop.cancelSoon()
-  disco.discovererLoop = nil
-
-  disco.advertiserLoop.cancelSoon()
-  disco.advertiserLoop = nil
+  if not disco.advertiserLoop.isNil:
+    disco.advertiserLoop.cancelSoon()
+    disco.advertiserLoop = nil
 
   disco.started = false
