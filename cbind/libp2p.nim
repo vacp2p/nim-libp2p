@@ -203,20 +203,11 @@ proc newPrivateKey*(scheme: PrivateKeyScheme): Libp2pPrivateKey {.cdecl.} =
   of PrivateKeyScheme.RSA:
     key = PrivateKey(scheme: scheme, rsakey: generateRsaKey())
   of PrivateKeyScheme.Ed25519:
-    key = PrivateKey(
-      scheme: scheme,
-      edkey: generateEd25519Key()
-    )
+    key = PrivateKey(scheme: scheme, edkey: generateEd25519Key())
   of PrivateKeyScheme.Secp256k1:
-    key = PrivateKey(
-      scheme: scheme,
-      skkey: generateSecp256k1Key()
-    )
+    key = PrivateKey(scheme: scheme, skkey: generateSecp256k1Key())
   of PrivateKeyScheme.ECDSA:
-    key = PrivateKey(
-      scheme: scheme,
-      eckey: generateEcdsaKey()
-    )
+    key = PrivateKey(scheme: scheme, eckey: generateEcdsaKey())
 
   return Libp2pPrivateKey(data: cast[pointer](create(key)))
 
