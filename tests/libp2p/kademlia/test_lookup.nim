@@ -254,8 +254,8 @@ suite "KadDHT Iterative Lookup":
 
     check:
       # All 10 peers added to shortlist (not capped at k)
-      added.len == 10
-      state.shortlist.len == initialSize + 10
+      added.len == peers.len
+      state.shortlist.len == initialSize + peers.len
 
       # But selectCloserPeers only returns k=3
-      state.selectCloserPeers(kad.config.replication).len == 3
+      state.selectCloserPeers(kad.config.replication).len == kad.config.replication
