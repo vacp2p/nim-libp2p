@@ -267,7 +267,7 @@ proc publishPartial*(
 
     let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(p, topic))
 
-    # publish parital message if ...
+    # publish partial message if ...
     if peerSubOpt.requestsPartial:
       # 1) peer requested partial for topic (peer wants to receive partial message)
       publishPartialToPeer(p, true)
