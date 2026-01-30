@@ -56,12 +56,6 @@ type GetProvidersCallback* = proc(
 type Libp2pStream* = object
   conn*: pointer
 
-type PrivateKeyScheme* {.size: sizeof(cint).} = enum
-  RSA
-  Ed25519
-  Secp256k1
-  ECDSA
-
 type Libp2pPrivateKey* = object
   data*: pointer
 

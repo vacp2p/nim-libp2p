@@ -101,7 +101,9 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   var privKey = Opt.none(PrivateKey)
   if config.passPrivKey != 0:
-    privKey = Opt.some(cast[ptr PrivateKey](config.privKey.data))
+    let src = cast[ptr PrivateKey](config.privKey.data)
+    let keyCopy = src[]
+    privKey = Opt.some(keyCopy)
 
   let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
 
