@@ -233,7 +233,7 @@ proc publishPartial*(
     var peerState = groupState.getPeerState(peer)
     var hasChanges: bool = false
 
-    # if partsMetada was changed, rpc sets new metadata 
+    # if partsMetadata was changed, rpc sets new metadata 
     if peerState.sentPartsMetadata != msgPartsMetadata:
       hasChanges = true
       rpc.partsMetadata = msgPartsMetadata.data

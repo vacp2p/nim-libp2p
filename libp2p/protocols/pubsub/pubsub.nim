@@ -526,7 +526,7 @@ proc updateTopicMetrics(p: PubSub, topic: string) =
       libp2p_pubsub_topic_handlers.set(0, labelValues = [topic])
   else:
     var others: int64 = 0
-    for key, value in p.topics:
+    for key, _ in p.topics:
       if key notin p.knownTopics:
         others += 1
 
