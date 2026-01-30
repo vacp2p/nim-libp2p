@@ -27,7 +27,6 @@ const
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
 
-  KadCodec* = "/ipfs/kad/1.0.0"
   MaxMsgSize* = 4096
 
 type Key* = seq[byte]

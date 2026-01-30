@@ -16,7 +16,7 @@ proc dispatchGetVal(
     async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
 .} =
   let conn =
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], KadCodec)
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
   defer:
     await conn.close()
 
@@ -112,11 +112,11 @@ proc getValue*(
   for p, r in received:
     let record = r.valueOr:
       # peer doesn't have value
-      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value))
+      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
       continue
     if record.value != best.value:
       # value is invalid or not best
-      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value))
+      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
 
   try:
     await rpcBatch.allFutures().wait(chronos.seconds(5))
