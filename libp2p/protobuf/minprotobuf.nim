@@ -192,6 +192,10 @@ proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
 proc write*(pb: var ProtoBuffer, field: int, value: bool) =
   pb.write(field, uint64(value))
 
+proc write*(pb: var ProtoBuffer, field: int, value: Option[bool]) =
+  value.withValue(boolValue):
+    pb.write(field, uint64(boolValue))
+
 proc writePacked*[T: ProtoScalar](
     pb: var ProtoBuffer, field: int, value: openArray[T]
 ) =

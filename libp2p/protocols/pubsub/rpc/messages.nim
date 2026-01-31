@@ -297,10 +297,7 @@ static:
     @["topicID", "groupID", "partialMessage", "partsMetadata"],
   )
 proc byteSize(pme: PartialMessageExtensionRPC): int =
-  pme.topicID.len + #
-  pme.groupID.len + #
-  pme.partialMessage.len + #
-  pme.partsMetadata.len
+  pme.topicID.len + pme.groupID.len + pme.partialMessage.len + pme.partsMetadata.len
 
 when defined(libp2p_gossipsub_1_4):
   static:

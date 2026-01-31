@@ -145,6 +145,8 @@ proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
   var ipb = initProtoBuffer()
   ipb.write(1, subs.subscribe)
   ipb.write(2, subs.topic)
+  ipb.write(3, subs.requestsPartial)
+  ipb.write(4, subs.supportsSendingPartial)
   ipb.finish()
   pb.write(field, ipb)
 
