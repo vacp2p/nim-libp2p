@@ -36,7 +36,7 @@ type
   ValidateRPCProc =
     proc(rpc: PartialMessageExtensionRPC): Result[void, string] {.gcsafe, raises: [].}
     # implements logic for performing sanity checks on PartialMessageExtensionRPC.
-    # when error is returned extension will not proces PartialMessageExtensionRPC.
+    # when error is returned extension will not process PartialMessageExtensionRPC.
     # needs to be implemented by application.
 
   OnIncomingRPCProc =
