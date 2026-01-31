@@ -29,8 +29,8 @@ suite "GossipSub Extensions :: State":
     discard state.makeControlExtensions()
 
   test "state reports missbehaving":
-    var (reportedPeers, onMissbehave) = createCollectPeerCallback()
-    var state = ExtensionsState.new(onMissbehave)
+    var (reportedPeers, onMisbehave) = createCollectPeerCallback()
+    var state = ExtensionsState.new(onMisbehave)
 
     # peer sends ControlExtensions for the first time
     state.handleRPC(peerId, makeRPC())
@@ -41,8 +41,8 @@ suite "GossipSub Extensions :: State":
       check reportedPeers[] == repeat[PeerId](peerId, i)
 
   test "state reports missbehaving - many peers":
-    var (reportedPeers, onMissbehave) = createCollectPeerCallback()
-    var state = ExtensionsState.new(onMissbehave)
+    var (reportedPeers, onMisbehave) = createCollectPeerCallback()
+    var state = ExtensionsState.new(onMisbehave)
 
     var peers = newSeq[PeerId]()
     for i in 0 ..< 5:
@@ -54,15 +54,15 @@ suite "GossipSub Extensions :: State":
       check reportedPeers[] == peers
 
   test "state peer is removed":
-    var (reportedPeers, onMissbehave) = createCollectPeerCallback()
-    var state = ExtensionsState.new(onMissbehave)
+    var (reportedPeers, onMisbehave) = createCollectPeerCallback()
+    var state = ExtensionsState.new(onMisbehave)
 
     for i in 0 ..< 5:
       let pid = PeerId.random(rng).get()
       state.handleRPC(pid, makeRPC())
 
       # when peer is removed state is cleared, so second handleRPC()
-      # call will not cause missbehaviour
+      # call will not cause misbehaviour
       state.removePeer(pid)
       state.handleRPC(pid, makeRPC())
 

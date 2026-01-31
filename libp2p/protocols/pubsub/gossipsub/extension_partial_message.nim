@@ -177,7 +177,7 @@ method onRemovePeer*(
     if key.hasPeer(peerId):
       toRemove.add(key)
   for key in toRemove:
-    ext.groupState.del(key)
+    ext.peerSubs.del(key)
 
 proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOpts) =
   let key = PeerTopicKey.new(peerId, rpc.topic)
@@ -198,9 +198,9 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  let result = ext.validateRPC(rpc)
-  if result.isErr():
-    debug "Partial message extensions received invalid RPC", msg = result.error
+  let validateRes = ext.validateRPC(rpc)
+  if validateRes.isErr():
+    debug "Partial message extensions received invalid RPC", msg = validateRes.error
     return
 
   if rpc.partsMetadata.len > 0:
@@ -242,15 +242,15 @@ proc publishPartial*(
     # if peer has requested partial messages, attempt to fulfill any 
     # parts that peer is missing.
     if peerRequestsPartial:
-      let result = pm.materializeParts(peerState.partsMetadata)
-      if result.isErr():
+      let materializeRes = pm.materializeParts(peerState.partsMetadata)
+      if materializeRes.isErr():
         # there might be error with last PartsMetadata so it is discarded,
         # to avoid any error with future messages.
         peerState.partsMetadata = newSeq[byte](0)
       else:
         peerState.partsMetadata = merge(peerState.partsMetadata, msgPartsMetadata)
 
-        let data = result.get()
+        let data = materializeRes.get()
         rpc.partialMessage = data
         hasChanges = hasChanges or data.len > 0
 

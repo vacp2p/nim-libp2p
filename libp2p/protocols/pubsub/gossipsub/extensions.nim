@@ -12,7 +12,7 @@ type ExtensionsState* = ref object
   sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions
   peerExtensions: Table[PeerId, PeerExtensions]
     # tells what peer capabilities are (what extensions are supported by them)
-  onMissbehave: PeerCallback # callback when peer does not follow extensions protocol
+  onMisbehave: PeerCallback # callback when peer does not follow extensions protocol
   nodeExtensions: ControlExtensions # tells what node's capabilities are
   extensions: seq[Extension]
     # list of all extensions. state will delegate events to all elements of this list.
@@ -22,7 +22,7 @@ type ExtensionsState* = ref object
 
 proc new*(
     T: typedesc[ExtensionsState],
-    onMissbehave: PeerCallback = noopPeerCallback,
+    onMisbehave: PeerCallback = noopPeerCallback,
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
       none(PartialMessageExtensionConfig),
@@ -48,7 +48,7 @@ proc new*(
     nodeExtensions.partialMessageExtension = some(true)
 
   state = T(
-    onMissbehave: onMissbehave,
+    onMisbehave: onMisbehave,
     sentExtensions: initHashSet[PeerId](),
     nodeExtensions: nodeExtensions,
     extensions: extensions,
@@ -67,12 +67,12 @@ proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
     partialMessageExtension: partialMessageExtension,
   )
 
-proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rcp: RPCMsg) =
+proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   # extension event called when node receives every RPC message.
 
   for _, e in state.extensions:
     if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
-      e.onHandleRPC(peerId, rcp)
+      e.onHandleRPC(peerId, rpc)
 
 proc onNegotiated(state: ExtensionsState, peerId: PeerId) =
   # extension event called when both sides have negotiated (exchanged) extensions.
@@ -125,7 +125,7 @@ proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
     if state.peerExtensions.hasKey(peerId):
       # peer is sending control message again but this node has already received extensions.
       # this is protocol error, therfore nodes reports misbehaviour.
-      state.onMissbehave(peerId)
+      state.onMisbehave(peerId)
     else:
       # peer is sending extensions control message for the first time
       let ctrlExtensions = rpc.control.get().extensions.get()

@@ -30,6 +30,6 @@ method onRemovePeer*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} 
   discard # NOOP
 
 method onHandleRPC*(
-    ext: TestExtension, peerId: PeerId, rcp: RPCMsg
+    ext: TestExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
   discard # NOOP

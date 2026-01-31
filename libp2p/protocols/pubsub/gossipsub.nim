@@ -1099,8 +1099,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.parameters.partialMessageExtensionConfig = some(cfg)
 
   return ExtensionsState.new(
-    onMissbehaveExtensions, #
-    g.parameters.testExtensionConfig, # 
+    onMissbehaveExtensions, g.parameters.testExtensionConfig,
     g.parameters.partialMessageExtensionConfig,
   )
 
