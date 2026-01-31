@@ -30,7 +30,7 @@ method onHeartbeat*(ext: Extension) {.base, gcsafe, raises: [].} =
   raiseAssert "onHeartbeat: must be implemented"
 
 method onNegotiated*(ext: Extension, peerId: PeerId) {.base, gcsafe, raises: [].} =
-  # called as soon as node and peer have nagotiated extensions and both support 
+  # called as soon as node and peer have negotiated extensions and both support 
   # this extension.
   raiseAssert "onNegotiated: must be implemented"
 
