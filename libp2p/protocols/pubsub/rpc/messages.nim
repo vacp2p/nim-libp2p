@@ -116,9 +116,6 @@ type
     ping*: seq[byte]
     pong*: seq[byte]
 
-func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
-  T(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
-
 func shortLog*(s: ControlIHave): auto =
   (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
 

@@ -23,7 +23,8 @@ import
   ../../peerid,
   ../../peerinfo,
   ../../errors,
-  ../../utility
+  ../../utility,
+  ../../utils/sequninit
 
 import results
 export results
@@ -298,12 +299,22 @@ proc broadcast*(
       asyncSpawn peer.sendEncoded(encoded, isHighPriority, useCustomConn)
 
 proc sendSubs*(
-    p: PubSub, peer: PubSubPeer, topics: openArray[string], subscribe: bool
+    p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool
 ) =
   ## send subscriptions to remote peer
-  p.send(peer, RPCMsg.withSubs(topics, subscribe), isHighPriority = true)
 
-  for topic in topics:
+  var subscriptions = newSeq[SubOpts]()
+  for topic in subTopics:
+    var subOpt = SubOpts(subscribe: subscribe, topic: topic)
+    if subscribe:
+      p.topics.withValue(topic, topicData):
+        subOpt.requestsPartial = some(topicData[].requestsPartial)
+        subOpt.supportsSendingPartial = some(topicData[].supportsSendingPartial)
+    subscriptions.add(subOpt)
+
+  p.send(peer, RPCMsg(subscriptions: subscriptions), isHighPriority = true)
+
+  for topic in subTopics:
     if subscribe:
       if p.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [topic])
@@ -591,9 +602,14 @@ proc subscribe*(
   ##
   ## ``topic``   - a string topic to subscribe to
   ##
-  ## ``handler`` - user provided proc that
-  ##               will be triggered on every
-  ##               received message
+  ## ``handler`` - user provided proc that will be triggered on 
+  ##  every received message
+  ## 
+  ## ``requestsPartial`` - this node requests partial messages 
+  ## for this topic, instead of full messages.
+  ## 
+  ## ``supportsSendingPartial`` - this node supports sending 
+  ## partial messages for this topic.
 
   # Check that this is an allowed topic
   if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
@@ -602,6 +618,8 @@ proc subscribe*(
 
   p.topics.withValue(topic, topicData):
     # Already subscribed, just adding another handler
+    # requestsPartial and supportsSendingPartial must be ignored because
+    # node has allready sent subscription.
     topicData[].handlers.add(handler)
   do:
     trace "subscribing to topic", name = topic
