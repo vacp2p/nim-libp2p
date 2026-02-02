@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
@@ -24,6 +24,7 @@ type
     entries: HashSet[TimedEntry[K]]
     timeout: Duration
     maxSize: int # Optional max size of the cache, 0 means unlimited
+    refreshOnPut: bool # If true (default), re-adding a key refreshes its expiry
 
 func `==`*[E](a, b: TimedEntry[E]): bool =
   if isNil(a) == isNil(b):
@@ -71,8 +72,8 @@ func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
 
 func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
   # Puts k in cache, returning true if the item was already present and false
-  # otherwise. If the item was already present, its expiry timer will be
-  # refreshed.
+  # otherwise. If refreshOnPut is true (default), re-adding refreshes the expiry.
+  # If refreshOnPut is false, re-adding is a no-op (useful when first-seen time matters).
   func ensureSizeBound(t: var TimedCache[K]) =
     if t.maxSize > 0 and t.entries.len() >= t.maxSize and k notin t:
       if t.head != nil:
@@ -85,6 +86,10 @@ func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
 
   t.expire(now)
   t.ensureSizeBound()
+
+  # If not refreshing and already present, return early
+  if not t.refreshOnPut and k in t:
+    return true
 
   let
     previous = t.del(k) # Refresh existing item
@@ -123,6 +128,10 @@ func contains*[K](t: TimedCache[K], k: K): bool =
   let tmp = TimedEntry[K](key: k)
   tmp in t.entries
 
+func len*[K](t: TimedCache[K]): int {.inline.} =
+  ## Returns the number of entries in the cache.
+  t.entries.len
+
 func addedAt*[K](t: var TimedCache[K], k: K): Moment =
   let tmp = TimedEntry[K](key: k)
   try:
@@ -134,5 +143,10 @@ func addedAt*[K](t: var TimedCache[K], k: K): Moment =
 
   default(Moment)
 
-func init*[K](T: type TimedCache[K], timeout: Duration = Timeout, maxSize: int = 0): T =
-  T(timeout: timeout, maxSize: maxSize)
+func init*[K](
+    T: type TimedCache[K],
+    timeout: Duration = Timeout,
+    maxSize: int = 0,
+    refreshOnPut: bool = true,
+): T =
+  T(timeout: timeout, maxSize: maxSize, refreshOnPut: refreshOnPut)
