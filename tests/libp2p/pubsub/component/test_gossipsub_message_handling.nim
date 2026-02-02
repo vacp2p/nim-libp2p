@@ -182,7 +182,7 @@ suite "GossipSub Component - Message Handling":
 
     var smallestSet: HashSet[seq[byte]]
     let seqs = toSeq(sentMessages)
-    if seqs[0] < seqs[1]:
+    if seqs[0].len < seqs[1].len:
       smallestSet.incl(seqs[0])
     else:
       smallestSet.incl(seqs[1])
