@@ -24,9 +24,12 @@ type
     # implements logic for sending PartialMessageExtensionRPC to the peer.
     # default implementation is set by gossipsub.
 
-  IsRequestPartialByNodeProc = proc(topic: string): bool {.gcsafe, raises: [].}
-    # implements logic for checking if this node is requesting partial messages
-    # for topic.
+  TopicOpts* = object
+    requestsPartial*: bool
+    supportsSendingPartial*: bool
+
+  NodeTopicOptsProc = proc(topic: string): TopicOpts {.gcsafe, raises: [].}
+    # implements logic for getting this node's partial messages preference for topic.
     # default implementation is set by gossipsub.
 
   IsSupportedProc = proc(peer: PeerId): bool {.gcsafe, raises: [].}
@@ -51,7 +54,7 @@ type
     sendRPC*: SendRPCProc
     publishToPeers*: PublishToPeersProc
     isSupported*: IsSupportedProc
-    isRequestPartialByNode*: IsRequestPartialByNodeProc
+    nodeTopicOpts*: NodeTopicOptsProc
 
     # configuration set by application
     validateRPC*: ValidateRPCProc
@@ -66,10 +69,6 @@ type
     peerState: Table[PeerId, PeerGroupState]
     heartbeatsTillEviction: int
 
-  SubState = ref object
-    requestsPartial: bool
-    supportsSendingPartial: bool
-
   PeerTopicKey = string
   TopicGroupKey = string
 
@@ -77,12 +76,12 @@ type
     sendRPC: SendRPCProc
     publishToPeers: PublishToPeersProc
     isSupported: IsSupportedProc
-    isRequestPartialByNode: IsRequestPartialByNodeProc
+    nodeTopicOpts: NodeTopicOptsProc
     validateRPC: ValidateRPCProc
     onIncomingRPC: OnIncomingRPCProc
     heartbeatsTillEviction: int
     groupState: Table[TopicGroupKey, GroupState]
-    peerSubs: Table[PeerTopicKey, SubState]
+    peerTopicOpts: Table[PeerTopicKey, TopicOpts]
 
 proc new(
     T: typedesc[PeerTopicKey], peerId: PeerId, topic: string
@@ -103,9 +102,7 @@ proc new*(
   doAssert(config.sendRPC != nil, "config.sendRPC must be set")
   doAssert(config.publishToPeers != nil, "config.publishToPeers must be set")
   doAssert(config.isSupported != nil, "config.isSupported must be set")
-  doAssert(
-    config.isRequestPartialByNode != nil, "config.isRequestPartialByNode must be set"
-  )
+  doAssert(config.nodeTopicOpts != nil, "config.nodeTopicOpts must be set")
   doAssert(config.validateRPC != nil, "config.validateRPC must be set")
   doAssert(config.onIncomingRPC != nil, "config.onIncomingRPC must be set")
 
@@ -113,7 +110,7 @@ proc new*(
     sendRPC: config.sendRPC,
     publishToPeers: config.publishToPeers,
     isSupported: config.isSupported,
-    isRequestPartialByNode: config.isRequestPartialByNode,
+    nodeTopicOpts: config.nodeTopicOpts,
     validateRPC: config.validateRPC,
     onIncomingRPC: config.onIncomingRPC,
     heartbeatsTillEviction:
@@ -147,8 +144,8 @@ proc gossipThePartsMetadata(ext: PartialMessageExtension) =
 proc peerRequestsPartial*(
     ext: PartialMessageExtension, peerId: PeerId, topic: string
 ): bool =
-  let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(peerId, topic))
-  return peerSubOpt.requestsPartial
+  let opt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(peerId, topic))
+  return opt.requestsPartial
 
 method isSupported*(
     ext: PartialMessageExtension, pe: PeerExtensions
@@ -171,13 +168,13 @@ method onRemovePeer*(
   for key, group in ext.groupState:
     group.peerState.del(peerId)
 
-  # remove peer subscription options from _peerSubs_
+  # remove peer subscription options from _peerTopicOpts_
   var toRemove: seq[PeerTopicKey] = @[]
-  for key, _ in ext.peerSubs:
+  for key, _ in ext.peerTopicOpts:
     if key.hasPeer(peerId):
       toRemove.add(key)
   for key in toRemove:
-    ext.peerSubs.del(key)
+    ext.peerTopicOpts.del(key)
 
 proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOpts) =
   let key = PeerTopicKey.new(peerId, rpc.topic)
@@ -187,13 +184,13 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
     let ssp = rpc.supportsSendingPartial.valueOr:
       false
 
-    ext.peerSubs[key] = SubState(
+    ext.peerTopicOpts[key] = TopicOpts(
       requestsPartial: rp,
       supportsSendingPartial: rp or ssp,
         # when peer requested partial, then, by spec, they must support it
     )
   else:
-    ext.peerSubs.del(key)
+    ext.peerTopicOpts.del(key)
 
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
@@ -271,14 +268,15 @@ proc publishPartial*(
     if not ext.isSupported(p):
       continue
 
-    let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(p, topic))
+    let peerSubOpt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(p, topic))
+    let nodeSubOpt = ext.nodeTopicOpts(topic)
 
     # publish partial message to peer if ...
-    if peerSubOpt.requestsPartial:
+    if peerSubOpt.requestsPartial and (nodeSubOpt.supportsSendingPartial or nodeSubOpt.requestsPartial):
       # 1) peer has requested partial messages for this topic
       ext.publishPartialToPeer(topic, pm, groupState, p, true)
       publishedToCount.inc
-    elif peerSubOpt.supportsSendingPartial and ext.isRequestPartialByNode(topic):
+    elif nodeSubOpt.requestsPartial and ( peerSubOpt.supportsSendingPartial or peerSubOpt.requestsPartial):
       # 2) this node has requested partial messages and peer (other node) supports sending it
       ext.publishPartialToPeer(topic, pm, groupState, p, false)
       publishedToCount.inc

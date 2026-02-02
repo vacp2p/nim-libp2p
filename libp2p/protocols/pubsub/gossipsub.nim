@@ -1088,11 +1088,14 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
         let peers = g.makePeersForPublishDefault(topic)
         return peers.mapIt(it.peerId)
 
-    if cfg.isRequestPartialByNode.isNil:
-      cfg.isRequestPartialByNode = proc(topic: string): bool {.gcsafe, raises: [].} =
+    if cfg.nodeTopicOpts.isNil:
+      cfg.nodeTopicOpts = proc(topic: string): TopicOpts {.gcsafe, raises: [].} =
         g.topics.withValue(topic, topicData):
-          return topicData[].requestsPartial
-        return false
+          return TopicOpts(
+            requestsPartial: topicData[].requestsPartial,
+            supportsSendingPartial: topicData[].supportsSendingPartial,
+          )
+        return TopicOpts()
 
     g.parameters.partialMessageExtensionConfig = some(cfg)
 

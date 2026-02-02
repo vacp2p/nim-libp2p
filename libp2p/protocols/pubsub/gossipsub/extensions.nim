@@ -6,7 +6,7 @@ import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, extension_test, extension_partial_message, partial_message]
 
-export PeerCallback, TestExtensionConfig, PartialMessageExtensionConfig
+export PeerCallback, TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts
 
 type ExtensionsState* = ref object
   sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions
