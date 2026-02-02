@@ -198,15 +198,36 @@ proc libp2p_create_cid(
   RET_OK.cint
 
 proc libp2p_new_private_key(
-    scheme: PKScheme
-): Libp2pPrivateKey {.dynlib, exportc, cdecl.} =
+    scheme: PKScheme, callback: Libp2pBufferCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  ## Creates a new private key
+
   initializeLibrary()
+
   let key = PrivateKey.random(scheme, newRng()[]).valueOr:
-    echo "error: unsupported private key scheme"
-    return Libp2pPrivateKey(data: nil)
-  let p = cast[ptr PrivateKey](allocShared(sizeof(PrivateKey)))
-  p[] = key
-  return Libp2pPrivateKey(data: cast[pointer](p))
+    echo "Could not generate private key"
+    return RET_ERR.cint
+
+  let keyData = key.getRawBytes().valueOr:
+    echo "Could not get raw bytes for private key"
+    return RET_ERR.cint
+
+  foreignThreadGc:
+    let dataPtr =
+      if keyData.len > 0:
+        unsafeAddr keyData[0]
+      else:
+        nil
+
+    callback(
+      RET_OK.cint,
+      dataPtr,
+      csize_t(keyData.len()),
+      cast[ptr cchar](nil),
+      csize_t(0),
+      userData,
+    )
+  return RET_OK.cint
 
 proc libp2p_new(
     config: ptr Libp2pConfig, callback: Libp2pCallback, userData: pointer

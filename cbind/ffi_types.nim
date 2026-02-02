@@ -9,6 +9,9 @@
 ################################################################################
 ### Exported types
 
+type Libp2pPrivateKey* = object
+  data*: pointer
+
 type Libp2pCallback* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
@@ -55,9 +58,6 @@ type GetProvidersCallback* = proc(
 
 type Libp2pStream* = object
   conn*: pointer
-
-type Libp2pPrivateKey* = object
-  data*: pointer
 
 type ConnectionCallback* = proc(
   callerRet: cint,

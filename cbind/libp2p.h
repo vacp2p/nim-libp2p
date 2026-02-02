@@ -85,6 +85,7 @@ typedef struct {
 // if you need it later.
 typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
                                  const char *msg, size_t len, void *userData);
+
 // Opaque handle for a libp2p instance
 typedef struct libp2p_ctx libp2p_ctx_t;
 
@@ -153,7 +154,7 @@ int libp2p_create_cid(uint32_t version, const char *multicodec, const char *hash
                       const uint8_t *data, size_t dataLen, Libp2pCallback callback,
                       void *userData);
 
-libp2p_private_key_t libp2p_new_private_key(libp2p_pk_scheme scheme);
+int libp2p_new_private_key(libp2p_pk_scheme scheme, Libp2pBufferCallback callback, void *userData);
 
 libp2p_ctx_t *libp2p_new(const libp2p_config_t *config,
                          Libp2pCallback callback, void *userData);
