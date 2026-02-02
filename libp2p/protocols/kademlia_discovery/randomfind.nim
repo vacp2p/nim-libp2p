@@ -9,9 +9,9 @@ import ../kademlia/[types, find, get, protobuf]
 import ./[types]
 
 logScope:
-  topics = "ext-kad-dht random find"
+  topics = "ext-kad-dht random records"
 
-proc findRandom*(
+proc randomRecords*(
     disco: KademliaDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
   ## Return all peer records on the path towards a random target ID.
@@ -72,32 +72,16 @@ proc lookup*(
   return records.filterByServices(@[service].toHashSet())
   let peerIds = await disco.findNode(randomKey)
 
-    let msg = res.valueOr:
-      error "Failed to get value", error = res.error.msg
-      return
-
-    let reply = msg.valueOr:
-      return
+    let reply = msgOpt.valueOr:
+      continue
 
     let record = reply.record.valueOr:
-      return
+      continue
 
     let buffer = record.value.valueOr:
-      return
+      continue
 
     buffers.add(buffer)
-
-  let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
-    state.hasResponsesFromClosestAvailable()
-
-  let dispatchFind = proc(
-      kad: KadDHT, peer: PeerId, target: Key
-  ): Future[Opt[Message]] {.
-      async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
-  .} =
-    return await dispatchFindNode(kad, peer, target)
-
-  let state = await disco.iterativeLookup(randomKey, dispatchFind, bufferReply, stop)
 
   var records: seq[ExtendedPeerRecord]
   for buffer in buffers:
@@ -117,6 +101,6 @@ proc filterByServices*(
 proc lookup*(
     disco: KademliaDiscovery, service: ServiceInfo
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  let records = await disco.findRandom()
+  let records = await disco.randomRecords()
 
   return records.filterByServices(@[service].toHashSet())
