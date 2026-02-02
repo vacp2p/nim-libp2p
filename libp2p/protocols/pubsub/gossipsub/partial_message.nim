@@ -44,8 +44,8 @@ type
 converter toPartsMetadata*(data: seq[byte]): PartsMetadata =
   PartsMetadata(data: data)
 
-method merge*(a, b: PartsMetadata): PartsMetadata {.base, gcsafe, raises: [].} =
-  ## Merges two PartsMetadata objects into single.
+method union*(a, b: PartsMetadata): PartsMetadata {.base, gcsafe, raises: [].} =
+  ## Creates union of two PartsMetadata and returns it.
   raiseAssert "merge: must be implemented"
 
 method groupId*(m: PartialMessage): GroupId {.base, gcsafe, raises: [].} =

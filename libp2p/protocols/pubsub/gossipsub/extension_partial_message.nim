@@ -203,7 +203,7 @@ proc handlePartialRPC(
   if rpc.partsMetadata.len > 0:
     var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
     var peerState = groupState.getPeerState(peerId)
-    peerState.partsMetadata = merge(peerState.partsMetadata, rpc.partsMetadata)
+    peerState.partsMetadata = rpc.partsMetadata
 
   ext.onIncomingRPC(peerId, rpc)
 
@@ -244,7 +244,7 @@ proc publishPartialToPeer(
       # to avoid any error with future messages.
       peerState.partsMetadata = newSeq[byte](0)
     else:
-      peerState.partsMetadata = merge(peerState.partsMetadata, msgPartsMetadata)
+      peerState.partsMetadata = union(peerState.partsMetadata, msgPartsMetadata)
 
       let data = materializeRes.get()
       rpc.partialMessage = data
