@@ -196,7 +196,9 @@ proc libp2p_create_cid(
   callback(RET_OK.cint, addr cidStr[0], cast[csize_t](len(cidStr)), userData)
   RET_OK.cint
 
-proc newPrivateKey*(scheme: PKScheme): Libp2pPrivateKey {.cdecl.} =
+proc libp2p_new_private_key*(
+    scheme: PKScheme
+): Libp2pPrivateKey {.dynlib, exportc, cdecl.} =
   let key = PrivateKey.random(scheme, newRng()[]).valueOr:
     echo "error: unsupported private key scheme"
     return Libp2pPrivateKey(data: nil)

@@ -48,11 +48,24 @@ typedef struct libp2p_bootstrap_node {
   size_t multiaddrsLen;
 } libp2p_bootstrap_node_t;
 
+typedef enum {
+  RSA,
+  Ed25519,
+  Secp256k1,
+  ECDSA,
+} libp2p_pk_scheme;
+
+typedef struct libp2p_private_key {
+  void *data;
+} libp2p_private_key_t;
+
 typedef struct {
   uint32_t flags;
   int mount_gossipsub;
   int gossipsub_trigger_self;
   int mount_kad;
+  int pass_priv_key;
+  libp2p_private_key_t priv_key;
   const char *dns_resolver;
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   size_t kad_bootstrap_nodes_len;
@@ -139,6 +152,8 @@ typedef void TopicHandler(const char *topic, uint8_t *data, size_t len,
 int libp2p_create_cid(uint32_t version, const char *multicodec, const char *hash,
                       const uint8_t *data, size_t dataLen, Libp2pCallback callback,
                       void *userData);
+
+libp2p_private_key_t libp2p_new_private_key(libp2p_pk_scheme scheme);
 
 libp2p_ctx_t *libp2p_new(const libp2p_config_t *config,
                          Libp2pCallback callback, void *userData);
