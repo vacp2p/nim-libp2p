@@ -219,44 +219,50 @@ method onHandleRPC*(
   rpc.partialMessageExtension.withValue(partialExtRPC):
     ext.handlePartialRPC(peerId, partialExtRPC)
 
+proc publishPartialToPeer(
+    ext: PartialMessageExtension,
+    topic: string,
+    pm: PartialMessage,
+    groupState: GroupState,
+    peer: PeerId,
+    peerRequestsPartial: bool,
+) {.raises: [].} =
+  let msgPartsMetadata = pm.partsMetadata()
+  var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: pm.groupId())
+  var peerState = groupState.getPeerState(peer)
+  var hasChanges: bool = false
+
+  # if partsMetadata was changed, rpc sets new metadata 
+  if peerState.sentPartsMetadata != msgPartsMetadata:
+    hasChanges = true
+    rpc.partsMetadata = msgPartsMetadata.data
+    peerState.sentPartsMetadata = msgPartsMetadata
+
+  # if peer has requested partial messages, attempt to fulfill any 
+  # parts that peer is missing.
+  if peerRequestsPartial:
+    let materializeRes = pm.materializeParts(peerState.partsMetadata)
+    if materializeRes.isErr():
+      # there might be error with last PartsMetadata so it is discarded,
+      # to avoid any error with future messages.
+      peerState.partsMetadata = newSeq[byte](0)
+    else:
+      peerState.partsMetadata = merge(peerState.partsMetadata, msgPartsMetadata)
+
+      let data = materializeRes.get()
+      rpc.partialMessage = data
+      hasChanges = hasChanges or data.len > 0
+
+  # if there are any changes send RPC
+  if hasChanges:
+    ext.sendRPC(peer, rpc)
+
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
-  let msgGroupId = pm.groupId()
-  let msgPartsMetadata = pm.partsMetadata()
-  var groupState = ext.getGroupState(topic, msgGroupId)
+  var groupState = ext.getGroupState(topic, pm.groupId())
 
   groupState.heartbeatsTillEviction = ext.heartbeatsTillEviction
-
-  proc publishPartialToPeer(peer: PeerId, peerRequestsPartial: bool) {.raises: [].} =
-    var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: msgGroupId)
-    var peerState = groupState.getPeerState(peer)
-    var hasChanges: bool = false
-
-    # if partsMetadata was changed, rpc sets new metadata 
-    if peerState.sentPartsMetadata != msgPartsMetadata:
-      hasChanges = true
-      rpc.partsMetadata = msgPartsMetadata.data
-      peerState.sentPartsMetadata = msgPartsMetadata
-
-    # if peer has requested partial messages, attempt to fulfill any 
-    # parts that peer is missing.
-    if peerRequestsPartial:
-      let materializeRes = pm.materializeParts(peerState.partsMetadata)
-      if materializeRes.isErr():
-        # there might be error with last PartsMetadata so it is discarded,
-        # to avoid any error with future messages.
-        peerState.partsMetadata = newSeq[byte](0)
-      else:
-        peerState.partsMetadata = merge(peerState.partsMetadata, msgPartsMetadata)
-
-        let data = materializeRes.get()
-        rpc.partialMessage = data
-        hasChanges = hasChanges or data.len > 0
-
-    # if there are any changes send RPC
-    if hasChanges:
-      ext.sendRPC(peer, rpc)
 
   var publishedToCount: int = 0
   let peers = ext.publishToPeers(topic)
@@ -267,14 +273,14 @@ proc publishPartial*(
 
     let peerSubOpt = ext.peerSubs.getOrDefault(PeerTopicKey.new(p, topic))
 
-    # publish partial message if ...
+    # publish partial message to peer if ...
     if peerSubOpt.requestsPartial:
       # 1) peer has requested partial messages for this topic
-      publishPartialToPeer(p, true)
+      ext.publishPartialToPeer(topic, pm, groupState, p, true)
       publishedToCount.inc
     elif peerSubOpt.supportsSendingPartial and ext.isRequestPartialByNode(topic):
       # 2) this node has requested partial messages and peer (other node) supports sending it
-      publishPartialToPeer(p, false)
+      ext.publishPartialToPeer(topic, pm, groupState, p, false)
       publishedToCount.inc
 
   return publishedToCount
