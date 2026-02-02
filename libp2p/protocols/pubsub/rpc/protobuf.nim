@@ -11,8 +11,6 @@ import messages, ../../../peerid, ../../../utility, ../../../protobuf/minprotobu
 logScope:
   topics = "libp2p pubsubprotobuf"
 
-const filedId_RPCMsg_TestExtension = 6492434
-
 when defined(libp2p_protobuf_metrics):
   import metrics
 
@@ -107,7 +105,7 @@ proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
   extensions.testExtension.withValue(te):
-    ipb.write(filedId_RPCMsg_TestExtension, te)
+    ipb.write(6492434, te)
 
   if ipb.buffer.len > 0:
     ipb.finish()
@@ -315,7 +313,7 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
 
-  if ?pb.getField(filedId_RPCMsg_TestExtension, control.testExtension):
+  if ?pb.getField(6492434, control.testExtension):
     trace "decodeExtensions: read testExtension", testExtension = control.testExtension
   else:
     trace "decodeExtensions: testExtension is missing"
@@ -484,7 +482,7 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
   if msg.testExtension.isSome():
     # if set write empty bytes, this will set filed tag
-    pb.write(filedId_RPCMsg_TestExtension, newSeq[byte](0))
+    pb.write(6492434, newSeq[byte](0))
 
   if len(pb.buffer) > 0:
     pb.finish()
@@ -554,6 +552,6 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
 
   # Experimental extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
-  rpcMsg.testExtension = ?pb.decodeTestExtensionRPC(filedId_RPCMsg_TestExtension)
+  rpcMsg.testExtension = ?pb.decodeTestExtensionRPC(6492434)
 
   ok(rpcMsg)
