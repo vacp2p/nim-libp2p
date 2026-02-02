@@ -106,7 +106,7 @@ suite "Message":
       msgIdResult.error == ValidationResult.Reject
 
   test "byteSize for RPCMsg":
-    var msg = Message(
+    let msg = Message(
       fromPeer: PeerId(data: @['a'.byte, 'b'.byte]), # 2 bytes
       data: @[1'u8, 2, 3], # 3 bytes
       seqno: @[4'u8, 5], # 2 bytes
@@ -114,50 +114,48 @@ suite "Message":
       key: @[6'u8, 7], # 2 bytes
       topic: "abcde", # 5 bytes
     )
+    check byteSize(msg) == 16
 
-    var peerInfo = PeerInfoMsg(
+    let peerInfo = PeerInfoMsg(
       peerId: PeerId(data: @['e'.byte]), # 1 byte
-      signedPeerRecord: @['f'.byte, 'g'.byte] # 2 bytes
-      ,
+      signedPeerRecord: @['f'.byte, 'g'.byte], # 2 bytes
     )
 
-    var controlIHave = ControlIHave(
+    let controlIHave = ControlIHave(
       topicID: "ijk", # 3 bytes
-      messageIDs: @[@['l'.byte], @['m'.byte, 'n'.byte]] # 1 + 2 = 3 bytes
-      ,
+      messageIDs: @[@['l'.byte], @['m'.byte, 'n'.byte]], # 1 + 2 = 3 bytes
     )
 
-    var controlIWant = ControlIWant(
+    let controlIWant = ControlIWant(
       messageIDs: @[@['o'.byte, 'p'.byte], @['q'.byte]] # 2 + 1 = 3 bytes
     )
 
-    var controlGraft = ControlGraft(
+    let controlGraft = ControlGraft(
       topicID: "rst" # 3 bytes
     )
 
-    var controlPrune = ControlPrune(
+    let controlPrune = ControlPrune(
       topicID: "uvw", # 3 bytes
       peers: @[peerInfo, peerInfo], # (1 + 2) * 2 = 6 bytes
       backoff: 12345678, # 8 bytes for uint64
     )
 
-    var control = ControlMessage(
+    let control = ControlMessage(
       ihave: @[controlIHave, controlIHave], # (3 + 3) * 2 = 12 bytes
       iwant: @[controlIWant], # 3 bytes
       graft: @[controlGraft], # 3 bytes
       prune: @[controlPrune], # 3 + 6 + 8 = 17 bytes
-      idontwant: @[controlIWant] # 3 bytes
-      ,
+      idontwant: @[controlIWant], # 3 bytes
     )
 
-    var partialMessageExtensionRPC = PartialMessageExtensionRPC(
+    let partialMessageExtensionRPC = PartialMessageExtensionRPC(
       topicID: "a", # 1 byte
       groupID: @[1'u8], # 1 byte
       partialMessage: @[1'u8], # 1 byte
       partsMetadata: @[1'u8], # 1 byte
     )
 
-    var rpcMsg = RPCMsg(
+    let rpcMsg = RPCMsg(
       subscriptions:
         @[
           SubOpts(
@@ -174,7 +172,6 @@ suite "Message":
       control: some(control), # 12 + 3 + 3 + 17 + 3 = 38 bytes
       partialMessageExtension: some(partialMessageExtensionRPC), # 4 bytes
     )
-
     check byteSize(rpcMsg) == 30 + 32 + 2 + 2 + 38 + 4 # Total: 108 bytes
 
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
