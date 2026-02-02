@@ -33,6 +33,7 @@ const DefaultDnsResolver = "1.1.1.1:53"
 proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
   var resolved = Libp2pConfig(
     flags: 0'u32,
+    passPrivKey: 0,
     mountGossipsub: 1,
     gossipsubTriggerSelf: 1,
     mountKad: 1,
@@ -184,6 +185,8 @@ proc destroyShared(self: ptr LifecycleRequest) =
         deallocShared(nodes[i].peerId)
       deallocCStringArray(nodes[i].multiaddrs, nodes[i].multiaddrsLen)
     deallocShared(self[].config.kadBootstrapNodes)
+  if not self[].config.privKey.data.isNil():
+    deallocShared(self[].config.privKey.data)
   deallocShared(self)
 
 proc process*(

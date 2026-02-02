@@ -8,7 +8,7 @@
 when defined(linux):
   {.passl: "-Wl,-soname,libp2p.so".}
 
-import std/[typetraits, tables, atomics], chronos, chronicles
+import std/[typetraits, tables, atomics], random, chronos, chronicles
 import
   ./libp2p_thread/libp2p_thread,
   ./[ffi_types, types],
@@ -129,11 +129,12 @@ if defined(android):
     ) {.raises: [].} =
       echo logLevel, msg
 
-# Initializes the Nim runtime and foreign-thread GC
 proc initializeLibrary() {.exported.} =
+  ## Initializes the Nim runtime and foreign-thread GC
   if not initialized.exchange(true):
-    ## Every Nim library must call `<prefix>NimMain()` once
+    # Every Nim library must call `<prefix>NimMain()` once
     libp2pNimMain()
+    randomize() # initialize rng
   when declared(setupForeignThreadGc):
     setupForeignThreadGc()
   when declared(nimGC_setStackBottom):
@@ -196,9 +197,10 @@ proc libp2p_create_cid(
   callback(RET_OK.cint, addr cidStr[0], cast[csize_t](len(cidStr)), userData)
   RET_OK.cint
 
-proc libp2p_new_private_key*(
+proc libp2p_new_private_key(
     scheme: PKScheme
 ): Libp2pPrivateKey {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
   let key = PrivateKey.random(scheme, newRng()[]).valueOr:
     echo "error: unsupported private key scheme"
     return Libp2pPrivateKey(data: nil)
