@@ -873,7 +873,8 @@ proc onHeartbeat(g: GossipSub) =
         libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
       else:
         libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
-    g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
+      if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
+        g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
 
   g.mcache.shift() # shift the cache
 
