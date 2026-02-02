@@ -368,7 +368,8 @@ proc handleMixMessages(
     trace "Intermediate node processing",
       peerId = mixProto.mixNodeInfo.peerId, multiAddr = mixProto.mixNodeInfo.multiAddr
     mix_messages_recvd.inc(labelValues = ["Intermediate"])
-    let actualDelayMs = mixProto.delayStrategy.generateForIntermediate(processedSP.delayMs.uint16)
+    let actualDelayMs =
+      mixProto.delayStrategy.generateForIntermediate(processedSP.delayMs.uint16)
     trace "Computed delay", encodedDelayMs = processedSP.delayMs, actualDelayMs
     await sleepAsync(milliseconds(actualDelayMs.int))
 
@@ -477,10 +478,12 @@ proc buildSurb(
         availableIndices.del(randomIndexPosition)
         debug "Selected mix node for surbs: ", indexInPath = i, peerId = randPeerId
         let mixPubInfo = mixProto.pubNodeInfo.getOrDefault(randPeerId)
-        let delayMillisec = mixProto.delayStrategy.generateForEntry().valueOr:
-          mix_messages_error.inc(labelValues = ["Entry/SURB", "NON_RECOVERABLE"])
-          return err("failed to generate delay: " & error)
-        (mixPubInfo.peerId, mixPubInfo.multiAddr, mixPubInfo.mixPubKey, delayMillisec)
+        (
+          mixPubInfo.peerId,
+          mixPubInfo.multiAddr,
+          mixPubInfo.mixPubKey,
+          mixProto.delayStrategy.generateForEntry(),
+        )
       else:
         (
           mixProto.mixNodeInfo.peerId, mixProto.mixNodeInfo.multiAddr,
@@ -742,9 +745,7 @@ proc anonymizeLocalProtocolSend*(
 
     let delayMillisec =
       if hop.len != PathLength - 1:
-        mixProto.delayStrategy.generateForEntry().valueOr:
-          mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
-          return err("failed to generate delay: " & error)
+        mixProto.delayStrategy.generateForEntry()
       else:
         0.uint16 # No delay for exit node
 
@@ -844,14 +845,12 @@ proc new*(
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ): T =
-  let actualDelayStrategy =
-    if delayStrategy.isSome:
-      delayStrategy.get
-    else:
-      NoSamplingDelayStrategy.new(rng)
+  let actualDelayStrategy = delayStrategy.valueOr:
+    NoSamplingDelayStrategy.new(rng)
   let mixProto = new(T)
   mixProto.init(
-    mixNodeInfo, pubNodeInfo, switch, tagManager, rng, spamProtection, actualDelayStrategy
+    mixNodeInfo, pubNodeInfo, switch, tagManager, rng, spamProtection,
+    actualDelayStrategy,
   )
   mixProto
 

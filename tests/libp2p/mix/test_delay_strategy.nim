@@ -4,7 +4,6 @@
 {.used.}
 
 import std/[sets]
-import ../../../libp2p/crypto/crypto
 import ../../../libp2p/protocols/mix/delay_strategy
 import ../../tools/[unittest, crypto]
 
@@ -15,19 +14,13 @@ const
 
 suite "DelayStrategy":
   test "NoSamplingDelayStrategy generateForEntry returns values in [0, 2]":
-    let
-      rng = rng()
-      strategy = NoSamplingDelayStrategy.new(rng)
+    let strategy = NoSamplingDelayStrategy.new(rng())
 
     for _ in 0 ..< NumIterations:
-      let delay = strategy.generateForEntry().valueOr:
-        raiseAssert error
-      check delay <= 2
+      check strategy.generateForEntry() <= 2
 
   test "NoSamplingDelayStrategy generateForIntermediate returns encoded value":
-    let
-      rng = rng()
-      strategy = NoSamplingDelayStrategy.new(rng)
+    let strategy = NoSamplingDelayStrategy.new(rng())
 
     check:
       strategy.generateForIntermediate(100) == 100
@@ -37,20 +30,17 @@ suite "DelayStrategy":
     let rng = rng()
 
     check:
-      ExponentialDelayStrategy.new(50, rng).generateForEntry().get() == 50
-      ExponentialDelayStrategy.new(100, rng).generateForEntry().get() == 100
+      ExponentialDelayStrategy.new(50, rng).generateForEntry() == 50
+      ExponentialDelayStrategy.new(100, rng).generateForEntry() == 100
 
   test "ExponentialDelayStrategy generateForIntermediate returns 0 for mean 0":
-    let
-      strategy = ExponentialDelayStrategy.new(0, rng)
-      rng = rng()
+    let strategy = ExponentialDelayStrategy.new(0, rng())
 
     check strategy.generateForIntermediate(0) == 0
 
   test "ExponentialDelayStrategy generateForIntermediate samples from exponential distribution":
     let
-      rng = rng()
-      strategy = ExponentialDelayStrategy.new(100, rng)
+      strategy = ExponentialDelayStrategy.new(100, rng())
       meanDelayMs: uint16 = 100
       numSamples = 1000
     var sum: float64 = 0
@@ -67,8 +57,7 @@ suite "DelayStrategy":
 
   test "ExponentialDelayStrategy produces variable delays":
     let
-      rng = rng()
-      strategy = ExponentialDelayStrategy.new(100, rng)
+      strategy = ExponentialDelayStrategy.new(100, rng())
       meanDelayMs: uint16 = 100
 
     var delays = initHashSet[uint16]()
