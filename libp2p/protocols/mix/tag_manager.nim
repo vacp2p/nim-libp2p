@@ -1,30 +1,33 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
-import tables, locks
-import ./curve25519
+import std/sets, locks
 
-type TagManager* = ref object
-  lock: Lock
-  seenTags: Table[FieldElement, bool]
+type
+  ## Tag is H(α || s) as per spec Section 8.6.1 Step 2
+  Tag* = array[32, byte]
+
+  TagManager* = ref object
+    lock: Lock
+    seenTags: HashSet[Tag]
 
 proc new*(T: typedesc[TagManager]): T =
   let tm = T()
-  tm.seenTags = initTable[FieldElement, bool]()
+  tm.seenTags = initHashSet[Tag]()
   initLock(tm.lock)
   return tm
 
-proc addTag*(tm: TagManager, tag: FieldElement) {.gcsafe.} =
+proc addTag*(tm: TagManager, tag: Tag) {.gcsafe.} =
   withLock tm.lock:
-    tm.seenTags[tag] = true
+    tm.seenTags.incl(tag)
 
-proc isTagSeen*(tm: TagManager, tag: FieldElement): bool {.gcsafe.} =
+proc isTagSeen*(tm: TagManager, tag: Tag): bool {.gcsafe.} =
   withLock tm.lock:
     return tm.seenTags.contains(tag)
 
-proc removeTag*(tm: TagManager, tag: FieldElement) {.gcsafe.} =
+proc removeTag*(tm: TagManager, tag: Tag) {.gcsafe.} =
   withLock tm.lock:
-    tm.seenTags.del(tag)
+    tm.seenTags.excl(tag)
 
 proc clearTags*(tm: TagManager) {.gcsafe.} =
   withLock tm.lock:

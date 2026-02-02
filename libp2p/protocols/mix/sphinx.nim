@@ -274,6 +274,10 @@ template extractSurbId(data: seq[byte]): SURBIdentifier =
   copyMem(addr id[0], addr data[startIndex], SurbIdLen)
   id
 
+proc computeTag(alpha: seq[byte], s: FieldElement): Tag =
+  ## Compute replay detection tag as H(α || s) per spec Section 8.6.1 Step 2
+  sha256_hash(alpha & fieldElementToBytes(s))
+
 proc checkReplay*(
     sphinxPacket: SphinxPacket, privateKey: FieldElement, tm: var TagManager
 ): Result[tuple[isReplay: bool, sharedSecret: FieldElement], string] =
@@ -290,13 +294,16 @@ proc checkReplay*(
 
   let s = multiplyPointWithScalars(alphaFE, [privateKey])
 
+  # Compute tag as H(α || s) per spec
+  let tag = computeTag(alpha, s)
+
   # Check if the tag has been seen
-  let isDuplicate = isTagSeen(tm, s)
+  let isDuplicate = isTagSeen(tm, tag)
 
   # If not a duplicate, immediately add the tag to prevent race conditions
   # (in case another packet with the same tag arrives before full processing)
   if not isDuplicate:
-    addTag(tm, s)
+    addTag(tm, tag)
 
   ok((isReplay: isDuplicate, sharedSecret: s))
 
@@ -318,8 +325,11 @@ proc processSphinxPacket*(
 
   let sBytes = fieldElementToBytes(s)
 
+  # Compute tag as H(α || s) per spec Section 8.6.1 Step 2
+  let tag = computeTag(alpha, s)
+
   # Check if the tag has been seen (only if we didn't get pre-validated sharedSecret)
-  if sharedSecret.isNone and isTagSeen(tm, s):
+  if sharedSecret.isNone and isTagSeen(tm, tag):
     return ok(ProcessedSphinxPacket(status: Duplicate))
 
   # Compute MAC
@@ -331,7 +341,7 @@ proc processSphinxPacket*(
 
   # Add tag if it wasn't already added by checkReplay
   if sharedSecret.isNone:
-    tm.addTag(s)
+    tm.addTag(tag)
 
   # Derive AES key and IV
   let
