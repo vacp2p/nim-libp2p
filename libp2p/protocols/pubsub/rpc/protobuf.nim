@@ -11,8 +11,6 @@ import messages, ../../../peerid, ../../../utility, ../../../protobuf/minprotobu
 logScope:
   topics = "libp2p pubsubprotobuf"
 
-const filedId_RPCMsg_TestExtension = 6492434
-
 when defined(libp2p_protobuf_metrics):
   import metrics
 
@@ -101,10 +99,13 @@ proc write*(pb: var ProtoBuffer, field: int, imreceiving: ControlIMReceiving) =
 proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
   var ipb = initProtoBuffer()
 
+  extensions.partialMessageExtension.withValue(pme):
+    ipb.write(10, pme)
+
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
-  if extensions.testExtension.isSome():
-    ipb.write(filedId_RPCMsg_TestExtension, extensions.testExtension.get())
+  extensions.testExtension.withValue(te):
+    ipb.write(6492434, te)
 
   if ipb.buffer.len > 0:
     ipb.finish()
@@ -142,11 +143,28 @@ proc write*(pb: var ProtoBuffer, field: int, subs: SubOpts) =
   var ipb = initProtoBuffer()
   ipb.write(1, subs.subscribe)
   ipb.write(2, subs.topic)
+  ipb.write(3, subs.requestsPartial)
+  ipb.write(4, subs.supportsSendingPartial)
   ipb.finish()
   pb.write(field, ipb)
 
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["subs"])
+
+proc write*(pb: var ProtoBuffer, field: int, pme: PartialMessageExtensionRPC) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, pme.topicID)
+  ipb.write(2, pme.groupID)
+  ipb.write(3, pme.partialMessage)
+  ipb.write(4, pme.partsMetadata)
+
+  ipb.finish()
+  pb.write(field, ipb)
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(
+      ipb.getLen().int64, labelValues = ["partial_message"]
+    )
 
 proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   var pb = initProtoBuffer()
@@ -286,16 +304,19 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
   trace "decodeExtensions: decoding message"
   var control = ControlExtensions()
 
+  if ?pb.getField(10, control.partialMessageExtension):
+    trace "decodeExtensions: read partialMessageExtension",
+      partialMessageExtension = control.partialMessageExtension
+  else:
+    trace "decodeExtensions: partialMessageExtension is missing"
+
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
 
-  var testExtension: uint64
-  if ?pb.getField(filedId_RPCMsg_TestExtension, testExtension):
-    trace "decodeExtensions: read testExtension", testExtension = testExtension
-    control.testExtension = some(bool(testExtension))
+  if ?pb.getField(6492434, control.testExtension):
+    trace "decodeExtensions: read testExtension", testExtension = control.testExtension
   else:
     trace "decodeExtensions: testExtension is missing"
-    control.testExtension = none(bool)
 
   ok(control)
 
@@ -356,17 +377,29 @@ proc decodeSubscription*(pb: ProtoBuffer): ProtoResult[SubOpts] {.inline.} =
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["subs"])
 
   trace "decodeSubscription: decoding message"
-  var subflag: uint64
   var sub = SubOpts()
-  if ?pb.getField(1, subflag):
-    sub.subscribe = bool(subflag)
-    trace "decodeSubscription: read subscribe", subscribe = subflag
+  if ?pb.getField(1, sub.subscribe):
+    trace "decodeSubscription: read subscribe", subscribe = sub.subscribe
   else:
     trace "decodeSubscription: subscribe is missing"
+
   if ?pb.getField(2, sub.topic):
     trace "decodeSubscription: read topic", topic = sub.topic
   else:
     trace "decodeSubscription: topic is missing"
+
+  if ?pb.getField(3, sub.requestsPartial):
+    trace "decodeSubscription: read requestsPartial",
+      requestsPartial = sub.requestsPartial
+  else:
+    trace "decodeSubscription: requestsPartial is missing"
+
+  if ?pb.getField(4, sub.supportsSendingPartial):
+    trace "decodeSubscription: read supportsSendingPartial",
+      supportsSendingPartial = sub.supportsSendingPartial
+  else:
+    trace "decodeSubscription: supportsSendingPartial is missing"
+
   ok(sub)
 
 proc decodeSubscriptions*(pb: ProtoBuffer): ProtoResult[seq[SubOpts]] {.inline.} =
@@ -436,6 +469,9 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
     pb.write(2, item, anonymize)
   msg.control.withValue(control):
     pb.write(3, control)
+  msg.partialMessageExtension.withValue(pme):
+    pb.write(10, pme)
+
   # TODO(nim-libp2p#1999)
   # using fields which are unlikely to be used by other extensions
   if msg.ping.len > 0:
@@ -443,15 +479,64 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   if msg.pong.len > 0:
     pb.write(61, msg.pong)
 
-  # Canonical Extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
   if msg.testExtension.isSome():
     # if set write empty bytes, this will set filed tag
-    pb.write(filedId_RPCMsg_TestExtension, newSeq[byte](0))
+    pb.write(6492434, newSeq[byte](0))
 
   if len(pb.buffer) > 0:
     pb.finish()
   pb.buffer
+
+proc decodeTestExtensionRPC*(
+    pb: ProtoBuffer, field: int
+): ProtoResult[Option[TestExtensionRPC]] {.inline.} =
+  trace "TestExtensionRPC: decoding message"
+
+  var testExtension: seq[byte]
+  if ?pb.getField(field, testExtension):
+    ok(some(TestExtensionRPC()))
+  else:
+    ok(none(TestExtensionRPC))
+
+proc decodePartialMessageExtensionRPC*(
+    pb: ProtoBuffer, field: int
+): ProtoResult[Option[PartialMessageExtensionRPC]] {.inline.} =
+  trace "PartialMessageExtensionRPC: decoding message"
+
+  var partialMessgeExtensionsRPCBytes: seq[byte]
+  if ?pb.getField(field, partialMessgeExtensionsRPCBytes):
+    trace "decodePartialMessageExtensionRPC: is set"
+  else:
+    trace "decodePartialMessageExtensionRPC: is not set"
+    return ok(none(PartialMessageExtensionRPC))
+
+  var pbp = initProtoBuffer(partialMessgeExtensionsRPCBytes)
+  var pme = PartialMessageExtensionRPC()
+
+  if ?pbp.getField(1, pme.topicID):
+    trace "decodePartialMessageExtensionRPC: read topic", topic = pme.topicID
+  else:
+    trace "decodePartialMessageExtensionRPC: topic is missing"
+
+  if ?pbp.getField(2, pme.groupID):
+    trace "decodePartialMessageExtensionRPC: read groupID", groupID = pme.groupID
+  else:
+    trace "decodePartialMessageExtensionRPC: groupID is missing"
+
+  if ?pbp.getField(3, pme.partialMessage):
+    trace "decodePartialMessageExtensionRPC: read partialMessage",
+      partialMessage = pme.partialMessage
+  else:
+    trace "decodePartialMessageExtensionRPC: partialMessage is missing"
+
+  if ?pbp.getField(4, pme.partsMetadata):
+    trace "decodePartialMessageExtensionRPC: read partsMetadata",
+      partsMetadata = pme.partsMetadata
+  else:
+    trace "decodePartialMessageExtensionRPC: partsMetadata is missing"
+
+  ok(some(pme))
 
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   trace "decodeRpcMsg: decoding message", payload = msg.shortLog()
@@ -460,16 +545,13 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   assign(rpcMsg.messages, ?pb.decodeMessages())
   assign(rpcMsg.subscriptions, ?pb.decodeSubscriptions())
   assign(rpcMsg.control, ?pb.decodeControl())
+  rpcMsg.partialMessageExtension = ?pb.decodePartialMessageExtensionRPC(10)
+
   discard ?pb.getField(60, rpcMsg.ping)
   discard ?pb.getField(61, rpcMsg.pong)
 
-  # Canonical Extensions should register their messages here.
+  # Experimental extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
-
-  var testExtension: seq[byte]
-  if ?pb.getField(filedId_RPCMsg_TestExtension, testExtension):
-    rpcMsg.testExtension = some(TestExtensionRPC())
-  else:
-    rpcMsg.testExtension = none(TestExtensionRPC)
+  rpcMsg.testExtension = ?pb.decodeTestExtensionRPC(6492434)
 
   ok(rpcMsg)
