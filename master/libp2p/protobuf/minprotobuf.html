@@ -210,7 +210,11 @@ window.addEventListener("DOMContentLoaded", main2);
 
 </ul>
 <ul class="simple nested-toc-section">getField
-  <li><a class="reference" href="#getField%2CProtoBuffer%2Cint%2CProtoBuffer" title="getField(pb: ProtoBuffer; field: int; output: var ProtoBuffer): ProtoResult[bool]">getField(pb: ProtoBuffer; field: int; output: var ProtoBuffer): ProtoResult[bool]</a></li>
+  <li><a class="reference" href="#getField%2CProtoBuffer%2Cint%2Cbool" title="getField(pb: ProtoBuffer; field: int; output: var bool): ProtoResult[bool]">getField(pb: ProtoBuffer; field: int; output: var bool): ProtoResult[bool]</a></li>
+<li><a class="reference" href="#getField%2CProtoBuffer%2Cint%2COption%5Bbool%5D" title="getField(pb: ProtoBuffer; field: int; output: var Option[bool]): ProtoResult[
+    bool]">getField(pb: ProtoBuffer; field: int; output: var Option[bool]): ProtoResult[
+    bool]</a></li>
+<li><a class="reference" href="#getField%2CProtoBuffer%2Cint%2CProtoBuffer" title="getField(pb: ProtoBuffer; field: int; output: var ProtoBuffer): ProtoResult[bool]">getField(pb: ProtoBuffer; field: int; output: var ProtoBuffer): ProtoResult[bool]</a></li>
 <li><a class="reference" href="#getField%2CProtoBuffer%2Cint%2CopenArray%5BT%5D%2Cint" title="getField[T: byte | char](data: ProtoBuffer; field: int;
                          output: var openArray[T]; outlen: var int): ProtoResult[
     bool]">getField[T: byte | char](data: ProtoBuffer; field: int;
@@ -263,6 +267,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </ul>
 <ul class="simple nested-toc-section">write
   <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2Cbool" title="write(pb: var ProtoBuffer; field: int; value: bool)">write(pb: var ProtoBuffer; field: int; value: bool)</a></li>
+<li><a class="reference" href="#write%2CProtoBuffer%2Cint%2COption%5Bbool%5D" title="write(pb: var ProtoBuffer; field: int; value: Option[bool])">write(pb: var ProtoBuffer; field: int; value: Option[bool])</a></li>
 <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CProtoBuffer" title="write(pb: var ProtoBuffer; field: int; value: ProtoBuffer)">write(pb: var ProtoBuffer; field: int; value: ProtoBuffer)</a></li>
 <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CopenArray%5BT%5D" title="write[T: byte | char](pb: var ProtoBuffer; field: int; value: openArray[T])">write[T: byte | char](pb: var ProtoBuffer; field: int; value: openArray[T])</a></li>
 <li><a class="reference" href="#write%2CProtoBuffer%2Cint%2CT" title="write[T: ProtoScalar](pb: var ProtoBuffer; field: int; value: T)">write[T: ProtoScalar](pb: var ProtoBuffer; field: int; value: T)</a></li>
@@ -472,22 +477,44 @@ Protobuf's encoding types
 <dd>
 
 Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</span></tt> for writing to stream.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L268" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L268" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L272" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L272" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 
 </div>
 <div id="getField-procs-all">
-  <div id="getField,ProtoBuffer,int,ProtoBuffer" class="tohide">
+  <div id="getField,ProtoBuffer,int,bool" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2Cbool"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">bool</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
+    <span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L580" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L580" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+<div id="getField,ProtoBuffer,int,Option[bool]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2COption%5Bbool%5D"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">Option</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
+    <span class="Identifier">bool</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L591" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L591" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+<div id="getField,ProtoBuffer,int,ProtoBuffer" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CProtoBuffer"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
     <span class="Identifier">bool</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L566" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L566" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L570" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L570" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -498,8 +525,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L476" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L476" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L480" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L480" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -509,8 +536,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L435" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L435" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L439" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L439" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -521,8 +548,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L528" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L528" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L532" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L532" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -535,8 +562,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L670" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L670" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L696" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L696" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -550,8 +577,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L622" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L622" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L648" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L648" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -561,8 +588,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L584" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L584" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L610" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L610" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -575,8 +602,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L576" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L576" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L602" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L602" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -589,8 +616,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L662" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L662" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L688" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L688" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -658,14 +685,25 @@ Returns number of bytes required to store protobuf's field <tt class="docutils l
 
 </dd>
 </div>
+<div id="write,ProtoBuffer,int,Option[bool]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2COption%5Bbool%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">Option</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L195" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L195" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
 <div id="write,ProtoBuffer,int,ProtoBuffer" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CProtoBuffer"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span> {.<span class="Identifier">inline</span><span class="Other">,</span>
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Encode Protobuf's sub-message <tt class="docutils literal"><span class="pre">value</span></tt> and store it to protobuf's buffer <tt class="docutils literal"><span class="pre">pb</span></tt> with field number <tt class="docutils literal"><span class="pre">field</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L263" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L263" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L267" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L267" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -675,8 +713,8 @@ Encode Protobuf's sub-message <tt class="docutils literal"><span class="pre">val
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L243" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L243" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L247" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L247" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -700,8 +738,8 @@ Encode Protobuf's sub-message <tt class="docutils literal"><span class="pre">val
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L195" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L195" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protobuf/minprotobuf.nim#L199" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protobuf/minprotobuf.nim#L199" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -843,7 +881,7 @@ Get protobuf's field header integer for <tt class="docutils literal"><span class
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-02-03 14:17:42 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-02-03 15:29:17 UTC</small>
       </div>
     </div>
   </div>
