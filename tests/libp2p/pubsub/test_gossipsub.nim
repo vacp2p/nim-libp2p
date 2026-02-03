@@ -3,12 +3,15 @@
 
 {.used.}
 
-import chronos, chronos/rateLimit, stew/byteutils, utils
+import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
 import ../../../libp2p/muxers/muxer
 import
   ../../../libp2p/protocols/pubsub/
     [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]
 import ../../tools/[unittest, bufferstream]
+
+func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): RPCMsg =
+  RPCMsg(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
 
 suite "GossipSub":
   const topic = "foobar"

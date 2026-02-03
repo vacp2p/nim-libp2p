@@ -34,6 +34,12 @@ type
   SubOpts* = object
     subscribe*: bool
     topic*: string
+    # When true, it signals the receiver that the sender prefers partial messages.
+    requestsPartial*: Option[bool]
+    # When true, it signals the receiver that the sender supports sending partial
+    # messages on this topic.
+    # When requestsPartial is true, this is assumed to be true.
+    supportsSendingPartial*: Option[bool]
 
   MessageId* = seq[byte]
 
@@ -52,9 +58,7 @@ type
     key*: seq[byte]
 
   ControlExtensions* = object
-    # Canonical extensions fields: 
-    # Currently empty. Future canonical extensions should be added here along with
-    # a reference to their specification.
+    partialMessageExtension*: Option[bool]
 
     # Experimental extensions fields:
     testExtension*: Option[bool]
@@ -96,16 +100,21 @@ type
 
   TestExtensionRPC* = object
 
+  PartialMessageExtensionRPC* = object
+    topicID*: string
+    groupID*: seq[byte]
+    partialMessage*: seq[byte]
+    partsMetadata*: seq[byte]
+
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
     control*: Option[ControlMessage]
+    partialMessageExtension*: Option[PartialMessageExtensionRPC]
+    testExtension*: Option[TestExtensionRPC]
+    # should be experimental extension in future
     ping*: seq[byte]
     pong*: seq[byte]
-    testExtension*: Option[TestExtensionRPC]
-
-func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): T =
-  T(subscriptions: topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
 
 func shortLog*(s: ControlIHave): auto =
   (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
@@ -133,10 +142,16 @@ func shortLogOpt[T](s: Option[T]): string =
 
 func shortLog*(so: Option[ControlExtensions]): auto =
   if so.isNone():
-    (testExtension: "<unset>")
+    (
+      partialMessageExtension: "<unset>", #
+      testExtension: "<unset>",
+    )
   else:
     let s = so.get()
-    (testExtension: shortLogOpt(s.testExtension))
+    (
+      partialMessageExtension: shortLogOpt(s.partialMessageExtension),
+      testExtension: shortLogOpt(s.testExtension),
+    )
 
 func shortLog*(c: ControlMessage): auto =
   when defined(libp2p_gossipsub_1_4):
@@ -168,11 +183,22 @@ func shortLog*(msg: Message): auto =
     key: msg.key.shortLog,
   )
 
+func shortLog*(pme: PartialMessageExtensionRPC): auto =
+  (
+    topicID: pme.topicID.shortLog,
+    groupID: pme.groupID.shortLog,
+    partialMessage: pme.partialMessage.shortLog,
+    partsMetadata: pme.partsMetadata.shortLog,
+  )
+
 func shortLog*(m: RPCMsg): auto =
   (
     subscriptions: m.subscriptions,
     messages: mapIt(m.messages, it.shortLog),
     control: m.control.get(ControlMessage()).shortLog,
+    partialMessageExtension:
+      m.partialMessageExtension.get(PartialMessageExtensionRPC()).shortLog,
+    testExtension: m.testExtension.shortLogOpt,
   )
 
 static:
@@ -180,10 +206,18 @@ static:
 proc byteSize(peerInfo: PeerInfoMsg): int =
   peerInfo.peerId.len + peerInfo.signedPeerRecord.len
 
+proc byteSize(v: Option[bool]): int =
+  if v.isSome(): 1 else: 0
+
 static:
-  expectedFields(SubOpts, @["subscribe", "topic"])
+  expectedFields(
+    SubOpts, @["subscribe", "topic", "requestsPartial", "supportsSendingPartial"]
+  )
 proc byteSize(subOpts: SubOpts): int =
-  1 + subOpts.topic.len # 1 byte for the bool
+  1 + # subscribe: 1 byte for the bool
+  subOpts.topic.len + #
+  subOpts.requestsPartial.byteSize() + #
+  subOpts.supportsSendingPartial.byteSize()
 
 static:
   expectedFields(Message, @["fromPeer", "data", "seqno", "topic", "signature", "key"])
@@ -238,20 +272,29 @@ proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
 
 static:
-  expectedFields(ControlExtensions, @["testExtension"])
-proc byteSize(T: typedesc[ControlExtensions]): int =
-  1 # 1 byte for the bool - testExtension
+  expectedFields(ControlExtensions, @["partialMessageExtension", "testExtension"])
+proc byteSize(controlExtensions: ControlExtensions): int =
+  controlExtensions.partialMessageExtension.byteSize() + #
+  controlExtensions.testExtension.byteSize()
 
 proc byteSize(controlExtensions: Option[ControlExtensions]): int =
-  if controlExtensions.isNone:
-    0
+  controlExtensions.withValue(ce):
+    ce.byteSize()
   else:
-    ControlExtensions.byteSize()
+    0
 
 static:
   expectedFields(TestExtensionRPC, @[])
 proc byteSize(testExtensions: TestExtensionRPC): int =
   0 # type is empty
+
+static:
+  expectedFields(
+    PartialMessageExtensionRPC,
+    @["topicID", "groupID", "partialMessage", "partsMetadata"],
+  )
+proc byteSize(pme: PartialMessageExtensionRPC): int =
+  pme.topicID.len + pme.groupID.len + pme.partialMessage.len + pme.partsMetadata.len
 
 when defined(libp2p_gossipsub_1_4):
   static:
@@ -281,7 +324,11 @@ else:
 
 static:
   expectedFields(
-    RPCMsg, @["subscriptions", "messages", "control", "ping", "pong", "testExtension"]
+    RPCMsg,
+    @[
+      "subscriptions", "messages", "control", "partialMessageExtension",
+      "testExtension", "ping", "pong",
+    ],
   )
 proc byteSize*(rpc: RPCMsg): int =
   result =
@@ -289,5 +336,7 @@ proc byteSize*(rpc: RPCMsg): int =
     rpc.pong.len
   rpc.control.withValue(ctrl):
     result += ctrl.byteSize
+  rpc.partialMessageExtension.withValue(pme):
+    result += pme.byteSize
   rpc.testExtension.withValue(te):
     result += te.byteSize
