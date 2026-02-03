@@ -10,6 +10,12 @@ import os, strutils
 
 requires "taskpools >= 0.1.0", "ffi >= 0.3.0", "cbor_serialization == 0.3.0"
 
+const
+  NimAsanFlags =
+    " --passC:-fno-omit-frame-pointer --passC:-fsanitize=address" &
+    " --passL:-fsanitize=address -g"
+  CcAsanFlags = " -fno-omit-frame-pointer -fsanitize=address -g"
+
 proc findInstalledPkgDir(prefix: string): string =
   ## Path of an installed dep dir matching `prefix` (e.g. "ffi-"). Lockfile
   ## and local setup use project-local `nimbledeps`; a plain global install
@@ -46,7 +52,7 @@ proc ffiLibExt(): string =
   else:
     "so"
 
-proc buildFfiLib() =
+proc buildFfiLib(extraFlags = "") =
   let buildDir = "../build"
   if not dirExists(buildDir):
     mkDir(buildDir)
@@ -60,7 +66,7 @@ proc buildFfiLib() =
   exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
     " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
     " -d:chronicles_runtime_filtering=on -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
-    " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
+    extraFlags & " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
 
 task buildffi, "Build the FFI shared library":
   buildFfiLib()
@@ -89,8 +95,7 @@ proc findFfiVendorDir(): string =
 
 task examples, "Build and run the C bindings examples":
   let lib = "../build/liblibp2p." & ffiLibExt()
-  if not fileExists(lib):
-    buildFfiLib()
+  buildFfiLib(NimAsanFlags)
   if not fileExists("c_bindings/libp2p.h"):
     genBindingsFor("c", "c_bindings")
 
@@ -101,8 +106,8 @@ task examples, "Build and run the C bindings examples":
     "cborparser_dup_string", "cborerrorstrings",
   ]:
     let obj = "../build/" & name & ".o"
-    exec "gcc -std=c99 -O2 -fPIC -I " & vendor & " -I " & vendor & "/tinycbor -c " &
-      vendor & "/tinycbor/" & name & ".c -o " & obj
+    exec "gcc -std=c99 -O2 -fPIC" & CcAsanFlags & " -I " & vendor & " -I " & vendor &
+      "/tinycbor -c " & vendor & "/tinycbor/" & name & ".c -o " & obj
     cborObjs.add obj
   let cborObjsStr = cborObjs.join(" ")
 
@@ -110,6 +115,7 @@ task examples, "Build and run the C bindings examples":
     "echo", "gossipsub", "kad", "service_disco", "relay", "peerstore", "metrics"
   ]:
     let outBin = "../build/" & example
-    exec "gcc -std=c11 -O2 -I c_bindings -I " & vendor & " examples/" & example & ".c " &
-      cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " & outBin
+    exec "gcc -std=c11 -O2" & CcAsanFlags & " -I c_bindings -I " & vendor & " examples/" &
+      example & ".c " & cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " &
+      outBin
     exec outBin
