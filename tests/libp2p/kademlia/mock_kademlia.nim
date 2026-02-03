@@ -15,7 +15,7 @@ type MockKadDHT* = ref object of KadDHT
   handleFindNodeCalls*: int
 
 method findNode*(
-    kad: MockKadDHT, target: Key
+    kad: MockKadDHT, target: Key, queue = newAsyncQueue[(PeerId, Opt[Message])]()
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   kad.findNodeCalls.add(target)
   return kad.rtable.findClosestPeerIds(target, kad.config.replication)

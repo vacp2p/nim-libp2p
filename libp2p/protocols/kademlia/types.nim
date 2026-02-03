@@ -57,24 +57,13 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
   if addrs.len == 0:
     return err("Could not find peer addresses in address book")
 
-  ok(
-    Peer(
-      id: peer.getBytes(),
-      addrs: addrs,
-      connection:
-        # TODO: this should likely be optional as it can reveal the network graph of a node
-        if switch.isConnected(peer):
-          ConnectionType.connected
-        else:
-          ConnectionType.notConnected,
-    )
-  )
+  ok(Peer(id: peer.getBytes(), addrs: addrs, connection: ConnectionType.notConnected))
 
 proc toPeer*(peerInfo: PeerInfo): Peer =
   Peer(
     id: peerInfo.peerId.getBytes(),
     addrs: peerInfo.addrs,
-    connection: ConnectionType.connected,
+    connection: ConnectionType.notConnected,
   )
 
 proc toPeers*(switch: Switch, keys: seq[Key]): seq[Peer] =

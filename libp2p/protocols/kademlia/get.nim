@@ -10,7 +10,7 @@ import ./[protobuf, types, find, put]
 logScope:
   topics = "kad-dht get"
 
-proc dispatchGetVal(
+proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Opt[Message]] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
