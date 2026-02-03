@@ -394,10 +394,10 @@ proc handleMixMessages(
     # If proof generation takes longer than the configured delay, the delay
     # will be constant at proofGenTime. Implementers should ensure configured
     # delays are >= expected proof generation time for variable delays to work.
-    var outgoingPacketResult: Result[seq[byte], string]
+    let proofGenStartTime = Moment.now()
     let proofGenFut = (
-      proc(): Future[void] {.async.} =
-        outgoingPacketResult = mixProto.generateAndAppendProof(
+      proc(): Future[Result[seq[byte], string]] {.async.} =
+        return mixProto.generateAndAppendProof(
           processedSP.serializedSphinxPacket, "Intermediate"
         )
     )()
@@ -405,7 +405,13 @@ proc handleMixMessages(
 
     await allFutures(proofGenFut, delayFut)
 
-    let outgoingPacket = outgoingPacketResult.valueOr:
+    let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
+    if proofGenTimeMs > actualDelayMs.int64:
+      warn "Proof generation time exceeds configured delay",
+        proofGenTimeMs, delayMs = actualDelayMs,
+        hint = "Consider increasing delay to maintain variable timing"
+
+    let outgoingPacket = proofGenFut.value().valueOr:
       error "Failed to generate spam protection proof for next hop", err = error
       return
 
