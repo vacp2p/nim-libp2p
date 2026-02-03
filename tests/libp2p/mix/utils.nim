@@ -19,6 +19,7 @@ import
   ]
 
 import ../../tools/[unittest, crypto]
+import ./spam_protection_impl
 
 proc createSwitch*(
     multiAddr: MultiAddress = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
@@ -49,17 +50,28 @@ proc setupSwitches*(numNodes: int): seq[Switch] =
 proc setupMixNodes*(
     numNodes: int,
     destReadBehavior = Opt.none(tuple[codec: string, callback: DestReadBehavior]),
+    spamProtectionRateLimit = Opt.none(int),
 ): Future[seq[MixProtocol]] {.async.} =
   var nodes: seq[MixProtocol] = @[]
   let switches = setupSwitches(numNodes)
 
   for index, _ in enumerate(switches):
-    let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-        "should have initialized mix protocol"
-      )
+    let spamProtection =
+      if spamProtectionRateLimit.isSome():
+        Opt.some(
+          SpamProtection(newRateLimitSpamProtection(spamProtectionRateLimit.get()))
+        )
+      else:
+        Opt.none(SpamProtection)
+
+    let proto = MixProtocol
+      .new(index, switches.len, switches[index], spamProtection = spamProtection)
+      .expect("should have initialized mix protocol")
+
     if destReadBehavior.isSome():
       let (codec, callback) = destReadBehavior.get()
       proto.registerDestReadBehavior(codec, callback)
+
     nodes.add(proto)
     switches[index].mount(proto)
   nodes
