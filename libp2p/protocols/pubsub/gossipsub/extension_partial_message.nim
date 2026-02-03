@@ -277,7 +277,8 @@ proc publishPartial*(
       # 1) peer has requested partial messages for this topic
       ext.publishPartialToPeer(topic, pm, groupState, p, true)
       publishedToCount.inc
-    elif nodeSubOpt.requestsPartial and ( peerSubOpt.supportsSendingPartial or peerSubOpt.requestsPartial):
+    elif nodeSubOpt.requestsPartial and
+        (peerSubOpt.supportsSendingPartial or peerSubOpt.requestsPartial):
       # 2) this node has requested partial messages and peer (other node) supports sending it
       ext.publishPartialToPeer(topic, pm, groupState, p, false)
       publishedToCount.inc
