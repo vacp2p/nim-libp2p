@@ -9,7 +9,7 @@ type
   TestExtensionConfig* = object
     onNegotiated*: proc(peer: PeerId) {.gcsafe, raises: [].}
       # called when this extensions has negotiated with the peer.
-      # default implementation is set by gossipsub.
+      # default implementation is set by GossipSub.createExtensionsState.
 
   TestExtension* = ref object of Extension
     config: TestExtensionConfig

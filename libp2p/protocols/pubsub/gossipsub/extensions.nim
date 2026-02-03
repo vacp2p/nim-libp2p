@@ -9,18 +9,18 @@ import ./[extensions_types, extension_test, extension_partial_message, partial_m
 export TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts
 
 type OnMisbehaveProc* = proc(peer: PeerId) {.gcsafe, raises: [].}
-  # called when peer does not follow extensions protocol.
-  # default implementation is set by gossipsub.
 
 proc noopMisbehave*(peer: PeerId) {.gcsafe, raises: [].} =
   discard
 
 type ExtensionsState* = ref object
-  sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions
+  sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions.
   peerExtensions: Table[PeerId, PeerExtensions]
-    # tells what peer capabilities are (what extensions are supported by them)
-  onMisbehave: OnMisbehaveProc # callback when peer does not follow extensions protocol
-  nodeExtensions: ControlExtensions # tells what node's capabilities are
+    # tells what peer capabilities are (what extensions are supported by them).
+  onMisbehave: OnMisbehaveProc
+    # callback when peer does not follow extensions protocol. 
+    # default implementation is set by GossipSub.createExtensionsState.
+  nodeExtensions: ControlExtensions # tells what node's capabilities are.
   extensions: seq[Extension]
     # list of all extensions. state will delegate events to all elements of this list.
   partialMessageExtension: Option[PartialMessageExtension]
@@ -34,8 +34,8 @@ proc new*(
     partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
       none(PartialMessageExtensionConfig),
     externalExtensions: seq[Extension] = @[],
-      # external extensions are created outside of state - like tests
-      # and added to internally created extensions list.
+      # external extensions are created outside of state and they are added to 
+      # state's extensions list.
 ): T =
   var state: T
 
@@ -135,7 +135,7 @@ proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   if rpc.control.isSome() and rpc.control.get().extensions.isSome():
     if state.peerExtensions.hasKey(peerId):
       # peer is sending control message again but this node has already received extensions.
-      # this is protocol error, therfore nodes reports misbehaviour.
+      # this is protocol error, therfore nodes reports misbehavior.
       state.onMisbehave(peerId)
     else:
       # peer is sending extensions control message for the first time
@@ -164,5 +164,5 @@ proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string)
     return e.peerRequestsPartial(peerId, topic)
   else:
     # should not raise, because this is called whenever IDONTWANT is being sent.
-    # so when extension is not configured it should return false, backwards compatible behaviour.
+    # so when extension is not configured it should return false, backwards compatible behavior.
     return false

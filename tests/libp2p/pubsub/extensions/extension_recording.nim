@@ -4,27 +4,28 @@
 import ../../../../libp2p/peerid
 import ../../../../libp2p/protocols/pubsub/[gossipsub/extensions_types, rpc/messages]
 
-type DelegateExtension* = ref object of Extension
+type RecordingExtension* = ref object of Extension
+  # basic implementation that records method calls.
   heartbeatCount*: int
   negotiatedPeers*: seq[PeerId]
   removedPeers*: seq[PeerId]
   handledRPC*: seq[RPCMsg]
 
 method isSupported*(
-    ext: DelegateExtension, pe: PeerExtensions
+    ext: RecordingExtension, pe: PeerExtensions
 ): bool {.gcsafe, raises: [].} =
   return pe.testExtension
 
-method onHeartbeat*(ext: DelegateExtension) {.gcsafe, raises: [].} =
+method onHeartbeat*(ext: RecordingExtension) {.gcsafe, raises: [].} =
   ext.heartbeatCount.inc
 
-method onNegotiated*(ext: DelegateExtension, peerId: PeerId) {.gcsafe, raises: [].} =
+method onNegotiated*(ext: RecordingExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   ext.negotiatedPeers.add(peerId)
 
-method onRemovePeer*(ext: DelegateExtension, peerId: PeerId) {.gcsafe, raises: [].} =
+method onRemovePeer*(ext: RecordingExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   ext.removedPeers.add(peerId)
 
 method onHandleRPC*(
-    ext: DelegateExtension, peerId: PeerId, rpc: RPCMsg
+    ext: RecordingExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
   ext.handledRPC.add(rpc)

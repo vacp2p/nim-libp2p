@@ -9,7 +9,7 @@ import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub/extensions, gossipsub/extensions_types, rpc/messages]
 import ../../../tools/[unittest, crypto]
-import ./extension_delegate
+import ./extension_recording
 
 proc makeRPC(extensions: ControlExtensions = ControlExtensions()): RPCMsg =
   RPCMsg(control: some(ControlMessage(extensions: some(extensions))))
@@ -91,7 +91,7 @@ suite "GossipSub Extensions :: State":
       check reportedPeers[].len == 0
 
   test "state calls all extensions callbacks":
-    var ext = DelegateExtension()
+    var ext = RecordingExtension()
     var state = ExtensionsState.new(externalExtensions = @[Extension(ext)])
 
     # assert that onHeartbeat is called
