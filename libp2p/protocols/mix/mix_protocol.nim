@@ -7,13 +7,16 @@ import
   ./[
     curve25519, fragmentation, mix_message, mix_node, sphinx, serialization,
     tag_manager, mix_metrics, exit_layer, multiaddr, exit_connection, spam_protection,
-    delay_strategy,
+    delay_strategy, pool,
   ]
 import stew/endians2
 import ../protocol
 import ../../utils/sequninit
 import ../../stream/[connection, lpstream]
 import ../../[switch, multicodec, peerinfo, varint]
+import ../../peerstore
+
+export pool
 
 when defined(enable_mix_benchmarks):
   import ./benchmark
@@ -41,8 +44,8 @@ type
 ## anonymize messages without modifying their core protocol behavior.
 type MixProtocol* = ref object of LPProtocol
   mixNodeInfo: MixNodeInfo
-  pubNodeInfo: Table[PeerId, MixPubInfo]
   switch: Switch
+  nodePool*: MixNodePool
   tagManager: TagManager
   exitLayer: ExitLayer
   rng: ref HmacDrbgContext
@@ -60,18 +63,6 @@ proc registerDestReadBehavior*(
     mixProto: MixProtocol, codec: string, behavior: DestReadBehavior
 ) =
   mixProto.destReadBehavior[codec] = behavior
-
-proc loadAllButIndexMixPubInfo*(
-    index, numNodes: int, pubInfoFolderPath: string = "./pubInfo"
-): Result[Table[PeerId, MixPubInfo], string] =
-  var pubInfoTable = initTable[PeerId, MixPubInfo]()
-  for i in 0 ..< numNodes:
-    if i == index:
-      continue
-    let pubInfo = MixPubInfo.readFromFile(i, pubInfoFolderPath).valueOr:
-      return err("Failed to load pub info from file: " & error)
-    pubInfoTable[pubInfo.peerId] = pubInfo
-  return ok(pubInfoTable)
 
 proc cryptoRandomInt(rng: ref HmacDrbgContext, max: int): Result[int, string] =
   if max == 0:
@@ -371,7 +362,6 @@ proc handleMixMessages(
     let actualDelayMs =
       mixProto.delayStrategy.generateForIntermediate(processedSP.delayMs.uint16)
     trace "Computed delay", encodedDelayMs = processedSP.delayMs, actualDelayMs
-    await sleepAsync(milliseconds(actualDelayMs.int))
 
     # Forward to next hop
     let nextHopBytes = processedSP.nextHop.get()
@@ -390,9 +380,31 @@ proc handleMixMessages(
         Opt.some(nodeInfo.peerId)
 
     # Per-hop spam protection: Generate fresh proof for next hop and append
-    let outgoingPacket = mixProto.generateAndAppendProof(
-      processedSP.serializedSphinxPacket, "Intermediate"
-    ).valueOr:
+    # Run proof generation in parallel with delay to optimize latency.
+    # Note: The effective delay becomes max(configuredDelay, proofGenTime).
+    # If proof generation takes longer than the configured delay, the delay
+    # will be constant at proofGenTime. Implementers should ensure configured
+    # delays are >= expected proof generation time for variable delays to work.
+    let proofGenStartTime = Moment.now()
+    let delayFut = sleepAsync(milliseconds(actualDelayMs.int))
+
+    let proofGenFut = (
+      proc(): Future[Result[seq[byte], string]] {.async.} =
+        return mixProto.generateAndAppendProof(
+          processedSP.serializedSphinxPacket, "Intermediate"
+        )
+    )()
+
+    await allFutures(proofGenFut, delayFut)
+
+    let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
+    if proofGenTimeMs > actualDelayMs.int64:
+      warn "Proof generation time exceeds configured delay",
+        proofGenTimeMs,
+        delayMs = actualDelayMs,
+        hint = "Consider increasing delay to maintain variable timing"
+
+    let outgoingPacket = proofGenFut.value().valueOr:
       error "Failed to generate spam protection proof for next hop", err = error
       return
 
@@ -459,12 +471,12 @@ proc buildSurb(
     hops: seq[Hop] = @[]
     delay: seq[seq[byte]] = @[]
 
-  if mixProto.pubNodeInfo.len < PathLength:
+  if mixProto.nodePool.len < PathLength:
     return err("No. of public mix nodes less than path length")
 
   # Remove exit and dest node from nodes to consider for surbs
   var pubNodeInfoKeys =
-    mixProto.pubNodeInfo.keys.toSeq().filterIt(it != exitPeerId and it != destPeerId)
+    mixProto.nodePool.peerIds().filterIt(it != exitPeerId and it != destPeerId)
   var availableIndices = toSeq(0 ..< pubNodeInfoKeys.len)
 
   # Select L mix nodes at random
@@ -477,7 +489,8 @@ proc buildSurb(
         let randPeerId = pubNodeInfoKeys[selectedIndex]
         availableIndices.del(randomIndexPosition)
         debug "Selected mix node for surbs: ", indexInPath = i, peerId = randPeerId
-        let mixPubInfo = mixProto.pubNodeInfo.getOrDefault(randPeerId)
+        let mixPubInfo = mixProto.nodePool.get(randPeerId).valueOr:
+          return err("could not get mix pub info for peer: " & $randPeerId)
         (
           mixPubInfo.peerId,
           mixPubInfo.multiAddr,
@@ -666,12 +679,12 @@ proc anonymizeLocalProtocolSend*(
     exitPeerId: PeerId
 
   # Select L mix nodes at random
-  let numMixNodes = mixProto.pubNodeInfo.len
+  let numMixNodes = mixProto.nodePool.len
   var numAvailableNodes = numMixNodes
 
   debug "Destination data", destination
 
-  if mixProto.pubNodeInfo.hasKey(destination.peerId):
+  if mixProto.nodePool.get(destination.peerId).isSome:
     numAvailableNodes = numMixNodes - 1
 
   if numAvailableNodes < PathLength:
@@ -681,7 +694,7 @@ proc anonymizeLocalProtocolSend*(
     )
 
   # Skip the destination peer
-  var pubNodeInfoKeys = mixProto.pubNodeInfo.keys.toSeq()
+  var pubNodeInfoKeys = mixProto.nodePool.peerIds()
   var availableIndices = toSeq(0 ..< pubNodeInfoKeys.len)
 
   let index = pubNodeInfoKeys.find(destination.peerId)
@@ -722,8 +735,16 @@ proc anonymizeLocalProtocolSend*(
     debug "Selected mix node: ", indexInPath = hop.len, peerId = randPeerId
 
     # Extract multiaddress, mix public key, and hop
-    let (peerId, multiAddr, mixPubKey, _) =
-      mixProto.pubNodeInfo.getOrDefault(randPeerId).get()
+    let mixPubInfoOpt = mixProto.nodePool.get(randPeerId)
+    if mixPubInfoOpt.isNone:
+      mix_messages_error.inc(labelValues = ["Entry", "INVALID_MIX_INFO"])
+      trace "Failed to get mix pub info for peer, skipping and removing node from pool",
+        peerId = randPeerId
+      # Remove this node from the pool to prevent future selection
+      discard mixProto.nodePool.remove(randPeerId)
+      # Skip this node and try another
+      continue
+    let (peerId, multiAddr, mixPubKey, _) = mixPubInfoOpt.get().get()
 
     # Validate multiaddr before committing this node to the path
     let multiAddrBytes = multiAddrToBytes(peerId, multiAddr).valueOr:
@@ -731,9 +752,9 @@ proc anonymizeLocalProtocolSend*(
       trace "Failed to convert multiaddress to bytes, skipping and removing node from pool",
         error = error, peerId = peerId, multiAddr = multiAddr
       # Remove this node from the pool to prevent future selection
-      mixProto.pubNodeInfo.del(randPeerId)
+      discard mixProto.nodePool.remove(randPeerId)
       # Skip this node with invalid multiaddr and try another
-      # in future lookup in peerStore to see if there is any other valida multiaddr for this peer and use that.
+      # in future lookup in peerStore to see if there is any other valid multiaddr for this peer and use that.
       continue
 
     # Only add to path after validation succeeds
@@ -803,16 +824,19 @@ proc reply(
 proc init*(
     mixProto: MixProtocol,
     mixNodeInfo: MixNodeInfo,
-    pubNodeInfo: Table[PeerId, MixPubInfo],
     switch: Switch,
     tagManager: TagManager = TagManager.new(),
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: DelayStrategy,
 ) =
+  ## Initialize a MixProtocol instance.
+  ##
+  ## Mix node public keys should be populated via the nodePool after
+  ## initialization using `mixProto.nodePool.add(mixPubInfo)`.
   mixProto.mixNodeInfo = mixNodeInfo
-  mixProto.pubNodeInfo = pubNodeInfo
   mixProto.switch = switch
+  mixProto.nodePool = MixNodePool.new(switch.peerStore)
   mixProto.tagManager = tagManager
   mixProto.destReadBehavior = newTable[string, DestReadBehavior]()
 
@@ -838,19 +862,21 @@ proc init*(
 proc new*(
     T: typedesc[MixProtocol],
     mixNodeInfo: MixNodeInfo,
-    pubNodeInfo: Table[PeerId, MixPubInfo],
     switch: Switch,
     tagManager: TagManager = TagManager.new(),
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ): T =
+  ## Create a new MixProtocol instance.
+  ##
+  ## Mix node public keys should be populated via the nodePool after
+  ## creation using `mixProto.nodePool.add(mixPubInfo)`.
   let actualDelayStrategy = delayStrategy.valueOr:
     NoSamplingDelayStrategy.new(rng)
   let mixProto = new(T)
   mixProto.init(
-    mixNodeInfo, pubNodeInfo, switch, tagManager, rng, spamProtection,
-    actualDelayStrategy,
+    mixNodeInfo, switch, tagManager, rng, spamProtection, actualDelayStrategy
   )
   mixProto
 
@@ -864,31 +890,21 @@ proc new*(
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ): Result[T, string] =
   ## Constructs a new `MixProtocol` instance for the mix node at `index`,
-  ## loading its private info from `nodeInfo` and the public info of all other nodes from `pubInfo`.
+  ## loading its private info from `nodeInfo` and populating the nodePool with
+  ## the public info of all other nodes from `pubInfo`.
   let mixNodeInfo = MixNodeInfo.readFromFile(index, nodeFolderInfoPath / fmt"nodeInfo").valueOr:
     return err("Failed to load mix node info for index " & $index & " - err: " & error)
 
-  let pubNodeInfo = loadAllButIndexMixPubInfo(
-    index, numNodes, nodeFolderInfoPath / fmt"pubInfo"
-  ).valueOr:
-    return err("Failed to load mix pub info for index " & $index & " - err: " & error)
-
   let mixProto = MixProtocol.new(
-    mixNodeInfo,
-    pubNodeInfo,
-    switch,
-    TagManager.new(),
-    rng,
-    spamProtection,
-    delayStrategy,
+    mixNodeInfo, switch, TagManager.new(), rng, spamProtection, delayStrategy
   )
 
+  # Load pub info into the nodePool
+  for i in 0 ..< numNodes:
+    if i == index:
+      continue
+    let pubInfo = MixPubInfo.readFromFile(i, nodeFolderInfoPath / fmt"pubInfo").valueOr:
+      return err("Failed to load pub info from file: " & error)
+    mixProto.nodePool.add(pubInfo)
+
   return ok(mixProto)
-
-proc setNodePool*(
-    mixProtocol: MixProtocol, mixNodeTable: Table[PeerId, MixPubInfo]
-) {.gcsafe, raises: [].} =
-  mixProtocol.pubNodeInfo = mixNodeTable
-
-proc getNodePoolSize*(mixProtocol: MixProtocol): int {.gcsafe, raises: [].} =
-  mixProtocol.pubNodeInfo.len
