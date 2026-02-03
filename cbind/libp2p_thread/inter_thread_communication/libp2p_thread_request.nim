@@ -13,7 +13,7 @@ import
   ../../[ffi_types, types],
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
-    libp2p_kademlia_requests, libp2p_stream_requests,
+    libp2p_kademlia_requests, libp2p_stream_requests, libp2p_protocol_requests,
   ],
   ../../../libp2p
 
@@ -23,6 +23,7 @@ type RequestType* {.pure.} = enum
   PUBSUB
   KADEMLIA
   STREAM
+  PROTOCOL
 
 type CallbackKind* {.pure.} = enum
   DEFAULT
@@ -290,6 +291,13 @@ proc processStream(
   of StreamMsgType.READEXACTLY, StreamMsgType.READLP:
     handleReadRes(await req.processRead(libp2p), request)
 
+proc processProtocol(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  handleRes(
+    await cast[ptr ProtocolRequest](request[].reqContent).process(libp2p), request
+  )
+
 # Dispatcher for processing the request based on its type
 # Casts reqContent to the correct request struct and runs its `.process()` logic
 proc process*(
@@ -306,6 +314,8 @@ proc process*(
     await processKademlia(request, libp2p)
   of RequestType.STREAM:
     await processStream(request, libp2p)
+  of RequestType.PROTOCOL:
+    await processProtocol(request, libp2p)
 
 # String representation of the request type
 proc `$`*(self: LibP2PThreadRequest): string =

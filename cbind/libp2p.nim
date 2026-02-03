@@ -15,7 +15,7 @@ import
   ./libp2p_thread/inter_thread_communication/libp2p_thread_request,
   ./libp2p_thread/inter_thread_communication/requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
-    libp2p_kademlia_requests, libp2p_stream_requests,
+    libp2p_kademlia_requests, libp2p_stream_requests, libp2p_protocol_requests,
   ],
   ../libp2p
 ################################################################################
@@ -640,6 +640,32 @@ proc libp2p_gossipsub_unsubscribe(
     RequestType.PUBSUB,
     PubSubRequest.createShared(
       PubSubMsgType.UNSUBSCRIBE, topic, topicHandler, topicUserData = userData
+    ),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_mount_protocol(
+    ctx: ptr LibP2PContext,
+    protocol: cstring,
+    handler: Libp2pProtocolHandler,
+    handlerUserData: pointer,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if protocol.isNil() or protocol[0] == '\0':
+    failWithMsg(callback, userData, "protocol is empty")
+  if handler.isNil():
+    failWithMsg(callback, userData, "protocol handler is nil")
+
+  handleRequest(
+    ctx,
+    RequestType.PROTOCOL,
+    ProtocolRequest.createShared(
+      ProtocolMsgType.MOUNT, protocol, handler, handlerUserData, ctx
     ),
     callback,
     userData,
