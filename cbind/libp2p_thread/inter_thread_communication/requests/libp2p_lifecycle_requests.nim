@@ -18,6 +18,8 @@ import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
 import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/mix
+import ../../../../libp2p/protocols/mix/mix_protocol
+import ../../../../libp2p/protocols/mix/mix_node
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -113,6 +115,40 @@ proc toByteSeq(key: Libp2pPrivateKey): seq[byte] =
   copyMem(addr data[0], key.data, key.dataLen)
   return data
 
+proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
+  var gossipSub = Opt.none(GossipSub)
+  if config.mountGossipsub != 0:
+    let gs = GossipSub.init(
+      switch = libp2p.switch, triggerSelf = config.gossipsubTriggerSelf != 0
+    )
+    libp2p.switch.mount(gs)
+    gossipSub = Opt.some(gs)
+
+  libp2p.switch.mount(Ping.new())
+
+  var kad = Opt.none(KadDHT)
+  if config.mountKad != 0:
+    let bootstrapNodes = parseBootstrapNodes(config)
+    let k = KadDHT.new(libp2p.switch, bootstrapNodes = bootstrapNodes)
+    libp2p.switch.mount(k)
+    kad = Opt.some(k)
+
+  var mix = Opt.none(MixProtocol)
+  if config.mountMix != 0 and libp2p.mixNodeInfo.isSome:
+    if config.mixNodesLen <= 0:
+      raise newException(LPError, "failed to create mix protocol: not enough mix nodes")
+    var mixProto = new(MixProtocol)
+    var delayStrategy = NoSamplingDelayStrategy.new(newRng())
+    mixProto.init(
+      libp2p.mixNodeInfo.get(), libp2p.switch, delayStrategy = delayStrategy
+    )
+    libp2p.switch.mount(mixProto)
+    mix = Opt.some(mixProto)
+
+  libp2p.gossipSub = gossipSub
+  libp2p.kad = kad
+  libp2p.mix = mix
+
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
@@ -125,45 +161,19 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
 
-  var gossipSub = Opt.none(GossipSub)
-  if config.mountGossipsub != 0:
-    let gs =
-      GossipSub.init(switch = switch, triggerSelf = config.gossipsubTriggerSelf != 0)
-    switch.mount(gs)
-    gossipSub = Opt.some(gs)
-
-  switch.mount(Ping.new())
-
-  var kad = Opt.none(KadDHT)
-  if config.mountKad != 0:
-    let bootstrapNodes = parseBootstrapNodes(config)
-    let k = KadDHT.new(switch, bootstrapNodes = bootstrapNodes)
-    switch.mount(k)
-    kad = Opt.some(k)
-
-  var mix = Opt.none(MixProtocol)
-  if config.mountMix != 0:
-    if config.mixNodesLen <= 0:
-      raise newException(LPError, "failed to create mix protocol: not enough mix nodes")
-    let mixProto =
-      MixProtocol.new(
-        config.mixIndex.int,
-        config.mixNodesLen.int,
-        switch,
-        nodeFolderInfoPath = $config.mixNodeInfoPath,
-      ).valueOr:
-        raise newException(LPError, "failed to create mix protocol: " & error)
-    switch.mount(mixProto)
-    mix = Opt.some(mixProto)
-
-  LibP2P(
+  var ret = LibP2P(
     switch: switch,
-    gossipSub: gossipSub,
-    kad: kad,
-    mix: mix,
+    gossipSub: Opt.none(GossipSub),
+    kad: Opt.none(KadDHT),
+    mix: Opt.none(MixProtocol),
+    mixNodeInfo: Opt.none(MixNodeInfo),
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
   )
+
+  mountProtocols(ret, config)
+
+  return ret
 
 proc createShared*(
     T: type LifecycleRequest,

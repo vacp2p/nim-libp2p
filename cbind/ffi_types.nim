@@ -109,6 +109,12 @@ type MixReadBehaviorKind* {.size: sizeof(cint).} = enum
   MIX_READ_EXACTLY = 0
   MIX_READ_LP = 1
 
+type Curve25519Key32* = object
+  bytes*: array[32, byte]
+
+type Secp256k1PubKey33* = object
+  bytes*: array[33, byte]
+
 ### End of exported types
 ################################################################################
 

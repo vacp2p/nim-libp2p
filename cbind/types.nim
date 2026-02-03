@@ -7,6 +7,7 @@ import ../libp2p
 import ../libp2p/protocols/pubsub/gossipsub
 import ../libp2p/protocols/kademlia
 import ../libp2p/protocols/mix
+import ../libp2p/protocols/mix/mix_node
 import ffi_types
 
 # TODO: remove and implement custom event callbacks if needed
@@ -25,5 +26,6 @@ type LibP2P* = ref object
   gossipSub*: Opt[GossipSub]
   kad*: Opt[KadDHT]
   mix*: Opt[MixProtocol]
+  mixNodeInfo*: Opt[MixNodeInfo]
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
   connections*: Table[ptr Libp2pStream, Connection]

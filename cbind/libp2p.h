@@ -22,6 +22,14 @@
 #define RET_ERR 1
 #define RET_MISSING_CALLBACK 2
 
+typedef struct {
+  uint8_t bytes[32];
+} libp2p_curve25519_key_t;
+
+typedef struct {
+  uint8_t bytes[33];
+} libp2p_secp256k1_pubkey_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -197,6 +205,8 @@ int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir,
 int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
                 ConnectionCallback callback, void *userData);
 
+void libp2p_mix_generate_priv_key(libp2p_curve25519_key_t *outKey);
+
 int libp2p_mix_dial(libp2p_ctx_t *ctx, const char *peerId,
                     const char *multiaddr, const char *proto,
                     ConnectionCallback callback, void *userData);
@@ -206,6 +216,16 @@ int libp2p_mix_register_dest_read_behavior(libp2p_ctx_t *ctx, const char *proto,
                                            uint32_t size_param,
                                            Libp2pCallback callback,
                                            void *userData);
+
+int libp2p_mix_set_node_info(libp2p_ctx_t *ctx, const char *multiaddr,
+                             libp2p_curve25519_key_t mix_priv_key,
+                             Libp2pCallback callback, void *userData);
+
+int libp2p_mix_nodepool_add(libp2p_ctx_t *ctx, const char *peerId,
+                            const char *multiaddr,
+                            libp2p_curve25519_key_t mix_pub_key,
+                            libp2p_secp256k1_pubkey_t libp2p_pub_key,
+                            Libp2pCallback callback, void *userData);
 
 int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
                         Libp2pCallback callback, void *userData);

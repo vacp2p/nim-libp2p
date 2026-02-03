@@ -285,6 +285,10 @@ proc processStream(
     handleConnectionRes(await req.processMixDial(libp2p), request)
   of StreamMsgType.MIX_REGISTER_DEST_READ:
     handleRes(await req.processMixRegisterDestRead(libp2p), request)
+  of StreamMsgType.MIX_SET_NODE_INFO:
+    handleRes(await req.processMixSetNodeInfo(libp2p), request)
+  of StreamMsgType.MIX_NODEPOOL_ADD:
+    handleRes(await req.processMixNodePoolAdd(libp2p), request)
   of StreamMsgType.CLOSE, StreamMsgType.CLOSE_WITH_EOF:
     handleRes(await req.processClose(libp2p), request)
   of StreamMsgType.RELEASE:

@@ -12,6 +12,9 @@ import ../libp2p/utils/sequninit
 type SharedSeq*[T] = object
   data: ptr UncheckedArray[T]
   len: int
+  
+proc len*(s: SharedSeq): int =
+  s.len
 
 template deallocCStringArray*(arrPtr: ptr cstring, len: csize_t) =
   if not arrPtr.isNil():
