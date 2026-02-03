@@ -20,7 +20,7 @@ import
 import ../../tools/[unittest, crypto]
 import ./spam_protection_impl
 
-proc createSwitch*(
+proc createSwitch(
     multiAddr: MultiAddress = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
     libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey),
 ): Switch =
@@ -30,10 +30,9 @@ proc createSwitch*(
   return
     newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
 
-proc setupSwitches*(numNodes: int): seq[Switch] =
-  # Initialize mix nodes
+proc setupSwitches(numNodes: int): seq[Switch] =
   let mixNodes = initializeMixNodes(numNodes).expect("could not initialize nodes")
-  var nodes: seq[Switch] = @[]
+  var switches: seq[Switch] = @[]
   for index, mixNode in enumerate(mixNodes):
     let pubInfo =
       mixNodes.getMixPubInfoByIndex(index).expect("could not obtain pub info")
@@ -42,9 +41,9 @@ proc setupSwitches*(numNodes: int): seq[Switch] =
     mixNode.writeToFile(index).expect("could not write mix info")
 
     let switch = createSwitch(mixNode.multiAddr, Opt.some(mixNode.libp2pPrivKey))
-    nodes.add(switch)
+    switches.add(switch)
 
-  return nodes
+  return switches
 
 proc setupMixNodes*(
     numNodes: int,

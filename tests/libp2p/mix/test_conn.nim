@@ -52,8 +52,9 @@ suite "Mix Protocol Component":
     deletePubInfoFolder()
 
   asyncTest "expect reply, exit != destination":
-    let nodes =
-      await setupMixNodes(10, Opt.some((codec: PingCodec, callback: readExactly(32))))
+    let nodes = await setupMixNodes(
+      10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
+    )
     startNodesAndDeferStop(nodes)
 
     let (destNode, pingProto) = await setupDestNode(Ping.new())
@@ -96,8 +97,9 @@ suite "Mix Protocol Component":
 
   when defined(libp2p_mix_experimental_exit_is_dest):
     asyncTest "expect reply, exit == destination":
-      let nodes =
-        await setupMixNodes(10, Opt.some((codec: PingCodec, callback: readExactly(32))))
+      let nodes = await setupMixNodes(
+        10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
+      )
 
       let destNode = nodes[^1]
       let pingProto = Ping.new()
@@ -157,8 +159,9 @@ suite "Mix Protocol Component":
       proto.codec = TestCodec
       return proto
 
-    let nodes =
-      await setupMixNodes(10, Opt.some((codec: TestCodec, callback: readLp(readLen))))
+    let nodes = await setupMixNodes(
+      10, destReadBehavior = Opt.some((codec: TestCodec, callback: readLp(readLen)))
+    )
 
     let destNode = nodes[^1]
     let testProto = newLengthPrefixTestProtocol()

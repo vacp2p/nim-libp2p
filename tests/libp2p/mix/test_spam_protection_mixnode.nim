@@ -20,7 +20,7 @@ import
 import ../../tools/[unittest]
 import ./utils
 
-suite "Spam Protection Integration Tests":
+suite "Spam Protection Component":
   const
     NumMixNodes = 10
     RateLimitPerNode = 10 # Each node allows this many packets
@@ -31,12 +31,12 @@ suite "Spam Protection Integration Tests":
     deleteNodeInfoFolder()
     deletePubInfoFolder()
 
-  asyncTest "e2e with rate limiting spam protection":
+  asyncTest "rate limiting spam protection":
     # Each node gets its own spam protection instance with independent rate limit
     # This reflects real-world deployment where each node independently enforces limits
     let nodes = await setupMixNodes(
       10,
-      Opt.some((codec: PingCodec, callback: readExactly(32))),
+      destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32))),
       spamProtectionRateLimit = Opt.some(RateLimitPerNode),
     )
     startNodesAndDeferStop(nodes)
