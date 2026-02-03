@@ -6,13 +6,20 @@ import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, extension_test, extension_partial_message, partial_message]
 
-export PeerCallback, TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts
+export TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts
+
+type OnMisbehaveProc* = proc(peer: PeerId) {.gcsafe, raises: [].}
+  # called when peer does not follow extensions protocol.
+  # default implementation is set by gossipsub.
+
+proc noopMisbehave*(peer: PeerId) {.gcsafe, raises: [].} =
+  discard
 
 type ExtensionsState* = ref object
   sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions
   peerExtensions: Table[PeerId, PeerExtensions]
     # tells what peer capabilities are (what extensions are supported by them)
-  onMisbehave: PeerCallback # callback when peer does not follow extensions protocol
+  onMisbehave: OnMisbehaveProc # callback when peer does not follow extensions protocol
   nodeExtensions: ControlExtensions # tells what node's capabilities are
   extensions: seq[Extension]
     # list of all extensions. state will delegate events to all elements of this list.
@@ -22,7 +29,7 @@ type ExtensionsState* = ref object
 
 proc new*(
     T: typedesc[ExtensionsState],
-    onMisbehave: PeerCallback = noopPeerCallback,
+    onMisbehave: OnMisbehaveProc = noopMisbehave,
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
       none(PartialMessageExtensionConfig),

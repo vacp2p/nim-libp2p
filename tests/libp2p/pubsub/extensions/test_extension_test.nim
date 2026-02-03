@@ -12,16 +12,30 @@ import ../../../tools/[unittest, crypto]
 import ../utils
 
 suite "GossipSub Extensions :: Test Extension":
-  let peerId = PeerId.random(rng).get()
 
-  test "basic test":
-    var (negotiatedPeers, onNegotiatedCb) = createCollectPeerCallback()
+  test "isSupported":
+    let ext = TestExtension.new()
+    check:
+      ext.isSupported(PeerExtensions()) == false
+      ext.isSupported(PeerExtensions(testExtension: true)) == true
+
+  test "onNegotiated":
+    var negotiatedPeers: seq[PeerId]
+    proc onNegotiatedCb(peer: PeerId) {.gcsafe, raises: [].} =
+      negotiatedPeers.add(peer)
     let ext = TestExtension.new(TestExtensionConfig(onNegotiated: onNegotiatedCb))
 
     check:
       ext.isSupported(PeerExtensions()) == false
       ext.isSupported(PeerExtensions(testExtension: true)) == true
 
-    ext.onNegotiated(peerId)
+    let peerId1 = PeerId.random(rng).get()
+    let peerId2 = PeerId.random(rng).get()
+
+    ext.onNegotiated(peerId1)
     check:
-      negotiatedPeers[] == @[peerId]
+      negotiatedPeers == @[peerId1]
+
+    ext.onNegotiated(peerId2)
+    check:
+      negotiatedPeers == @[peerId1, peerId2]

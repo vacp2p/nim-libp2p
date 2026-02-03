@@ -4,15 +4,10 @@
 import ../../../[peerid]
 import ../rpc/messages
 
-proc noopPeerCallback*(peer: PeerId) {.gcsafe, raises: [].} =
-  discard
-
 type
   PeerExtensions* = object # holds all capabilities that are supported with extensions.
     testExtension*: bool # is "test extension" supported? 
     partialMessageExtension*: bool # is "partial message extension" supported?
-
-  PeerCallback* = proc(peer: PeerId) {.gcsafe, raises: [].}
 
   Extension* = ref object of RootObj
     #

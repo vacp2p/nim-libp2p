@@ -12,6 +12,15 @@ import ../utils
 proc makeRPC(extensions: ControlExtensions = ControlExtensions()): RPCMsg =
   RPCMsg(control: some(ControlMessage(extensions: some(extensions))))
 
+proc createMisbehaveProc*(): (ref seq[PeerId], OnMisbehaveProc) =
+  let peers = new seq[PeerId]
+  peers[] = @[]
+
+  let cb: OnMisbehaveProc = proc(peerId: PeerId) {.closure, gcsafe.} =
+    peers[].add(peerId)
+
+  (peers, cb)
+
 suite "GossipSub Extensions :: State":
   let peerId = PeerId.random(rng).get()
 
@@ -28,20 +37,20 @@ suite "GossipSub Extensions :: State":
     state.heartbeat()
     discard state.makeControlExtensions()
 
-  test "state reports missbehaving":
-    var (reportedPeers, onMisbehave) = createCollectPeerCallback()
+  test "state reports misbehaving":
+    var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 
     # peer sends ControlExtensions for the first time
     state.handleRPC(peerId, makeRPC())
 
-    # when peer sends ControlExtensions after that, missbehavior should be reported
+    # when peer sends ControlExtensions after that, misbehavior should be reported
     for i in 1 ..< 5:
       state.handleRPC(peerId, makeRPC())
       check reportedPeers[] == repeat[PeerId](peerId, i)
 
-  test "state reports missbehaving - many peers":
-    var (reportedPeers, onMisbehave) = createCollectPeerCallback()
+  test "state reports misbehaving - many peers":
+    var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 
     var peers = newSeq[PeerId]()
@@ -54,7 +63,7 @@ suite "GossipSub Extensions :: State":
       check reportedPeers[] == peers
 
   test "state peer is removed":
-    var (reportedPeers, onMisbehave) = createCollectPeerCallback()
+    var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 
     for i in 0 ..< 5:
@@ -62,7 +71,7 @@ suite "GossipSub Extensions :: State":
       state.handleRPC(pid, makeRPC())
 
       # when peer is removed state is cleared, so second handleRPC()
-      # call will not cause misbehaviour
+      # call will not cause misbehavior
       state.removePeer(pid)
       state.handleRPC(pid, makeRPC())
 
