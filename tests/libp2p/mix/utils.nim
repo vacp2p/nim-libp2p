@@ -46,13 +46,9 @@ proc setupSwitches*(numNodes: int): seq[Switch] =
 
   return nodes
 
-type TestDestReadBehavior* = object
-  codec*: string
-  callback*: DestReadBehavior
-
 proc setupMixNodes*(
     numNodes: int,
-    destReadBehavior: Opt[TestDestReadBehavior] = Opt.none(TestDestReadBehavior),
+    destReadBehavior = Opt.none(tuple[codec: string, callback: DestReadBehavior]),
 ): Future[seq[MixProtocol]] {.async.} =
   var nodes: seq[MixProtocol] = @[]
   let switches = setupSwitches(numNodes)
@@ -63,8 +59,8 @@ proc setupMixNodes*(
       )
     if destReadBehavior.isSome():
       # We'll fwd requests, so let's register how should the exit node will read responses
-      let behavior = destReadBehavior.get()
-      proto.registerDestReadBehavior(behavior.codec, behavior.callback)
+      let (codec, callback) = destReadBehavior.get()
+      proto.registerDestReadBehavior(codec, callback)
     nodes.add(proto)
     switches[index].mount(proto)
 

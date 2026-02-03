@@ -34,11 +34,8 @@ suite "Mix Protocol":
   #   switches = setupSwitches(10)
 
   asyncTest "e2e - expect reply, exit != destination":
-    let nodes = await setupMixNodes(
-      10,
-      destReadBehavior =
-        Opt.some(TestDestReadBehavior(codec: PingCodec, callback: readExactly(32))),
-    )
+    let nodes =
+      await setupMixNodes(10, Opt.some((codec: PingCodec, callback: readExactly(32))))
     defer:
       await stopNodes(nodes)
 
