@@ -6,22 +6,20 @@ import ../rpc/messages
 import ./[extensions_types]
 
 type
-  OnNegotiatedProc* = proc(peer: PeerId) {.gcsafe, raises: [].}
-    # called when "test extension" has negotiated with the peer.
-    # default implementation is set by gossipsub.
-
   TestExtensionConfig* = object
-    onNegotiated*: OnNegotiatedProc
+    onNegotiated*: proc(peer: PeerId) {.gcsafe, raises: [].}
+      # called when this extensions has negotiated with the peer.
+      # default implementation is set by gossipsub.
 
   TestExtension* = ref object of Extension
-    onNegotiated: OnNegotiatedProc
+    config: TestExtensionConfig
 
 proc doAssert(config: TestExtensionConfig) =
-  doAssert(config.onNegotiated != nil, "config.onNegotiated must be set")
+  doAssert(config.onNegotiated != nil, "TestExtensionConfig.onNegotiated must be set")
 
 proc new*(T: typedesc[TestExtension], config: TestExtensionConfig): TestExtension =
   config.doAssert()
-  TestExtension(onNegotiated: config.onNegotiated)
+  TestExtension(config: config)
 
 method isSupported*(
     ext: TestExtension, pe: PeerExtensions
@@ -32,7 +30,7 @@ method onHeartbeat*(ext: TestExtension) {.gcsafe, raises: [].} =
   discard # NOOP
 
 method onNegotiated*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
-  ext.onNegotiated(peerId)
+  ext.config.onNegotiated(peerId)
 
 method onRemovePeer*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   discard # NOOP
