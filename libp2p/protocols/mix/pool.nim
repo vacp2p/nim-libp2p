@@ -47,13 +47,13 @@ proc add*(pool: MixNodePool, info: MixPubInfo) =
 
   # Only set key if peer has no key yet
   let existingKey = pool.peerStore[KeyBook][info.peerId]
-  if existingKey.scheme == PKScheme.default:
+  if existingKey.scheme != Secp256k1:
     pool.peerStore[KeyBook][info.peerId] =
       PublicKey(scheme: Secp256k1, skkey: info.libp2pPubKey)
 
 proc remove*(pool: MixNodePool, peerId: PeerId): bool =
   ## Remove a mix node from the pool. Returns true if the node was present.
-  result = pool.peerStore[MixPubKeyBook].del(peerId)
+  pool.peerStore[MixPubKeyBook].del(peerId)
   # Note: We only delete from MixPubKeyBook. The peer may still have
   # entries in AddressBook/KeyBook for other protocols.
 
