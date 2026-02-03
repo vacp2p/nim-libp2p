@@ -9,6 +9,8 @@ license = "MIT"
 # The rest of dependencies is inherited from parent libp2p.nimble via nimble.paths
 requires "taskpools >= 0.1.0"
 
+const AsanFlags: string = "--passC:-fno-omit-frame-pointer --passC:-fsanitize=address --passL:-fsanitize=address -g"
+
 proc getLibExt(libType: string): string =
   if libType == "static":
     "a"
@@ -23,27 +25,35 @@ proc getLibExt(libType: string): string =
 proc buildCBindings(libType: string, params = "") =
   let buildDir = "../build"
 
-  if not dirExists buildDir:
-    mkDir buildDir
-
-  var extra_params = params
-  for i in 2 ..< paramCount():
-    extra_params &= " " & paramStr(i)
+  if not dirExists(buildDir):
+    mkDir(buildDir)
 
   let ext = getLibExt(libType)
   let app = if libType == "static": "staticlib" else: "lib"
 
-  exec "nim c --out:" & buildDir & "/libp2p." & ext & " --threads:on --app:" & app &
-    " --opt:size --noMain --mm:refc --header --undef:metrics" &
-    " --nimMainPrefix:libp2p --nimcache:nimcache" & " -d:asyncTimer=system libp2p.nim"
+  exec "nim c" &
+    " --out:" & buildDir & "/libp2p." & ext &
+    " --threads:on" &
+    " --app:" & app &
+    " --opt:size" &
+    " --noMain" &
+    " --mm:refc" &
+    " --header" &
+    " --undef:metrics" &
+    " --nimMainPrefix:libp2p" &
+    " --nimcache:nimcache" &
+    " -d:asyncTimer=system" &
+    params &
+    " libp2p.nim"
 
 task libDynamic, "Generate dynamic bindings":
-  buildCBindings "dynamic", ""
+  buildCBindings "dynamic"
 
 task libStatic, "Generate static bindings":
-  buildCBindings "static", ""
+  buildCBindings "static"
 
 task examples, "Build and run C bindings examples":
-  buildCBindings "static", ""
-  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a -pthread"
+  # build c bindings with ASan
+  buildCBindings "static", AsanFlags
+  exec "g++ -fsanitize=address -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a -pthread"
   exec "../build/cbindings"
