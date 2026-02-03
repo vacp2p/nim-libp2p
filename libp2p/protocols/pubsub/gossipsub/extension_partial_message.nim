@@ -272,7 +272,8 @@ proc publishPartial*(
     let nodeSubOpt = ext.nodeTopicOpts(topic)
 
     # publish partial message to peer if ...
-    if peerSubOpt.requestsPartial and (nodeSubOpt.supportsSendingPartial or nodeSubOpt.requestsPartial):
+    if peerSubOpt.requestsPartial and
+        (nodeSubOpt.supportsSendingPartial or nodeSubOpt.requestsPartial):
       # 1) peer has requested partial messages for this topic
       ext.publishPartialToPeer(topic, pm, groupState, p, true)
       publishedToCount.inc
