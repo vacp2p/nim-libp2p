@@ -42,7 +42,7 @@ type
 type MixProtocol* = ref object of LPProtocol
   mixNodeInfo: MixNodeInfo
   pubNodeInfo: Table[PeerId, MixPubInfo]
-  switch: Switch
+  switch*: Switch
   tagManager: TagManager
   exitLayer: ExitLayer
   rng: ref HmacDrbgContext
