@@ -22,9 +22,7 @@ nimble.paths
 # cbind generated files
 /cbind/c_bindings/
 /cbind/cddl_bindings/
-/cbind/nimcache/
-/cbind/nimcache_c/
-/cbind/nimcache_cddl/
+/cbind/nimcache*/
 /cbind/nimbledeps/
 /cbind/nimble.paths
 

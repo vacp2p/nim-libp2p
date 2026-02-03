@@ -11,9 +11,10 @@ import os, strutils
 requires "taskpools >= 0.1.0", "ffi >= 0.3.0", "cbor_serialization == 0.3.0"
 
 const
+  # orc below: refc's conservative stack scan overruns its `registers` buffer.
   NimAsanFlags =
-    " --passC:-fno-omit-frame-pointer --passC:-fsanitize=address" &
-    " --passL:-fsanitize=address -g"
+    " -d:useMalloc --debugger:native --passC:-fno-omit-frame-pointer" &
+    " --passC:-fsanitize=address --passL:-fsanitize=address"
   CcAsanFlags = " -fno-omit-frame-pointer -fsanitize=address -g"
 
 proc findInstalledPkgDir(prefix: string): string =
@@ -52,10 +53,14 @@ proc ffiLibExt(): string =
   else:
     "so"
 
-proc buildFfiLib(extraFlags = "") =
+proc buildFfiLib(asan = false) =
   let buildDir = "../build"
   if not dirExists(buildDir):
     mkDir(buildDir)
+
+  let asanFlags = if asan: NimAsanFlags else: ""
+  let nimcache = if asan: "nimcache_asan" else: "nimcache"
+  let mm = if asan: "orc" else: "refc"
   # libplum's vendored C is pulled in via Nim `{.compile.}`, so no separate
   # native-library build step is needed here.
   # Name the output `lib<name>` so the file matches the soname nim derives from
@@ -64,9 +69,9 @@ proc buildFfiLib(extraFlags = "") =
   # ffiThreadExitTimeoutMs: bound the FFI thread's graceful-shutdown wait; the
   # 1500ms default is too tight for libp2pDestroy's switch.stop() over many conns.
   exec "nim c --out:" & buildDir & "/liblibp2p." & ffiLibExt() &
-    " --threads:on --app:lib --opt:size --noMain --mm:refc -d:metrics" &
+    " --threads:on --app:lib --opt:size --noMain --mm:" & mm & " -d:metrics" &
     " -d:chronicles_runtime_filtering=on -d:ffiThreadExitTimeoutMs=5000" & ffiDepPaths() &
-    extraFlags & " --nimMainPrefix:liblibp2p --nimcache:nimcache libp2p.nim"
+    asanFlags & " --nimMainPrefix:liblibp2p --nimcache:" & nimcache & " libp2p.nim"
 
 task buildffi, "Build the FFI shared library":
   buildFfiLib()
@@ -95,7 +100,7 @@ proc findFfiVendorDir(): string =
 
 task examples, "Build and run the C bindings examples":
   let lib = "../build/liblibp2p." & ffiLibExt()
-  buildFfiLib(NimAsanFlags)
+  buildFfiLib(asan = true)
   if not fileExists("c_bindings/libp2p.h"):
     genBindingsFor("c", "c_bindings")
 
@@ -118,4 +123,5 @@ task examples, "Build and run the C bindings examples":
     exec "gcc -std=c11 -O2" & CcAsanFlags & " -I c_bindings -I " & vendor & " examples/" &
       example & ".c " & cborObjsStr & " " & lib & " -pthread -Wl,-rpath,'$ORIGIN' -o " &
       outBin
-    exec outBin
+    # orc frees at collection time, so LeakSanitizer reports live objects.
+    exec "ASAN_OPTIONS=detect_leaks=0 " & outBin

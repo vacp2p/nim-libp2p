@@ -24,4 +24,4 @@ nixbuild: deps
 	nix build .#cbind
 
 clean:
-	$(RM) -r c_bindings cddl_bindings nimcache nimcache_c nimcache_cddl
+	$(RM) -r c_bindings cddl_bindings nimcache nimcache_asan nimcache_c nimcache_cddl
