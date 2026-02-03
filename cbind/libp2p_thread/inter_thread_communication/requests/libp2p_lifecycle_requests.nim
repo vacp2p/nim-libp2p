@@ -58,6 +58,8 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
   if (flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
     resolved.kadBootstrapNodes = config[].kadBootstrapNodes
     resolved.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
+  if (flags and Libp2pCfgPrivateKey) != 0'u32:
+    resolved.privKey = config[].privKey
 
   resolved
 

@@ -77,6 +77,7 @@ const Libp2pCfgGossipsubTriggerSelf* = 1'u32 shl 1
 const Libp2pCfgKad* = 1'u32 shl 2
 const Libp2pCfgDnsResolver* = 1'u32 shl 3
 const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 4
+const Libp2pCfgPrivateKey* = 1'u32 shl 5
 
 type Libp2pBootstrapNode* = object
   peerId*: cstring

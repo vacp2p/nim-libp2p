@@ -40,6 +40,7 @@ enum {
   LIBP2P_CFG_KAD = 1 << 2,
   LIBP2P_CFG_DNS_RESOLVER = 1 << 3,
   LIBP2P_CFG_KAD_BOOTSTRAP_NODES = 1 << 4,
+  LIBP2P_CFG_PRIVATE_KEY = 1 << 5,
 };
 
 typedef struct libp2p_bootstrap_node {
