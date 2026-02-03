@@ -3,13 +3,12 @@
 
 {.used.}
 
-import chronos, results, options, std/[enumerate, sequtils, tables], stew/byteutils
+import chronos, results, options, std/[enumerate, sequtils, tables]
 import
   ../../../libp2p/[
     protocols/mix,
     protocols/mix/mix_node,
     protocols/mix/mix_protocol,
-    protocols/mix/sphinx,
     protocols/ping,
     peerid,
     multiaddress,

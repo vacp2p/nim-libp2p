@@ -3,8 +3,7 @@
 
 {.used.}
 
-import chronos, results, std/[enumerate, sequtils], os
-import ./spam_protection_impl
+import chronos, results
 import
   ../../../libp2p/[
     protocols/mix,
@@ -18,7 +17,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest]
 import ./utils
 
 suite "Spam Protection Integration Tests":

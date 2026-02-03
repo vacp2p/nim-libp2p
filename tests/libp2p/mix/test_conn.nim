@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, options, std/[enumerate, sequtils, tables], stew/byteutils
+import chronos, results, std/[tables], stew/byteutils
 import
   ../../../libp2p/[
     protocols/mix,
@@ -18,7 +18,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest]
 import ./utils
 
 const NoReplyProtocolCodec* = "/test/1.0.0"
