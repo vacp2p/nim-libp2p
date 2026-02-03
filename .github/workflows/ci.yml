@@ -50,7 +50,7 @@ jobs:
           - platform:
               os: windows
             builder: windows-2022
-            shell: bash
+            shell: msys2 {0}
 
     defaults:
       run:
@@ -110,6 +110,11 @@ jobs:
           # Set GCC-14 as the default
           sudo update-alternatives --set gcc /usr/bin/gcc-14
 
+      - name: Compile and run test.c with clang 1
+        run: |
+          clang test.c -o test
+          ./test
+          
       - name: Path to cached dependencies (Windows)
         if: >
           runner.os == 'Windows'
@@ -124,6 +129,11 @@ jobs:
           choco install nasm --no-progress -y
           "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Compile and run test.c with clang 1
+        run: |
+          clang test.c -o test
+          ./test
+          
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
