@@ -14,52 +14,41 @@ const
   keyDelimiter = "::"
 
 type
-  PublishToPeersProc = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
-    # implements logic for getting list of peers that should be considered when 
-    # publishing to the topic.
-    # default implementation is set by gossipsub.
-
-  SendRPCProc =
-    proc(peerID: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
-    # implements logic for sending PartialMessageExtensionRPC to the peer.
-    # default implementation is set by gossipsub.
-
   TopicOpts* = object
     requestsPartial*: bool
     supportsSendingPartial*: bool
 
-  NodeTopicOptsProc = proc(topic: string): TopicOpts {.gcsafe, raises: [].}
-    # implements logic for getting this node's partial messages preference for topic.
-    # default implementation is set by gossipsub.
-
-  IsSupportedProc = proc(peer: PeerId): bool {.gcsafe, raises: [].}
-    # implements logic for checking if peer supports this "partial message" extension.
-    # default implementation is set by extensions state.
-
-  ValidateRPCProc =
-    proc(rpc: PartialMessageExtensionRPC): Result[void, string] {.gcsafe, raises: [].}
-    # implements logic for performing sanity checks on PartialMessageExtensionRPC.
-    # when error is returned extension will not process PartialMessageExtensionRPC.
-    # needs to be implemented by application.
-
-  OnIncomingRPCProc =
-    proc(peer: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
-    # called when PartialMessageExtensionRPC is received and ValidateRPCProc did not return
-    # error for this message.
-    # needs to be implemented by application.
-
   PartialMessageExtensionConfig* = object
-    # 
-    # configuration set by node
-    sendRPC*: SendRPCProc
-    publishToPeers*: PublishToPeersProc
-    isSupported*: IsSupportedProc
-    nodeTopicOpts*: NodeTopicOptsProc
+    # PartialMessageExtensionConfig hold all configuration need for partial message extension.
 
-    # configuration set by application
-    validateRPC*: ValidateRPCProc
-    onIncomingRPC*: OnIncomingRPCProc
-    heartbeatsTillEviction*: int
+    # configuration set by node
+    sendRPC*:
+      proc(peerID: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
+      # implements logic for sending PartialMessageExtensionRPC to the peer.
+      # default implementation is set by GossipSub.createExtensionsState.
+    publishToPeers*: proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
+      # implements logic for getting list of peers that should be considered when 
+      # publishing to the topic.
+      # default implementation is set by GossipSub.createExtensionsState.
+    nodeTopicOpts*: proc(topic: string): TopicOpts {.gcsafe, raises: [].}
+      # implements logic for getting this node's partial messages preference for topic.
+      # default implementation is set by GossipSub.createExtensionsState.
+    isSupported*: proc(peer: PeerId): bool {.gcsafe, raises: [].}
+      # implements logic for checking if peer supports this extension ("partial message").
+      # default implementation is set by ExtensionsState.new.
+
+    # configuration set by application (user)
+    validateRPC*:
+      proc(rpc: PartialMessageExtensionRPC): Result[void, string] {.gcsafe, raises: [].}
+      # implements logic for performing sanity checks on PartialMessageExtensionRPC.
+      # when error is returned extension will not process PartialMessageExtensionRPC.
+      # needs to be implemented by application.
+    onIncomingRPC*:
+      proc(peer: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].}
+      # called when PartialMessageExtensionRPC is received and ValidateRPCProc did not return
+      # error for this message.
+      # needs to be implemented by application.
+    heartbeatsTillEviction*: int = minHeartbeatsTillEviction
 
   PeerGroupState = ref object
     partsMetadata: PartsMetadata
@@ -73,13 +62,7 @@ type
   TopicGroupKey = string
 
   PartialMessageExtension* = ref object of Extension
-    sendRPC: SendRPCProc
-    publishToPeers: PublishToPeersProc
-    isSupported: IsSupportedProc
-    nodeTopicOpts: NodeTopicOptsProc
-    validateRPC: ValidateRPCProc
-    onIncomingRPC: OnIncomingRPCProc
-    heartbeatsTillEviction: int
+    config: PartialMessageExtensionConfig
     groupState: Table[TopicGroupKey, GroupState]
     peerTopicOpts: Table[PeerTopicKey, TopicOpts]
 
@@ -96,26 +79,24 @@ proc new(
 ): TopicGroupKey {.inline.} =
   topic & keyDelimiter & cast[string](groupId)
 
+proc doAssert(config: PartialMessageExtensionConfig) =
+  proc msg(arg: string): string =
+    return "PartialMessageExtensionConfig." & arg & " must be set"
+
+  doAssert(config.sendRPC != nil, msg("sendRPC"))
+  doAssert(config.publishToPeers != nil, msg("publishToPeers"))
+  doAssert(config.isSupported != nil, msg("isSupported"))
+  doAssert(config.nodeTopicOpts != nil, msg("nodeTopicOpts"))
+  doAssert(config.validateRPC != nil, msg("validateRPC"))
+  doAssert(config.onIncomingRPC != nil, msg("onIncomingRPC"))
+
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
 ): PartialMessageExtension =
-  doAssert(config.sendRPC != nil, "config.sendRPC must be set")
-  doAssert(config.publishToPeers != nil, "config.publishToPeers must be set")
-  doAssert(config.isSupported != nil, "config.isSupported must be set")
-  doAssert(config.nodeTopicOpts != nil, "config.nodeTopicOpts must be set")
-  doAssert(config.validateRPC != nil, "config.validateRPC must be set")
-  doAssert(config.onIncomingRPC != nil, "config.onIncomingRPC must be set")
+  var c = config
+  c.heartbeatsTillEviction = max(c.heartbeatsTillEviction, minHeartbeatsTillEviction)
 
-  PartialMessageExtension(
-    sendRPC: config.sendRPC,
-    publishToPeers: config.publishToPeers,
-    isSupported: config.isSupported,
-    nodeTopicOpts: config.nodeTopicOpts,
-    validateRPC: config.validateRPC,
-    onIncomingRPC: config.onIncomingRPC,
-    heartbeatsTillEviction:
-      max(config.heartbeatsTillEviction, minHeartbeatsTillEviction),
-  )
+  PartialMessageExtension(config: c)
 
 proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   # reduce heartbeatsTillEviction and remove groups that hit 0
@@ -195,7 +176,7 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  let validateRes = ext.validateRPC(rpc)
+  let validateRes = ext.config.validateRPC(rpc)
   if validateRes.isErr():
     debug "Partial message extensions received invalid RPC", msg = validateRes.error
     return
@@ -205,7 +186,7 @@ proc handlePartialRPC(
     var peerState = groupState.getPeerState(peerId)
     peerState.partsMetadata = rpc.partsMetadata
 
-  ext.onIncomingRPC(peerId, rpc)
+  ext.config.onIncomingRPC(peerId, rpc)
 
 method onHandleRPC*(
     ext: PartialMessageExtension, peerId: PeerId, rpc: RPCMsg
@@ -252,24 +233,24 @@ proc publishPartialToPeer(
 
   # if there are any changes send RPC
   if hasChanges:
-    ext.sendRPC(peer, rpc)
+    ext.config.sendRPC(peer, rpc)
 
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
   var groupState = ext.getGroupState(topic, pm.groupId())
 
-  groupState.heartbeatsTillEviction = ext.heartbeatsTillEviction
+  groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
   var publishedToCount: int = 0
-  let peers = ext.publishToPeers(topic)
+  let peers = ext.config.publishToPeers(topic)
   for _, p in peers:
     # peer needs to support this extension
-    if not ext.isSupported(p):
+    if not ext.config.isSupported(p):
       continue
 
     let peerSubOpt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(p, topic))
-    let nodeSubOpt = ext.nodeTopicOpts(topic)
+    let nodeSubOpt = ext.config.nodeTopicOpts(topic)
 
     # publish partial message to peer if ...
     if peerSubOpt.requestsPartial and
