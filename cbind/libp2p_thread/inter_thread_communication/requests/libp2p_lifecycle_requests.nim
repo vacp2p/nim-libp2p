@@ -33,7 +33,6 @@ const DefaultDnsResolver = "1.1.1.1:53"
 proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
   var resolved = Libp2pConfig(
     flags: 0'u32,
-    passPrivKey: 0,
     mountGossipsub: 1,
     gossipsubTriggerSelf: 1,
     mountKad: 1,
@@ -103,7 +102,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
 
   var privKey = Opt.none(PrivateKey)
-  if config.passPrivKey != 0:
+  if (config.flags and Libp2pCfgPrivateKey) != 0'u32:
     let src = cast[ptr PrivateKey](config.privKey.data)
     let keyCopy = src[]
     privKey = Opt.some(keyCopy)

@@ -59,6 +59,7 @@ enum {
 
 typedef struct libp2p_private_key {
   void *data;
+  size_t dataLen;
 } libp2p_private_key_t;
 
 typedef struct {
@@ -69,7 +70,6 @@ typedef struct {
   const char *dns_resolver;
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   size_t kad_bootstrap_nodes_len;
-  int pass_priv_key;
   libp2p_private_key_t priv_key;
 } libp2p_config_t;
 

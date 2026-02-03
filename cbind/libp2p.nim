@@ -8,7 +8,7 @@
 when defined(linux):
   {.passl: "-Wl,-soname,libp2p.so".}
 
-import std/[typetraits, tables, atomics], random, chronos, chronicles
+import std/[typetraits, tables, atomics], chronos, chronicles
 import
   ./libp2p_thread/libp2p_thread,
   ./[ffi_types, types],
@@ -134,7 +134,6 @@ proc initializeLibrary() {.exported.} =
   if not initialized.exchange(true):
     # Every Nim library must call `<prefix>NimMain()` once
     libp2pNimMain()
-    randomize() # initialize rng
   when declared(setupForeignThreadGc):
     setupForeignThreadGc()
   when declared(nimGC_setStackBottom):
@@ -208,7 +207,7 @@ proc libp2p_new_private_key(
     echo "Could not generate private key"
     return RET_ERR.cint
 
-  let keyData = key.getRawBytes().valueOr:
+  let keyData = key.getBytes().valueOr:
     echo "Could not get raw bytes for private key"
     return RET_ERR.cint
 

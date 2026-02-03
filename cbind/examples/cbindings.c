@@ -63,12 +63,11 @@ int main(int argc, char **argv) {
 
   libp2p_config_t cfg1 = {0};
   cfg1.flags =
-      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF | LIBP2P_CFG_KAD;
+      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF | LIBP2P_CFG_KAD | LIBP2P_CFG_PRIVATE_KEY;
   cfg1.mount_gossipsub = 1;
   cfg1.gossipsub_trigger_self = 1;
   cfg1.mount_kad = 1;
 
-  cfg1.pass_priv_key = 1;
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
   waitForCallback();

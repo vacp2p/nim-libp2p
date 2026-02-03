@@ -11,6 +11,7 @@
 
 type Libp2pPrivateKey* = object
   data*: pointer
+  dataLen*: csize_t
 
 type Libp2pCallback* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
@@ -92,7 +93,6 @@ type Libp2pConfig* = object
   dnsResolver*: cstring
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
-  passPrivKey*: cint
   privKey*: Libp2pPrivateKey
 
 type RetCode* {.size: sizeof(cint).} = enum
