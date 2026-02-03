@@ -395,13 +395,14 @@ proc handleMixMessages(
     # will be constant at proofGenTime. Implementers should ensure configured
     # delays are >= expected proof generation time for variable delays to work.
     let proofGenStartTime = Moment.now()
+    let delayFut = sleepAsync(milliseconds(actualDelayMs.int))
+
     let proofGenFut = (
       proc(): Future[Result[seq[byte], string]] {.async.} =
         return mixProto.generateAndAppendProof(
           processedSP.serializedSphinxPacket, "Intermediate"
         )
     )()
-    let delayFut = sleepAsync(milliseconds(actualDelayMs.int))
 
     await allFutures(proofGenFut, delayFut)
 
