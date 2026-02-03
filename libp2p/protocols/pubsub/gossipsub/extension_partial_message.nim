@@ -93,6 +93,8 @@ proc doAssert(config: PartialMessageExtensionConfig) =
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
 ): PartialMessageExtension =
+  config.doAssert()
+
   var c = config
   c.heartbeatsTillEviction = max(c.heartbeatsTillEviction, minHeartbeatsTillEviction)
 
