@@ -70,57 +70,57 @@ func del*[K](t: var TimedCache[K], key: K): Opt[TimedEntry[K]] =
   else:
     Opt.none(TimedEntry[K])
 
-func put*[K](t: var TimedCache[K], k: K, now = Moment.now()): bool =
-  # Puts k in cache, returning true if the item was already present and false
+func put*[K](cache: var TimedCache[K], key: K, now = Moment.now()): bool =
+  # Puts key in cache, returning true if the item was already present and false
   # otherwise. If refreshOnPut is true (default), re-adding refreshes the expiry.
   # If refreshOnPut is false, re-adding is a no-op (useful when first-seen time matters).
-  func ensureSizeBound(t: var TimedCache[K]) =
-    if t.maxSize > 0 and t.entries.len() >= t.maxSize and k notin t:
-      if t.head != nil:
-        t.entries.excl(t.head)
-        t.head = t.head.next
-        if t.head != nil:
-          t.head.prev = nil
+  func ensureSizeBound(cache: var TimedCache[K]) =
+    if cache.maxSize > 0 and cache.entries.len() >= cache.maxSize and key notin cache:
+      if cache.head != nil:
+        cache.entries.excl(cache.head)
+        cache.head = cache.head.next
+        if cache.head != nil:
+          cache.head.prev = nil
         else:
-          t.tail = nil
+          cache.tail = nil
 
-  t.expire(now)
-  t.ensureSizeBound()
+  cache.expire(now)
+  cache.ensureSizeBound()
 
   # If not refreshing and already present, return early
-  if not t.refreshOnPut and k in t:
+  if not cache.refreshOnPut and key in cache:
     return true
 
   let
-    previous = t.del(k) # Refresh existing item
+    previous = cache.del(key) # Refresh existing item
     addedAt =
       if previous.isSome():
         previous[].addedAt
       else:
         now
 
-  let node = TimedEntry[K](key: k, addedAt: addedAt, expiresAt: now + t.timeout)
-  if t.head == nil:
-    t.tail = node
-    t.head = t.tail
+  let node = TimedEntry[K](key: key, addedAt: addedAt, expiresAt: now + cache.timeout)
+  if cache.head == nil:
+    cache.tail = node
+    cache.head = cache.tail
   else:
     # search from tail because typically that's where we add when now grows
-    var cur = t.tail
+    var cur = cache.tail
     while cur != nil and node.expiresAt < cur.expiresAt:
       cur = cur.prev
 
     if cur == nil:
-      node.next = t.head
-      t.head.prev = node
-      t.head = node
+      node.next = cache.head
+      cache.head.prev = node
+      cache.head = node
     else:
       node.prev = cur
       node.next = cur.next
       cur.next = node
-      if cur == t.tail:
-        t.tail = node
+      if cur == cache.tail:
+        cache.tail = node
 
-  t.entries.incl(node)
+  cache.entries.incl(node)
 
   previous.isSome()
 

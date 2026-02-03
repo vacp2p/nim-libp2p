@@ -12,7 +12,7 @@ proc makeTag(seed: byte): Tag =
   for i in 0 ..< result.len:
     result[i] = byte((int(seed) * 32 + i) mod 256)
 
-suite "tag_manager_tests":
+suite "Tag Manager":
   var tm: TagManager
 
   setup:
@@ -29,6 +29,7 @@ suite "tag_manager_tests":
     # Initially empty
     check tm.len == 0
     check not tm.isTagSeen(tag1)
+    check not tm.isTagSeen(tag2)
 
     # Add tags
     tm.addTag(tag1)
