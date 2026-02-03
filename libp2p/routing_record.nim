@@ -21,6 +21,16 @@ type
     addresses*: seq[AddressInfo]
 
 proc decode*(
+    T: typedesc[AddressInfo], buffer: seq[byte]
+): Result[AddressInfo, ProtoError] =
+  let pb = initProtoBuffer(buffer)
+  var addInfo = AddressInfo()
+
+  ?pb.getRequiredField(1, addInfo.address)
+
+  ok(addInfo)
+
+proc decode*(
     T: typedesc[PeerRecord], buffer: seq[byte]
 ): Result[PeerRecord, ProtoError] =
   let pb = initProtoBuffer(buffer)
@@ -31,17 +41,24 @@ proc decode*(
 
   var addressInfos: seq[seq[byte]]
   if ?pb.getRepeatedField(3, addressInfos):
-    for address in addressInfos:
-      var addressInfo = AddressInfo()
-      let subProto = initProtoBuffer(address)
-      let f = subProto.getField(1, addressInfo.address)
-      if f.get(false):
-        record.addresses &= addressInfo
+    for addressBuf in addressInfos:
+      let addressInfo = AddressInfo.decode(addressBuf).valueOr:
+        continue
+
+      record.addresses &= addressInfo
 
     if record.addresses.len == 0:
       return err(ProtoError.RequiredFieldMissing)
 
   ok(record)
+
+proc encode*(addrInfo: AddressInfo): seq[byte] =
+  var pb = initProtoBuffer()
+
+  pb.write(1, addrInfo.address)
+
+  pb.finish()
+  pb.buffer
 
 proc encode*(record: PeerRecord): seq[byte] =
   var pb = initProtoBuffer()
@@ -50,9 +67,7 @@ proc encode*(record: PeerRecord): seq[byte] =
   pb.write(2, record.seqNo)
 
   for address in record.addresses:
-    var addrPb = initProtoBuffer()
-    addrPb.write(1, address.address)
-    pb.write(3, addrPb)
+    pb.write(3, address.encode())
 
   pb.finish()
   pb.buffer

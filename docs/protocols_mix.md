@@ -74,7 +74,7 @@ For detailed information on implementing custom spam protection mechanisms, see 
 ## Using experimental `exit == destination`
 
 1. Compile with: `-d:libp2p_mix_experimental_exit_is_dest`
-2. In `toConnection` you can now specify the behavior the exit node will have:`
+2. In `toConnection` you can now specify the behavior the exit node will have:
 
 ```nim
 # Exit != destination (the default)
@@ -102,7 +102,7 @@ A complete working example demonstrating the Mix protocol with Ping can be found
 
 ## RFC and Further Reading
 
-For a detailed technical specification and discussion, please refer to the [Mix Protocol RFC](https://rfc.vac.dev/vac/raw/mix/).
+For a detailed technical specification and discussion, please refer to the [Mix Protocol RFC](https://lip.logos.co/ift-ts/raw/mix.html).
 
 ## Acknowledgments
 

@@ -182,7 +182,7 @@ suite "GossipSub Component - Message Handling":
 
     var smallestSet: HashSet[seq[byte]]
     let seqs = toSeq(sentMessages)
-    if seqs[0] < seqs[1]:
+    if seqs[0].len < seqs[1].len:
       smallestSet.incl(seqs[0])
     else:
       smallestSet.incl(seqs[1])
@@ -363,7 +363,7 @@ suite "GossipSub Component - Message Handling":
     let obs0 = PubSubObserver(onSend: onSend)
     let obs1 = PubSubObserver(onRecv: onRecv, onValidated: onValidated)
 
-    let nodes = generateNodes(2, gossip = true, extensionsDisabled = true).toGossipSub()
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
     await connectNodesStar(nodes)

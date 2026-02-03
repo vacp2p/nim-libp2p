@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH 
+
+{.used.}
+
+import chronos, results
+import ../../../../libp2p/peerid
+import
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub/extension_partial_message, gossipsub/extensions_types, rpc/messages]
+import ../../../tools/[unittest]
+import ../utils
+
+suite "GossipSub Extensions :: Partial Message Extension":
+  test "basic test":
+    proc sendRPC(
+        peerID: PeerId, rpc: PartialMessageExtensionRPC
+    ) {.gcsafe, raises: [].} =
+      discard
+
+    proc publishToPeers(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+      return newSeq[PeerId]()
+
+    proc nodeTopicOpts(topic: string): TopicOpts {.gcsafe, raises: [].} =
+      return TopicOpts()
+
+    proc isSupportedCb(peer: PeerId): bool {.gcsafe, raises: [].} =
+      return true
+
+    proc validateRPC(
+        rpc: PartialMessageExtensionRPC
+    ): Result[void, string] {.gcsafe, raises: [].} =
+      ok()
+
+    proc onIncomingRPC(
+        peer: PeerId, rpc: PartialMessageExtensionRPC
+    ) {.gcsafe, raises: [].} =
+      discard
+
+    let cfg = PartialMessageExtensionConfig(
+      sendRPC: sendRPC,
+      publishToPeers: publishToPeers,
+      isSupported: isSupportedCb,
+      nodeTopicOpts: nodeTopicOpts,
+      validateRPC: validateRPC,
+      onIncomingRPC: onIncomingRPC,
+    )
+    let ext = PartialMessageExtension.new(cfg)
+
+    check:
+      ext.isSupported(PeerExtensions()) == false
+      ext.isSupported(PeerExtensions(partialMessageExtension: true)) == true
+
+    # TODO
