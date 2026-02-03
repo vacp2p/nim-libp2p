@@ -34,6 +34,7 @@ proc runTest(filename: string, moreoptions: string = "") =
   compileCmd &= " -d:libp2p_autotls_support"
   compileCmd &= " -d:libp2p_mix_experimental_exit_is_dest"
   compileCmd &= " -d:libp2p_gossipsub_1_4"
+  compileCmd &= " --passC:-fno-omit-frame-pointer --passC:-fsanitize=address --passL:-fsanitize=address -g"
   compileCmd &= " " & moreoptions & " "
 
   var runnerArgs = " --output-level=VERBOSE"
