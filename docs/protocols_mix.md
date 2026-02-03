@@ -75,7 +75,7 @@ For detailed information on implementing custom spam protection mechanisms, see 
 ## Using experimental `exit == destination`
 
 1. Compile with: `-d:libp2p_mix_experimental_exit_is_dest`
-2. In `toConnection` you can now specify the behavior the exit node will have:`
+2. In `toConnection` you can now specify the behavior the exit node will have:
 
 ```nim
 # Exit != destination (the default)
