@@ -65,11 +65,11 @@ typedef struct {
   int mount_gossipsub;
   int gossipsub_trigger_self;
   int mount_kad;
-  int pass_priv_key;
-  libp2p_private_key_t priv_key;
   const char *dns_resolver;
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   size_t kad_bootstrap_nodes_len;
+  int pass_priv_key;
+  libp2p_private_key_t priv_key;
 } libp2p_config_t;
 
 typedef void (*PubsubTopicHandler)(const char *topic, uint8_t *data, size_t len,

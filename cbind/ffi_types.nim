@@ -85,14 +85,14 @@ type Libp2pBootstrapNode* = object
 
 type Libp2pConfig* = object
   flags*: uint32
-  passPrivKey*: cint
-  privKey*: Libp2pPrivateKey
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
   mountKad*: cint
   dnsResolver*: cstring
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
+  passPrivKey*: cint
+  privKey*: Libp2pPrivateKey
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
