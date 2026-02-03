@@ -9,7 +9,6 @@ import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub/extension_test, gossipsub/extensions_types]
 import ../../../tools/[unittest, crypto]
-import ../utils
 
 suite "GossipSub Extensions :: Test Extension":
   test "isSupported":
