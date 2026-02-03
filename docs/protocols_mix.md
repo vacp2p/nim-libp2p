@@ -103,7 +103,7 @@ A complete working example demonstrating the Mix protocol with Ping can be found
 
 ## RFC and Further Reading
 
-For a detailed technical specification and discussion, please refer to the [Mix Protocol RFC](https://rfc.vac.dev/vac/raw/mix/).
+For a detailed technical specification and discussion, please refer to the [Mix Protocol RFC](https://lip.logos.co/ift-ts/raw/mix.html).
 
 ## Acknowledgments
 
