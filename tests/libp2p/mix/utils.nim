@@ -58,19 +58,22 @@ proc setupMixNodes*(
         "should have initialized mix protocol"
       )
     if destReadBehavior.isSome():
-      # We'll fwd requests, so let's register how should the exit node will read responses
       let (codec, callback) = destReadBehavior.get()
       proto.registerDestReadBehavior(codec, callback)
     nodes.add(proto)
     switches[index].mount(proto)
-
-  await nodes.mapIt(it.switch.start()).allFutures()
   nodes
+
+proc startNodes*(nodes: seq[MixProtocol]) {.async.} =
+  await nodes.mapIt(it.switch.start()).allFutures()
 
 proc stopNodes*(nodes: seq[MixProtocol]) {.async.} =
   await nodes.mapIt(it.switch.stop()).allFutures()
-  deleteNodeInfoFolder()
-  deletePubInfoFolder()
+
+template startNodesAndDeferStop*(nodes: seq[MixProtocol]): untyped =
+  await startNodes(nodes)
+  defer:
+    await stopNodes(nodes)
 
 ###
 
