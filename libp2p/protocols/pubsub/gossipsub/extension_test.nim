@@ -16,7 +16,11 @@ type
   TestExtension* = ref object of Extension
     onNegotiated: OnNegotiatedProc
 
+proc doAssert(config: TestExtensionConfig) =
+  doAssert(config.onNegotiated != nil, "config.onNegotiated must be set")
+
 proc new*(T: typedesc[TestExtension], config: TestExtensionConfig): TestExtension =
+  config.doAssert()
   TestExtension(onNegotiated: config.onNegotiated)
 
 method isSupported*(

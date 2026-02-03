@@ -12,17 +12,21 @@ import ../../../tools/[unittest, crypto]
 import ../utils
 
 suite "GossipSub Extensions :: Test Extension":
-
   test "isSupported":
     let ext = TestExtension.new()
     check:
       ext.isSupported(PeerExtensions()) == false
       ext.isSupported(PeerExtensions(testExtension: true)) == true
 
-  test "onNegotiated":
+  test "config validation":
+    expect AssertionDefect:
+      let ext = TestExtension.new(TestExtensionConfig())
+
+  test "onNegotiated callback called":
     var negotiatedPeers: seq[PeerId]
     proc onNegotiatedCb(peer: PeerId) {.gcsafe, raises: [].} =
       negotiatedPeers.add(peer)
+
     let ext = TestExtension.new(TestExtensionConfig(onNegotiated: onNegotiatedCb))
 
     check:
