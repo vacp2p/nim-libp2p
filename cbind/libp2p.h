@@ -48,12 +48,13 @@ typedef struct libp2p_bootstrap_node {
   size_t multiaddrsLen;
 } libp2p_bootstrap_node_t;
 
-typedef enum {
-  RSA,
-  Ed25519,
-  Secp256k1,
-  ECDSA,
-} libp2p_pk_scheme;
+typedef uint32_t libp2p_pk_scheme;
+enum {
+  LIBP2P_PK_RSA = 0,
+  LIBP2P_PK_ED25519 = 1,
+  LIBP2P_PK_SECP256K1 = 2,
+  LIBP2P_PK_ECDSA = 3,
+};
 
 typedef struct libp2p_private_key {
   void *data;

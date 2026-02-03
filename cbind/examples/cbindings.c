@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
 
   cfg1.pass_priv_key = 1;
   libp2p_private_key_t priv_key = {0};
-  libp2p_new_private_key(RSA, private_key_handler, &priv_key);
+  libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
   waitForCallback();
   cfg1.priv_key = priv_key;
 
