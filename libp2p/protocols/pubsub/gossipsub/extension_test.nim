@@ -6,6 +6,10 @@ import ../rpc/messages
 import ./[extensions_types]
 
 type
+  OnNegotiatedProc* = proc(peer: PeerId) {.gcsafe, raises: [].}
+    # called when "test extension" has negotiated with the peer.
+    # default implementation is set by gossipsub.
+
   TestExtensionConfig* = object
     onNegotiated*: proc(peer: PeerId) {.gcsafe, raises: [].}
       # called when this extensions has negotiated with the peer.
