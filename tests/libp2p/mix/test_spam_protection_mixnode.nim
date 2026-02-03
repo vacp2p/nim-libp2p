@@ -42,12 +42,9 @@ suite "Spam Protection Integration Tests":
     )
     startNodesAndDeferStop(nodes)
 
-    let destNode = createSwitch()
-    let pingProto = Ping.new()
-    destNode.mount(pingProto)
-    await destNode.start()
+    let (destNode, pingProto) = await setupDestNode(Ping.new())
     defer:
-      await destNode.stop()
+      await stopDestNode(destNode)
 
     # Send packets (within rate limit)
     for i in 0 ..< NumTestPackets:

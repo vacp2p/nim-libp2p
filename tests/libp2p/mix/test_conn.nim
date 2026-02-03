@@ -21,24 +21,44 @@ import
 import ../../tools/[unittest, crypto]
 import ./utils
 
-suite "Mix Protocol":
+const NoReplyProtocolCodec* = "/test/1.0.0"
+
+type NoReplyProtocol* = ref object of LPProtocol
+  receivedMessages*: AsyncQueue[seq[byte]]
+
+proc newNoReplyProtocol*(): NoReplyProtocol =
+  let nrProto = NoReplyProtocol()
+  nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
+
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    var buffer: seq[byte]
+
+    try:
+      buffer = await conn.readLp(1024)
+    except LPStreamError:
+      discard
+
+    await conn.close()
+    await nrProto.receivedMessages.put(buffer)
+
+  nrProto.handler = handler
+  nrProto.codec = NoReplyProtocolCodec
+  nrProto
+
+suite "Mix Protocol Component":
   asyncTeardown:
     checkTrackers()
     deleteNodeInfoFolder()
     deletePubInfoFolder()
 
-  asyncTest "e2e - expect reply, exit != destination":
+  asyncTest "expect reply, exit != destination":
     let nodes =
       await setupMixNodes(10, Opt.some((codec: PingCodec, callback: readExactly(32))))
     startNodesAndDeferStop(nodes)
 
-    # Setup dest node with Ping
-    let destNode = createSwitch()
-    let pingProto = Ping.new()
-    destNode.mount(pingProto)
-    await destNode.start()
+    let (destNode, pingProto) = await setupDestNode(Ping.new())
     defer:
-      await destNode.stop()
+      await stopDestNode(destNode)
 
     let conn = nodes[0]
       .toConnection(
@@ -53,17 +73,13 @@ suite "Mix Protocol":
 
     check response != 0.seconds
 
-  asyncTest "e2e - expect no reply, exit != destination":
+  asyncTest "expect no reply, exit != destination":
     let nodes = await setupMixNodes(10)
     startNodesAndDeferStop(nodes)
 
-    # Setup dest node with No Reply
-    let destNode = createSwitch()
-    let nrProto = newNoReplyProtocol()
-    destNode.mount(nrProto)
-    await destNode.start()
+    let (destNode, nrProto) = await setupDestNode(newNoReplyProtocol())
     defer:
-      await destNode.stop()
+      await stopDestNode(destNode)
 
     let conn = nodes[0]
       .toConnection(
@@ -79,7 +95,7 @@ suite "Mix Protocol":
     check data == await nrProto.receivedMessages.get()
 
   when defined(libp2p_mix_experimental_exit_is_dest):
-    asyncTest "e2e - expect reply, exit == destination":
+    asyncTest "expect reply, exit == destination":
       let nodes =
         await setupMixNodes(10, Opt.some((codec: PingCodec, callback: readExactly(32))))
 
