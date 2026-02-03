@@ -317,16 +317,14 @@ suite "Mix Protocol":
       let pubInfo = MixPubInfo.readFromFile(i).expect("could not read pub info")
       senderPeerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
       senderPeerStore[AddressBook][pubInfo.peerId] = @[pubInfo.multiAddr]
-      senderPeerStore[KeyBook][pubInfo.peerId] = PublicKey(
-        scheme: Secp256k1, skkey: pubInfo.libp2pPubKey
-      )
+      senderPeerStore[KeyBook][pubInfo.peerId] =
+        PublicKey(scheme: Secp256k1, skkey: pubInfo.libp2pPubKey)
 
     # Add invalid node to peerStore
     senderPeerStore[MixPubKeyBook][invalidPeerId] = invalidPubInfo.mixPubKey
     senderPeerStore[AddressBook][invalidPeerId] = @[invalidPubInfo.multiAddr]
-    senderPeerStore[KeyBook][invalidPeerId] = PublicKey(
-      scheme: Secp256k1, skkey: invalidPubInfo.libp2pPubKey
-    )
+    senderPeerStore[KeyBook][invalidPeerId] =
+      PublicKey(scheme: Secp256k1, skkey: invalidPubInfo.libp2pPubKey)
 
     # Verify pool has validNodesCount + 1 invalid node
     check senderPeerStore[MixPubKeyBook].len == validNodesCount + 1

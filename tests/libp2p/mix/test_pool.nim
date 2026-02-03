@@ -116,7 +116,8 @@ suite "MixNodePool Tests":
     check pool.len == 3
 
     # Remove middle node
-    let middlePubInfo = mixNodes.getMixPubInfoByIndex(1).expect("could not get pub info")
+    let middlePubInfo =
+      mixNodes.getMixPubInfoByIndex(1).expect("could not get pub info")
     discard pool.remove(middlePubInfo.peerId)
 
     check:
