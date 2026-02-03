@@ -64,9 +64,8 @@ let spamProtection = MySpamProtection.new()
 # Initialize MixProtocol with spam protection
 let mixProto = MixProtocol.new(
   mixNodeInfo,
-  pubNodeInfo,
   switch,
-  spamProtection = spamProtection
+  spamProtection = Opt.some(spamProtection)
 )
 ```
 
