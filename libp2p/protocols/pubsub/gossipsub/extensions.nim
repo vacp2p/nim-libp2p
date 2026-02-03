@@ -33,6 +33,9 @@ proc new*(
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
       none(PartialMessageExtensionConfig),
+    externalExtensions: seq[Extension] = @[],
+      # external extensions are created outside of state - like tests
+      # and added to internally created extensions list.
 ): T =
   var state: T
 
@@ -53,6 +56,8 @@ proc new*(
     partialMessageExtension = some(PartialMessageExtension.new(cfg))
     extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = some(true)
+
+  extensions.add(externalExtensions)
 
   state = T(
     onMisbehave: onMisbehave,
@@ -78,8 +83,7 @@ proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   # extension event called when node receives every RPC message.
 
   for _, e in state.extensions:
-    if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
-      e.onHandleRPC(peerId, rpc)
+    e.onHandleRPC(peerId, rpc)
 
 proc onNegotiated(state: ExtensionsState, peerId: PeerId) =
   # extension event called when both sides have negotiated (exchanged) extensions.

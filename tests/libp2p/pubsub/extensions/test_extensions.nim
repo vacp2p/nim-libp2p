@@ -5,9 +5,12 @@
 
 import chronos, results, options, sequtils
 import ../../../../libp2p/peerid
-import ../../../../libp2p/protocols/pubsub/[gossipsub/extensions, rpc/messages]
+import
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub/extensions, gossipsub/extensions_types, rpc/messages]
 import ../../../tools/[unittest, crypto]
 import ../utils
+import ./extension_delegate
 
 proc makeRPC(extensions: ControlExtensions = ControlExtensions()): RPCMsg =
   RPCMsg(control: some(ControlMessage(extensions: some(extensions))))
@@ -25,9 +28,11 @@ suite "GossipSub Extensions :: State":
   let peerId = PeerId.random(rng).get()
 
   test "default unconfigured state":
-    # test does not assert anything explicitly, but it should not crash
-    # when unconfigured state is used
     var state = ExtensionsState.new()
+
+    # call all proc, that are called from gossipsub here.
+    # by calling these test can't assert much, but it should
+    # not cause tests to fail.
     state.handleRPC(peerId, RPCMsg())
     state.addPeer(peerId)
     state.addPeer(peerId)
@@ -35,9 +40,18 @@ suite "GossipSub Extensions :: State":
     state.removePeer(peerId)
     state.removePeer(peerId)
     state.heartbeat()
-    discard state.makeControlExtensions()
+    state.heartbeat()
 
-  test "state reports misbehaving":
+    # procs that return value should return default value
+    check state.makeControlExtensions() == ControlExtensions()
+    check state.peerRequestsPartial(peerId, "logos") == false
+
+  test "publishPartial fails when extensions is not configured":
+    var state = ExtensionsState.new()
+    expect AssertionDefect:
+      discard state.publishPartial("logos", nil)
+
+  test "state reports misbehaving when ControlExtensions more then once":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 
@@ -49,7 +63,7 @@ suite "GossipSub Extensions :: State":
       state.handleRPC(peerId, makeRPC())
       check reportedPeers[] == repeat[PeerId](peerId, i)
 
-  test "state reports misbehaving - many peers":
+  test "state reports misbehaving when ControlExtensions more then once - many peers reported":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 
@@ -62,7 +76,7 @@ suite "GossipSub Extensions :: State":
 
       check reportedPeers[] == peers
 
-  test "state peer is removed":
+  test "peer is removed":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 
@@ -77,6 +91,47 @@ suite "GossipSub Extensions :: State":
 
       check reportedPeers[].len == 0
 
-  test "state with callback extensions":
-    discard
-    # TODO
+  test "state calls all extensions callbacks":
+    var ext = DelegateExtension()
+    var state = ExtensionsState.new(externalExtensions = @[Extension(ext)])
+
+    # assert that onHeartbeat is called
+    state.heartbeat()
+    check ext.heartbeatCount == 1
+    state.heartbeat()
+    check ext.heartbeatCount == 2
+
+    # assert that onNegotiated is not called (ControlExtensions is empty)
+    state.handleRPC(peerId, makeRPC(ControlExtensions()))
+    check ext.handledRPC.len == 1
+    check ext.negotiatedPeers.len == 0
+    state.addPeer(peerId)
+    check ext.negotiatedPeers.len == 0
+
+    # assert that onNegotiated is not called (testExtension is false)
+    state.handleRPC(peerId, makeRPC(ControlExtensions(testExtension: some(false))))
+    check ext.handledRPC.len == 2
+    check ext.negotiatedPeers.len == 0
+    state.addPeer(peerId)
+    check ext.negotiatedPeers.len == 0
+
+    # assert that onNegotiated is called (handleRPC, then addPeer)
+    let peerId1 = PeerId.random(rng).get()
+    state.handleRPC(peerId1, makeRPC(ControlExtensions(testExtension: some(true))))
+    check ext.handledRPC.len == 3
+    check ext.negotiatedPeers.len == 0
+    state.addPeer(peerId1)
+    check ext.negotiatedPeers == @[peerId1]
+
+    # assert that onNegotiated is called (addPeer, then handleRPC)
+    let peerId2 = PeerId.random(rng).get()
+    state.addPeer(peerId2)
+    check ext.negotiatedPeers.len == 1
+    state.handleRPC(peerId2, makeRPC(ControlExtensions(testExtension: some(true))))
+    check ext.handledRPC.len == 4
+    check ext.negotiatedPeers == @[peerId1, peerId2]
+
+    # assert that onRemovePeer is called
+    state.removePeer(peerId1)
+    state.removePeer(peerId2)
+    check ext.removedPeers == @[peerId1, peerId2]
