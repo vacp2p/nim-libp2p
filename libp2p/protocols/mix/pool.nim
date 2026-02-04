@@ -7,12 +7,11 @@
 ## It encapsulates access to the peerStore's MixPubKeyBook, AddressBook, and KeyBook,
 ## providing a clean interface for the mix protocol to interact with mix node data.
 
-import std/[options, sequtils, tables]
+import std/[sequtils, tables]
 import results
 import ../../peerstore
 import ../../peerid
 import ../../multiaddress
-import ../../multicodec
 import ../../crypto/crypto
 import ../../crypto/curve25519
 import ./mix_node

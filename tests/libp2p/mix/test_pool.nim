@@ -143,6 +143,32 @@ suite "MixNodePool Tests":
       pool.add(pubInfo)
       check pool.len == i + 1
 
+  test "get prefers LastSeenOutboundBook over AddressBook":
+    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let addressBookAddr =
+      MultiAddress.init("/ip4/192.168.1.1/tcp/4242").expect("could not create multiaddr")
+    let lastSeenAddr =
+      MultiAddress.init("/ip4/10.0.0.1/tcp/4243").expect("could not create multiaddr")
+    let lastSeenIpv6Addr =
+      MultiAddress.init("/ip6/::1/tcp/4244").expect("could not create multiaddr")
+
+    peerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
+    peerStore[KeyBook][pubInfo.peerId] =
+      PublicKey(scheme: Secp256k1, skkey: pubInfo.libp2pPubKey)
+    peerStore[AddressBook][pubInfo.peerId] = @[addressBookAddr]
+
+    # When LastSeenOutboundBook has a supported address, prefer it
+    peerStore[LastSeenOutboundBook][pubInfo.peerId] = Opt.some(lastSeenAddr)
+    check pool.get(pubInfo.peerId).get().multiAddr == lastSeenAddr
+
+    # When LastSeenOutboundBook has unsupported address (IPv6), fall back to AddressBook
+    peerStore[LastSeenOutboundBook][pubInfo.peerId] = Opt.some(lastSeenIpv6Addr)
+    check pool.get(pubInfo.peerId).get().multiAddr == addressBookAddr
+
+    # When LastSeenOutboundBook is empty, fall back to AddressBook
+    peerStore[LastSeenOutboundBook][pubInfo.peerId] = Opt.none(MultiAddress)
+    check pool.get(pubInfo.peerId).get().multiAddr == addressBookAddr
+
   test "multiple operations sequence":
     # Add 3 nodes
     for i in 0 ..< 3:
