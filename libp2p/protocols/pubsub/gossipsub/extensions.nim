@@ -6,14 +6,21 @@ import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, extension_test, extension_partial_message, partial_message]
 
-export PeerCallback, TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts
+export TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts
+
+type OnMisbehaveProc* = proc(peer: PeerId) {.gcsafe, raises: [].}
+
+proc noopMisbehave*(peer: PeerId) {.gcsafe, raises: [].} =
+  discard
 
 type ExtensionsState* = ref object
-  sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions
+  sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions.
   peerExtensions: Table[PeerId, PeerExtensions]
-    # tells what peer capabilities are (what extensions are supported by them)
-  onMisbehave: PeerCallback # callback when peer does not follow extensions protocol
-  nodeExtensions: ControlExtensions # tells what node's capabilities are
+    # tells what peer capabilities are (what extensions are supported by them).
+  onMisbehave: OnMisbehaveProc
+    # callback when peer does not follow extensions protocol. 
+    # default implementation is set by GossipSub.createExtensionsState.
+  nodeExtensions: ControlExtensions # tells what node's capabilities are.
   extensions: seq[Extension]
     # list of all extensions. state will delegate events to all elements of this list.
   partialMessageExtension: Option[PartialMessageExtension]
@@ -22,10 +29,13 @@ type ExtensionsState* = ref object
 
 proc new*(
     T: typedesc[ExtensionsState],
-    onMisbehave: PeerCallback = noopPeerCallback,
+    onMisbehave: OnMisbehaveProc = noopMisbehave,
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
       none(PartialMessageExtensionConfig),
+    externalExtensions: seq[Extension] = @[],
+      # external extensions are created outside of state and they are added to 
+      # state's extensions list.
 ): T =
   var state: T
 
@@ -46,6 +56,8 @@ proc new*(
     partialMessageExtension = some(PartialMessageExtension.new(cfg))
     extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = some(true)
+
+  extensions.add(externalExtensions)
 
   state = T(
     onMisbehave: onMisbehave,
@@ -71,8 +83,7 @@ proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   # extension event called when node receives every RPC message.
 
   for _, e in state.extensions:
-    if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
-      e.onHandleRPC(peerId, rpc)
+    e.onHandleRPC(peerId, rpc)
 
 proc onNegotiated(state: ExtensionsState, peerId: PeerId) =
   # extension event called when both sides have negotiated (exchanged) extensions.
@@ -124,7 +135,7 @@ proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   if rpc.control.isSome() and rpc.control.get().extensions.isSome():
     if state.peerExtensions.hasKey(peerId):
       # peer is sending control message again but this node has already received extensions.
-      # this is protocol error, therfore nodes reports misbehaviour.
+      # this is protocol error, therfore nodes reports misbehavior.
       state.onMisbehave(peerId)
     else:
       # peer is sending extensions control message for the first time
@@ -153,5 +164,5 @@ proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string)
     return e.peerRequestsPartial(peerId, topic)
   else:
     # should not raise, because this is called whenever IDONTWANT is being sent.
-    # so when extension is not configured it should return false, backwards compatible behaviour.
+    # so when extension is not configured it should return false, backwards compatible behavior.
     return false
