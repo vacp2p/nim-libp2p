@@ -207,6 +207,9 @@ int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
 
 void libp2p_mix_generate_priv_key(libp2p_curve25519_key_t *outKey);
 
+void libp2p_mix_public_key(libp2p_curve25519_key_t inKey,
+                           libp2p_curve25519_key_t *outKey);
+
 int libp2p_mix_dial(libp2p_ctx_t *ctx, const char *peerId,
                     const char *multiaddr, const char *proto,
                     ConnectionCallback callback, void *userData);
@@ -226,6 +229,9 @@ int libp2p_mix_nodepool_add(libp2p_ctx_t *ctx, const char *peerId,
                             libp2p_curve25519_key_t mix_pub_key,
                             libp2p_secp256k1_pubkey_t libp2p_pub_key,
                             Libp2pCallback callback, void *userData);
+
+int libp2p_public_key(libp2p_ctx_t *ctx, Libp2pBufferCallback callback,
+                      void *userData);
 
 int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
                         Libp2pCallback callback, void *userData);

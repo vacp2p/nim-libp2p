@@ -13,6 +13,7 @@ import chronos, results
 import ../../../[types, ffi_types, alloc]
 import ../../../../libp2p
 import ../../../../libp2p/[multiaddress, peerid]
+import ../../../../libp2p/crypto/secp
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
@@ -25,9 +26,10 @@ type LifecycleMsgType* = enum
   CREATE_LIBP2P
   START_NODE
   STOP_NODE
+  GET_PUBLIC_KEY
 
 type LifecycleRequest* = object
-  operation: LifecycleMsgType
+  operation*: LifecycleMsgType
   appCallbacks: AppCallbacks
   config: Libp2pConfig
 
@@ -149,6 +151,22 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   libp2p.kad = kad
   libp2p.mix = mix
 
+proc processGetPublicKey*(
+    self: ptr LifecycleRequest, libp2p: ptr LibP2P
+): Future[Result[ptr ReadResponse, string]] {.async: (raises: [CancelledError]).} =
+  let peerInfo = libp2p[].switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+
+  let pubKey =
+    case peerInfo.publicKey.scheme
+    of PKScheme.Secp256k1:
+      peerInfo.publicKey.skkey
+    else:
+      return err("peerInfo public key must be secp256k1")
+
+  return ok(allocReadResponse(pubKey.getBytes()))
+
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
@@ -260,5 +278,7 @@ proc process*(
       return err(getCurrentExceptionMsg())
   of STOP_NODE:
     await libp2p.switch.stop()
+  else:
+    raiseAssert "unsupported operation"
 
   return ok("")

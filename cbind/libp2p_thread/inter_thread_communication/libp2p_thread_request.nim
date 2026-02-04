@@ -10,7 +10,7 @@
 import std/json, results
 import chronos, chronos/threadsync
 import
-  ../../[ffi_types, types],
+  ../../[ffi_types, types, alloc],
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
     libp2p_kademlia_requests, libp2p_stream_requests,
@@ -207,9 +207,14 @@ proc handleGetProvidersRes(
 proc processLifecycle(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
-  handleRes(
-    await cast[ptr LifecycleRequest](request[].reqContent).process(libp2p), request
-  )
+  let req = cast[ptr LifecycleRequest](request[].reqContent)
+  case req[].operation
+  of LifecycleMsgType.GET_PUBLIC_KEY:
+    handleReadRes(await req.processGetPublicKey(libp2p), request)
+  else:
+    handleRes(
+      await cast[ptr LifecycleRequest](request[].reqContent).process(libp2p), request
+    )
 
 proc processPeerManager(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P

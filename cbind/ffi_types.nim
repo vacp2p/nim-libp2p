@@ -72,6 +72,10 @@ type PubsubTopicHandler* = proc(
   topic: cstring, data: ptr byte, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
 
+type ReadResponse* = object
+  data*: ptr byte
+  dataLen*: csize_t
+
 # These are used to indicate whether a config item has been set or not
 const Libp2pCfgGossipsub* = 1'u32 shl 0
 const Libp2pCfgGossipsubTriggerSelf* = 1'u32 shl 1

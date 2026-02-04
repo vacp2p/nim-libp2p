@@ -39,9 +39,6 @@ type StreamRequest* = object
   readLen: csize_t ## Only used for READEXACTLY
   maxSize: int64 ## Only used for READLP
 
-type ReadResponse* = object
-  data*: ptr byte
-  dataLen*: csize_t
 
 proc createShared*(
     T: type StreamRequest,
@@ -80,27 +77,6 @@ proc destroyShared(self: ptr StreamRequest) =
   deallocShared(self[].proto)
   deallocSharedSeq(self[].data)
   deallocShared(self)
-
-proc deallocReadResponse*(res: ptr ReadResponse) =
-  if res.isNil():
-    return
-
-  if res[].data != nil:
-    deallocShared(res[].data)
-
-  deallocShared(res)
-
-proc allocReadResponse*(data: seq[byte]): ptr ReadResponse =
-  let res = cast[ptr ReadResponse](createShared(ReadResponse, 1))
-  if data.len == 0:
-    res[].data = nil
-    res[].dataLen = 0
-    return res
-
-  res[].dataLen = data.len.csize_t
-  res[].data = cast[ptr byte](allocShared(data.len))
-  copyMem(res[].data, addr data[0], data.len)
-  res
 
 proc processDial*(
     self: ptr StreamRequest, libp2p: ptr LibP2P
@@ -220,6 +196,21 @@ proc processMixSetNodeInfo*(
       libp2pPrivKey,
     )
   )
+
+  if libp2p[].mix.isNone:
+    var mixProto = new(MixProtocol)
+    var delayStrategy = NoSamplingDelayStrategy.new(newRng())
+    mixProto.init(
+      libp2p[].mixNodeInfo.get(), libp2p[].switch, delayStrategy = delayStrategy
+    )
+
+    try:    
+      libp2p[].switch.mount(mixProto)
+    except LPError as exc:
+      return err("could not mount mix: " & exc.msg)
+
+
+    libp2p[].mix = Opt.some(mixProto)
 
   return ok("")
 

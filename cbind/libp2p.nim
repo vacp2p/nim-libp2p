@@ -149,9 +149,9 @@ proc initializeLibrary() {.exported.} =
 ################################################################################
 ### Exported procs
 
-proc libp2p_mix_generate_priv_key(outKey: ptr Curve25519Key32) {.
-    dynlib, exportc, cdecl
-  .} =
+proc libp2p_mix_generate_priv_key(
+    outKey: ptr Curve25519Key32
+) {.dynlib, exportc, cdecl.} =
   initializeLibrary()
 
   doAssert(not outKey.isNil(), "outKey is nil")
@@ -161,6 +161,21 @@ proc libp2p_mix_generate_priv_key(outKey: ptr Curve25519Key32) {.
 
   for i in 0 ..< Curve25519KeySize:
     outKey[].bytes[i] = priv[i]
+
+proc libp2p_mix_public_key(
+    inKey: Curve25519Key32, outKey: ptr Curve25519Key32
+) {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+
+  doAssert(not outKey.isNil(), "outKey is nil")
+
+  var priv: Curve25519Key
+  for i in 0 ..< Curve25519KeySize:
+    priv[i] = inKey.bytes[i]
+
+  let pub = public(priv)
+  for i in 0 ..< Curve25519KeySize:
+    outKey[].bytes[i] = pub[i]
 
 proc libp2p_create_cid(
     version: cuint,
@@ -580,6 +595,26 @@ proc libp2p_mix_nodepool_add(
     failWithMsg(callback, userData, "libp2p error: " & $error)
 
   RET_OK.cint
+
+proc libp2p_public_key(
+    ctx: ptr LibP2PContext, callback: Libp2pBufferCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.LIFECYCLE,
+    LifecycleRequest.createShared(LifecycleMsgType.GET_PUBLIC_KEY),
+    callback,
+    CallbackKind.READ,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
 
 proc libp2p_stream_readExactly(
     ctx: ptr LibP2PContext,
