@@ -9,9 +9,7 @@ import ./[extensions_types, partial_message]
 logScope:
   topics = "libp2p partial message"
 
-const
-  minHeartbeatsTillEviction = 3
-  keyDelimiter = "::"
+const keyDelimiter = "::"
 
 type
   TopicOpts* = object
@@ -48,7 +46,7 @@ type
       # called when PartialMessageExtensionRPC is received and ValidateRPCProc did not return
       # error for this message.
       # needs to be implemented by application.
-    heartbeatsTillEviction*: int = minHeartbeatsTillEviction
+    heartbeatsTillEviction*: int
 
   PeerGroupState = ref object
     partsMetadata: PartsMetadata
@@ -89,16 +87,13 @@ proc doAssert(config: PartialMessageExtensionConfig) =
   doAssert(config.nodeTopicOpts != nil, msg("nodeTopicOpts"))
   doAssert(config.validateRPC != nil, msg("validateRPC"))
   doAssert(config.onIncomingRPC != nil, msg("onIncomingRPC"))
+  doAssert(config.heartbeatsTillEviction >= 1, msg("heartbeatsTillEviction"))
 
 proc new*(
     T: typedesc[PartialMessageExtension], config: PartialMessageExtensionConfig
 ): PartialMessageExtension =
   config.doAssert()
-
-  var c = config
-  c.heartbeatsTillEviction = max(c.heartbeatsTillEviction, minHeartbeatsTillEviction)
-
-  PartialMessageExtension(config: c)
+  PartialMessageExtension(config: config)
 
 proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   # reduce heartbeatsTillEviction and remove groups that hit 0

@@ -40,6 +40,7 @@ proc setupConfig(): PartialMessageExtensionConfig =
     nodeTopicOpts: nodeTopicOpts,
     validateRPC: validateRPC,
     onIncomingRPC: onIncomingRPC,
+    heartbeatsTillEviction: 3,
   )
 
 suite "GossipSub Extensions :: Partial Message Extension":
@@ -81,4 +82,9 @@ suite "GossipSub Extensions :: Partial Message Extension":
     expect AssertionDefect:
       var config = setupConfig()
       config.onIncomingRPC = nil
+      let ext = PartialMessageExtension.new(config)
+
+    expect AssertionDefect:
+      var config = setupConfig()
+      config.heartbeatsTillEviction = 0
       let ext = PartialMessageExtension.new(config)
