@@ -35,7 +35,7 @@ suite "Spam Protection Component":
     # Each node gets its own spam protection instance with independent rate limit
     # This reflects real-world deployment where each node independently enforces limits
     let nodes = await setupMixNodes(
-      10,
+      NumMixNodes,
       destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32))),
       spamProtectionRateLimit = Opt.some(RateLimitPerNode),
     )
