@@ -1,10 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH
+
 import std/[net]
 import results
 import ./types
 
-type
-  IpTreeError* = enum
-    Ipv4Required = "IPv4 address required"
+type IpTreeError* = enum
+  Ipv4Required = "IPv4 address required"
 
 proc new*(T: typedesc[IpTree]): T =
   T(root: IpTreeNode(counter: 0))
