@@ -19,19 +19,17 @@ import ./mix_node
 
 export mix_node.MixPubInfo
 
-const
-  # Mix protocol only supports IPv4 with TCP or QUIC-v1
-  TCP_IP4 = mapAnd(IP4, mapEq("tcp"))
-  UDP_IP4 = mapAnd(IP4, mapEq("udp"))
-  QUIC_V1_IP4 = mapAnd(UDP_IP4, mapEq("quic-v1"))
-
-func getSupportedMultiaddr(maddrs: seq[MultiAddress]): Option[MultiAddress] =
-  ## Returns the first multiaddress that is supported by the mix protocol.
+func isSupportedMultiaddr(maddr: MultiAddress): bool =
+  ## Returns true if the multiaddress is supported by the mix protocol.
   ## Mix protocol currently only supports IPv4 addresses with TCP or QUIC-v1 transports.
-  for multiaddr in maddrs:
-    if TCP_IP4.match(multiaddr) or QUIC_V1_IP4.match(multiaddr):
-      return some(multiaddr)
-  return none(MultiAddress)
+  TCP_IP4.match(maddr) or QUIC_V1_IP4.match(maddr)
+
+func findSupportedMultiaddr(maddrs: seq[MultiAddress]): Opt[MultiAddress] =
+  ## Returns the first multiaddress that is supported by the mix protocol.
+  for maddr in maddrs:
+    if isSupportedMultiaddr(maddr):
+      return Opt.some(maddr)
+  Opt.none(MultiAddress)
 
 type MixNodePool* = ref object
   ## Manages mix node public information through the peerStore.
@@ -79,10 +77,15 @@ proc get*(pool: MixNodePool, peerId: PeerId): Opt[MixPubInfo] =
   if mixPubKey == default(Curve25519Key):
     return Opt.none(MixPubInfo)
 
-  let addrs = pool.peerStore[AddressBook][peerId]
+  # Get the address - prefer LastSeenOutboundBook, fall back to AddressBook
   # Mix protocol only supports IPv4 addresses with TCP or QUIC-v1 transports
-  let ipv4Addr = getSupportedMultiaddr(addrs).valueOr:
-    return Opt.none(MixPubInfo)
+  var ipv4Addr: MultiAddress
+  let lastSeenAddr = pool.peerStore[LastSeenOutboundBook][peerId]
+  if lastSeenAddr.isSome and isSupportedMultiaddr(lastSeenAddr.get):
+    ipv4Addr = lastSeenAddr.get
+  else:
+    ipv4Addr = findSupportedMultiaddr(pool.peerStore[AddressBook][peerId]).valueOr:
+      return Opt.none(MixPubInfo)
 
   let pubKey = pool.peerStore[KeyBook][peerId]
   if pubKey.scheme != Secp256k1:
