@@ -38,9 +38,9 @@ type
     surbKey: serialization.Key
 
 ## Mix Protocol defines a decentralized anonymous message routing layer for libp2p networks.
-## It enables sender anonymity by routing each message through a decentralized mix overlay 
-## network composed of participating libp2p nodes, known as mix nodes. Each message is 
-## routed independently in a stateless manner, allowing other libp2p protocols to selectively 
+## It enables sender anonymity by routing each message through a decentralized mix overlay
+## network composed of participating libp2p nodes, known as mix nodes. Each message is
+## routed independently in a stateless manner, allowing other libp2p protocols to selectively
 ## anonymize messages without modifying their core protocol behavior.
 type MixProtocol* = ref object of LPProtocol
   mixNodeInfo: MixNodeInfo
@@ -820,6 +820,14 @@ proc reply(
   )
   if sendRes.isErr:
     error "could not send reply", peerId, multiAddr, err = sendRes.error
+
+method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: [], raw: true).} =
+  ## Stop the MixProtocol background tasks.
+  let fut = newFuture[void]()
+  fut.complete()
+  mixProto.started = false
+  mixProto.tagManager.stopSoon()
+  fut
 
 proc init*(
     mixProto: MixProtocol,
