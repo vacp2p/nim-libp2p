@@ -7,6 +7,7 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid, multicodec, multiaddress]
 import ../../protobuf/minprotobuf
 import ../../crypto/crypto
+import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
 import ../kademlia/routingtable
@@ -14,7 +15,7 @@ import ../kademlia_discovery/types
 import ./[types, protobuf]
 
 logScope:
-  topics = "kad-disco advertiser"
+  topics = "cap-disco advertiser"
 
 proc new*(T: typedesc[Advertiser]): T =
   T(advTable: initTable[ServiceId, AdvertiseTable](), actionQueue: @[])
@@ -184,9 +185,7 @@ proc advertise*(
     # Don't reschedule - this registrar rejected us
     return
 
-proc runAdvertiserLoop*(
-    disco: KademliaDiscovery
-) {.async: (raises: [CancelledError]).} =
+proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
   ## Main event loop for advertiser. Processes actions from the time-ordered queue.
 
   while true:
@@ -264,3 +263,12 @@ proc removeProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
 
   disco.advertiser.advTable.del(serviceId)
   disco.advertiser.actionQueue.keepItIf(it.serviceId != serviceId)
+
+proc refreshAdvertTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
+  ## Refresh advertisement tables for all services of interest.
+
+  for searchTable in disco.advertiser.advTable.values:
+    let refreshRes = catch:
+      await disco.refreshTable(searchTable)
+    if refreshRes.isErr:
+      error "failed to refresh search table", error = refreshRes.error.msg

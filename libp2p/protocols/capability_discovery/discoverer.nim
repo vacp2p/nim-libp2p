@@ -3,6 +3,7 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid, multicodec, multiaddress]
 import ../../protobuf/minprotobuf
 import ../../crypto/crypto
+import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
 import ../kademlia/routingtable
@@ -10,41 +11,10 @@ import ../kademlia_discovery/types
 import ./[types, protobuf]
 
 logScope:
-  topics = "kad-disco"
+  topics = "cap-disco discoverer"
 
 proc new*(T: typedesc[Discoverer]): T =
   T(discTable: initTable[ServiceId, SearchTable]())
-
-proc addServiceInterest*(disco: KademliaDiscovery, serviceId: ServiceId) =
-  ## Include this service in the set of services this node is interested in.
-
-  if serviceId in disco.discoverer.discTable:
-    return
-
-  var searchTable = SearchTable.new(
-    serviceId,
-    config = RoutingTableConfig.new(
-      replication = disco.config.replication, maxBuckets = disco.discoConf.bucketsCount
-    ),
-  )
-
-  # Bootstrap from main KadDHT routing table
-  for bucket in disco.rtable.buckets:
-    for peer in bucket.peers:
-      let peerId = peer.nodeId.toPeerId().valueOr:
-        continue
-
-      let peerKey = peerId.toKey()
-
-      discard searchTable.insert(peerKey)
-
-  disco.discoverer.discTable[serviceId] = searchTable
-
-proc removeServiceInterest*(discoverer: Discoverer, serviceId: ServiceId) =
-  ## Exclude this service from the set of services this node is interested in.
-
-  if serviceId in discoverer.discTable:
-    discoverer.discTable.del(serviceId)
 
 proc sendGetAds(
     disco: KademliaDiscovery, peerId: PeerId, serviceId: ServiceId
@@ -108,6 +78,37 @@ proc sendGetAds(
 
   return ok((ads, peerIds))
 
+proc addServiceInterest*(disco: KademliaDiscovery, serviceId: ServiceId) =
+  ## Include this service in the set of services this node is interested in.
+
+  if serviceId in disco.discoverer.discTable:
+    return
+
+  var searchTable = SearchTable.new(
+    serviceId,
+    config = RoutingTableConfig.new(
+      replication = disco.config.replication, maxBuckets = disco.discoConf.bucketsCount
+    ),
+  )
+
+  # Bootstrap from main KadDHT routing table
+  for bucket in disco.rtable.buckets:
+    for peer in bucket.peers:
+      let peerId = peer.nodeId.toPeerId().valueOr:
+        continue
+
+      let peerKey = peerId.toKey()
+
+      discard searchTable.insert(peerKey)
+
+  disco.discoverer.discTable[serviceId] = searchTable
+
+proc removeServiceInterest*(discoverer: Discoverer, serviceId: ServiceId) =
+  ## Exclude this service from the set of services this node is interested in.
+
+  if serviceId in discoverer.discTable:
+    discoverer.discTable.del(serviceId)
+
 proc serviceLookup*(
     disco: KademliaDiscovery, serviceId: ServiceId
 ): Future[Result[seq[PeerId], string]] {.async: (raises: []).} =
@@ -123,7 +124,10 @@ proc serviceLookup*(
   var found = initHashSet[PeerId]()
 
   block outer:
-    for bucketIdx in countdown(searchTable.buckets.len - 1, 0):
+    # RFC spec: iterate from far buckets (b_0) to close buckets (b_(m-1))
+    # This ensures a gradual search from registrars with fewer shared bits
+    # to those with higher number of shared bits with the service ID
+    for bucketIdx in 0 ..< searchTable.buckets.len:
       var bucket = searchTable.buckets[bucketIdx]
       if bucket.peers.len == 0:
         continue
@@ -152,43 +156,11 @@ proc serviceLookup*(
 
   return ok(found.toSeq())
 
-#TODO the kademlia code already has a bootstrap proc that can do this, lets reuse it
 proc refreshSearchTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
   ## Refresh search tables for all services of interest.
-  ## This function periodically updates DiscT(service_id_hash) tables
-  ## with peers from the main KadDHT routing table.
 
-  # Iterate over all services we're interested in
-  for serviceId, searchTable in disco.discoverer.discTable.mpairs:
-    # Get peers from main KadDHT routing table
-    # For each bucket in the main routing table, add random peers to the search table
-    for bucket in disco.rtable.buckets:
-      if bucket.peers.len == 0:
-        continue
-
-      # Create a mutable copy for shuffling
-      var peers = newSeq[NodeEntry](bucket.peers.len)
-      for i, peer in bucket.peers:
-        peers[i] = peer
-
-      # Shuffle to get random selection
-      shuffle(disco.rng, peers)
-
-      # Add up to a few peers from each bucket to the search table
-      let numToAdd = min(3, peers.len)
-      for i in 0 ..< numToAdd:
-        let peer = peers[i]
-        # Insert into service-specific search table
-        discard searchTable.insert(peer.nodeId)
-
-  # Prune old entries from search tables if they exceed capacity
-  # This is a simple implementation - a more sophisticated version would
-  # track last seen time and remove stale entries
-  for serviceId, searchTable in disco.discoverer.discTable.mpairs:
-    # Check if any bucket has too many peers
-    for bucket in searchTable.buckets.mitems:
-      # Simple pruning: if bucket has too many peers, keep only the most recent ones
-      # This is a basic implementation - the RFC doesn't specify exact pruning logic
-      if bucket.peers.len > 20: # Arbitrary limit to prevent unbounded growth
-        # Keep only the first N peers
-        bucket.peers.setLen(20)
+  for searchTable in disco.discoverer.discTable.values:
+    let refreshRes = catch:
+      await disco.refreshTable(searchTable)
+    if refreshRes.isErr:
+      error "failed to refresh search table", error = refreshRes.error.msg

@@ -11,16 +11,17 @@ import ../../protobuf/minprotobuf
 import ../kademlia/types
 import ../capability_discovery/types
 
-type
-  KademliaDiscovery* = ref object of KadDHT
-    registrar*: Registrar
-    advertiser*: Advertiser
-    discoverer*: Discoverer
-    selfSignedLoop*: Future[void]
-    discovererLoop*: Future[void]
-    advertiserLoop*: Future[void]
-    services*: HashSet[ServiceInfo]
-    discoConf*: KademliaDiscoveryConfig
+type KademliaDiscovery* = ref object of KadDHT
+  registrar*: Registrar
+  advertiser*: Advertiser
+  discoverer*: Discoverer
+  selfSignedLoop*: Future[void]
+  searchTableLoop*: Future[void]
+  advertTableLoop*: Future[void]
+  advertiseLoop*: Future[void]
+  registrarCacheLoop*: Future[void]
+  services*: HashSet[ServiceInfo]
+  discoConf*: KademliaDiscoveryConfig
 
 export ServiceInfo
 
