@@ -40,6 +40,7 @@ enum {
   LIBP2P_CFG_KAD = 1 << 2,
   LIBP2P_CFG_DNS_RESOLVER = 1 << 3,
   LIBP2P_CFG_KAD_BOOTSTRAP_NODES = 1 << 4,
+  LIBP2P_CFG_PRIVATE_KEY = 1 << 5,
 };
 
 typedef struct libp2p_bootstrap_node {
@@ -47,6 +48,19 @@ typedef struct libp2p_bootstrap_node {
   const char **multiaddrs;
   size_t multiaddrsLen;
 } libp2p_bootstrap_node_t;
+
+typedef uint32_t libp2p_pk_scheme;
+enum {
+  LIBP2P_PK_RSA = 0,
+  LIBP2P_PK_ED25519 = 1,
+  LIBP2P_PK_SECP256K1 = 2,
+  LIBP2P_PK_ECDSA = 3,
+};
+
+typedef struct libp2p_private_key {
+  void *data;
+  size_t dataLen;
+} libp2p_private_key_t;
 
 typedef struct {
   uint32_t flags;
@@ -56,6 +70,7 @@ typedef struct {
   const char *dns_resolver;
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   size_t kad_bootstrap_nodes_len;
+  libp2p_private_key_t priv_key;
 } libp2p_config_t;
 
 typedef void (*PubsubTopicHandler)(const char *topic, uint8_t *data, size_t len,
@@ -72,6 +87,7 @@ typedef struct {
 // if you need it later.
 typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
                                  const char *msg, size_t len, void *userData);
+
 // Opaque handle for a libp2p instance
 typedef struct libp2p_ctx libp2p_ctx_t;
 
@@ -139,6 +155,8 @@ typedef void TopicHandler(const char *topic, uint8_t *data, size_t len,
 int libp2p_create_cid(uint32_t version, const char *multicodec, const char *hash,
                       const uint8_t *data, size_t dataLen, Libp2pCallback callback,
                       void *userData);
+
+int libp2p_new_private_key(libp2p_pk_scheme scheme, Libp2pBufferCallback callback, void *userData);
 
 libp2p_ctx_t *libp2p_new(const libp2p_config_t *config,
                          Libp2pCallback callback, void *userData);

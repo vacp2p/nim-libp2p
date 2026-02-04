@@ -9,6 +9,10 @@
 ################################################################################
 ### Exported types
 
+type Libp2pPrivateKey* = object
+  data*: pointer
+  dataLen*: csize_t
+
 type Libp2pCallback* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
@@ -74,6 +78,7 @@ const Libp2pCfgGossipsubTriggerSelf* = 1'u32 shl 1
 const Libp2pCfgKad* = 1'u32 shl 2
 const Libp2pCfgDnsResolver* = 1'u32 shl 3
 const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 4
+const Libp2pCfgPrivateKey* = 1'u32 shl 5
 
 type Libp2pBootstrapNode* = object
   peerId*: cstring
@@ -88,6 +93,7 @@ type Libp2pConfig* = object
   dnsResolver*: cstring
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
+  privKey*: Libp2pPrivateKey
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
