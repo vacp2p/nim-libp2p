@@ -1,4 +1,4 @@
-import std/[hashes, tables, sequtils, sets, heapqueue, times, math, options]
+import std/[tables, sequtils, sets, heapqueue, times, math, options]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid, multicodec, multiaddress, routing_record]
 import ../../protobuf/minprotobuf
@@ -10,7 +10,7 @@ import ../kademlia_discovery/types
 import ./[types, iptree, protobuf]
 
 logScope:
-  topics = "kad-disco"
+  topics = "cap-disco registrar"
 
 proc new*(T: typedesc[Registrar]): T =
   T(
@@ -68,17 +68,20 @@ proc waitingTime*(
 
   let serviceSim = c_s / advertCacheCap
 
-  # Extract IP from first multiaddress
+  # Extract IPs from all multiaddresses for similarity scoring
+  # Use maximum (worst) similarity score to be conservative
   var ipSim = 0.0
-  var ipKey = ""
-  if ad.addrs.len > 0:
-    let ipOpt = ad.addrs[0].getIp()
+  var ipKeys: seq[string] = @[]
+  for addr in ad.addrs:
+    let ipOpt = addr.getIp()
     if ipOpt.isSome():
       let ip = ipOpt.unsafeGet()
       let scoreRes = registrar.ipTree.ipScore(ip)
       if scoreRes.isOk():
-        ipSim = scoreRes.get()
-      ipKey = $ip
+        let score = scoreRes.get()
+        if score > ipSim:
+          ipSim = score
+      ipKeys.add($ip)
 
   # Calculate initial waiting time
   var w =
@@ -94,14 +97,16 @@ proc waitingTime*(
     if serviceLowerBound > w:
       w = serviceLowerBound
 
-  # Enforce IP lower bound
+  # Enforce IP lower bound for all IPs
   # w_ip = max(w_s, bound(IP) - (now - timestamp(IP)))
-  if ipKey != "" and ipKey in registrar.timestampIp:
-    let elapsedIp = float64(now - registrar.timestampIp.getOrDefault(ipKey, 0))
-    let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
-    let ipLowerBound = boundIpVal - elapsedIp
-    if ipLowerBound > w:
-      w = ipLowerBound
+  # Check all IPs and use the most restrictive bound
+  for ipKey in ipKeys:
+    if ipKey in registrar.timestampIp:
+      let elapsedIp = float64(now - registrar.timestampIp.getOrDefault(ipKey, 0))
+      let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
+      let ipLowerBound = boundIpVal - elapsedIp
+      if ipLowerBound > w:
+        w = ipLowerBound
 
   return w
 
@@ -122,20 +127,16 @@ proc updateLowerBounds*(
     registrar.boundService[serviceId] = w + float64(now)
     registrar.timestampService[serviceId] = now
 
-  # Update IP lower bound if w exceeds current lower bound
-  var ipKey = ""
-  if ad.addrs.len > 0:
-    let ipOpt = ad.addrs[0].getIp()
+  # Update IP lower bound for all IPs if w exceeds current lower bound
+  for addr in ad.addrs:
+    let ipOpt = addr.getIp()
     if ipOpt.isSome():
-      ipKey = $ipOpt.unsafeGet()
-
-  if ipKey != "":
-    let elapsedIp = float64(now - registrar.timestampIp.getOrDefault(ipKey, 0))
-
-    let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
-    if w > (boundIpVal - elapsedIp):
-      registrar.boundIp[ipKey] = w + float64(now)
-      registrar.timestampIp[ipKey] = now
+      let ipKey = $ipOpt.unsafeGet()
+      let elapsedIp = float64(now - registrar.timestampIp.getOrDefault(ipKey, 0))
+      let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
+      if w > (boundIpVal - elapsedIp):
+        registrar.boundIp[ipKey] = w + float64(now)
+        registrar.timestampIp[ipKey] = now
 
 proc getPeers*(
     disco: KademliaDiscovery, serviceId: ServiceId, bucketsCount: int
@@ -343,14 +344,17 @@ proc handleRegister*(
             # Verify ticket.ad matches current ad
             if ticketVal.ad.serviceId == ad.serviceId and
                 ticketVal.ad.peerId == ad.peerId:
-              # Verify retry within registration window (±1 second)
-              let elapsed = now - ticketVal.t_init
+              # Verify retry within registration window
+              # Spec: t_mod + t_wait_for ≤ NOW() ≤ t_mod + t_wait_for + δ
+              let windowStart = ticketVal.t_mod + ticketVal.t_wait_for.int64
               let delta = disco.discoConf.registerationWindow.seconds.int64
+              let windowEnd = windowStart + delta
 
-              if abs(elapsed) <= delta + 1:
-                # Valid retry, calculate remaining time
-                let waitSoFar = float64(now - ticketVal.t_init)
-                t_remaining = t_wait - waitSoFar
+              if now >= windowStart and now <= windowEnd:
+                # Valid retry, calculate remaining time using accumulated wait
+                # from original t_init (RFC spec requirement)
+                let totalWaitSoFar = float64(now - ticketVal.t_init)
+                t_remaining = t_wait - totalWaitSoFar
         else:
           debug "Failed to get registrar public key", err = pubKeyRes.error
 
@@ -361,12 +365,13 @@ proc handleRegister*(
         ads = @[]
         disco.registrar.cache[ad.serviceId] = ads
 
-      # Check for duplicate
+      # Check for duplicate - verify both serviceId and peerId match
+      # This prevents overwriting ads from different peers with same peerId
       var isDuplicate = false
       for existingAd in ads:
-        if existingAd.peerId == ad.peerId:
+        if existingAd.peerId == ad.peerId and existingAd.serviceId == ad.serviceId:
           isDuplicate = true
-          # Update timestamp
+          # Update timestamp for the existing ad
           disco.registrar.cacheTimestamps[existingAd] = now
           break
 

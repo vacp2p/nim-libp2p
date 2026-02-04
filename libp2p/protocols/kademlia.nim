@@ -14,13 +14,13 @@ logScope:
 
 const KadCodec = "/ipfs/kad/1.0.0"
 
-proc bootstrap*(
-    kad: KadDHT, forceRefresh = false
+proc refreshTable*(
+    kad: KadDHT, rtable: RoutingTable, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  discard await kad.findNode(kad.rtable.selfId)
+  discard await kad.findNode(rtable.selfId)
 
   # Snapshot bucket count. findNode() can grow buckets and mutate length.
   # If it changes mid-iteration, Nim triggers an assertion defect.
@@ -33,8 +33,13 @@ proc bootstrap*(
     if not (forceRefresh or bucket.isStale()):
       continue
 
-    let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng[])
+    let randomKey = randomKeyInBucket(rtable.selfId, i, kad.rng[])
     discard await kad.findNode(randomKey)
+
+proc bootstrap*(
+    kad: KadDHT, forceRefresh = false
+) {.async: (raises: [CancelledError]).} =
+  await kad.refreshTable(kad.rtable, forceRefresh)
 
   trace "Bootstrap complete"
 
