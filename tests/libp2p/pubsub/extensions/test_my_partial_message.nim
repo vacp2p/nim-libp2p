@@ -49,3 +49,16 @@ suite "MyPartialMessage":
     # metadata is not valid
     dataRes = pm.materializeParts(@[1.byte])
     check dataRes.isErr()
+
+  test "unionPartsMetadata":
+    var res: Result[PartsData, string]
+
+    res = unionPartsMetadata(rawMetadata(@[1], Meta.want), rawMetadata(@[2], Meta.want))
+    check res.isOk()
+    check res.get() == rawMetadata(@[2, 1], Meta.want)
+
+    res = unionPartsMetadata(
+      rawMetadata(@[1, 2, 3], Meta.want), rawMetadata(@[1, 2], Meta.have)
+    )
+    check res.isOk()
+    check res.get() == rawMetadata(@[2, 1], Meta.have) & rawMetadata(@[3], Meta.want)
