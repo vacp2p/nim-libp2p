@@ -15,11 +15,11 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub/partial_message]
 # 112232 - metadata has chunk 1, and wants chunk 2, 3
 # etc ...
 
-type 
+type
   Chunk* = int
   Meta* {.size: sizeof(byte).} = enum
-   have = 1
-   want = 2
+    have = 1
+    want = 2
 
 proc rawMetadata*(elements: seq[Chunk], m: Meta): seq[byte] =
   var metadata: seq[byte]
