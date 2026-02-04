@@ -18,7 +18,7 @@ type
     ## The data may represent a complete message, a partial message, or be empty.
     ## The encoding and structure of the parts are application-defined.
 
-  PartsMetadata* = ref object
+  PartsMetadata* = ref object of RootObj
     data*: seq[byte]
     ## Opaque, encoded metadata describing PartialMessage.
     ##
@@ -30,7 +30,7 @@ type
     ## The interpretation and encoding of this metadata are entirely
     ## application-defined.
 
-  PartialMessage* = ref object
+  PartialMessage* = ref object of RootObj
     ## Interface for messages that can be divided into independently transferable parts.
     ##
     ## A PartialMessage may represent:
