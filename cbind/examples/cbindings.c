@@ -200,6 +200,7 @@ int main(int argc, char **argv) {
 cleanup:
   free_peerinfo(&pInfo1);
   free_peerinfo(&pInfo2);
+  free(priv_key.data);
 
   libp2p_stop(ctx1, event_handler, NULL);
   waitForCallback();
