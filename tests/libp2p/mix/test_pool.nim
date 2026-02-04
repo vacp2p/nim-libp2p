@@ -145,8 +145,9 @@ suite "MixNodePool Tests":
 
   test "get prefers LastSeenOutboundBook over AddressBook":
     let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
-    let addressBookAddr =
-      MultiAddress.init("/ip4/192.168.1.1/tcp/4242").expect("could not create multiaddr")
+    let addressBookAddr = MultiAddress.init("/ip4/192.168.1.1/tcp/4242").expect(
+        "could not create multiaddr"
+      )
     let lastSeenAddr =
       MultiAddress.init("/ip4/10.0.0.1/tcp/4243").expect("could not create multiaddr")
     let lastSeenIpv6Addr =
