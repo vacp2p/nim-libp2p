@@ -14,7 +14,10 @@ suite "GossipSub Component - Extensions":
     checkTrackers()
 
   asyncTest "Test Extension":
-    var (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
+    var negotiatedPeers: seq[PeerId]
+    proc onNegotiated(peer: PeerId) {.gcsafe, raises: [].} =
+      negotiatedPeers.add(peer)
+
     let
       numberOfNodes = 2
       nodes = generateNodes(
@@ -31,7 +34,7 @@ suite "GossipSub Component - Extensions":
     let nodesPeerIdSorted = pluckPeerId(nodes).sorted()
     untilTimeout:
       pre:
-        let negotiatedPeersSorted = negotiatedPeers[].sorted()
+        let negotiatedPeersSorted = negotiatedPeers.sorted()
       check:
         negotiatedPeersSorted == nodesPeerIdSorted
 
