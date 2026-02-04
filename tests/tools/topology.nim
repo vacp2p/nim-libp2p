@@ -4,6 +4,8 @@
 {.push raises: [].}
 
 import chronos, sequtils
+import ../../libp2p/switch
+import ./futures
 
 type
   AsyncConnectProc*[T] = proc(a, b: T): Future[void] {.async.}
