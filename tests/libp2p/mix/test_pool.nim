@@ -104,8 +104,9 @@ suite "MixNodePool Tests":
     let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
     let ipv6Addr =
       MultiAddress.init("/ip6/::1/tcp/4242").expect("could not create IPv6 multiaddr")
-    let ipv4Addr =
-      MultiAddress.init("/ip4/127.0.0.1/tcp/4243").expect("could not create IPv4 multiaddr")
+    let ipv4Addr = MultiAddress.init("/ip4/127.0.0.1/tcp/4243").expect(
+        "could not create IPv4 multiaddr"
+      )
 
     # Add node with both IPv6 and IPv4 addresses (IPv6 first)
     peerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
