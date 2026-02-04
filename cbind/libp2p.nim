@@ -208,7 +208,7 @@ proc libp2p_new_private_key(
     return RET_ERR.cint
 
   let keyData = key.getBytes().valueOr:
-    echo "Could not get raw bytes for private key"
+    echo "Could not get bytes for private key"
     return RET_ERR.cint
 
   foreignThreadGc:
