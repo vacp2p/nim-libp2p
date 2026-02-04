@@ -15,11 +15,13 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub/partial_message]
 # 112232 - metadata has chunk 1, and wants chunk 2, 3
 # etc ...
 
-type Meta* {.size: sizeof(byte).} = enum
-  have = 1
-  want = 2
+type 
+  Chunk* = int
+  Meta* {.size: sizeof(byte).} = enum
+   have = 1
+   want = 2
 
-proc rawMetadata*(elements: seq[int], m: Meta): seq[byte] =
+proc rawMetadata*(elements: seq[Chunk], m: Meta): seq[byte] =
   var metadata: seq[byte]
   for pos in elements.sorted():
     metadata.add(byte(pos))
@@ -30,11 +32,11 @@ template checkLen*(m: PartsMetadata) =
   if m.len mod 2 != 0:
     return err("metadata does not have valid length")
 
-iterator metadataKeyMeta(m: seq[byte]): (int, Meta) =
+iterator iterChunkMeta(m: seq[byte]): (Chunk, Meta) =
   for i in 0 ..< (m.len / 2).int:
-    let key = m[(i * 2)].int
-    let val = m[(i * 2) + 1].Meta
-    yield (key, val)
+    let chunk = m[(i * 2)].Chunk
+    let meta = m[(i * 2) + 1].Meta
+    yield (chunk, meta)
 
 proc unionPartsMetadata*(
     a, b: PartsMetadata
@@ -42,23 +44,23 @@ proc unionPartsMetadata*(
   checkLen(a)
   checkLen(b)
 
-  var have = initHashSet[int]()
-  var want = initHashSet[int]()
+  var have = initHashSet[Chunk]()
+  var want = initHashSet[Chunk]()
 
-  for key, meta in metadataKeyMeta(a):
+  for chunk, meta in iterChunkMeta(a):
     if meta == Meta.have:
-      have.incl(key)
+      have.incl(chunk)
     elif meta == Meta.want:
-      want.incl(key)
+      want.incl(chunk)
 
-  for key, meta in metadataKeyMeta(b):
+  for chunk, meta in iterChunkMeta(b):
     if meta == Meta.have:
-      have.incl(key)
+      have.incl(chunk)
     elif meta == Meta.want:
-      want.incl(key)
+      want.incl(chunk)
 
-  for key in have:
-    want.excl(key)
+  for chunk in have:
+    want.excl(chunk)
 
   var metadata: seq[byte]
   metadata.add(rawMetadata(toSeq(have), Meta.have))
@@ -68,8 +70,8 @@ proc unionPartsMetadata*(
 type MyPartialMessage* = ref object of PartialMessage
   # implements PartialMessage as example implementation need for testing
   groupId*: GroupId
-  data*: Table[int, seq[byte]] # holds parts that this partial message has
-  want*: seq[int] # holds parts that this partial message wants
+  data*: Table[Chunk, seq[byte]] # holds parts that this partial message has
+  want*: seq[Chunk] # holds parts that this partial message wants
 
 method groupId*(m: MyPartialMessage): GroupId {.gcsafe, raises: [].} =
   return m.groupId
@@ -86,10 +88,10 @@ method materializeParts*(
   checkLen(metadata)
 
   var data: seq[byte]
-  for key, meta in metadataKeyMeta(metadata):
-    if meta == Meta.want and pm.data.hasKey(key):
+  for chunk, meta in iterChunkMeta(metadata):
+    if meta == Meta.want and pm.data.hasKey(chunk):
       try:
-        data.add(pm.data[key])
+        data.add(pm.data[chunk])
       except KeyError:
         raiseAssert "checked with if"
   ok(data)
