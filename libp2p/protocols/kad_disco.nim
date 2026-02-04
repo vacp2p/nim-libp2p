@@ -71,7 +71,8 @@ proc maintainAdvertTables(
 proc maintainRegistrarCache(
     disco: KademliaDiscovery
 ) {.async: (raises: [CancelledError]).} =
-  heartbeat "prune expired advertisements", chronos.seconds(int(disco.discoConf.advertExpiry)):
+  heartbeat "prune expired advertisements",
+    chronos.seconds(int(disco.discoConf.advertExpiry)):
     disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry)
 
 proc new*(
