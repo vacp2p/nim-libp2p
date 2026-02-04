@@ -56,7 +56,7 @@ suite "GossipSub Component - Extensions":
           gossip = true,
           partialMessageExtensionConfig = some(
             PartialMessageExtensionConfig(
-              validateRPC: validateRPC, 
+              validateRPC: validateRPC,
               onIncomingRPC: onIncomingRPC,
               heartbeatsTillEviction: 3,
             )
