@@ -62,6 +62,18 @@ proc maintainSearchTables(
   heartbeat "refresh search tables", disco.config.bucketRefreshTime:
     await disco.refreshSearchTables()
 
+proc maintainAdvertTables(
+    disco: KademliaDiscovery
+) {.async: (raises: [CancelledError]).} =
+  heartbeat "refresh advertisment tables", disco.config.bucketRefreshTime:
+    await disco.refreshAdvertTables()
+
+proc maintainRegistrarCache(
+    disco: KademliaDiscovery
+) {.async: (raises: [CancelledError]).} =
+  heartbeat "prune expired advertisements", chronos.seconds(int(disco.discoConf.advertExpiry)):
+    disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry)
+
 proc new*(
     T: typedesc[KademliaDiscovery],
     switch: Switch,
@@ -145,8 +157,10 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
     return
 
   disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
-  disco.discovererLoop = disco.maintainSearchTables()
-  disco.advertiserLoop = disco.runAdvertiserLoop()
+  disco.searchTableLoop = disco.maintainSearchTables()
+  disco.advertTableLoop = disco.maintainAdvertTables()
+  disco.registrarCacheLoop = disco.maintainRegistrarCache()
+  disco.advertiseLoop = disco.runAdvertiseLoop()
 
   await procCall start(KadDHT(disco))
 
@@ -162,12 +176,20 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
     disco.selfSignedLoop.cancelSoon()
     disco.selfSignedLoop = nil
 
-  if not disco.discovererLoop.isNil:
-    disco.discovererLoop.cancelSoon()
-    disco.discovererLoop = nil
+  if not disco.searchTableLoop.isNil:
+    disco.searchTableLoop.cancelSoon()
+    disco.searchTableLoop = nil
 
-  if not disco.advertiserLoop.isNil:
-    disco.advertiserLoop.cancelSoon()
-    disco.advertiserLoop = nil
+  if not disco.advertTableLoop.isNil:
+    disco.advertTableLoop.cancelSoon()
+    disco.advertTableLoop = nil
+
+  if not disco.registrarCacheLoop.isNil:
+    disco.registrarCacheLoop.cancelSoon()
+    disco.registrarCacheLoop = nil
+
+  if not disco.advertiseLoop.isNil:
+    disco.advertiseLoop.cancelSoon()
+    disco.advertiseLoop = nil
 
   disco.started = false
