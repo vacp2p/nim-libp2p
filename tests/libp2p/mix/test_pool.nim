@@ -86,38 +86,41 @@ suite "MixNodePool Tests":
 
     check pool.get(pubInfo.peerId).isNone
 
-  test "get returns none when only IPv6 address is available":
+  test "get filters for supported addresses (IPv4 with TCP or QUIC-v1)":
     let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
     let ipv6Addr =
-      MultiAddress.init("/ip6/::1/tcp/4242").expect("could not create IPv6 multiaddr")
-
-    # Add node with only IPv6 address
-    peerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
-    peerStore[AddressBook][pubInfo.peerId] = @[ipv6Addr]
-    peerStore[KeyBook][pubInfo.peerId] =
-      PublicKey(scheme: Secp256k1, skkey: pubInfo.libp2pPubKey)
-
-    # Should return none since mix only supports IPv4
-    check pool.get(pubInfo.peerId).isNone
-
-  test "get returns IPv4 address when mixed addresses are available":
-    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
-    let ipv6Addr =
-      MultiAddress.init("/ip6/::1/tcp/4242").expect("could not create IPv6 multiaddr")
-    let ipv4Addr = MultiAddress.init("/ip4/127.0.0.1/tcp/4243").expect(
-        "could not create IPv4 multiaddr"
+      MultiAddress.init("/ip6/::1/tcp/4242").expect("could not create multiaddr")
+    let udpAddr =
+      MultiAddress.init("/ip4/127.0.0.1/udp/4242").expect("could not create multiaddr")
+    let tcpAddr =
+      MultiAddress.init("/ip4/127.0.0.1/tcp/4243").expect("could not create multiaddr")
+    let quicAddr = MultiAddress.init("/ip4/127.0.0.1/udp/4244/quic-v1").expect(
+        "could not create multiaddr"
       )
 
-    # Add node with both IPv6 and IPv4 addresses (IPv6 first)
     peerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
-    peerStore[AddressBook][pubInfo.peerId] = @[ipv6Addr, ipv4Addr]
     peerStore[KeyBook][pubInfo.peerId] =
       PublicKey(scheme: Secp256k1, skkey: pubInfo.libp2pPubKey)
 
-    let result = pool.get(pubInfo.peerId)
-    check:
-      result.isSome
-      result.get().multiAddr == ipv4Addr
+    # Only IPv6 - should return none
+    peerStore[AddressBook][pubInfo.peerId] = @[ipv6Addr]
+    check pool.get(pubInfo.peerId).isNone
+
+    # Only UDP (without QUIC-v1) - should return none
+    peerStore[AddressBook][pubInfo.peerId] = @[udpAddr]
+    check pool.get(pubInfo.peerId).isNone
+
+    # IPv6 and UDP first, then TCP - should return TCP
+    peerStore[AddressBook][pubInfo.peerId] = @[ipv6Addr, udpAddr, tcpAddr]
+    check pool.get(pubInfo.peerId).get().multiAddr == tcpAddr
+
+    # UDP first, then QUIC-v1 - should return QUIC-v1
+    peerStore[AddressBook][pubInfo.peerId] = @[udpAddr, quicAddr]
+    check pool.get(pubInfo.peerId).get().multiAddr == quicAddr
+
+    # TCP and QUIC-v1 both available - should return first match (TCP)
+    peerStore[AddressBook][pubInfo.peerId] = @[tcpAddr, quicAddr]
+    check pool.get(pubInfo.peerId).get().multiAddr == tcpAddr
 
   test "peerIds returns all peer IDs":
     for i in 0 ..< mixNodes.len:

@@ -19,11 +19,17 @@ import ./mix_node
 
 export mix_node.MixPubInfo
 
-func getIPv4Multiaddr(maddrs: seq[MultiAddress]): Option[MultiAddress] =
-  ## Returns the first IPv4 multiaddress from the sequence, or none if not found.
-  ## Mix protocol currently only supports IPv4 addresses.
+const
+  # Mix protocol only supports IPv4 with TCP or QUIC-v1
+  TCP_IP4 = mapAnd(IP4, mapEq("tcp"))
+  UDP_IP4 = mapAnd(IP4, mapEq("udp"))
+  QUIC_V1_IP4 = mapAnd(UDP_IP4, mapEq("quic-v1"))
+
+func getSupportedMultiaddr(maddrs: seq[MultiAddress]): Option[MultiAddress] =
+  ## Returns the first multiaddress that is supported by the mix protocol.
+  ## Mix protocol currently only supports IPv4 addresses with TCP or QUIC-v1 transports.
   for multiaddr in maddrs:
-    if multiaddr.contains(multiCodec("ip4")).valueOr(false):
+    if TCP_IP4.match(multiaddr) or QUIC_V1_IP4.match(multiaddr):
       return some(multiaddr)
   return none(MultiAddress)
 
@@ -74,8 +80,8 @@ proc get*(pool: MixNodePool, peerId: PeerId): Opt[MixPubInfo] =
     return Opt.none(MixPubInfo)
 
   let addrs = pool.peerStore[AddressBook][peerId]
-  # Mix protocol only supports IPv4 addresses
-  let ipv4Addr = getIPv4Multiaddr(addrs).valueOr:
+  # Mix protocol only supports IPv4 addresses with TCP or QUIC-v1 transports
+  let ipv4Addr = getSupportedMultiaddr(addrs).valueOr:
     return Opt.none(MixPubInfo)
 
   let pubKey = pool.peerStore[KeyBook][peerId]
