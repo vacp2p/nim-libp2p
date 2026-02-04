@@ -7,16 +7,25 @@
 ## It encapsulates access to the peerStore's MixPubKeyBook, AddressBook, and KeyBook,
 ## providing a clean interface for the mix protocol to interact with mix node data.
 
-import std/[sequtils, tables]
+import std/[options, sequtils, tables]
 import results
 import ../../peerstore
 import ../../peerid
 import ../../multiaddress
+import ../../multicodec
 import ../../crypto/crypto
 import ../../crypto/curve25519
 import ./mix_node
 
 export mix_node.MixPubInfo
+
+func getIPv4Multiaddr(maddrs: seq[MultiAddress]): Option[MultiAddress] =
+  ## Returns the first IPv4 multiaddress from the sequence, or none if not found.
+  ## Mix protocol currently only supports IPv4 addresses.
+  for multiaddr in maddrs:
+    if multiaddr.contains(multiCodec("ip4")).valueOr(false):
+      return some(multiaddr)
+  return none(MultiAddress)
 
 type MixNodePool* = ref object
   ## Manages mix node public information through the peerStore.
@@ -65,14 +74,15 @@ proc get*(pool: MixNodePool, peerId: PeerId): Opt[MixPubInfo] =
     return Opt.none(MixPubInfo)
 
   let addrs = pool.peerStore[AddressBook][peerId]
-  if addrs.len == 0:
+  # Mix protocol only supports IPv4 addresses
+  let ipv4Addr = getIPv4Multiaddr(addrs).valueOr:
     return Opt.none(MixPubInfo)
 
   let pubKey = pool.peerStore[KeyBook][peerId]
   if pubKey.scheme != Secp256k1:
     return Opt.none(MixPubInfo)
 
-  Opt.some(MixPubInfo.init(peerId, addrs[0], mixPubKey, pubKey.skkey))
+  Opt.some(MixPubInfo.init(peerId, ipv4Addr, mixPubKey, pubKey.skkey))
 
 proc peerIds*(pool: MixNodePool): seq[PeerId] =
   ## Get all peer IDs in the mix node pool.
