@@ -36,6 +36,10 @@ type
       # default implementation is set by ExtensionsState.new.
 
     # configuration set by application (user)
+    unionPartsMetadata*:
+      proc(a, b: PartsMetadata): Result[PartsMetadata, string] {.gcsafe, raises: [].}
+      # creates union of two PartsMetadata and returns it.
+      # needs to be implemented by application.
     validateRPC*:
       proc(rpc: PartialMessageExtensionRPC): Result[void, string] {.gcsafe, raises: [].}
       # implements logic for performing sanity checks on PartialMessageExtensionRPC.
@@ -85,6 +89,7 @@ proc doAssert(config: PartialMessageExtensionConfig) =
   doAssert(config.publishToPeers != nil, msg("publishToPeers"))
   doAssert(config.isSupported != nil, msg("isSupported"))
   doAssert(config.nodeTopicOpts != nil, msg("nodeTopicOpts"))
+  doAssert(config.unionPartsMetadata != nil, msg("unionPartsMetadata"))
   doAssert(config.validateRPC != nil, msg("validateRPC"))
   doAssert(config.onIncomingRPC != nil, msg("onIncomingRPC"))
   doAssert(config.heartbeatsTillEviction >= 1, msg("heartbeatsTillEviction"))
@@ -210,7 +215,7 @@ proc publishPartialToPeer(
   # if partsMetadata was changed, rpc sets new metadata 
   if peerState.sentPartsMetadata != msgPartsMetadata:
     hasChanges = true
-    rpc.partsMetadata = msgPartsMetadata.data
+    rpc.partsMetadata = msgPartsMetadata
     peerState.sentPartsMetadata = msgPartsMetadata
 
   # if peer has requested partial messages, attempt to fulfill any 
@@ -222,7 +227,12 @@ proc publishPartialToPeer(
       # to avoid any error with future messages.
       peerState.partsMetadata = newSeq[byte](0)
     else:
-      peerState.partsMetadata = union(peerState.partsMetadata, msgPartsMetadata)
+      let unionRes =
+        ext.config.unionPartsMetadata(peerState.partsMetadata, msgPartsMetadata)
+      if unionRes.isErr():
+        debug "failed to create union from to parts metadata", msg = unionRes.error
+      else:
+        peerState.partsMetadata = unionRes.get()
 
       let data = materializeRes.get()
       rpc.partialMessage = data

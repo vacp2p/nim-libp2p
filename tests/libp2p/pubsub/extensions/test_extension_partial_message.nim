@@ -6,8 +6,12 @@
 import chronos, results
 import ../../../../libp2p/peerid
 import
-  ../../../../libp2p/protocols/pubsub/
-    [gossipsub/extension_partial_message, gossipsub/extensions_types, rpc/messages]
+  ../../../../libp2p/protocols/pubsub/[
+    gossipsub/extension_partial_message,
+    gossipsub/partial_message,
+    gossipsub/extensions_types,
+    rpc/messages,
+  ]
 import ../../../tools/[unittest]
 
 proc setupConfig(): PartialMessageExtensionConfig =
@@ -23,10 +27,15 @@ proc setupConfig(): PartialMessageExtensionConfig =
   proc isSupportedCb(peer: PeerId): bool {.gcsafe, raises: [].} =
     return true
 
+  proc unionPartsMetadata(
+      a, b: PartsMetadata
+  ): Result[PartsMetadata, string] {.gcsafe, raises: [].} =
+    err("unimplemented")
+
   proc validateRPC(
       rpc: PartialMessageExtensionRPC
   ): Result[void, string] {.gcsafe, raises: [].} =
-    ok()
+    err("unimplemented")
 
   proc onIncomingRPC(
       peer: PeerId, rpc: PartialMessageExtensionRPC
@@ -38,6 +47,7 @@ proc setupConfig(): PartialMessageExtensionConfig =
     publishToPeers: publishToPeers,
     isSupported: isSupportedCb,
     nodeTopicOpts: nodeTopicOpts,
+    unionPartsMetadata: unionPartsMetadata,
     validateRPC: validateRPC,
     onIncomingRPC: onIncomingRPC,
     heartbeatsTillEviction: 3,

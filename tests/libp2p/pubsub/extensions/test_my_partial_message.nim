@@ -17,7 +17,7 @@ suite "MyPartialMessage":
       data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
       want: @[4, 5, 6],
     )
-    check pm.partsMetadata().data ==
+    check pm.partsMetadata() ==
       rawMetadata(@[3, 2, 1], Meta.have) & rawMetadata(@[4, 5, 6], Meta.want)
 
   test "materializeParts":

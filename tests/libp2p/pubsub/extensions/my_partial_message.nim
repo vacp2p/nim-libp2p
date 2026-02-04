@@ -45,13 +45,13 @@ method partsMetadata*(m: MyPartialMessage): PartsMetadata {.gcsafe, raises: [].}
 method materializeParts*(
     pm: MyPartialMessage, metadata: PartsMetadata
 ): Result[PartsData, string] {.gcsafe, raises: [].} =
-  if metadata.data.len mod 2 != 0:
+  if metadata.len mod 2 != 0:
     return err("metadata does not have valid length")
 
   var data: seq[byte]
-  for i in 0 ..< (metadata.data.len / 2).int:
-    let key = metadata.data[(i * 2)].int
-    let val = metadata.data[(i * 2) + 1]
+  for i in 0 ..< (metadata.len / 2).int:
+    let key = metadata[(i * 2)].int
+    let val = metadata[(i * 2) + 1]
 
     if val == byte(Meta.want) and pm.data.hasKey(key):
       try:
