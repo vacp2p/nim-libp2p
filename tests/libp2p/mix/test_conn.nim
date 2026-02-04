@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, std/[tables], stew/byteutils
+import chronos, results, stew/byteutils, sequtils, tables
 import
   ../../../libp2p/[
     protocols/mix,
@@ -12,9 +12,11 @@ import
     protocols/mix/sphinx,
     protocols/ping,
     peerid,
+    peerstore,
     multiaddress,
     switch,
     builders,
+    crypto/crypto,
     crypto/secp,
   ]
 
@@ -196,7 +198,7 @@ suite "Mix Protocol Component":
   asyncTest "skip and remove nodes with invalid multiaddress from pool":
     # This test validates that nodes with invalid multiaddrs are:
     # 1. Skipped during path construction
-    # 2. Removed from pubNodeInfo pool
+    # 2. Removed from peerStore MixPubKeyBook
     # 3. Message still succeeds if enough valid nodes remain
 
     # Setup all mix protocol nodes (needed for forwarding)
@@ -220,23 +222,34 @@ suite "Mix Protocol Component":
     # 1. Destination node is excluded from path selection
     # 2. Invalid node is removed from pool
     # So we need PathLength + 1 valid nodes minimum (3 + 1 = 4)
-    # Since destination (switches[1]) is one of them, we need 4 total valid nodes
+    # Since destination (nodes[1]) is one of them, we need 4 total valid nodes
     let validNodesCount = min(nodes.len - 1, PathLength + 1)
     check nodes.len - 1 >= PathLength + 1
 
-    # Now inject invalid node into sender's (node 0) pool
+    # Now inject invalid node into sender's (node 0) peerStore
     # Include enough valid nodes so that even after invalid node is removed,
     # we still have sufficient nodes for PathLength = 3
-    var nodePool = initTable[PeerId, MixPubInfo]()
+    # First clear the existing MixPubKeyBook entries for sender's switch
+    let senderPeerStore = nodes[0].switch.peerStore
+    for peerId in senderPeerStore[MixPubKeyBook].book.keys.toSeq():
+      discard senderPeerStore[MixPubKeyBook].del(peerId)
+
+    # Add valid nodes to peerStore
     for i in 1 ..< validNodesCount + 1:
       let pubInfo = MixPubInfo.readFromFile(i).expect("could not read pub info")
-      nodePool[pubInfo.peerId] = pubInfo
+      senderPeerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
+      senderPeerStore[AddressBook][pubInfo.peerId] = @[pubInfo.multiAddr]
+      senderPeerStore[KeyBook][pubInfo.peerId] =
+        PublicKey(scheme: Secp256k1, skkey: pubInfo.libp2pPubKey)
 
-    nodePool[invalidPeerId] = invalidPubInfo
-    nodes[0].setNodePool(nodePool)
+    # Add invalid node to peerStore
+    senderPeerStore[MixPubKeyBook][invalidPeerId] = invalidPubInfo.mixPubKey
+    senderPeerStore[AddressBook][invalidPeerId] = @[invalidPubInfo.multiAddr]
+    senderPeerStore[KeyBook][invalidPeerId] =
+      PublicKey(scheme: Secp256k1, skkey: invalidPubInfo.libp2pPubKey)
 
     # Verify pool has validNodesCount + 1 invalid node
-    check nodes[0].getNodePoolSize() == validNodesCount + 1
+    check senderPeerStore[MixPubKeyBook].len == validNodesCount + 1
 
     # Setup destination node
     let nrProto = newNoReplyProtocol()
@@ -249,12 +262,12 @@ suite "Mix Protocol Component":
     # Send messages in a loop until invalid node is encountered and removed
     # With validNodesCount + 1 invalid nodes and PathLength=3, we need multiple attempts
     let testPayload = "test message".toBytes()
-    var initialPoolSize = nodes[0].getNodePoolSize()
+    var initialPoolSize = senderPeerStore[MixPubKeyBook].len
 
     # Try up to 20 times to encounter the invalid node
     # Stop if pool size goes below PathLength (can't construct path anymore)
     for attempt in 0 ..< 20:
-      if nodes[0].getNodePoolSize() < PathLength:
+      if senderPeerStore[MixPubKeyBook].len < PathLength:
         break
 
       let conn = nodes[0].toConnection(
@@ -273,8 +286,8 @@ suite "Mix Protocol Component":
       await conn.get().close()
 
       # Check if invalid node was removed
-      if nodes[0].getNodePoolSize() < initialPoolSize:
+      if senderPeerStore[MixPubKeyBook].len < initialPoolSize:
         break
 
     # Verify invalid node was removed from pool (should be 6 valid nodes remaining)
-    check nodes[0].getNodePoolSize() == validNodesCount
+    check senderPeerStore[MixPubKeyBook].len == validNodesCount

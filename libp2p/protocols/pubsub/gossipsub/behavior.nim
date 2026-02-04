@@ -5,7 +5,7 @@
 
 import std/[tables, sequtils, sets, algorithm, deques]
 import chronos, chronicles, metrics
-import "."/[types, scoring]
+import "."/[types, scoring, extensions]
 import ".."/[pubsubpeer, peertable, mcache, floodsub, pubsub]
 import "../rpc"/[messages]
 import
@@ -873,9 +873,12 @@ proc onHeartbeat(g: GossipSub) =
         libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
       else:
         libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
-    g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
+      if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
+        g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
 
   g.mcache.shift() # shift the cache
+
+  g.extensionsState.heartbeat()
 
 proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:

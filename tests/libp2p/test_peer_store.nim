@@ -4,7 +4,7 @@
 {.used.}
 
 import std/[tables, sequtils]
-import ../../libp2p/[crypto/crypto, multiaddress, peerid, peerstore]
+import ../../libp2p/[crypto/crypto, crypto/curve25519, multiaddress, peerid, peerstore]
 import ../tools/[unittest, crypto]
 
 suite "PeerStore":
@@ -133,3 +133,58 @@ suite "PeerStore":
       peerStore.cleanup(randomPeerId)
 
     check peerStore[AgentBook].len == 30
+
+  test "MixPubKeyBook API":
+    # Set up peer store with MixPubKeyBook
+    var peerStore = PeerStore.new()
+
+    # Generate random Curve25519 keys for testing
+    let
+      mixKey1 = Curve25519Key.random(rng[])
+      mixKey2 = Curve25519Key.random(rng[])
+
+    # Test MixPubKeyBook::set
+    peerStore[MixPubKeyBook][peerId1] = mixKey1
+    peerStore[MixPubKeyBook][peerId2] = mixKey2
+
+    check:
+      peerStore[MixPubKeyBook][peerId1] == mixKey1
+      peerStore[MixPubKeyBook][peerId2] == mixKey2
+
+    # Test MixPubKeyBook::contains
+    check:
+      peerId1 in peerStore[MixPubKeyBook]
+      peerId2 in peerStore[MixPubKeyBook]
+
+    # Test MixPubKeyBook::len
+    check:
+      peerStore[MixPubKeyBook].len == 2
+
+    # Test MixPubKeyBook::del
+    check:
+      peerStore[MixPubKeyBook].del(peerId1) == true
+      peerId1 notin peerStore[MixPubKeyBook]
+      peerStore[MixPubKeyBook].len == 1
+
+    # Test getting non-existent peer returns default
+    let nonExistentPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+    check:
+      peerStore[MixPubKeyBook][nonExistentPeerId] == default(Curve25519Key)
+
+  test "PeerStore::del removes MixPubKeyBook entry":
+    var peerStore = PeerStore.new()
+
+    let mixKey = Curve25519Key.random(rng[])
+    peerStore[MixPubKeyBook][peerId1] = mixKey
+    peerStore[AddressBook][peerId1] = @[multiaddr1]
+
+    check:
+      peerId1 in peerStore[MixPubKeyBook]
+      peerId1 in peerStore[AddressBook]
+
+    # Delete peer from all books
+    peerStore.del(peerId1)
+
+    check:
+      peerId1 notin peerStore[MixPubKeyBook]
+      peerId1 notin peerStore[AddressBook]
