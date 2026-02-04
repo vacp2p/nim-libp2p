@@ -7,13 +7,19 @@ import ./[extensions_types]
 
 type
   TestExtensionConfig* = object
-    onNegotiated*: PeerCallback
+    onNegotiated*: proc(peer: PeerId) {.gcsafe, raises: [].}
+      # called when this extensions has negotiated with the peer.
+      # default implementation is set by GossipSub.createExtensionsState.
 
   TestExtension* = ref object of Extension
-    onNegotiated: PeerCallback
+    config: TestExtensionConfig
+
+proc doAssert(config: TestExtensionConfig) =
+  doAssert(config.onNegotiated != nil, "TestExtensionConfig.onNegotiated must be set")
 
 proc new*(T: typedesc[TestExtension], config: TestExtensionConfig): TestExtension =
-  TestExtension(onNegotiated: config.onNegotiated)
+  config.doAssert()
+  TestExtension(config: config)
 
 method isSupported*(
     ext: TestExtension, pe: PeerExtensions
@@ -24,7 +30,7 @@ method onHeartbeat*(ext: TestExtension) {.gcsafe, raises: [].} =
   discard # NOOP
 
 method onNegotiated*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
-  ext.onNegotiated(peerId)
+  ext.config.onNegotiated(peerId)
 
 method onRemovePeer*(ext: TestExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   discard # NOOP
