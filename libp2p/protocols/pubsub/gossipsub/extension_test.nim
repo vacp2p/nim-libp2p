@@ -17,9 +17,6 @@ type
 proc doAssert(config: TestExtensionConfig) =
   doAssert(config.onNegotiated != nil, "TestExtensionConfig.onNegotiated must be set")
 
-proc doAssert(config: TestExtensionConfig) =
-  doAssert(config.onNegotiated != nil, "TestExtensionConfig.onNegotiated must be set")
-
 proc new*(T: typedesc[TestExtension], config: TestExtensionConfig): TestExtension =
   config.doAssert()
   TestExtension(config: config)
