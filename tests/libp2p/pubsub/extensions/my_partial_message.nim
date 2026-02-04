@@ -23,7 +23,7 @@ proc rawMetadata*(elements: seq[int], m: Meta): seq[byte] =
     metadata.add(byte(m))
   return metadata
 
-template checkLen(m: PartsMetadata) =
+template checkLen*(m: PartsMetadata) =
   if m.len mod 2 != 0:
     return err("metadata does not have valid length")
 
@@ -90,3 +90,6 @@ method materializeParts*(
       except KeyError:
         raiseAssert "checked with if"
   ok(data)
+
+proc toBytes*(s: string): seq[byte] =
+  return cast[seq[byte]](s)

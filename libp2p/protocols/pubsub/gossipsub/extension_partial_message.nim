@@ -116,8 +116,8 @@ proc getGroupState(
   let key = TopicGroupKey.new(topic, groupId)
   return ext.groupState.mgetOrPut(key, GroupState())
 
-proc getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
-  return gs.peerState.mgetOrPut(peerId, PeerGroupState())
+template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
+  gs.peerState.mgetOrPut(peerId, PeerGroupState())
 
 proc gossipThePartsMetadata(ext: PartialMessageExtension) =
   # TODO: `partsMetadata` can be used during heartbeat gossip to inform non-mesh topic
@@ -185,8 +185,7 @@ proc handlePartialRPC(
 
   if rpc.partsMetadata.len > 0:
     var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
-    var peerState = groupState.getPeerState(peerId)
-    peerState.partsMetadata = rpc.partsMetadata
+    groupState.getPeerState(peerId).partsMetadata = rpc.partsMetadata
 
   ext.config.onIncomingRPC(peerId, rpc)
 
@@ -203,7 +202,7 @@ proc publishPartialToPeer(
     ext: PartialMessageExtension,
     topic: string,
     pm: PartialMessage,
-    groupState: GroupState,
+    groupState: var GroupState,
     peer: PeerId,
     peerRequestsPartial: bool,
 ) {.raises: [].} =

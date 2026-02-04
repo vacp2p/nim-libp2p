@@ -8,9 +8,6 @@ import ../../../../libp2p/protocols/pubsub/[gossipsub/partial_message]
 import ../../../tools/[unittest]
 import ./my_partial_message
 
-proc toBytes(s: string): seq[byte] =
-  return cast[seq[byte]](s)
-
 suite "MyPartialMessage":
   test "partsMetadata":
     var pm = MyPartialMessage(
