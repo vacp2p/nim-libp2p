@@ -23,7 +23,7 @@ const
   Default_Delta* = chronos.seconds(1) # registration window
   Default_M_buckets* = 16 # number of buckets in AdvT/DiscT/RegT
 
-  DefaultSelfSPRRereshTime* = chronos.minutes(10)
+  DefaultSelfSPRRefreshTime* = chronos.minutes(10)
 
   LogosCapabilityDiscoveryCodec* = "/logos/capability-discovery/1.0.0"
 
@@ -111,7 +111,7 @@ proc new*(
     safetyParam = Default_G,
     registerationWindow = Default_Delta,
     bucketsCount = Default_M_buckets,
-    signedRecordRefreshInterval = DefaultSelfSPRRereshTime,
+    signedRecordRefreshInterval = DefaultSelfSPRRefreshTime,
 ): T {.raises: [].} =
   KademliaDiscoveryConfig(
     kRegister: kRegister,
