@@ -22,7 +22,10 @@ proc bootstrap*(
 
   discard await kad.findNode(kad.rtable.selfId)
 
-  for i, bucket in kad.rtable.buckets:
+  # Snapshot bucket count. findNode() can grow buckets and mutate length.
+  # If it changes mid-iteration, Nim triggers an assertion defect.
+  for i in 0 ..< kad.rtable.buckets.len:
+    let bucket = kad.rtable.buckets[i]
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
