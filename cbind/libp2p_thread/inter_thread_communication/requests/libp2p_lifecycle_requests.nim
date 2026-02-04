@@ -54,6 +54,7 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     return resolved
 
   let flags = config[].flags
+  resolved.flags = flags
   if (flags and Libp2pCfgGossipsub) != 0'u32:
     resolved.mountGossipsub = config[].mountGossipsub
   if (flags and Libp2pCfgGossipsubTriggerSelf) != 0'u32:

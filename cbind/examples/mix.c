@@ -10,6 +10,7 @@
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 int callback_executed = 0;
+static libp2p_stream_t *mix_conn = NULL;
 
 typedef struct {
   char peerId[256];
@@ -25,7 +26,15 @@ static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userData);
 static void pubkey_handler(int callerRet, const uint8_t *data, size_t dataLen,
                            const char *msg, size_t len, void *userData);
+static void private_key_handler(int callerRet, const uint8_t *keyData,
+                                size_t keyDataLen, const char *msg, size_t len,
+                                void *userData);
+static void connection_handler(int callerRet, libp2p_stream_t *conn,
+                               const char *msg, size_t len, void *userData);
+static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
+                         const char *msg, size_t len, void *userData);
 static void signal_callback_executed(void);
+static void fill_random(uint8_t *buf, size_t len);
 
 int main(int argc, char **argv) {
   int status = 1;
@@ -35,13 +44,20 @@ int main(int argc, char **argv) {
   libp2p_curve25519_key_t mix_pub_keys[NUM_NODES] = {0};
   // Needed for mix node pool entries (mix pool stores mix pubkey + libp2p pubkey).
   libp2p_secp256k1_pubkey_t libp2p_pub_keys[NUM_NODES] = {0};
+  libp2p_private_key_t libp2p_priv_keys[NUM_NODES] = {0};
 
   for (int i = 0; i < NUM_NODES; i++) {
     libp2p_config_t cfg = {0};
-    cfg.flags = LIBP2P_CFG_MIX;
+    cfg.flags = LIBP2P_CFG_MIX | LIBP2P_CFG_PRIVATE_KEY | LIBP2P_CFG_GOSSIPSUB;
     cfg.mount_mix = 1;
+    cfg.mount_gossipsub = 0;
     cfg.mix_index = i;
     cfg.mix_nodes_len = NUM_NODES;
+
+    libp2p_new_private_key(LIBP2P_PK_SECP256K1, private_key_handler,
+                           &libp2p_priv_keys[i]);
+    waitForCallback();
+    cfg.priv_key = libp2p_priv_keys[i];
 
     nodes[i] = libp2p_new(&cfg, event_handler, NULL);
     waitForCallback();
@@ -96,6 +112,33 @@ int main(int argc, char **argv) {
       waitForCallback();
     }
   }
+
+  // Mix dial from node 1 to node 5 (1-based indexing).
+  if (NUM_NODES >= 5) {
+    if (infos[4].addrCount == 0 || infos[4].addrs == NULL ||
+        infos[4].addrs[0] == NULL) {
+      printf("Error: node 5 has no listening address\n");
+      goto cleanup;
+    }
+    libp2p_mix_dial_with_reply(nodes[0], infos[4].peerId, infos[4].addrs[0],
+                               "/ipfs/ping/1.0.0", 1, 0, connection_handler, NULL);
+    waitForCallback();
+    if (mix_conn == NULL) {
+      printf("Error: mix dial did not return a connection\n");
+      goto cleanup;
+    }
+
+    uint8_t payload[32];
+    fill_random(payload, sizeof(payload));
+    libp2p_stream_write(nodes[0], mix_conn, payload, sizeof(payload),
+                        event_handler, NULL);
+    waitForCallback();
+
+    libp2p_stream_readExactly(nodes[0], mix_conn, sizeof(payload), read_handler,
+                              NULL);
+    waitForCallback();
+  }
+
   sleep(5);
 
   status = 0;
@@ -103,6 +146,12 @@ int main(int argc, char **argv) {
 cleanup:
   for (int i = 0; i < NUM_NODES; i++) {
     free_peerinfo(&infos[i]);
+  }
+
+  for (int i = 0; i < NUM_NODES; i++) {
+    free(libp2p_priv_keys[i].data);
+    libp2p_priv_keys[i].data = NULL;
+    libp2p_priv_keys[i].dataLen = 0;
   }
 
   for (int i = 0; i < NUM_NODES; i++) {
@@ -191,6 +240,67 @@ static void pubkey_handler(int callerRet, const uint8_t *data, size_t dataLen,
   }
 
   memcpy(out->bytes, data, sizeof(out->bytes));
+
+  signal_callback_executed();
+}
+
+static void private_key_handler(int callerRet, const uint8_t *keyData,
+                                size_t keyDataLen, const char *msg, size_t len,
+                                void *userData) {
+  if (callerRet != RET_OK || keyDataLen == 0 || keyData == NULL) {
+    printf("Private key error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  libp2p_private_key_t *priv_key = (libp2p_private_key_t *)userData;
+
+  uint8_t *buf = (uint8_t *)malloc(keyDataLen);
+  if (!buf) {
+    fprintf(stderr, "Out of memory while copying private key\n");
+    exit(1);
+  }
+
+  memcpy(buf, keyData, keyDataLen);
+  priv_key->data = buf;
+  priv_key->dataLen = keyDataLen;
+
+  signal_callback_executed();
+}
+
+static void connection_handler(int callerRet, libp2p_stream_t *conn,
+                               const char *msg, size_t len, void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Error(%d): %.*s\n", callerRet, (int)len, msg != NULL ? msg : "");
+    exit(1);
+  }
+
+  (void)conn;
+  mix_conn = conn;
+  (void)userData;
+
+  signal_callback_executed();
+}
+
+static void fill_random(uint8_t *buf, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    buf[i] = (uint8_t)(rand() & 0xFF);
+  }
+}
+
+static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
+                         const char *msg, size_t len, void *userData) {
+  if (callerRet != RET_OK) {
+    printf("Read error(%d): %.*s\n", callerRet, (int)len,
+           msg != NULL ? msg : "");
+    exit(1);
+  }
+  printf("========================================\n");
+  printf("========================================\n");
+  printf("========================================\n");
+  printf("Read %zu bytes\n", dataLen);
+  (void)data;
+  (void)userData;
 
   signal_callback_executed();
 }

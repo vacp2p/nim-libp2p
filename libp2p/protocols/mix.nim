@@ -4,7 +4,7 @@
 import
   ./mix/[
     mix_protocol, mix_node, entry_connection, exit_layer, spam_protection,
-    delay_strategy, pool
+    delay_strategy, pool,
   ]
 import ../stream/connection
 import chronos
@@ -40,7 +40,7 @@ export NoSamplingDelayStrategy
 export ExponentialDelayStrategy
 
 export MixNodePool
-export add 
+export add
 export remove
 export peerIds
 

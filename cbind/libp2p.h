@@ -214,6 +214,11 @@ int libp2p_mix_dial(libp2p_ctx_t *ctx, const char *peerId,
                     const char *multiaddr, const char *proto,
                     ConnectionCallback callback, void *userData);
 
+int libp2p_mix_dial_with_reply(libp2p_ctx_t *ctx, const char *peerId,
+                               const char *multiaddr, const char *proto,
+                               int expect_reply, uint8_t num_surbs,
+                               ConnectionCallback callback, void *userData);
+
 int libp2p_mix_register_dest_read_behavior(libp2p_ctx_t *ctx, const char *proto,
                                            Libp2pMixReadBehavior behavior,
                                            uint32_t size_param,

@@ -9,7 +9,7 @@
 ################################################################################
 ### Exported types
 
-type Libp2pPrivateKey* = object
+type Libp2pPrivateKey* {.bycopy.} = object
   data*: pointer
   dataLen*: csize_t
 
@@ -83,14 +83,14 @@ const Libp2pCfgKad* = 1'u32 shl 2
 const Libp2pCfgDnsResolver* = 1'u32 shl 3
 const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 4
 const Libp2pCfgPrivateKey* = 1'u32 shl 5
-const Libp2pCfgMix* = 1'u32 shl 5
+const Libp2pCfgMix* = 1'u32 shl 6
 
 type Libp2pBootstrapNode* = object
   peerId*: cstring
   multiaddrs*: ptr cstring
   multiaddrsLen*: csize_t
 
-type Libp2pConfig* = object
+type Libp2pConfig* {.bycopy.} = object
   flags*: uint32
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
@@ -113,10 +113,10 @@ type MixReadBehaviorKind* {.size: sizeof(cint).} = enum
   MIX_READ_EXACTLY = 0
   MIX_READ_LP = 1
 
-type Curve25519Key32* = object
+type MixCurve25519Key* {.bycopy.} = object
   bytes*: array[32, byte]
 
-type Secp256k1PubKey33* = object
+type MixSecp256k1PubKey* {.bycopy.} = object
   bytes*: array[33, byte]
 
 ### End of exported types

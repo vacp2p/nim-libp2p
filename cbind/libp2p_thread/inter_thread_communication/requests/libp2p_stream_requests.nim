@@ -32,13 +32,14 @@ type StreamRequest* = object
   proto: cstring
   mixReadBehaviorKind: cint
   mixReadBehaviorParam: cint
+  mixExpectReply: bool
+  mixNumSurbs: uint8
   connHandle: ptr Libp2pStream
-  mixPubKey: Curve25519Key32
-  libp2pPubKey: Secp256k1PubKey33
+  mixPubKey: MixCurve25519Key
+  libp2pPubKey: MixSecp256k1PubKey
   data: SharedSeq[byte] ## Only used for WRITE/WRITELP
   readLen: csize_t ## Only used for READEXACTLY
   maxSize: int64 ## Only used for READLP
-
 
 proc createShared*(
     T: type StreamRequest,
@@ -48,9 +49,11 @@ proc createShared*(
     proto: cstring = "",
     mixReadBehaviorKind: cint = MIX_READ_EXACTLY.cint,
     mixReadBehaviorParam: cint = 0,
+    mixExpectReply: bool = false,
+    mixNumSurbs: uint8 = 0,
     conn: ptr Libp2pStream = nil,
-    mixPubKey: Curve25519Key32 = default(Curve25519Key32),
-    libp2pPubKey: Secp256k1PubKey33 = default(Secp256k1PubKey33),
+    mixPubKey: MixCurve25519Key = default(MixCurve25519Key),
+    libp2pPubKey: MixSecp256k1PubKey = default(MixSecp256k1PubKey),
     data: ptr byte = nil,
     dataLen: csize_t = 0,
     readLen: csize_t = 0,
@@ -63,6 +66,8 @@ proc createShared*(
   ret[].proto = proto.alloc()
   ret[].mixReadBehaviorKind = mixReadBehaviorKind
   ret[].mixReadBehaviorParam = mixReadBehaviorParam
+  ret[].mixExpectReply = mixExpectReply
+  ret[].mixNumSurbs = mixNumSurbs
   ret[].connHandle = conn
   ret[].mixPubKey = mixPubKey
   ret[].libp2pPubKey = libp2pPubKey
@@ -137,9 +142,16 @@ proc processMixDial*(
   let maddr = MultiAddress.init($self[].multiaddr).valueOr:
     return err($error)
 
-  let conn = mixProto.toConnection(MixDestination.init(peerId, maddr), $self[].proto)
-    .valueOr:
-      return err(error)
+  var params = MixParameters()
+  if self[].mixExpectReply:
+    params.expectReply = Opt.some(true)
+    if self[].mixNumSurbs > 0:
+      params.numSurbs = Opt.some(self[].mixNumSurbs)
+
+  let conn = mixProto.toConnection(
+    MixDestination.init(peerId, maddr), $self[].proto, params
+  ).valueOr:
+    return err(error)
 
   let handle = cast[ptr Libp2pStream](createShared(Libp2pStream, 1))
   handle[].conn = cast[pointer](conn)
@@ -162,7 +174,7 @@ proc processMixSetNodeInfo*(
   let mixPrivKeyBytes = self[].data.toSeq
   let mixPrivKey = bytesToFieldElement(mixPrivKeyBytes).valueOr:
     return err("mix private key is not a valid priv key")
-  
+
   let mixPubKey = public(mixPrivKey)
 
   let nodeAddr = MultiAddress.init($self[].multiaddr).valueOr:
@@ -188,12 +200,7 @@ proc processMixSetNodeInfo*(
 
   libp2p[].mixNodeInfo = Opt.some(
     initMixNodeInfo(
-      peerInfo.peerId,
-      nodeAddr,
-      mixPubKey,
-      mixPrivKey,
-      libp2pPubKey,
-      libp2pPrivKey,
+      peerInfo.peerId, nodeAddr, mixPubKey, mixPrivKey, libp2pPubKey, libp2pPrivKey
     )
   )
 
@@ -204,13 +211,14 @@ proc processMixSetNodeInfo*(
       libp2p[].mixNodeInfo.get(), libp2p[].switch, delayStrategy = delayStrategy
     )
 
-    try:    
+    try:
+      await mixProto.start()
       libp2p[].switch.mount(mixProto)
     except LPError as exc:
       return err("could not mount mix: " & exc.msg)
 
-
     libp2p[].mix = Opt.some(mixProto)
+    echo "DSAFDSFS"
 
   return ok("")
 
