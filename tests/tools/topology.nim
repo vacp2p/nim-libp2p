@@ -5,7 +5,6 @@
 
 import chronos, sequtils
 import ../../libp2p/switch
-import ./futures
 
 type
   AsyncConnectProc*[T] = proc(a, b: T): Future[void] {.async.}
@@ -22,7 +21,7 @@ proc connectNodesChain*[T](nodes: seq[T], connect: AsyncConnectProc[T]) {.async.
   var futs: seq[Future[void]]
   for i in 0 ..< nodes.len - 1:
     futs.add(connect(nodes[i], nodes[i + 1]))
-  await allFuturesRaising(futs)
+  await allFutures(futs)
 
 proc connectNodesRing*[T](nodes: seq[T], connect: AsyncConnectProc[T]) {.async.} =
   ## Ring topology: 1-2-3-4-5-1
@@ -32,7 +31,7 @@ proc connectNodesRing*[T](nodes: seq[T], connect: AsyncConnectProc[T]) {.async.}
   for i in 0 ..< nodes.len - 1:
     futs.add(connect(nodes[i], nodes[i + 1]))
   futs.add(connect(nodes[^1], nodes[0]))
-  await allFuturesRaising(futs)
+  await allFutures(futs)
 
 proc connectNodesHub*[T](
     hub: T, nodes: seq[T], connect: AsyncConnectProc[T]
@@ -43,7 +42,7 @@ proc connectNodesHub*[T](
   var futs: seq[Future[void]]
   for node in nodes:
     futs.add(connect(hub, node))
-  await allFuturesRaising(futs)
+  await allFutures(futs)
 
 proc connectNodesStar*[T](nodes: seq[T], connect: AsyncConnectProc[T]) {.async.} =
   ## Star/Full mesh topology: every node connects to every other node
@@ -54,7 +53,7 @@ proc connectNodesStar*[T](nodes: seq[T], connect: AsyncConnectProc[T]) {.async.}
     for j, listener in nodes:
       if i != j:
         futs.add(connect(dialer, listener))
-  await allFuturesRaising(futs)
+  await allFutures(futs)
 
 proc connectNodesSparse*[T](
     nodes: seq[T], connect: AsyncConnectProc[T], degree: int = 2
@@ -70,7 +69,7 @@ proc connectNodesSparse*[T](
     for j, listener in nodes:
       if i != j:
         futs.add(connect(dialer, listener))
-  await allFuturesRaising(futs)
+  await allFutures(futs)
 
 # ============================================================================
 # Sync Topology Builders
@@ -107,7 +106,9 @@ proc connectNodesStar*[T](nodes: seq[T], connect: SyncConnectProc[T]) =
       if i != j:
         connect(dialer, listener)
 
-proc connectNodesSparse*[T](nodes: seq[T], connect: SyncConnectProc[T], degree: int = 2) =
+proc connectNodesSparse*[T](
+    nodes: seq[T], connect: SyncConnectProc[T], degree: int = 2
+) =
   ## Sparse topology: only nodes at (i mod degree == 0) connect to all others
   ##
   ## Creates a partially connected graph where only some nodes act as connectors.
@@ -124,10 +125,11 @@ proc connectNodesSparse*[T](nodes: seq[T], connect: SyncConnectProc[T], degree: 
 # ============================================================================
 
 proc startNodes*[T](nodes: seq[T]) {.async.} =
-  await allFuturesRaising(nodes.mapIt(it.switch.start()))
+  await allFutures(nodes.mapIt(it.switch.start()))
 
 proc stopNodes*[T](nodes: seq[T]) {.async.} =
-  await allFuturesRaising(nodes.mapIt(it.switch.stop()))
+  await allFutures(nodes.mapIt(it.stop()))
+  await allFutures(nodes.mapIt(it.switch.stop()))
 
 template startNodesAndDeferStop*[T](nodes: seq[T]): untyped =
   await startNodes(nodes)

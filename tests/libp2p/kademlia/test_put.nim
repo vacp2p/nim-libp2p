@@ -13,9 +13,8 @@ suite "KadDHT Put":
     checkTrackers()
 
   asyncTest "PUT_VALUE stores record at both sender and target peer":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -34,9 +33,8 @@ suite "KadDHT Put":
       kads[1].containsData(key, value)
 
   asyncTest "PUT_VALUE requires validation on both sender and receiver":
-    let kads = await setupKadSwitches(2, validator = RestrictiveValidator())
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2, validator = RestrictiveValidator())
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -62,9 +60,8 @@ suite "KadDHT Put":
       kads[1].containsData(key, value)
 
   asyncTest "PUT_VALUE sets timeReceived in RFC3339 format":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -82,9 +79,8 @@ suite "KadDHT Put":
     check elapsed < times.initDuration(seconds = 2)
 
   asyncTest "PUT_VALUE uses selector to choose best value":
-    let kads = await setupKadSwitches(2, selector = OthersSelector())
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2, selector = OthersSelector())
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -109,9 +105,8 @@ suite "KadDHT Put":
     check kads[1].containsData(key, emptyVal)
 
   asyncTest "PUT_VALUE rejects mismatched Message.key and Record.key":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -140,9 +135,8 @@ suite "KadDHT Put":
       kads[0].containsNoData(recordKey)
 
   asyncTest "PUT_VALUE with no record / no value - malformed message handling":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -173,9 +167,8 @@ suite "KadDHT Put":
     check kads[0].containsNoData(key)
 
   asyncTest "PUT_VALUE response echoes request":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -204,9 +197,8 @@ suite "KadDHT Put":
     check response == request
 
   asyncTest "PUT_VALUE stores binary data with null and high bytes":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 

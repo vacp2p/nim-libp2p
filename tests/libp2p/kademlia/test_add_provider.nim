@@ -20,9 +20,8 @@ suite "KadDHT - Add Provider":
     checkTrackers()
 
   asyncTest "Add provider":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -39,9 +38,8 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords[0].provider.id == kads[1].rtable.selfId
 
   asyncTest "Provider expired":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -64,9 +62,8 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords.len == 0
 
   asyncTest "Adding providers again refreshes expiration time":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -96,9 +93,8 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords[1].expiresAt > originalExpiresAt2
 
   asyncTest "Start/stop providing":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -131,9 +127,8 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providedKeys.len == 0
 
   asyncTest "Provider limits":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodesStar(kads)
 
@@ -185,18 +180,16 @@ suite "KadDHT - Add Provider":
 
   asyncTest "Add provider accepts matching PeerID and rejects mismatched PeerID":
     # Setup sender and imposter KadDHT instances
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
 
     let
       senderKad = kads[0]
       imposterKad = kads[1]
 
     # Setup receiver
-    var receiverKad = await setupMockKadSwitch()
-    defer:
-      await receiverKad.switch.stop()
+    var receiverKad = setupMockKad()
+
+    startNodesAndDeferStop(kads & receiverKad)
 
     connectNodes(senderKad, receiverKad)
 
@@ -229,16 +222,14 @@ suite "KadDHT - Add Provider":
         senderKad.switch.peerInfo.peerId.getBytes()
 
   asyncTest "Add provider rejects invalid multihash key":
-    let kads = await setupKadSwitches(1)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(1)
 
     let senderKad = kads[0]
 
     # Setup receiver with mock that injects invalid multihash key
-    var receiverKad = await setupMockKadSwitch()
-    defer:
-      await receiverKad.switch.stop()
+    var receiverKad = setupMockKad()
+
+    startNodesAndDeferStop(kads & receiverKad)
 
     connectNodes(senderKad, receiverKad)
 
@@ -259,9 +250,8 @@ suite "KadDHT - Add Provider":
     check receiverKad.providerManager.providerRecords.len == 0
 
   asyncTest "Add provider with CID key extracts multihash":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -301,9 +291,8 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords[0].expiresAt > originalExpiresAt
 
   asyncTest "Multiple providers for same CID":
-    let kads = await setupKadSwitches(3)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(3)
+    startNodesAndDeferStop(kads)
 
     # kads[0] is receiver, kads[1] and kads[2] are providers
     connectNodesHub(kads[0], kads[1 ..^ 1])
@@ -332,15 +321,11 @@ suite "KadDHT - Add Provider":
       kads[2].rtable.selfId in providers.mapIt(it.id)
 
   asyncTest "Provider address storage policy - addresses may be omitted":
-    let kads = await setupKadSwitches(1)
-    defer:
-      await stopNodes(kads)
-
+    let kads = setupKadSwitches(1)
     let senderKad = kads[0]
+    var receiverKad = setupMockKad()
 
-    var receiverKad = await setupMockKadSwitch()
-    defer:
-      await receiverKad.switch.stop()
+    startNodesAndDeferStop(kads & receiverKad)
 
     connectNodes(senderKad, receiverKad)
 
@@ -372,9 +357,8 @@ suite "KadDHT - Add Provider":
       receiverKad.providerManager.providerRecords[0].provider.addrs.len == 0
 
   asyncTest "Add provider includes local multiaddresses":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
@@ -400,7 +384,8 @@ suite "KadDHT - Add Provider":
       storedProvider.addrs == kads[1].switch.peerInfo.addrs
 
   asyncTest "Add provider completes when some peers fail":
-    let kads = await setupKadSwitches(3)
+    let kads = setupKadSwitches(3)
+    startNodesAndDeferStop(kads)
 
     # Setup: kads[0] is sender, kads[1] and kads[2] are potential receivers
     connectNodesHub(kads[0], kads[1 ..^ 1])
@@ -409,8 +394,6 @@ suite "KadDHT - Add Provider":
 
     # Stop one receiver to simulate failure
     await kads[2].switch.stop()
-    defer:
-      await stopNodes(@[kads[0], kads[1]])
 
     # Add provider should complete despite one peer failing
     await kads[0].addProvider(key.toCid())

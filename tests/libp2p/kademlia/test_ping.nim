@@ -13,9 +13,8 @@ suite "KadDHT Ping":
     checkTrackers()
 
   asyncTest "Simple ping":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startNodesAndDeferStop(kads)
 
     connectNodes(kads[0], kads[1])
 
