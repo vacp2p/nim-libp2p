@@ -1,15 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import sets, tables, sequtils
+import sets, tables, sequtils, algorithm
 import ../../../../libp2p/peerid
 import ../../../../libp2p/protocols/pubsub/[gossipsub/partial_message]
 
-# Metadata pattern:
-# [chunk position][ have:1 / want:2]
+# MyPartialMessage uses following metadata pattern:
+# [chunk][meta][chunk][meta][chunk][meta]...
+#   - [chunk] and [meta] are exactly 1 byte
+#   - [chunk] identifies part of full logical message
+#   - [meta] tells if peer has or wants chunk
 # Example:
-# 11 21 31 - metadata has chunks 1, 2, 3
-# 11 22 32 - metadata has chunk 1, and wants chunk 2, 3
+# 112131 - metadata has chunks 1, 2, 3
+# 112232 - metadata has chunk 1, and wants chunk 2, 3
 # etc ...
 
 type Meta* {.size: sizeof(byte).} = enum
@@ -18,7 +21,7 @@ type Meta* {.size: sizeof(byte).} = enum
 
 proc rawMetadata*(elements: seq[int], m: Meta): seq[byte] =
   var metadata: seq[byte]
-  for pos in elements:
+  for pos in elements.sorted():
     metadata.add(byte(pos))
     metadata.add(byte(m))
   return metadata
