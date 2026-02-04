@@ -154,3 +154,8 @@ suite "GossipSub Extensions :: Partial Message Extension":
       msg1.topicID == topic
       msg1.groupID == groupId
       msg1.partialMessage == "onetwo".toBytes
+
+    # publishing same message again should not send to peer 
+    # because peer's request is already fulfilled
+    check ext.publishPartial(topic, pm) == 0
+    check cr.sentRPC.len == 1

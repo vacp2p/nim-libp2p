@@ -205,7 +205,7 @@ proc publishPartialToPeer(
     groupState: var GroupState,
     peer: PeerId,
     peerRequestsPartial: bool,
-) {.raises: [].} =
+): bool {.raises: [].} =
   let msgPartsMetadata = pm.partsMetadata()
   var rpc = PartialMessageExtensionRPC(topicID: topic, groupID: pm.groupId())
   var peerState = groupState.getPeerState(peer)
@@ -241,6 +241,8 @@ proc publishPartialToPeer(
   if hasChanges:
     ext.config.sendRPC(peer, rpc)
 
+  return hasChanges # aka has published
+
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
@@ -262,12 +264,12 @@ proc publishPartial*(
     if peerSubOpt.requestsPartial and
         (nodeSubOpt.supportsSendingPartial or nodeSubOpt.requestsPartial):
       # 1) peer has requested partial messages for this topic
-      ext.publishPartialToPeer(topic, pm, groupState, p, true)
-      publishedToCount.inc
+      if ext.publishPartialToPeer(topic, pm, groupState, p, true):
+        publishedToCount.inc
     elif nodeSubOpt.requestsPartial and
         (peerSubOpt.supportsSendingPartial or peerSubOpt.requestsPartial):
       # 2) this node has requested partial messages and peer (other node) supports sending it
-      ext.publishPartialToPeer(topic, pm, groupState, p, false)
-      publishedToCount.inc
+      if ext.publishPartialToPeer(topic, pm, groupState, p, false):
+        publishedToCount.inc
 
   return publishedToCount
