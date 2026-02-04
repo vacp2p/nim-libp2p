@@ -82,6 +82,12 @@ proc isTagSeen*(tm: TagManager, tag: Tag): bool {.inline.} =
   ## Check if a tag has been seen (and hasn't expired).
   tag in tm.cache
 
+proc checkAndAddTag*(tm: TagManager, tag: Tag, now: Moment = Moment.now()): bool =
+  ## Atomically check if a tag exists and add it if not.
+  ## Returns true if the tag was already present (duplicate), false if newly added.
+  ## This prevents race conditions in concurrent replay detection.
+  tm.cache.put(tag, now)
+
 proc removeTag*(tm: TagManager, tag: Tag) =
   ## Remove a specific tag.
   discard tm.cache.del(tag)

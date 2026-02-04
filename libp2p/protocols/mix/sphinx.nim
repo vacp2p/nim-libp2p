@@ -297,13 +297,9 @@ proc checkReplay*(
   # Compute tag as H(α || s) per spec
   let tag = computeTag(alpha, s)
 
-  # Check if the tag has been seen
-  let isDuplicate = isTagSeen(tm, tag)
-
-  # If not a duplicate, immediately add the tag to prevent race conditions
-  # (in case another packet with the same tag arrives before full processing)
-  if not isDuplicate:
-    addTag(tm, tag)
+  # Atomically check and add the tag to prevent race conditions
+  # (checkAndAddTag returns true if already present, false if newly added)
+  let isDuplicate = checkAndAddTag(tm, tag)
 
   ok((isReplay: isDuplicate, sharedSecret: s))
 
