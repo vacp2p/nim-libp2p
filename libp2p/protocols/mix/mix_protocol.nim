@@ -44,7 +44,7 @@ type
 ## anonymize messages without modifying their core protocol behavior.
 type MixProtocol* = ref object of LPProtocol
   mixNodeInfo: MixNodeInfo
-  switch: Switch
+  switch*: Switch
   nodePool*: MixNodePool
   tagManager: TagManager
   exitLayer: ExitLayer

@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, options, std/[enumerate, sequtils, tables], stew/byteutils
+import chronos, results, stew/byteutils, sequtils, tables
 import
   ../../../libp2p/[
     protocols/mix,
@@ -20,40 +20,10 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest]
+import ./utils
 
-proc createSwitch(
-    multiAddr: MultiAddress, libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey)
-): Switch =
-  let privKey = PrivateKey(
-    scheme: Secp256k1,
-    skkey:
-      if libp2pPrivKey.isSome:
-        libp2pPrivKey.get()
-      else:
-        let keyPair = SkKeyPair.random(rng[])
-        keyPair.seckey,
-  )
-  return
-    newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
-
-proc setupSwitches(numNodes: int): seq[Switch] =
-  # Initialize mix nodes
-  let mixNodes = initializeMixNodes(numNodes).expect("could not initialize nodes")
-  var nodes: seq[Switch] = @[]
-  for index, mixNode in enumerate(mixNodes):
-    let pubInfo =
-      mixNodes.getMixPubInfoByIndex(index).expect("could not obtain pub info")
-
-    pubInfo.writeToFile(index).expect("could not write pub info")
-    mixNode.writeToFile(index).expect("could not write mix info")
-
-    let switch = createSwitch(mixNode.multiAddr, Opt.some(mixNode.libp2pPrivKey))
-    nodes.add(switch)
-
-  return nodes
-
-const NoReplyProtocolCodec = "/test/1.0.0"
+const NoReplyProtocolCodec* = "/test/1.0.0"
 
 type NoReplyProtocol* = ref object of LPProtocol
   receivedMessages*: AsyncQueue[seq[byte]]
@@ -77,41 +47,23 @@ proc newNoReplyProtocol*(): NoReplyProtocol =
   nrProto.codec = NoReplyProtocolCodec
   nrProto
 
-suite "Mix Protocol":
-  var switches {.threadvar.}: seq[Switch]
-
+suite "Mix Protocol Component":
   asyncTeardown:
-    await switches.mapIt(it.stop()).allFutures()
     checkTrackers()
     deleteNodeInfoFolder()
     deletePubInfoFolder()
 
-  asyncSetup:
-    switches = setupSwitches(10)
+  asyncTest "expect reply, exit != destination":
+    let nodes = await setupMixNodes(
+      10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
+    )
+    startNodesAndDeferStop(nodes)
 
-  asyncTest "e2e - expect reply, exit != destination":
-    var mixProto: seq[MixProtocol] = @[]
-    for index, _ in enumerate(switches):
-      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-          "should have initialized mix protocol"
-        )
-      # We'll fwd requests, so let's register how should the exit node will read responses
-      proto.registerDestReadBehavior(PingCodec, readExactly(32))
-      mixProto.add(proto)
-      switches[index].mount(proto)
-
-    let destNode = createSwitch(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+    let (destNode, pingProto) = await setupDestNode(Ping.new())
     defer:
-      await destNode.stop()
+      await stopDestNode(destNode)
 
-    let pingProto = Ping.new()
-    destNode.mount(pingProto)
-
-    # Start all nodes
-    await switches.mapIt(it.start()).allFutures()
-    await destNode.start()
-
-    let conn = mixProto[0]
+    let conn = nodes[0]
       .toConnection(
         MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
         PingCodec,
@@ -124,27 +76,15 @@ suite "Mix Protocol":
 
     check response != 0.seconds
 
-  asyncTest "e2e - expect no reply, exit != destination":
-    var mixProto: seq[MixProtocol] = @[]
-    for index, _ in enumerate(switches):
-      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-          "should have initialized mix protocol"
-        )
-      mixProto.add(proto)
-      switches[index].mount(proto)
+  asyncTest "expect no reply, exit != destination":
+    let nodes = await setupMixNodes(10)
+    startNodesAndDeferStop(nodes)
 
-    let destNode = createSwitch(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+    let (destNode, nrProto) = await setupDestNode(newNoReplyProtocol())
     defer:
-      await destNode.stop()
+      await stopDestNode(destNode)
 
-    let nrProto = newNoReplyProtocol()
-    destNode.mount(nrProto)
-
-    # Start all nodes
-    await switches.mapIt(it.start()).allFutures()
-    await destNode.start()
-
-    let conn = mixProto[0]
+    let conn = nodes[0]
       .toConnection(
         MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
         NoReplyProtocolCodec,
@@ -158,27 +98,20 @@ suite "Mix Protocol":
     check data == await nrProto.receivedMessages.get()
 
   when defined(libp2p_mix_experimental_exit_is_dest):
-    asyncTest "e2e - expect reply, exit == destination":
-      var mixProto: seq[MixProtocol] = @[]
-      for index, _ in enumerate(switches):
-        let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-            "should have initialized mix protocol"
-          )
-        # We'll fwd requests, so let's register how should the exit node will read responses
-        proto.registerDestReadBehavior(PingCodec, readExactly(32))
-        mixProto.add(proto)
-        switches[index].mount(proto)
+    asyncTest "expect reply, exit == destination":
+      let nodes = await setupMixNodes(
+        10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
+      )
 
-      let destNode = switches[^1]
+      let destNode = nodes[^1]
       let pingProto = Ping.new()
-      destNode.mount(pingProto)
+      destNode.switch.mount(pingProto)
 
-      # Start all nodes
-      await switches.mapIt(it.start()).allFutures()
+      startNodesAndDeferStop(nodes)
 
-      let conn = mixProto[0]
+      let conn = nodes[0]
         .toConnection(
-          MixDestination.exitNode(destNode.peerInfo.peerId),
+          MixDestination.exitNode(destNode.switch.peerInfo.peerId),
           PingCodec,
           MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
         )
@@ -228,26 +161,21 @@ suite "Mix Protocol":
       proto.codec = TestCodec
       return proto
 
-    var mixProto: seq[MixProtocol] = @[]
-    for index, _ in enumerate(switches):
-      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-          "should have initialized mix protocol"
-        )
-      # Register with readLp behavior - this should preserve length prefix
-      proto.registerDestReadBehavior(TestCodec, readLp(readLen))
-      mixProto.add(proto)
-      switches[index].mount(proto)
+    let nodes = await setupMixNodes(
+      10, destReadBehavior = Opt.some((codec: TestCodec, callback: readLp(readLen)))
+    )
 
-    let destNode = switches[^1]
+    let destNode = nodes[^1]
     let testProto = newLengthPrefixTestProtocol()
-    destNode.mount(testProto)
+    destNode.switch.mount(testProto)
 
-    # Start all nodes
-    await switches.mapIt(it.start()).allFutures()
+    startNodesAndDeferStop(nodes)
 
-    let conn = mixProto[0]
+    let conn = nodes[0]
       .toConnection(
-        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        MixDestination.init(
+          destNode.switch.peerInfo.peerId, destNode.switch.peerInfo.addrs[0]
+        ),
         TestCodec,
         MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
       )
@@ -273,6 +201,9 @@ suite "Mix Protocol":
     # 2. Removed from peerStore MixPubKeyBook
     # 3. Message still succeeds if enough valid nodes remain
 
+    # Setup all mix protocol nodes (needed for forwarding)
+    let nodes = await setupMixNodes(10)
+
     # Create invalid node with a multiaddr missing transport layer
     let invalidPeerId = PeerId.random().expect("could not generate peerId")
     let invalidMultiAddr =
@@ -286,29 +217,20 @@ suite "Mix Protocol":
       invalidPeerId, invalidMultiAddr, validMixPubKey, validLibp2pPubKey
     )
 
-    # Setup all mix protocol nodes (needed for forwarding)
-    var mixProto: seq[MixProtocol] = @[]
-    for index, _ in enumerate(switches):
-      let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-          "should have initialized mix protocol"
-        )
-      mixProto.add(proto)
-      switches[index].mount(proto)
-
     # Calculate how many valid nodes to include in the pool
     # We need at least PathLength nodes after both:
     # 1. Destination node is excluded from path selection
     # 2. Invalid node is removed from pool
     # So we need PathLength + 1 valid nodes minimum (3 + 1 = 4)
-    # Since destination (switches[1]) is one of them, we need 4 total valid nodes
-    let validNodesCount = min(switches.len - 1, PathLength + 1)
-    check switches.len - 1 >= PathLength + 1
+    # Since destination (nodes[1]) is one of them, we need 4 total valid nodes
+    let validNodesCount = min(nodes.len - 1, PathLength + 1)
+    check nodes.len - 1 >= PathLength + 1
 
     # Now inject invalid node into sender's (node 0) peerStore
     # Include enough valid nodes so that even after invalid node is removed,
     # we still have sufficient nodes for PathLength = 3
     # First clear the existing MixPubKeyBook entries for sender's switch
-    let senderPeerStore = switches[0].peerStore
+    let senderPeerStore = nodes[0].switch.peerStore
     for peerId in senderPeerStore[MixPubKeyBook].book.keys.toSeq():
       discard senderPeerStore[MixPubKeyBook].del(peerId)
 
@@ -331,11 +253,11 @@ suite "Mix Protocol":
 
     # Setup destination node
     let nrProto = newNoReplyProtocol()
-    switches[1].mount(nrProto)
+    nodes[1].switch.mount(nrProto)
 
     # Start all switches - they're needed as intermediate nodes in the mix path
     # even though only sender (0) and destination (1) are doing protocol work
-    await switches.mapIt(it.start()).allFutures()
+    startNodesAndDeferStop(nodes)
 
     # Send messages in a loop until invalid node is encountered and removed
     # With validNodesCount + 1 invalid nodes and PathLength=3, we need multiple attempts
@@ -348,8 +270,10 @@ suite "Mix Protocol":
       if senderPeerStore[MixPubKeyBook].len < PathLength:
         break
 
-      let conn = mixProto[0].toConnection(
-        MixDestination.init(switches[1].peerInfo.peerId, switches[1].peerInfo.addrs[0]),
+      let conn = nodes[0].toConnection(
+        MixDestination.init(
+          nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs[0]
+        ),
         NoReplyProtocolCodec,
       )
 
