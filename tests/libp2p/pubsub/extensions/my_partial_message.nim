@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import tables, sequtils
+import sets, tables, sequtils
 import ../../../../libp2p/peerid
 import ../../../../libp2p/protocols/pubsub/[gossipsub/partial_message]
 
@@ -39,27 +39,27 @@ proc unionPartsMetadata*(
   checkLen(a)
   checkLen(b)
 
-  var have: Table[int, bool]
-  var want: Table[int, bool]
+  var have = initHashSet[int]()
+  var want = initHashSet[int]()
 
   for key, meta in metadataKeyMeta(a):
     if meta == Meta.have:
-      have[key] = true
+      have.incl(key)
     elif meta == Meta.want:
-      want[key] = true
+      want.incl(key)
 
   for key, meta in metadataKeyMeta(b):
     if meta == Meta.have:
-      have[key] = true
+      have.incl(key)
     elif meta == Meta.want:
-      want[key] = true
+      want.incl(key)
 
-  for key in have.keys:
-    want.del(key)
+  for key in have:
+    want.excl(key)
 
   var metadata: seq[byte]
-  metadata.add(rawMetadata(toSeq(have.keys), Meta.have))
-  metadata.add(rawMetadata(toSeq(want.keys), Meta.want))
+  metadata.add(rawMetadata(toSeq(have), Meta.have))
+  metadata.add(rawMetadata(toSeq(want), Meta.want))
   return ok(metadata)
 
 type MyPartialMessage* = ref object of PartialMessage
@@ -88,5 +88,5 @@ method materializeParts*(
       try:
         data.add(pm.data[key])
       except KeyError:
-        raiseAssert "invalid fullMessage part key"
+        raiseAssert "checked with if"
   ok(data)
