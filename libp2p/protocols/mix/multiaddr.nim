@@ -28,7 +28,7 @@ proc getBaseTransport*(
   let baseP2PEndIdx = if isCircuitRelay: 3 else: 1
 
   try:
-    if sma.len - 1 - baseP2PEndIdx < 0:
+    if sma.len - baseP2PEndIdx < 0:
       return err("Invalid multiaddress format")
     ok(sma[0 .. sma.len - baseP2PEndIdx].mapIt(it.tryGet()).foldl(a & b))
   except LPError as exc:
@@ -46,8 +46,8 @@ proc multiAddrToBytes*(
   # Only IPV4 is supported
   let isCircuitRelay = ?ma.contains(multiCodec("p2p-circuit"))
 
-  let isQuic = QUIC_V1_IP.match(baseAddr)
-  let isTCP = TCP_IP.match(baseAddr)
+  let isQuic = QUIC_V1_IP4.match(baseAddr)
+  let isTCP = TCP_IP4.match(baseAddr)
 
   if not (isTCP or isQuic):
     return err("Unsupported protocol")

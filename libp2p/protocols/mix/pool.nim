@@ -82,19 +82,19 @@ proc get*(pool: MixNodePool, peerId: PeerId): Opt[MixPubInfo] =
 
   # Get the address - prefer LastSeenOutboundBook, fall back to AddressBook
   # Mix protocol only supports IPv4 addresses with TCP or QUIC-v1 transports
-  var ipv4Addr: MultiAddress
+  var supportedAddr: MultiAddress
   let lastSeenAddr = pool.peerStore[LastSeenOutboundBook][peerId]
   if lastSeenAddr.isSome and isSupportedMultiaddr(lastSeenAddr.get):
-    ipv4Addr = lastSeenAddr.get
+    supportedAddr = lastSeenAddr.get
   else:
-    ipv4Addr = findSupportedMultiaddr(pool.peerStore[AddressBook][peerId]).valueOr:
+    supportedAddr = findSupportedMultiaddr(pool.peerStore[AddressBook][peerId]).valueOr:
       return Opt.none(MixPubInfo)
 
   let pubKey = pool.peerStore[KeyBook][peerId]
   if pubKey.scheme != Secp256k1:
     return Opt.none(MixPubInfo)
 
-  Opt.some(MixPubInfo.init(peerId, ipv4Addr, mixPubKey, pubKey.skkey))
+  Opt.some(MixPubInfo.init(peerId, supportedAddr, mixPubKey, pubKey.skkey))
 
 proc peerIds*(pool: MixNodePool): seq[PeerId] =
   ## Get all peer IDs in the mix node pool.
