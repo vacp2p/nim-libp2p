@@ -88,6 +88,7 @@ suite "MixNodePool Tests":
 
   test "get filters for supported addresses (IPv4 with TCP or QUIC-v1)":
     let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let relayPeerId = PeerId.random().expect("could not generate relay peerId")
     let ipv6Addr =
       MultiAddress.init("/ip6/::1/tcp/4242").expect("could not create multiaddr")
     let udpAddr =
@@ -97,6 +98,16 @@ suite "MixNodePool Tests":
     let quicAddr = MultiAddress.init("/ip4/127.0.0.1/udp/4244/quic-v1").expect(
         "could not create multiaddr"
       )
+    # Circuit-relay addresses
+    let tcpCircuitAddr = MultiAddress.init(
+      "/ip4/127.0.0.1/tcp/4245/p2p/" & $relayPeerId & "/p2p-circuit"
+    ).expect("could not create multiaddr")
+    let quicCircuitAddr = MultiAddress.init(
+      "/ip4/127.0.0.1/udp/4246/quic-v1/p2p/" & $relayPeerId & "/p2p-circuit"
+    ).expect("could not create multiaddr")
+    let ipv6CircuitAddr = MultiAddress.init(
+      "/ip6/::1/tcp/4247/p2p/" & $relayPeerId & "/p2p-circuit"
+    ).expect("could not create multiaddr")
 
     peerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
     peerStore[KeyBook][pubInfo.peerId] =
@@ -121,6 +132,22 @@ suite "MixNodePool Tests":
     # TCP and QUIC-v1 both available - should return first match (TCP)
     peerStore[AddressBook][pubInfo.peerId] = @[tcpAddr, quicAddr]
     check pool.get(pubInfo.peerId).get().multiAddr == tcpAddr
+
+    # TCP circuit-relay - should be supported
+    peerStore[AddressBook][pubInfo.peerId] = @[tcpCircuitAddr]
+    check pool.get(pubInfo.peerId).get().multiAddr == tcpCircuitAddr
+
+    # QUIC-v1 circuit-relay - should be supported
+    peerStore[AddressBook][pubInfo.peerId] = @[quicCircuitAddr]
+    check pool.get(pubInfo.peerId).get().multiAddr == quicCircuitAddr
+
+    # IPv6 circuit-relay - should return none (unsupported transport)
+    peerStore[AddressBook][pubInfo.peerId] = @[ipv6CircuitAddr]
+    check pool.get(pubInfo.peerId).isNone
+
+    # Mixed: unsupported circuit-relay first, then supported - should return supported
+    peerStore[AddressBook][pubInfo.peerId] = @[ipv6CircuitAddr, tcpCircuitAddr]
+    check pool.get(pubInfo.peerId).get().multiAddr == tcpCircuitAddr
 
   test "peerIds returns all peer IDs":
     for i in 0 ..< mixNodes.len:

@@ -15,13 +15,17 @@ import ../../multiaddress
 import ../../crypto/crypto
 import ../../crypto/curve25519
 import ./mix_node
+import ./multiaddr as mix_multiaddr
 
 export mix_node.MixPubInfo
 
 func isSupportedMultiaddr(maddr: MultiAddress): bool =
   ## Returns true if the multiaddress is supported by the mix protocol.
-  ## Mix protocol currently only supports IPv4 addresses with TCP or QUIC-v1 transports.
-  TCP_IP4.match(maddr) or QUIC_V1_IP4.match(maddr)
+  ## Mix protocol supports IPv4 addresses with TCP or QUIC-v1 transports,
+  ## including circuit-relay addresses that use these transports.
+  let baseAddr = mix_multiaddr.getBaseTransport(maddr).valueOr:
+    return false
+  TCP_IP4.match(baseAddr) or QUIC_V1_IP4.match(baseAddr)
 
 func findSupportedMultiaddr(maddrs: seq[MultiAddress]): Opt[MultiAddress] =
   ## Returns the first multiaddress that is supported by the mix protocol.
