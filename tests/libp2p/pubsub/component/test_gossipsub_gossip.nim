@@ -27,7 +27,7 @@ suite "GossipSub Component - Gossip Protocol":
     var messages = addIHaveObservers(nodes)
 
     # And are interconnected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -61,7 +61,7 @@ suite "GossipSub Component - Gossip Protocol":
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -97,7 +97,7 @@ suite "GossipSub Component - Gossip Protocol":
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -134,7 +134,7 @@ suite "GossipSub Component - Gossip Protocol":
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -162,7 +162,7 @@ suite "GossipSub Component - Gossip Protocol":
     var messages = addIDontWantObservers(nodes)
 
     # And are connected in a chain
-    await connectNodesChain(nodes)
+    await connectChain(nodes)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -189,7 +189,7 @@ suite "GossipSub Component - Gossip Protocol":
       generateNodes(1, gossip = true, sendSignedPeerRecord = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)

@@ -18,7 +18,7 @@ suite "GossipSub Component - Fanout Management":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     let (passed, handler) = createCompleteHandler()
     nodes[1].subscribe(topic, handler)
@@ -58,7 +58,7 @@ suite "GossipSub Component - Fanout Management":
     nodes[1].parameters.dLow = 0
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     let (passed, handler) = createCompleteHandler()
     nodes[1].subscribe(topic, handler)

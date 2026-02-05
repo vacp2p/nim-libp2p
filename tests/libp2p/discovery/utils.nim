@@ -60,7 +60,7 @@ proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]
 
   return (rendezvousRdv, peerRdvs)
 
-proc connectNodes*(dialer: RendezVous, target: RendezVous) {.async.} =
+proc connect*(dialer: RendezVous, target: RendezVous) {.async.} =
   await dialer.switch.connect(
     target.switch.peerInfo.peerId, target.switch.peerInfo.addrs
   )

@@ -18,7 +18,7 @@ suite "GossipSub Component - Skip MCache Support":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -36,7 +36,7 @@ suite "GossipSub Component - Skip MCache Support":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribe(nodes[0], nodes[1], topic)

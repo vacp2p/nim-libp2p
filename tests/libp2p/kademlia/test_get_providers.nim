@@ -22,7 +22,7 @@ suite "KadDHT - Get Providers":
     startNodesAndDeferStop(kads)
 
     # topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
-    await connectNodesChain(kads)
+    await connectChain(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -69,7 +69,7 @@ suite "KadDHT - Get Providers":
     )
     startNodesAndDeferStop(kads)
 
-    await connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -97,7 +97,7 @@ suite "KadDHT - Get Providers":
     )
     startNodesAndDeferStop(kads)
 
-    await connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -120,7 +120,7 @@ suite "KadDHT - Get Providers":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     # Create two CIDs with same multihash but different codecs
     let
@@ -149,7 +149,7 @@ suite "KadDHT - Get Providers":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -171,8 +171,8 @@ suite "KadDHT - Get Providers":
     let kads = setupKadSwitches(4)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
-    await connectNodes(kads[0], kads[2])
+    await connect(kads[0], kads[1])
+    await connect(kads[0], kads[2])
 
     let key = @[1.byte, 2, 3, 4, 5]
     let provider3 = kads[3].toPeer()
@@ -195,7 +195,7 @@ suite "KadDHT - Get Providers":
     let kads = setupKadSwitches(3)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -221,7 +221,7 @@ suite "KadDHT - Get Providers":
     startNodesAndDeferStop(kads)
 
     # kads[0] <-> kads[1] <-> kads[2]
-    await connectNodesChain(kads)
+    await connectChain(kads)
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -254,7 +254,7 @@ suite "KadDHT - Get Providers":
 
     # kads[0] is the hub, connected to kads[1..6] (6 peers)
     # kads[1] will directly dispatch GET_PROVIDERS to kads[0]
-    await connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -271,7 +271,7 @@ suite "KadDHT - Get Providers":
     let kads = setupKadSwitches(5)
     startNodesAndDeferStop(kads)
 
-    await connectNodesChain(kads)
+    await connectChain(kads)
 
     let key = @[1.byte, 2, 3, 4, 5]
 

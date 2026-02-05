@@ -38,7 +38,7 @@ suite "GossipSub Component - Compatibility":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
@@ -68,7 +68,7 @@ suite "GossipSub Component - Compatibility":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodesHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11])
+    await connectHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11], topic)

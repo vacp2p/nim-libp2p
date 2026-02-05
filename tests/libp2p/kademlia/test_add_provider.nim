@@ -23,7 +23,7 @@ suite "KadDHT - Add Provider":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
 
@@ -41,7 +41,7 @@ suite "KadDHT - Add Provider":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key1 = kads[0].rtable.selfId
@@ -65,7 +65,7 @@ suite "KadDHT - Add Provider":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key1 = kads[0].rtable.selfId
@@ -96,7 +96,7 @@ suite "KadDHT - Add Provider":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key1 = kads[0].rtable.selfId
@@ -130,7 +130,7 @@ suite "KadDHT - Add Provider":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key1 = kads[0].rtable.selfId
@@ -191,7 +191,7 @@ suite "KadDHT - Add Provider":
 
     startNodesAndDeferStop(kads & receiverKad)
 
-    await connectNodes(senderKad, receiverKad)
+    await connect(senderKad, receiverKad)
 
     let
       targetKey = senderKad.rtable.selfId
@@ -231,7 +231,7 @@ suite "KadDHT - Add Provider":
 
     startNodesAndDeferStop(kads & receiverKad)
 
-    await connectNodes(senderKad, receiverKad)
+    await connect(senderKad, receiverKad)
 
     check receiverKad.providerManager.providerRecords.len == 0
 
@@ -253,7 +253,7 @@ suite "KadDHT - Add Provider":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     # Create a multihash and two CIDs with same multihash but different codecs
     let
@@ -295,7 +295,7 @@ suite "KadDHT - Add Provider":
     startNodesAndDeferStop(kads)
 
     # kads[0] is receiver, kads[1] and kads[2] are providers
-    await connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let targetCid = kads[0].rtable.selfId.toCid()
 
@@ -327,7 +327,7 @@ suite "KadDHT - Add Provider":
 
     startNodesAndDeferStop(kads & receiverKad)
 
-    await connectNodes(senderKad, receiverKad)
+    await connect(senderKad, receiverKad)
 
     check receiverKad.providerManager.providerRecords.len == 0
 
@@ -360,7 +360,7 @@ suite "KadDHT - Add Provider":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
 
@@ -388,7 +388,7 @@ suite "KadDHT - Add Provider":
     startNodesAndDeferStop(kads)
 
     # Setup: kads[0] is sender, kads[1] and kads[2] are potential receivers
-    await connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 

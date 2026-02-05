@@ -17,7 +17,7 @@ suite "KadDHT Get":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key = kads[0].rtable.selfId
@@ -54,7 +54,7 @@ suite "KadDHT Get":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     startNodesAndDeferStop(kads)
 
-    await connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -88,7 +88,7 @@ suite "KadDHT Get":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     startNodesAndDeferStop(kads)
 
-    await connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -111,7 +111,7 @@ suite "KadDHT Get":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     startNodesAndDeferStop(kads)
 
-    await connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -150,7 +150,7 @@ suite "KadDHT Get":
     )
     startNodesAndDeferStop(kads)
 
-    await connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -178,7 +178,7 @@ suite "KadDHT Get":
     )
     startNodesAndDeferStop(kads)
 
-    await connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let
       key = kads[0].rtable.selfId
@@ -209,7 +209,7 @@ suite "KadDHT Get":
     )
     startNodesAndDeferStop(kads)
 
-    await connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -254,7 +254,7 @@ suite "KadDHT Get":
 
     startNodesAndDeferStop(@[kad, mockKad])
 
-    await connectNodes(kad, mockKad)
+    await connect(kad, mockKad)
 
     check kad.containsNoData(key)
 
@@ -285,7 +285,7 @@ suite "KadDHT Get":
 
     startNodesAndDeferStop(@[kad, mockKad])
 
-    await connectNodes(kad, mockKad)
+    await connect(kad, mockKad)
 
     check kad.containsNoData(key)
 
@@ -320,7 +320,7 @@ suite "KadDHT Get":
 
     startNodesAndDeferStop(@[kad, mockKad])
 
-    await connectNodes(kad, mockKad)
+    await connect(kad, mockKad)
 
     check kad.containsNoData(key)
 
@@ -357,7 +357,7 @@ suite "KadDHT Get":
 
     startNodesAndDeferStop(kads & mockKad)
 
-    await connectNodesHub(kads[0], kads[1 ..^ 1] & mockKad)
+    await connectHub(kads[0], kads[1 ..^ 1] & mockKad)
 
     # Compliant nodes have valid records
     kads[1].dataTable.insert(key, value, $times.now().utc)
@@ -376,7 +376,7 @@ suite "KadDHT Get":
     let kads = setupKadSwitches(2, RestrictiveValidator(), CandSelector())
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key = kads[0].rtable.selfId
@@ -400,7 +400,7 @@ suite "KadDHT Get":
     let kads = setupKadSwitches(4)
     startNodesAndDeferStop(kads)
 
-    await connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -424,7 +424,7 @@ suite "KadDHT Get":
     let kads = setupKadSwitches(4)
     startNodesAndDeferStop(kads)
 
-    await connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -449,7 +449,7 @@ suite "KadDHT Get":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    await connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key = kads[0].rtable.selfId

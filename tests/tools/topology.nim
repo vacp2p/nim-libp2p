@@ -8,62 +8,62 @@ import ../../libp2p/switch
 
 type Connectable =
   concept a, b
-      connectNodes(a, b) is Future[void]
+      connect(a, b) is Future[void]
 
-proc connectNodesChain*[T: Connectable](nodes: seq[T]) {.async.} =
+proc connectChain*[T: Connectable](nodes: seq[T]) {.async.} =
   ## Chain topology: 1-2-3-4-5
   ##
   ## Each node connects to its neighbor.
-  mixin connectNodes
+  mixin connect
   var futs: seq[Future[void]]
   for i in 0 ..< nodes.len - 1:
-    futs.add(connectNodes(nodes[i], nodes[i + 1]))
+    futs.add(connect(nodes[i], nodes[i + 1]))
   await allFutures(futs)
 
-proc connectNodesRing*[T: Connectable](nodes: seq[T]) {.async.} =
+proc connectRing*[T: Connectable](nodes: seq[T]) {.async.} =
   ## Ring topology: 1-2-3-4-5-1
   ##
   ## Like chain, but the last node also connects to the first, forming a ring.
-  mixin connectNodes
+  mixin connect
   var futs: seq[Future[void]]
   for i in 0 ..< nodes.len - 1:
-    futs.add(connectNodes(nodes[i], nodes[i + 1]))
-  futs.add(connectNodes(nodes[^1], nodes[0]))
+    futs.add(connect(nodes[i], nodes[i + 1]))
+  futs.add(connect(nodes[^1], nodes[0]))
   await allFutures(futs)
 
-proc connectNodesHub*[T: Connectable](hub: T, nodes: seq[T]) {.async.} =
+proc connectHub*[T: Connectable](hub: T, nodes: seq[T]) {.async.} =
   ## Hub topology: hub-1, hub-2, hub-3,...
   ##
   ## A central hub node connects to all other nodes.
-  mixin connectNodes
+  mixin connect
   var futs: seq[Future[void]]
   for node in nodes:
-    futs.add(connectNodes(hub, node))
+    futs.add(connect(hub, node))
   await allFutures(futs)
 
-proc connectNodesStar*[T: Connectable](nodes: seq[T]) {.async.} =
+proc connectStar*[T: Connectable](nodes: seq[T]) {.async.} =
   ## Star/Full mesh topology: every node connects to every other node
   ##
   ## Creates a fully connected graph.
-  mixin connectNodes
+  mixin connect
   var futs: seq[Future[void]]
   for i, dialer in nodes:
     for j, listener in nodes:
       if i != j:
-        futs.add(connectNodes(dialer, listener))
+        futs.add(connect(dialer, listener))
   await allFutures(futs)
 
-proc connectNodesSparse*[T: Connectable](nodes: seq[T], degree: int = 2) {.async.} =
+proc connectSparse*[T: Connectable](nodes: seq[T], degree: int = 2) {.async.} =
   ## Sparse topology: only nodes at (i mod degree == 0) connect to all others
   ##
   ## Creates a partially connected graph where only some nodes act as connectors.
   doAssert nodes.len >= degree, "nodes count needs to be greater or equal to degree"
-  mixin connectNodes
+  mixin connect
   var futs: seq[Future[void]]
   for i, dialer in nodes:
     if (i mod degree) != 0:
       continue
     for j, listener in nodes:
       if i != j:
-        futs.add(connectNodes(dialer, listener))
+        futs.add(connect(dialer, listener))
   await allFutures(futs)

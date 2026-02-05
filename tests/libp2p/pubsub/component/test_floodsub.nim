@@ -30,7 +30,7 @@ suite "FloodSub Component":
     let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -52,7 +52,7 @@ suite "FloodSub Component":
     let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[0].subscribe(topic, handler)
     waitSubscribe(nodes[1], nodes[0], topic)
@@ -66,7 +66,7 @@ suite "FloodSub Component":
     let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -91,7 +91,7 @@ suite "FloodSub Component":
     let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -119,7 +119,7 @@ suite "FloodSub Component":
     let nodes = generateNodes(2).toFloodSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topicFoo, handler)
     waitSubscribe(nodes[0], nodes[1], topicFoo)
@@ -163,7 +163,7 @@ suite "FloodSub Component":
     let nodes = generateNodes(numberOfNodes, triggerSelf = false).toFloodSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
     waitSubscribeStar(nodes, topic)
@@ -199,7 +199,7 @@ suite "FloodSub Component":
     let nodes = generateNodes(numberOfNodes, triggerSelf = true).toFloodSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
     waitSubscribeStar(nodes, topic)
@@ -232,7 +232,7 @@ suite "FloodSub Component":
       nodes = @[bigNode, smallNode]
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
     waitSubscribeStar(nodes, topic)
@@ -264,7 +264,7 @@ suite "FloodSub Component":
     let nodes = generateNodes(2, maxMessageSize = 20000000).toFloodSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
     waitSubscribeStar(nodes, topic)

@@ -32,7 +32,7 @@ suite "GossipSub Component - Control Messages":
     startNodesAndDeferStop(nodes)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -82,7 +82,7 @@ suite "GossipSub Component - Control Messages":
     startNodesAndDeferStop(nodes)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And only node0 subscribes to the topic
     nodes[0].subscribe(topic, voidTopicHandler)
@@ -124,7 +124,7 @@ suite "GossipSub Component - Control Messages":
     startNodesAndDeferStop(nodes)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -171,7 +171,7 @@ suite "GossipSub Component - Control Messages":
     startNodesAndDeferStop(nodes)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And only node0 subscribes to the topic 
     n0.subscribe(topic, voidTopicHandler)
@@ -216,7 +216,7 @@ suite "GossipSub Component - Control Messages":
     n1.addOnRecvObserver(checkForIHaves)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -253,7 +253,7 @@ suite "GossipSub Component - Control Messages":
     n1.addOnRecvObserver(checkForIWants)
 
     # And the nodes are connected   
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -291,7 +291,7 @@ suite "GossipSub Component - Control Messages":
     n0.addOnRecvObserver(checkForIWants)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both nodes subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -313,7 +313,7 @@ suite "GossipSub Component - Control Messages":
     startNodesAndDeferStop(nodes)
 
     # Nodes in chain connection
-    await connectNodesChain(nodes)
+    await connectChain(nodes)
 
     let (bFinished, handlerB) = createCompleteHandler()
 
@@ -357,7 +357,7 @@ suite "GossipSub Component - Control Messages":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -381,7 +381,7 @@ suite "GossipSub Component - Control Messages":
       startNodesAndDeferStop(nodes)
 
       # And the nodes are connected
-      await connectNodesStar(nodes)
+      await connectStar(nodes)
 
       # And both subscribe to the topic
       subscribeAllNodes(nodes, topic, voidTopicHandler)

@@ -23,7 +23,7 @@ suite "GossipSub Component - Signature Flags":
       .toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -51,7 +51,7 @@ suite "GossipSub Component - Signature Flags":
       .toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -76,7 +76,7 @@ suite "GossipSub Component - Signature Flags":
       )
       .toGossipSub() # anonymize = true takes precedence
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -201,7 +201,7 @@ suite "GossipSub Component - Signature Flags":
         nodes = @[sender, receiver]
 
       startNodesAndDeferStop(nodes)
-      await connectNodesStar(nodes)
+      await connectStar(nodes)
 
       let (messageReceivedFut, handler) = createCompleteHandler()
 

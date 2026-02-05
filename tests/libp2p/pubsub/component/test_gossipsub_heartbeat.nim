@@ -26,7 +26,7 @@ suite "GossipSub Component - Heartbeat":
     startNodesAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    await connectNodesHub(node0, nodes[1 .. ^1])
+    await connectHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
@@ -72,7 +72,7 @@ suite "GossipSub Component - Heartbeat":
     startNodesAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    await connectNodesHub(node0, nodes[1 .. ^1])
+    await connectHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
@@ -115,7 +115,7 @@ suite "GossipSub Component - Heartbeat":
     startNodesAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    await connectNodesHub(node0, nodes[1 .. ^1])
+    await connectHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
@@ -160,7 +160,7 @@ suite "GossipSub Component - Heartbeat":
       node0 = nodes[0]
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # All nodes but Node0 are subscribed to the topic
     subscribeAllNodes(nodes[1 .. ^1], topic, voidTopicHandler)
@@ -192,7 +192,7 @@ suite "GossipSub Component - Heartbeat":
       node0 = nodes[0]
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # All nodes but Node0 are subscribed  to the topic
     subscribeAllNodes(nodes[1 .. ^1], topic, voidTopicHandler)
@@ -242,7 +242,7 @@ suite "GossipSub Component - Heartbeat":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodesChain(nodes)
+    await connectChain(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeChain(nodes, topic)
@@ -298,7 +298,7 @@ suite "GossipSub Component - Heartbeat":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+    await connectHub(nodes[0], nodes[1 .. ^1])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 

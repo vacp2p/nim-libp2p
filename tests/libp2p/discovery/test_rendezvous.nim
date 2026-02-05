@@ -188,7 +188,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "empty"
     check (
@@ -201,7 +201,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     waitFor peerNodes[0].advertise(namespace)
@@ -216,7 +216,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     peerNodes[0].switch.peerInfo.signedPeerRecord =
       createCorruptedSignedPeerRecord(peerNodes[0].switch.peerInfo.peerId)
@@ -230,7 +230,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     await peerNodes[0].advertise(namespace)
@@ -252,7 +252,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     await peerNodes[0].advertise("foo")
     await peerNodes[0].unsubscribe("bar")
@@ -263,7 +263,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(11)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     await allFutures(peerNodes.mapIt(it.advertise(namespace)))
@@ -294,7 +294,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(10)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespaceFoo = "foo"
     const namespaceBar = "Bar"
@@ -317,7 +317,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(2)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     let
       rdv0 = peerNodes[0]
@@ -342,7 +342,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(30)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     let rdv = peerNodes[0]
 
@@ -440,7 +440,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(20)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     # Advertise peers
     const
@@ -511,7 +511,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     # Advertise two peers initially
@@ -544,7 +544,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(8)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     # Advertise 4 peers in namespace
@@ -580,7 +580,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     await allFutures(peerNodes.mapIt(it.advertise(namespace)))
@@ -602,7 +602,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     let timeBefore = Moment.now()
@@ -624,7 +624,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const
       namespace = "foo"
@@ -648,7 +648,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     let now = Moment.now()
@@ -685,7 +685,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     let peerRdv = peerNodes[0]
@@ -707,7 +707,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes)
+    await connectHub(rendezvousNode, peerNodes)
 
     let
       joiner = peerNodes[0]

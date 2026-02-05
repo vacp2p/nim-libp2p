@@ -25,7 +25,7 @@ suite "GossipSub Component - Scoring":
     startNodesAndDeferStop(nodes)
 
     # Nodes 1 and 2 are connected to node 0
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     let (handlerFut1, handler1) = createCompleteHandler()
     let (handlerFut2, handler2) = createCompleteHandler()
@@ -61,7 +61,7 @@ suite "GossipSub Component - Scoring":
       .toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -101,7 +101,7 @@ suite "GossipSub Component - Scoring":
       .toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -140,7 +140,7 @@ suite "GossipSub Component - Scoring":
       rateLimitHits = currentRateLimitHits()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -200,7 +200,7 @@ suite "GossipSub Component - Scoring":
       rateLimitHits = currentRateLimitHits()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -266,7 +266,7 @@ suite "GossipSub Component - Scoring":
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -337,7 +337,7 @@ suite "GossipSub Component - Scoring":
     nodes.setDefaultTopicParams(topic)
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
@@ -389,7 +389,7 @@ suite "GossipSub Component - Scoring":
     startNodesAndDeferStop(nodes)
 
     # And Node 0 is center node, connected to others
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
@@ -485,7 +485,7 @@ suite "GossipSub Component - Scoring":
     startNodesAndDeferStop(nodes)
 
     # And Nodes are connected and subscribed to the topic
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)

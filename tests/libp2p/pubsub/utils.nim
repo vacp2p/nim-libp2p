@@ -299,7 +299,7 @@ proc getPeerScore*(node: GossipSub, peerId: PeerId): float64 =
 proc getPeerTopicInfo*(node: GossipSub, peerId: PeerId, topic: string): TopicInfo =
   return node.getPeerStats(peerId).topicInfos.getOrDefault(topic)
 
-proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
+proc connect*[T: PubSub](dialer: T, target: T) {.async.} =
   doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not connect same peer"
   await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)

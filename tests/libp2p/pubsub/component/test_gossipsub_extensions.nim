@@ -29,7 +29,7 @@ suite "GossipSub Component - Extensions":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connect(nodes[0], nodes[1])
 
     let nodesPeerIdSorted = pluckPeerId(nodes).sorted()
     untilTimeout:
@@ -64,6 +64,6 @@ suite "GossipSub Component - Extensions":
 
     startNodesAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connect(nodes[0], nodes[1])
 
     # TODO

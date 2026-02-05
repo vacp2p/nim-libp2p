@@ -108,7 +108,7 @@ proc setupKadSwitches*(
     kads.add(setupKad(config, bootstrapNodes))
   kads
 
-proc connectNodes*(kad1, kad2: KadDHT) {.async.} =
+proc connect*(kad1, kad2: KadDHT) {.async.} =
   ## Bidirectionally connect two KadDHT instances.
   # Add to routing tables
   discard kad1.rtable.insert(kad2.switch.peerInfo.peerId)

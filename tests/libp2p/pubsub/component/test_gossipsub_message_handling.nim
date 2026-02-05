@@ -30,7 +30,7 @@ proc setupTest(
     .toGossipSub()
   await startNodes(nodes)
 
-  await connectNodesStar(nodes)
+  await connectStar(nodes)
 
   var receivedMessages = new(HashSet[seq[byte]])
 
@@ -202,7 +202,7 @@ suite "GossipSub Component - Message Handling":
     let (handlerFut2, handler2) = createCompleteHandler()
 
     # Nodes are connected in a ring
-    await connectNodesRing(nodes)
+    await connectRing(nodes)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, @[handler0, handler1, handler2])
@@ -226,7 +226,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
     waitSubscribeStar(nodes, topic)
@@ -251,7 +251,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
     waitSubscribeStar(nodes, topic)
@@ -279,7 +279,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
     waitSubscribeStar(nodes, topic)
@@ -313,7 +313,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topicFoo, handler)
     nodes[1].subscribe(topicBar, handler)
@@ -366,7 +366,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[0].addObserver(obs0)
     nodes[1].addObserver(obs1)
@@ -408,7 +408,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
     waitSubscribeStar(nodes, topic)
@@ -432,7 +432,7 @@ suite "GossipSub Component - Message Handling":
     let nodes = generateNodes(3, gossip = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     let cRelayed = newWaitGroup(1)
     let bFinished = newWaitGroup(1)
@@ -499,7 +499,7 @@ suite "GossipSub Component - Message Handling":
     nodes[0].parameters.floodPublish = true
     nodes[1].parameters.floodPublish = true
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -527,7 +527,7 @@ suite "GossipSub Component - Message Handling":
     nodes[0].parameters.heartbeatInterval = milliseconds(700)
 
     startNodesAndDeferStop(nodes)
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
@@ -550,7 +550,7 @@ suite "GossipSub Component - Message Handling":
     nodes[0].parameters.bandwidthEstimatebps = 0
 
     startNodesAndDeferStop(nodes)
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
@@ -566,7 +566,7 @@ suite "GossipSub Component - Message Handling":
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -606,7 +606,7 @@ suite "GossipSub Component - Message Handling":
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesSparse(nodes)
+    await connectSparse(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -655,7 +655,7 @@ suite "GossipSub Component - Message Handling":
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
     startNodesAndDeferStop(nodes)
-    await connectNodesSparse(nodes)
+    await connectSparse(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()

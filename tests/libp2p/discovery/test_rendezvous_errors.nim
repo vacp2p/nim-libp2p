@@ -102,7 +102,7 @@ suite "RendezVous Errors":
       let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
       startNodesAndDeferStop(peerNodes & rendezvousNode)
 
-      await connectNodes(peerNodes[0], rendezvousNode)
+      await connect(peerNodes[0], rendezvousNode)
 
       let
         peerNode = peerNodes[0]
@@ -123,7 +123,7 @@ suite "RendezVous Errors":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startNodesAndDeferStop(peerNodes & rendezvousNode)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     # Pre-populate registrations up to the limit for this peer under the same namespace
     let namespace = "namespaceNA"

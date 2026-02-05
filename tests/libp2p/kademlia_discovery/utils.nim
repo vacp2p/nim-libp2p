@@ -48,7 +48,7 @@ proc setupKads*(
     kads.add(setupKad(validator, selector, bootstrapNodes))
   kads
 
-proc connectNodes*(kad1, kad2: KademliaDiscovery) {.async.} =
+proc connect*(kad1, kad2: KademliaDiscovery) {.async.} =
   discard kad1.rtable.insert(kad2.switch.peerInfo.peerId)
   discard kad2.rtable.insert(kad1.switch.peerInfo.peerId)
   kad1.switch.peerStore[AddressBook][kad2.switch.peerInfo.peerId] =
