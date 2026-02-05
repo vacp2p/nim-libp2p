@@ -73,8 +73,8 @@ proc new(
 ): PeerTopicKey {.inline.} =
   $peerId & keyDelimiter & topic
 
-proc hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
-  return ($peerId & keyDelimiter) in key
+template hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
+  ($peerId & keyDelimiter) in key
 
 proc new(
     T: typedesc[TopicGroupKey], topic: string, groupId: GroupId
