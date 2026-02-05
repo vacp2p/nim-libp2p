@@ -13,6 +13,27 @@ const
 
 # TODO: Add support for ipv6, dns, dns4,  ws/wss/sni support
 
+proc getBaseTransport*(
+    multiAddr: MultiAddress
+): Result[MultiAddress, string] {.raises: [].} =
+  ## Extracts the base transport portion of a multiaddress, stripping any
+  ## circuit-relay suffix (/p2p/<relay>/p2p-circuit).
+  ## Returns the base address (e.g., /ip4/.../tcp/... or /ip4/.../udp/.../quic-v1).
+  let sma = multiAddr.items().toSeq()
+
+  if not (sma.len >= MinMultiAddrComponentLen and sma.len <= MaxMultiAddrComponentLen):
+    return err("Invalid multiaddress format")
+
+  let isCircuitRelay = ?multiAddr.contains(multiCodec("p2p-circuit"))
+  let baseP2PEndIdx = if isCircuitRelay: 3 else: 1
+
+  try:
+    if sma.len - baseP2PEndIdx < 0:
+      return err("Invalid multiaddress format")
+    ok(sma[0 .. sma.len - baseP2PEndIdx].mapIt(it.tryGet()).foldl(a & b))
+  except LPError as exc:
+    err("Could not obtain base address: " & exc.msg)
+
 proc multiAddrToBytes*(
     peerId: PeerId, multiAddr: MultiAddress
 ): Result[seq[byte], string] {.raises: [].} =
@@ -20,22 +41,13 @@ proc multiAddrToBytes*(
   let sma = multiAddr.items().toSeq()
   var res: seq[byte] = @[]
 
-  if not (sma.len >= MinMultiAddrComponentLen and sma.len <= MaxMultiAddrComponentLen):
-    return err("Invalid multiaddress format")
+  let baseAddr = ?getBaseTransport(multiAddr)
 
   # Only IPV4 is supported
   let isCircuitRelay = ?ma.contains(multiCodec("p2p-circuit"))
-  let baseP2PEndIdx = if isCircuitRelay: 3 else: 1
-  let baseAddr =
-    try:
-      if sma.len - 1 - baseP2PEndIdx < 0:
-        return err("Invalid multiaddress format")
-      sma[0 .. sma.len - baseP2PEndIdx].mapIt(it.tryGet()).foldl(a & b)
-    except LPError as exc:
-      return err("Could not obtain base address: " & exc.msg)
 
-  let isQuic = QUIC_V1_IP.match(baseAddr)
-  let isTCP = TCP_IP.match(baseAddr)
+  let isQuic = QUIC_V1_IP4.match(baseAddr)
+  let isTCP = TCP_IP4.match(baseAddr)
 
   if not (isTCP or isQuic):
     return err("Unsupported protocol")
