@@ -188,7 +188,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
       cr.incomingRPC.len == 1 # should call onIncomingRPC
       cr.incomingRPC[0] == pmRPC
 
-  test "publish partial":
+  test "publish partial message":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
     var ext = PartialMessageExtension.new(cr.config())
@@ -224,6 +224,41 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check ext.publishPartial(topic, pm) == 0
     check cr.sentRPC.len == 1
 
+  test "publish parts metadata":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    ext.subscribe(peerId, topic, true)
+
+    # should publish to peer because peer is subscribed
+    # and because we are sending new parts metadata
+    let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
+    check ext.publishPartial(topic, pm) == 1
+
+    check cr.sentRPC.len == 1
+    let msg1 = cr.sentRPC[0]
+    check:
+      msg1.topicID == topic
+      msg1.groupID == groupId
+      msg1.partialMessage.len == 0 # must not have partial message 
+      msg1.partsMetadata == pm.partsMetadata()
+
+    # publishing same message again should not publish
+    # because peer already has this parts metadata
+    check ext.publishPartial(topic, pm) == 0
+    check cr.sentRPC.len == 1
+
+    # publishing new partial message should send new parts metadata
+    let pm2 = MyPartialMessage(groupId: groupId, data: {2: "two".toBytes}.toTable)
+    check ext.publishPartial(topic, pm2) == 1
+    let msg2 = cr.sentRPC[1]
+    check:
+      msg2.topicID == topic
+      msg2.groupID == groupId
+      msg2.partialMessage.len == 0 # must not have partial message 
+      msg2.partsMetadata == pm2.partsMetadata()
+
   test "heartbeat evicts metadata":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
@@ -242,9 +277,19 @@ suite "GossipSub Extensions :: Partial Message Extension":
     for i in 0 ..< cr.config().heartbeatsTillEviction + 1:
       ext.onHeartbeat()
 
-    # should not publish to peer because metadata has been evicted
+    # should publish to peer because peer is still subscribed
+    # and because we are sending new partsMetadata. 
     let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
-    check ext.publishPartial(topic, pm) == 0
+    check ext.publishPartial(topic, pm) == 1
+
+    # but published rpc should not have partial message only parts metadata
+    check cr.sentRPC.len == 1
+    let msg1 = cr.sentRPC[0]
+    check:
+      msg1.topicID == topic
+      msg1.groupID == groupId
+      msg1.partialMessage.len == 0
+      msg1.partsMetadata.len > 0
 
   test "removing peer removes metadata":
     const topic = "logos-partial"

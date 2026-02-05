@@ -54,6 +54,8 @@ type
       # number of heartbeats for which metadata will be retained before eviction
 
   PeerGroupState = ref object
+    peerSentMetadata: bool
+      # partial message should be sent only after user seek by sending some metadata.
     partsMetadata: PartsMetadata
     sentPartsMetadata: PartsMetadata
 
@@ -186,7 +188,9 @@ proc handlePartialRPC(
 
   if rpc.partsMetadata.len > 0:
     var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
-    groupState.getPeerState(peerId).partsMetadata = rpc.partsMetadata
+    var peerState = groupState.getPeerState(peerId)
+    peerState.partsMetadata = rpc.partsMetadata
+    peerState.peerSentMetadata = true
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
   ext.config.onIncomingRPC(peerId, rpc)
@@ -221,7 +225,7 @@ proc publishPartialToPeer(
 
   # if peer has requested partial messages, attempt to fulfill any 
   # parts that peer is missing.
-  if peerRequestsPartial:
+  if peerRequestsPartial and peerState.peerSentMetadata:
     let materializeRes = pm.materializeParts(peerState.partsMetadata)
     if materializeRes.isErr():
       # there might be error with last PartsMetadata so it is discarded,
@@ -256,9 +260,6 @@ proc publishPartial*(
   for _, p in peers:
     if not ext.config.isSupported(p):
       # peer needs to support this extension
-      continue
-    if not groupState.peerState.hasKey(p):
-      # there is no metadata from this peer
       continue
 
     let peerSubOpt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(p, topic))
