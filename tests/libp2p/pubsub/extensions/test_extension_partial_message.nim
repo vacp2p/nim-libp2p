@@ -65,6 +65,8 @@ proc subscribe(
           SubOpts(
             topic: topic,
             subscribe: subscribe,
+            # convention, in this test file, topic that have "partial" in name will be consider 
+            # to be requesting partial messages
             requestsPartial: some(topic.contains("partial")),
           )
         ]
@@ -127,14 +129,33 @@ suite "GossipSub Extensions :: Partial Message Extension":
       config.heartbeatsTillEviction = 0
       let ext = PartialMessageExtension.new(config)
 
+  test "subscribe/unsubscribe":
+    const topicPartial = "logos-partial"
+    const topicFull = "logos-full"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    # should subscribe with requesting partial
+    check ext.peerRequestsPartial(peerId, topicPartial) == false
+    ext.subscribe(peerId, topicPartial, true)
+    check ext.peerRequestsPartial(peerId, topicPartial)
+
+    # should subscribe without partial
+    check ext.peerRequestsPartial(peerId, topicFull) == false
+    ext.subscribe(peerId, topicFull, true)
+    check ext.peerRequestsPartial(peerId, topicFull) == false
+
+    # when peer is remove there should not be any data associated with them
+    ext.onRemovePeer(peerId)
+    check ext.peerRequestsPartial(peerId, topicPartial) == false
+
   test "publish partial":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
     var ext = PartialMessageExtension.new(cr.config())
 
-    # peer subscribes with partial capability (topic has 'partial')
+    # peer subscribes with partial capability
     ext.subscribe(peerId, topic, true)
-    check ext.peerRequestsPartial(peerId, topic)
 
     # peer sends RPC seeking parts [1, 2]
     ext.handlePartialMessage(
