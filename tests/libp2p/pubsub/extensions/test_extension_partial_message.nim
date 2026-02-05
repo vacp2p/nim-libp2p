@@ -65,7 +65,7 @@ proc subscribe(
           SubOpts(
             topic: topic,
             subscribe: subscribe,
-            # convention, in this test file, topic that have "partial" in name will be consider 
+            # convention: in this test file, topics that have "partial" in their name will be considered
             # to be requesting partial messages
             requestsPartial: some(topic.contains("partial")),
           )
@@ -219,7 +219,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
       msg1.groupID == groupId
       msg1.partialMessage == "onetwo".toBytes
 
-    # publishing same message again should not send to peer 
+    # publishing same message again should not send to peer
     # because peer's request is already fulfilled
     check ext.publishPartial(topic, pm) == 0
     check cr.sentRPC.len == 1
@@ -241,7 +241,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check:
       msg1.topicID == topic
       msg1.groupID == groupId
-      msg1.partialMessage.len == 0 # must not have partial message 
+      msg1.partialMessage.len == 0 # must not have partial message
       msg1.partsMetadata == pm.partsMetadata()
 
     # publishing same message again should not publish
@@ -256,7 +256,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check:
       msg2.topicID == topic
       msg2.groupID == groupId
-      msg2.partialMessage.len == 0 # must not have partial message 
+      msg2.partialMessage.len == 0 # must not have partial message
       msg2.partsMetadata == pm2.partsMetadata()
 
   test "heartbeat evicts metadata":
