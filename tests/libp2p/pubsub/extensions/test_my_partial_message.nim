@@ -38,7 +38,7 @@ suite "MyPartialMessage":
     check dataRes.isOk()
     check dataRes.get() == pm.data[2] & pm.data[3]
 
-    # exists: 2 + 3;  ignored: 5, 6, 7, 9, 10 
+    # exists: 2 + 3; ignored: 5, 6, 7, 9, 10
     dataRes = pm.materializeParts(rawMetadata(@[2, 5, 6, 7, 3, 9, 10], Meta.want))
     check dataRes.isOk()
     check dataRes.get() == pm.data[2] & pm.data[3]
