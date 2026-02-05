@@ -159,6 +159,27 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.onRemovePeer(peerId)
     check ext.peerRequestsPartial(peerId, topicPartial) == false
 
+  test "RPC validation":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: @[1.byte] # invalid metadata
+      ),
+    )
+    check cr.incomingRPC.len == 0 # should not call onIncomingRPC
+
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1, 2], Meta.want)
+      ),
+    )
+    check cr.incomingRPC.len == 1 # should call onIncomingRPC
+
   test "publish partial":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
