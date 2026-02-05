@@ -10,9 +10,7 @@ type
   AsyncConnectProc*[T] = proc(a, b: T): Future[void] {.async.}
   SyncConnectProc*[T] = proc(a, b: T)
 
-# ============================================================================
 # Async Topology Builders
-# ============================================================================
 
 proc connectNodesChain*[T](nodes: seq[T], connect: AsyncConnectProc[T]) {.async.} =
   ## Chain topology: 1-2-3-4-5
@@ -71,9 +69,7 @@ proc connectNodesSparse*[T](
         futs.add(connect(dialer, listener))
   await allFutures(futs)
 
-# ============================================================================
 # Sync Topology Builders
-# ============================================================================
 
 proc connectNodesChain*[T](nodes: seq[T], connect: SyncConnectProc[T]) =
   ## Chain topology: 1-2-3-4-5
@@ -120,15 +116,14 @@ proc connectNodesSparse*[T](
       if i != j:
         connect(dialer, listener)
 
-# ============================================================================
 # Lifecycle Helpers
-# ============================================================================
 
 proc startNodes*[T](nodes: seq[T]) {.async.} =
   await allFutures(nodes.mapIt(it.switch.start()))
 
 proc stopNodes*[T](nodes: seq[T]) {.async.} =
-  await allFutures(nodes.mapIt(it.stop()))
+  when compiles(nodes[0].stop()):
+    await allFutures(nodes.mapIt(it.stop()))
   await allFutures(nodes.mapIt(it.switch.stop()))
 
 template startNodesAndDeferStop*[T](nodes: seq[T]): untyped =

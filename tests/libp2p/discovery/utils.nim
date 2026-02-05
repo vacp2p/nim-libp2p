@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import chronos, sequtils
+import chronos
 import
   ../../../libp2p/[
     builders,
@@ -60,21 +60,10 @@ proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]
 
   return (rendezvousRdv, peerRdvs)
 
-template startAndDeferStop*(nodes: seq[RendezVous]) =
-  await allFutures(nodes.mapIt(it.switch.start()))
-  defer:
-    await allFutures(nodes.mapIt(it.switch.stop()))
-
 proc connectNodes*(dialer: RendezVous, target: RendezVous) {.async.} =
   await dialer.switch.connect(
     target.switch.peerInfo.peerId, target.switch.peerInfo.addrs
   )
-
-proc connectNodesToRendezvousNode*(
-    nodes: seq[RendezVous], rendezvousNode: RendezVous
-) {.async.} =
-  for node in nodes:
-    await connectNodes(node, rendezvousNode)
 
 proc buildProtobufCookie*(offset: uint64, namespace: string): seq[byte] =
   var pb = initProtoBuffer()
