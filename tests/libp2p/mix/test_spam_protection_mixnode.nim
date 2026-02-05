@@ -17,7 +17,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[unittest]
+import ../../tools/[topology, unittest]
 import ./utils
 
 suite "Spam Protection Component":

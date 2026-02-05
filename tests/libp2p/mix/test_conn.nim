@@ -20,7 +20,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[unittest]
+import ../../tools/[topology, unittest]
 import ./utils
 
 const NoReplyProtocolCodec* = "/test/1.0.0"
