@@ -134,9 +134,9 @@ suite "Spam Protection - Edge Cases":
     # Create a packet smaller than proof size (8 bytes)
     var tinyPacket = @[1.byte, 2, 3] # Only 3 bytes, but proof needs 8
 
-    let result = extractProofFromPacket(tinyPacket, spamProtection)
-    check result.isErr()
-    check result.error() == "Packet too small to contain proof"
+    let res = extractProofFromPacket(tinyPacket, spamProtection)
+    check res.isErr()
+    check res.error() == "Packet too small to contain proof"
 
   test "appendProofToPacket with empty proof returns original packet":
     let sphinxPacket = testPacketData
