@@ -99,15 +99,15 @@ suite "MixNodePool Tests":
         "could not create multiaddr"
       )
     # Circuit-relay addresses
-    let tcpCircuitAddr = MultiAddress.init(
-      "/ip4/127.0.0.1/tcp/4245/p2p/" & $relayPeerId & "/p2p-circuit"
-    ).expect("could not create multiaddr")
-    let quicCircuitAddr = MultiAddress.init(
-      "/ip4/127.0.0.1/udp/4246/quic-v1/p2p/" & $relayPeerId & "/p2p-circuit"
-    ).expect("could not create multiaddr")
-    let ipv6CircuitAddr = MultiAddress.init(
-      "/ip6/::1/tcp/4247/p2p/" & $relayPeerId & "/p2p-circuit"
-    ).expect("could not create multiaddr")
+    let tcpCircuitAddr = MultiAddress
+      .init("/ip4/127.0.0.1/tcp/4245/p2p/" & $relayPeerId & "/p2p-circuit")
+      .expect("could not create multiaddr")
+    let quicCircuitAddr = MultiAddress
+      .init("/ip4/127.0.0.1/udp/4246/quic-v1/p2p/" & $relayPeerId & "/p2p-circuit")
+      .expect("could not create multiaddr")
+    let ipv6CircuitAddr = MultiAddress
+      .init("/ip6/::1/tcp/4247/p2p/" & $relayPeerId & "/p2p-circuit")
+      .expect("could not create multiaddr")
 
     peerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
     peerStore[KeyBook][pubInfo.peerId] =
