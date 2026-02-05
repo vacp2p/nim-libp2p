@@ -66,7 +66,7 @@ proc deallocConnectedPeers*(peers: ptr ConnectedPeersList) =
 
 proc process*(
     self: ptr PeerManagementRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -92,7 +92,7 @@ proc process*(
   else:
     raiseAssert "unsupported operation"
 
-  return ok("")
+  return ok()
 
 proc processPeerInfo*(
     self: ptr PeerManagementRequest, libp2p: ptr LibP2P
