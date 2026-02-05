@@ -235,7 +235,7 @@ proc publishPartialToPeer(
       let unionRes =
         ext.config.unionPartsMetadata(peerState.partsMetadata, msgPartsMetadata)
       if unionRes.isErr():
-        debug "failed to create union from to parts metadata", msg = unionRes.error
+        debug "failed to create union from the two parts metadata", msg = unionRes.error
       else:
         peerState.partsMetadata = unionRes.get()
 
