@@ -105,7 +105,7 @@ suite "KadDHT Bootstrap":
 suite "KadDHT Bootstrap Component":
   teardown:
     checkTrackers()
- 
+
   asyncTest "bootstrap discovers new peers through network":
     # 1 hub + 9 nodes bootstrapping from hub
     let hubKad = setupKad()

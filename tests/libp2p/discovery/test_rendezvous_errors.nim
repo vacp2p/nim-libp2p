@@ -3,7 +3,7 @@
 
 {.used.}
 
-import sequtils, strformat, strutils, chronos
+import strformat, strutils, chronos
 import
   ../../../libp2p/[
     protocols/rendezvous,
@@ -13,7 +13,7 @@ import
     routing_record,
     crypto/crypto,
   ]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, unittest]
 import ./utils
 
 suite "RendezVous Errors":
@@ -100,7 +100,7 @@ suite "RendezVous Errors":
 
     asyncTest &"Node returns ERROR_CODE for invalid message - {testName}":
       let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-      (rendezvousNode & peerNodes).startAndDeferStop()
+      startNodesAndDeferStop(peerNodes & rendezvousNode)
 
       await connectNodes(peerNodes[0], rendezvousNode)
 
@@ -121,7 +121,7 @@ suite "RendezVous Errors":
 
   asyncTest "Node returns NotAuthorized when Register exceeding peer limit":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startNodesAndDeferStop(peerNodes & rendezvousNode)
 
     await connectNodes(peerNodes[0], rendezvousNode)
 
