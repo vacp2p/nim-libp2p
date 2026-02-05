@@ -228,6 +228,6 @@ suite "Dcutr":
         MultiAddress.init("/dns4/example.com/tcp/3456").tryGet(),
       ]
 
-    let result = getHolePunchableAddrs(testAddrs)
+    let res = getHolePunchableAddrs(testAddrs)
 
-    check result == expected
+    check res == expected

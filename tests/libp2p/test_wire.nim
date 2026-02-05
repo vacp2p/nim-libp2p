@@ -9,7 +9,7 @@ import ../tools/[unittest]
 suite "Wire":
   test "initTAddress returns ok and correct result for a Unix domain address":
     let ma = MultiAddress.init("/unix/tmp/socket").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     var address_un: array[108, uint8]
     let unixPath = "/tmp/socket"
     for i in 0 ..< len(unixPath):
@@ -17,100 +17,100 @@ suite "Wire":
     let expected = TransportAddress(
       family: AddressFamily.Unix, address_un: address_un, port: Port(1)
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns ok and correct result for an IPv4/TCP address":
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/1234").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     let expected = TransportAddress(
       family: AddressFamily.IPv4,
       address_v4: [127'u8, 0, 0, 1], # IPv4 address 127.0.0.1
       port: Port(1234),
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns ok and correct result for an IPv6/TCP address":
     let ma = MultiAddress.init("/ip6/::1/tcp/1234").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     let expected = TransportAddress(
       family: AddressFamily.IPv6,
       address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         # IPv6 address ::1
       port: Port(1234),
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns ok and correct result for an IPv4/UDP address":
     let ma = MultiAddress.init("/ip4/127.0.0.1/udp/1234").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     let expected = TransportAddress(
       family: AddressFamily.IPv4,
       address_v4: [127'u8, 0, 0, 1], # IPv4 address 127.0.0.1
       port: Port(1234),
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns ok and correct result for an IPv6/UDP address":
     let ma = MultiAddress.init("/ip6/::1/udp/1234").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     let expected = TransportAddress(
       family: AddressFamily.IPv6,
       address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         # IPv6 address ::1
       port: Port(1234),
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns ok and correct result for an IPv4/TCP/WS address":
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/1234/ws").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     let expected = TransportAddress(
       family: AddressFamily.IPv4,
       address_v4: [127'u8, 0, 0, 1], # IPv4 address 127.0.0.1
       port: Port(1234),
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns ok and correct result for an IPv6/TCP/WS address":
     let ma = MultiAddress.init("/ip6/::1/tcp/1234/ws").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     let expected = TransportAddress(
       family: AddressFamily.IPv6,
       address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         # IPv6 address ::1
       port: Port(1234),
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns ok and correct result for an IPv4/TCP/WSS address":
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/1234/wss").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     let expected = TransportAddress(
       family: AddressFamily.IPv4,
       address_v4: [127'u8, 0, 0, 1], # IPv4 address 127.0.0.1
       port: Port(1234),
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns ok and correct result for an IPv6/TCP/WSS address":
     let ma = MultiAddress.init("/ip6/::1/tcp/1234/wss").get()
-    let result = initTAddress(ma)
+    let res = initTAddress(ma)
     let expected = TransportAddress(
       family: AddressFamily.IPv6,
       address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
         # IPv6 address ::1
       port: Port(1234),
     )
-    check result.isOk
-    check result.get() == expected
+    check res.isOk
+    check res.get() == expected
 
   test "initTAddress returns error for a DNS/TCP/ws address":
     let ma = MultiAddress.init("/dns4/localhost/tcp/1234/ws").get()
