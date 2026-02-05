@@ -214,6 +214,23 @@ proc sendRequestToLibP2PThread*(
     ctx: ptr LibP2PContext,
     reqType: RequestType,
     reqContent: pointer,
+    callback: RandomRecordsCallback,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for kademlia random-records
+  sendRequest(
+    ctx,
+    reqType,
+    reqContent,
+    userData,
+    CallbackKind.RANDOM_RECORDS,
+    cast[pointer](callback),
+  )
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
     callback: ConnectionCallback,
     userData: pointer,
 ): Result[void, string] =

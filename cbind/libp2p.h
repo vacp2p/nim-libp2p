@@ -45,10 +45,11 @@ enum {
   LIBP2P_CFG_GOSSIPSUB = 1 << 0,
   LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF = 1 << 1,
   LIBP2P_CFG_KAD = 1 << 2,
-  LIBP2P_CFG_DNS_RESOLVER = 1 << 3,
-  LIBP2P_CFG_KAD_BOOTSTRAP_NODES = 1 << 4,
-  LIBP2P_CFG_PRIVATE_KEY = 1 << 5,
-  LIBP2P_CFG_MIX = 1 << 6,
+  LIBP2P_CFG_KAD_DISCOVERY = 1 << 3,
+  LIBP2P_CFG_DNS_RESOLVER = 1 << 4,
+  LIBP2P_CFG_KAD_BOOTSTRAP_NODES = 1 << 5,
+  LIBP2P_CFG_PRIVATE_KEY = 1 << 6,
+  LIBP2P_CFG_MIX = 1 << 7,
 };
 
 typedef struct libp2p_bootstrap_node {
@@ -79,6 +80,7 @@ typedef struct {
   int mix_index;
   int mix_nodes_len;
   const char *mix_node_info_path;
+  int mount_kad_discovery;
   const char *dns_resolver;
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   size_t kad_bootstrap_nodes_len;
@@ -99,6 +101,26 @@ typedef struct {
 // if you need it later.
 typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
                                  const char *msg, size_t len, void *userData);
+
+typedef struct {
+  char *id;
+  const uint8_t *data;
+  size_t dataLen;
+} Libp2pServiceInfo;
+
+typedef struct {
+  char *peerId;
+  uint64_t seqNo;
+  const char **addrs;
+  size_t addrsLen;
+  const Libp2pServiceInfo *services;
+  size_t servicesLen;
+} Libp2pExtendedPeerRecord;
+
+typedef void (*RandomRecordsCallback)(int callerRet,
+                                      const Libp2pExtendedPeerRecord *records,
+                                      size_t recordsLen, const char *msg,
+                                      size_t len, void *userData);
 
 // Opaque handle for a libp2p instance
 typedef struct libp2p_ctx libp2p_ctx_t;
@@ -322,6 +344,9 @@ int libp2p_stop_providing(void *ctx, const char *cid, Libp2pCallback callback,
 
 int libp2p_get_providers(void *ctx, const char *cid,
                          GetProvidersCallback callback, void *userData);
+
+int libp2p_random_records(void *ctx, RandomRecordsCallback callback,
+                          void *userData);
 
 #ifdef __cplusplus
 }
