@@ -8,7 +8,6 @@ import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/[
     gossipsub/extension_partial_message,
-    gossipsub/partial_message,
     gossipsub/extensions_types,
     rpc/messages,
   ]
@@ -35,11 +34,6 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
   proc isSupported(peer: PeerId): bool {.gcsafe, raises: [].} =
     return true
 
-  proc unionPartsMetadataCb(
-      a, b: PartsMetadata
-  ): Result[PartsMetadata, string] {.gcsafe, raises: [].} =
-    return unionPartsMetadata(a, b)
-
   proc validateRPC(
       rpc: PartialMessageExtensionRPC
   ): Result[void, string] {.gcsafe, raises: [].} =
@@ -56,7 +50,7 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
     publishToPeers: publishToPeers,
     isSupported: isSupported,
     nodeTopicOpts: nodeTopicOpts,
-    unionPartsMetadata: unionPartsMetadataCb,
+    unionPartsMetadata: my_partial_message.unionPartsMetadata,
     validateRPC: validateRPC,
     onIncomingRPC: onIncomingRPC,
     heartbeatsTillEviction: 3,
