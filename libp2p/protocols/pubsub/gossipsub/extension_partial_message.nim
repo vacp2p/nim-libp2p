@@ -110,11 +110,10 @@ proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   for key in toRemove:
     ext.groupState.del(key)
 
-proc getGroupState(
+template getGroupState(
     ext: PartialMessageExtension, topic: string, groupId: GroupId
 ): GroupState =
-  let key = TopicGroupKey.new(topic, groupId)
-  return ext.groupState.mgetOrPut(key, GroupState())
+  ext.groupState.mgetOrPut(TopicGroupKey.new(topic, groupId), GroupState())
 
 template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   gs.peerState.mgetOrPut(peerId, PeerGroupState())
