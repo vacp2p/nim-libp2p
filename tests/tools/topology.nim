@@ -5,6 +5,7 @@
 
 import chronos
 import ../../libp2p/switch
+import ./futures
 
 type Connectable =
   concept a, b
@@ -18,7 +19,7 @@ proc connectChain*[T: Connectable](nodes: seq[T]) {.async.} =
   var futs: seq[Future[void]]
   for i in 0 ..< nodes.len - 1:
     futs.add(connect(nodes[i], nodes[i + 1]))
-  await allFutures(futs)
+  await allFuturesRaising(futs)
 
 proc connectRing*[T: Connectable](nodes: seq[T]) {.async.} =
   ## Ring topology: 1-2-3-4-5-1
@@ -29,7 +30,7 @@ proc connectRing*[T: Connectable](nodes: seq[T]) {.async.} =
   for i in 0 ..< nodes.len - 1:
     futs.add(connect(nodes[i], nodes[i + 1]))
   futs.add(connect(nodes[^1], nodes[0]))
-  await allFutures(futs)
+  await allFuturesRaising(futs)
 
 proc connectHub*[T: Connectable](hub: T, nodes: seq[T]) {.async.} =
   ## Hub topology: hub-1, hub-2, hub-3,...
@@ -39,7 +40,7 @@ proc connectHub*[T: Connectable](hub: T, nodes: seq[T]) {.async.} =
   var futs: seq[Future[void]]
   for node in nodes:
     futs.add(connect(hub, node))
-  await allFutures(futs)
+  await allFuturesRaising(futs)
 
 proc connectStar*[T: Connectable](nodes: seq[T]) {.async.} =
   ## Star/Full mesh topology: every node connects to every other node
@@ -51,7 +52,7 @@ proc connectStar*[T: Connectable](nodes: seq[T]) {.async.} =
     for j, listener in nodes:
       if i != j:
         futs.add(connect(dialer, listener))
-  await allFutures(futs)
+  await allFuturesRaising(futs)
 
 proc connectSparse*[T: Connectable](nodes: seq[T], degree: int = 2) {.async.} =
   ## Sparse topology: only nodes at (i mod degree == 0) connect to all others
@@ -66,4 +67,4 @@ proc connectSparse*[T: Connectable](nodes: seq[T], degree: int = 2) {.async.} =
     for j, listener in nodes:
       if i != j:
         futs.add(connect(dialer, listener))
-  await allFutures(futs)
+  await allFuturesRaising(futs)
