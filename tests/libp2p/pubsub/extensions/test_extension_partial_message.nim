@@ -25,7 +25,7 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
 
   proc nodeTopicOpts(topic: string): TopicOpts {.gcsafe, raises: [].} =
     return TopicOpts(requestsPartial: topic.contains("partial"))
-      # convention, in this test file, topic that have "partial" in name will be consider 
+      # convention: in this test file, topics that have "partial" in their name will be considered
       # to be requesting partial messages
 
   proc isSupported(peer: PeerId): bool {.gcsafe, raises: [].} =
