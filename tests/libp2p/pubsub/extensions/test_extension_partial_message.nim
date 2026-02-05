@@ -238,6 +238,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
       ),
     )
 
+    # trigger as many heartbeat events to cause eviction of all state groups
     for i in 0 ..< cr.config().heartbeatsTillEviction + 1:
       ext.onHeartbeat()
 
@@ -245,7 +246,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
     check ext.publishPartial(topic, pm) == 0
 
-  test "removing peer evicts metadata":
+  test "removing peer removes metadata":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
     var ext = PartialMessageExtension.new(cr.config())
@@ -259,6 +260,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
       ),
     )
 
+    # when peer is removed, it's parts metadata will be removed
     ext.onRemovePeer(peerId)
 
     # should not publish to peer because metadata has been removed
