@@ -22,13 +22,14 @@ proc randomRecords*(
 
   let randomKey = randomPeerId.toKey()
 
-  let queue = newAsyncQueue[(PeerId, Opt[Message])](disco.config.replication)
+  let queue = newAsyncQueue[(PeerId, Opt[Message])]()
 
   let peers = disco.rtable.findClosestPeerIds(randomKey, disco.config.replication)
   for peer in peers:
-    # ignore errors, queue capacity is the same as peer count
-    let _ = catch:
+    let addRes = catch:
       queue.addFirstNoWait((peer, Opt.none(Message)))
+    if addRes.isErr:
+      error "cannot enqueue peer", error = addRes.error.msg
 
   let findRes = catch:
     await disco.findNode(randomKey, queue)
