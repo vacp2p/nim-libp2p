@@ -18,7 +18,7 @@ import
     builders,
     utils/offsettedseq,
   ]
-import ../../tools/[topology, unittest]
+import ../../tools/[lifecycle, topology, unittest]
 import ./utils
 
 type CustomPeerRecord* = object

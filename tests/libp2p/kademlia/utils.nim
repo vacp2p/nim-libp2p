@@ -4,10 +4,10 @@
 
 import algorithm, chronos, chronicles, results, sequtils, sets, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[crypto, unittest, topology]
+import ../../tools/[crypto, lifecycle, topology, unittest]
 import ./mock_kademlia
 
-export topology
+export lifecycle, topology
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 

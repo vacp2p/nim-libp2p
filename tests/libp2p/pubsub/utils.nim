@@ -26,9 +26,9 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../../tools/[unittest, crypto, bufferstream, futures, topology]
+import ../../tools/[unittest, crypto, bufferstream, futures, lifecycle, topology]
 
-export builders, topology
+export builders, lifecycle, topology
 
 randomize()
 
