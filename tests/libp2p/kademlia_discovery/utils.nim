@@ -8,7 +8,7 @@ import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../tools/[crypto]
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
- 
+
 proc createSwitch*(): Switch =
   SwitchBuilder
   .new()

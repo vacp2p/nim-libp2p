@@ -20,7 +20,7 @@ suite "Kademlia discovery - FindRandom":
     checkTrackers()
 
   asyncTest "Simple find random node":
-    let kads = setupKads(5, ExtEntryValidator(),ExtEntrySelector())
+    let kads = setupKads(5, ExtEntryValidator(), ExtEntrySelector())
     startNodesAndDeferStop(kads)
 
     connectNodesStar(kads, connectNodes)
@@ -31,4 +31,3 @@ suite "Kademlia discovery - FindRandom":
     let peerIds = kads.mapIt(it.switch.peerInfo.peerId)
     for record in records:
       check record.peerId in peerIds
- 
