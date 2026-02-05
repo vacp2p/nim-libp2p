@@ -278,7 +278,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
       ext.onHeartbeat()
 
     # should publish to peer because peer is still subscribed
-    # and because we are sending new partsMetadata. 
+    # and because we are sending new partsMetadata.
     let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
     check ext.publishPartial(topic, pm) == 1
 
