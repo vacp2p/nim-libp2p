@@ -40,6 +40,12 @@ type
     ## Implementations define how messages are partitioned into parts, how parts
     ## are encoded, and how availability and requests for parts are represented.
 
+proc `$`*(g: GroupId): string =
+  var ret = newString(g.len)
+  for i, b in g:
+    ret[i] = char(b)
+  return ret
+
 method groupId*(m: PartialMessage): GroupId {.base, gcsafe, raises: [].} =
   ## Returns the GroupId identifying the logical full message this instance
   ## belongs to.

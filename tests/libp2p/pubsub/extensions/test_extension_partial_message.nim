@@ -80,7 +80,7 @@ proc handlePartialMessage(
 
 suite "GossipSub Extensions :: Partial Message Extension":
   let peerId = PeerId.random(rng).get()
-  let groupId = @[1.byte, 1, 1, 1, 1]
+  let groupId = "group-id-1".toBytes
 
   test "isSupported":
     let ext = PartialMessageExtension.new()
@@ -223,3 +223,44 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # because peer's request is already fulfilled
     check ext.publishPartial(topic, pm) == 0
     check cr.sentRPC.len == 1
+
+  test "heartbeat evicts metadata":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    ext.subscribe(peerId, topic, true)
+
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1], Meta.want)
+      ),
+    )
+
+    for i in 0 ..< cr.config().heartbeatsTillEviction + 1:
+      ext.onHeartbeat()
+
+    # should not publish to peer because metadata has been evicted
+    let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
+    check ext.publishPartial(topic, pm) == 0
+
+  test "removing peer evicts metadata":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    ext.subscribe(peerId, topic, true)
+
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1], Meta.want)
+      ),
+    )
+
+    ext.onRemovePeer(peerId)
+
+    # should not publish to peer because metadata has been removed
+    let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
+    check ext.publishPartial(topic, pm) == 0

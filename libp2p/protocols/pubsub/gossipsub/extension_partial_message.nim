@@ -80,7 +80,7 @@ template hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
 proc new(
     T: typedesc[TopicGroupKey], topic: string, groupId: GroupId
 ): TopicGroupKey {.inline.} =
-  topic & keyDelimiter & cast[string](groupId)
+  topic & keyDelimiter & $groupId
 
 proc doAssert(config: PartialMessageExtensionConfig) =
   proc msg(arg: string): string =
@@ -104,7 +104,7 @@ proc new*(
 proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   # reduce heartbeatsTillEviction and remove groups that hit 0
   var toRemove: seq[TopicGroupKey] = @[]
-  for key, group in ext.groupState:
+  for key, group in ext.groupState.mpairs:
     group.heartbeatsTillEviction.dec
     if group.heartbeatsTillEviction <= 0:
       toRemove.add(key)
@@ -187,6 +187,7 @@ proc handlePartialRPC(
   if rpc.partsMetadata.len > 0:
     var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
     groupState.getPeerState(peerId).partsMetadata = rpc.partsMetadata
+    groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
   ext.config.onIncomingRPC(peerId, rpc)
 
@@ -248,14 +249,16 @@ proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
   var groupState = ext.getGroupState(topic, pm.groupId())
-
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
   var publishedToCount: int = 0
   let peers = ext.config.publishToPeers(topic)
   for _, p in peers:
-    # peer needs to support this extension
     if not ext.config.isSupported(p):
+      # peer needs to support this extension
+      continue
+    if not groupState.peerState.hasKey(p):
+      # there is no metadata from this peer
       continue
 
     let peerSubOpt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(p, topic))
