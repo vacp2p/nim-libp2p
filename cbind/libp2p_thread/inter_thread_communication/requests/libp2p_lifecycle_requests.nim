@@ -114,11 +114,13 @@ proc parseBootstrapNodes(config: Libp2pConfig): seq[(PeerId, seq[MultiAddress])]
   return response
 
 proc toByteSeq(key: Libp2pPrivateKey): seq[byte] =
-  let data = newSeqUninit[byte](key.dataLen)
+  if key.dataLen == 0 or key.data.isNil():
+    return newSeq[byte](0)
+  let data = newSeqUninit[byte](key.dataLen.int)
   copyMem(addr data[0], key.data, key.dataLen)
   return data
 
-proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
+proc mountGossipsub(libp2p: var LibP2P, config: Libp2pConfig) =
   var gossipSub = Opt.none(GossipSub)
   if config.mountGossipsub != 0:
     let gs = GossipSub.init(
@@ -126,16 +128,18 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
     )
     libp2p.switch.mount(gs)
     gossipSub = Opt.some(gs)
+  libp2p.gossipSub = gossipSub
 
-  libp2p.switch.mount(Ping.new())
-
+proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
   var kad = Opt.none(KadDHT)
   if config.mountKad != 0:
     let bootstrapNodes = parseBootstrapNodes(config)
     let k = KadDHT.new(libp2p.switch, bootstrapNodes = bootstrapNodes)
     libp2p.switch.mount(k)
     kad = Opt.some(k)
+  libp2p.kad = kad
 
+proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
   var mix = Opt.none(MixProtocol)
   if config.mountMix != 0 and libp2p.mixNodeInfo.isSome:
     if config.mixNodesLen <= 0:
@@ -147,10 +151,17 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
     )
     libp2p.switch.mount(mixProto)
     mix = Opt.some(mixProto)
-
-  libp2p.gossipSub = gossipSub
-  libp2p.kad = kad
   libp2p.mix = mix
+
+proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
+  if config.mountGossipsub != 0:
+    libp2p.mountGossipsub(config)
+  if config.mountKad != 0:
+    libp2p.mountKad(config)
+
+  libp2p.switch.mount(Ping.new())
+
+  libp2p.mountMix(config)
 
 proc processGetPublicKey*(
     self: ptr LifecycleRequest, libp2p: ptr LibP2P
@@ -256,7 +267,7 @@ proc destroyShared(self: ptr LifecycleRequest) =
 
 proc process*(
     self: ptr LifecycleRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -282,4 +293,4 @@ proc process*(
   else:
     raiseAssert "unsupported operation"
 
-  return ok("")
+  return ok()

@@ -61,7 +61,7 @@ proc createShared*(
 
 # Handles responses of type Result[string, string] or Result[void, string]
 # Converts the result into a C callback invocation with either RET_OK or RET_ERR
-proc handleRes(res: Result[string, string], request: ptr LibP2PThreadRequest) =
+proc handleRes[T](res: Result[T, string], request: ptr LibP2PThreadRequest) =
   ## Handles the Result responses, which can either be Result[string, string] or
   ## Result[void, string].
 
@@ -77,11 +77,16 @@ proc handleRes(res: Result[string, string], request: ptr LibP2PThreadRequest) =
     return
 
   foreignThreadGc:
-    if res.get() == "":
+    when T is void:
       cb(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
+    elif T is string:
+      if res.get() == "":
+        cb(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
+      else:
+        var msg: cstring = res.get().cstring
+        cb(RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
     else:
-      var msg: cstring = res.get().cstring
-      cb(RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+      raiseAssert "handleRes only supports Result[void, string] or Result[string, string]"
   return
 
 proc handlePeerInfoRes(

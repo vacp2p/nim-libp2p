@@ -105,7 +105,7 @@ proc processDial*(
 
 proc processMixRegisterDestRead*(
     self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -116,17 +116,15 @@ proc processMixRegisterDestRead*(
     return err("proto is empty")
 
   let sizeParam = self[].mixReadBehaviorParam.int
+  if sizeParam < 0:
+    return err("size must be >= 0")
   case MixReadBehaviorKind(self[].mixReadBehaviorKind)
   of MIX_READ_EXACTLY:
-    if sizeParam < 0:
-      return err("readExactly size must be >= 0")
     mixProto.registerDestReadBehavior($self[].proto, readExactly(sizeParam))
   of MIX_READ_LP:
-    if sizeParam < 0:
-      return err("readLp max size must be >= 0")
     mixProto.registerDestReadBehavior($self[].proto, readLp(sizeParam))
 
-  return ok("")
+  return ok()
 
 proc processMixDial*(
     self: ptr StreamRequest, libp2p: ptr LibP2P
@@ -161,7 +159,7 @@ proc processMixDial*(
 
 proc processMixSetNodeInfo*(
     self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -218,13 +216,12 @@ proc processMixSetNodeInfo*(
       return err("could not mount mix: " & exc.msg)
 
     libp2p[].mix = Opt.some(mixProto)
-    echo "DSAFDSFS"
 
-  return ok("")
+  return ok()
 
 proc processMixNodePoolAdd*(
     self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -248,11 +245,11 @@ proc processMixNodePoolAdd*(
     return err("libp2p public key invalid")
 
   mixProto.nodePool.add(MixPubInfo.init(peerId, maddr, mixPubKey, libp2pPubKey))
-  return ok("")
+  return ok()
 
 proc processClose*(
     self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -272,11 +269,11 @@ proc processClose*(
   else:
     raiseAssert "unsupported operation"
 
-  return ok("")
+  return ok()
 
 proc processRelease*(
     self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -290,11 +287,11 @@ proc processRelease*(
   libp2p[].connections.del(handle)
   deallocShared(handle)
 
-  return ok("")
+  return ok()
 
 proc processWrite*(
     self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -317,7 +314,7 @@ proc processWrite*(
   except LPStreamError as exc:
     return err(exc.msg)
 
-  return ok("")
+  return ok()
 
 proc processRead*(
     self: ptr StreamRequest, libp2p: ptr LibP2P

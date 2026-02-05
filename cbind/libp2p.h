@@ -114,9 +114,6 @@ typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
 
 typedef struct libp2p_stream libp2p_stream_t;
 
-typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
-                                   const char *msg, size_t len, void *userData);
-
 typedef uint32_t Direction;
 
 enum {
