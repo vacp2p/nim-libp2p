@@ -167,11 +167,12 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
     let ssp = rpc.supportsSendingPartial.valueOr:
       false
 
-    ext.peerTopicOpts[key] = TopicOpts(
-      requestsPartial: rp,
-      supportsSendingPartial: rp or ssp,
-        # when peer requested partial, then, by spec, they must support it
-    )
+    if rp or ssp:
+      # store only if peer requests or supports sending partial
+      # because absence of information results in default values TopicOpts()
+      # that has same values as if both properties are false.
+      ext.peerTopicOpts[key] =
+        TopicOpts(requestsPartial: rp, supportsSendingPartial: ssp)
   else:
     ext.peerTopicOpts.del(key)
 

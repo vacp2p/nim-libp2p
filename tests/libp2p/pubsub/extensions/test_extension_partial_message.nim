@@ -149,6 +149,9 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.subscribe(peerId, topicPartial, false)
     check ext.peerRequestsPartial(peerId, topicPartial) == false
 
+    # unsubscribe same peer again (should not raise)
+    ext.subscribe(peerId, topicPartial, false)
+
     # should subscribe without partial
     check ext.peerRequestsPartial(peerId, topicFull) == false
     ext.subscribe(peerId, topicFull, true)
@@ -159,11 +162,15 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.onRemovePeer(peerId)
     check ext.peerRequestsPartial(peerId, topicPartial) == false
 
+    # remove same peer again (should not raise)
+    ext.onRemovePeer(peerId)
+
   test "RPC validation":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
     var ext = PartialMessageExtension.new(cr.config())
 
+    # invalid RPC case
     ext.handlePartialMessage(
       peerId,
       PartialMessageExtensionRPC(
@@ -172,13 +179,14 @@ suite "GossipSub Extensions :: Partial Message Extension":
     )
     check cr.incomingRPC.len == 0 # should not call onIncomingRPC
 
-    ext.handlePartialMessage(
-      peerId,
-      PartialMessageExtensionRPC(
-        topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1, 2], Meta.want)
-      ),
+    # valid RPC case
+    let pmRPC = PartialMessageExtensionRPC(
+      topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1, 2], Meta.want)
     )
-    check cr.incomingRPC.len == 1 # should call onIncomingRPC
+    ext.handlePartialMessage(peerId, pmRPC)
+    check:
+      cr.incomingRPC.len == 1 # should call onIncomingRPC
+      cr.incomingRPC[0] == pmRPC
 
   test "publish partial":
     const topic = "logos-partial"
