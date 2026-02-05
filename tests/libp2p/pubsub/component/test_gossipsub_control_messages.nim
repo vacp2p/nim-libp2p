@@ -7,7 +7,7 @@ import chronos, std/[sequtils], chronicles
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 when defined(libp2p_gossipsub_1_4):
   import ../../../../libp2p/protocols/pubsub/gossipsub/preamblestore
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Control Messages":

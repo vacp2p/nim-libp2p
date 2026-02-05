@@ -6,7 +6,7 @@
 import chronos, algorithm
 import
   ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
-import ../../../tools/unittest
+import ../../../tools/[lifecycle, unittest]
 import ../utils
 
 suite "GossipSub Component - Extensions":

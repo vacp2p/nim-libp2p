@@ -16,7 +16,7 @@ import
     protocols/pubsub/pubsubpeer,
   ]
 import ../../../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../../../tools/[unittest, futures]
+import ../../../tools/[lifecycle, topology, unittest, futures]
 
 suite "FloodSub Component":
   const topic = "foobar"

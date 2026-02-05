@@ -5,7 +5,7 @@
 
 import std/[times, tables], chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders, multihash]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, unittest]
 import ./utils.nim
 
 suite "KadDHT Put":
@@ -16,7 +16,7 @@ suite "KadDHT Put":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     # Both nodes start with empty data tables
     check:
@@ -36,7 +36,7 @@ suite "KadDHT Put":
     let kads = setupKadSwitches(2, validator = RestrictiveValidator())
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -63,7 +63,7 @@ suite "KadDHT Put":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -82,7 +82,7 @@ suite "KadDHT Put":
     let kads = setupKadSwitches(2, selector = OthersSelector())
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -108,7 +108,7 @@ suite "KadDHT Put":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     # Create two different keys to simulate mismatch
     let msgKey = MultiHash.digest("sha2-256", [byte 0, 1, 2, 3, 4]).get().toKey()
@@ -138,7 +138,7 @@ suite "KadDHT Put":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     let conn = await kads[1].switch.dial(
       kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec
@@ -170,7 +170,7 @@ suite "KadDHT Put":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -200,7 +200,7 @@ suite "KadDHT Put":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[0.byte, 0xFF, 0, 0xFF] # nulls and high bytes interleaved

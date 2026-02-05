@@ -3,8 +3,7 @@
 
 {.used.}
 
-import chronicles, sets, std/[os, times]
-import ../../../libp2p/peerid
+import chronicles, sets, std/[os]
 include ../../../libp2p/protocols/mix/seqno_generator
 import ../../tools/[unittest]
 

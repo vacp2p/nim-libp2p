@@ -5,7 +5,7 @@
 
 import chronos
 import ../../../libp2p/[protocols/kademlia, peerid, switch]
-import ../../tools/unittest
+import ../../tools/[lifecycle, unittest]
 import ./[mock_kademlia, utils]
 
 suite "KadDHT Bootstrap":

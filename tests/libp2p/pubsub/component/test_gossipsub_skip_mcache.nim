@@ -5,7 +5,7 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Skip MCache Support":

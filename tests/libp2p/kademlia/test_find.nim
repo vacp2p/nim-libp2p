@@ -5,7 +5,7 @@
 
 import chronos, sequtils
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
 
 suite "KadDHT Find":
@@ -17,7 +17,7 @@ suite "KadDHT Find":
     startNodesAndDeferStop(kads)
 
     # Connect nodes: kads[0] <-> kads[1], kad0 <-> kads[2]
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectNodesHub(kads[0], kads[1 ..^ 1])
 
     # kads[1] doesn't know kads[2] yet
     check not kads[1].hasKey(kads[2].rtable.selfId)
@@ -32,9 +32,9 @@ suite "KadDHT Find":
     startNodesAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2], kads[2] <-> kads[3]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
-    connectNodes(kads[2], kads[3])
+    await connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[2])
+    await connectNodes(kads[2], kads[3])
 
     check:
       kads[0].hasKeys(@[kads[1].rtable.selfId, kads[2].rtable.selfId])
@@ -53,7 +53,7 @@ suite "KadDHT Find":
     startNodesAndDeferStop(kads)
 
     # Connect nodes in a chain: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
-    connectNodesChain(kads)
+    await connectNodesChain(kads)
 
     # Verify initial state: each node only knows its neighbors
     check:
@@ -96,12 +96,12 @@ suite "KadDHT Find":
     # Set alpha=2 to ensure both branches are queried in parallel
     kads[0].config.alpha = 2
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
-    connectNodes(kads[1], kads[3])
-    connectNodes(kads[2], kads[4])
-    connectNodes(kads[3], kads[5])
-    connectNodes(kads[4], kads[5])
+    await connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[2])
+    await connectNodes(kads[1], kads[3])
+    await connectNodes(kads[2], kads[4])
+    await connectNodes(kads[3], kads[5])
+    await connectNodes(kads[4], kads[5])
 
     # Verify initial state
     check:
@@ -131,7 +131,7 @@ suite "KadDHT Find":
     kads[0].config.replication = k
 
     # Node[0] is directly connected to all other nodes
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectNodesHub(kads[0], kads[1 ..^ 1])
     check kads[0].getPeersFromRoutingTable().len == nodeCount - 1
 
     let targetKey = kads[1].rtable.selfId
@@ -156,7 +156,7 @@ suite "KadDHT Find":
     startNodesAndDeferStop(kads)
 
     # Create fully connected triangle
-    connectNodesStar(kads)
+    await connectNodesStar(kads)
 
     # Verify initial state: each node knows the other two
     check:
@@ -185,7 +185,7 @@ suite "KadDHT Find":
     startNodesAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectNodesHub(kads[0], kads[1 ..^ 1])
 
     let res1 = await kads[1].findPeer(kads[2].switch.peerInfo.peerId)
     check res1.get().peerId == kads[2].switch.peerInfo.peerId
@@ -199,7 +199,7 @@ suite "KadDHT Find":
     let kads = setupKadSwitches(3)
     startNodesAndDeferStop(kads)
 
-    connectNodesChain(kads)
+    await connectNodesChain(kads)
 
     check not kads[0].hasKey(kads[2].rtable.selfId)
 
@@ -221,7 +221,7 @@ suite "KadDHT Find":
     let kads = setupKadSwitches(2)
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[1])
 
     # Send FIND_NODE with empty key directly
     let emptyKey: Key = @[]
@@ -239,7 +239,7 @@ suite "KadDHT Find":
     startNodesAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectNodesHub(kads[0], kads[1 ..^ 1])
 
     # kads[1] asks kads[0] for peers closest to kads[1]'s own PeerID
     let ownKey = kads[1].rtable.selfId
@@ -272,9 +272,9 @@ suite "KadDHT Find":
     let kads = setupKadSwitches(4)
     startNodesAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
-    connectNodes(kads[2], kads[3])
+    await connectNodes(kads[0], kads[1])
+    await connectNodes(kads[0], kads[2])
+    await connectNodes(kads[2], kads[3])
 
     # Stop kads[1] - dial will fail immediately with DialFailedError
     # This is marked as RespondedStatus.Failed and NOT retried
@@ -298,8 +298,8 @@ suite "KadDHT Find":
     let responsiveKad = setupKad()
     startNodesAndDeferStop(@[kad, mockKad, responsiveKad])
 
-    connectNodes(kad, mockKad)
-    connectNodes(kad, responsiveKad)
+    await connectNodes(kad, mockKad)
+    await connectNodes(kad, responsiveKad)
 
     check mockKad.handleFindNodeCalls == 0
 

@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils], stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, rpc/message]
-import ../../../tools/unittest
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Gossip Protocol":

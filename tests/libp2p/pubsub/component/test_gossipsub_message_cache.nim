@@ -7,7 +7,7 @@ import chronos, std/[sequtils], stew/byteutils
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, floodsub, rpc/messages, rpc/message]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Message Cache":

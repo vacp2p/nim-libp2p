@@ -263,7 +263,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(11)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     await allFutures(peerNodes.mapIt(it.advertise(namespace)))
@@ -294,7 +294,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(10)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     const namespaceFoo = "foo"
     const namespaceBar = "Bar"
@@ -317,7 +317,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(2)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     let
       rdv0 = peerNodes[0]
@@ -342,7 +342,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(30)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     let rdv = peerNodes[0]
 
@@ -440,7 +440,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(20)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     # Advertise peers
     const
@@ -511,7 +511,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     # Advertise two peers initially
@@ -544,7 +544,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(8)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     # Advertise 4 peers in namespace
@@ -580,7 +580,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     await allFutures(peerNodes.mapIt(it.advertise(namespace)))
@@ -707,7 +707,7 @@ suite "RendezVous":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
     startNodesAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesHub(rendezvousNode, peerNodes, connectNodes)
+    await connectNodesHub(rendezvousNode, peerNodes)
 
     let
       joiner = peerNodes[0]

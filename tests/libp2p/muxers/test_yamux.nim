@@ -3,8 +3,8 @@
 
 {.used.}
 
-import sugar, chronos
-import ../../../libp2p/[stream/connection, stream/bridgestream, muxers/yamux/yamux]
+import sugar
+import ../../../libp2p/[stream/bridgestream, muxers/yamux/yamux]
 import ../../tools/[unittest, futures]
 
 include ../../../libp2p/muxers/yamux/yamux

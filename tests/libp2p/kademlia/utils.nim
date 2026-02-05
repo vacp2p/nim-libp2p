@@ -4,10 +4,8 @@
 
 import algorithm, chronos, chronicles, results, sequtils, sets, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[crypto, lifecycle, topology, unittest]
+import ../../tools/[crypto, unittest]
 import ./mock_kademlia
-
-export lifecycle, topology
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
@@ -110,7 +108,7 @@ proc setupKadSwitches*(
     kads.add(setupKad(config, bootstrapNodes))
   kads
 
-proc connectNodes*(kad1, kad2: KadDHT) =
+proc connectNodes*(kad1, kad2: KadDHT) {.async.} =
   ## Bidirectionally connect two KadDHT instances.
   # Add to routing tables
   discard kad1.rtable.insert(kad2.switch.peerInfo.peerId)
@@ -121,15 +119,6 @@ proc connectNodes*(kad1, kad2: KadDHT) =
     kad2.switch.peerInfo.addrs
   kad2.switch.peerStore[AddressBook][kad1.switch.peerInfo.peerId] =
     kad1.switch.peerInfo.addrs
-
-proc connectNodesStar*(nodes: seq[KadDHT]) =
-  topology.connectNodesStar(nodes, connectNodes)
-
-proc connectNodesHub*(hub: KadDHT, nodes: seq[KadDHT]) =
-  topology.connectNodesHub(hub, nodes, connectNodes)
-
-proc connectNodesChain*(nodes: seq[KadDHT]) =
-  topology.connectNodesChain(nodes, connectNodes)
 
 proc hasKey*(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:

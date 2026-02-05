@@ -26,9 +26,9 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../../tools/[unittest, crypto, bufferstream, futures, lifecycle, topology]
+import ../../tools/[unittest, crypto, bufferstream, futures]
 
-export builders, lifecycle, topology
+export builders
 
 randomize()
 
@@ -305,21 +305,6 @@ proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
   await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
   await sleepAsync(connectWarmup)
 
-proc connectNodesChain*[T: PubSub](nodes: seq[T]) {.async.} =
-  await topology.connectNodesChain(nodes, connectNodes[T])
-
-proc connectNodesRing*[T: PubSub](nodes: seq[T]) {.async.} =
-  await topology.connectNodesRing(nodes, connectNodes[T])
-
-proc connectNodesHub*[T: PubSub](hub: T, nodes: seq[T]) {.async.} =
-  await topology.connectNodesHub(hub, nodes, connectNodes[T])
-
-proc connectNodesStar*[T: PubSub](nodes: seq[T]) {.async.} =
-  await topology.connectNodesStar(nodes, connectNodes[T])
-
-proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
-  await topology.connectNodesSparse(nodes, connectNodes[T], degree)
-
 template waitSubscribeChain*[T: PubSub](nodes: seq[T], topic: string): untyped =
   ## Chain: 1-2-3-4-5
   ## 
@@ -376,7 +361,7 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
       seen: HashSet[PeerId]
     for n in nodes:
       nodesMesh[n.peerInfo.peerId] =
-        toSeq(GossipSub(n).mesh.getOrDefault(key).items()).mapIt(it.peerId)
+        toSeq(n.mesh.getOrDefault(key).items()).mapIt(it.peerId)
     var ok = 0
     for n in nodes:
       seen.clear()

@@ -23,7 +23,7 @@ suite "Kademlia discovery - FindRandom":
     let kads = setupKads(5, ExtEntryValidator(), ExtEntrySelector())
     startNodesAndDeferStop(kads)
 
-    connectNodesStar(kads, connectNodes)
+    await connectNodesStar(kads)
 
     let records = await kads[1].randomRecords()
 
