@@ -22,13 +22,11 @@ proc randomRecords*(
 
   let randomKey = randomPeerId.toKey()
 
-  let queue = newAsyncQueue[(PeerId, Opt[Message])]()
+  let queue = newAsyncQueue[(PeerId, Opt[Message])](disco.config.replication)
 
   let peers = disco.rtable.findClosestPeerIds(randomKey, disco.config.replication)
   for peer in peers:
-    # queue cannot be full, we just created it...
-    # we add to the beginning of the queue to reverse the order
-    # since closer peers are lasts
+    # ignore errors, queue capacity is the same as peer count
     let _ = catch:
       queue.addFirstNoWait((peer, Opt.none(Message)))
 
@@ -58,8 +56,6 @@ proc randomRecords*(
 
     buffers.add(buffer)
 
-  # Since we start with K closest and also ask for closer peers
-  # we end up with duplicates.
   var records: HashSet[ExtendedPeerRecord]
   for buffer in buffers:
     let sxpr = SignedExtendedPeerRecord.decode(buffer).valueOr:
