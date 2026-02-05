@@ -28,9 +28,9 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
     return c.publishToPeers
 
   proc nodeTopicOpts(topic: string): TopicOpts {.gcsafe, raises: [].} =
-    if topic.contains("partial"):
-      return TopicOpts(requestsPartial: true)
-    return TopicOpts()
+    return TopicOpts(requestsPartial: topic.contains("partial"))
+      # convention, in this test file, topic that have "partial" in name will be consider 
+      # to be requesting partial messages
 
   proc isSupported(peer: PeerId): bool {.gcsafe, raises: [].} =
     return true
@@ -61,6 +61,29 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
     onIncomingRPC: onIncomingRPC,
     heartbeatsTillEviction: 3,
   )
+
+proc subscribe(
+    ext: PartialMessageExtension, peerId: PeerId, topic: string, subscribe: bool
+) =
+  # helper utility for subscribing
+  ext.onHandleRPC(
+    peerId,
+    RPCMsg(
+      subscriptions:
+        @[
+          SubOpts(
+            topic: topic,
+            subscribe: subscribe,
+            requestsPartial: some(topic.contains("partial")),
+          )
+        ]
+    ),
+  )
+
+proc handlePartialMessage(
+    ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
+) =
+  ext.onHandleRPC(peerId, RPCMsg(partialMessageExtension: some(rpc)))
 
 suite "GossipSub Extensions :: Partial Message Extension":
   let peerId = PeerId.random(rng).get()
@@ -118,36 +141,26 @@ suite "GossipSub Extensions :: Partial Message Extension":
     var cr = CallbackRecorder(publishToPeers: @[peerId])
     var ext = PartialMessageExtension.new(cr.config())
 
-    # subscribe peer
-    ext.onHandleRPC(
-      peerId,
-      RPCMsg(
-        subscriptions:
-          @[SubOpts(topic: topic, subscribe: true, requestsPartial: some(true))]
-      ),
-    )
+    # peer subscribe with partial capability (topic has 'partial')
+    ext.subscribe(peerId, topic, true)
     check ext.peerRequestsPartial(peerId, topic)
 
-    # peer sends RPC seeking parts 1, 2
-    ext.onHandleRPC(
+    # peer sends RPC seeking parts [1, 2]
+    ext.handlePartialMessage(
       peerId,
-      RPCMsg(
-        partialMessageExtension: some(
-          PartialMessageExtensionRPC(
-            topicID: topic,
-            groupID: groupId,
-            partsMetadata: rawMetadata(@[1, 2], Meta.want),
-          )
-        )
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1, 2], Meta.want)
       ),
     )
 
+    # application/user is publishing message with parts [1, 2, 3]
     let pm = MyPartialMessage(
       groupId: groupId,
       data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
     )
     check ext.publishPartial(topic, pm) == 1 # should publish to one peer
 
+    # the peer should receive partial messages RPC with data of parts [1, 2] = "one" + "two"
     check cr.sentRPC.len == 1
     let msg1 = cr.sentRPC[0]
     check:

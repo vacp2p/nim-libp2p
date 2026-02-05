@@ -51,6 +51,7 @@ type
       # error for this message.
       # needs to be implemented by application.
     heartbeatsTillEviction*: int
+      # number of heartbeats for which metadata will be retained before eviction
 
   PeerGroupState = ref object
     partsMetadata: PartsMetadata
