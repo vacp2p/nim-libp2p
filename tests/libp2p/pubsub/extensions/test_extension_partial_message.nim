@@ -305,7 +305,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
       ),
     )
 
-    # when peer is removed, it's parts metadata will be removed
+    # when peer is removed, its parts metadata will be removed
     ext.onRemovePeer(peerId)
 
     # should not publish to peer because metadata has been removed
