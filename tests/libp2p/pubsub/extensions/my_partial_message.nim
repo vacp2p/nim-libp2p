@@ -68,7 +68,7 @@ proc unionPartsMetadata*(
   return ok(metadata)
 
 type MyPartialMessage* = ref object of PartialMessage
-  # implements PartialMessage as example implementation need for testing
+  # implements PartialMessage as example implementation needed for testing
   groupId*: GroupId
   data*: Table[Chunk, seq[byte]] # holds parts that this partial message has
   want*: seq[Chunk] # holds parts that this partial message wants
