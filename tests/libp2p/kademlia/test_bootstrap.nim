@@ -14,7 +14,7 @@ suite "KadDHT Bootstrap":
 
   asyncTest "bootstrap calls findNode on self first and skips empty buckets":
     let kad = setupMockKad()
-    startNodesAndDeferStop(@[kad])
+    startAndDeferStop(@[kad])
 
     check kad.rtable.buckets.len == 0
 
@@ -28,7 +28,7 @@ suite "KadDHT Bootstrap":
 
   asyncTest "bootstrap skips fresh buckets":
     let kad = setupMockKad()
-    startNodesAndDeferStop(@[kad])
+    startAndDeferStop(@[kad])
 
     # Add peers - they will be fresh (just added)
     kad.populateRoutingTable(5)
@@ -42,7 +42,7 @@ suite "KadDHT Bootstrap":
 
   asyncTest "bootstrap refreshes stale buckets":
     let kad = setupMockKad()
-    startNodesAndDeferStop(@[kad])
+    startAndDeferStop(@[kad])
 
     # Add multiple peers to create multiple buckets
     kad.populateRoutingTable(20)
@@ -62,7 +62,7 @@ suite "KadDHT Bootstrap":
 
   asyncTest "bootstrap with mixed fresh and stale buckets refreshes only stale":
     let kad = setupMockKad()
-    startNodesAndDeferStop(@[kad])
+    startAndDeferStop(@[kad])
 
     kad.populateRoutingTable(20)
 
@@ -89,7 +89,7 @@ suite "KadDHT Bootstrap":
 
   asyncTest "bootstrap with forceRefresh=true refreshes all non-empty buckets":
     let kad = setupMockKad()
-    startNodesAndDeferStop(@[kad])
+    startAndDeferStop(@[kad])
 
     kad.populateRoutingTable(20)
 
@@ -109,13 +109,13 @@ suite "KadDHT Bootstrap Component":
   asyncTest "bootstrap discovers new peers through network":
     # 1 hub + 9 nodes bootstrapping from hub
     let hubKad = setupKad()
-    startNodesAndDeferStop(@[hubKad])
+    startAndDeferStop(@[hubKad])
 
     let kads = setupKadSwitches(
       9,
       bootstrapNodes = @[(hubKad.switch.peerInfo.peerId, hubKad.switch.peerInfo.addrs)],
     )
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # All nodes should know about all other nodes after bootstrap
     for i, kad in kads:
@@ -130,7 +130,7 @@ suite "KadDHT Bootstrap Component":
 
     let config = testKadConfig(timeout = chronos.milliseconds(100))
     let kad = setupKad(config = config, bootstrapNodes = @[(fakePeerId, fakeAddrs)])
-    startNodesAndDeferStop(@[kad])
+    startAndDeferStop(@[kad])
 
     check:
       kad.hasKey(fakePeerId.toKey()) # fake peer should be in routing table

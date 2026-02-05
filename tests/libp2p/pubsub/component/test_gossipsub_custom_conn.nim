@@ -52,7 +52,7 @@ suite "GossipSub Component - Custom Connection Support":
       )
     )
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
@@ -69,7 +69,7 @@ suite "GossipSub Component - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)

@@ -29,7 +29,7 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
@@ -51,7 +51,7 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[0].subscribe(topic, handler)
@@ -65,7 +65,7 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
@@ -90,7 +90,7 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
@@ -118,7 +118,7 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topicFoo, handler)
@@ -162,7 +162,7 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(numberOfNodes, triggerSelf = false).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
@@ -198,7 +198,7 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(numberOfNodes, triggerSelf = true).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
@@ -231,7 +231,7 @@ suite "FloodSub Component":
       smallNode = generateNodes(1, maxMessageSize = 200).toFloodSub()[0]
       nodes = @[bigNode, smallNode]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
@@ -263,7 +263,7 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2, maxMessageSize = 20000000).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)

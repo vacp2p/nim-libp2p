@@ -20,7 +20,7 @@ suite "GossipSub Component - Message Cache":
     const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectStar(nodes)
 
@@ -47,7 +47,7 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectStar(nodes)
 
@@ -87,7 +87,7 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectHub(nodes[0], nodes[1 .. ^1])
 
@@ -127,7 +127,7 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectHub(nodes[0], nodes[1 .. ^1])
 
@@ -178,7 +178,7 @@ suite "GossipSub Component - Message Cache":
     const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -214,7 +214,7 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connect(nodes[0], nodes[1])
     nodes[0].subscribe(topic, voidTopicHandler)
@@ -279,7 +279,7 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectStar(nodes)
 

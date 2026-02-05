@@ -15,7 +15,7 @@ suite "KadDHT Get":
 
   asyncTest "Get from peer":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -38,7 +38,7 @@ suite "KadDHT Get":
 
   asyncTest "Get value that is locally present":
     let kads = setupKadSwitches(1)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -52,7 +52,7 @@ suite "KadDHT Get":
 
   asyncTest "Divergent getVal responses from peers":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectStar(kads)
 
@@ -86,7 +86,7 @@ suite "KadDHT Get":
 
   asyncTest "Could not achieve quorum":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectStar(kads)
 
@@ -109,7 +109,7 @@ suite "KadDHT Get":
 
   asyncTest "Update peers with empty values":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectStar(kads)
 
@@ -148,7 +148,7 @@ suite "KadDHT Get":
       chronos.seconds(1),
       chronos.seconds(1),
     )
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectHub(kads[0], kads[1 ..^ 1])
 
@@ -176,7 +176,7 @@ suite "KadDHT Get":
       chronos.seconds(1),
       chronos.seconds(1),
     )
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectHub(kads[0], kads[1 ..^ 1])
 
@@ -207,7 +207,7 @@ suite "KadDHT Get":
       chronos.seconds(1),
       chronos.seconds(1),
     )
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectStar(kads)
 
@@ -252,7 +252,7 @@ suite "KadDHT Get":
 
     let mockKad = setupMockKad(getValueResponse = getValueResponse)
 
-    startNodesAndDeferStop(@[kad, mockKad])
+    startAndDeferStop(@[kad, mockKad])
 
     await connect(kad, mockKad)
 
@@ -283,7 +283,7 @@ suite "KadDHT Get":
 
     let mockKad = setupMockKad(getValueResponse = getValueResponse)
 
-    startNodesAndDeferStop(@[kad, mockKad])
+    startAndDeferStop(@[kad, mockKad])
 
     await connect(kad, mockKad)
 
@@ -318,7 +318,7 @@ suite "KadDHT Get":
 
     let mockKad = setupMockKad(getValueResponse = getValueResponse)
 
-    startNodesAndDeferStop(@[kad, mockKad])
+    startAndDeferStop(@[kad, mockKad])
 
     await connect(kad, mockKad)
 
@@ -355,7 +355,7 @@ suite "KadDHT Get":
 
     let mockKad = setupMockKad(getValueResponse = getValueResponse)
 
-    startNodesAndDeferStop(kads & mockKad)
+    startAndDeferStop(kads & mockKad)
 
     await connectHub(kads[0], kads[1 ..^ 1] & mockKad)
 
@@ -374,7 +374,7 @@ suite "KadDHT Get":
   asyncTest "Get value rejects records that fail validation":
     # Use RestrictiveValidator which rejects all records
     let kads = setupKadSwitches(2, RestrictiveValidator(), CandSelector())
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -398,7 +398,7 @@ suite "KadDHT Get":
 
   asyncTest "Get value succeeds when some peers are offline":
     let kads = setupKadSwitches(4)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectStar(kads)
 
@@ -422,7 +422,7 @@ suite "KadDHT Get":
 
   asyncTest "Get value fails when too many peers are offline":
     let kads = setupKadSwitches(4)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectStar(kads)
 
@@ -447,7 +447,7 @@ suite "KadDHT Get":
 
   asyncTest "Get value retrieves binary data with null and high bytes":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 

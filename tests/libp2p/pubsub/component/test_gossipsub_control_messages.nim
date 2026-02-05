@@ -29,7 +29,7 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And the nodes are connected
     await connectStar(nodes)
@@ -79,7 +79,7 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And the nodes are connected
     await connectStar(nodes)
@@ -121,7 +121,7 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And the nodes are connected
     await connectStar(nodes)
@@ -168,7 +168,7 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And the nodes are connected
     await connectStar(nodes)
@@ -209,7 +209,7 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Given node1 has an IHAVE observer
     var (receivedIHaves, checkForIHaves) = createCheckForIHave()
@@ -246,7 +246,7 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
     var (receivedIWants, checkForIWants) = createCheckForIWant()
@@ -284,7 +284,7 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
     var (receivedIWants, checkForIWants) = createCheckForIWant()
@@ -310,7 +310,7 @@ suite "GossipSub Component - Control Messages":
   asyncTest "IDONTWANT":
     let nodes = generateNodes(3, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes in chain connection
     await connectChain(nodes)
@@ -355,7 +355,7 @@ suite "GossipSub Component - Control Messages":
     let nodes =
       generateNodes(2, gossip = true, sendIDontWantOnPublish = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectStar(nodes)
 
@@ -378,7 +378,7 @@ suite "GossipSub Component - Control Messages":
         n0 = nodes[0]
         n1 = nodes[1]
 
-      startNodesAndDeferStop(nodes)
+      startAndDeferStop(nodes)
 
       # And the nodes are connected
       await connectStar(nodes)

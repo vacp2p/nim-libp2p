@@ -100,7 +100,7 @@ suite "RendezVous Errors":
 
     asyncTest &"Node returns ERROR_CODE for invalid message - {testName}":
       let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-      startNodesAndDeferStop(peerNodes & rendezvousNode)
+      startAndDeferStop(peerNodes & rendezvousNode)
 
       await connect(peerNodes[0], rendezvousNode)
 
@@ -121,7 +121,7 @@ suite "RendezVous Errors":
 
   asyncTest "Node returns NotAuthorized when Register exceeding peer limit":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    startNodesAndDeferStop(peerNodes & rendezvousNode)
+    startAndDeferStop(peerNodes & rendezvousNode)
 
     await connect(peerNodes[0], rendezvousNode)
 

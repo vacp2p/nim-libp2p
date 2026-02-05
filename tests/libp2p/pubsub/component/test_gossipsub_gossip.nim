@@ -21,7 +21,7 @@ suite "GossipSub Component - Gossip Protocol":
       nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var messages = addIHaveObservers(nodes)
@@ -55,7 +55,7 @@ suite "GossipSub Component - Gossip Protocol":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var messages = addIHaveObservers(nodes)
@@ -91,7 +91,7 @@ suite "GossipSub Component - Gossip Protocol":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var messages = addIHaveObservers(nodes)
@@ -128,7 +128,7 @@ suite "GossipSub Component - Gossip Protocol":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var messages = addIHaveObservers(nodes)
@@ -156,7 +156,7 @@ suite "GossipSub Component - Gossip Protocol":
       numberOfNodes = 3
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iDontWant messages
     var messages = addIDontWantObservers(nodes)
@@ -188,7 +188,7 @@ suite "GossipSub Component - Gossip Protocol":
       generateNodes(2, gossip = true, enablePX = true).toGossipSub() &
       generateNodes(1, gossip = true, sendSignedPeerRecord = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)

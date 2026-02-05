@@ -22,7 +22,7 @@ suite "GossipSub Component - Scoring":
       nodes =
         generateNodes(numberOfNodes, gossip = true, floodPublish = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes 1 and 2 are connected to node 0
     await connectHub(nodes[0], nodes[1 ..^ 1])
@@ -60,7 +60,7 @@ suite "GossipSub Component - Scoring":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -100,7 +100,7 @@ suite "GossipSub Component - Scoring":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -139,7 +139,7 @@ suite "GossipSub Component - Scoring":
         .toGossipSub()
       rateLimitHits = currentRateLimitHits()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -199,7 +199,7 @@ suite "GossipSub Component - Scoring":
         .toGossipSub()
       rateLimitHits = currentRateLimitHits()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -235,7 +235,7 @@ suite "GossipSub Component - Scoring":
   asyncTest "DirectPeers: don't kick direct peer with low score":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await nodes.addDirectPeerStar()
 
     nodes[1].parameters.disconnectBadPeers = true
@@ -265,7 +265,7 @@ suite "GossipSub Component - Scoring":
     let nodes =
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     var seen: Table[string, int]
@@ -336,7 +336,7 @@ suite "GossipSub Component - Scoring":
 
     nodes.setDefaultTopicParams(topic)
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     var (handlerFut, handler) = createCompleteHandler()
@@ -386,7 +386,7 @@ suite "GossipSub Component - Scoring":
       node.topicParams[topic].invalidMessageDeliveriesWeight = -10.0
       node.topicParams[topic].invalidMessageDeliveriesDecay = 0.9
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And Node 0 is center node, connected to others
     await connectHub(nodes[0], nodes[1 ..^ 1])
@@ -482,7 +482,7 @@ suite "GossipSub Component - Scoring":
       node.topicParams[topic].meshFailurePenaltyDecay = 0.9
       node.topicParams[topic].meshFailurePenaltyWeight = -5.0
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And Nodes are connected and subscribed to the topic
     await connectStar(nodes)

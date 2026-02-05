@@ -195,7 +195,7 @@ suite "GossipSub Component - Message Handling":
       numberOfNodes = 3
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     let (handlerFut0, handler0) = createCompleteHandler()
     let (handlerFut1, handler1) = createCompleteHandler()
@@ -225,7 +225,7 @@ suite "GossipSub Component - Message Handling":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
@@ -250,7 +250,7 @@ suite "GossipSub Component - Message Handling":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
@@ -278,7 +278,7 @@ suite "GossipSub Component - Message Handling":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
@@ -312,7 +312,7 @@ suite "GossipSub Component - Message Handling":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topicFoo, handler)
@@ -365,7 +365,7 @@ suite "GossipSub Component - Message Handling":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[0].addObserver(obs0)
@@ -407,7 +407,7 @@ suite "GossipSub Component - Message Handling":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
@@ -431,7 +431,7 @@ suite "GossipSub Component - Message Handling":
     # so B should not send to anyone
     let nodes = generateNodes(3, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     let cRelayed = newWaitGroup(1)
@@ -494,7 +494,7 @@ suite "GossipSub Component - Message Handling":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     nodes[0].parameters.floodPublish = true
     nodes[1].parameters.floodPublish = true
@@ -526,7 +526,7 @@ suite "GossipSub Component - Message Handling":
     # bandwidth is calculated per heartbeat
     nodes[0].parameters.heartbeatInterval = milliseconds(700)
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -549,7 +549,7 @@ suite "GossipSub Component - Message Handling":
     # should flood publish to all, when bandwidthEstimatebps is disabled
     nodes[0].parameters.bandwidthEstimatebps = 0
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -565,7 +565,7 @@ suite "GossipSub Component - Message Handling":
     let nodes =
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     var seen: Table[string, int]
@@ -605,7 +605,7 @@ suite "GossipSub Component - Message Handling":
     let nodes =
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectSparse(nodes)
 
     var seen: Table[string, int]
@@ -654,7 +654,7 @@ suite "GossipSub Component - Message Handling":
     let nodes =
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectSparse(nodes)
 
     var seen: Table[string, int]
@@ -695,7 +695,7 @@ suite "GossipSub Component - Message Handling":
   asyncTest "GossipSub directPeers: always forward messages":
     let nodes = generateNodes(3, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await nodes[0].addDirectPeer(
       nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs
@@ -739,7 +739,7 @@ suite "GossipSub Component - Message Handling":
       node0 = nodes[0]
       node1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # With message observers
     var

@@ -14,7 +14,7 @@ suite "KadDHT Put":
 
   asyncTest "PUT_VALUE stores record at both sender and target peer":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -34,7 +34,7 @@ suite "KadDHT Put":
 
   asyncTest "PUT_VALUE requires validation on both sender and receiver":
     let kads = setupKadSwitches(2, validator = RestrictiveValidator())
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -61,7 +61,7 @@ suite "KadDHT Put":
 
   asyncTest "PUT_VALUE sets timeReceived in RFC3339 format":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -80,7 +80,7 @@ suite "KadDHT Put":
 
   asyncTest "PUT_VALUE uses selector to choose best value":
     let kads = setupKadSwitches(2, selector = OthersSelector())
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -106,7 +106,7 @@ suite "KadDHT Put":
 
   asyncTest "PUT_VALUE rejects mismatched Message.key and Record.key":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -136,7 +136,7 @@ suite "KadDHT Put":
 
   asyncTest "PUT_VALUE with no record / no value - malformed message handling":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -168,7 +168,7 @@ suite "KadDHT Put":
 
   asyncTest "PUT_VALUE response echoes request":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -198,7 +198,7 @@ suite "KadDHT Put":
 
   asyncTest "PUT_VALUE stores binary data with null and high bytes":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 

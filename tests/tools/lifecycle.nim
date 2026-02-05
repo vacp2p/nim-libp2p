@@ -14,7 +14,7 @@ proc stopNodes*[T](nodes: seq[T]) {.async.} =
     await allFutures(nodes.mapIt(it.stop()))
   await allFutures(nodes.mapIt(it.switch.stop()))
 
-template startNodesAndDeferStop*[T](nodes: seq[T]): untyped =
+template startAndDeferStop*[T](nodes: seq[T]): untyped =
   await startNodes(nodes)
   defer:
     await stopNodes(nodes)

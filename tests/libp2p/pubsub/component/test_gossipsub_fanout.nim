@@ -17,7 +17,7 @@ suite "GossipSub Component - Fanout Management":
   asyncTest "GossipSub send over fanout A -> B":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     let (passed, handler) = createCompleteHandler()
@@ -57,7 +57,7 @@ suite "GossipSub Component - Fanout Management":
     nodes[1].parameters.dHigh = 0
     nodes[1].parameters.dLow = 0
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     let (passed, handler) = createCompleteHandler()

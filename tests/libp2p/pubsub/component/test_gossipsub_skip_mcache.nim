@@ -17,7 +17,7 @@ suite "GossipSub Component - Skip MCache Support":
   asyncTest "publish with skipMCache prevents message from being added to mcache":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
@@ -35,7 +35,7 @@ suite "GossipSub Component - Skip MCache Support":
   asyncTest "publish without skipMCache adds message to mcache":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)

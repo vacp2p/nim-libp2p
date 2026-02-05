@@ -23,7 +23,7 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes are connected to Node0
     await connectHub(node0, nodes[1 .. ^1])
@@ -69,7 +69,7 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes are connected to Node0
     await connectHub(node0, nodes[1 .. ^1])
@@ -112,7 +112,7 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes are connected to Node0
     await connectHub(node0, nodes[1 .. ^1])
@@ -159,7 +159,7 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     # All nodes but Node0 are subscribed to the topic
@@ -191,7 +191,7 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await connectStar(nodes)
 
     # All nodes but Node0 are subscribed  to the topic
@@ -240,7 +240,7 @@ suite "GossipSub Component - Heartbeat":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectChain(nodes)
 
@@ -296,7 +296,7 @@ suite "GossipSub Component - Heartbeat":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectHub(nodes[0], nodes[1 .. ^1])
     subscribeAllNodes(nodes, topic, voidTopicHandler)

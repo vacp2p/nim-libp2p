@@ -14,7 +14,7 @@ suite "KadDHT Find":
 
   asyncTest "Simple find node":
     let kads = setupKadSwitches(3)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Connect nodes: kads[0] <-> kads[1], kad0 <-> kads[2]
     await connectHub(kads[0], kads[1 ..^ 1])
@@ -29,7 +29,7 @@ suite "KadDHT Find":
 
   asyncTest "Relay find node":
     let kads = setupKadSwitches(4)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2], kads[2] <-> kads[3]
     await connect(kads[0], kads[1])
@@ -50,7 +50,7 @@ suite "KadDHT Find":
 
   asyncTest "Find node accumulates peers from multiple responses":
     let kads = setupKadSwitches(4)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Connect nodes in a chain: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
     await connectChain(kads)
@@ -91,7 +91,7 @@ suite "KadDHT Find":
     #         node[2] - node[4]
 
     let kads = setupKadSwitches(6)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Set alpha=2 to ensure both branches are queried in parallel
     kads[0].config.alpha = 2
@@ -124,7 +124,7 @@ suite "KadDHT Find":
   asyncTest "Find node returns the actual k closest":
     let nodeCount = 8
     let kads = setupKadSwitches(nodeCount)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Set replication factor to 3
     let k = 3
@@ -153,7 +153,7 @@ suite "KadDHT Find":
     # Without exclusion: kads[0] queries kads[1]/kads[2] -> they return each other -> repeat
     # With exclusion: kads[0] queries kads[1]/kads[2] once, marks them responded, terminates
     let kads = setupKadSwitches(3)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Create fully connected triangle
     await connectStar(kads)
@@ -182,7 +182,7 @@ suite "KadDHT Find":
 
   asyncTest "Find peer":
     let kads = setupKadSwitches(3)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
     await connectHub(kads[0], kads[1 ..^ 1])
@@ -197,7 +197,7 @@ suite "KadDHT Find":
   asyncTest "Find node via refresh stale buckets":
     # Setup: kads[0] <-> kads[1] <-> kads[2] (kads[0] doesn't initially know kads[2])
     let kads = setupKadSwitches(3)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectChain(kads)
 
@@ -219,7 +219,7 @@ suite "KadDHT Find":
 
   asyncTest "Find node with empty key returns closest peers":
     let kads = setupKadSwitches(2)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
 
@@ -236,7 +236,7 @@ suite "KadDHT Find":
 
   asyncTest "Find node for own PeerID returns closest peers":
     let kads = setupKadSwitches(3)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
     await connectHub(kads[0], kads[1 ..^ 1])
@@ -256,7 +256,7 @@ suite "KadDHT Find":
 
   asyncTest "Find node with empty routing table returns empty result":
     let kads = setupKadSwitches(1)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     # Routing table is empty (no peers connected)
     check kads[0].getPeersFromRoutingTable().len == 0
@@ -270,7 +270,7 @@ suite "KadDHT Find":
     # kads[0] knows kads[1] (will fail immediately) and kads[2] (responds)
     # kads[2] knows kads[3]
     let kads = setupKadSwitches(4)
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connect(kads[0], kads[1])
     await connect(kads[0], kads[2])
@@ -296,7 +296,7 @@ suite "KadDHT Find":
       setupKad(config = testKadConfig(timeout = 100.milliseconds, retries = retries))
     let mockKad = setupMockKad(handleFindNodeDelay = 500.milliseconds) # > timeout
     let responsiveKad = setupKad()
-    startNodesAndDeferStop(@[kad, mockKad, responsiveKad])
+    startAndDeferStop(@[kad, mockKad, responsiveKad])
 
     await connect(kad, mockKad)
     await connect(kad, responsiveKad)

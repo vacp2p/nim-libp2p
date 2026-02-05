@@ -21,7 +21,7 @@ suite "Kademlia discovery - FindRandom":
 
   asyncTest "Simple find random node":
     let kads = setupKads(5, ExtEntryValidator(), ExtEntrySelector())
-    startNodesAndDeferStop(kads)
+    startAndDeferStop(kads)
 
     await connectStar(kads)
 

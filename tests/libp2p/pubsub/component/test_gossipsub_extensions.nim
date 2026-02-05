@@ -27,7 +27,7 @@ suite "GossipSub Component - Extensions":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connect(nodes[0], nodes[1])
 
@@ -62,7 +62,7 @@ suite "GossipSub Component - Extensions":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connect(nodes[0], nodes[1])
 

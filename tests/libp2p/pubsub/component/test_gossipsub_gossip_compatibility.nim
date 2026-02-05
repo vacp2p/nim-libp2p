@@ -36,7 +36,7 @@ suite "GossipSub Component - Compatibility":
       node1PeerId = node1.peerInfo.peerId
       node2PeerId = node2.peerInfo.peerId
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -66,7 +66,7 @@ suite "GossipSub Component - Compatibility":
 
     nodes &= nodeCodec11
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await connectHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11])
 
