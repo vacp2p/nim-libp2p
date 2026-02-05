@@ -135,7 +135,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     var cr = CallbackRecorder(publishToPeers: @[peerId])
     var ext = PartialMessageExtension.new(cr.config())
 
-    # peer subscribe with partial capability (topic has 'partial')
+    # peer subscribes with partial capability (topic has 'partial')
     ext.subscribe(peerId, topic, true)
     check ext.peerRequestsPartial(peerId, topic)
 
