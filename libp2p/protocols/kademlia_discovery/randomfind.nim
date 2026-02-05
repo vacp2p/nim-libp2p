@@ -5,7 +5,7 @@ import std/[sequtils, sets]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
 import ../protocol
-import ../kademlia/[types, find, get, protobuf]
+import ../kademlia/[types, find, get, protobuf, routingtable]
 import ./[types]
 
 logScope:
@@ -23,6 +23,14 @@ proc randomRecords*(
   let randomKey = randomPeerId.toKey()
 
   let queue = newAsyncQueue[(PeerId, Opt[Message])]()
+
+  let peers = disco.rtable.findClosestPeerIds(randomKey, disco.config.replication)
+  for peer in peers:
+    let addRes = catch:
+      queue.addFirstNoWait((peer, Opt.none(Message)))
+    if addRes.isErr:
+      error "cannot enqueue peer", error = addRes.error.msg
+
   let findRes = catch:
     await disco.findNode(randomKey, queue)
   if findRes.isErr:
@@ -49,15 +57,15 @@ proc randomRecords*(
 
     buffers.add(buffer)
 
-  var records: seq[ExtendedPeerRecord]
+  var records: HashSet[ExtendedPeerRecord]
   for buffer in buffers:
     let sxpr = SignedExtendedPeerRecord.decode(buffer).valueOr:
       debug "cannot decode signed extended peer record", error
       continue
 
-    records.add(sxpr.data)
+    records.incl(sxpr.data)
 
-  return records
+  return records.toSeq()
 
 proc filterByServices*(
     records: seq[ExtendedPeerRecord], services: HashSet[ServiceInfo]
