@@ -126,6 +126,11 @@ suite "GossipSub Extensions :: Partial Message Extension":
 
     expect AssertionDefect:
       var config = cr.config()
+      config.unionPartsMetadata = nil
+      let ext = PartialMessageExtension.new(config)
+
+    expect AssertionDefect:
+      var config = cr.config()
       config.heartbeatsTillEviction = 0
       let ext = PartialMessageExtension.new(config)
 
@@ -140,12 +145,17 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.subscribe(peerId, topicPartial, true)
     check ext.peerRequestsPartial(peerId, topicPartial)
 
+    # unsubscribe should remove information about this topic
+    ext.subscribe(peerId, topicPartial, false)
+    check ext.peerRequestsPartial(peerId, topicPartial) == false
+
     # should subscribe without partial
     check ext.peerRequestsPartial(peerId, topicFull) == false
     ext.subscribe(peerId, topicFull, true)
     check ext.peerRequestsPartial(peerId, topicFull) == false
 
-    # when peer is remove there should not be any data associated with them
+    # when peer is removed there should not be any data associated with them
+    ext.subscribe(peerId, topicPartial, true)
     ext.onRemovePeer(peerId)
     check ext.peerRequestsPartial(peerId, topicPartial) == false
 
