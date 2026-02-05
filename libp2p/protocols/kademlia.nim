@@ -103,9 +103,6 @@ proc new*(
         await kad.handleGetProviders(conn, msg)
       of MessageType.ping:
         await kad.handlePing(conn, msg)
-      else:
-        error "Unhandled kad-dht message type", msg = msg
-        return
 
   return kad
 

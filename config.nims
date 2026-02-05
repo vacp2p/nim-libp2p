@@ -2,11 +2,17 @@
 if dirExists("nimbledeps/pkgs2"):
   switch("NimblePath", "nimbledeps/pkgs2")
 
+switch("warningAsError", "BareExcept:on")
+switch("warningAsError", "CaseTransition:on")
+switch("warningAsError", "CStringConv:on")
+switch("warningAsError", "ImplicitDefaultValue:on")
+switch("warningAsError", "LockLevel:on")
+switch("warningAsError", "ObservableStores:on")
+switch("warningAsError", "UnreachableElse:on")
 switch("warningAsError", "UnusedImport:on")
 switch("warningAsError", "UseBase:on")
-switch("warning", "CaseTransition:off")
-switch("warning", "ObservableStores:off")
-switch("warning", "LockLevel:off")
+switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
+switch("hintAsError", "DuplicateModuleImport:on")
 
 --styleCheck:
   usages

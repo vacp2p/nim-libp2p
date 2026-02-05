@@ -129,10 +129,10 @@ if defined(android):
     ) {.raises: [].} =
       echo logLevel, msg
 
-# Initializes the Nim runtime and foreign-thread GC
 proc initializeLibrary() {.exported.} =
+  ## Initializes the Nim runtime and foreign-thread GC
   if not initialized.exchange(true):
-    ## Every Nim library must call `<prefix>NimMain()` once
+    # Every Nim library must call `<prefix>NimMain()` once
     libp2pNimMain()
   when declared(setupForeignThreadGc):
     setupForeignThreadGc()
@@ -195,6 +195,38 @@ proc libp2p_create_cid(
   let cidStr = $cid
   callback(RET_OK.cint, addr cidStr[0], cast[csize_t](len(cidStr)), userData)
   RET_OK.cint
+
+proc libp2p_new_private_key(
+    scheme: PKScheme, callback: Libp2pBufferCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  ## Creates a new private key
+
+  initializeLibrary()
+
+  let key = PrivateKey.random(scheme, newRng()[]).valueOr:
+    echo "Could not generate private key"
+    return RET_ERR.cint
+
+  let keyData = key.getBytes().valueOr:
+    echo "Could not get bytes for private key"
+    return RET_ERR.cint
+
+  foreignThreadGc:
+    let dataPtr =
+      if keyData.len > 0:
+        unsafeAddr keyData[0]
+      else:
+        nil
+
+    callback(
+      RET_OK.cint,
+      dataPtr,
+      csize_t(keyData.len()),
+      cast[ptr cchar](nil),
+      csize_t(0),
+      userData,
+    )
+  return RET_OK.cint
 
 proc libp2p_new(
     config: ptr Libp2pConfig, callback: Libp2pCallback, userData: pointer

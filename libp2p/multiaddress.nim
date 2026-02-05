@@ -76,7 +76,6 @@ const
   # some cint constants with the same name defined in the posix modules
   IPPROTO_TCP = Protocol.IPPROTO_TCP
   IPPROTO_UDP = Protocol.IPPROTO_UDP
-
 proc data*(ma: MultiAddress): VBuffer =
   ## Returns the data buffer of the MultiAddress.
   return ma.data
@@ -433,6 +432,9 @@ const
   QUIC_V1_IP* = mapAnd(UDP_IP, mapEq("quic-v1"))
   QUIC_V1_DNS* = mapAnd(UDP_DNS, mapEq("quic-v1"))
   QUIC_V1* = mapOr(QUIC_V1_DNS, QUIC_V1_IP)
+  TCP_IP4* = mapAnd(IP4, mapEq("tcp"))
+  UDP_IP4* = mapAnd(IP4, mapEq("udp"))
+  QUIC_V1_IP4* = mapAnd(UDP_IP4, mapEq("quic-v1"))
   UNIX* = mapEq("unix")
   WS_DNS* = mapAnd(TCP_DNS, mapEq("ws"))
   WS_IP* = mapAnd(TCP_IP, mapEq("ws"))

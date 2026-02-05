@@ -57,6 +57,8 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
   if (flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
     resolved.kadBootstrapNodes = config[].kadBootstrapNodes
     resolved.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
+  if (flags and Libp2pCfgPrivateKey) != 0'u32:
+    resolved.privKey = config[].privKey
 
   resolved
 
@@ -95,10 +97,22 @@ proc parseBootstrapNodes(config: Libp2pConfig): seq[(PeerId, seq[MultiAddress])]
 
   return response
 
+proc toByteSeq(key: Libp2pPrivateKey): seq[byte] =
+  let data = newSeqUninit[byte](key.dataLen)
+  copyMem(addr data[0], key.data, key.dataLen)
+  return data
+
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
-  let switch = newStandardSwitch(nameResolver = dnsResolver)
+
+  var privKey = Opt.none(PrivateKey)
+  if (config.flags and Libp2pCfgPrivateKey) != 0'u32:
+    let keySeq = config.privKey.toByteSeq()
+    PrivateKey.init(keySeq).withValue(copyKey):
+      privKey = Opt.some(copyKey)
+
+  let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
 
   var gossipSub = Opt.none(GossipSub)
   if config.mountGossipsub != 0:
@@ -177,6 +191,8 @@ proc destroyShared(self: ptr LifecycleRequest) =
         deallocShared(nodes[i].peerId)
       deallocCStringArray(nodes[i].multiaddrs, nodes[i].multiaddrsLen)
     deallocShared(self[].config.kadBootstrapNodes)
+  if not self[].config.privKey.data.isNil():
+    deallocShared(self[].config.privKey.data)
   deallocShared(self)
 
 proc process*(

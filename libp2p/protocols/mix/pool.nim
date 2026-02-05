@@ -15,8 +15,24 @@ import ../../multiaddress
 import ../../crypto/crypto
 import ../../crypto/curve25519
 import ./mix_node
+import ./multiaddr as mix_multiaddr
 
 export mix_node.MixPubInfo
+
+func isSupportedMultiaddr(maddr: MultiAddress): bool =
+  ## Returns true if the multiaddress is supported by the mix protocol.
+  ## Mix protocol supports IPv4 addresses with TCP or QUIC-v1 transports,
+  ## including circuit-relay addresses that use these transports.
+  let baseAddr = mix_multiaddr.getBaseTransport(maddr).valueOr:
+    return false
+  TCP_IP4.match(baseAddr) or QUIC_V1_IP4.match(baseAddr)
+
+func findSupportedMultiaddr(maddrs: seq[MultiAddress]): Opt[MultiAddress] =
+  ## Returns the first multiaddress that is supported by the mix protocol.
+  for maddr in maddrs:
+    if isSupportedMultiaddr(maddr):
+      return Opt.some(maddr)
+  Opt.none(MultiAddress)
 
 type MixNodePool* = ref object
   ## Manages mix node public information through the peerStore.
@@ -64,15 +80,21 @@ proc get*(pool: MixNodePool, peerId: PeerId): Opt[MixPubInfo] =
   if mixPubKey == default(Curve25519Key):
     return Opt.none(MixPubInfo)
 
-  let addrs = pool.peerStore[AddressBook][peerId]
-  if addrs.len == 0:
-    return Opt.none(MixPubInfo)
+  # Get the address - prefer LastSeenOutboundBook, fall back to AddressBook
+  # Mix protocol only supports IPv4 addresses with TCP or QUIC-v1 transports
+  var supportedAddr: MultiAddress
+  let lastSeenAddr = pool.peerStore[LastSeenOutboundBook][peerId]
+  if lastSeenAddr.isSome and isSupportedMultiaddr(lastSeenAddr.get):
+    supportedAddr = lastSeenAddr.get
+  else:
+    supportedAddr = findSupportedMultiaddr(pool.peerStore[AddressBook][peerId]).valueOr:
+      return Opt.none(MixPubInfo)
 
   let pubKey = pool.peerStore[KeyBook][peerId]
   if pubKey.scheme != Secp256k1:
     return Opt.none(MixPubInfo)
 
-  Opt.some(MixPubInfo.init(peerId, addrs[0], mixPubKey, pubKey.skkey))
+  Opt.some(MixPubInfo.init(peerId, supportedAddr, mixPubKey, pubKey.skkey))
 
 proc peerIds*(pool: MixNodePool): seq[PeerId] =
   ## Get all peer IDs in the mix node pool.

@@ -571,14 +571,5 @@ proc addDirectPeerStar*[T: PubSub](nodes: seq[T]) {.async.} =
 
   await allFuturesRaising(futs)
 
-proc createCollectPeerCallback*(): (ref seq[PeerId], PeerCallback) =
-  let peers = new seq[PeerId]
-  peers[] = @[]
-
-  let cb: PeerCallback = proc(peerId: PeerId) {.closure, gcsafe.} =
-    peers[].add(peerId)
-
-  (peers, cb)
-
 proc pluckPeerId*[T: PubSub](nodes: seq[T]): seq[PeerId] =
   nodes.mapIt(it.peerInfo.peerId)

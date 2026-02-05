@@ -36,8 +36,13 @@ static void get_providers_handler(int callerRet,
                                   const Libp2pPeerInfo *providers,
                                   size_t providersLen, const char *msg,
                                   size_t len, void *userData);
-static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
-                             const char *msg, size_t len, void *userData);
+static void peerinfo_handler(int callerret, const Libp2pPeerInfo *info,
+                             const char *msg, size_t len, void *userdata);
+
+static void private_key_handler(int callerRet, const uint8_t *keyData,
+                              size_t keyDataLen, const char *msg, size_t len,
+                              void *userData);
+
 static void connection_handler(int callerRet, libp2p_stream_t *conn,
                                const char *msg, size_t len, void *userData);
 static void create_cid_handler(int callerRet, const char *msg, size_t len,
@@ -58,10 +63,15 @@ int main(int argc, char **argv) {
 
   libp2p_config_t cfg1 = {0};
   cfg1.flags =
-      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF | LIBP2P_CFG_KAD;
+      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF | LIBP2P_CFG_KAD | LIBP2P_CFG_PRIVATE_KEY;
   cfg1.mount_gossipsub = 1;
   cfg1.gossipsub_trigger_self = 1;
   cfg1.mount_kad = 1;
+
+  libp2p_private_key_t priv_key = {0};
+  libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
+  waitForCallback();
+  cfg1.priv_key = priv_key;
 
   ctx1 = libp2p_new(&cfg1, event_handler, NULL);
   waitForCallback();
@@ -75,7 +85,7 @@ int main(int argc, char **argv) {
 
   libp2p_config_t cfg2 = {0};
   cfg2.flags = LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF |
-               LIBP2P_CFG_KAD | LIBP2P_CFG_KAD_BOOTSTRAP_NODES;
+               LIBP2P_CFG_KAD | LIBP2P_CFG_KAD_BOOTSTRAP_NODES | LIBP2P_CFG_PRIVATE_KEY;
   cfg2.mount_gossipsub = 1;
   cfg2.gossipsub_trigger_self = 1;
   cfg2.mount_kad = 1;
@@ -190,6 +200,7 @@ int main(int argc, char **argv) {
 cleanup:
   free_peerinfo(&pInfo1);
   free_peerinfo(&pInfo2);
+  free(priv_key.data);
 
   libp2p_stop(ctx1, event_handler, NULL);
   waitForCallback();
@@ -337,6 +348,35 @@ static void get_value_handler(int callerRet, const uint8_t *data,
     printf("%02x", data[i]);
   }
   printf("\n");
+
+  signal_callback_executed();
+}
+
+static void private_key_handler(
+    int callerRet,
+    const uint8_t *keyData,
+    size_t keyDataLen,
+    const char *msg,
+    size_t len,
+    void *userData
+) {
+  if (callerRet != RET_OK || keyDataLen == 0 || keyData == NULL) {
+    printf("Private key error(%d): %.*s\n", callerRet, (int)len, msg ? msg : "");
+    exit(1);
+  }
+
+  libp2p_private_key_t *priv_key =
+      (libp2p_private_key_t *)userData;
+
+  uint8_t *buf = (uint8_t *)malloc(keyDataLen);
+  if (!buf) {
+    fprintf(stderr, "Out of memory while copying private key\n");
+    exit(1);
+  }
+
+  memcpy(buf, keyData, keyDataLen);
+
+  priv_key->data = buf;
 
   signal_callback_executed();
 }
