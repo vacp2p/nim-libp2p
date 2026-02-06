@@ -213,12 +213,15 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check ext.publishPartial(topic, pm) == 1 # should publish to one peer
 
     # the peer should receive partial messages RPC with data of parts [1, 2] = "one" + "two"
-    check cr.sentRPC.len == 1
-    let msg1 = cr.sentRPC[0]
     check:
-      msg1.topicID == topic
-      msg1.groupID == groupId
-      msg1.partialMessage == "onetwo".toBytes
+      cr.sentRPC.len == 1
+      cr.sentRPC[0] ==
+        PartialMessageExtensionRPC(
+          groupID: groupId,
+          topicID: topic,
+          partialMessage: "onetwo".toBytes,
+          partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+        )
 
     # publishing same message again should not send to peer
     # because peer's request is already fulfilled
@@ -237,13 +240,12 @@ suite "GossipSub Extensions :: Partial Message Extension":
     let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
     check ext.publishPartial(topic, pm) == 1
 
-    check cr.sentRPC.len == 1
-    let msg1 = cr.sentRPC[0]
     check:
-      msg1.topicID == topic
-      msg1.groupID == groupId
-      msg1.partialMessage.len == 0 # must not have partial message
-      msg1.partsMetadata == pm.partsMetadata()
+      cr.sentRPC.len == 1
+      cr.sentRPC[0] ==
+        PartialMessageExtensionRPC(
+          groupID: groupId, topicID: topic, partsMetadata: pm.partsMetadata()
+        )
 
     # publishing same message again should not publish
     # because peer already has this parts metadata
@@ -253,12 +255,12 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # publishing new partial message should send new parts metadata
     let pm2 = MyPartialMessage(groupId: groupId, data: {2: "two".toBytes}.toTable)
     check ext.publishPartial(topic, pm2) == 1
-    let msg2 = cr.sentRPC[1]
     check:
-      msg2.topicID == topic
-      msg2.groupID == groupId
-      msg2.partialMessage.len == 0 # must not have partial message
-      msg2.partsMetadata == pm2.partsMetadata()
+      cr.sentRPC.len == 2
+      cr.sentRPC[1] ==
+        PartialMessageExtensionRPC(
+          groupID: groupId, topicID: topic, partsMetadata: pm2.partsMetadata()
+        )
 
   test "heartbeat evicts metadata":
     const topic = "logos-partial"
