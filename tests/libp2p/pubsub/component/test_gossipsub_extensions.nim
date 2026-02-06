@@ -87,8 +87,8 @@ suite "GossipSub Component - Extensions":
       nodes.allIt(it.gossipsub.getOrDefault(topic).len == 1)
 
     # node 1 seeks for parts 1, 2, 3
-    let mpWant = MyPartialMessage(groupID: groupId, want: @[1, 2, 3])
-    await nodes[1].publishPartial(topic, mpWant)
+    let node1Req = MyPartialMessage(groupID: groupId, want: @[1, 2, 3])
+    await nodes[1].publishPartial(topic, node1Req)
 
     # wait for node 0 to receive request
     checkUntilTimeout:
@@ -103,7 +103,7 @@ suite "GossipSub Component - Extensions":
         PartialMessageExtensionRPC(
           topicID: topic,
           groupID: groupId,
-          partsMetadata: MyPartsMetadata.want(@[1, 2, 3]),
+          partsMetadata: MyPartsMetadata.want(node1Req.want),
         )
 
     # then node 0 publishes data
@@ -124,5 +124,5 @@ suite "GossipSub Component - Extensions":
           topicID: topic,
           groupID: groupId,
           partialMessage: "onetwothree".toBytes,
-          partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+          partsMetadata: MyPartsMetadata.have(toSeq(pmData.data.keys)),
         )
