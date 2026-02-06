@@ -3,11 +3,9 @@
 
 {.used.}
 
-import sugar
+import std/[sugar, tables]
 import ../../../libp2p/[stream/bridgestream, muxers/yamux/yamux]
 import ../../tools/[unittest, futures]
-
-include ../../../libp2p/muxers/yamux/yamux
 
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
   newFuture[void]()

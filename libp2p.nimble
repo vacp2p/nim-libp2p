@@ -24,11 +24,11 @@ let verbose = getEnv("V", "") notin ["", "0"]
 # changes in run configs should be also reflected on flake.nix
 let cfg =
   " --styleCheck:usages --styleCheck:error" &
-  (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &
+  (if verbose: "" else: " --verbosity:0") & " --skipUserCfg -f" &
   " --threads:on --opt:speed"
 
 proc runTest(filename: string, moreoptions: string = "") =
-  var compileCmd = nimc & " " & lang & " -d:debug " & cfg & " " & flags
+  var compileCmd = nimc & " " & lang & " " & cfg & " " & flags
   if getEnv("CICOV").len > 0:
     compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
   compileCmd &= " -d:libp2p_autotls_support"

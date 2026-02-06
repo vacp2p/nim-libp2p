@@ -32,31 +32,31 @@ when defined(libp2p_yamux_metrics):
 type
   YamuxError* = object of MuxerError
 
-  MsgType = enum
+  MsgType* = enum
     Data = 0x0
     WindowUpdate = 0x1
     Ping = 0x2
     GoAway = 0x3
 
-  MsgFlags {.size: 2.} = enum
+  MsgFlags* {.size: 2.} = enum
     Syn
     Ack
     Fin
     Rst
 
-  GoAwayStatus = enum
+  GoAwayStatus* = enum
     NormalTermination = 0x0
     ProtocolError = 0x1
     InternalError = 0x2
 
-  YamuxHeader = object
+  YamuxHeader* = object
     version: uint8
-    msgType: MsgType
-    flags: set[MsgFlags]
-    streamId: uint32
-    length: uint32
+    msgType*: MsgType
+    flags*: set[MsgFlags]
+    streamId*: uint32
+    length*: uint32
 
-proc readHeader(
+proc readHeader*(
     conn: LPStream
 ): Future[YamuxHeader] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   var buffer: array[12, byte]
@@ -90,20 +90,20 @@ proc encode(header: YamuxHeader): array[12, byte] =
   result[4 .. 7] = toBytesBE(header.streamId)
   result[8 .. 11] = toBytesBE(header.length)
 
-proc write(
+proc write*(
     conn: LPStream, header: YamuxHeader
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   trace "write directly on stream", h = $header
   var buffer = header.encode()
   conn.write(@buffer)
 
-proc ping(T: type[YamuxHeader], flag: MsgFlags, pingData: uint32): T =
+proc ping*(T: type[YamuxHeader], flag: MsgFlags, pingData: uint32): T =
   T(version: YamuxVersion, msgType: MsgType.Ping, flags: {flag}, length: pingData)
 
-proc goAway(T: type[YamuxHeader], status: GoAwayStatus): T =
+proc goAway*(T: type[YamuxHeader], status: GoAwayStatus): T =
   T(version: YamuxVersion, msgType: MsgType.GoAway, length: uint32(status))
 
-proc data(
+proc data*(
     T: type[YamuxHeader],
     streamId: uint32,
     length: uint32 = 0,
@@ -117,7 +117,7 @@ proc data(
     streamId: streamId,
   )
 
-proc windowUpdate(
+proc windowUpdate*(
     T: type[YamuxHeader], streamId: uint32, delta: uint32, flags: set[MsgFlags] = {}
 ): T =
   T(
@@ -142,7 +142,7 @@ type
     maxSendQueueSize: int
     conn: Connection
     isSrc: bool
-    opened: bool
+    opened*: bool
     isSending: bool
     sendQueue: seq[ToSend]
     recvQueue: ZeroQueue
@@ -448,8 +448,8 @@ method getWrapped*(channel: YamuxChannel): Connection =
   channel.conn
 
 type Yamux* = ref object of Muxer
-  channels: Table[uint32, YamuxChannel]
-  flushed: Table[uint32, int]
+  channels*: Table[uint32, YamuxChannel]
+  flushed*: Table[uint32, int]
   currentId: uint32
   isClosed: bool
   maxChannCount: int
