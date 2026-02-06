@@ -7,12 +7,12 @@ import chronos, sequtils
 import ../../libp2p/switch
 
 proc startNodes*[T](nodes: seq[T]) {.async.} =
-  await allFutures(nodes.mapIt(it.switch.start()))
+  await allFuturesRaising(nodes.mapIt(it.switch.start()))
 
 proc stopNodes*[T](nodes: seq[T]) {.async.} =
   when compiles(nodes[0].stop()):
-    await allFutures(nodes.mapIt(it.stop()))
-  await allFutures(nodes.mapIt(it.switch.stop()))
+    await allFuturesRaising(nodes.mapIt(it.stop()))
+  await allFuturesRaising(nodes.mapIt(it.switch.stop()))
 
 template startAndDeferStop*[T](nodes: seq[T]): untyped =
   await startNodes(nodes)
