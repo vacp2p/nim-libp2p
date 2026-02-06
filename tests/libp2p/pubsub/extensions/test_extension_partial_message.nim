@@ -11,6 +11,11 @@ import
 import ../../../tools/[unittest, crypto]
 import ./my_partial_message
 
+proc isPartialTopic(topic: string): bool =
+  # convention: in this test file, topics that have "partial" in their name will be considered
+  # to be requesting partial messages
+  return topic.contains("partial")
+
 type CallbackRecorder = ref object
   publishToPeers: seq[PeerId]
   sentRPC: seq[PartialMessageExtensionRPC]
@@ -24,9 +29,7 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
     return c.publishToPeers
 
   proc nodeTopicOpts(topic: string): TopicOpts {.gcsafe, raises: [].} =
-    return TopicOpts(requestsPartial: topic.contains("partial"))
-      # convention: in this test file, topics that have "partial" in their name will be considered
-      # to be requesting partial messages
+    return TopicOpts(requestsPartial: isPartialTopic(topic))
 
   proc isSupported(peer: PeerId): bool {.gcsafe, raises: [].} =
     return true
@@ -65,9 +68,7 @@ proc subscribe(
           SubOpts(
             topic: topic,
             subscribe: subscribe,
-            # convention: in this test file, topics that have "partial" in their name will be considered
-            # to be requesting partial messages
-            requestsPartial: some(topic.contains("partial")),
+            requestsPartial: some(isPartialTopic(topic)),
           )
         ]
     ),
