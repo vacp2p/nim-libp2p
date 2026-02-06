@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, tables, results, strutils
+import chronos, tables, results, strutils, stew/byteutils
 import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/

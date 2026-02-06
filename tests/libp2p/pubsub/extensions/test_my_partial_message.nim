@@ -3,7 +3,7 @@
 
 {.used.}
 
-import tables, results
+import tables, results, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub/partial_message]
 import ../../../tools/[unittest]
 import ./my_partial_message

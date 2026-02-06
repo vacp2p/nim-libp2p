@@ -95,6 +95,3 @@ method materializeParts*(
       except KeyError:
         raiseAssert "checked with if"
   ok(data)
-
-proc toBytes*(s: string): seq[byte] =
-  return cast[seq[byte]](s)
