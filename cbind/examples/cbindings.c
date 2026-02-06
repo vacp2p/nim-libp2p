@@ -165,17 +165,17 @@ int main(int argc, char **argv) {
 
   // Kademlia operations
   printf("Found nodes:\n");
-  libp2p_find_node(ctx1, pInfo2.peerId, peers_handler, NULL);
+  libp2p_kad_find_node(ctx1, pInfo2.peerId, peers_handler, NULL);
   waitForCallback();
 
   const uint8_t keyBytes[] = {0xde, 0xad, 0xbe, 0xef};
   const uint8_t valBytes[] = "nim-libp2p";
-  libp2p_put_value(ctx1, keyBytes, sizeof(keyBytes), valBytes,
-                   sizeof(valBytes) - 1, event_handler, NULL);
+  libp2p_kad_put_value(ctx1, keyBytes, sizeof(keyBytes), valBytes,
+                       sizeof(valBytes) - 1, event_handler, NULL);
   waitForCallback();
 
-  libp2p_get_value(ctx2, keyBytes, sizeof(keyBytes), 1, get_value_handler,
-                   NULL);
+  libp2p_kad_get_value(ctx2, keyBytes, sizeof(keyBytes), 1, get_value_handler,
+                       NULL);
   waitForCallback();
 
   uint8_t cidData[32];
@@ -187,13 +187,13 @@ int main(int argc, char **argv) {
   waitForCallback();
 
   const char *cid = cid_buf;
-  libp2p_start_providing(ctx1, cid, event_handler, NULL);
+  libp2p_kad_start_providing(ctx1, cid, event_handler, NULL);
   waitForCallback();
 
-  libp2p_add_provider(ctx1, cid, event_handler, NULL);
+  libp2p_kad_add_provider(ctx1, cid, event_handler, NULL);
   waitForCallback();
 
-  libp2p_get_providers(ctx2, cid, get_providers_handler, NULL);
+  libp2p_kad_get_providers(ctx2, cid, get_providers_handler, NULL);
   waitForCallback();
 
   sleep(5);
