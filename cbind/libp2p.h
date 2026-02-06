@@ -17,27 +17,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Most functions enqueue work onto a libp2p worker thread and return quickly.
-// The provided callback delivers the actual result (or error) and is required.
-
-// The possible returned values for the functions that return int
-#define RET_OK 0
-#define RET_ERR 1
-#define RET_MISSING_CALLBACK 2
-
-// Curve25519 private/public key bytes used by the mix protocol.
-typedef struct {
-  uint8_t bytes[32];
-} libp2p_curve25519_key_t;
-
-// Compressed secp256k1 public key bytes (33 bytes, including prefix).
-typedef struct {
-  uint8_t bytes[33];
-} libp2p_secp256k1_pubkey_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Most functions enqueue work onto a libp2p worker thread and return quickly.
+// The provided callback delivers the actual result (or error) and is required.
+
+// Return codes indicate whether the request was accepted/enqueued.
+// Operation success/failure is reported asynchronously via the callback.
+#define RET_OK 0
+#define RET_ERR 1
+#define RET_MISSING_CALLBACK 2
 
 // Callback data ownership:
 // - msg and data are only valid for the duration of the callback.
@@ -51,6 +42,48 @@ typedef void (*Libp2pBufferCallback)(int callerRet, const uint8_t *data,
                                      size_t dataLen, const char *msg,
                                      size_t len, void *userData);
 
+// === Basic Types and Enums ===
+
+// Opaque handle for a libp2p instance
+// libp2p instance (created by libp2p_new).
+typedef struct libp2p_ctx libp2p_ctx_t;
+
+// stream handle returned by dial/mix_dial callbacks.
+typedef struct libp2p_stream libp2p_stream_t;
+
+// Curve25519 private/public key bytes used by the mix protocol.
+typedef struct {
+  uint8_t bytes[32];
+} libp2p_curve25519_key_t;
+
+// Compressed secp256k1 public key bytes (33 bytes, including prefix).
+typedef struct {
+  uint8_t bytes[33];
+} libp2p_secp256k1_pubkey_t;
+
+// Private key scheme identifier for libp2p_private_key_t.
+typedef uint32_t libp2p_pk_scheme;
+enum {
+  LIBP2P_PK_RSA = 0,
+  LIBP2P_PK_ED25519 = 1,
+  LIBP2P_PK_SECP256K1 = 2,
+  LIBP2P_PK_ECDSA = 3,
+};
+
+typedef uint32_t Direction;
+
+enum {
+  Direction_In = 0,
+  Direction_Out = 1,
+};
+
+typedef uint32_t Libp2pMixReadBehavior;
+
+enum {
+  LIBP2P_MIX_READ_EXACTLY = 0,
+  LIBP2P_MIX_READ_LP = 1,
+};
+
 enum {
   LIBP2P_CFG_GOSSIPSUB = 1 << 0,
   LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF = 1 << 1,
@@ -62,6 +95,8 @@ enum {
   LIBP2P_CFG_MIX = 1 << 7,
 };
 
+// === Data Structures ===
+
 // Kademlia bootstrap node entry (peer ID + multiaddrs).
 // The arrays are read-only for the duration of the call that uses them.
 typedef struct libp2p_bootstrap_node {
@@ -70,22 +105,18 @@ typedef struct libp2p_bootstrap_node {
   size_t multiaddrsLen;
 } libp2p_bootstrap_node_t;
 
-typedef uint32_t libp2p_pk_scheme;
-enum {
-  LIBP2P_PK_RSA = 0,
-  LIBP2P_PK_ED25519 = 1,
-  LIBP2P_PK_SECP256K1 = 2,
-  LIBP2P_PK_ECDSA = 3,
-};
-
 // Opaque private key bytes; interpretation depends on libp2p_pk_scheme.
 typedef struct libp2p_private_key {
   void *data;
   size_t dataLen;
 } libp2p_private_key_t;
 
-// Node configuration. Fields are honored only when the corresponding
-// LIBP2P_CFG_* flag is set; otherwise defaults apply (see notes below).
+// Node configuration. `flags` is a bitmask of LIBP2P_CFG_* values that
+// explicitly enables each field below; if a flag is not set, that field is
+// ignored and libp2p uses its built-in defaults. Example:
+//   config.flags = LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_KAD;
+//   config.mount_gossipsub = 1;
+//   config.mount_kad = 0;
 typedef struct {
   uint32_t flags;
   // Enable/disable gossipsub (default on when flag is set).
@@ -108,27 +139,23 @@ typedef struct {
   libp2p_private_key_t priv_key;
 } libp2p_config_t;
 
-typedef void (*PubsubTopicHandler)(const char *topic, uint8_t *data, size_t len,
-                                   void *userData);
-
 typedef struct {
   char *peerId;
   const char **addrs;
   size_t addrsLen;
 } Libp2pPeerInfo;
 
-// PeerInfoCallback receives ownership of a Libp2pPeerInfo for the duration of
-// the call. The data is freed immediately after the callback returns; copy it
-// if you need it later.
-typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
-                                 const char *msg, size_t len, void *userData);
-
+// Service descriptor returned by Kademlia discovery.
+// Fields are only valid for the duration of the callback; copy if needed.
 typedef struct {
   char *id;
   const uint8_t *data;
   size_t dataLen;
 } Libp2pServiceInfo;
 
+// Extended peer record returned by Kademlia discovery.
+// All fields/arrays are only valid for the duration of the callback; copy if
+// needed.
 typedef struct {
   char *peerId;
   uint64_t seqNo;
@@ -138,41 +165,31 @@ typedef struct {
   size_t servicesLen;
 } Libp2pExtendedPeerRecord;
 
+// === Callbacks ===
+
+typedef void (*PubsubTopicHandler)(const char *topic, uint8_t *data, size_t len,
+                                   void *userData);
+
+// PeerInfoCallback receives a Libp2pPeerInfo that is only valid for the
+// duration of the callback. All fields are freed immediately after the
+// callback returns; copy any data you need to keep.
+typedef void (*PeerInfoCallback)(int callerRet, const Libp2pPeerInfo *info,
+                                 const char *msg, size_t len, void *userData);
+
 typedef void (*RandomRecordsCallback)(int callerRet,
                                       const Libp2pExtendedPeerRecord *records,
                                       size_t recordsLen, const char *msg,
                                       size_t len, void *userData);
-
-// Opaque handle for a libp2p instance
-// libp2p instance (created by libp2p_new).
-typedef struct libp2p_ctx libp2p_ctx_t;
 
 // peerIds is only valid during the callback; copy if needed.
 typedef void (*PeersCallback)(int callerRet, const char **peerIds,
                               size_t peerIdsLen, const char *msg, size_t len,
                               void *userData);
 
-// stream handle returned by dial/mix_dial callbacks.
-typedef struct libp2p_stream libp2p_stream_t;
-
 // ConnectionCallback returns a stream handle that must be released with
 // libp2p_stream_release when no longer needed.
 typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
                                    const char *msg, size_t len, void *userData);
-
-typedef uint32_t Direction;
-
-enum {
-  Direction_In = 0,
-  Direction_Out = 1,
-};
-
-typedef uint32_t Libp2pMixReadBehavior;
-
-enum {
-  LIBP2P_MIX_READ_EXACTLY = 0,
-  LIBP2P_MIX_READ_LP = 1,
-};
 
 // providers is only valid during the callback; copy if needed.
 typedef void (*GetProvidersCallback)(int callerRet,
@@ -214,6 +231,8 @@ typedef ValidationResult ValidatorHandler(const char *topic, Message msg);
 typedef void TopicHandler(const char *topic, uint8_t *data, size_t len,
                           void *userData);
 
+// === Utility / Key APIs ===
+
 // callback receives the CID string in msg (not null-terminated).
 // data is copied during this call; it can be freed once the function returns.
 int libp2p_create_cid(uint32_t version, const char *multicodec,
@@ -224,6 +243,8 @@ int libp2p_create_cid(uint32_t version, const char *multicodec,
 // The returned buffer is only valid during the callback; copy if needed.
 int libp2p_new_private_key(libp2p_pk_scheme scheme,
                            Libp2pBufferCallback callback, void *userData);
+
+// === Lifecycle APIs ===
 
 // Creates a new libp2p node instance from config; the node is not started
 // until libp2p_start is called.
@@ -241,6 +262,8 @@ int libp2p_start(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
 int libp2p_stop(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
+// === Connection APIs ===
+
 int libp2p_connect(libp2p_ctx_t *ctx, const char *peerId,
                    const char **multiaddrs, size_t multiaddrsLen,
                    int64_t timeoutMs, Libp2pCallback callback, void *userData);
@@ -255,6 +278,104 @@ int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir,
                            PeersCallback callback, void *userData);
 
 // TODO: libp2p_ping
+
+// === Stream APIs ===
+
+int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
+                ConnectionCallback callback, void *userData);
+
+// Read callbacks receive a buffer that is freed immediately after the callback.
+int libp2p_stream_readExactly(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                              size_t dataLen, Libp2pBufferCallback callback,
+                              void *userData);
+
+int libp2p_stream_readLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                         int64_t maxSize, Libp2pBufferCallback callback,
+                         void *userData);
+
+// Write calls copy the input buffer before enqueueing; data can be freed after
+// the function returns.
+int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                        const uint8_t *data, size_t dataLen,
+                        Libp2pCallback callback, void *userData);
+
+int libp2p_stream_writeLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                          const uint8_t *data, size_t dataLen,
+                          Libp2pCallback callback, void *userData);
+
+int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                        Libp2pCallback callback, void *userData);
+
+// Closes the stream and then sends EOF to the remote side.
+int libp2p_stream_closeWithEOF(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                               Libp2pCallback callback, void *userData);
+
+// Releases the local stream handle. After this, conn must not be used again.
+// You usually call close/closeWithEOF first, then release.
+int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+                          Libp2pCallback callback, void *userData);
+
+// === Pubsub APIs ===
+
+// TODO: pubsub parameters
+// TODO: gossipsub parameters
+// TODO: topic parameters
+// TODO: observers
+// TODO: subscription validator
+
+int libp2p_gossipsub_publish(libp2p_ctx_t *ctx, const char *topic,
+                             uint8_t *data, size_t dataLen,
+                             Libp2pCallback callback, void *userData);
+
+// topicHandler runs on the libp2p worker thread; topic/data are valid only
+// for the duration of the handler call.
+int libp2p_gossipsub_subscribe(libp2p_ctx_t *ctx, const char *topic,
+                               TopicHandler topicHandler,
+                               Libp2pCallback callback, void *userData);
+
+int libp2p_gossipsub_unsubscribe(libp2p_ctx_t *ctx, const char *topic,
+                                 TopicHandler topicHandler,
+                                 Libp2pCallback callback, void *userData);
+
+/*
+int libp2p_gossipsub_add_validator(libp2p_ctx_t *ctx, const char **topics,
+  size_t topicsLen, ValidatorHandler hook,
+  Libp2pCallback callback, void *userData);
+
+int libp2p_gossipsub_remove_validator(libp2p_ctx_t *ctx, const char **topics,
+     size_t topicsLen, ValidatorHandler hook,
+     Libp2pCallback callback, void *userData);
+*/
+
+// === Kademlia APIs ===
+
+int libp2p_kad_find_node(libp2p_ctx_t *ctx, const char *peerId,
+                         PeersCallback callback, void *userData);
+
+int libp2p_kad_put_value(libp2p_ctx_t *ctx, const uint8_t *key, size_t keyLen,
+                         const uint8_t *value, size_t valueLen,
+                         Libp2pCallback callback, void *userData);
+
+int libp2p_kad_get_value(libp2p_ctx_t *ctx, const uint8_t *key, size_t keyLen,
+                         int quorumOverride, Libp2pBufferCallback callback,
+                         void *userData);
+
+int libp2p_kad_add_provider(libp2p_ctx_t *ctx, const char *cid,
+                            Libp2pCallback callback, void *userData);
+
+int libp2p_kad_start_providing(libp2p_ctx_t *ctx, const char *cid,
+                               Libp2pCallback callback, void *userData);
+
+int libp2p_kad_stop_providing(libp2p_ctx_t *ctx, const char *cid,
+                              Libp2pCallback callback, void *userData);
+
+int libp2p_kad_get_providers(libp2p_ctx_t *ctx, const char *cid,
+                             GetProvidersCallback callback, void *userData);
+
+int libp2p_kad_random_records(libp2p_ctx_t *ctx, RandomRecordsCallback callback,
+                              void *userData);
+
+// === Mix APIs ===
 
 void libp2p_mix_generate_priv_key(libp2p_curve25519_key_t *outKey);
 
@@ -293,96 +414,6 @@ int libp2p_mix_nodepool_add(libp2p_ctx_t *ctx, const char *peerId,
 // callback receives a buffer valid only during its execution
 int libp2p_public_key(libp2p_ctx_t *ctx, Libp2pBufferCallback callback,
                       void *userData);
-
-int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
-                ConnectionCallback callback, void *userData);
-
-// Read callbacks receive a buffer that is freed immediately after the callback.
-int libp2p_stream_readExactly(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
-                              size_t dataLen, Libp2pBufferCallback callback,
-                              void *userData);
-
-int libp2p_stream_readLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
-                         int64_t maxSize, Libp2pBufferCallback callback,
-                         void *userData);
-
-// Write calls copy the input buffer before enqueueing; data can be freed after
-// the function returns.
-int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *conn, uint8_t *data,
-                        size_t dataLen, Libp2pCallback callback,
-                        void *userData);
-
-int libp2p_stream_writeLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
-                          uint8_t *data, size_t dataLen,
-                          Libp2pCallback callback, void *userData);
-
-int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
-                        Libp2pCallback callback, void *userData);
-
-// Closes the stream and then sends EOF to the remote side.
-int libp2p_stream_closeWithEOF(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
-                               Libp2pCallback callback, void *userData);
-
-// Releases the local stream handle. After this, conn must not be used again.
-// You usually call close/closeWithEOF first, then release.
-int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
-                          Libp2pCallback callback, void *userData);
-
-// TODO: pubsub parameters
-// TODO: gossipsub parameters
-// TODO: topic parameters
-// TODO: observers
-// TODO: subscription validator
-
-int libp2p_gossipsub_publish(libp2p_ctx_t *ctx, const char *topic,
-                             uint8_t *data, size_t dataLen,
-                             Libp2pCallback callback, void *userData);
-
-// topicHandler runs on the libp2p worker thread; topic/data are valid only
-// for the duration of the handler call.
-int libp2p_gossipsub_subscribe(libp2p_ctx_t *ctx, const char *topic,
-                               TopicHandler topicHandler,
-                               Libp2pCallback callback, void *userData);
-
-int libp2p_gossipsub_unsubscribe(libp2p_ctx_t *ctx, const char *topic,
-                                 TopicHandler topicHandler,
-                                 Libp2pCallback callback, void *userData);
-
-/*
-int libp2p_gossipsub_add_validator(libp2p_ctx_t *ctx, const char **topics,
-  size_t topicsLen, ValidatorHandler hook,
-  Libp2pCallback callback, void *userData);
-
-int libp2p_gossipsub_remove_validator(libp2p_ctx_t *ctx, const char **topics,
-     size_t topicsLen, ValidatorHandler hook,
-     Libp2pCallback callback, void *userData);
-*/
-
-int libp2p_find_node(void *ctx, const char *peerId, PeersCallback callback,
-                     void *userData);
-
-int libp2p_put_value(void *ctx, const uint8_t *key, size_t keyLen,
-                     const uint8_t *value, size_t valueLen,
-                     Libp2pCallback callback, void *userData);
-
-int libp2p_get_value(void *ctx, const uint8_t *key, size_t keyLen,
-                     int quorumOverride, Libp2pBufferCallback callback,
-                     void *userData);
-
-int libp2p_add_provider(void *ctx, const char *cid, Libp2pCallback callback,
-                        void *userData);
-
-int libp2p_start_providing(void *ctx, const char *cid, Libp2pCallback callback,
-                           void *userData);
-
-int libp2p_stop_providing(void *ctx, const char *cid, Libp2pCallback callback,
-                          void *userData);
-
-int libp2p_get_providers(void *ctx, const char *cid,
-                         GetProvidersCallback callback, void *userData);
-
-int libp2p_random_records(void *ctx, RandomRecordsCallback callback,
-                          void *userData);
 
 #ifdef __cplusplus
 }
