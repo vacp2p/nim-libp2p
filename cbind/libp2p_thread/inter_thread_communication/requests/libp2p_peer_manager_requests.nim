@@ -106,13 +106,7 @@ proc processPeerInfo*(
 
     let addrs = libp2p.switch.peerInfo.addrs.mapIt($it)
     infoPtr[].addrsLen = addrs.len.csize_t
-    if addrs.len > 0:
-      infoPtr[].addrs = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
-      let addrsArr = cast[ptr UncheckedArray[cstring]](infoPtr[].addrs)
-      for i, addrStr in addrs:
-        addrsArr[i] = addrStr.alloc()
-    else:
-      infoPtr[].addrs = nil
+    infoPtr[].addrs = allocCStringArrayFromSeq(addrs)
   except LPError as exc:
     deallocPeerInfo(infoPtr)
     return err(exc.msg)

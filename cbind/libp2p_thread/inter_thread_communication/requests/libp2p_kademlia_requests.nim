@@ -44,6 +44,23 @@ type RandomRecordsResult* = object
   records*: ptr Libp2pExtendedPeerRecord
   recordsLen*: csize_t
 
+proc allocServiceInfoArrayFromSeq(
+    services: seq[ServiceInfo]
+): ptr Libp2pServiceInfo {.inline.} =
+  if services.len == 0:
+    return nil
+  result =
+    cast[ptr Libp2pServiceInfo](allocShared(sizeof(Libp2pServiceInfo) * services.len))
+  let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](result)
+  for i, svc in services:
+    servicesArr[i].id = svc.id.alloc()
+    servicesArr[i].dataLen = svc.data.len.csize_t
+    if svc.data.len == 0:
+      servicesArr[i].data = nil
+    else:
+      servicesArr[i].data = cast[ptr byte](allocShared(svc.data.len))
+      copyMem(servicesArr[i].data, addr svc.data[0], svc.data.len)
+
 proc createShared*(
     T: type KademliaRequest,
     op: KademliaMsgType,
@@ -88,6 +105,19 @@ proc deallocGetValueResult*(res: ptr GetValueResult) =
 
   deallocShared(res)
 
+proc deallocLibp2pExtendedPeerRecord*(record: var Libp2pExtendedPeerRecord) =
+  if not record.peerId.isNil():
+    deallocShared(record.peerId)
+  deallocCStringArray(record.addrs, record.addrsLen)
+  if not record.services.isNil():
+    let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](record.services)
+    for i in 0 ..< int(record.servicesLen):
+      if not servicesArr[i].id.isNil():
+        deallocShared(servicesArr[i].id)
+      if not servicesArr[i].data.isNil():
+        deallocShared(servicesArr[i].data)
+    deallocShared(servicesArr)
+
 proc deallocRandomRecordsResult*(res: ptr RandomRecordsResult) =
   if res.isNil():
     return
@@ -100,18 +130,7 @@ proc deallocRandomRecordsResult*(res: ptr RandomRecordsResult) =
 
   let recordsArr = cast[ptr UncheckedArray[Libp2pExtendedPeerRecord]](res[].records)
   for i in 0 ..< int(res[].recordsLen):
-    if not recordsArr[i].peerId.isNil():
-      deallocShared(recordsArr[i].peerId)
-    deallocCStringArray(recordsArr[i].addrs, recordsArr[i].addrsLen)
-    if not recordsArr[i].services.isNil():
-      let servicesArr =
-        cast[ptr UncheckedArray[Libp2pServiceInfo]](recordsArr[i].services)
-      for j in 0 ..< int(recordsArr[i].servicesLen):
-        if not servicesArr[j].id.isNil():
-          deallocShared(servicesArr[j].id)
-        if not servicesArr[j].data.isNil():
-          deallocShared(servicesArr[j].data)
-      deallocShared(servicesArr)
+    deallocLibp2pExtendedPeerRecord(recordsArr[i])
   deallocShared(recordsArr)
 
 proc buildGetValueResult(entry: EntryRecord): Result[ptr GetValueResult, string] =
@@ -170,13 +189,7 @@ proc buildProvidersResult(
 
       let addrs = provider.addrs.mapIt($it)
       arr[i].addrsLen = addrs.len.csize_t
-      if addrs.len == 0:
-        arr[i].addrs = nil
-      else:
-        arr[i].addrs = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
-        let addrsArr = cast[ptr UncheckedArray[cstring]](arr[i].addrs)
-        for j, addrStr in addrs:
-          addrsArr[j] = addrStr.alloc()
+      arr[i].addrs = allocCStringArrayFromSeq(addrs)
   except ValueError as exc:
     deallocProvidersResult(resPtr)
     return err("Invalid peerId: " & $exc.msg)
@@ -208,31 +221,11 @@ proc buildRandomRecordsResult(
 
       let addrs = record.addresses.mapIt($it.address)
       arr[i].addrsLen = addrs.len.csize_t
-      if addrs.len == 0:
-        arr[i].addrs = nil
-      else:
-        arr[i].addrs = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
-        let addrsArr = cast[ptr UncheckedArray[cstring]](arr[i].addrs)
-        for j, addrStr in addrs:
-          addrsArr[j] = addrStr.alloc()
+      arr[i].addrs = allocCStringArrayFromSeq(addrs)
 
       let services = record.services
       arr[i].servicesLen = services.len.csize_t
-      if services.len == 0:
-        arr[i].services = nil
-      else:
-        arr[i].services = cast[ptr Libp2pServiceInfo](allocShared(
-          sizeof(Libp2pServiceInfo) * services.len
-        ))
-        let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](arr[i].services)
-        for j, svc in services:
-          servicesArr[j].id = svc.id.alloc()
-          servicesArr[j].dataLen = svc.data.len.csize_t
-          if svc.data.len == 0:
-            servicesArr[j].data = nil
-          else:
-            servicesArr[j].data = cast[ptr byte](allocShared(svc.data.len))
-            copyMem(servicesArr[j].data, addr svc.data[0], svc.data.len)
+      arr[i].services = allocServiceInfoArrayFromSeq(services)
   except LPError as exc:
     deallocRandomRecordsResult(resPtr)
     return err(exc.msg)

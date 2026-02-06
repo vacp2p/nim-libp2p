@@ -209,9 +209,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     let bootstrapNodes = parseBootstrapNodes(config)
     if config.mountKadDiscovery != 0:
       let k = KademliaDiscovery.new(
-        switch,
-        bootstrapNodes = bootstrapNodes,
-        codec = ExtendedKademliaDiscoveryCodec,
+        switch, bootstrapNodes = bootstrapNodes, codec = ExtendedKademliaDiscoveryCodec
       )
       switch.mount(k)
       kad = Opt.some(KadDHT(k))
@@ -268,11 +266,7 @@ proc createShared*(
             dst[i].multiaddrs = nil
           else:
             dst[i].multiaddrs =
-              cast[ptr cstring](allocShared(sizeof(cstring) * src[i].multiaddrsLen.int))
-            let srcAddrs = cast[ptr UncheckedArray[cstring]](src[i].multiaddrs)
-            let dstAddrs = cast[ptr UncheckedArray[cstring]](dst[i].multiaddrs)
-            for j in 0 ..< src[i].multiaddrsLen:
-              dstAddrs[j] = srcAddrs[j].alloc()
+              allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
   return ret
 
 proc destroyShared(self: ptr LifecycleRequest) =
