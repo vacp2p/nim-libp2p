@@ -119,9 +119,6 @@ type Libp2pConfig* {.bycopy.} = object
   gossipsubTriggerSelf*: cint
   mountKad*: cint
   mountMix*: cint
-  mixIndex*: cint
-  mixNodesLen*: cint
-  mixNodeInfoPath*: cstring
   mountKadDiscovery*: cint
   dnsResolver*: cstring
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
