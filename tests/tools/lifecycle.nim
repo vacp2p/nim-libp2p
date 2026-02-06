@@ -5,6 +5,7 @@
 
 import chronos, sequtils
 import ../../libp2p/switch
+import ./futures
 
 proc startNodes*[T](nodes: seq[T]) {.async.} =
   await allFuturesRaising(nodes.mapIt(it.switch.start()))
