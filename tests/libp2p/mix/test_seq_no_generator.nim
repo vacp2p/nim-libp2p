@@ -4,7 +4,7 @@
 {.used.}
 
 import chronicles, sets, std/[os]
-import ../../../libp2p/protocols/mix/seqno_generator
+import ../../../libp2p/[peerid, protocols/mix/seqno_generator]
 import ../../tools/[unittest]
 
 const second = 1000

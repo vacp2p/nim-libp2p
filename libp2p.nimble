@@ -23,9 +23,8 @@ let verbose = getEnv("V", "") notin ["", "0"]
 
 # changes in run configs should be also reflected on flake.nix
 let cfg =
-  " --styleCheck:usages --styleCheck:error" &
-  (if verbose: "" else: " --verbosity:0") & " --skipUserCfg -f" &
-  " --threads:on --opt:speed"
+  " --styleCheck:usages --styleCheck:error" & (if verbose: "" else: " --verbosity:0") &
+  " --skipUserCfg -f" & " --threads:on --opt:speed"
 
 proc runTest(filename: string, moreoptions: string = "") =
   var compileCmd = nimc & " " & lang & " " & cfg & " " & flags

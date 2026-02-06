@@ -4,7 +4,8 @@
 {.used.}
 
 import std/[sugar, tables]
-import ../../../libp2p/[stream/bridgestream, muxers/yamux/yamux]
+import chronos
+import ../../../libp2p/[stream/bridgestream, muxers/yamux/yamux, peerid]
 import ../../tools/[unittest, futures]
 
 proc newBlockerFut(): Future[void] {.async: (raises: [], raw: true).} =
