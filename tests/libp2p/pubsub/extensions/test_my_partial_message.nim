@@ -50,12 +50,23 @@ suite "MyPartialMessage":
   test "unionPartsMetadata":
     var res: Result[PartsData, string]
 
-    res = unionPartsMetadata(MyPartsMetadata.want(@[1]), MyPartsMetadata.want(@[2]))
+    res = unionPartsMetadata(
+      MyPartsMetadata.want(@[1]), #
+      MyPartsMetadata.want(@[2]),
+    )
     check res.isOk()
     check res.get() == MyPartsMetadata.want(@[1, 2])
 
     res = unionPartsMetadata(
-      MyPartsMetadata.want(@[1, 2, 3]), MyPartsMetadata.have(@[1, 2])
+      MyPartsMetadata.want(@[1, 2, 3]), #
+      MyPartsMetadata.have(@[1, 2]),
+    )
+    check res.isOk()
+    check res.get() == MyPartsMetadata.have(@[1, 2]) & MyPartsMetadata.want(@[3])
+
+    res = unionPartsMetadata(
+      MyPartsMetadata.want(@[1, 2, 3]), #
+      MyPartsMetadata.have(@[1, 2]) & MyPartsMetadata.want(@[3]),
     )
     check res.isOk()
     check res.get() == MyPartsMetadata.have(@[1, 2]) & MyPartsMetadata.want(@[3])
