@@ -17,7 +17,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, unittest]
 import ./utils
 
 suite "Spam Protection Component":
@@ -39,7 +39,7 @@ suite "Spam Protection Component":
       destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32))),
       spamProtectionRateLimit = Opt.some(RateLimitPerNode),
     )
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     let (destNode, pingProto) = await setupDestNode(Ping.new())
     defer:

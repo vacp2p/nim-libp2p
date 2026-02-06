@@ -6,7 +6,7 @@
 import chronos, algorithm
 import
   ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
-import ../../../tools/unittest
+import ../../../tools/[lifecycle, unittest]
 import ../utils
 
 suite "GossipSub Component - Extensions":
@@ -27,9 +27,9 @@ suite "GossipSub Component - Extensions":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connect(nodes[0], nodes[1])
 
     let nodesPeerIdSorted = pluckPeerId(nodes).sorted()
     untilTimeout:
@@ -62,8 +62,8 @@ suite "GossipSub Component - Extensions":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connect(nodes[0], nodes[1])
 
     # TODO

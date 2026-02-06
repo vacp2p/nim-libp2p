@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils], stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Heartbeat":
@@ -23,10 +23,10 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    await connectNodesHub(node0, nodes[1 .. ^1])
+    await connectHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
@@ -69,10 +69,10 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    await connectNodesHub(node0, nodes[1 .. ^1])
+    await connectHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
@@ -112,10 +112,10 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    await connectNodesHub(node0, nodes[1 .. ^1])
+    await connectHub(node0, nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
@@ -159,8 +159,8 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     # All nodes but Node0 are subscribed to the topic
     subscribeAllNodes(nodes[1 .. ^1], topic, voidTopicHandler)
@@ -191,8 +191,8 @@ suite "GossipSub Component - Heartbeat":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     # All nodes but Node0 are subscribed  to the topic
     subscribeAllNodes(nodes[1 .. ^1], topic, voidTopicHandler)
@@ -240,9 +240,9 @@ suite "GossipSub Component - Heartbeat":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesChain(nodes)
+    await connectChain(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeChain(nodes, topic)
@@ -296,9 +296,9 @@ suite "GossipSub Component - Heartbeat":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+    await connectHub(nodes[0], nodes[1 .. ^1])
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 

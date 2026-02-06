@@ -5,7 +5,7 @@
 
 import chronos, sequtils
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
 
 suite "KadDHT Find":
@@ -13,12 +13,11 @@ suite "KadDHT Find":
     checkTrackers()
 
   asyncTest "Simple find node":
-    let kads = await setupKadSwitches(3)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
 
     # Connect nodes: kads[0] <-> kads[1], kad0 <-> kads[2]
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     # kads[1] doesn't know kads[2] yet
     check not kads[1].hasKey(kads[2].rtable.selfId)
@@ -29,14 +28,13 @@ suite "KadDHT Find":
     check kads[1].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Relay find node":
-    let kads = await setupKadSwitches(4)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(4)
+    startAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2], kads[2] <-> kads[3]
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
-    connectNodes(kads[2], kads[3])
+    await connect(kads[0], kads[1])
+    await connect(kads[0], kads[2])
+    await connect(kads[2], kads[3])
 
     check:
       kads[0].hasKeys(@[kads[1].rtable.selfId, kads[2].rtable.selfId])
@@ -51,12 +49,11 @@ suite "KadDHT Find":
       kads[1].hasKeys(@[kads[2].rtable.selfId, kads[3].rtable.selfId])
 
   asyncTest "Find node accumulates peers from multiple responses":
-    let kads = await setupKadSwitches(4)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(4)
+    startAndDeferStop(kads)
 
     # Connect nodes in a chain: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
-    connectNodesChain(kads)
+    await connectChain(kads)
 
     # Verify initial state: each node only knows its neighbors
     check:
@@ -93,19 +90,18 @@ suite "KadDHT Find":
     #        \                 /
     #         node[2] - node[4]
 
-    let kads = await setupKadSwitches(6)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(6)
+    startAndDeferStop(kads)
 
     # Set alpha=2 to ensure both branches are queried in parallel
     kads[0].config.alpha = 2
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
-    connectNodes(kads[1], kads[3])
-    connectNodes(kads[2], kads[4])
-    connectNodes(kads[3], kads[5])
-    connectNodes(kads[4], kads[5])
+    await connect(kads[0], kads[1])
+    await connect(kads[0], kads[2])
+    await connect(kads[1], kads[3])
+    await connect(kads[2], kads[4])
+    await connect(kads[3], kads[5])
+    await connect(kads[4], kads[5])
 
     # Verify initial state
     check:
@@ -127,16 +123,15 @@ suite "KadDHT Find":
 
   asyncTest "Find node returns the actual k closest":
     let nodeCount = 8
-    let kads = await setupKadSwitches(nodeCount)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(nodeCount)
+    startAndDeferStop(kads)
 
     # Set replication factor to 3
     let k = 3
     kads[0].config.replication = k
 
     # Node[0] is directly connected to all other nodes
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
     check kads[0].getPeersFromRoutingTable().len == nodeCount - 1
 
     let targetKey = kads[1].rtable.selfId
@@ -157,12 +152,11 @@ suite "KadDHT Find":
     # Each node knows the other two, creating potential for infinite loops
     # Without exclusion: kads[0] queries kads[1]/kads[2] -> they return each other -> repeat
     # With exclusion: kads[0] queries kads[1]/kads[2] once, marks them responded, terminates
-    let kads = await setupKadSwitches(3)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
 
     # Create fully connected triangle
-    connectNodesStar(kads)
+    await connectStar(kads)
 
     # Verify initial state: each node knows the other two
     check:
@@ -187,12 +181,11 @@ suite "KadDHT Find":
       )
 
   asyncTest "Find peer":
-    let kads = await setupKadSwitches(3)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let res1 = await kads[1].findPeer(kads[2].switch.peerInfo.peerId)
     check res1.get().peerId == kads[2].switch.peerInfo.peerId
@@ -203,11 +196,10 @@ suite "KadDHT Find":
 
   asyncTest "Find node via refresh stale buckets":
     # Setup: kads[0] <-> kads[1] <-> kads[2] (kads[0] doesn't initially know kads[2])
-    let kads = await setupKadSwitches(3)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
 
-    connectNodesChain(kads)
+    await connectChain(kads)
 
     check not kads[0].hasKey(kads[2].rtable.selfId)
 
@@ -226,11 +218,10 @@ suite "KadDHT Find":
     check kads[0].hasKey(kads[2].rtable.selfId)
 
   asyncTest "Find node with empty key returns closest peers":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     # Send FIND_NODE with empty key directly
     let emptyKey: Key = @[]
@@ -244,12 +235,11 @@ suite "KadDHT Find":
       response.closerPeers[0].id == kads[1].rtable.selfId
 
   asyncTest "Find node for own PeerID returns closest peers":
-    let kads = await setupKadSwitches(3)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
 
     # Setup: kads[0] <-> kads[1], kads[0] <-> kads[2]
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     # kads[1] asks kads[0] for peers closest to kads[1]'s own PeerID
     let ownKey = kads[1].rtable.selfId
@@ -265,9 +255,8 @@ suite "KadDHT Find":
       kads[2].rtable.selfId in closerPeersIds
 
   asyncTest "Find node with empty routing table returns empty result":
-    let kads = await setupKadSwitches(1)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(1)
+    startAndDeferStop(kads)
 
     # Routing table is empty (no peers connected)
     check kads[0].getPeersFromRoutingTable().len == 0
@@ -280,13 +269,12 @@ suite "KadDHT Find":
   asyncTest "Find node continues when peer fails immediately":
     # kads[0] knows kads[1] (will fail immediately) and kads[2] (responds)
     # kads[2] knows kads[3]
-    let kads = await setupKadSwitches(4)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(4)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
-    connectNodes(kads[2], kads[3])
+    await connect(kads[0], kads[1])
+    await connect(kads[0], kads[2])
+    await connect(kads[2], kads[3])
 
     # Stop kads[1] - dial will fail immediately with DialFailedError
     # This is marked as RespondedStatus.Failed and NOT retried
@@ -304,17 +292,14 @@ suite "KadDHT Find":
   asyncTest "Find node retries timed-out peer until max retries exhausted":
     # Test the retry path: peer that doesn't finish within timeout gets retried
     const retries = 5
-    let kad = await setupKadSwitch(
-      config = testKadConfig(timeout = 100.milliseconds, retries = retries)
-    )
-    let mockKad =
-      await setupMockKadSwitch(handleFindNodeDelay = 500.milliseconds) # > timeout
-    let responsiveKad = await setupKadSwitch()
-    defer:
-      await stopNodes(@[kad, mockKad, responsiveKad])
+    let kad =
+      setupKad(config = testKadConfig(timeout = 100.milliseconds, retries = retries))
+    let mockKad = setupMockKad(handleFindNodeDelay = 500.milliseconds) # > timeout
+    let responsiveKad = setupKad()
+    startAndDeferStop(@[kad, mockKad, responsiveKad])
 
-    connectNodes(kad, mockKad)
-    connectNodes(kad, responsiveKad)
+    await connect(kad, mockKad)
+    await connect(kad, responsiveKad)
 
     check mockKad.handleFindNodeCalls == 0
 

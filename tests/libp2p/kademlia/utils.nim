@@ -87,28 +87,6 @@ proc setupMockKad*(
   kad.switch.mount(kad)
   kad
 
-proc setupKadSwitch*(
-    config: KadDHTConfig = testKadConfig(),
-    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
-): Future[KadDHT] {.async.} =
-  let kad = setupKad(config, bootstrapNodes)
-  await kad.switch.start()
-  kad
-
-proc setupMockKadSwitch*(
-    config: KadDHTConfig = testKadConfig(),
-    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
-    getValueResponse: Opt[Message] = Opt.none(Message),
-    handleAddProviderMessage: Opt[Message] = Opt.none(Message),
-    handleFindNodeDelay: Duration = ZeroDuration,
-): Future[MockKadDHT] {.async.} =
-  let kad = setupMockKad(
-    config, bootstrapNodes, getValueResponse, handleAddProviderMessage,
-    handleFindNodeDelay,
-  )
-  await kad.switch.start()
-  kad
-
 proc setupKadSwitches*(
     count: int,
     validator: EntryValidator = PermissiveValidator(),
@@ -117,7 +95,7 @@ proc setupKadSwitches*(
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     replication: int = DefaultReplication,
-): Future[seq[KadDHT]] {.async.} =
+): seq[KadDHT] =
   var kads: seq[KadDHT]
   for i in 0 ..< count:
     let config = testKadConfig(
@@ -127,14 +105,10 @@ proc setupKadSwitches*(
       republishProvidedKeysInterval,
       replication = replication,
     )
-    kads.add(await setupKadSwitch(config, bootstrapNodes))
+    kads.add(setupKad(config, bootstrapNodes))
   kads
 
-proc stopNodes*(nodes: seq[KadDHT]) {.async.} =
-  await allFutures(nodes.mapIt(it.stop()))
-  await allFutures(nodes.mapIt(it.switch.stop()))
-
-proc connectNodes*(kad1, kad2: KadDHT) =
+proc connect*(kad1, kad2: KadDHT) {.async.} =
   ## Bidirectionally connect two KadDHT instances.
   # Add to routing tables
   discard kad1.rtable.insert(kad2.switch.peerInfo.peerId)
@@ -145,26 +119,6 @@ proc connectNodes*(kad1, kad2: KadDHT) =
     kad2.switch.peerInfo.addrs
   kad2.switch.peerStore[AddressBook][kad1.switch.peerInfo.peerId] =
     kad1.switch.peerInfo.addrs
-
-proc connectNodesStar*(nodes: seq[KadDHT]) =
-  ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
-  ## 
-  for dialer in nodes:
-    for listener in nodes:
-      if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
-        connectNodes(dialer, listener)
-
-proc connectNodesHub*(hub: KadDHT, nodes: seq[KadDHT]) =
-  ## Hub: hub-1, hub-2, hub-3,...
-  ## 
-  for i in 0 ..< nodes.len:
-    connectNodes(hub, nodes[i])
-
-proc connectNodesChain*(nodes: seq[KadDHT]) =
-  ## Chain: 1-2-3-4-5
-  ## 
-  for i in 0 ..< nodes.len - 1:
-    connectNodes(nodes[i], nodes[i + 1])
 
 proc hasKey*(kad: KadDHT, key: Key): bool =
   for b in kad.rtable.buckets:

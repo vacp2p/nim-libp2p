@@ -7,7 +7,7 @@ import chronos, std/[sequtils], chronicles
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
 when defined(libp2p_gossipsub_1_4):
   import ../../../../libp2p/protocols/pubsub/gossipsub/preamblestore
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Control Messages":
@@ -29,10 +29,10 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -79,10 +79,10 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And only node0 subscribes to the topic
     nodes[0].subscribe(topic, voidTopicHandler)
@@ -121,10 +121,10 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -168,10 +168,10 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And only node0 subscribes to the topic 
     n0.subscribe(topic, voidTopicHandler)
@@ -209,14 +209,14 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Given node1 has an IHAVE observer
     var (receivedIHaves, checkForIHaves) = createCheckForIHave()
     n1.addOnRecvObserver(checkForIHaves)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -246,14 +246,14 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
     var (receivedIWants, checkForIWants) = createCheckForIWant()
     n1.addOnRecvObserver(checkForIWants)
 
     # And the nodes are connected   
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -284,14 +284,14 @@ suite "GossipSub Component - Control Messages":
       n0 = nodes[0]
       n1 = nodes[1]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Given node1 has an IWANT observer
     var (receivedIWants, checkForIWants) = createCheckForIWant()
     n0.addOnRecvObserver(checkForIWants)
 
     # And the nodes are connected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And both nodes subscribe to the topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -310,10 +310,10 @@ suite "GossipSub Component - Control Messages":
   asyncTest "IDONTWANT":
     let nodes = generateNodes(3, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes in chain connection
-    await connectNodesChain(nodes)
+    await connectChain(nodes)
 
     let (bFinished, handlerB) = createCompleteHandler()
 
@@ -355,9 +355,9 @@ suite "GossipSub Component - Control Messages":
     let nodes =
       generateNodes(2, gossip = true, sendIDontWantOnPublish = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -378,10 +378,10 @@ suite "GossipSub Component - Control Messages":
         n0 = nodes[0]
         n1 = nodes[1]
 
-      startNodesAndDeferStop(nodes)
+      startAndDeferStop(nodes)
 
       # And the nodes are connected
-      await connectNodesStar(nodes)
+      await connectStar(nodes)
 
       # And both subscribe to the topic
       subscribeAllNodes(nodes, topic, voidTopicHandler)

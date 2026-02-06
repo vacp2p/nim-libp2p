@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, options, std/[enumerate, sequtils, tables]
+import chronos, results, options, std/[enumerate, tables]
 import
   ../../../libp2p/[
     protocols/mix,
@@ -73,17 +73,6 @@ proc setupMixNodes*(
     nodes.add(proto)
     switches[index].mount(proto)
   nodes
-
-proc startNodes*(nodes: seq[MixProtocol]) {.async.} =
-  await nodes.mapIt(it.switch.start()).allFutures()
-
-proc stopNodes*(nodes: seq[MixProtocol]) {.async.} =
-  await nodes.mapIt(it.switch.stop()).allFutures()
-
-template startNodesAndDeferStop*(nodes: seq[MixProtocol]): untyped =
-  await startNodes(nodes)
-  defer:
-    await stopNodes(nodes)
 
 proc setupDestNode*[T: LPProtocol](
     proto: T

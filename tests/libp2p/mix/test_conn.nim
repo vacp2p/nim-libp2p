@@ -20,7 +20,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, unittest]
 import ./utils
 
 const NoReplyProtocolCodec* = "/test/1.0.0"
@@ -57,7 +57,7 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(
       10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
     )
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     let (destNode, pingProto) = await setupDestNode(Ping.new())
     defer:
@@ -78,7 +78,7 @@ suite "Mix Protocol Component":
 
   asyncTest "expect no reply, exit != destination":
     let nodes = await setupMixNodes(10)
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     let (destNode, nrProto) = await setupDestNode(newNoReplyProtocol())
     defer:
@@ -107,7 +107,7 @@ suite "Mix Protocol Component":
       let pingProto = Ping.new()
       destNode.switch.mount(pingProto)
 
-      startNodesAndDeferStop(nodes)
+      startAndDeferStop(nodes)
 
       let conn = nodes[0]
         .toConnection(
@@ -169,7 +169,7 @@ suite "Mix Protocol Component":
     let testProto = newLengthPrefixTestProtocol()
     destNode.switch.mount(testProto)
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     let conn = nodes[0]
       .toConnection(
@@ -257,7 +257,7 @@ suite "Mix Protocol Component":
 
     # Start all switches - they're needed as intermediate nodes in the mix path
     # even though only sender (0) and destination (1) are doing protocol work
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Send messages in a loop until invalid node is encountered and removed
     # With validNodesCount + 1 invalid nodes and PathLength=3, we need multiple attempts

@@ -5,7 +5,7 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Skip MCache Support":
@@ -17,8 +17,8 @@ suite "GossipSub Component - Skip MCache Support":
   asyncTest "publish with skipMCache prevents message from being added to mcache":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -35,8 +35,8 @@ suite "GossipSub Component - Skip MCache Support":
   asyncTest "publish without skipMCache adds message to mcache":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribe(nodes[0], nodes[1], topic)
