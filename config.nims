@@ -15,8 +15,6 @@ switch("warningAsError", "UseBase:on")
 switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
 switch("hintAsError", "DuplicateModuleImport:on")
 
-switch("hint", "XCannotRaiseY:off")
-
 --styleCheck:
   usages
 --styleCheck:
