@@ -155,7 +155,7 @@ proc buildProvidersResult(
 
 proc process*(
     self: ptr KademliaRequest, kadOpt: Opt[KadDHT]
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -182,7 +182,7 @@ proc process*(
   else:
     raiseAssert "unsupported path, use specific processor"
 
-  ok("")
+  ok()
 
 proc processFindNode*(
     self: ptr KademliaRequest, kadOpt: Opt[KadDHT]

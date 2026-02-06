@@ -55,7 +55,7 @@ proc destroyShared(self: ptr PubSubRequest) =
 
 proc process*(
     self: ptr PubSubRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -99,4 +99,4 @@ proc process*(
     # TODO:
     discard
 
-  return ok("")
+  return ok()

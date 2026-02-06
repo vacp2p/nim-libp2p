@@ -22,6 +22,14 @@
 #define RET_ERR 1
 #define RET_MISSING_CALLBACK 2
 
+typedef struct {
+  uint8_t bytes[32];
+} libp2p_curve25519_key_t;
+
+typedef struct {
+  uint8_t bytes[33];
+} libp2p_secp256k1_pubkey_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,9 +38,8 @@ typedef void (*Libp2pCallback)(int callerRet, const char *msg, size_t len,
                                void *userData);
 
 typedef void (*Libp2pBufferCallback)(int callerRet, const uint8_t *data,
-                                   size_t dataLen,
-                                   const char *msg, size_t len,
-                                   void *userData);
+                                     size_t dataLen, const char *msg,
+                                     size_t len, void *userData);
 
 enum {
   LIBP2P_CFG_GOSSIPSUB = 1 << 0,
@@ -41,6 +48,7 @@ enum {
   LIBP2P_CFG_DNS_RESOLVER = 1 << 3,
   LIBP2P_CFG_KAD_BOOTSTRAP_NODES = 1 << 4,
   LIBP2P_CFG_PRIVATE_KEY = 1 << 5,
+  LIBP2P_CFG_MIX = 1 << 6,
 };
 
 typedef struct libp2p_bootstrap_node {
@@ -67,6 +75,10 @@ typedef struct {
   int mount_gossipsub;
   int gossipsub_trigger_self;
   int mount_kad;
+  int mount_mix;
+  int mix_index;
+  int mix_nodes_len;
+  const char *mix_node_info_path;
   const char *dns_resolver;
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   size_t kad_bootstrap_nodes_len;
@@ -98,20 +110,22 @@ typedef void (*PeersCallback)(int callerRet, const char **peerIds,
 typedef struct libp2p_stream libp2p_stream_t;
 
 typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
-                                   const char *msg, size_t len,
-                                   void *userData);
+                                   const char *msg, size_t len, void *userData);
 
 typedef struct libp2p_stream libp2p_stream_t;
-
-typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
-                                   const char *msg, size_t len,
-                                   void *userData);
 
 typedef uint32_t Direction;
 
 enum {
   Direction_In = 0,
   Direction_Out = 1,
+};
+
+typedef uint32_t Libp2pMixReadBehavior;
+
+enum {
+  LIBP2P_MIX_READ_EXACTLY = 0,
+  LIBP2P_MIX_READ_LP = 1,
 };
 
 typedef void (*GetProvidersCallback)(int callerRet,
@@ -152,9 +166,9 @@ typedef ValidationResult ValidatorHandler(const char *topic, Message msg);
 typedef void TopicHandler(const char *topic, uint8_t *data, size_t len,
                           void *userData);
 
-int libp2p_create_cid(uint32_t version, const char *multicodec, const char *hash,
-                      const uint8_t *data, size_t dataLen, Libp2pCallback callback,
-                      void *userData);
+int libp2p_create_cid(uint32_t version, const char *multicodec,
+                      const char *hash, const uint8_t *data, size_t dataLen,
+                      Libp2pCallback callback, void *userData);
 
 int libp2p_new_private_key(libp2p_pk_scheme scheme, Libp2pBufferCallback callback, void *userData);
 
@@ -170,22 +184,56 @@ int libp2p_start(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
 int libp2p_stop(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
-int libp2p_connect(libp2p_ctx_t *ctx, const char *peerId, const char **multiaddrs,
-                   size_t multiaddrsLen, int64_t timeoutMs,
-                   Libp2pCallback callback, void *userData);
+int libp2p_connect(libp2p_ctx_t *ctx, const char *peerId,
+                   const char **multiaddrs, size_t multiaddrsLen,
+                   int64_t timeoutMs, Libp2pCallback callback, void *userData);
 
-int libp2p_disconnect(libp2p_ctx_t *ctx, const char *peerId, Libp2pCallback callback,
-                      void *userData);
+int libp2p_disconnect(libp2p_ctx_t *ctx, const char *peerId,
+                      Libp2pCallback callback, void *userData);
 
-int libp2p_peerinfo(libp2p_ctx_t *ctx, PeerInfoCallback callback, void *userData);
+int libp2p_peerinfo(libp2p_ctx_t *ctx, PeerInfoCallback callback,
+                    void *userData);
 
-int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir, PeersCallback callback,
-                           void *userData);
+int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir,
+                           PeersCallback callback, void *userData);
 
 // TODO: libp2p_ping
 
 int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
                 ConnectionCallback callback, void *userData);
+
+void libp2p_mix_generate_priv_key(libp2p_curve25519_key_t *outKey);
+
+void libp2p_mix_public_key(libp2p_curve25519_key_t inKey,
+                           libp2p_curve25519_key_t *outKey);
+
+int libp2p_mix_dial(libp2p_ctx_t *ctx, const char *peerId,
+                    const char *multiaddr, const char *proto,
+                    ConnectionCallback callback, void *userData);
+
+int libp2p_mix_dial_with_reply(libp2p_ctx_t *ctx, const char *peerId,
+                               const char *multiaddr, const char *proto,
+                               int expect_reply, uint8_t num_surbs,
+                               ConnectionCallback callback, void *userData);
+
+int libp2p_mix_register_dest_read_behavior(libp2p_ctx_t *ctx, const char *proto,
+                                           Libp2pMixReadBehavior behavior,
+                                           uint32_t size_param,
+                                           Libp2pCallback callback,
+                                           void *userData);
+
+int libp2p_mix_set_node_info(libp2p_ctx_t *ctx, const char *multiaddr,
+                             libp2p_curve25519_key_t mix_priv_key,
+                             Libp2pCallback callback, void *userData);
+
+int libp2p_mix_nodepool_add(libp2p_ctx_t *ctx, const char *peerId,
+                            const char *multiaddr,
+                            libp2p_curve25519_key_t mix_pub_key,
+                            libp2p_secp256k1_pubkey_t libp2p_pub_key,
+                            Libp2pCallback callback, void *userData);
+
+int libp2p_public_key(libp2p_ctx_t *ctx, Libp2pBufferCallback callback,
+                      void *userData);
 
 int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
                         Libp2pCallback callback, void *userData);
@@ -207,9 +255,9 @@ int libp2p_stream_readLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
                          int64_t maxSize, Libp2pBufferCallback callback,
                          void *userData);
 
-int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
-                        uint8_t *data, size_t dataLen,
-                        Libp2pCallback callback, void *userData);
+int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *conn, uint8_t *data,
+                        size_t dataLen, Libp2pCallback callback,
+                        void *userData);
 
 int libp2p_stream_writeLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
                           uint8_t *data, size_t dataLen,
@@ -230,9 +278,9 @@ int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
 // TODO: observers
 // TODO: subscription validator
 
-int libp2p_gossipsub_publish(libp2p_ctx_t *ctx, const char *topic, uint8_t *data,
-                             size_t dataLen, Libp2pCallback callback,
-                             void *userData);
+int libp2p_gossipsub_publish(libp2p_ctx_t *ctx, const char *topic,
+                             uint8_t *data, size_t dataLen,
+                             Libp2pCallback callback, void *userData);
 
 int libp2p_gossipsub_subscribe(libp2p_ctx_t *ctx, const char *topic,
                                TopicHandler topicHandler,
@@ -274,7 +322,6 @@ int libp2p_stop_providing(void *ctx, const char *cid, Libp2pCallback callback,
 
 int libp2p_get_providers(void *ctx, const char *cid,
                          GetProvidersCallback callback, void *userData);
-
 
 #ifdef __cplusplus
 }

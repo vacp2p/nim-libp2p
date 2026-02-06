@@ -17,7 +17,9 @@ import
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
     libp2p_kademlia_requests, libp2p_stream_requests,
   ],
-  ../libp2p
+  ../libp2p,
+  ../libp2p/crypto/crypto,
+  ../libp2p/crypto/curve25519
 ################################################################################
 ### Not-exported components
 ################################################################################
@@ -146,6 +148,34 @@ proc initializeLibrary() {.exported.} =
 
 ################################################################################
 ### Exported procs
+
+proc libp2p_mix_generate_priv_key(
+    outKey: ptr MixCurve25519Key
+) {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+
+  doAssert(not outKey.isNil(), "outKey is nil")
+
+  var rng = newRng()
+  let priv = Curve25519Key.random(rng[])
+
+  for i in 0 ..< Curve25519KeySize:
+    outKey[].bytes[i] = priv[i]
+
+proc libp2p_mix_public_key(
+    inKey: MixCurve25519Key, outKey: ptr MixCurve25519Key
+) {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+
+  doAssert(not outKey.isNil(), "outKey is nil")
+
+  var priv: Curve25519Key
+  for i in 0 ..< Curve25519KeySize:
+    priv[i] = inKey.bytes[i]
+
+  let pub = public(priv)
+  for i in 0 ..< Curve25519KeySize:
+    outKey[].bytes[i] = pub[i]
 
 proc libp2p_create_cid(
     version: cuint,
@@ -434,6 +464,195 @@ proc libp2p_dial(
   ).isOkOr:
     let msg = "libp2p error: " & $error
     callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_mix_dial(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    multiaddr: cstring,
+    proto: cstring,
+    callback: ConnectionCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil() or multiaddr.isNil() or proto.isNil():
+    let msg = "peerId, multiaddr, or proto is nil"
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.MIX_DIAL, peerId = peerId, multiaddr = multiaddr, proto = proto
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_mix_dial_with_reply(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    multiaddr: cstring,
+    proto: cstring,
+    expectReply: cint,
+    numSurbs: cuint,
+    callback: ConnectionCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil() or multiaddr.isNil() or proto.isNil():
+    let msg = "peerId, multiaddr, or proto is nil"
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  let expect = expectReply != 0
+  let surbs = (if numSurbs > high(uint8).cuint: high(uint8).cuint
+  else: numSurbs)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.MIX_DIAL,
+      peerId = peerId,
+      multiaddr = multiaddr,
+      proto = proto,
+      mixExpectReply = expect,
+      mixNumSurbs = surbs.uint8,
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_mix_register_dest_read_behavior(
+    ctx: ptr LibP2PContext,
+    proto: cstring,
+    behavior: MixReadBehaviorKind,
+    sizeParam: cuint,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if proto.isNil():
+    let msg = "proto is nil"
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.MIX_REGISTER_DEST_READ,
+      proto = proto,
+      mixReadBehaviorKind = behavior.cint,
+      mixReadBehaviorParam = sizeParam.cint,
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_mix_set_node_info(
+    ctx: ptr LibP2PContext,
+    multiaddr: cstring,
+    mixPrivKey: MixCurve25519Key,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+  if multiaddr.isNil():
+    failWithMsg(callback, userData, "multiaddr is nil")
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.MIX_SET_NODE_INFO,
+      multiaddr = multiaddr,
+      data = cast[ptr byte](unsafeAddr mixPrivKey.bytes[0]),
+      dataLen = Curve25519KeySize.csize_t,
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    failWithMsg(callback, userData, "libp2p error: " & $error)
+
+  RET_OK.cint
+
+proc libp2p_mix_nodepool_add(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    multiaddr: cstring,
+    mixPubKey: MixCurve25519Key,
+    libp2pPubKey: MixSecp256k1PubKey,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil():
+    failWithMsg(callback, userData, "peerId is nil")
+  if multiaddr.isNil():
+    failWithMsg(callback, userData, "multiaddr is nil")
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.MIX_NODEPOOL_ADD,
+      peerId = peerId,
+      multiaddr = multiaddr,
+      mixPubKey = mixPubKey,
+      libp2pPubKey = libp2pPubKey,
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    failWithMsg(callback, userData, "libp2p error: " & $error)
+
+  RET_OK.cint
+
+proc libp2p_public_key(
+    ctx: ptr LibP2PContext, callback: Libp2pBufferCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.LIFECYCLE,
+    LifecycleRequest.createShared(LifecycleMsgType.GET_PUBLIC_KEY),
+    callback,
+    CallbackKind.READ,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
     return RET_ERR.cint
 
   return RET_OK.cint

@@ -7,11 +7,15 @@
 # used for communication between client and library threads.
 
 import ../libp2p/utils/sequninit
+import ./ffi_types
 
 ## Can be shared safely between threads
 type SharedSeq*[T] = object
   data: ptr UncheckedArray[T]
   len: int
+
+proc len*(s: SharedSeq): int =
+  s.len
 
 template deallocCStringArray*(arrPtr: ptr cstring, len: csize_t) =
   if not arrPtr.isNil():
@@ -100,3 +104,24 @@ proc allocSharedSeqFromCArray*[T](arr: ptr T, len: int): SharedSeq[T] =
     let data = allocShared(sizeof(T) * len)
     copyMem(data, arr, sizeof(T) * len)
     return SharedSeq[T](data: cast[ptr UncheckedArray[T]](data), len: len)
+
+proc deallocReadResponse*(res: ptr ReadResponse) =
+  if res.isNil():
+    return
+
+  if res[].data != nil:
+    deallocShared(res[].data)
+
+  deallocShared(res)
+
+proc allocReadResponse*(data: seq[byte]): ptr ReadResponse =
+  let res = cast[ptr ReadResponse](createShared(ReadResponse, 1))
+  if data.len == 0:
+    res[].data = nil
+    res[].dataLen = 0
+    return res
+
+  res[].dataLen = data.len.csize_t
+  res[].data = cast[ptr byte](allocShared(data.len))
+  copyMem(res[].data, addr data[0], data.len)
+  res
