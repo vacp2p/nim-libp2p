@@ -30,6 +30,7 @@ type CallbackKind* {.pure.} = enum
   PEERS
   GET_VALUE
   GET_PROVIDERS
+  RANDOM_RECORDS
   CONNECTED_PEERS
   CONNECTION
   READ
@@ -209,6 +210,32 @@ proc handleGetProvidersRes(
 
   deallocProvidersResult(providersRes)
 
+proc handleRandomRecordsRes(
+    res: Result[ptr RandomRecordsResult, string], request: ptr LibP2PThreadRequest
+) =
+  defer:
+    deallocShared(request)
+
+  let cb = cast[RandomRecordsCallback](request[].callback)
+
+  let recordsRes = res.valueOr:
+    foreignThreadGc:
+      let msg = $error
+      cb(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+    return
+
+  foreignThreadGc:
+    cb(
+      RET_OK.cint,
+      recordsRes[].records,
+      recordsRes[].recordsLen,
+      nil,
+      0,
+      request[].userData,
+    )
+
+  deallocRandomRecordsResult(recordsRes)
+
 proc processLifecycle(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
@@ -264,6 +291,8 @@ proc processKademlia(
     handleGetValueRes(await kadReq.processGetValue(kad), request)
   of CallbackKind.GET_PROVIDERS:
     handleGetProvidersRes(await kadReq.processGetProviders(kad), request)
+  of CallbackKind.RANDOM_RECORDS:
+    handleRandomRecordsRes(await kadReq.processRandomRecords(kad), request)
   else:
     handleRes(await kadReq.process(kad), request)
 

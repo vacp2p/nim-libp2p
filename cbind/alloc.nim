@@ -47,6 +47,23 @@ proc alloc*(str: string): cstring =
   ret[str.len] = '\0'
   return ret
 
+proc allocCStringArrayFromSeq*(addrs: seq[string]): ptr cstring =
+  if addrs.len == 0:
+    return nil
+  result = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
+  let arr = cast[ptr UncheckedArray[cstring]](result)
+  for i, addrStr in addrs:
+    arr[i] = addrStr.alloc()
+
+proc allocCStringArrayFromCArray*(src: ptr cstring, len: csize_t): ptr cstring =
+  if src.isNil() or len == 0:
+    return nil
+  result = cast[ptr cstring](allocShared(sizeof(cstring) * int(len)))
+  let srcArr = cast[ptr UncheckedArray[cstring]](src)
+  let dstArr = cast[ptr UncheckedArray[cstring]](result)
+  for i in 0 ..< int(len):
+    dstArr[i] = srcArr[i].alloc()
+
 proc allocSharedSeq*[T](s: seq[T]): SharedSeq[T] =
   let data = allocShared(sizeof(T) * s.len)
   if s.len != 0:

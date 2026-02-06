@@ -1121,5 +1121,24 @@ proc libp2p_get_providers(
 
   RET_OK.cint
 
+proc libp2p_random_records(
+    ctx: ptr LibP2PContext, callback: RandomRecordsCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(KademliaMsgType.RANDOM_RECORDS),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
 ### End of exported procs
 ################################################################################
