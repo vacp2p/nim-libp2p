@@ -17,6 +17,7 @@ import ../../../../libp2p/crypto/secp
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/protocols/kademlia_discovery/types
 import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/mix
 import ../../../../libp2p/protocols/mix/mix_protocol
@@ -45,6 +46,7 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     mixIndex: 0,
     mixNodesLen: 0,
     mixNodeInfoPath: ".".cstring,
+    mountKadDiscovery: 0,
     dnsResolver: DefaultDnsResolver.cstring,
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
@@ -67,6 +69,8 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     resolved.mixNodesLen = config[].mixNodesLen
     if not config[].mixNodeInfoPath.isNil() and config[].mixNodeInfoPath[0] != '\0':
       resolved.mixNodeInfoPath = config[].mixNodeInfoPath
+  if (flags and Libp2pCfgKadDiscovery) != 0'u32:
+    resolved.mountKadDiscovery = config[].mountKadDiscovery
   if (flags and Libp2pCfgDnsResolver) != 0'u32:
     if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
       resolved.dnsResolver = config[].dnsResolver
@@ -191,6 +195,29 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
 
+  var gossipSub = Opt.none(GossipSub)
+  if config.mountGossipsub != 0:
+    let gs =
+      GossipSub.init(switch = switch, triggerSelf = config.gossipsubTriggerSelf != 0)
+    switch.mount(gs)
+    gossipSub = Opt.some(gs)
+
+  switch.mount(Ping.new())
+
+  var kad = Opt.none(KadDHT)
+  if config.mountKad != 0 or config.mountKadDiscovery != 0:
+    let bootstrapNodes = parseBootstrapNodes(config)
+    if config.mountKadDiscovery != 0:
+      let k = KademliaDiscovery.new(
+        switch, bootstrapNodes = bootstrapNodes, codec = ExtendedKademliaDiscoveryCodec
+      )
+      switch.mount(k)
+      kad = Opt.some(KadDHT(k))
+    else:
+      let k = KadDHT.new(switch, bootstrapNodes = bootstrapNodes)
+      switch.mount(k)
+      kad = Opt.some(k)
+
   var ret = LibP2P(
     switch: switch,
     gossipSub: Opt.none(GossipSub),
@@ -239,11 +266,7 @@ proc createShared*(
             dst[i].multiaddrs = nil
           else:
             dst[i].multiaddrs =
-              cast[ptr cstring](allocShared(sizeof(cstring) * src[i].multiaddrsLen.int))
-            let srcAddrs = cast[ptr UncheckedArray[cstring]](src[i].multiaddrs)
-            let dstAddrs = cast[ptr UncheckedArray[cstring]](dst[i].multiaddrs)
-            for j in 0 ..< src[i].multiaddrsLen:
-              dstAddrs[j] = srcAddrs[j].alloc()
+              allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
   return ret
 
 proc destroyShared(self: ptr LifecycleRequest) =
