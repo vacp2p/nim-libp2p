@@ -5,7 +5,8 @@
 
 import chronos, algorithm
 import
-  ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub, gossipsub/extensions, gossipsub/partial_message, rpc/message]
 import ../../../tools/[lifecycle, unittest]
 import ../utils
 
@@ -39,6 +40,11 @@ suite "GossipSub Component - Extensions":
         negotiatedPeersSorted == nodesPeerIdSorted
 
   asyncTest "Partial Message Extension":
+    proc unionPartsMetadata(
+        a, b: PartsMetadata
+    ): Result[PartsMetadata, string] {.gcsafe, raises: [].} =
+      err("unimplemented")
+
     proc validateRPC(
         rpc: PartialMessageExtensionRPC
     ): Result[void, string] {.gcsafe, raises: [].} =
@@ -56,7 +62,10 @@ suite "GossipSub Component - Extensions":
           gossip = true,
           partialMessageExtensionConfig = some(
             PartialMessageExtensionConfig(
-              validateRPC: validateRPC, onIncomingRPC: onIncomingRPC
+              unionPartsMetadata: unionPartsMetadata,
+              validateRPC: validateRPC,
+              onIncomingRPC: onIncomingRPC,
+              heartbeatsTillEviction: 3,
             )
           ),
         )
