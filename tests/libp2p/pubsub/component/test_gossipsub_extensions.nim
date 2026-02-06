@@ -10,6 +10,11 @@ import ../../../tools/[lifecycle, unittest]
 import ../extensions/my_partial_message
 import ../utils
 
+# this test file test integration of gossipsub with extensions. 
+# tests here do not need to be very compensative, because it is enough 
+# to test integration with extension and gossipsub. more detailed tests
+# for extension should be added to test files of respective extension.
+
 suite "GossipSub Component - Extensions":
   teardown:
     checkTrackers()
