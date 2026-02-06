@@ -15,7 +15,7 @@ suite "MyPartialMessage":
       want: @[4, 5, 6],
     )
     check pm.partsMetadata() ==
-      rawMetadata(@[3, 2, 1], Meta.have) & rawMetadata(@[4, 5, 6], Meta.want)
+      MyPartsMetadata.have(@[3, 2, 1]) & MyPartsMetadata.want(@[4, 5, 6])
 
   test "materializeParts":
     var pm = MyPartialMessage(
@@ -24,22 +24,22 @@ suite "MyPartialMessage":
     var dataRes: Result[PartsData, string]
 
     # exists: 1
-    dataRes = pm.materializeParts(rawMetadata(@[1], Meta.want))
+    dataRes = pm.materializeParts(MyPartsMetadata.want(@[1]))
     check dataRes.isOk()
     check dataRes.get() == pm.data[1]
 
     # does not exist: 5
-    dataRes = pm.materializeParts(rawMetadata(@[5], Meta.want))
+    dataRes = pm.materializeParts(MyPartsMetadata.want(@[5]))
     check dataRes.isOk()
     check dataRes.get().len == 0
 
     # exists: 2 + 3
-    dataRes = pm.materializeParts(rawMetadata(@[2, 3], Meta.want))
+    dataRes = pm.materializeParts(MyPartsMetadata.want(@[2, 3]))
     check dataRes.isOk()
     check dataRes.get() == pm.data[2] & pm.data[3]
 
     # exists: 2 + 3; ignored: 5, 6, 7, 9, 10
-    dataRes = pm.materializeParts(rawMetadata(@[2, 5, 6, 7, 3, 9, 10], Meta.want))
+    dataRes = pm.materializeParts(MyPartsMetadata.want(@[2, 5, 6, 7, 3, 9, 10]))
     check dataRes.isOk()
     check dataRes.get() == pm.data[2] & pm.data[3]
 
@@ -50,12 +50,12 @@ suite "MyPartialMessage":
   test "unionPartsMetadata":
     var res: Result[PartsData, string]
 
-    res = unionPartsMetadata(rawMetadata(@[1], Meta.want), rawMetadata(@[2], Meta.want))
+    res = unionPartsMetadata(MyPartsMetadata.want(@[1]), MyPartsMetadata.want(@[2]))
     check res.isOk()
-    check res.get() == rawMetadata(@[1, 2], Meta.want)
+    check res.get() == MyPartsMetadata.want(@[1, 2])
 
     res = unionPartsMetadata(
-      rawMetadata(@[1, 2, 3], Meta.want), rawMetadata(@[1, 2], Meta.have)
+      MyPartsMetadata.want(@[1, 2, 3]), MyPartsMetadata.have(@[1, 2])
     )
     check res.isOk()
-    check res.get() == rawMetadata(@[1, 2], Meta.have) & rawMetadata(@[3], Meta.want)
+    check res.get() == MyPartsMetadata.have(@[1, 2]) & MyPartsMetadata.want(@[3])

@@ -5,34 +5,40 @@ import sets, tables, sequtils, algorithm
 import ../../../../libp2p/peerid
 import ../../../../libp2p/protocols/pubsub/[gossipsub/partial_message]
 
-# MyPartialMessage uses following metadata pattern:
-# [chunk][meta][chunk][meta][chunk][meta]...
-#   - [chunk] and [meta] are exactly 1 byte
-#   - [chunk] identifies part of full logical message
-#   - [meta] tells if peer has or wants chunk
-# Example:
-# 112131 - metadata has chunks 1, 2, 3
-# 112232 - metadata has chunk 1, and wants chunk 2, 3
-# etc ...
-
 type
+  MyPartsMetadata* = PartsMetadata
+    # MyPartsMetadata uses following metadata pattern:
+    # [chunk][meta][chunk][meta][chunk][meta]...
+    #   - [chunk] and [meta] are exactly 1 byte
+    #   - [chunk] identifies part of full logical message
+    #   - [meta] tells if message/peer has or wants chunk
+    # Example:
+    # 1h2h3h - metadata has chunks 1, 2, 3
+    # 1h2w3w - metadata has chunk 1, and wants chunk 2, 3
+
   Chunk* = int
   Meta* {.size: sizeof(byte).} = enum
-    have = 1
-    want = 2
+    have = byte('h')
+    want = byte('w')
 
-proc rawMetadata*(elements: seq[Chunk], m: Meta): seq[byte] =
+proc make(chunks: seq[Chunk], meta: Meta): PartsMetadata =
   var metadata: seq[byte]
-  for pos in elements.sorted():
-    metadata.add(byte(pos))
-    metadata.add(byte(m))
+  for chunk in chunks.sorted():
+    metadata.add(chunk.byte)
+    metadata.add(meta.byte)
   return metadata
+
+proc have*(T: typedesc[MyPartsMetadata], chunks: seq[Chunk]): PartsMetadata =
+  return make(chunks, Meta.have)
+
+proc want*(T: typedesc[MyPartsMetadata], chunks: seq[Chunk]): PartsMetadata =
+  return make(chunks, Meta.want)
 
 template checkLen*(m: PartsMetadata) =
   if m.len mod 2 != 0:
     return err("metadata does not have valid length")
 
-iterator iterChunkMeta(m: seq[byte]): (Chunk, Meta) =
+iterator iterChunkMeta(m: PartsMetadata): (Chunk, Meta) =
   for i in 0 ..< (m.len / 2).int:
     let chunk = m[(i * 2)].Chunk
     let meta = m[(i * 2) + 1].Meta
@@ -63,8 +69,8 @@ proc unionPartsMetadata*(
     want.excl(chunk)
 
   var metadata: seq[byte]
-  metadata.add(rawMetadata(toSeq(have), Meta.have))
-  metadata.add(rawMetadata(toSeq(want), Meta.want))
+  metadata.add(MyPartsMetadata.have(toSeq(have)))
+  metadata.add(MyPartsMetadata.want(toSeq(want)))
   return ok(metadata)
 
 type MyPartialMessage* = ref object of PartialMessage
@@ -78,8 +84,8 @@ method groupId*(m: MyPartialMessage): GroupId {.gcsafe, raises: [].} =
 
 method partsMetadata*(m: MyPartialMessage): PartsMetadata {.gcsafe, raises: [].} =
   var metadata: seq[byte]
-  metadata.add(rawMetadata(toSeq(m.data.keys), Meta.have))
-  metadata.add(rawMetadata(m.want, Meta.want))
+  metadata.add(MyPartsMetadata.have(toSeq(m.data.keys)))
+  metadata.add(MyPartsMetadata.want(m.want))
   return metadata
 
 method materializeParts*(

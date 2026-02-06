@@ -181,7 +181,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
 
     # valid RPC case
     let pmRPC = PartialMessageExtensionRPC(
-      topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1, 2], Meta.want)
+      topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
     )
     ext.handlePartialMessage(peerId, pmRPC)
     check:
@@ -200,7 +200,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.handlePartialMessage(
       peerId,
       PartialMessageExtensionRPC(
-        topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1, 2], Meta.want)
+        topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
       ),
     )
 
@@ -269,7 +269,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.handlePartialMessage(
       peerId,
       PartialMessageExtensionRPC(
-        topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1], Meta.want)
+        topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1])
       ),
     )
 
@@ -301,7 +301,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.handlePartialMessage(
       peerId,
       PartialMessageExtensionRPC(
-        topicID: topic, groupID: groupId, partsMetadata: rawMetadata(@[1], Meta.want)
+        topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1])
       ),
     )
 
