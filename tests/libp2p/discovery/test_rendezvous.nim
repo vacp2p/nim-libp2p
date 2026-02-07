@@ -17,7 +17,7 @@ import
     builders,
     utils/offsettedseq,
   ]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, topology, unittest]
 import ./utils
 
 type CustomPeerRecord* = object
@@ -155,14 +155,14 @@ suite "RendezVous":
 
   asyncTest "Request locally returns 0 for empty namespace":
     let nodes = setupNodes(1)
-    nodes.startAndDeferStop()
+    startAndDeferStop(nodes)
 
     const namespace = ""
     check rendezvous.requestLocally(nodes[0], namespace).len == 0
 
   asyncTest "Request locally returns registered peers":
     let nodes = setupNodes(1)
-    nodes.startAndDeferStop()
+    startAndDeferStop(nodes)
 
     const namespace = "foo"
     await nodes[0].advertise(namespace)
@@ -174,7 +174,7 @@ suite "RendezVous":
 
   asyncTest "Unsubscribe Locally removes registered peer":
     let nodes = setupNodes(1)
-    nodes.startAndDeferStop()
+    startAndDeferStop(nodes)
 
     const namespace = "foo"
     await nodes[0].advertise(namespace)
@@ -185,9 +185,9 @@ suite "RendezVous":
 
   asyncTest "Request returns 0 for empty namespace from remote":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "empty"
     check (
@@ -198,9 +198,9 @@ suite "RendezVous":
 
   asyncTest "Request returns registered peers from remote":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     waitFor peerNodes[0].advertise(namespace)
@@ -213,9 +213,9 @@ suite "RendezVous":
 
   asyncTest "Peer is not registered when peer record validation fails":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     peerNodes[0].switch.peerInfo.signedPeerRecord =
       createCorruptedSignedPeerRecord(peerNodes[0].switch.peerInfo.peerId)
@@ -227,9 +227,9 @@ suite "RendezVous":
 
   asyncTest "Unsubscribe removes registered peer from remote":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     await peerNodes[0].advertise(namespace)
@@ -249,9 +249,9 @@ suite "RendezVous":
 
   asyncTest "Unsubscribe for not registered namespace is ignored":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     await peerNodes[0].advertise("foo")
     await peerNodes[0].unsubscribe("bar")
@@ -260,9 +260,9 @@ suite "RendezVous":
 
   asyncTest "Consecutive requests with namespace returns peers with pagination":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(11)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     await allFutures(peerNodes.mapIt(it.advertise(namespace)))
@@ -291,9 +291,9 @@ suite "RendezVous":
 
   asyncTest "Request without namespace returns all registered peers":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(10)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespaceFoo = "foo"
     const namespaceBar = "Bar"
@@ -314,9 +314,9 @@ suite "RendezVous":
 
   asyncTest "Consecutive requests with namespace keep cookie and retun only new peers":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(2)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     let
       rdv0 = peerNodes[0]
@@ -339,9 +339,9 @@ suite "RendezVous":
 
   asyncTest "Request with namespace pagination with multiple namespaces":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(30)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     let rdv = peerNodes[0]
 
@@ -437,9 +437,9 @@ suite "RendezVous":
 
   asyncTest "Request with namespace with expired peers":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(20)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     # Advertise peers
     const
@@ -508,9 +508,9 @@ suite "RendezVous":
 
   asyncTest "Cookie offset is reset to end (returns empty) then new peers are discoverable":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     # Advertise two peers initially
@@ -541,9 +541,9 @@ suite "RendezVous":
 
   asyncTest "Cookie offset is reset to low after flush (returns current entries)":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(8)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     # Advertise 4 peers in namespace
@@ -577,9 +577,9 @@ suite "RendezVous":
 
   asyncTest "Cookie namespace mismatch resets to low (returns peers despite offset)":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     const namespace = "foo"
     await allFutures(peerNodes.mapIt(it.advertise(namespace)))
@@ -599,9 +599,9 @@ suite "RendezVous":
 
   asyncTest "Peer default TTL is saved when advertised":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     let timeBefore = Moment.now()
@@ -621,9 +621,9 @@ suite "RendezVous":
 
   asyncTest "Peer TTL is saved when advertised with TTL":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const
       namespace = "foo"
@@ -645,9 +645,9 @@ suite "RendezVous":
 
   asyncTest "Peer can reregister to update its TTL before previous TTL expires":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     let now = Moment.now()
@@ -682,9 +682,9 @@ suite "RendezVous":
 
   asyncTest "Peer registration is ignored if limit of 1000 registrations is reached":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodes(peerNodes[0], rendezvousNode)
+    await connect(peerNodes[0], rendezvousNode)
 
     const namespace = "foo"
     let peerRdv = peerNodes[0]
@@ -704,9 +704,9 @@ suite "RendezVous":
 
   asyncTest "Peer can register to and unsubscribe multiple namespaces":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(3)
-    (rendezvousNode & peerNodes).startAndDeferStop()
+    startAndDeferStop(rendezvousNode & peerNodes)
 
-    await connectNodesToRendezvousNode(peerNodes, rendezvousNode)
+    await connectHub(rendezvousNode, peerNodes)
 
     let
       joiner = peerNodes[0]

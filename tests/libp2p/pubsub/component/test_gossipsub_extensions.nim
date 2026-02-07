@@ -5,38 +5,74 @@
 
 import chronos, algorithm
 import
-  ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
-import ../../../tools/unittest
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub, gossipsub/extensions, gossipsub/partial_message, rpc/message]
+import ../../../tools/[lifecycle, unittest]
 import ../utils
 
-suite "GossipSub Extensions":
+suite "GossipSub Component - Extensions":
   teardown:
     checkTrackers()
 
-  asyncTest "TestExtension":
-    var
-      (negotiatedPeers, onNegotiated) = createCollectPeerCallback()
-      (handleRPCPeers, onHandleRPC) = createCollectPeerCallback()
+  asyncTest "Test Extension":
+    var negotiatedPeers: seq[PeerId]
+    proc onNegotiated(peer: PeerId) {.gcsafe, raises: [].} =
+      negotiatedPeers.add(peer)
+
     let
       numberOfNodes = 2
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          testExtensionConfig = some(
-            TestExtensionConfig(onNegotiated: onNegotiated, onHandleRPC: onHandleRPC)
-          ),
+          testExtensionConfig = some(TestExtensionConfig(onNegotiated: onNegotiated)),
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connect(nodes[0], nodes[1])
 
     let nodesPeerIdSorted = pluckPeerId(nodes).sorted()
     untilTimeout:
       pre:
-        let negotiatedPeersSorted = negotiatedPeers[].sorted()
-        let handleRPCPeersSorted = handleRPCPeers[].sorted()
+        let negotiatedPeersSorted = negotiatedPeers.sorted()
       check:
         negotiatedPeersSorted == nodesPeerIdSorted
-        handleRPCPeersSorted == nodesPeerIdSorted
+
+  asyncTest "Partial Message Extension":
+    proc unionPartsMetadata(
+        a, b: PartsMetadata
+    ): Result[PartsMetadata, string] {.gcsafe, raises: [].} =
+      err("unimplemented")
+
+    proc validateRPC(
+        rpc: PartialMessageExtensionRPC
+    ): Result[void, string] {.gcsafe, raises: [].} =
+      ok()
+
+    proc onIncomingRPC(
+        peer: PeerId, rpc: PartialMessageExtensionRPC
+    ) {.gcsafe, raises: [].} =
+      discard
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          partialMessageExtensionConfig = some(
+            PartialMessageExtensionConfig(
+              unionPartsMetadata: unionPartsMetadata,
+              validateRPC: validateRPC,
+              onIncomingRPC: onIncomingRPC,
+              heartbeatsTillEviction: 3,
+            )
+          ),
+        )
+        .toGossipSub()
+
+    startAndDeferStop(nodes)
+
+    await connect(nodes[0], nodes[1])
+
+    # TODO

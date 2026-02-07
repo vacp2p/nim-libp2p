@@ -1,6 +1,8 @@
+[← Mix Protocol](protocols_mix.md)
+
 # Spam Protection Interface
 
-A pluggable interface for integrating spam protection mechanisms into the Mix protocol, as specified in [section 9.6 of the MIX specification](https://github.com/vacp2p/rfc-index/blob/main/vac/raw/mix.md#96-spam-protection-interface).
+A pluggable interface for integrating spam protection mechanisms into the Mix protocol, as specified in [section 9.6 of the MIX specification](https://lip.logos.co/ift-ts/raw/mix.html#96-spam-protection-interface).
 
 ## Architecture
 
@@ -25,7 +27,7 @@ When spam protection is disabled (nil):
 
 ## Example Implementations
 
-See [test_spam_protection_interface.nim](../../tests/libp2p/mix/test_spam_protection_interface.nim) for example implementations:
+See [test_spam_protection_interface.nim](../tests/libp2p/mix/test_spam_protection_interface.nim) for example implementations:
 
 - **Proof-of-Work**: Requires computational work to generate proofs
 - **Rate Limiting**: Tracks and limits packet rates per node
@@ -34,5 +36,9 @@ See [test_spam_protection_interface.nim](../../tests/libp2p/mix/test_spam_protec
 
 For detailed specification and security considerations, see:
 
-- [MIX Protocol Specification](https://github.com/vacp2p/rfc-index/blob/main/vac/raw/mix.md)
-- [Spam Protection Interface (Section 9.6)](https://github.com/vacp2p/rfc-index/blob/main/vac/raw/mix.md#96-spam-protection-interface)
+- [MIX Protocol Specification](https://lip.logos.co/ift-ts/raw/mix.html)
+- [Spam Protection Interface (Section 9.6)](https://lip.logos.co/ift-ts/raw/mix.html#96-spam-protection-interface)
+
+---
+
+[← Back to README](../README.md)

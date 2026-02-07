@@ -12,6 +12,8 @@ export routingtable, protobuf, types, find, get, put, provider, ping
 logScope:
   topics = "kad-dht"
 
+const KadCodec = "/ipfs/kad/1.0.0"
+
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
@@ -20,7 +22,10 @@ proc bootstrap*(
 
   discard await kad.findNode(kad.rtable.selfId)
 
-  for i, bucket in kad.rtable.buckets:
+  # Snapshot bucket count. findNode() can grow buckets and mutate length.
+  # If it changes mid-iteration, Nim triggers an assertion defect.
+  for i in 0 ..< kad.rtable.buckets.len:
+    let bucket = kad.rtable.buckets[i]
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
@@ -98,9 +103,6 @@ proc new*(
         await kad.handleGetProviders(conn, msg)
       of MessageType.ping:
         await kad.handlePing(conn, msg)
-      else:
-        error "Unhandled kad-dht message type", msg = msg
-        return
 
   return kad
 

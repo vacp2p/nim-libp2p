@@ -1,7 +1,7 @@
 mode = ScriptMode.Verbose
 
 packageName = "libp2p"
-version = "1.15.1"
+version = "1.15.2"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
@@ -11,7 +11,7 @@ requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0", "chronos >= 4.2.0", "metrics", "secp256k1", "stew >= 0.4.2",
   "websock >= 0.2.1", "unittest2", "results",
-  "https://github.com/vacp2p/nim-lsquic#4cf3e0a100c56824f7c321e952d497cceca2fa46",
+  "https://github.com/vacp2p/nim-lsquic#4fb03ee7bfb39aecb3316889fdcb60bec3d0936f",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
 import hashes, os, sequtils, strutils
@@ -21,6 +21,7 @@ let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
 let flags = getEnv("NIMFLAGS", "") # Extra flags for the compiler
 let verbose = getEnv("V", "") notin ["", "0"]
 
+# changes in run configs should be also reflected on flake.nix
 let cfg =
   " --styleCheck:usages --styleCheck:error" &
   (if verbose: "" else: " --verbosity:0 --hints:off") & " --skipUserCfg -f" &

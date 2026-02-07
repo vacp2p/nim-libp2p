@@ -6,7 +6,7 @@
 import chronos, results, sets, tables
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multicodec, multihash, cid]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, topology, unittest]
 import ./[utils]
 
 suite "KadDHT - Get Providers":
@@ -14,16 +14,15 @@ suite "KadDHT - Get Providers":
     checkTrackers()
 
   asyncTest "Get providers uses iterative lookup":
-    let kads = await setupKadSwitches(
+    let kads = setupKadSwitches(
       4,
       cleanupProvidersInterval = 1.seconds(),
       republishProvidedKeysInterval = 1.seconds(),
     )
-    defer:
-      await stopNodes(kads)
+    startAndDeferStop(kads)
 
     # topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
-    connectNodesChain(kads)
+    await connectChain(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -60,7 +59,7 @@ suite "KadDHT - Get Providers":
 
   asyncTest "Get providers updates routing table with closerPeers when no providers are returned":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
-    let kads = await setupKadSwitches(
+    let kads = setupKadSwitches(
       3,
       PermissiveValidator(),
       CandSelector(),
@@ -68,10 +67,9 @@ suite "KadDHT - Get Providers":
       chronos.seconds(1),
       chronos.seconds(1),
     )
-    defer:
-      await stopNodes(kads)
+    startAndDeferStop(kads)
 
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -89,7 +87,7 @@ suite "KadDHT - Get Providers":
 
   asyncTest "Get providers updates routing table with closerPeers (with providers)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
-    let kads = await setupKadSwitches(
+    let kads = setupKadSwitches(
       3,
       PermissiveValidator(),
       CandSelector(),
@@ -97,10 +95,9 @@ suite "KadDHT - Get Providers":
       chronos.seconds(1),
       chronos.seconds(1),
     )
-    defer:
-      await stopNodes(kads)
+    startAndDeferStop(kads)
 
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -120,11 +117,10 @@ suite "KadDHT - Get Providers":
       kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
 
   asyncTest "Get providers uses multihash for CID convergence":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     # Create two CIDs with same multihash but different codecs
     let
@@ -150,11 +146,10 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[1])
 
   asyncTest "Get providers includes self when querying node is a provider":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -173,12 +168,11 @@ suite "KadDHT - Get Providers":
 
   asyncTest "Get providers deduplicates provider entries from multiple nodes":
     # Topology: kads[0] <-> kads[1], kads[0] <-> kads[2], kads[3] provider
-    let kads = await setupKadSwitches(4)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(4)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
-    connectNodes(kads[0], kads[2])
+    await connect(kads[0], kads[1])
+    await connect(kads[0], kads[2])
 
     let key = @[1.byte, 2, 3, 4, 5]
     let provider3 = kads[3].toPeer()
@@ -198,11 +192,10 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[3])
 
   asyncTest "Get providers filters out invalid provider IDs":
-    let kads = await setupKadSwitches(3)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(3)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -224,12 +217,11 @@ suite "KadDHT - Get Providers":
 
   asyncTest "Get providers terminates early when sufficient providers found":
     # Use small replication value
-    let kads = await setupKadSwitches(8, replication = 2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(8, replication = 2)
+    startAndDeferStop(kads)
 
     # kads[0] <-> kads[1] <-> kads[2]
-    connectNodesChain(kads)
+    await connectChain(kads)
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -257,13 +249,12 @@ suite "KadDHT - Get Providers":
 
   asyncTest "Get providers returns at most k closest peers":
     # Use small replication value (k=3)
-    let kads = await setupKadSwitches(7, replication = 3)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(7, replication = 3)
+    startAndDeferStop(kads)
 
     # kads[0] is the hub, connected to kads[1..6] (6 peers)
     # kads[1] will directly dispatch GET_PROVIDERS to kads[0]
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = @[1.byte, 2, 3, 4, 5]
 
@@ -277,11 +268,10 @@ suite "KadDHT - Get Providers":
 
   asyncTest "Get providers aggregates providers from multiple peers":
     # Topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3] <-> kads[4]
-    let kads = await setupKadSwitches(5)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(5)
+    startAndDeferStop(kads)
 
-    connectNodesChain(kads)
+    await connectChain(kads)
 
     let key = @[1.byte, 2, 3, 4, 5]
 

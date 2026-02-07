@@ -1,3 +1,5 @@
+[← Back to README](../README.md)
+
 # Mix
 
 A custom protocol designed to enable anonymous communication in peer-to-peer networks.
@@ -16,7 +18,7 @@ It provides a basis for future development and invites community experimentation
 
 - **Sphinx Packet Format**: Guarantees anonymity through fixed-size packets and layered encryption.
 - **Random Path Selection**: Routes messages through randomly selected mix nodes.
-- **Spam Protection Interface**: Standardized interface for integrating spam protection mechanisms. See [spam_protection.md](spam_protection.md) for details.
+- **Spam Protection Interface**: Standardized interface for integrating spam protection mechanisms. See [Spam Protection](protocols_mix_spam_protection.md) for details.
 - **Pluggable Components**: Allows for customizable peer discovery and incentivization mechanisms. (To be developed)
 
 ## Usage
@@ -62,18 +64,17 @@ let spamProtection = MySpamProtection.new()
 # Initialize MixProtocol with spam protection
 let mixProto = MixProtocol.new(
   mixNodeInfo,
-  pubNodeInfo,
   switch,
-  spamProtection = spamProtection
+  spamProtection = Opt.some(spamProtection)
 )
 ```
 
-For detailed information on implementing custom spam protection mechanisms, see [spam_protection.md](spam_protection.md).
+For detailed information on implementing custom spam protection mechanisms, see [Spam Protection](protocols_mix_spam_protection.md).
 
 ## Using experimental `exit == destination`
 
 1. Compile with: `-d:libp2p_mix_experimental_exit_is_dest`
-2. In `toConnection` you can now specify the behavior the exit node will have:`
+2. In `toConnection` you can now specify the behavior the exit node will have:
 
 ```nim
 # Exit != destination (the default)
@@ -95,11 +96,19 @@ let conn = mixProto.toConnection(
   ).expect("should build connection")
 ```
 
+## Example
+
+A complete working example demonstrating the Mix protocol with Ping can be found at [examples/mix_ping.nim](../examples/mix_ping.nim).
+
 ## RFC and Further Reading
 
-For a detailed technical specification and discussion, please refer to the [Mix Protocol RFC](https://rfc.vac.dev/vac/raw/mix/).
+For a detailed technical specification and discussion, please refer to the [Mix Protocol RFC](https://lip.logos.co/ift-ts/raw/mix.html).
 
 ## Acknowledgments
 
 Thanks to the libp2p community and all contributors for their feedback and insights throughout the development
 of the Mix protocol.
+
+---
+
+[← Back to README](../README.md)

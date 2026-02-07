@@ -154,13 +154,13 @@ proc toChunks*[T](data: seq[T], size: int): seq[seq[T]] {.raises: [].} =
   if size <= 0:
     return @[]
 
-  var result: seq[seq[T]] = @[]
+  var res: seq[seq[T]] = @[]
   var i = 0
   while i < data.len:
     let endIndex = min(i + size, data.len)
-    result.add(data[i ..< endIndex])
+    res.add(data[i ..< endIndex])
     i = endIndex
-  return result
+  return res
 
 proc collectCompleted*[T, E](
     futs: seq[InternalRaisesFuture[T, E]], timeout: chronos.Duration

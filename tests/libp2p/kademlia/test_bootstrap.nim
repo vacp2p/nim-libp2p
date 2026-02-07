@@ -5,7 +5,7 @@
 
 import chronos
 import ../../../libp2p/[protocols/kademlia, peerid, switch]
-import ../../tools/unittest
+import ../../tools/[lifecycle, unittest]
 import ./[mock_kademlia, utils]
 
 suite "KadDHT Bootstrap":
@@ -13,9 +13,8 @@ suite "KadDHT Bootstrap":
     checkTrackers()
 
   asyncTest "bootstrap calls findNode on self first and skips empty buckets":
-    let kad = await setupMockKadSwitch()
-    defer:
-      await kad.switch.stop()
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
 
     check kad.rtable.buckets.len == 0
 
@@ -28,9 +27,8 @@ suite "KadDHT Bootstrap":
       kad.findNodeCalls[0] == kad.rtable.selfId
 
   asyncTest "bootstrap skips fresh buckets":
-    let kad = await setupMockKadSwitch()
-    defer:
-      await kad.switch.stop()
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
 
     # Add peers - they will be fresh (just added)
     kad.populateRoutingTable(5)
@@ -43,9 +41,8 @@ suite "KadDHT Bootstrap":
     check kad.findNodeCalls.len == 1
 
   asyncTest "bootstrap refreshes stale buckets":
-    let kad = await setupMockKadSwitch()
-    defer:
-      await kad.switch.stop()
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
 
     # Add multiple peers to create multiple buckets
     kad.populateRoutingTable(20)
@@ -64,9 +61,8 @@ suite "KadDHT Bootstrap":
     check kad.findNodeCalls.len == bucketIndices.len + 1
 
   asyncTest "bootstrap with mixed fresh and stale buckets refreshes only stale":
-    let kad = await setupMockKadSwitch()
-    defer:
-      await kad.switch.stop()
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
 
     kad.populateRoutingTable(20)
 
@@ -92,9 +88,8 @@ suite "KadDHT Bootstrap":
       kad.findNodeCalls[0] == kad.rtable.selfId # first call always self lookup
 
   asyncTest "bootstrap with forceRefresh=true refreshes all non-empty buckets":
-    let kad = await setupMockKadSwitch()
-    defer:
-      await kad.switch.stop()
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
 
     kad.populateRoutingTable(20)
 
@@ -113,17 +108,30 @@ suite "KadDHT Bootstrap Component":
 
   asyncTest "bootstrap discovers new peers through network":
     # 1 hub + 9 nodes bootstrapping from hub
-    let hubKad = await setupKadSwitch()
+    let hubKad = setupKad()
+    startAndDeferStop(@[hubKad])
 
-    let kads = await setupKadSwitches(
+    let kads = setupKadSwitches(
       9,
       bootstrapNodes = @[(hubKad.switch.peerInfo.peerId, hubKad.switch.peerInfo.addrs)],
     )
-    defer:
-      await stopNodes(kads & hubKad)
+    startAndDeferStop(kads)
 
     # All nodes should know about all other nodes after bootstrap
     for i, kad in kads:
       for j, otherKad in kads:
         if i != j:
           check kad.hasKey(otherKad.rtable.selfId)
+
+  asyncTest "bootstrap with unreachable peer completes gracefully":
+    # Fake bootstrap peer with valid address format
+    let fakePeerId = randomPeerId()
+    let fakeAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/59999").get()]
+
+    let config = testKadConfig(timeout = chronos.milliseconds(100))
+    let kad = setupKad(config = config, bootstrapNodes = @[(fakePeerId, fakeAddrs)])
+    startAndDeferStop(@[kad])
+
+    check:
+      kad.hasKey(fakePeerId.toKey()) # fake peer should be in routing table
+      kad.started # node should be operational

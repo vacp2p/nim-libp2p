@@ -23,7 +23,8 @@ import
   ../../peerid,
   ../../peerinfo,
   ../../errors,
-  ../../utility
+  ../../utility,
+  ../../utils/sequninit
 
 import results
 export results
@@ -59,6 +60,11 @@ declareCounter(libp2p_pubsub_validation_ignore, "pubsub ignore validated message
 
 declarePublicCounter(
   libp2p_pubsub_messages_published, "published messages", labels = ["topic"]
+)
+declarePublicCounter(
+  libp2p_pubsub_messages_published_partial,
+  "published partial messages",
+  labels = ["topic"],
 )
 declarePublicCounter(
   libp2p_pubsub_messages_rebroadcasted, "re-broadcasted messages", labels = ["topic"]
@@ -158,10 +164,15 @@ type
       ## when it is published if it's a large message
       skipPreamble*: bool
 
+  TopicData* = ref object
+    handlers: seq[TopicHandler]
+    requestsPartial*: bool
+    supportsSendingPartial*: bool
+
   PubSub* {.public.} = ref object of LPProtocol
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
-    topics*: Table[string, seq[TopicHandler]] # the topics that _we_ are interested in
+    topics*: Table[string, TopicData] # the topics that _we_ are interested in
     peers*: Table[PeerId, PubSubPeer]
       #\
       # Peers that we are interested to gossip with (but not necessarily
@@ -288,12 +299,22 @@ proc broadcast*(
       asyncSpawn peer.sendEncoded(encoded, isHighPriority, useCustomConn)
 
 proc sendSubs*(
-    p: PubSub, peer: PubSubPeer, topics: openArray[string], subscribe: bool
+    p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool
 ) =
   ## send subscriptions to remote peer
-  p.send(peer, RPCMsg.withSubs(topics, subscribe), isHighPriority = true)
 
-  for topic in topics:
+  var subscriptions = newSeq[SubOpts]()
+  for topic in subTopics:
+    var subOpt = SubOpts(subscribe: subscribe, topic: topic)
+    if subscribe:
+      p.topics.withValue(topic, topicData):
+        subOpt.requestsPartial = some(topicData[].requestsPartial)
+        subOpt.supportsSendingPartial = some(topicData[].supportsSendingPartial)
+    subscriptions.add(subOpt)
+
+  p.send(peer, RPCMsg(subscriptions: subscriptions), isHighPriority = true)
+
+  for topic in subTopics:
     if subscribe:
       if p.knownTopics.contains(topic):
         libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [topic])
@@ -423,10 +444,10 @@ proc handleData*(
 ): Future[void] {.async: (raises: [], raw: true).} =
   # Start work on all data handlers without copying data into closure like
   # happens on {.async.} transformation
-  p.topics.withValue(topic, handlers):
+  p.topics.withValue(topic, topicData):
     var futs = newSeq[Future[void]]()
 
-    for handler in handlers[]:
+    for handler in topicData[].handlers:
       if handler != nil: # allow nil handlers
         let fut = handler(topic, data)
         if not fut.completed(): # Fast path for successful sync handlers
@@ -508,13 +529,15 @@ proc updateTopicMetrics(p: PubSub, topic: string) =
   libp2p_pubsub_topics.set(p.topics.len.int64)
 
   if p.knownTopics.contains(topic):
-    p.topics.withValue(topic, handlers):
-      libp2p_pubsub_topic_handlers.set(handlers[].len.int64, labelValues = [topic])
+    p.topics.withValue(topic, topicData):
+      libp2p_pubsub_topic_handlers.set(
+        topicData[].handlers.len.int64, labelValues = [topic]
+      )
     do:
       libp2p_pubsub_topic_handlers.set(0, labelValues = [topic])
   else:
     var others: int64 = 0
-    for key, val in p.topics:
+    for key, _ in p.topics:
       if key notin p.knownTopics:
         others += 1
 
@@ -542,10 +565,10 @@ method onTopicSubscription*(
 proc unsubscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
   ## unsubscribe from a ``topic`` string
   ##
-  p.topics.withValue(topic, handlers):
-    handlers[].keepItIf(it != handler)
+  p.topics.withValue(topic, topicData):
+    topicData[].handlers.keepItIf(it != handler)
 
-    if handlers[].len() == 0:
+    if topicData[].handlers.len() == 0:
       p.topics.del(topic)
 
       p.onTopicSubscription(topic, false)
@@ -568,26 +591,43 @@ proc unsubscribeAll*(p: PubSub, topic: string) {.public, gcsafe.} =
 
     p.updateTopicMetrics(topic)
 
-proc subscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
+proc subscribe*(
+    p: PubSub,
+    topic: string,
+    handler: TopicHandler,
+    requestsPartial: bool = false,
+    supportsSendingPartial: bool = false,
+) {.public.} =
   ## subscribe to a topic
   ##
   ## ``topic``   - a string topic to subscribe to
   ##
-  ## ``handler`` - user provided proc that
-  ##               will be triggered on every
-  ##               received message
+  ## ``handler`` - user provided proc that will be triggered on 
+  ##  every received message
+  ## 
+  ## ``requestsPartial`` - this node requests partial messages 
+  ## for this topic, instead of full messages.
+  ## 
+  ## ``supportsSendingPartial`` - this node supports sending 
+  ## partial messages for this topic.
 
   # Check that this is an allowed topic
   if p.subscriptionValidator != nil and p.subscriptionValidator(topic) == false:
     warn "Trying to subscribe to a topic not passing validation!", topic
     return
 
-  p.topics.withValue(topic, handlers):
+  p.topics.withValue(topic, topicData):
     # Already subscribed, just adding another handler
-    handlers[].add(handler)
+    # requestsPartial and supportsSendingPartial must be ignored because
+    # node has allready sent subscription.
+    topicData[].handlers.add(handler)
   do:
     trace "subscribing to topic", name = topic
-    p.topics[topic] = @[handler]
+    p.topics[topic] = TopicData(
+      handlers: @[handler],
+      requestsPartial: requestsPartial,
+      supportsSendingPartial: supportsSendingPartial,
+    )
 
     # Notify on first handler
     p.onTopicSubscription(topic, true)

@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils], stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, rpc/message]
-import ../../../tools/unittest
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Gossip Protocol":
@@ -21,13 +21,13 @@ suite "GossipSub Component - Gossip Protocol":
       nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var messages = addIHaveObservers(nodes)
 
     # And are interconnected
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -55,13 +55,13 @@ suite "GossipSub Component - Gossip Protocol":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -91,13 +91,13 @@ suite "GossipSub Component - Gossip Protocol":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -128,13 +128,13 @@ suite "GossipSub Component - Gossip Protocol":
         )
         .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iHave messages
     var messages = addIHaveObservers(nodes)
 
     # And are connected to node 0
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -156,13 +156,13 @@ suite "GossipSub Component - Gossip Protocol":
       numberOfNodes = 3
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # All nodes are checking for iDontWant messages
     var messages = addIDontWantObservers(nodes)
 
     # And are connected in a chain
-    await connectNodesChain(nodes)
+    await connectChain(nodes)
 
     # And subscribed to the same topic
     subscribeAllNodes(nodes, topic, voidTopicHandler)
@@ -188,8 +188,8 @@ suite "GossipSub Component - Gossip Protocol":
       generateNodes(2, gossip = true, enablePX = true).toGossipSub() &
       generateNodes(1, gossip = true, sendSignedPeerRecord = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)

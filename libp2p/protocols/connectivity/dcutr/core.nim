@@ -53,9 +53,9 @@ proc send*(
 proc getHolePunchableAddrs*(
     addrs: seq[MultiAddress]
 ): seq[MultiAddress] {.raises: [LPError].} =
-  var result = newSeq[MultiAddress]()
+  var res = newSeq[MultiAddress]()
   for a in addrs:
     # This is necessary to also accept addrs like /ip4/198.51.100/tcp/1234/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N
     if [TCP, mapAnd(TCP_DNS, P2PPattern), mapAnd(TCP_IP, P2PPattern)].anyIt(it.match(a)):
-      result.add(a[0 .. 1].tryGet())
-  return result
+      res.add(a[0 .. 1].tryGet())
+  return res

@@ -13,18 +13,24 @@ import chronos, results
 import ../../../[types, ffi_types, alloc]
 import ../../../../libp2p
 import ../../../../libp2p/[multiaddress, peerid]
+import ../../../../libp2p/crypto/secp
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/protocols/kademlia_discovery/types
 import ../../../../libp2p/protocols/ping
+import ../../../../libp2p/protocols/mix
+import ../../../../libp2p/protocols/mix/mix_protocol
+import ../../../../libp2p/protocols/mix/mix_node
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
   START_NODE
   STOP_NODE
+  GET_PUBLIC_KEY
 
 type LifecycleRequest* = object
-  operation: LifecycleMsgType
+  operation*: LifecycleMsgType
   appCallbacks: AppCallbacks
   config: Libp2pConfig
 
@@ -36,6 +42,8 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     mountGossipsub: 1,
     gossipsubTriggerSelf: 1,
     mountKad: 1,
+    mountMix: 0,
+    mountKadDiscovery: 0,
     dnsResolver: DefaultDnsResolver.cstring,
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
@@ -45,18 +53,25 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     return resolved
 
   let flags = config[].flags
+  resolved.flags = flags
   if (flags and Libp2pCfgGossipsub) != 0'u32:
     resolved.mountGossipsub = config[].mountGossipsub
   if (flags and Libp2pCfgGossipsubTriggerSelf) != 0'u32:
     resolved.gossipsubTriggerSelf = config[].gossipsubTriggerSelf
   if (flags and Libp2pCfgKad) != 0'u32:
     resolved.mountKad = config[].mountKad
+  if (flags and Libp2pCfgMix) != 0'u32:
+    resolved.mountMix = config[].mountMix
+  if (flags and Libp2pCfgKadDiscovery) != 0'u32:
+    resolved.mountKadDiscovery = config[].mountKadDiscovery
   if (flags and Libp2pCfgDnsResolver) != 0'u32:
     if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
       resolved.dnsResolver = config[].dnsResolver
   if (flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
     resolved.kadBootstrapNodes = config[].kadBootstrapNodes
     resolved.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
+  if (flags and Libp2pCfgPrivateKey) != 0'u32:
+    resolved.privKey = config[].privKey
 
   resolved
 
@@ -95,10 +110,81 @@ proc parseBootstrapNodes(config: Libp2pConfig): seq[(PeerId, seq[MultiAddress])]
 
   return response
 
+proc toByteSeq(key: Libp2pPrivateKey): seq[byte] =
+  if key.dataLen == 0 or key.data.isNil():
+    return newSeq[byte](0)
+  let data = newSeqUninit[byte](key.dataLen.int)
+  copyMem(addr data[0], key.data, key.dataLen)
+  return data
+
+proc mountGossipsub(libp2p: var LibP2P, config: Libp2pConfig) =
+  var gossipSub = Opt.none(GossipSub)
+  if config.mountGossipsub != 0:
+    let gs = GossipSub.init(
+      switch = libp2p.switch, triggerSelf = config.gossipsubTriggerSelf != 0
+    )
+    libp2p.switch.mount(gs)
+    gossipSub = Opt.some(gs)
+  libp2p.gossipSub = gossipSub
+
+proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
+  var kad = Opt.none(KadDHT)
+  if config.mountKad != 0:
+    let bootstrapNodes = parseBootstrapNodes(config)
+    let k = KadDHT.new(libp2p.switch, bootstrapNodes = bootstrapNodes)
+    libp2p.switch.mount(k)
+    kad = Opt.some(k)
+  libp2p.kad = kad
+
+proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
+  var mix = Opt.none(MixProtocol)
+  if config.mountMix != 0 and libp2p.mixNodeInfo.isSome:
+    var mixProto = new(MixProtocol)
+    var delayStrategy = NoSamplingDelayStrategy.new(newRng())
+    mixProto.init(
+      libp2p.mixNodeInfo.get(), libp2p.switch, delayStrategy = delayStrategy
+    )
+    libp2p.switch.mount(mixProto)
+    mix = Opt.some(mixProto)
+  libp2p.mix = mix
+
+proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
+  if config.mountGossipsub != 0:
+    libp2p.mountGossipsub(config)
+  if config.mountKad != 0:
+    libp2p.mountKad(config)
+
+  libp2p.switch.mount(Ping.new())
+
+  libp2p.mountMix(config)
+
+proc processGetPublicKey*(
+    self: ptr LifecycleRequest, libp2p: ptr LibP2P
+): Future[Result[ptr ReadResponse, string]] {.async: (raises: [CancelledError]).} =
+  let peerInfo = libp2p[].switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+
+  let pubKey =
+    case peerInfo.publicKey.scheme
+    of PKScheme.Secp256k1:
+      peerInfo.publicKey.skkey
+    else:
+      return err("peerInfo public key must be secp256k1")
+
+  return ok(allocReadResponse(pubKey.getBytes()))
+
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
-  let switch = newStandardSwitch(nameResolver = dnsResolver)
+
+  var privKey = Opt.none(PrivateKey)
+  if (config.flags and Libp2pCfgPrivateKey) != 0'u32:
+    let keySeq = config.privKey.toByteSeq()
+    PrivateKey.init(keySeq).withValue(copyKey):
+      privKey = Opt.some(copyKey)
+
+  let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
 
   var gossipSub = Opt.none(GossipSub)
   if config.mountGossipsub != 0:
@@ -110,19 +196,32 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   switch.mount(Ping.new())
 
   var kad = Opt.none(KadDHT)
-  if config.mountKad != 0:
+  if config.mountKad != 0 or config.mountKadDiscovery != 0:
     let bootstrapNodes = parseBootstrapNodes(config)
-    let k = KadDHT.new(switch, bootstrapNodes = bootstrapNodes)
-    switch.mount(k)
-    kad = Opt.some(k)
+    if config.mountKadDiscovery != 0:
+      let k = KademliaDiscovery.new(
+        switch, bootstrapNodes = bootstrapNodes, codec = ExtendedKademliaDiscoveryCodec
+      )
+      switch.mount(k)
+      kad = Opt.some(KadDHT(k))
+    else:
+      let k = KadDHT.new(switch, bootstrapNodes = bootstrapNodes)
+      switch.mount(k)
+      kad = Opt.some(k)
 
-  LibP2P(
+  var ret = LibP2P(
     switch: switch,
-    gossipSub: gossipSub,
-    kad: kad,
+    gossipSub: Opt.none(GossipSub),
+    kad: Opt.none(KadDHT),
+    mix: Opt.none(MixProtocol),
+    mixNodeInfo: Opt.none(MixNodeInfo),
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
   )
+
+  mountProtocols(ret, config)
+
+  return ret
 
 proc createShared*(
     T: type LifecycleRequest,
@@ -157,11 +256,7 @@ proc createShared*(
             dst[i].multiaddrs = nil
           else:
             dst[i].multiaddrs =
-              cast[ptr cstring](allocShared(sizeof(cstring) * src[i].multiaddrsLen.int))
-            let srcAddrs = cast[ptr UncheckedArray[cstring]](src[i].multiaddrs)
-            let dstAddrs = cast[ptr UncheckedArray[cstring]](dst[i].multiaddrs)
-            for j in 0 ..< src[i].multiaddrsLen:
-              dstAddrs[j] = srcAddrs[j].alloc()
+              allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
   return ret
 
 proc destroyShared(self: ptr LifecycleRequest) =
@@ -177,11 +272,13 @@ proc destroyShared(self: ptr LifecycleRequest) =
         deallocShared(nodes[i].peerId)
       deallocCStringArray(nodes[i].multiaddrs, nodes[i].multiaddrsLen)
     deallocShared(self[].config.kadBootstrapNodes)
+  if not self[].config.privKey.data.isNil():
+    deallocShared(self[].config.privKey.data)
   deallocShared(self)
 
 proc process*(
     self: ptr LifecycleRequest, libp2p: ptr LibP2P
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -193,6 +290,10 @@ proc process*(
       return err("could not create libp2p node: " & $exc.msg)
     except LPError as exc:
       return err("could not create libp2p node: " & $exc.msg)
+    except OSError as exc:
+      return err("could not create libp2p node: " & exc.msg)
+    except IOError as exc:
+      return err("could not create libp2p node: " & exc.msg)
   of START_NODE:
     try:
       await libp2p.switch.start()
@@ -200,5 +301,7 @@ proc process*(
       return err(getCurrentExceptionMsg())
   of STOP_NODE:
     await libp2p.switch.stop()
+  else:
+    raiseAssert "unsupported operation"
 
-  return ok("")
+  return ok()

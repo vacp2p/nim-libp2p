@@ -5,7 +5,7 @@
 
 import std/[times, tables], chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders, multihash]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, unittest]
 import ./utils.nim
 
 suite "KadDHT Put":
@@ -13,11 +13,10 @@ suite "KadDHT Put":
     checkTrackers()
 
   asyncTest "PUT_VALUE stores record at both sender and target peer":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     # Both nodes start with empty data tables
     check:
@@ -34,11 +33,10 @@ suite "KadDHT Put":
       kads[1].containsData(key, value)
 
   asyncTest "PUT_VALUE requires validation on both sender and receiver":
-    let kads = await setupKadSwitches(2, validator = RestrictiveValidator())
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2, validator = RestrictiveValidator())
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -62,11 +60,10 @@ suite "KadDHT Put":
       kads[1].containsData(key, value)
 
   asyncTest "PUT_VALUE sets timeReceived in RFC3339 format":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -82,11 +79,10 @@ suite "KadDHT Put":
     check elapsed < times.initDuration(seconds = 2)
 
   asyncTest "PUT_VALUE uses selector to choose best value":
-    let kads = await setupKadSwitches(2, selector = OthersSelector())
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2, selector = OthersSelector())
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -109,11 +105,10 @@ suite "KadDHT Put":
     check kads[1].containsData(key, emptyVal)
 
   asyncTest "PUT_VALUE rejects mismatched Message.key and Record.key":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     # Create two different keys to simulate mismatch
     let msgKey = MultiHash.digest("sha2-256", [byte 0, 1, 2, 3, 4]).get().toKey()
@@ -129,7 +124,7 @@ suite "KadDHT Put":
 
     # Send directly via handlePutValue to test the validation logic
     let conn = await kads[1].switch.dial(
-      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec
     )
 
     await kads[0].handlePutValue(conn, msg)
@@ -140,14 +135,13 @@ suite "KadDHT Put":
       kads[0].containsNoData(recordKey)
 
   asyncTest "PUT_VALUE with no record / no value - malformed message handling":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let conn = await kads[1].switch.dial(
-      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec
     )
 
     let key = kads[0].rtable.selfId
@@ -173,11 +167,10 @@ suite "KadDHT Put":
     check kads[0].containsNoData(key)
 
   asyncTest "PUT_VALUE response echoes request":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[1.byte, 2, 3, 4, 5]
@@ -190,7 +183,7 @@ suite "KadDHT Put":
     )
 
     let conn = await kads[1].switch.dial(
-      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, KadCodec
+      kads[0].switch.peerInfo.peerId, kads[0].switch.peerInfo.addrs, kads[0].codec
     )
 
     # Call handlePutValue directly - it writes the response to conn
@@ -204,11 +197,10 @@ suite "KadDHT Put":
     check response == request
 
   asyncTest "PUT_VALUE stores binary data with null and high bytes":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let key = kads[0].rtable.selfId
     let value = @[0.byte, 0xFF, 0, 0xFF] # nulls and high bytes interleaved

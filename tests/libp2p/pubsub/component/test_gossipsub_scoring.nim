@@ -7,7 +7,7 @@ import chronos, std/[sequtils, strutils], stew/byteutils
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, pubsubpeer, rpc/messages]
-import ../../../tools/[unittest, futures]
+import ../../../tools/[lifecycle, topology, unittest, futures]
 import ../utils
 
 suite "GossipSub Component - Scoring":
@@ -22,10 +22,10 @@ suite "GossipSub Component - Scoring":
       nodes =
         generateNodes(numberOfNodes, gossip = true, floodPublish = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes 1 and 2 are connected to node 0
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     let (handlerFut1, handler1) = createCompleteHandler()
     let (handlerFut2, handler2) = createCompleteHandler()
@@ -60,8 +60,8 @@ suite "GossipSub Component - Scoring":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -100,8 +100,8 @@ suite "GossipSub Component - Scoring":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -139,8 +139,8 @@ suite "GossipSub Component - Scoring":
         .toGossipSub()
       rateLimitHits = currentRateLimitHits()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -199,8 +199,8 @@ suite "GossipSub Component - Scoring":
         .toGossipSub()
       rateLimitHits = currentRateLimitHits()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -235,7 +235,7 @@ suite "GossipSub Component - Scoring":
   asyncTest "DirectPeers: don't kick direct peer with low score":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
     await nodes.addDirectPeerStar()
 
     nodes[1].parameters.disconnectBadPeers = true
@@ -265,8 +265,8 @@ suite "GossipSub Component - Scoring":
     let nodes =
       generateNodes(numberOfNodes, gossip = true, triggerSelf = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     var seen: Table[string, int]
     var seenFut = newFuture[void]()
@@ -336,8 +336,8 @@ suite "GossipSub Component - Scoring":
 
     nodes.setDefaultTopicParams(topic)
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     var (handlerFut, handler) = createCompleteHandler()
     nodes[0].subscribe(topic, voidTopicHandler)
@@ -386,10 +386,10 @@ suite "GossipSub Component - Scoring":
       node.topicParams[topic].invalidMessageDeliveriesWeight = -10.0
       node.topicParams[topic].invalidMessageDeliveriesDecay = 0.9
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And Node 0 is center node, connected to others
-    await connectNodesHub(nodes[0], nodes[1 ..^ 1])
+    await connectHub(nodes[0], nodes[1 ..^ 1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
@@ -482,10 +482,10 @@ suite "GossipSub Component - Scoring":
       node.topicParams[topic].meshFailurePenaltyDecay = 0.9
       node.topicParams[topic].meshFailurePenaltyWeight = -5.0
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # And Nodes are connected and subscribed to the topic
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)

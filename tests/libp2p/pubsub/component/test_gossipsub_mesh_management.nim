@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils]
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
-import ../../../tools/[unittest, futures]
+import ../../../tools/[lifecycle, topology, unittest, futures]
 import ../utils
 
 suite "GossipSub Component - Mesh Management":
@@ -19,8 +19,8 @@ suite "GossipSub Component - Mesh Management":
       numberOfNodes = 5
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
 
     let expectedNumberOfPeers = numberOfNodes - 1
@@ -37,8 +37,8 @@ suite "GossipSub Component - Mesh Management":
       numberOfNodes = 8
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
 
     let
@@ -63,8 +63,8 @@ suite "GossipSub Component - Mesh Management":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
 
@@ -79,8 +79,8 @@ suite "GossipSub Component - Mesh Management":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[0].subscribe(topic, handler)
     nodes[1].subscribe(topic, handler)
@@ -107,7 +107,7 @@ suite "GossipSub Component - Mesh Management":
 
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # We must subscribe before setting the validator
     nodes[0].subscribe(topic, handler)
@@ -123,7 +123,7 @@ suite "GossipSub Component - Mesh Management":
       else:
         true
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
 
@@ -131,7 +131,7 @@ suite "GossipSub Component - Mesh Management":
 
   asyncTest "GossipSub test directPeers":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await nodes[0].addDirectPeer(nodes[1])
 
@@ -147,7 +147,7 @@ suite "GossipSub Component - Mesh Management":
         true
 
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
-    ### await connectNodesStar(nodes)
+    ### await connectStar(nodes)
 
     proc handler(topic: string, data: seq[byte]) {.async.} =
       discard
@@ -161,10 +161,10 @@ suite "GossipSub Component - Mesh Management":
       numberOfNodes = 5
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # When all of them are connected and subscribed to the same topic
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
@@ -193,9 +193,9 @@ suite "GossipSub Component - Mesh Management":
       topics = @["foobar1", "foobar2", "foobar3"]
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     # When nodes subscribe to multiple topics
     for t in topics:
@@ -228,10 +228,10 @@ suite "GossipSub Component - Mesh Management":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+    await connectHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
@@ -271,10 +271,10 @@ suite "GossipSub Component - Mesh Management":
         .toGossipSub()
       node0 = nodes[0]
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Nodes are connected to Node0
-    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+    await connectHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
@@ -309,12 +309,12 @@ suite "GossipSub Component - Mesh Management":
       numberOfNodes = 4
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     await allFuturesRaising(
-      connectNodes(nodes[0], nodes[1]), # Out
-      connectNodes(nodes[0], nodes[2]), # Out
-      connectNodes(nodes[3], nodes[0]), # In
+      connect(nodes[0], nodes[1]), # Out
+      connect(nodes[0], nodes[2]), # Out
+      connect(nodes[3], nodes[0]), # In
     )
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
