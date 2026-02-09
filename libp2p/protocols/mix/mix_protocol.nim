@@ -81,11 +81,9 @@ proc removeClosedConnections(
   peersToGC.incl(pid)
 
   for p in peersToGC:
-    try:
-      await mixProto.connPool[pid].close()
-      mixProto.connPool.del(pid)
-    except KeyError:
-      raiseAssert "checked with hasKey"
+    var conn: Connection
+    if mixProto.connPool.pop(p, conn):
+      await conn.close()
 
 proc getConn(
     mixProto: MixProtocol,
