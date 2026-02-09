@@ -42,7 +42,8 @@ int main(int argc, char **argv) {
   PeerInfo infos[NUM_NODES] = {0};
   libp2p_curve25519_key_t mix_priv_keys[NUM_NODES] = {0};
   libp2p_curve25519_key_t mix_pub_keys[NUM_NODES] = {0};
-  // Needed for mix node pool entries (mix pool stores mix pubkey + libp2p pubkey).
+  // Needed for mix node pool entries (mix pool stores mix pubkey + libp2p
+  // pubkey).
   libp2p_secp256k1_pubkey_t libp2p_pub_keys[NUM_NODES] = {0};
   libp2p_private_key_t libp2p_priv_keys[NUM_NODES] = {0};
 
@@ -51,8 +52,6 @@ int main(int argc, char **argv) {
     cfg.flags = LIBP2P_CFG_MIX | LIBP2P_CFG_PRIVATE_KEY | LIBP2P_CFG_GOSSIPSUB;
     cfg.mount_mix = 1;
     cfg.mount_gossipsub = 0;
-    cfg.mix_index = i;
-    cfg.mix_nodes_len = NUM_NODES;
 
     libp2p_new_private_key(LIBP2P_PK_SECP256K1, private_key_handler,
                            &libp2p_priv_keys[i]);
@@ -81,15 +80,16 @@ int main(int argc, char **argv) {
     }
 
     // Mix node identity is separate from libp2p identity; this binds the node's
-    // listening multiaddr to the mix keypair so other mix nodes can route through it.
+    // listening multiaddr to the mix keypair so other mix nodes can route
+    // through it.
     libp2p_mix_set_node_info(nodes[i], infos[i].addrs[0], mix_priv_keys[i],
                              event_handler, NULL);
     waitForCallback();
 
     // Exit-layer needs to know how to read application protocol payloads.
-    libp2p_mix_register_dest_read_behavior(
-        nodes[i], "/ipfs/ping/1.0.0", LIBP2P_MIX_READ_EXACTLY, 32,
-        event_handler, NULL);
+    libp2p_mix_register_dest_read_behavior(nodes[i], "/ipfs/ping/1.0.0",
+                                           LIBP2P_MIX_READ_EXACTLY, 32,
+                                           event_handler, NULL);
     waitForCallback();
 
     printf("Node %d started: %s\n", i, infos[i].peerId);
@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
   }
 
   printf("Started %d nodes with mix enabled.\n", NUM_NODES);
-  
+
   // Each mix node needs the public info of the others to build random paths.
   printf("Populating mix node pools...\n");
   for (int i = 0; i < NUM_NODES; i++) {
@@ -107,41 +107,47 @@ int main(int argc, char **argv) {
       if (i == j)
         continue;
       libp2p_mix_nodepool_add(nodes[i], infos[j].peerId, infos[j].addrs[0],
-                              mix_pub_keys[j], libp2p_pub_keys[j], event_handler,
-                              NULL);
+                              mix_pub_keys[j], libp2p_pub_keys[j],
+                              event_handler, NULL);
       waitForCallback();
     }
   }
 
   // Mix dial from node 1 to node 5 (1-based indexing).
-  if (NUM_NODES >= 5) {
-    if (infos[4].addrCount == 0 || infos[4].addrs == NULL ||
-        infos[4].addrs[0] == NULL) {
-      printf("Error: node 5 has no listening address\n");
-      goto cleanup;
-    }
-    libp2p_mix_dial_with_reply(nodes[0], infos[4].peerId, infos[4].addrs[0],
-                               "/ipfs/ping/1.0.0", 1, 0, connection_handler, NULL);
-    waitForCallback();
-    if (mix_conn == NULL) {
-      printf("Error: mix dial did not return a connection\n");
-      goto cleanup;
-    }
-
-    uint8_t payload[32];
-    fill_random(payload, sizeof(payload));
-    libp2p_stream_write(nodes[0], mix_conn, payload, sizeof(payload),
-                        event_handler, NULL);
-    waitForCallback();
-
-    libp2p_stream_readExactly(nodes[0], mix_conn, sizeof(payload), read_handler,
-                              NULL);
-    waitForCallback();
+  if (infos[4].addrCount == 0 || infos[4].addrs == NULL ||
+      infos[4].addrs[0] == NULL) {
+    printf("Error: node 5 has no listening address\n");
+    goto cleanup;
+  }
+  libp2p_mix_dial_with_reply(nodes[0], infos[4].peerId, infos[4].addrs[0],
+                             "/ipfs/ping/1.0.0", 1, 0, connection_handler,
+                             NULL);
+  waitForCallback();
+  if (mix_conn == NULL) {
+    printf("Error: mix dial did not return a connection\n");
+    goto cleanup;
   }
 
-  sleep(5);
+  uint8_t payload[32];
+  fill_random(payload, sizeof(payload));
+  libp2p_stream_write(nodes[0], mix_conn, payload, sizeof(payload),
+                      event_handler, NULL);
+  waitForCallback();
+
+  libp2p_stream_readExactly(nodes[0], mix_conn, sizeof(payload), read_handler,
+                            NULL);
+  waitForCallback();
+
+  libp2p_stream_close(nodes[0], mix_conn, event_handler, NULL);
+  waitForCallback();
+
+  libp2p_stream_release(nodes[0], mix_conn, event_handler, NULL);
+  waitForCallback();
+  mix_conn = NULL;
 
   status = 0;
+
+  sleep(5);
 
 cleanup:
   for (int i = 0; i < NUM_NODES; i++) {
