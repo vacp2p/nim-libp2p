@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, options, sequtils
+import chronos, results, options, sequtils, tables
 import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/
@@ -43,12 +43,20 @@ suite "GossipSub Extensions :: State":
 
     # procs that return value should return default value
     check state.makeControlExtensions() == ControlExtensions()
-    check state.peerRequestsPartial(peerId, "logos") == false
 
-  test "publishPartial fails when extensions is not configured":
+  test "ensure default behavior for unconfigured partial message extension":
     var state = ExtensionsState.new()
+
+    # expect to fail because this is user facing function, they shouldn't
+    # call if extensions is not configured.
     expect AssertionDefect:
       discard state.publishPartial("logos", nil)
+
+    # should return false, backwards compatible behavior
+    check state.peerRequestsPartial(peerId, "logos") == false
+    
+    # noop - should not crash 
+    state.gossipPartsMetadata(initTable[string, seq[PeerId]]())
 
   test "state reports misbehaving when ControlExtensions is sent more then once":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
