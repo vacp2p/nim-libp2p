@@ -50,7 +50,7 @@ suite "GossipSub Extensions :: State":
     expect AssertionDefect:
       discard state.publishPartial("logos", nil)
 
-  test "state reports misbehaving when ControlExtensions more then once":
+  test "state reports misbehaving when ControlExtensions is sent more then once":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 
@@ -62,7 +62,7 @@ suite "GossipSub Extensions :: State":
       state.handleRPC(peerId, makeRPC())
       check reportedPeers[] == repeat[PeerId](peerId, i)
 
-  test "state reports misbehaving when ControlExtensions more then once - many peers reported":
+  test "state reports misbehaving when ControlExtensions is sent more then once - many peers reported":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 

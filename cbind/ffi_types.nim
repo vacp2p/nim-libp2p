@@ -57,6 +57,28 @@ type GetProvidersCallback* = proc(
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
+type Libp2pServiceInfo* {.bycopy.} = object
+  id*: cstring
+  data*: ptr byte
+  dataLen*: csize_t
+
+type Libp2pExtendedPeerRecord* {.bycopy.} = object
+  peerId*: cstring
+  seqNo*: uint64
+  addrs*: ptr cstring
+  addrsLen*: csize_t
+  services*: ptr Libp2pServiceInfo
+  servicesLen*: csize_t
+
+type RandomRecordsCallback* = proc(
+  callerRet: cint,
+  records: ptr Libp2pExtendedPeerRecord,
+  recordsLen: csize_t,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
 type Libp2pStream* = object
   conn*: pointer
 
@@ -80,10 +102,11 @@ type ReadResponse* = object
 const Libp2pCfgGossipsub* = 1'u32 shl 0
 const Libp2pCfgGossipsubTriggerSelf* = 1'u32 shl 1
 const Libp2pCfgKad* = 1'u32 shl 2
-const Libp2pCfgDnsResolver* = 1'u32 shl 3
-const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 4
-const Libp2pCfgPrivateKey* = 1'u32 shl 5
-const Libp2pCfgMix* = 1'u32 shl 6
+const Libp2pCfgKadDiscovery* = 1'u32 shl 3
+const Libp2pCfgDnsResolver* = 1'u32 shl 4
+const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 5
+const Libp2pCfgPrivateKey* = 1'u32 shl 6
+const Libp2pCfgMix* = 1'u32 shl 7
 
 type Libp2pBootstrapNode* = object
   peerId*: cstring
@@ -96,9 +119,7 @@ type Libp2pConfig* {.bycopy.} = object
   gossipsubTriggerSelf*: cint
   mountKad*: cint
   mountMix*: cint
-  mixIndex*: cint
-  mixNodesLen*: cint
-  mixNodeInfoPath*: cstring
+  mountKadDiscovery*: cint
   dnsResolver*: cstring
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t

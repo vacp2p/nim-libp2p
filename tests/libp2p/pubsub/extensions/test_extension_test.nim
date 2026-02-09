@@ -30,10 +30,8 @@ suite "GossipSub Extensions :: Test Extension":
 
     let peerId1 = PeerId.random(rng).get()
     ext.onNegotiated(peerId1)
-    check:
-      negotiatedPeers == @[peerId1]
+    check negotiatedPeers == @[peerId1]
 
     let peerId2 = PeerId.random(rng).get()
     ext.onNegotiated(peerId2)
-    check:
-      negotiatedPeers == @[peerId1, peerId2]
+    check negotiatedPeers == @[peerId1, peerId2]

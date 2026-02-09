@@ -17,6 +17,7 @@ import ../../../../libp2p/crypto/secp
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/protocols/kademlia_discovery/types
 import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/mix
 import ../../../../libp2p/protocols/mix/mix_protocol
@@ -42,9 +43,7 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     gossipsubTriggerSelf: 1,
     mountKad: 1,
     mountMix: 0,
-    mixIndex: 0,
-    mixNodesLen: 0,
-    mixNodeInfoPath: ".".cstring,
+    mountKadDiscovery: 0,
     dnsResolver: DefaultDnsResolver.cstring,
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
@@ -63,10 +62,8 @@ proc applyConfigDefaults(config: ptr Libp2pConfig): Libp2pConfig =
     resolved.mountKad = config[].mountKad
   if (flags and Libp2pCfgMix) != 0'u32:
     resolved.mountMix = config[].mountMix
-    resolved.mixIndex = config[].mixIndex
-    resolved.mixNodesLen = config[].mixNodesLen
-    if not config[].mixNodeInfoPath.isNil() and config[].mixNodeInfoPath[0] != '\0':
-      resolved.mixNodeInfoPath = config[].mixNodeInfoPath
+  if (flags and Libp2pCfgKadDiscovery) != 0'u32:
+    resolved.mountKadDiscovery = config[].mountKadDiscovery
   if (flags and Libp2pCfgDnsResolver) != 0'u32:
     if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
       resolved.dnsResolver = config[].dnsResolver
@@ -142,8 +139,6 @@ proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
 proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
   var mix = Opt.none(MixProtocol)
   if config.mountMix != 0 and libp2p.mixNodeInfo.isSome:
-    if config.mixNodesLen <= 0:
-      raise newException(LPError, "failed to create mix protocol: not enough mix nodes")
     var mixProto = new(MixProtocol)
     var delayStrategy = NoSamplingDelayStrategy.new(newRng())
     mixProto.init(
@@ -191,6 +186,29 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
 
+  var gossipSub = Opt.none(GossipSub)
+  if config.mountGossipsub != 0:
+    let gs =
+      GossipSub.init(switch = switch, triggerSelf = config.gossipsubTriggerSelf != 0)
+    switch.mount(gs)
+    gossipSub = Opt.some(gs)
+
+  switch.mount(Ping.new())
+
+  var kad = Opt.none(KadDHT)
+  if config.mountKad != 0 or config.mountKadDiscovery != 0:
+    let bootstrapNodes = parseBootstrapNodes(config)
+    if config.mountKadDiscovery != 0:
+      let k = KademliaDiscovery.new(
+        switch, bootstrapNodes = bootstrapNodes, codec = ExtendedKademliaDiscoveryCodec
+      )
+      switch.mount(k)
+      kad = Opt.some(KadDHT(k))
+    else:
+      let k = KadDHT.new(switch, bootstrapNodes = bootstrapNodes)
+      switch.mount(k)
+      kad = Opt.some(k)
+
   var ret = LibP2P(
     switch: switch,
     gossipSub: Opt.none(GossipSub),
@@ -218,7 +236,6 @@ proc createShared*(
   ret[].appCallbacks = appCallbacks
   ret[].config = applyConfigDefaults(config)
   ret[].config.dnsResolver = ret[].config.dnsResolver.alloc()
-  ret[].config.mixNodeInfoPath = ret[].config.mixNodeInfoPath.alloc()
   ret[].config.kadBootstrapNodes = nil
   ret[].config.kadBootstrapNodesLen = 0
   if not config.isNil() and (config[].flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
@@ -239,11 +256,7 @@ proc createShared*(
             dst[i].multiaddrs = nil
           else:
             dst[i].multiaddrs =
-              cast[ptr cstring](allocShared(sizeof(cstring) * src[i].multiaddrsLen.int))
-            let srcAddrs = cast[ptr UncheckedArray[cstring]](src[i].multiaddrs)
-            let dstAddrs = cast[ptr UncheckedArray[cstring]](dst[i].multiaddrs)
-            for j in 0 ..< src[i].multiaddrsLen:
-              dstAddrs[j] = srcAddrs[j].alloc()
+              allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
   return ret
 
 proc destroyShared(self: ptr LifecycleRequest) =
@@ -251,8 +264,6 @@ proc destroyShared(self: ptr LifecycleRequest) =
   # TODO: Deallocate parameters of GC'd types from the shared memory
   if not self[].config.dnsResolver.isNil():
     deallocShared(self[].config.dnsResolver)
-  if not self[].config.mixNodeInfoPath.isNil():
-    deallocShared(self[].config.mixNodeInfoPath)
   if not self[].config.kadBootstrapNodes.isNil():
     let nodes =
       cast[ptr UncheckedArray[Libp2pBootstrapNode]](self[].config.kadBootstrapNodes)

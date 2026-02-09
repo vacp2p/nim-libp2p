@@ -943,7 +943,7 @@ proc libp2p_gossipsub_remove_validator(
   ).cint
 ]#
 
-proc libp2p_find_node(
+proc libp2p_kad_find_node(
     ctx: ptr LibP2PContext, peerId: cstring, callback: PeersCallback, userData: pointer
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
@@ -968,7 +968,7 @@ proc libp2p_find_node(
 
   RET_OK.cint
 
-proc libp2p_put_value(
+proc libp2p_kad_put_value(
     ctx: ptr LibP2PContext,
     key: ptr byte,
     keyLen: csize_t,
@@ -1000,7 +1000,7 @@ proc libp2p_put_value(
 
   RET_OK.cint
 
-proc libp2p_get_value(
+proc libp2p_kad_get_value(
     ctx: ptr LibP2PContext,
     key: ptr byte,
     keyLen: csize_t,
@@ -1034,7 +1034,7 @@ proc libp2p_get_value(
 
   RET_OK.cint
 
-proc libp2p_add_provider(
+proc libp2p_kad_add_provider(
     ctx: ptr LibP2PContext, cid: cstring, callback: Libp2pCallback, userData: pointer
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
@@ -1054,7 +1054,7 @@ proc libp2p_add_provider(
 
   RET_OK.cint
 
-proc libp2p_start_providing(
+proc libp2p_kad_start_providing(
     ctx: ptr LibP2PContext, cid: cstring, callback: Libp2pCallback, userData: pointer
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
@@ -1074,7 +1074,7 @@ proc libp2p_start_providing(
 
   RET_OK.cint
 
-proc libp2p_stop_providing(
+proc libp2p_kad_stop_providing(
     ctx: ptr LibP2PContext, cid: cstring, callback: Libp2pCallback, userData: pointer
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
@@ -1094,7 +1094,7 @@ proc libp2p_stop_providing(
 
   RET_OK.cint
 
-proc libp2p_get_providers(
+proc libp2p_kad_get_providers(
     ctx: ptr LibP2PContext,
     cid: cstring,
     callback: GetProvidersCallback,
@@ -1112,6 +1112,25 @@ proc libp2p_get_providers(
     ctx,
     RequestType.KADEMLIA,
     KademliaRequest.createShared(KademliaMsgType.GET_PROVIDERS, cid = cid),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_kad_random_records(
+    ctx: ptr LibP2PContext, callback: RandomRecordsCallback, userData: pointer
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.KADEMLIA,
+    KademliaRequest.createShared(KademliaMsgType.RANDOM_RECORDS),
     callback,
     userData,
   ).isOkOr:
