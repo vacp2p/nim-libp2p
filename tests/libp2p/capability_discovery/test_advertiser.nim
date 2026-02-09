@@ -2,13 +2,14 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[options]
+import std/[options, sequtils, times]
 import chronos, chronicles, results
-import ../../../libp2p/[crypto/crypto, multiaddress]
+import ../../../libp2p/[crypto/crypto, multiaddress, extended_peer_record, peerid, routing_record]
 import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../../libp2p/protocols/kademlia_discovery/[types]
 import ../../../libp2p/protocols/capability_discovery/[protobuf, advertiser]
 import ../../tools/unittest
+import ../../tools/crypto
 import ./utils
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
@@ -20,7 +21,7 @@ trace "chronicles has to be imported to fix Error: undeclared identifier: 'activ
 suite "Kademlia Discovery Advertiser - Pure Functions":
   test "actionCmp compares by scheduled time":
     let now = Moment.now()
-    let later = now + 1.seconds
+    let later = now + chronos.seconds(1)
 
     let action1: PendingAction =
       (now, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
@@ -81,16 +82,16 @@ suite "Kademlia Discovery Advertiser - Queue Management":
     let now = Moment.now()
 
     # Add actions in reverse time order
-    kad.scheduleAction(serviceId, makePeerId(), 0, now + 3.seconds)
-    kad.scheduleAction(serviceId, makePeerId(), 1, now + 1.seconds)
-    kad.scheduleAction(serviceId, makePeerId(), 2, now + 2.seconds)
+    kad.scheduleAction(serviceId, makePeerId(), 0, now + chronos.seconds(3))
+    kad.scheduleAction(serviceId, makePeerId(), 1, now + chronos.seconds(1))
+    kad.scheduleAction(serviceId, makePeerId(), 2, now + chronos.seconds(2))
 
     check kad.advertiser.actionQueue.len == 3
 
     # Verify queue is sorted by time
-    check kad.advertiser.actionQueue[0].scheduledTime == now + 1.seconds
-    check kad.advertiser.actionQueue[1].scheduledTime == now + 2.seconds
-    check kad.advertiser.actionQueue[2].scheduledTime == now + 3.seconds
+    check kad.advertiser.actionQueue[0].scheduledTime == now + chronos.seconds(1)
+    check kad.advertiser.actionQueue[1].scheduledTime == now + chronos.seconds(2)
+    check kad.advertiser.actionQueue[2].scheduledTime == now + chronos.seconds(3)
 
   test "scheduleAction with same scheduled time":
     let kad = createMockDiscovery()
@@ -120,8 +121,8 @@ suite "Kademlia Discovery Advertiser - Queue Management":
     # Add actions for different services
     kad.scheduleAction(serviceId1, makePeerId(), 0, now)
     kad.scheduleAction(serviceId2, makePeerId(), 0, now)
-    kad.scheduleAction(serviceId1, makePeerId(), 1, now + 1.seconds)
-    kad.scheduleAction(serviceId2, makePeerId(), 1, now + 1.seconds)
+    kad.scheduleAction(serviceId1, makePeerId(), 1, now + chronos.seconds(1))
+    kad.scheduleAction(serviceId2, makePeerId(), 1, now + chronos.seconds(1))
 
     check kad.advertiser.actionQueue.len == 4
 
@@ -195,7 +196,7 @@ suite "Kademlia Discovery Advertiser - Service Management":
     # All actions should be for the added service
     for action in kad.advertiser.actionQueue:
       check action.serviceId == serviceId
-      check action.scheduledTime <= Moment.now() + 1.seconds # ASAP
+      check action.scheduledTime <= Moment.now() + chronos.seconds(1) # ASAP
 
   test "addProvidedService with different K_register":
     let kad = KademliaDiscovery.new(
@@ -277,56 +278,61 @@ suite "Kademlia Discovery Advertiser - Advertisement Building":
 
   test "Advertisement signature can be created":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    var ad = Advertisement(
-      serviceId: makeServiceId(),
-      peerId: makePeerId(),
-      addrs: @[maddr],
-      signature: @[],
-      metadata: @[],
-      timestamp: 0,
+    let peerId = makePeerId()
+    let privateKey = PrivateKey.random(rng[]).get()
+
+    # Create ExtendedPeerRecord
+    let extRecord = ExtendedPeerRecord(
+      peerId: peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: @[AddressInfo(address: maddr)],
+      services: @[],
     )
 
-    let privateKey = PrivateKey.random(rng[]).get()
-    let signResult = ad.sign(privateKey)
-    check signResult.isOk()
-    check ad.signature.len > 0
+    # Create SignedExtendedPeerRecord
+    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
+    check ad.envelope.signature.data.len > 0
 
   test "Advertisement signature verification works":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    var ad = Advertisement(
-      serviceId: makeServiceId(),
-      peerId: makePeerId(),
-      addrs: @[maddr],
-      signature: @[],
-      metadata: @[],
-      timestamp: 0,
+    let peerId = makePeerId()
+    let privateKey = PrivateKey.random(rng[]).get()
+
+    # Create ExtendedPeerRecord
+    let extRecord = ExtendedPeerRecord(
+      peerId: peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: @[AddressInfo(address: maddr)],
+      services: @[],
     )
 
-    let privateKey = PrivateKey.random(rng[]).get()
-    discard ad.sign(privateKey)
-
-    let publicKey = privateKey.getPublicKey().get()
-    check ad.verify(publicKey) == true
+    # Create and verify SignedExtendedPeerRecord
+    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+    check ad.checkValid().isOk()
 
   test "Advertisement signature fails with tampered data":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    var ad = Advertisement(
-      serviceId: makeServiceId(),
-      peerId: makePeerId(),
-      addrs: @[maddr],
-      signature: @[],
-      metadata: @[],
-      timestamp: 0,
+    let peerId = makePeerId()
+    let privateKey = PrivateKey.random(rng[]).get()
+
+    # Create ExtendedPeerRecord
+    var extRecord = ExtendedPeerRecord(
+      peerId: peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: @[AddressInfo(address: maddr)],
+      services: @[],
     )
 
-    let privateKey = PrivateKey.random(rng[]).get()
-    discard ad.sign(privateKey)
+    # Create SignedExtendedPeerRecord
+    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-    let publicKey = privateKey.getPublicKey().get()
+    # Tamper with the peerId in the envelope
+    var tamperedAd = ad
+    tamperedAd.data.peerId = makePeerId()  # Different peerId
 
-    # Tamper with serviceId
-    ad.serviceId[0] = 255'u8
-    check ad.verify(publicKey) == false
+    # Verification should fail since peerId doesn't match
+    check tamperedAd.checkValid().isErr()
 
 # ============================================================================
 # 5. Rescheduling Logic Tests
@@ -405,14 +411,14 @@ suite "Kademlia Discovery Advertiser - Edge Cases":
     let baseTime = Moment.now()
 
     # Insert in random order
-    kad.scheduleAction(serviceId, makePeerId(), 0, baseTime + 5.seconds)
-    kad.scheduleAction(serviceId, makePeerId(), 1, baseTime + 2.seconds)
-    kad.scheduleAction(serviceId, makePeerId(), 2, baseTime + 7.seconds)
-    kad.scheduleAction(serviceId, makePeerId(), 3, baseTime + 1.seconds)
-    kad.scheduleAction(serviceId, makePeerId(), 4, baseTime + 3.seconds)
+    kad.scheduleAction(serviceId, makePeerId(), 0, baseTime + chronos.seconds(5))
+    kad.scheduleAction(serviceId, makePeerId(), 1, baseTime + chronos.seconds(2))
+    kad.scheduleAction(serviceId, makePeerId(), 2, baseTime + chronos.seconds(7))
+    kad.scheduleAction(serviceId, makePeerId(), 3, baseTime + chronos.seconds(1))
+    kad.scheduleAction(serviceId, makePeerId(), 4, baseTime + chronos.seconds(3))
 
     # Verify sorted order
-    var lastTime = baseTime - 10.seconds # Use a time before all actions
+    var lastTime = baseTime - chronos.seconds(10) # Use a time before all actions
     for action in kad.advertiser.actionQueue:
       check action.scheduledTime >= lastTime
       lastTime = action.scheduledTime
@@ -427,16 +433,23 @@ suite "Kademlia Discovery Advertiser - Ticket Handling":
     let serviceId = makeServiceId()
     let registrar = makePeerId()
     let now = Moment.now()
+    let privateKey = PrivateKey.random(rng[]).get()
+    let peerId = makePeerId()
+
+    # Create ExtendedPeerRecord
+    let extRecord = ExtendedPeerRecord(
+      peerId: peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: @[],
+      services: @[ServiceInfo(id: "test_service", data: @[])],
+    )
+
+    # Create SignedExtendedPeerRecord and encode it
+    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+    let adBytes = ad.encode()
 
     var ticket = Ticket(
-      ad: Advertisement(
-        serviceId: serviceId,
-        peerId: makePeerId(),
-        addrs: @[],
-        signature: @[],
-        metadata: @[],
-        timestamp: 0,
-      ),
+      ad: adBytes,
       t_init: 100,
       t_mod: 200,
       t_wait_for: 300,

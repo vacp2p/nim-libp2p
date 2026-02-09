@@ -3,15 +3,14 @@
 
 import std/[tables, sequtils, sets, heapqueue]
 import chronos, chronicles, results
-import ../../[peerid, switch, multihash, cid, multicodec, multiaddress]
-import ../../protobuf/minprotobuf
+import ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
 import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
 import ../kademlia/routingtable
 import ../kademlia_discovery/types
-import ./[types, protobuf]
+import ./types
 
 logScope:
   topics = "cap-disco discoverer"
@@ -61,16 +60,15 @@ proc sendGetAds(
         debug "Failed to decode advertisement", err = error
         continue
 
-      var publicKey: PublicKey
-      if ad.peerId.extractPublicKey(publicKey):
-        if ad.verify(publicKey):
-          # RFC: Verify service advertised matches service_id_hash
-          # The advertisement must advertise the requested service
-          if ad.serviceId == serviceId:
-            ads.add(ad)
-          else:
-            debug "Advertisement service mismatch",
-              advertised = bytesToHex(ad.serviceId), requested = bytesToHex(serviceId)
+      # Verify signature and peerId match
+      if ad.checkValid().isOk():
+        # RFC: Verify service advertised matches service_id_hash
+        # The advertisement must advertise the requested service
+        if ad.advertisesService(serviceId):
+          ads.add(ad)
+        else:
+          debug "Advertisement service mismatch",
+            requested = toHex(serviceId)
 
   for peer in reply.closerPeers:
     let peerId = PeerId.init(peer.id).valueOr:
@@ -152,7 +150,7 @@ proc serviceLookup*(
           discard searchTable.insert(nodeId.toKey())
 
         for ad in ads:
-          found.incl(ad.peerId)
+          found.incl(ad.data.peerId)
 
           if found.len >= disco.discoConf.fLookup:
             break outer

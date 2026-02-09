@@ -20,6 +20,7 @@ type KademliaDiscovery* = ref object of KadDHT
   advertTableLoop*: Future[void]
   advertiseLoop*: Future[void]
   registrarCacheLoop*: Future[void]
+  regTableLoop*: Future[void]
   services*: HashSet[ServiceInfo]
   discoConf*: KademliaDiscoveryConfig
 

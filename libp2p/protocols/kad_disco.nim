@@ -16,12 +16,13 @@ export kad_types, randomfind, cap_types, registrar, advertiser, discoverer
 logScope:
   topics = "kad-disco"
 
-proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: []).} =
+proc record*(
+    disco: KademliaDiscovery
+): Future[Result[SignedExtendedPeerRecord, string]] {.async: (raises: []).} =
   let updateRes = catch:
     await disco.switch.peerInfo.update()
   if updateRes.isErr:
-    error "Failed to update peer info", error = updateRes.error.msg
-    return
+    return err("Failed to update peer info: " & updateRes.error.msg)
 
   let
     peerInfo: PeerInfo = disco.switch.peerInfo
@@ -36,7 +37,13 @@ proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: [])
       services: services,
     ),
   ).valueOr:
-    error "Failed to create signed peer record", error
+    return err("Failed to create signed peer record: " & $error)
+
+  return ok(extPeerRecord)
+
+proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: []).} =
+  let extPeerRecord = (await disco.record()).valueOr:
+    error "Failed to create signed extended peer record", error
     return
 
   let encodedSR = extPeerRecord.encode().valueOr:
@@ -74,6 +81,12 @@ proc maintainRegistrarCache(
   heartbeat "prune expired advertisements",
     chronos.seconds(int(disco.discoConf.advertExpiry)):
     disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry)
+
+proc maintainRegTables(
+    disco: KademliaDiscovery
+) {.async: (raises: [CancelledError]).} =
+  heartbeat "refresh registrar tables", disco.config.bucketRefreshTime:
+    await disco.refreshAllRegTables()
 
 proc new*(
     T: typedesc[KademliaDiscovery],
@@ -161,6 +174,7 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
   disco.searchTableLoop = disco.maintainSearchTables()
   disco.advertTableLoop = disco.maintainAdvertTables()
   disco.registrarCacheLoop = disco.maintainRegistrarCache()
+  disco.regTableLoop = disco.maintainRegTables()
   disco.advertiseLoop = disco.runAdvertiseLoop()
 
   await procCall start(KadDHT(disco))
@@ -188,6 +202,10 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
   if not disco.registrarCacheLoop.isNil:
     disco.registrarCacheLoop.cancelSoon()
     disco.registrarCacheLoop = nil
+
+  if not disco.regTableLoop.isNil:
+    disco.regTableLoop.cancelSoon()
+    disco.regTableLoop = nil
 
   if not disco.advertiseLoop.isNil:
     disco.advertiseLoop.cancelSoon()

@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/tables
+import std/[tables, sequtils]
 import chronos
-import ../../[peerid, multihash, multiaddress]
+import ../../[peerid, multihash, multiaddress, extended_peer_record]
 import ../kademlia/types
 import ../kademlia/protobuf
+import nimcrypto/sha2
 
 export multiaddress
 
@@ -34,16 +35,12 @@ const
 type
   RegistrationStatus* = protobuf.RegistrationStatus
 
-  Advertisement* = object
-    serviceId*: ServiceId
-    peerId*: PeerId
-    addrs*: seq[MultiAddress]
-    signature*: seq[byte]
-    metadata*: seq[byte]
-    timestamp*: int64
+  AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
+
+  Advertisement* = SignedExtendedPeerRecord
 
   Ticket* = object
-    ad*: Advertisement
+    ad*: seq[byte]
     t_init*: int64
     t_mod*: int64
     t_wait_for*: uint32
@@ -56,15 +53,18 @@ type
   IpTree* = ref object
     root*: IpTreeNode
 
+  RegistrarTable* = RoutingTable
+
   Registrar* = ref object
     cache*: OrderedTable[ServiceId, seq[Advertisement]] # service Id -> list of ads
-    cacheTimestamps*: Table[Advertisement, int64] # ad -> insertion time
+    cacheTimestamps*: Table[AdvertisementKey, int64] # ad key -> insertion time
     ipTree*: IpTree
     # Lower bound enforcement state (RFC section: Lower Bound Enforcement)
     boundService*: Table[ServiceId, float64] # bound(service_id_hash)
     timestampService*: Table[ServiceId, int64] # timestamp(service_id_hash)
     boundIp*: Table[string, float64] # bound(IP)
     timestampIp*: Table[string, int64] # timestamp(IP)
+    regTable*: Table[ServiceId, RegistrarTable] # Service routing tables
 
   AdvertiseTable* = RoutingTable
 
@@ -134,3 +134,40 @@ proc actionCmp*(a, b: PendingAction): int =
     1
   else:
     0
+
+# Helper procs for working with Advertisement (SignedExtendedPeerRecord)
+
+proc getPeerId*(ad: Advertisement): PeerId =
+  ## Get peer ID from advertisement
+  ad.data.peerId
+
+proc getAddresses*(ad: Advertisement): seq[MultiAddress] =
+  ## Get addresses from advertisement
+  ad.data.addresses.mapIt(it.address)
+
+proc getServices*(ad: Advertisement): seq[ServiceInfo] =
+  ## Get services from advertisement
+  ad.data.services
+
+proc getSeqNo*(ad: Advertisement): uint64 =
+  ## Get sequence number from advertisement
+  ad.data.seqNo
+
+proc hashServiceId*(serviceStr: string): ServiceId =
+  ## Hash a service string to get ServiceId (Key)
+  ## This is SHA-256 of the service string
+  let digest = sha256.digest(serviceStr)
+  @(digest.data)
+
+proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
+  ## Check if advertisement advertises the given service
+  ## Matches by hashing each service.id and comparing with serviceId
+  for service in ad.data.services:
+    let hashed = hashServiceId(service.id)
+    if hashed == serviceId:
+      return true
+  false
+
+proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey =
+  ## Create a cache key from an advertisement
+  (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
