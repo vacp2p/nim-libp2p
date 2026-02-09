@@ -2,20 +2,21 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[net]
-import results
+import chronicles, results
 import ./types
 
-type IpTreeError* = enum
-  Ipv4Required = "IPv4 address required"
+logScope:
+  topics = "cap-disco iptree"
 
 proc new*(T: typedesc[IpTree]): T =
   T(root: IpTreeNode(counter: 0))
 
-proc insertIp*(ipTree: IpTree, ip: IpAddress): Result[void, IpTreeError] =
+proc insertIp*(ipTree: IpTree, ip: IpAddress) =
   ## Adds an IPv4 address to the IP tree by incrementing counters along the 32-bit path.
   ## Only supports IPv4 (as per the RFC specification which defines a 32-level tree).
   if ip.family != IpAddressFamily.IPv4:
-    return err(Ipv4Required)
+    error "Cannot add Ipv6 to tree"
+    return
 
   var v = ipTree.root
   let bytes = ip.address_v4
@@ -32,13 +33,13 @@ proc insertIp*(ipTree: IpTree, ip: IpAddress): Result[void, IpTreeError] =
         if v.right.isNil:
           v.right = IpTreeNode(counter: 0)
         v = v.right
-  ok()
 
-proc removeIp*(ipTree: IpTree, ip: IpAddress): Result[void, IpTreeError] =
+proc removeIp*(ipTree: IpTree, ip: IpAddress) =
   ## Removes an IPv4 address from the IP tree by decrementing counters along the 32-bit path.
   ## Only supports IPv4.
   if ip.family != IpAddressFamily.IPv4:
-    return err(Ipv4Required)
+    error "Cannot remove Ipv6 from tree"
+    return
 
   var v = ipTree.root
   let bytes = ip.address_v4
@@ -51,20 +52,37 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress): Result[void, IpTreeError] =
         v = v.left
       else:
         v = v.right
-  ok()
 
-proc ipScore*(ipTree: IpTree, ip: IpAddress): Result[float64, IpTreeError] =
+proc insertAd*(ipTree: IpTree, ad: Advertisement) =
+  for addressInfo in ad.data.addresses:
+    let multiAddr = addressInfo.address
+    let ip = multiAddr.getIp().valueOr:
+      continue
+
+    ipTree.insertIp(ip)
+
+proc removeAd*(ipTree: IpTree, ad: Advertisement) =
+  for addressInfo in ad.data.addresses:
+    let multiAddr = addressInfo.address
+    let ip = multiAddr.getIp().valueOr:
+      continue
+
+    ipTree.removeIp(ip)
+
+proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 =
   ## Calculates the IP similarity score (0.0 to 1.0) for the given IPv4 address
   ## based on how many prefix nodes have more than half the expected count.
   ## Returns a value in [0.0, 1.0].
+
   if ip.family != IpAddressFamily.IPv4:
-    return err(Ipv4Required)
+    error "Cannot score Ipv6 addr"
+    return 1.0
 
   if ipTree.root.counter == 0:
-    return ok(0.0)
+    return 0.0
 
   var v = ipTree.root
-  var score = 0
+  var score = 32
   let bytes = ip.address_v4
   let total = float64(ipTree.root.counter)
 
@@ -81,9 +99,24 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): Result[float64, IpTreeError] =
 
       if v.isNil:
         # Should not happen if tree is consistent, but safe fallback
-        return ok(float64(score) / 32.0)
+        return float64(score) / 32.0
 
       if float64(v.counter) > threshold:
-        score += 1
+        score -= 1
 
-  return ok(float64(score) / 32.0)
+  return float64(score) / 32.0
+
+proc adScore*(ipTree: IpTree, ad: Advertisement): float64 =
+  ## Return the max score for this advertisment
+
+  var maxScore = 1.0
+  for addressInfo in ad.data.addresses:
+    let multiAddr = addressInfo.address
+    let ip = multiAddr.getIp().valueOr:
+      continue
+
+    let score = ipTree.ipScore(ip)
+    if score < maxScore:
+      maxScore = score
+
+  return maxScore

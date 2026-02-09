@@ -2,11 +2,12 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, net]
+import std/[times, net, sequtils]
 import chronos, chronicles, results
-import ../../../libp2p/[peerid, multiaddress]
+import ../../../libp2p/[peerid, multiaddress, extended_peer_record, routing_record, crypto/crypto]
 import ../../../libp2p/protocols/capability_discovery/[types, registrar, iptree]
 import ../../tools/unittest
+import ../../tools/crypto
 import ./utils
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
@@ -19,17 +20,18 @@ proc createTestAdvertisement(
     serviceId: ServiceId = makeServiceId(),
     peerId: PeerId = makePeerId(),
     addrs: seq[MultiAddress] = @[],
-    metadata: seq[byte] = @[],
-    timestamp: int64 = 0,
 ): Advertisement =
-  Advertisement(
-    serviceId: serviceId,
+  # Create a private key for signing
+  let privateKey = PrivateKey.random(rng[])
+  # Create ExtendedPeerRecord
+  let extRecord = ExtendedPeerRecord(
     peerId: peerId,
-    addrs: addrs,
-    signature: @[],
-    metadata: metadata,
-    timestamp: timestamp,
+    seqNo: getTime().toUnix().uint64,
+    addresses: addrs.mapIt(AddressInfo(address: it)),
+    services: @[],  # Empty services for now
   )
+  # Sign and create SignedExtendedPeerRecord
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
 proc createTestRegistrar(): Registrar =
   Registrar.new()

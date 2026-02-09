@@ -1,18 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, sets, options, algorithm]
-from std/times import getTime, toUnix
+import std/[tables, sequtils, sets, options, algorithm, times]
 import chronos, chronicles, results
-import ../../[peerid, switch, multihash, cid, multicodec, multiaddress]
-import ../../protobuf/minprotobuf
+import
+  ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
 import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/types
-import ../kademlia/protobuf as kademlia_protobuf
-import ../kademlia/routingtable
+import ../kademlia/[protobuf, routingtable]
 import ../kademlia_discovery/types
-import ./[types, protobuf]
+import ./types
 
 logScope:
   topics = "cap-disco advertiser"
@@ -38,12 +36,13 @@ proc scheduleAction*(
   disco.advertiser.actionQueue.insert(action, idx)
 
 proc sendRegister*(
-    kad: KadDHT,
+    kad: KademliaDiscovery,
     peerId: PeerId,
-    ad: Advertisement,
+    serviceId: ServiceId,
+    ad: seq[byte],
     ticket: Opt[Ticket] = Opt.none(Ticket),
 ): Future[
-    Result[(kademlia_protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]
+    Result[(protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]
 ] {.async: (raises: []).} =
   ## Send REGISTER request to a peer
 
@@ -58,10 +57,9 @@ proc sendRegister*(
   defer:
     await conn.close()
 
-  # Build new nested Register message structure
   var regMsg = RegisterMessage(
-    advertisement: ad.encode(),
-    status: Opt.none(kademlia_protobuf.RegistrationStatus),
+    advertisement: ad,
+    status: Opt.none(protobuf.RegistrationStatus),
     ticket: Opt.none(TicketMessage),
   )
 
@@ -70,7 +68,7 @@ proc sendRegister*(
     let ticketVal = ticket.get()
     regMsg.ticket = Opt.some(
       TicketMessage(
-        advertisement: ticketVal.ad.encode(),
+        advertisement: ticketVal.ad,
         tInit: ticketVal.t_init.uint64,
         tMod: ticketVal.t_mod.uint64,
         tWaitFor: ticketVal.t_wait_for,
@@ -78,9 +76,8 @@ proc sendRegister*(
       )
     )
 
-  var msg = Message(
-    msgType: MessageType.register, key: ad.serviceId, register: Opt.some(regMsg)
-  )
+  var msg =
+    Message(msgType: MessageType.register, key: serviceId, register: Opt.some(regMsg))
 
   let writeRes = catch:
     await conn.writeLp(msg.encode().buffer)
@@ -95,29 +92,25 @@ proc sendRegister*(
   let reply = Message.decode(replyBuf).valueOr:
     return err("Failed to decode register message response" & $error)
 
-  # Extract status from new nested Register message structure
-  var status = kademlia_protobuf.RegistrationStatus.Rejected
-  if reply.register.isSome():
-    let replyRegMsg = reply.register.get()
-    if replyRegMsg.status.isSome():
-      status = replyRegMsg.status.get()
+  var status = protobuf.RegistrationStatus.Rejected
 
-  # Extract ticket from new nested Register message structure
   var responseTicket = Ticket()
   if reply.register.isSome():
     let replyRegMsg = reply.register.get()
+
+    if replyRegMsg.status.isSome():
+      status = replyRegMsg.status.get()
+
     if replyRegMsg.ticket.isSome():
       let ticketMsg = replyRegMsg.ticket.get()
-      # Decode advertisement from ticket
-      let ticketAdRes = Advertisement.decode(ticketMsg.advertisement)
-      if ticketAdRes.isOk():
-        responseTicket = Ticket(
-          ad: ticketAdRes.get(),
-          t_init: ticketMsg.tInit.int64,
-          t_mod: ticketMsg.tMod.int64,
-          t_wait_for: ticketMsg.tWaitFor,
-          signature: ticketMsg.signature,
-        )
+
+      responseTicket = Ticket(
+        ad: ticketMsg.advertisement,
+        t_init: ticketMsg.tInit.int64,
+        t_mod: ticketMsg.tMod.int64,
+        t_wait_for: ticketMsg.tWaitFor,
+        signature: ticketMsg.signature,
+      )
 
   var closerPeers: seq[PeerId] = @[]
   for peer in reply.closerPeers:
@@ -132,27 +125,18 @@ proc sendRegister*(
 proc advertise*(
     disco: KademliaDiscovery,
     serviceId: ServiceId,
+    ad: Advertisement,
     registrar: PeerId,
     bucketIdx: int,
     ticket: Opt[Ticket],
 ) {.async: (raises: []).} =
   ## Execute a registration action and schedule the next one based on response.
 
-  var ad = Advertisement(
-    serviceId: serviceId,
-    peerId: disco.switch.peerInfo.peerId,
-    addrs: disco.switch.peerInfo.addrs,
-    timestamp: getTime().toUnix(),
-    metadata: @[],
-    signature: @[],
-  )
-
-  let signRes = ad.sign(disco.switch.peerInfo.privateKey)
-  if signRes.isErr:
-    error "Failed to sign advertisement", error = signRes.error
+  let adBuf: seq[byte] = ad.encode().valueOr:
+    error "Failed to encode ad", error
     return
 
-  let registerRes = await sendRegister(disco, registrar, ad, ticket)
+  let registerRes = await disco.sendRegister(registrar, serviceId, adBuf, ticket)
   let (status, newTicketOpt, closerPeers) = registerRes.valueOr:
     error "Failed to register ad", err = error
     return
@@ -167,21 +151,21 @@ proc advertise*(
         break
 
   case status
-  of kademlia_protobuf.RegistrationStatus.Confirmed:
+  of protobuf.RegistrationStatus.Confirmed:
     # Schedule re-advertisement after advertExpiry
-    let nextTime = Moment.fromNow(int(disco.discoConf.advertExpiry).seconds)
+    let nextTime = Moment.now() + chronos.seconds(int(disco.discoConf.advertExpiry))
     disco.scheduleAction(serviceId, registrar, bucketIdx, nextTime, Opt.none(Ticket))
     return
-  of kademlia_protobuf.RegistrationStatus.Wait:
+  of protobuf.RegistrationStatus.Wait:
     var newTicket = Ticket()
     if newTicketOpt.isSome:
       newTicket = newTicketOpt.get()
     # Schedule retry after t_wait_for
     let waitTime = min(disco.discoConf.advertExpiry, newTicket.t_wait_for.float64)
-    let nextTime = Moment.fromNow(int(waitTime).seconds)
+    let nextTime = Moment.now() + chronos.seconds(int(waitTime))
     disco.scheduleAction(serviceId, registrar, bucketIdx, nextTime, Opt.some(newTicket))
     return
-  of kademlia_protobuf.RegistrationStatus.Rejected:
+  of protobuf.RegistrationStatus.Rejected:
     # Don't reschedule - this registrar rejected us
     return
 
@@ -192,7 +176,7 @@ proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledErr
     let queue = disco.advertiser.actionQueue
 
     if queue.len == 0:
-      await sleepAsync(1.seconds) # Idle wait
+      await sleepAsync(chronos.seconds(1)) # Idle wait
       continue
 
     let (scheduledTime, serviceId, registrar, bucketIdx, ticket) = queue[0]
@@ -207,7 +191,30 @@ proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledErr
     if serviceId notin disco.advertiser.advTable:
       continue
 
-    await disco.advertise(serviceId, registrar, bucketIdx, ticket)
+    # Create a SignedExtendedPeerRecord for this node
+    let updateRes = catch:
+      await disco.switch.peerInfo.update()
+    if updateRes.isErr:
+      error "Failed to update peer info", err = updateRes.error.msg
+      continue
+
+    let
+      peerInfo: PeerInfo = disco.switch.peerInfo
+      services: seq[ServiceInfo] = disco.services.toSeq()
+
+    let ad = SignedExtendedPeerRecord.init(
+      peerInfo.privateKey,
+      ExtendedPeerRecord(
+        peerId: peerInfo.peerId,
+        seqNo: getTime().toUnix().uint64,
+        addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
+        services: services,
+      ),
+    ).valueOr:
+      error "Failed to create signed peer record", error = $error
+      continue
+
+    await disco.advertise(serviceId, ad, registrar, bucketIdx, ticket)
 
 proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
   ## Include this service in the set of services this node provides.
@@ -267,8 +274,8 @@ proc removeProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
 proc refreshAdvertTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
   ## Refresh advertisement tables for all services of interest.
 
-  for searchTable in disco.advertiser.advTable.values:
+  for advertTable in disco.advertiser.advTable.values:
     let refreshRes = catch:
-      await disco.refreshTable(searchTable)
+      await disco.refreshTable(advertTable)
     if refreshRes.isErr:
-      error "failed to refresh search table", error = refreshRes.error.msg
+      error "failed to refresh advert table", error = refreshRes.error.msg
