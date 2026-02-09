@@ -97,8 +97,7 @@ suite "GossipSub Component - Extensions":
 
     # wait for node 0 to receive request
     checkUntilTimeout:
-      # note: nodes[1] is used here because node 0 receives RPC from node 1.
-      # in other words, to get messages received by node 0, we need to 
+      # to get messages received by node 0, we need to 
       # get messages that are sent by node 1.
       incomingRPC.getOrDefault(nodes[1].peerInfo.peerId, @[]).len == 1
 
