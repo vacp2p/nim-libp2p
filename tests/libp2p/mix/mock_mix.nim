@@ -15,8 +15,6 @@ import
     switch,
   ]
 
-import ./utils
-
 type MockMixProtocol* = ref object of MixProtocol
   surbCallIndex: int
   surbPeerSets*: seq[seq[PeerId]]
@@ -29,8 +27,8 @@ type MockMixProtocol* = ref object of MixProtocol
   ##     @[nodeD, nodeE, nodeF],   # candidates for SURB 1
   ##   ]
   ## Each SURB reply path needs exactly 2 intermediary nodes. buildSurb filters
-  ## out the exit node from candidates, so if the exit happens to be one of your
-  ## candidates, you'd end up with too few. Provide 3+ to be safe.
+  ## out the exit node from candidates, so if the exit happens to be one of the candidates,
+  ## there would be too few. Provide 3+ to be safe.
   ##
   ## After the message is sent, mock.actualSurbPeers records which 2 peers were
   ## selected for each SURB, so tests can target specific nodes.
