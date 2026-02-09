@@ -61,7 +61,7 @@ suite "GossipSub Component - Extensions":
       # peer - who sent RPC (received from)
       incomingRPC.mgetOrPut(peer, newSeq[PartialMessageExtensionRPC]()).add(rpc)
 
-      # note: ideally this is were applications will publish partial messages on requests.
+      # note: ideally this is where applications will publish partial messages on requests.
       # but for the sake of tests it is much more easier and intuitive to follow when 
       # rpc are added to table, and testing is done in procedural, like in test below.
 
