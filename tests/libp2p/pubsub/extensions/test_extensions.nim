@@ -54,7 +54,7 @@ suite "GossipSub Extensions :: State":
 
     # should return false, backwards compatible behavior
     check state.peerRequestsPartial(peerId, "logos") == false
-    
+
     # noop - should not crash 
     state.gossipPartsMetadata(initTable[string, seq[PeerId]]())
 

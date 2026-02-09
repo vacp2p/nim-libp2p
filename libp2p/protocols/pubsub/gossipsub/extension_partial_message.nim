@@ -149,7 +149,8 @@ proc unionPartsMetadata(
     newMetadata: PartsMetadata,
 ): bool =
   if peerState.sentPartsMetadata != newMetadata:
-    let unionRes = ext.config.unionPartsMetadata(peerState.sentPartsMetadata, newMetadata)
+    let unionRes =
+      ext.config.unionPartsMetadata(peerState.sentPartsMetadata, newMetadata)
     if unionRes.isErr():
       debug "failed to create union from the two parts metadata", msg = unionRes.error
     else:
