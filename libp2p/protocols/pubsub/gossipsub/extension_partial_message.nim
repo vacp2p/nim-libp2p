@@ -178,14 +178,11 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
   else:
     ext.peerTopicOpts.del(key)
 
-template isTopicAndGroupIdValid(topic: string, groupId: GroupId): bool =
-  topic.len > 0 and groupId.len > 0
-
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  if not isTopicAndGroupIdValid(rpc.topicID, rpc.groupID):
-    debug "received RPC with invalid topic or groupId", topic = rpc.topicID, groupId = rpc.groupID
+  if rpc.groupID.len == 0:
+    debug "received RPC with unset groupId", groupId = rpc.groupID
     return
 
   let validateRes = ext.config.validateRPC(rpc)
@@ -259,8 +256,8 @@ proc publishPartialToPeer(
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
-  if not isTopicAndGroupIdValid(topic, pm.groupId()):
-    warn "could not publish partial with invalid topic or groupId", topic, groupId = pm.groupId()
+  if pm.groupId().len == 0:
+    warn "could not publish partial without groupId", groupId = pm.groupId()
     return 0
 
   var groupState = ext.getGroupState(topic, pm.groupId())
