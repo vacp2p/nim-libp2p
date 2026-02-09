@@ -82,10 +82,10 @@ proc removeClosedConnections(
 
   for p in peersToGC:
     try:
-      await mixProto.connPool[pid].close()
-      mixProto.connPool.del(pid)
+      await mixProto.connPool[p].close()
+      mixProto.connPool.del(p)
     except KeyError:
-      raiseAssert "checked with hasKey"
+      discard # peer already removed from connPool, nothing to clean up
 
 proc getConn(
     mixProto: MixProtocol,
