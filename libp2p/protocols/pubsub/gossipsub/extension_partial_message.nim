@@ -62,6 +62,7 @@ type
   GroupState = ref object
     peerState: Table[PeerId, PeerGroupState]
     heartbeatsTillEviction: int
+    lastPublishedMetadata: PartsMetadata
 
   PeerTopicKey = string
   TopicGroupKey = string
@@ -77,12 +78,19 @@ proc new(
   $peerId & keyDelimiter & topic
 
 template hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
-  ($peerId & keyDelimiter) in key
+  key.startsWith($peerId & keyDelimiter)
 
 proc new(
     T: typedesc[TopicGroupKey], topic: string, groupId: GroupId
 ): TopicGroupKey {.inline.} =
   topic & keyDelimiter & $groupId
+
+template hasTopic(key: TopicGroupKey, topic: string): bool =
+  key.startsWith(topic & keyDelimiter)
+
+template groupId(key: TopicGroupKey): GroupId =
+  let parts = key.split(keyDelimiter, maxsplit = 1)
+  cast[seq[byte]](parts[1])
 
 proc doAssert(config: PartialMessageExtensionConfig) =
   proc msg(arg: string): string =
@@ -121,11 +129,6 @@ template getGroupState(
 template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   gs.peerState.mgetOrPut(peerId, PeerGroupState())
 
-proc gossipThePartsMetadata(ext: PartialMessageExtension) =
-  # TODO: `partsMetadata` can be used during heartbeat gossip to inform non-mesh topic
-  # peers about parts this node has.
-  discard
-
 proc peerRequestsPartial*(
     ext: PartialMessageExtension, peerId: PeerId, topic: string
 ): bool =
@@ -139,7 +142,43 @@ method isSupported*(
 
 method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
   ext.reduceHeartbeatsTillEviction()
-  ext.gossipThePartsMetadata()
+
+proc unionPartsMetadata(
+    ext: PartialMessageExtension,
+    peerState: var PeerGroupState,
+    newMetadata: PartsMetadata,
+): bool =
+  if peerState.sentPartsMetadata != newMetadata:
+    let unionRes = ext.config.unionPartsMetadata(peerState.sentPartsMetadata, newMetadata)
+    if unionRes.isErr():
+      debug "failed to create union from the two parts metadata", msg = unionRes.error
+    else:
+      peerState.sentPartsMetadata = unionRes.get()
+
+    return true # has changed
+
+  return false
+
+proc gossipPartsMetadata*(
+    ext: PartialMessageExtension, peersRequestingPartial: Table[string, seq[PeerId]]
+) =
+  for topic, peers in peersRequestingPartial:
+    for key, group in ext.groupState.mpairs:
+      if not key.hasTopic(topic):
+        continue
+      if group.lastPublishedMetadata.len == 0:
+        continue
+
+      let rpc = PartialMessageExtensionRPC(
+        topicID: topic,
+        groupID: key.groupId(),
+        partsMetadata: group.lastPublishedMetadata,
+      )
+
+      for peerId in peers:
+        var peerState = group.getPeerState(peerId)
+        if ext.unionPartsMetadata(peerState, group.lastPublishedMetadata):
+          ext.config.sendRPC(peerId, rpc)
 
 method onNegotiated*(
     ext: PartialMessageExtension, peerId: PeerId
@@ -221,12 +260,6 @@ proc publishPartialToPeer(
   var peerState = groupState.getPeerState(peer)
   var hasChanges: bool = false
 
-  # if partsMetadata was changed, rpc sets new metadata 
-  if peerState.sentPartsMetadata != msgPartsMetadata:
-    hasChanges = true
-    rpc.partsMetadata = msgPartsMetadata
-    peerState.sentPartsMetadata = msgPartsMetadata
-
   # if peer has requested partial messages, attempt to fulfill any 
   # parts that peer is missing.
   if peerRequestsPartial and peerState.peerSentMetadata:
@@ -245,7 +278,12 @@ proc publishPartialToPeer(
 
       let data = materializeRes.get()
       rpc.partialMessage = data
-      hasChanges = hasChanges or data.len > 0
+      hasChanges = data.len > 0
+
+  # if partsMetadata was changed, rpc sets new metadata 
+  if ext.unionPartsMetadata(peerState, msgPartsMetadata):
+    hasChanges = true
+    rpc.partsMetadata = msgPartsMetadata
 
   # if there are any changes send RPC
   if hasChanges:
@@ -262,6 +300,7 @@ proc publishPartial*(
 
   var groupState = ext.getGroupState(topic, pm.groupId())
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
+  groupState.lastPublishedMetadata = pm.partsMetadata()
 
   var publishedToCount: int = 0
   let peers = ext.config.publishToPeers(topic)
