@@ -257,7 +257,7 @@ proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
   if pm.groupId().len == 0:
-    warn "could not publish partial without groupId", groupId = pm.groupId()
+    warn "could not publish partial message without groupId", groupId = pm.groupId()
     return 0
 
   var groupState = ext.getGroupState(topic, pm.groupId())
