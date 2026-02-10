@@ -181,9 +181,13 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
+  if rpc.groupID.len == 0:
+    debug "received RPC with unset groupId", groupId = rpc.groupID
+    return
+
   let validateRes = ext.config.validateRPC(rpc)
   if validateRes.isErr():
-    debug "Partial message extensions received invalid RPC", msg = validateRes.error
+    debug "RPC did not pass application validation", msg = validateRes.error
     return
 
   if rpc.partsMetadata.len > 0:
@@ -252,6 +256,10 @@ proc publishPartialToPeer(
 proc publishPartial*(
     ext: PartialMessageExtension, topic: string, pm: PartialMessage
 ): int {.raises: [].} =
+  if pm.groupId().len == 0:
+    warn "could not publish partial message without groupId", groupId = pm.groupId()
+    return 0
+
   var groupState = ext.getGroupState(topic, pm.groupId())
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 

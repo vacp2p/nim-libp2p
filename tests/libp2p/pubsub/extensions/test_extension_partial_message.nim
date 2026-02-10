@@ -314,3 +314,38 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # should not publish to peer because metadata has been removed
     let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
     check ext.publishPartial(topic, pm) == 0
+
+  test "publishPartial and onIncomingRPC are not called when groupId is not set":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    ext.subscribe(peerId, topic, true)
+
+    # should not call onIncomingRPC, groupID is not set
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, partsMetadata: MyPartsMetadata.want(@[1, 2])
+      ),
+    )
+    check cr.incomingRPC.len == 0
+
+    # should call onIncomingRPC, groupID is set
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
+      ),
+    )
+    check cr.incomingRPC.len == 1
+
+    # should not publish when groupId is not set
+    var pm = MyPartialMessage(
+      data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable
+    )
+    check ext.publishPartial(topic, pm) == 0
+
+    # should publish with groupId
+    pm.groupId = groupId
+    check ext.publishPartial(topic, pm) == 1
