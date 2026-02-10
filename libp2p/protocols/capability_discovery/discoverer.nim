@@ -1,22 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, sets, heapqueue]
+import std/[sequtils, sets]
 import chronos, chronicles, results
-import ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
+import
+  ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
 import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
-import ../kademlia/routingtable
 import ../kademlia_discovery/types
-import ./types
+import ./[types, serviceroutingtables]
 
 logScope:
   topics = "cap-disco discoverer"
-
-proc new*(T: typedesc[Discoverer]): T =
-  T(discTable: initTable[ServiceId, SearchTable]())
 
 proc sendGetAds(
     disco: KademliaDiscovery, peerId: PeerId, serviceId: ServiceId
@@ -67,8 +64,7 @@ proc sendGetAds(
         if ad.advertisesService(serviceId):
           ads.add(ad)
         else:
-          debug "Advertisement service mismatch",
-            requested = toHex(serviceId)
+          debug "Advertisement service mismatch", requested = toHex(serviceId)
 
   for peer in reply.closerPeers:
     let peerId = PeerId.init(peer.id).valueOr:
@@ -79,48 +75,17 @@ proc sendGetAds(
 
   return ok((ads, peerIds))
 
-proc addServiceInterest*(disco: KademliaDiscovery, serviceId: ServiceId) =
-  ## Include this service in the set of services this node is interested in.
-
-  if serviceId in disco.discoverer.discTable:
-    return
-
-  var searchTable = SearchTable.new(
-    serviceId,
-    config = RoutingTableConfig.new(
-      replication = disco.config.replication, maxBuckets = disco.discoConf.bucketsCount
-    ),
-  )
-
-  # Bootstrap from main KadDHT routing table
-  for bucket in disco.rtable.buckets:
-    for peer in bucket.peers:
-      let peerId = peer.nodeId.toPeerId().valueOr:
-        continue
-
-      let peerKey = peerId.toKey()
-
-      discard searchTable.insert(peerKey)
-
-  disco.discoverer.discTable[serviceId] = searchTable
-
-proc removeServiceInterest*(discoverer: Discoverer, serviceId: ServiceId) =
-  ## Exclude this service from the set of services this node is interested in.
-
-  if serviceId in discoverer.discTable:
-    discoverer.discTable.del(serviceId)
-
-proc serviceLookup*(
+proc lookup*(
     disco: KademliaDiscovery, serviceId: ServiceId
 ): Future[Result[seq[PeerId], string]] {.async: (raises: []).} =
   ## Look up service providers following RFC LOOKUP algorithm
 
-  disco.addServiceInterest(serviceId)
+  disco.serviceRoutingTables.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
+  )
 
-  let searchTableRes = catch:
-    disco.discoverer.discTable[serviceId]
-  var searchTable = searchTableRes.valueOr:
-    return err("Cannot find service id in search table: " & searchTableRes.error.msg)
+  let searchTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
+    return err("Service table not found for service id")
 
   var found = initHashSet[PeerId]()
 
@@ -147,7 +112,7 @@ proc serviceLookup*(
           return
 
         for nodeId in closerPeers:
-          discard searchTable.insert(nodeId.toKey())
+          disco.serviceRoutingTables.insertPeer(serviceId, nodeId.toKey())
 
         for ad in ads:
           found.incl(ad.data.peerId)
@@ -156,12 +121,3 @@ proc serviceLookup*(
             break outer
 
   return ok(found.toSeq())
-
-proc refreshSearchTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
-  ## Refresh search tables for all services of interest.
-
-  for searchTable in disco.discoverer.discTable.values:
-    let refreshRes = catch:
-      await disco.refreshTable(searchTable)
-    if refreshRes.isErr:
-      error "failed to refresh search table", error = refreshRes.error.msg

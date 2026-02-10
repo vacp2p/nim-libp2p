@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, sequtils]
-import chronos
+import chronos, stew/endians2
 import ../../[peerid, multihash, multiaddress, extended_peer_record]
 import ../kademlia/types
 import ../kademlia/protobuf
@@ -24,27 +24,12 @@ const
   Default_Delta* = chronos.seconds(1) # registration window
   Default_M_buckets* = 16 # number of buckets in AdvT/DiscT/RegT
 
-  DefaultSelfSPRRefreshTime* = chronos.minutes(10)
-
-  LogosCapabilityDiscoveryCodec* = "/logos/capability-discovery/1.0.0"
-
-  # Deprecated alias for backward compatibility
-  ExtendedKademliaDiscoveryCodec* = LogosCapabilityDiscoveryCodec
-
-# Re-export RegistrationStatus from kademlia protobuf for convenience
 type
   RegistrationStatus* = protobuf.RegistrationStatus
 
   AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
 
   Advertisement* = SignedExtendedPeerRecord
-
-  Ticket* = object
-    ad*: seq[byte]
-    t_init*: int64
-    t_mod*: int64
-    t_wait_for*: uint32
-    signature*: seq[byte]
 
   IpTreeNode* = ref object
     counter*: int
@@ -53,20 +38,15 @@ type
   IpTree* = ref object
     root*: IpTreeNode
 
-  RegistrarTable* = RoutingTable
-
   Registrar* = ref object
     cache*: OrderedTable[ServiceId, seq[Advertisement]] # service Id -> list of ads
-    cacheTimestamps*: Table[AdvertisementKey, int64] # ad key -> insertion time
+    cacheTimestamps*: Table[AdvertisementKey, uint64] # ad key -> insertion time
     ipTree*: IpTree
     # Lower bound enforcement state (RFC section: Lower Bound Enforcement)
     boundService*: Table[ServiceId, float64] # bound(service_id_hash)
-    timestampService*: Table[ServiceId, int64] # timestamp(service_id_hash)
+    timestampService*: Table[ServiceId, uint64] # timestamp(service_id_hash)
     boundIp*: Table[string, float64] # bound(IP)
-    timestampIp*: Table[string, int64] # timestamp(IP)
-    regTable*: Table[ServiceId, RegistrarTable] # Service routing tables
-
-  AdvertiseTable* = RoutingTable
+    timestampIp*: Table[string, uint64] # timestamp(IP)
 
   PendingAction* =
     tuple[
@@ -78,13 +58,7 @@ type
     ]
 
   Advertiser* = ref object
-    advTable*: Table[ServiceId, AdvertiseTable]
     actionQueue*: seq[PendingAction] # Time-ordered queue of pending actions
-
-  SearchTable* = RoutingTable
-
-  Discoverer* = ref object
-    discTable*: Table[ServiceId, SearchTable]
 
   KademliaDiscoveryConfig* = object
     kRegister*: int
@@ -97,7 +71,6 @@ type
     safetyParam*: float64
     registerationWindow*: chronos.Duration
     bucketsCount*: int
-    signedRecordRefreshInterval*: chronos.Duration
 
 proc new*(
     T: typedesc[KademliaDiscoveryConfig],
@@ -111,7 +84,6 @@ proc new*(
     safetyParam = Default_G,
     registerationWindow = Default_Delta,
     bucketsCount = Default_M_buckets,
-    signedRecordRefreshInterval = DefaultSelfSPRRefreshTime,
 ): T {.raises: [].} =
   KademliaDiscoveryConfig(
     kRegister: kRegister,
@@ -124,7 +96,6 @@ proc new*(
     safetyParam: safetyParam,
     registerationWindow: registerationWindow,
     bucketsCount: bucketsCount,
-    signedRecordRefreshInterval: signedRecordRefreshInterval,
   )
 
 proc actionCmp*(a, b: PendingAction): int =
@@ -168,6 +139,32 @@ proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
       return true
   false
 
-proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey =
+proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
   ## Create a cache key from an advertisement
   (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
+
+proc sign*(ticket: var Ticket, privateKey: PrivateKey): Result[void, CryptoError] =
+  ## Sign the ticket with the given private key.
+  ## Signature is over: encoded_ad || t_init || t_mod || t_wait_for
+  var sigInput = newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4)
+  sigInput.add(ticket.advertisement)
+  sigInput.add(toBytesBE(ticket.tInit.uint64).toSeq)
+  sigInput.add(toBytesBE(ticket.tMod.uint64).toSeq)
+  sigInput.add(toBytesBE(ticket.tWaitFor.uint32).toSeq)
+
+  let sig = ?privateKey.sign(sigInput)
+  ticket.signature = sig.getBytes()
+  ok()
+
+proc verify*(ticket: Ticket, publicKey: PublicKey): bool =
+  ## Verify the ticket signature with the given public key.
+  var sigInput = newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4)
+  sigInput.add(ticket.advertisement)
+  sigInput.add(toBytesBE(ticket.tInit.uint64).toSeq)
+  sigInput.add(toBytesBE(ticket.tMod.uint64).toSeq)
+  sigInput.add(toBytesBE(ticket.tWaitFor.uint32).toSeq)
+
+  var sig: Signature
+  if not sig.init(ticket.signature):
+    return false
+  sig.verify(sigInput, publicKey)
