@@ -149,17 +149,20 @@ proc unionWithSentPartsMetadata(
   var hasChanged: bool = false
 
   if peerState.sentPartsMetadata.isNone:
-    peerState.sentPartsMetadata = some(newMetadata)
     hasChanged = true
+    peerState.sentPartsMetadata = some(newMetadata)
   elif peerState.sentPartsMetadata.get() != newMetadata:
     let unionRes =
       ext.config.unionPartsMetadata(peerState.sentPartsMetadata.get(), newMetadata)
     if unionRes.isErr():
+      # union failed, it is safe to use the most recent parts metadata
       warn "failed to create union from the two parts metadata", msg = unionRes.error
+      hasChanged = true 
       peerState.sentPartsMetadata = some(newMetadata)
-    else:
+    elif unionRes.get() != peerState.sentPartsMetadata.get():
+      # union has produced different metadata then what has been sent
+      hasChanged = true
       peerState.sentPartsMetadata = some(unionRes.get())
-    hasChanged = true
 
   return hasChanged
 
