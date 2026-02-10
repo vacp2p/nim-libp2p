@@ -742,10 +742,7 @@ proc toString*(value: MultiAddress): MaResult[string] =
 proc `$`*(value: MultiAddress): string =
   ## Return string representation of MultiAddress ``value``.
   let s = value.toString()
-  if s.isErr:
-    s.error
-  else:
-    s[]
+  if s.isErr: s.error else: s[]
 
 proc protocols*(value: MultiAddress): MaResult[seq[MultiCodec]] =
   ## Returns list of protocol codecs inside of MultiAddress ``value``.

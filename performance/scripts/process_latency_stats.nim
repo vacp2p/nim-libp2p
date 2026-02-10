@@ -27,9 +27,9 @@ proc extractStats(scenario: JsonNode): Stats =
 proc getJsonResults*(jsons: seq[JsonNode]): seq[Table[string, Stats]] =
   jsons.mapIt(
     it["results"]
-    .getElems(@[])
-    .mapIt(it.extractStats())
-    .mapIt((it.scenarioName, it)).toTable
+      .getElems(@[])
+      .mapIt(it.extractStats())
+      .mapIt((it.scenarioName, it)).toTable
   )
 
 proc aggregateResults*(

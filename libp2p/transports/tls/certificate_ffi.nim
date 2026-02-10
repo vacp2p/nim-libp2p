@@ -227,7 +227,7 @@ proc cert_generate*(
     -1,
     0,
   )
-  .checkIs1(CERT_ERROR_X509_CN)
+    .checkIs1(CERT_ERROR_X509_CN)
   X509_set_subject_name(x509, name).checkIs1(CERT_ERROR_X509_SUBJECT)
   X509_set_issuer_name(x509, name).checkIs1(CERT_ERROR_X509_ISSUER)
 
@@ -499,7 +499,7 @@ proc cert_signing_req*(cn: string, key: CertificateKey): Result[seq[byte], CertE
   OPENSSL_sk_push(exts, ext).checkIs1(CERT_ERROR_X509_SAN)
 
   X509_REQ_add_extensions(x509_req, cast[ptr struct_stack_st_X509_EXTENSION](exts))
-  .checkIs1(CERT_ERROR_X509_SAN)
+    .checkIs1(CERT_ERROR_X509_SAN)
 
   if X509_REQ_sign(x509_req, key.pkey, EVP_sha256()) <= 0:
     return err(CERT_ERROR_SIGN)

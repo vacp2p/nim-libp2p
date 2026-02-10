@@ -23,12 +23,11 @@ logScope:
 export LetsEncryptURL, AutoTLSError
 
 const
-  DefaultDnsServers* =
-    @[
-      initTAddress("1.1.1.1:53"),
-      initTAddress("1.0.0.1:53"),
-      initTAddress("[2606:4700:4700::1111]:53"),
-    ]
+  DefaultDnsServers* = @[
+    initTAddress("1.1.1.1:53"),
+    initTAddress("1.0.0.1:53"),
+    initTAddress("[2606:4700:4700::1111]:53"),
+  ]
   DefaultRenewCheckTime* = 1.hours
   DefaultRenewBufferTime* = 1.hours
 

@@ -31,12 +31,11 @@ proc createDummyData(): (
 
     delay = @[newSeq[byte](DelaySize), newSeq[byte](DelaySize), newSeq[byte](DelaySize)]
 
-    hops =
-      @[
-        Hop.init(newSeq[byte](AddrSize)),
-        Hop.init(newSeq[byte](AddrSize)),
-        Hop.init(newSeq[byte](AddrSize)),
-      ]
+    hops = @[
+      Hop.init(newSeq[byte](AddrSize)),
+      Hop.init(newSeq[byte](AddrSize)),
+      Hop.init(newSeq[byte](AddrSize)),
+    ]
 
     message = newSeq[byte](MessageSize)
     dest = Hop.init(newSeq[byte](AddrSize))

@@ -7,9 +7,8 @@ import chronos
 import ../../libp2p/switch
 import ./futures
 
-type Connectable =
-  concept a, b
-      connect(a, b) is Future[void]
+type Connectable = concept a, b
+  connect(a, b) is Future[void]
 
 proc connectChain*[T: Connectable](nodes: seq[T]) {.async.} =
   ## Chain topology: 1-2-3-4-5

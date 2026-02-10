@@ -81,10 +81,9 @@ proc createReserveResponse(
       expiration: expireUnix,
     )
     sv = ?SignedVoucher.init(r.switch.peerInfo.privateKey, v)
-    ma =
-      ?MultiAddress.init("/p2p/" & $r.switch.peerInfo.peerId).orErr(
-        CryptoError.KeyError
-      )
+    ma = ?MultiAddress.init("/p2p/" & $r.switch.peerInfo.peerId).orErr(
+      CryptoError.KeyError
+    )
     rsrv = Reservation(
       expire: expireUnix,
       addrs: r.switch.peerInfo.addrs.mapIt(?it.concat(ma).orErr(CryptoError.KeyError)),

@@ -508,14 +508,11 @@ when defined(libp2p_gossipsub_1_4):
       RPCMsg(
         control: some(
           ControlMessage(
-            preamble:
-              @[
-                ControlPreamble(
-                  topicID: msg.topic,
-                  messageID: msgId,
-                  messageLength: msg.data.len.uint32,
-                )
-              ]
+            preamble: @[
+              ControlPreamble(
+                topicID: msg.topic, messageID: msgId, messageLength: msg.data.len.uint32
+              )
+            ]
           )
         )
       ),
@@ -823,14 +820,13 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     let msg = RPCMsg(
       control: some(
         ControlMessage(
-          prune:
-            @[
-              ControlPrune(
-                topicID: topic,
-                peers: g.peerExchangeList(topic),
-                backoff: g.parameters.unsubscribeBackoff.seconds.uint64,
-              )
-            ]
+          prune: @[
+            ControlPrune(
+              topicID: topic,
+              peers: g.peerExchangeList(topic),
+              backoff: g.parameters.unsubscribeBackoff.seconds.uint64,
+            )
+          ]
         )
       )
     )

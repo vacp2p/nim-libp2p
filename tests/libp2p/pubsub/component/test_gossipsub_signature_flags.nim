@@ -108,72 +108,71 @@ suite "GossipSub Component - Signature Flags":
     receiverConfig: NodeConfig
     shouldWork: bool
 
-  const scenarios: seq[Scenario] =
-    @[
-      # valid combos
-      # S default, R default
-      Scenario(
-        senderConfig: NodeConfig(sign: true, verify: true, anonymize: false),
-        receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
-        shouldWork: true,
-      ),
-      # S default, R anonymous
-      Scenario(
-        senderConfig: NodeConfig(sign: true, verify: true, anonymize: false),
-        receiverConfig: NodeConfig(sign: false, verify: false, anonymize: true),
-        shouldWork: true,
-      ),
-      # S anonymous, R anonymous
-      Scenario(
-        senderConfig: NodeConfig(sign: false, verify: false, anonymize: true),
-        receiverConfig: NodeConfig(sign: false, verify: false, anonymize: true),
-        shouldWork: true,
-      ),
-      # S only sign, R only verify
-      Scenario(
-        senderConfig: NodeConfig(sign: true, verify: false, anonymize: false),
-        receiverConfig: NodeConfig(sign: false, verify: true, anonymize: false),
-        shouldWork: true,
-      ),
-      # S only verify, R only sign
-      Scenario(
-        senderConfig: NodeConfig(sign: true, verify: true, anonymize: true),
-        receiverConfig: NodeConfig(sign: false, verify: false, anonymize: false),
-        shouldWork: true,
-      ),
-      # S anonymous (not signed despite the flag), R minimal
-      Scenario(
-        senderConfig: NodeConfig(sign: false, verify: true, anonymize: true),
-        receiverConfig: NodeConfig(sign: true, verify: false, anonymize: false),
-        shouldWork: true,
-      ),
-      # S unsigned, R unsigned
-      Scenario(
-        senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
-        receiverConfig: NodeConfig(sign: false, verify: false, anonymize: false),
-        shouldWork: true,
-      ),
+  const scenarios: seq[Scenario] = @[
+    # valid combos
+    # S default, R default
+    Scenario(
+      senderConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+      receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+      shouldWork: true,
+    ),
+    # S default, R anonymous
+    Scenario(
+      senderConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+      receiverConfig: NodeConfig(sign: false, verify: false, anonymize: true),
+      shouldWork: true,
+    ),
+    # S anonymous, R anonymous
+    Scenario(
+      senderConfig: NodeConfig(sign: false, verify: false, anonymize: true),
+      receiverConfig: NodeConfig(sign: false, verify: false, anonymize: true),
+      shouldWork: true,
+    ),
+    # S only sign, R only verify
+    Scenario(
+      senderConfig: NodeConfig(sign: true, verify: false, anonymize: false),
+      receiverConfig: NodeConfig(sign: false, verify: true, anonymize: false),
+      shouldWork: true,
+    ),
+    # S only verify, R only sign
+    Scenario(
+      senderConfig: NodeConfig(sign: true, verify: true, anonymize: true),
+      receiverConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+      shouldWork: true,
+    ),
+    # S anonymous (not signed despite the flag), R minimal
+    Scenario(
+      senderConfig: NodeConfig(sign: false, verify: true, anonymize: true),
+      receiverConfig: NodeConfig(sign: true, verify: false, anonymize: false),
+      shouldWork: true,
+    ),
+    # S unsigned, R unsigned
+    Scenario(
+      senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+      receiverConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+      shouldWork: true,
+    ),
 
-      # invalid combos
-      # S anonymous, R default
-      Scenario(
-        senderConfig: NodeConfig(sign: false, verify: false, anonymize: true),
-        receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
-        shouldWork: false,
-      ),
-      # S unsigned, R anonymous but verify 
-      Scenario(
-        senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
-        receiverConfig: NodeConfig(sign: true, verify: true, anonymize: true),
-        shouldWork: false,
-      ),
-      # S unsigned, R default
-      Scenario(
-        senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
-        receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
-        shouldWork: false,
-      ),
-    ]
+    # invalid combos
+    # S anonymous, R default
+    Scenario(
+      senderConfig: NodeConfig(sign: false, verify: false, anonymize: true),
+      receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+      shouldWork: false,
+    ),
+    # S unsigned, R anonymous but verify 
+    Scenario(
+      senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+      receiverConfig: NodeConfig(sign: true, verify: true, anonymize: true),
+      shouldWork: false,
+    ),
+    # S unsigned, R default
+    Scenario(
+      senderConfig: NodeConfig(sign: false, verify: false, anonymize: false),
+      receiverConfig: NodeConfig(sign: true, verify: true, anonymize: false),
+      shouldWork: false,
+    ),
+  ]
 
   for scenario in scenarios:
     let
@@ -189,7 +188,7 @@ suite "GossipSub Component - Signature Flags":
           verifySignature = localScenario.senderConfig.verify,
           anonymize = localScenario.senderConfig.anonymize,
         )
-        .toGossipSub()[0]
+          .toGossipSub()[0]
         receiver = generateNodes(
           1,
           gossip = true,
@@ -197,7 +196,7 @@ suite "GossipSub Component - Signature Flags":
           verifySignature = localScenario.receiverConfig.verify,
           anonymize = localScenario.receiverConfig.anonymize,
         )
-        .toGossipSub()[0]
+          .toGossipSub()[0]
         nodes = @[sender, receiver]
 
       startAndDeferStop(nodes)

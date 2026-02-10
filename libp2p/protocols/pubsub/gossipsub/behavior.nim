@@ -416,13 +416,12 @@ when defined(libp2p_gossipsub_1_4):
             RPCMsg(
               control: some(
                 ControlMessage(
-                  imreceiving:
-                    @[
-                      ControlIMReceiving(
-                        messageID: preamble.messageID,
-                        messageLength: preamble.messageLength,
-                      )
-                    ]
+                  imreceiving: @[
+                    ControlIMReceiving(
+                      messageID: preamble.messageID,
+                      messageLength: preamble.messageLength,
+                    )
+                  ]
                 )
               )
             ),
@@ -696,14 +695,13 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
     let prune = RPCMsg(
       control: some(
         ControlMessage(
-          prune:
-            @[
-              ControlPrune(
-                topicID: topic,
-                peers: g.peerExchangeList(topic),
-                backoff: g.parameters.pruneBackoff.seconds.uint64,
-              )
-            ]
+          prune: @[
+            ControlPrune(
+              topicID: topic,
+              peers: g.peerExchangeList(topic),
+              backoff: g.parameters.pruneBackoff.seconds.uint64,
+            )
+          ]
         )
       )
     )
@@ -840,14 +838,13 @@ proc onHeartbeat(g: GossipSub) =
       let prune = RPCMsg(
         control: some(
           ControlMessage(
-            prune:
-              @[
-                ControlPrune(
-                  topicID: t,
-                  peers: g.peerExchangeList(t),
-                  backoff: g.parameters.pruneBackoff.seconds.uint64,
-                )
-              ]
+            prune: @[
+              ControlPrune(
+                topicID: t,
+                peers: g.peerExchangeList(t),
+                backoff: g.parameters.pruneBackoff.seconds.uint64,
+              )
+            ]
           )
         )
       )

@@ -14,11 +14,10 @@ suite "Extended peer record":
     let
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-          MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-        ]
+      multiAddresses = @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
+        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
+      ]
       services = @[ServiceInfo(id: "test_service", data: @[])]
       extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
@@ -48,11 +47,10 @@ suite "Signed Extended Peer Record":
     let
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-          MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-        ]
+      multiAddresses = @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
+        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
+      ]
       services = @[ServiceInfo(id: "test_service", data: @[])]
 
       extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
@@ -73,11 +71,10 @@ suite "Signed Extended Peer Record":
       privKey = PrivateKey.random(rng[]).tryGet()
       privKey2 = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
-          MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
-        ]
+      multiAddresses = @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
+        MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
+      ]
       services = @[ServiceInfo(id: "test_service", data: @[])]
       signedExtPR = SignedExtendedPeerRecord.init(
         privKey2, ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)

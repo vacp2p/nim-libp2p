@@ -65,13 +65,12 @@ type
     uint | uint32 | uint64 | zint | zint32 | zint64 | hint | hint32 | hint64 | float32 |
     float64
 
-const SupportedWireTypes* =
-  @[
-    uint64(ProtoFieldKind.Varint),
-    uint64(ProtoFieldKind.Fixed64),
-    uint64(ProtoFieldKind.Length),
-    uint64(ProtoFieldKind.Fixed32),
-  ]
+const SupportedWireTypes* = @[
+  uint64(ProtoFieldKind.Varint),
+  uint64(ProtoFieldKind.Fixed64),
+  uint64(ProtoFieldKind.Length),
+  uint64(ProtoFieldKind.Fixed32),
+]
 
 template checkFieldNumber*(i: int) =
   doAssert(

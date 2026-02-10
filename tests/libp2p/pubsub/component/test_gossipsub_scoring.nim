@@ -148,14 +148,13 @@ suite "GossipSub Component - Scoring":
     let msg = RPCMsg(
       control: some(
         ControlMessage(
-          prune:
-            @[
-              ControlPrune(
-                topicID: topic,
-                peers: @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))],
-                backoff: 123'u64,
-              )
-            ]
+          prune: @[
+            ControlPrune(
+              topicID: topic,
+              peers: @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))],
+              backoff: 123'u64,
+            )
+          ]
         )
       )
     )
@@ -170,14 +169,13 @@ suite "GossipSub Component - Scoring":
     let msg2 = RPCMsg(
       control: some(
         ControlMessage(
-          prune:
-            @[
-              ControlPrune(
-                topicID: topic,
-                peers: @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))],
-                backoff: 123'u64,
-              )
-            ]
+          prune: @[
+            ControlPrune(
+              topicID: topic,
+              peers: @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))],
+              backoff: 123'u64,
+            )
+          ]
         )
       )
     )

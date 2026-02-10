@@ -283,10 +283,11 @@ proc generateMixNodes(
       keyPair = SkKeyPair.random(rng[])
       pubKeyProto = PublicKey(scheme: Secp256k1, skkey: keyPair.pubkey)
       peerId = PeerId.init(pubKeyProto).get()
-      multiAddr =
-        ?MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{basePort + i}").tryGet().catch().mapErr(
-          x => x.msg
-        )
+      multiAddr = ?MultiAddress
+        .init(fmt"/ip4/0.0.0.0/tcp/{basePort + i}")
+        .tryGet()
+        .catch()
+        .mapErr(x => x.msg)
 
     nodes[i] = MixNodeInfo(
       peerId: peerId,

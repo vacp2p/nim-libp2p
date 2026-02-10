@@ -414,11 +414,10 @@ suite "GossipSub Behavior":
     proc generateMessageIds(count: int): seq[MessageId] =
       return (0 ..< count).mapIt(("msg_id_" & $it & $Moment.now()).toBytes())
 
-    let iDontWants =
-      @[
-        ControlIWant(messageIDs: generateMessageIds(600)),
-        ControlIWant(messageIDs: generateMessageIds(600)),
-      ]
+    let iDontWants = @[
+      ControlIWant(messageIDs: generateMessageIds(600)),
+      ControlIWant(messageIDs: generateMessageIds(600)),
+    ]
 
     # When node handles iDontWants
     gossipSub.handleIDontWant(peer, iDontWants)

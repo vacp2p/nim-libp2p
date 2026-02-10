@@ -8,15 +8,14 @@ import ./[unittest, multiaddress]
 
 suite "MultiAddress testing tools":
   test "countAddressesWithPattern":
-    let ma =
-      @[
-        MultiAddress.init("/ip4/127.0.0.1/tcp/48643").get(),
-        MultiAddress.init("/ip4/192.168.1.24/tcp/48643").get(),
-        MultiAddress.init("/ip6/::1/tcp/55449").get(),
-        MultiAddress.init("/ip6/fe80::c96f:38a6:c2af:a22/tcp/55449").get(),
-        MultiAddress.init("/ip4/127.0.0.1/tcp/55449").get(),
-        MultiAddress.init("/ip4/192.168.1.24/tcp/55449").get(),
-      ]
+    let ma = @[
+      MultiAddress.init("/ip4/127.0.0.1/tcp/48643").get(),
+      MultiAddress.init("/ip4/192.168.1.24/tcp/48643").get(),
+      MultiAddress.init("/ip6/::1/tcp/55449").get(),
+      MultiAddress.init("/ip6/fe80::c96f:38a6:c2af:a22/tcp/55449").get(),
+      MultiAddress.init("/ip4/127.0.0.1/tcp/55449").get(),
+      MultiAddress.init("/ip4/192.168.1.24/tcp/55449").get(),
+    ]
     const
       IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
       IPv6Tcp = mapAnd(IP6, mapEq("tcp"))

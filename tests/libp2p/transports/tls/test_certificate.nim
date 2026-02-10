@@ -147,36 +147,36 @@ suite "utilities test":
           # 253 characters, no labels longer than 63, okay
         certKey,
       )
-      .isOk()
+        .isOk()
 
       cert_signing_req(
         "my.domain.", # domain ending in ".", okay
         certKey,
       )
-      .isOk()
+        .isOk()
 
       cert_signing_req(
         "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         # 254 characters, too long
         certKey,
       )
-      .error() == CERT_ERROR_CN_TOO_LONG
+        .error() == CERT_ERROR_CN_TOO_LONG
 
       cert_signing_req(
         "my.big.domain.string.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           # 64 character label, too long
         certKey,
       )
-      .error() == CERT_ERROR_CN_LABEL_TOO_LONG
+        .error() == CERT_ERROR_CN_LABEL_TOO_LONG
 
       cert_signing_req(
         "my..empty.label.domain", # domain with empty label
         certKey,
       )
-      .error() == CERT_ERROR_CN_EMPTY_LABEL # CERT_ERROR_CN_EMPTY_LABEL
+        .error() == CERT_ERROR_CN_EMPTY_LABEL # CERT_ERROR_CN_EMPTY_LABEL
 
       cert_signing_req(
         "", # domain with empty cn
         certKey,
       )
-      .error() == CERT_ERROR_CN_EMPTY
+        .error() == CERT_ERROR_CN_EMPTY

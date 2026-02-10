@@ -5,14 +5,9 @@
 
 import chronos
 import
-  ../../../libp2p/
-    [
-      builders,
-      switch,
-      protocols/perf/client,
-      protocols/perf/server,
-      protocols/perf/core,
-    ]
+  ../../../libp2p/[
+    builders, switch, protocols/perf/client, protocols/perf/server, protocols/perf/core
+  ]
 import ../../tools/[unittest]
 
 proc createSwitch(

@@ -47,26 +47,24 @@ proc streamProvider(conn: Connection, handle: bool = true): Muxer =
 const
   wsAddress = "/ip4/127.0.0.1/tcp/0/ws"
   wsSecureAddress = "/ip4/127.0.0.1/tcp/0/wss"
-  validAddresses =
-    @[
-      # Plain WebSocket
-      "/ip4/127.0.0.1/tcp/1234/ws",
-      "/ip6/::1/tcp/1234/ws",
-      "/dns/example.com/tcp/1234/ws",
-      # Secure WebSocket
-      "/ip4/127.0.0.1/tcp/1234/wss",
-      "/ip4/127.0.0.1/tcp/1234/tls/ws",
-      "/ip6/::1/tcp/1234/wss",
-      "/dns/example.com/tcp/1234/wss",
-      "/dns/example.com/tcp/1234/tls/ws",
-    ]
-  invalidAddresses =
-    @[
-      "/ip4/127.0.0.1/tcp/1234", # Missing /ws or /wss
-      "/ip4/127.0.0.1/udp/1234/ws", # UDP instead of TCP
-      "/ip4/127.0.0.1/udp/1234/wss", # UDP instead of TCP
-      "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC instead of WebSocket
-    ]
+  validAddresses = @[
+    # Plain WebSocket
+    "/ip4/127.0.0.1/tcp/1234/ws",
+    "/ip6/::1/tcp/1234/ws",
+    "/dns/example.com/tcp/1234/ws",
+    # Secure WebSocket
+    "/ip4/127.0.0.1/tcp/1234/wss",
+    "/ip4/127.0.0.1/tcp/1234/tls/ws",
+    "/ip6/::1/tcp/1234/wss",
+    "/dns/example.com/tcp/1234/wss",
+    "/dns/example.com/tcp/1234/tls/ws",
+  ]
+  invalidAddresses = @[
+    "/ip4/127.0.0.1/tcp/1234", # Missing /ws or /wss
+    "/ip4/127.0.0.1/udp/1234/ws", # UDP instead of TCP
+    "/ip4/127.0.0.1/udp/1234/wss", # UDP instead of TCP
+    "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC instead of WebSocket
+  ]
 
 suite "WebSocket transport":
   teardown:

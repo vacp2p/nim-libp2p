@@ -408,7 +408,7 @@ suite "Mplex":
       await chann.close()
       check await chann.reset()
       # this would hang
-      .withTimeout(100.millis)
+        .withTimeout(100.millis)
 
       check await allFuturesRaising(readerFut, writerFut).withTimeout(100.millis)
 

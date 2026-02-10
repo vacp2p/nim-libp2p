@@ -387,14 +387,13 @@ suite "GossipSub Component - Control Messages":
       subscribeAllNodes(nodes, topic, voidTopicHandler)
       waitSubscribeStar(nodes, topic)
 
-      let preambles =
-        @[
-          ControlPreamble(
-            topicID: topic,
-            messageID: messageID,
-            messageLength: preambleMessageSizeThreshold + 1,
-          )
-        ]
+      let preambles = @[
+        ControlPreamble(
+          topicID: topic,
+          messageID: messageID,
+          messageLength: preambleMessageSizeThreshold + 1,
+        )
+      ]
 
       let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_14])
       check:

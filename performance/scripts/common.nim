@@ -193,10 +193,9 @@ proc formatLatencyChart*(
   let minPR = data[0][0]
   let maxPR = data[^1][0]
 
-  let series =
-    @[
-      ("Min", data.mapIt(it[1])), ("Avg", data.mapIt(it[2])), ("Max", data.mapIt(it[3]))
-    ]
+  let series = @[
+    ("Min", data.mapIt(it[1])), ("Avg", data.mapIt(it[2])), ("Max", data.mapIt(it[3]))
+  ]
 
   return formatMermaidChart(
     title,

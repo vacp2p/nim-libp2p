@@ -200,11 +200,7 @@ proc handleGetProvidersRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      providersRes[].providers,
-      providersRes[].providersLen,
-      nil,
-      0,
+      RET_OK.cint, providersRes[].providers, providersRes[].providersLen, nil, 0,
       request[].userData,
     )
 
@@ -226,11 +222,7 @@ proc handleRandomRecordsRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      recordsRes[].records,
-      recordsRes[].recordsLen,
-      nil,
-      0,
+      RET_OK.cint, recordsRes[].records, recordsRes[].recordsLen, nil, 0,
       request[].userData,
     )
 

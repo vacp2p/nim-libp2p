@@ -54,11 +54,10 @@ suite "AutonatV2":
     # DialRequest
     checkEncodeDecode(
       DialRequest(
-        addrs:
-          @[
-            MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-            MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
-          ],
+        addrs: @[
+          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+          MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
+        ],
         nonce: 42,
       )
     )
@@ -83,11 +82,10 @@ suite "AutonatV2":
       AutonatV2Msg(
         msgType: MsgType.DialRequest,
         dialReq: DialRequest(
-          addrs:
-            @[
-              MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-              MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
-            ],
+          addrs: @[
+            MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+            MultiAddress.init("/ip4/127.0.0.1/tcp/4041").get(),
+          ],
           nonce: 42,
         ),
       )
@@ -202,11 +200,10 @@ suite "AutonatV2":
   asyncTest "Successful DialRequest with amplification attack prevention":
     # use ip address other than 127.0.0.1 for client
     let
-      listenAddrs =
-        @[
-          MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
-          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-        ]
+      listenAddrs = @[
+        MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      ]
       reqAddrs = @[listenAddrs[0]]
       (src, dst, client) = await setupAutonat(srcAddrs = listenAddrs)
     defer:
@@ -247,11 +244,10 @@ suite "AutonatV2":
   asyncTest "Failed DialRequest with amplification attack prevention":
     # use ip address other than 127.0.0.1 for client
     let
-      listenAddrs =
-        @[
-          MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
-          MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
-        ]
+      listenAddrs = @[
+        MultiAddress.init("/ip4/" & checkedGetIPAddress() & "/tcp/4040").get(),
+        MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get(),
+      ]
       reqAddrs = @[MultiAddress.init("/ip4/1.1.1.1/tcp/4040").get()]
       (src, dst, client) = await setupAutonat(
         srcAddrs = listenAddrs, config = AutonatV2Config.new(dialTimeout = 1.seconds)

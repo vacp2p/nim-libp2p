@@ -531,10 +531,9 @@ proc decode*(
   if not vb.isEnough(int(size)):
     return err(ErrDecodeError)
 
-  mhash =
-    ?MultiHash.init(
-      MultiCodec(code), vb.buffer.toOpenArray(vb.offset, vb.offset + int(size) - 1)
-    )
+  mhash = ?MultiHash.init(
+    MultiCodec(code), vb.buffer.toOpenArray(vb.offset, vb.offset + int(size) - 1)
+  )
   ok(vb.offset + int(size))
 
 proc validate*(mhtype: typedesc[MultiHash], data: openArray[byte]): bool =

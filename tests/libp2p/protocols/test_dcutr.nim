@@ -16,11 +16,10 @@ suite "Dcutr":
     checkTrackers()
 
   asyncTest "Connect msg Encode / Decode":
-    let addrs =
-      @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-      ]
+    let addrs = @[
+      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+    ]
     let connectMsg = DcutrMsg(msgType: MsgType.Connect, addrs: addrs)
 
     let pb = connectMsg.encode()
@@ -29,11 +28,10 @@ suite "Dcutr":
     check connectMsg == connectMsgDecoded
 
   asyncTest "Sync msg Encode / Decode":
-    let addrs =
-      @[
-        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-      ]
+    let addrs = @[
+      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+      MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+    ]
     let syncMsg = DcutrMsg(msgType: MsgType.Sync, addrs: addrs)
 
     let pb = syncMsg.encode()
@@ -62,11 +60,11 @@ suite "Dcutr":
       # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
       # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
       await DcutrClient
-      .new()
-      .startSync(
-        behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
-      )
-      .wait(300.millis)
+        .new()
+        .startSync(
+          behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
+        )
+        .wait(300.millis)
 
     checkUntilTimeout:
       # we still expect a new connection to be open by the receiver peer acting as the dcutr server
@@ -164,11 +162,11 @@ suite "Dcutr":
       # in two connections attemps, instead of one. This dial is going to fail because the dcutr client is acting as the
       # tcp simultaneous incoming upgrader in the dialer which works only in the simultaneous open case.
       await DcutrClient
-      .new()
-      .startSync(
-        behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
-      )
-      .wait(300.millis)
+        .new()
+        .startSync(
+          behindNATSwitch, publicSwitch.peerInfo.peerId, behindNATSwitch.peerInfo.addrs
+        )
+        .wait(300.millis)
 
     checkUntilTimeout:
       # we still expect a new connection to be open by the receiver peer acting as the dcutr server
@@ -203,30 +201,28 @@ suite "Dcutr":
     await ductrServerTest(connectProc)
 
   test "should return valid TCP/IP and TCP/DNS addresses only":
-    let testAddrs =
-      @[
-        MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
-        MultiAddress
+    let testAddrs = @[
+      MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
+      MultiAddress
         .init(
           "/ip4/203.0.113.5/tcp/5678/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
         )
         .tryGet(),
-        MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
-        MultiAddress
+      MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
+      MultiAddress
         .init(
           "/dns4/example.com/tcp/3456/p2p/QmYyQSo1c1Ym7orWxLYvCrM2EmxFTANf8wXmmE7DWjhx5N"
         )
         .tryGet(),
-        MultiAddress.init("/ip4/198.51.100.42/udp/7890").tryGet(),
-      ]
+      MultiAddress.init("/ip4/198.51.100.42/udp/7890").tryGet(),
+    ]
 
-    let expected =
-      @[
-        MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
-        MultiAddress.init("/ip4/203.0.113.5/tcp/5678").tryGet(),
-        MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
-        MultiAddress.init("/dns4/example.com/tcp/3456").tryGet(),
-      ]
+    let expected = @[
+      MultiAddress.init("/ip4/192.0.2.1/tcp/1234").tryGet(),
+      MultiAddress.init("/ip4/203.0.113.5/tcp/5678").tryGet(),
+      MultiAddress.init("/ip6/::1/tcp/9012").tryGet(),
+      MultiAddress.init("/dns4/example.com/tcp/3456").tryGet(),
+    ]
 
     let res = getHolePunchableAddrs(testAddrs)
 

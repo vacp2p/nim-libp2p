@@ -17,13 +17,13 @@ import ../../tools/[crypto]
 
 proc createSwitch*(): Switch =
   SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
-  .withMemoryTransport()
-  .withMplex()
-  .withNoise()
-  .build()
+    .new()
+    .withRng(newRng())
+    .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
+    .withMemoryTransport()
+    .withMplex()
+    .withNoise()
+    .build()
 
 proc createSwitch*(rdv: RendezVous): Switch =
   var lrdv = rdv
@@ -31,14 +31,14 @@ proc createSwitch*(rdv: RendezVous): Switch =
     lrdv = RendezVous.new()
 
   SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
-  .withMemoryTransport()
-  .withMplex()
-  .withNoise()
-  .withRendezVous(lrdv)
-  .build()
+    .new()
+    .withRng(newRng())
+    .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
+    .withMemoryTransport()
+    .withMplex()
+    .withNoise()
+    .withRendezVous(lrdv)
+    .build()
 
 proc setupNodes*(count: int): seq[RendezVous] =
   doAssert(count > 0, "Count must be greater than 0")

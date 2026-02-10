@@ -63,14 +63,13 @@ proc subscribe(
   ext.onHandleRPC(
     peerId,
     RPCMsg(
-      subscriptions:
-        @[
-          SubOpts(
-            topic: topic,
-            subscribe: subscribe,
-            requestsPartial: some(isPartialTopic(topic)),
-          )
-        ]
+      subscriptions: @[
+        SubOpts(
+          topic: topic,
+          subscribe: subscribe,
+          requestsPartial: some(isPartialTopic(topic)),
+        )
+      ]
     ),
   )
 

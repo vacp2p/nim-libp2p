@@ -19,12 +19,11 @@ import ../tools/[unittest]
 
 #
 #Cloudflare
-const fallbackDnsServers =
-  @[
-    initTAddress("1.1.1.1:53"),
-    initTAddress("1.0.0.1:53"),
-    initTAddress("[2606:4700:4700::1111]:53"),
-  ]
+const fallbackDnsServers = @[
+  initTAddress("1.1.1.1:53"),
+  initTAddress("1.0.0.1:53"),
+  initTAddress("[2606:4700:4700::1111]:53"),
+]
 
 const unixPlatform =
   defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
@@ -100,23 +99,20 @@ suite "Name resolving":
       testOne("/ip6/::1/tcp/0", "/ip6/::1/tcp/0")
 
     asyncTest "dnsaddr recursive test":
-      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-          "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-        ]
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+      ]
 
-      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        ]
+      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+      ]
 
-      resolver.txtResponses["_dnsaddr.ams-2.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-          "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-        ]
+      resolver.txtResponses["_dnsaddr.ams-2.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/ip4/147.75.83.83/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+        "dnsaddr=/ip6/2604:1380:2000:7a00::1/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+      ]
 
       testOne(
         "/dnsaddr/bootstrap.libp2p.io/",
@@ -129,25 +125,22 @@ suite "Name resolving":
       )
 
     asyncTest "dnsaddr suffix matching test":
-      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-          "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-          "dnsaddr=/dnsaddr/nrt-1.bootstrap.libp2p.io/tcp/4001/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-          "dnsaddr=/dnsaddr/ewr-1.bootstrap.libp2p.io/tcp/4001/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-        ]
+      resolver.txtResponses["_dnsaddr.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/dnsaddr/ams-2.bootstrap.libp2p.io/tcp/4001/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+        "dnsaddr=/dnsaddr/sjc-1.bootstrap.libp2p.io/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "dnsaddr=/dnsaddr/nrt-1.bootstrap.libp2p.io/tcp/4001/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+        "dnsaddr=/dnsaddr/ewr-1.bootstrap.libp2p.io/tcp/4001/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+      ]
 
-      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-        ]
+      resolver.txtResponses["_dnsaddr.sjc-1.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+      ]
 
-      resolver.txtResponses["_dnsaddr.ams-1.bootstrap.libp2p.io"] =
-        @[
-          "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/shouldbefiltered",
-          "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
-        ]
+      resolver.txtResponses["_dnsaddr.ams-1.bootstrap.libp2p.io"] = @[
+        "dnsaddr=/ip4/147.75.69.143/tcp/4001/p2p/shouldbefiltered",
+        "dnsaddr=/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/shouldbefiltered",
+      ]
 
       testOne(
         "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
@@ -169,16 +162,16 @@ suite "Name resolving":
           "bootstrap.libp2p.io"
 
         MultiAddress
-        .init(
-          "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
-        )
-        .tryGet().getHostname == "147.75.69.143"
+          .init(
+            "/ip4/147.75.69.143/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+          )
+          .tryGet().getHostname == "147.75.69.143"
 
         MultiAddress
-        .init(
-          "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
-        )
-        .tryGet().getHostname == "2604:1380:1000:6000::1"
+          .init(
+            "/ip6/2604:1380:1000:6000::1/tcp/4001/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"
+          )
+          .tryGet().getHostname == "2604:1380:1000:6000::1"
         MultiAddress.init("/dns/localhost/udp/0").tryGet().getHostname == "localhost"
         MultiAddress.init("/dns4/hello.com/udp/0").tryGet().getHostname == "hello.com"
         MultiAddress.init("/dns6/hello.com/udp/0").tryGet().getHostname == "hello.com"

@@ -273,13 +273,12 @@ suite "Switch":
     await switch1.start()
     await switch2.start()
 
-    let startCounts =
-      @[
-        switch1.connManager.availableSlots(Direction.In),
-        switch1.connManager.availableSlots(Direction.Out),
-        switch2.connManager.availableSlots(Direction.In),
-        switch2.connManager.availableSlots(Direction.Out),
-      ]
+    let startCounts = @[
+      switch1.connManager.availableSlots(Direction.In),
+      switch1.connManager.availableSlots(Direction.Out),
+      switch2.connManager.availableSlots(Direction.In),
+      switch2.connManager.availableSlots(Direction.Out),
+    ]
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
 
@@ -944,11 +943,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let addrs =
-      @[
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-        MultiAddress.init("/ip6/::1/tcp/0").tryGet(),
-      ]
+    let addrs = @[
+      MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+      MultiAddress.init("/ip6/::1/tcp/0").tryGet(),
+    ]
 
     let switch1 = newStandardSwitch(
       addrs = addrs, transportFlags = {ServerFlags.ReuseAddr, ServerFlags.ReusePort}
@@ -1051,12 +1049,11 @@ suite "Switch":
     await destSwitch.start()
     await srcWsSwitch.start()
 
-    resolver.txtResponses["_dnsaddr.test.io"] =
-      @[
-        "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[0][1 ..^ 1].tryGet() &
-          "/p2p/" & $destSwitch.peerInfo.peerId,
-        "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[1][1 ..^ 1].tryGet(),
-      ]
+    resolver.txtResponses["_dnsaddr.test.io"] = @[
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[0][1 ..^ 1].tryGet() &
+        "/p2p/" & $destSwitch.peerInfo.peerId,
+      "dnsaddr=/dns4/localhost" & $destSwitch.peerInfo.addrs[1][1 ..^ 1].tryGet(),
+    ]
     resolver.ipResponses[("localhost", false)] = @["127.0.0.1"]
 
     let testAddr = MultiAddress.init("/dnsaddr/test.io/").tryGet()
@@ -1196,11 +1193,10 @@ suite "Switch":
 
   asyncTest "switch failing to start stops properly":
     let switch = newStandardSwitch(
-      addrs =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
-          MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet(),
-        ]
+      addrs = @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
+        MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet(),
+      ]
     )
 
     expect LPError:

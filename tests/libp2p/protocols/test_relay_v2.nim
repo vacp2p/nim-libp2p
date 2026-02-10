@@ -111,14 +111,13 @@ suite "Circuit Relay V2":
     asyncTest "Reservation over relay":
       let
         rv2add = Relay.new()
-        addrs =
-          @[
-            MultiAddress
+        addrs = @[
+          MultiAddress
             .init(
               $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId & "/p2p-circuit"
             )
             .get()
-          ]
+        ]
       rv2add.setup(src2)
       await rv2add.start()
       src2.mount(rv2add)
@@ -407,16 +406,15 @@ suite "Circuit Relay V2":
         await src.start()
         await dst.start()
 
-        let addrs =
-          @[
-            MultiAddress
+        let addrs = @[
+          MultiAddress
             .init(
               $rel.peerInfo.addrs[0] & "/p2p/" & $rel.peerInfo.peerId &
                 "/p2p-circuit/p2p/" & $rel2.peerInfo.peerId & "/p2p/" &
                 $rel2.peerInfo.peerId & "/p2p-circuit"
             )
             .get()
-          ]
+        ]
 
         await src.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
         await rel2.connect(rel.peerInfo.peerId, rel.peerInfo.addrs)
