@@ -71,7 +71,7 @@ suite "Spam Protection Component":
       await setupMixNodes(numNodes, spamProtectionRateLimit = Opt.some(rateLimit))
     startAndDeferStop(nodes)
 
-    let nrProto = newNoReplyProtocol()
+    let nrProto = NoReplyProtocol.new()
     let (destNode, _) = await setupDestNode(nrProto)
     defer:
       await stopDestNode(destNode)

@@ -57,7 +57,7 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 
-    let (destNode, nrProto) = await setupDestNode(newNoReplyProtocol())
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
     defer:
       await stopDestNode(destNode)
 
@@ -229,7 +229,7 @@ suite "Mix Protocol Component":
     check senderPeerStore[MixPubKeyBook].len == validNodesCount + 1
 
     # Setup destination node
-    let nrProto = newNoReplyProtocol()
+    let nrProto = NoReplyProtocol.new()
     nodes[1].switch.mount(nrProto)
 
     # Start all switches - they're needed as intermediate nodes in the mix path
@@ -370,7 +370,7 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(3) # each node's pool = 2 peers (< PathLength)
     startAndDeferStop(nodes)
 
-    let (destNode, _) = await setupDestNode(newNoReplyProtocol())
+    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
     defer:
       await stopDestNode(destNode)
 
