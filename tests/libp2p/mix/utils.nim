@@ -133,7 +133,8 @@ proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
       await nrProto.receivedMessages.put(buffer)
     except LPStreamError:
       raiseAssert "shuld not happen"
-    await conn.close()
+    finally:
+      await conn.close()
 
   nrProto.handler = handler
   nrProto.codec = NoReplyProtocolCodec
