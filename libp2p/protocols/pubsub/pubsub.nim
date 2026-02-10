@@ -331,9 +331,8 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
         labelValues = [p.topicLabel(sub.topic)]
       )
 
-  for i in 0 ..< rpcMsg.messages.len():
-    let topic = rpcMsg.messages[i].topic
-    libp2p_pubsub_received_messages.inc(labelValues = [p.topicLabel(topic)])
+  for m in rpcMsg.messages:
+    libp2p_pubsub_received_messages.inc(labelValues = [p.topicLabel(m.topic)])
 
   rpcMsg.control.withValue(control):
     libp2p_pubsub_received_iwant.inc(control.iwant.len.int64)
