@@ -157,7 +157,7 @@ proc unionWithSentPartsMetadata(
     if unionRes.isErr():
       # union failed, it is safe to use the most recent parts metadata
       warn "failed to create union from the two parts metadata", msg = unionRes.error
-      hasChanged = true 
+      hasChanged = true
       peerState.sentPartsMetadata = some(newMetadata)
     elif unionRes.get() != peerState.sentPartsMetadata.get():
       # union has produced different metadata then what has been sent
@@ -176,15 +176,14 @@ proc gossipPartsMetadata*(
       if group.lastPublishedMetadata.len == 0:
         continue
 
-      let rpc = PartialMessageExtensionRPC(
-        topicID: topic,
-        groupID: key.groupId(),
-        partsMetadata: group.lastPublishedMetadata,
-      )
-
       for peerId in peers:
         var peerState = group.getPeerState(peerId)
         if ext.unionWithSentPartsMetadata(peerState, group.lastPublishedMetadata):
+          let rpc = PartialMessageExtensionRPC(
+            topicID: topic,
+            groupID: key.groupId(),
+            partsMetadata: peerState.sentPartsMetadata.get(),
+          )
           ext.config.sendRPC(peerId, rpc)
 
 method onNegotiated*(
