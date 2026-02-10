@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/sets
+import std/[sequtils, sets, times]
 import chronos, results
 import
   ../../[
@@ -10,17 +10,16 @@ import
 import ../../protobuf/minprotobuf
 import ../kademlia/types
 import ../capability_discovery/types
+import ../capability_discovery/serviceroutingtables
 
 type KademliaDiscovery* = ref object of KadDHT
   registrar*: Registrar
   advertiser*: Advertiser
-  discoverer*: Discoverer
+  serviceRoutingTables*: ServiceRoutingTableManager
   selfSignedLoop*: Future[void]
-  searchTableLoop*: Future[void]
-  advertTableLoop*: Future[void]
+  serviceTableLoop*: Future[void]
   advertiseLoop*: Future[void]
   registrarCacheLoop*: Future[void]
-  regTableLoop*: Future[void]
   services*: HashSet[ServiceInfo]
   discoConf*: KademliaDiscoveryConfig
 
@@ -61,3 +60,28 @@ method select*(
     return err("No valid records")
 
   return ok(bestIdx)
+
+proc record*(
+    disco: KademliaDiscovery
+): Future[Result[SignedExtendedPeerRecord, string]] {.async: (raises: []).} =
+  let updateRes = catch:
+    await disco.switch.peerInfo.update()
+  if updateRes.isErr:
+    return err("Failed to update peer info: " & updateRes.error.msg)
+
+  let
+    peerInfo: PeerInfo = disco.switch.peerInfo
+    services: seq[ServiceInfo] = disco.services.toSeq()
+
+  let extPeerRecord = SignedExtendedPeerRecord.init(
+    peerInfo.privateKey,
+    ExtendedPeerRecord(
+      peerId: peerInfo.peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
+      services: services,
+    ),
+  ).valueOr:
+    return err("Failed to create signed peer record: " & $error)
+
+  return ok(extPeerRecord)

@@ -1,22 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, sets, options, algorithm, times]
+import std/[sequtils, algorithm]
 import chronos, chronicles, results
 import
   ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
 import ../../crypto/crypto
 import ../kademlia
-import ../kademlia/types
-import ../kademlia/[protobuf, routingtable]
+import ../kademlia/[types, protobuf]
 import ../kademlia_discovery/types
-import ./types
+import ./[types, serviceroutingtables]
 
 logScope:
   topics = "cap-disco advertiser"
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(advTable: initTable[ServiceId, AdvertiseTable](), actionQueue: @[])
+  T(actionQueue: @[])
 
 proc scheduleAction*(
     disco: KademliaDiscovery,
@@ -41,40 +40,25 @@ proc sendRegister*(
     serviceId: ServiceId,
     ad: seq[byte],
     ticket: Opt[Ticket] = Opt.none(Ticket),
-): Future[
-    Result[(protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]
-] {.async: (raises: []).} =
+): Future[Result[(protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]] {.
+    async: (raises: [])
+.} =
   ## Send REGISTER request to a peer
 
   let addrs = kad.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
-    return err("No address found for peer")
+    return err("no address found for peer")
 
   let connRes = catch:
     await kad.switch.dial(peerId, addrs, kad.codec)
   let conn = connRes.valueOr:
-    return err("Dialing peer failed: " & error.msg)
+    return err("dialing peer failed: " & error.msg)
   defer:
     await conn.close()
 
   var regMsg = RegisterMessage(
-    advertisement: ad,
-    status: Opt.none(protobuf.RegistrationStatus),
-    ticket: Opt.none(TicketMessage),
+    advertisement: ad, status: Opt.none(protobuf.RegistrationStatus), ticket: ticket
   )
-
-  # Add ticket if provided (retry case)
-  if ticket.isSome():
-    let ticketVal = ticket.get()
-    regMsg.ticket = Opt.some(
-      TicketMessage(
-        advertisement: ticketVal.ad,
-        tInit: ticketVal.t_init.uint64,
-        tMod: ticketVal.t_mod.uint64,
-        tWaitFor: ticketVal.t_wait_for,
-        signature: ticketVal.signature,
-      )
-    )
 
   var msg =
     Message(msgType: MessageType.register, key: serviceId, register: Opt.some(regMsg))
@@ -82,45 +66,31 @@ proc sendRegister*(
   let writeRes = catch:
     await conn.writeLp(msg.encode().buffer)
   if writeRes.isErr:
-    return err("Connection writing failed: " & writeRes.error.msg)
+    return err("connection writing failed: " & writeRes.error.msg)
 
   let readRes = catch:
     await conn.readLp(MaxMsgSize)
   let replyBuf = readRes.valueOr:
-    return err("Connection reading failed: " & error.msg)
+    return err("connection reading failed: " & error.msg)
 
   let reply = Message.decode(replyBuf).valueOr:
-    return err("Failed to decode register message response" & $error)
-
-  var status = protobuf.RegistrationStatus.Rejected
-
-  var responseTicket = Ticket()
-  if reply.register.isSome():
-    let replyRegMsg = reply.register.get()
-
-    if replyRegMsg.status.isSome():
-      status = replyRegMsg.status.get()
-
-    if replyRegMsg.ticket.isSome():
-      let ticketMsg = replyRegMsg.ticket.get()
-
-      responseTicket = Ticket(
-        ad: ticketMsg.advertisement,
-        t_init: ticketMsg.tInit.int64,
-        t_mod: ticketMsg.tMod.int64,
-        t_wait_for: ticketMsg.tWaitFor,
-        signature: ticketMsg.signature,
-      )
+    return err("failed to decode register message response" & $error)
 
   var closerPeers: seq[PeerId] = @[]
   for peer in reply.closerPeers:
-    let peerIdRes = PeerId.init(peer.id)
-    if peerIdRes.isOk:
-      closerPeers.add(peerIdRes.get)
-    else:
-      debug "Failed to decode peer id", err = peerIdRes.error
+    let peerId = PeerId.init(peer.id).valueOr:
+      error "failed to decode peer id", error
+      continue
 
-  return ok((status, Opt.some(responseTicket), closerPeers))
+    closerPeers.add(peerId)
+
+  let registerMsg = reply.register.valueOr:
+    return err("register reply not found")
+
+  let status = registerMsg.status.valueOr:
+    return err("register reply status not found")
+
+  return ok((status, registerMsg.ticket, closerPeers))
 
 proc advertise*(
     disco: KademliaDiscovery,
@@ -133,117 +103,47 @@ proc advertise*(
   ## Execute a registration action and schedule the next one based on response.
 
   let adBuf: seq[byte] = ad.encode().valueOr:
-    error "Failed to encode ad", error
+    error "failed to encode ad", error
     return
 
-  let registerRes = await disco.sendRegister(registrar, serviceId, adBuf, ticket)
-  let (status, newTicketOpt, closerPeers) = registerRes.valueOr:
+  let (status, newTicketOpt, closerPeers) = (
+    await disco.sendRegister(registrar, serviceId, adBuf, ticket)
+  ).valueOr:
     error "Failed to register ad", err = error
     return
 
-  # Update advTable with closer peers if service still exists
-  if serviceId in disco.advertiser.advTable:
-    for peerId in closerPeers:
-      try:
-        discard disco.advertiser.advTable[serviceId].insert(peerId.toKey())
-      except KeyError:
-        # Service was removed, ignore
-        break
+  for peerId in closerPeers:
+    disco.serviceRoutingTables.insertPeer(serviceId, peerId.toKey())
 
   case status
   of protobuf.RegistrationStatus.Confirmed:
     # Schedule re-advertisement after advertExpiry
     let nextTime = Moment.now() + chronos.seconds(int(disco.discoConf.advertExpiry))
     disco.scheduleAction(serviceId, registrar, bucketIdx, nextTime, Opt.none(Ticket))
-    return
   of protobuf.RegistrationStatus.Wait:
-    var newTicket = Ticket()
-    if newTicketOpt.isSome:
-      newTicket = newTicketOpt.get()
+    let newTicket = newTicketOpt.valueOr:
+      error "no ticket to retry with"
+      return
+
     # Schedule retry after t_wait_for
-    let waitTime = min(disco.discoConf.advertExpiry, newTicket.t_wait_for.float64)
+    let waitTime = min(disco.discoConf.advertExpiry, newTicket.tWaitFor.float64)
     let nextTime = Moment.now() + chronos.seconds(int(waitTime))
     disco.scheduleAction(serviceId, registrar, bucketIdx, nextTime, Opt.some(newTicket))
-    return
   of protobuf.RegistrationStatus.Rejected:
     # Don't reschedule - this registrar rejected us
     return
 
-proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
-  ## Main event loop for advertiser. Processes actions from the time-ordered queue.
-
-  while true:
-    let queue = disco.advertiser.actionQueue
-
-    if queue.len == 0:
-      await sleepAsync(chronos.seconds(1)) # Idle wait
-      continue
-
-    let (scheduledTime, serviceId, registrar, bucketIdx, ticket) = queue[0]
-    let now = Moment.now()
-
-    if scheduledTime > now:
-      await sleepAsync(scheduledTime - now)
-      continue
-
-    disco.advertiser.actionQueue.delete(0)
-
-    if serviceId notin disco.advertiser.advTable:
-      continue
-
-    # Create a SignedExtendedPeerRecord for this node
-    let updateRes = catch:
-      await disco.switch.peerInfo.update()
-    if updateRes.isErr:
-      error "Failed to update peer info", err = updateRes.error.msg
-      continue
-
-    let
-      peerInfo: PeerInfo = disco.switch.peerInfo
-      services: seq[ServiceInfo] = disco.services.toSeq()
-
-    let ad = SignedExtendedPeerRecord.init(
-      peerInfo.privateKey,
-      ExtendedPeerRecord(
-        peerId: peerInfo.peerId,
-        seqNo: getTime().toUnix().uint64,
-        addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-        services: services,
-      ),
-    ).valueOr:
-      error "Failed to create signed peer record", error = $error
-      continue
-
-    await disco.advertise(serviceId, ad, registrar, bucketIdx, ticket)
-
 proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
   ## Include this service in the set of services this node provides.
-  ## Creates AdvT and bootstraps it from main KadDHT routing table.
 
-  if serviceId in disco.advertiser.advTable:
-    return
-
-  # Create new AdvertiseTable centered on serviceId
-  var advTable = AdvertiseTable.new(
-    serviceId,
-    config = RoutingTableConfig.new(
-      replication = disco.config.replication, maxBuckets = disco.discoConf.bucketsCount
-    ),
+  disco.serviceRoutingTables.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
   )
 
-  # Bootstrap from main KadDHT routing table
-  for bucket in disco.rtable.buckets:
-    for peer in bucket.peers:
-      let peerId = peer.nodeId.toPeerId().valueOr:
-        continue
+  let advTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
+    error "service not found"
+    return
 
-      let peerKey = peerId.toKey()
-
-      discard advTable.insert(peerKey)
-
-  disco.advertiser.advTable[serviceId] = advTable
-
-  # Schedule registration actions for each bucket
   for bucketIdx in 0 ..< advTable.buckets.len:
     let bucket = advTable.buckets[bucketIdx]
     if bucket.peers.len == 0:
@@ -263,19 +163,34 @@ proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
 
 proc removeProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
   ## Exclude this service from the set of services this node provides.
-  ## Removes service from advTable and filters out pending actions.
 
-  if serviceId notin disco.advertiser.advTable:
-    return
-
-  disco.advertiser.advTable.del(serviceId)
+  disco.serviceRoutingTables.removeService(serviceId)
   disco.advertiser.actionQueue.keepItIf(it.serviceId != serviceId)
 
-proc refreshAdvertTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
-  ## Refresh advertisement tables for all services of interest.
+proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
+  ## Main event loop for advertiser. Processes actions from the time-ordered queue.
 
-  for advertTable in disco.advertiser.advTable.values:
-    let refreshRes = catch:
-      await disco.refreshTable(advertTable)
-    if refreshRes.isErr:
-      error "failed to refresh advert table", error = refreshRes.error.msg
+  while true:
+    let queue = disco.advertiser.actionQueue
+
+    if queue.len == 0:
+      await sleepAsync(1)
+      continue
+
+    let (scheduledTime, serviceId, registrar, bucketIdx, ticket) = queue[0]
+    let now = Moment.now()
+
+    if scheduledTime > now:
+      await sleepAsync(scheduledTime - now)
+
+    disco.advertiser.actionQueue.delete(0)
+
+    if not disco.serviceRoutingTables.hasService(serviceId):
+      error "no service routing table found"
+      continue
+
+    let record = (await disco.record()).valueOr:
+      error "failed create extended peer record", error
+      continue
+
+    await disco.advertise(serviceId, record, registrar, bucketIdx, ticket)

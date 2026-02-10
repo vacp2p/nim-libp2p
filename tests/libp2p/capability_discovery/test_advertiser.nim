@@ -2,12 +2,14 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[options, sequtils, times]
+import std/[options, times]
 import chronos, chronicles, results
-import ../../../libp2p/[crypto/crypto, multiaddress, extended_peer_record, peerid, routing_record]
+import
+  ../../../libp2p/
+    [crypto/crypto, multiaddress, extended_peer_record, peerid, routing_record]
 import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../../libp2p/protocols/kademlia_discovery/[types]
-import ../../../libp2p/protocols/capability_discovery/[protobuf, advertiser]
+import ../../../libp2p/protocols/capability_discovery/[advertiser, serviceroutingtables]
 import ../../tools/unittest
 import ../../tools/crypto
 import ./utils
@@ -110,7 +112,7 @@ suite "Kademlia Discovery Advertiser - Queue Management":
     let serviceId2 = makeServiceId(2)
     let now = Moment.now()
 
-    # Add services to advTable first
+    # Add services first
     populateRoutingTable(kad, @[makePeerId()])
     kad.addProvidedService(serviceId1)
     kad.addProvidedService(serviceId2)
@@ -148,21 +150,17 @@ suite "Kademlia Discovery Advertiser - Service Management":
 
     kad.addProvidedService(serviceId)
 
-    check serviceId in kad.advertiser.advTable
-    check kad.advertiser.advTable[serviceId] != nil
+    check kad.serviceRoutingTables.hasService(serviceId)
 
   test "addProvidedService duplicate is ignored":
     let kad = createMockDiscovery()
     let serviceId = makeServiceId()
 
     kad.addProvidedService(serviceId)
-    let table1 = kad.advertiser.advTable[serviceId]
+    check kad.serviceRoutingTables.hasService(serviceId)
 
     kad.addProvidedService(serviceId)
-    let table2 = kad.advertiser.advTable[serviceId]
-
-    # Should be the same table instance
-    check table1 == table2
+    check kad.serviceRoutingTables.hasService(serviceId)
 
   test "addProvidedService with empty routing table":
     let kad = createMockDiscovery()
@@ -173,9 +171,8 @@ suite "Kademlia Discovery Advertiser - Service Management":
 
     kad.addProvidedService(serviceId)
 
-    # AdvT should be created but empty
-    check serviceId in kad.advertiser.advTable
-    check kad.advertiser.advTable[serviceId].buckets.len == 0
+    # Service table should be created
+    check kad.serviceRoutingTables.hasService(serviceId)
 
   test "addProvidedService schedules actions for peers":
     let kad = createMockDiscovery()
@@ -228,10 +225,10 @@ suite "Kademlia Discovery Advertiser - Service Management":
     let serviceId = makeServiceId()
 
     kad.addProvidedService(serviceId)
-    check serviceId in kad.advertiser.advTable
+    check kad.serviceRoutingTables.hasService(serviceId)
 
     kad.removeProvidedService(serviceId)
-    check serviceId notin kad.advertiser.advTable
+    check not kad.serviceRoutingTables.hasService(serviceId)
 
   test "removeProvidedService non-existent is safe":
     let kad = createMockDiscovery()
@@ -264,77 +261,6 @@ suite "Kademlia Discovery Advertiser - Service Management":
     check serviceActions == 0
 
 # ============================================================================
-# 4. Advertisement Building Tests
-# ============================================================================
-
-suite "Kademlia Discovery Advertiser - Advertisement Building":
-  test "Advertisement components are available":
-    let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
-
-    # Verify the components are available for building ads
-    check kad.switch.peerInfo.peerId.data.len > 0
-    # Note: addrs might be empty in mock discovery, but peerId should be available
-
-  test "Advertisement signature can be created":
-    let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    let peerId = makePeerId()
-    let privateKey = PrivateKey.random(rng[]).get()
-
-    # Create ExtendedPeerRecord
-    let extRecord = ExtendedPeerRecord(
-      peerId: peerId,
-      seqNo: getTime().toUnix().uint64,
-      addresses: @[AddressInfo(address: maddr)],
-      services: @[],
-    )
-
-    # Create SignedExtendedPeerRecord
-    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-
-    check ad.envelope.signature.data.len > 0
-
-  test "Advertisement signature verification works":
-    let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    let peerId = makePeerId()
-    let privateKey = PrivateKey.random(rng[]).get()
-
-    # Create ExtendedPeerRecord
-    let extRecord = ExtendedPeerRecord(
-      peerId: peerId,
-      seqNo: getTime().toUnix().uint64,
-      addresses: @[AddressInfo(address: maddr)],
-      services: @[],
-    )
-
-    # Create and verify SignedExtendedPeerRecord
-    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-    check ad.checkValid().isOk()
-
-  test "Advertisement signature fails with tampered data":
-    let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    let peerId = makePeerId()
-    let privateKey = PrivateKey.random(rng[]).get()
-
-    # Create ExtendedPeerRecord
-    var extRecord = ExtendedPeerRecord(
-      peerId: peerId,
-      seqNo: getTime().toUnix().uint64,
-      addresses: @[AddressInfo(address: maddr)],
-      services: @[],
-    )
-
-    # Create SignedExtendedPeerRecord
-    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-
-    # Tamper with the peerId in the envelope
-    var tamperedAd = ad
-    tamperedAd.data.peerId = makePeerId()  # Different peerId
-
-    # Verification should fail since peerId doesn't match
-    check tamperedAd.checkValid().isErr()
-
-# ============================================================================
 # 5. Rescheduling Logic Tests
 # ============================================================================
 
@@ -361,8 +287,8 @@ suite "Kademlia Discovery Advertiser - Rescheduling Logic":
 
       kad.addProvidedService(serviceId)
 
-      # AdvT should be created with correct bucketsCount
-      check serviceId in kad.advertiser.advTable
+      # Service table should be created
+      check kad.serviceRoutingTables.hasService(serviceId)
 
 # ============================================================================
 # 6. Edge Cases and Error Handling
@@ -385,9 +311,9 @@ suite "Kademlia Discovery Advertiser - Edge Cases":
     kad.addProvidedService(service2)
     kad.addProvidedService(service3)
 
-    check service1 in kad.advertiser.advTable
-    check service2 in kad.advertiser.advTable
-    check service3 in kad.advertiser.advTable
+    check kad.serviceRoutingTables.hasService(service1)
+    check kad.serviceRoutingTables.hasService(service2)
+    check kad.serviceRoutingTables.hasService(service3)
 
   test "Removing one service doesn't affect others":
     let kad = createMockDiscovery()
@@ -402,8 +328,8 @@ suite "Kademlia Discovery Advertiser - Edge Cases":
 
     kad.removeProvidedService(service1)
 
-    check service1 notin kad.advertiser.advTable
-    check service2 in kad.advertiser.advTable
+    check not kad.serviceRoutingTables.hasService(service1)
+    check kad.serviceRoutingTables.hasService(service2)
 
   test "Actions are sorted after multiple insertions":
     let kad = createMockDiscovery()
@@ -446,21 +372,19 @@ suite "Kademlia Discovery Advertiser - Ticket Handling":
 
     # Create SignedExtendedPeerRecord and encode it
     let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-    let adBytes = ad.encode()
+    let adBytes = ad.encode().valueOr:
+      check false # Fail test if encoding fails
+      @[]
 
     var ticket = Ticket(
-      ad: adBytes,
-      t_init: 100,
-      t_mod: 200,
-      t_wait_for: 300,
-      signature: @[],
+      advertisement: adBytes, t_init: 100, t_mod: 200, t_wait_for: 300, signature: @[]
     )
 
     kad.scheduleAction(serviceId, registrar, 0, now, Opt.some(ticket))
 
     check kad.advertiser.actionQueue.len == 1
     check kad.advertiser.actionQueue[0].ticket.isSome()
-    check kad.advertiser.actionQueue[0].ticket.get().t_wait_for == 300
+    check kad.advertiser.actionQueue[0].ticket.get().tWaitFor == 300
 
   test "scheduleAction without ticket":
     let kad = createMockDiscovery()

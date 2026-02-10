@@ -11,7 +11,7 @@ logScope:
 proc new*(T: typedesc[IpTree]): T =
   T(root: IpTreeNode(counter: 0))
 
-proc insertIp*(ipTree: IpTree, ip: IpAddress) =
+proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   ## Adds an IPv4 address to the IP tree by incrementing counters along the 32-bit path.
   ## Only supports IPv4 (as per the RFC specification which defines a 32-level tree).
   if ip.family != IpAddressFamily.IPv4:
@@ -34,7 +34,7 @@ proc insertIp*(ipTree: IpTree, ip: IpAddress) =
           v.right = IpTreeNode(counter: 0)
         v = v.right
 
-proc removeIp*(ipTree: IpTree, ip: IpAddress) =
+proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   ## Removes an IPv4 address from the IP tree by decrementing counters along the 32-bit path.
   ## Only supports IPv4.
   if ip.family != IpAddressFamily.IPv4:
@@ -53,7 +53,7 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress) =
       else:
         v = v.right
 
-proc insertAd*(ipTree: IpTree, ad: Advertisement) =
+proc insertAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for addressInfo in ad.data.addresses:
     let multiAddr = addressInfo.address
     let ip = multiAddr.getIp().valueOr:
@@ -61,7 +61,7 @@ proc insertAd*(ipTree: IpTree, ad: Advertisement) =
 
     ipTree.insertIp(ip)
 
-proc removeAd*(ipTree: IpTree, ad: Advertisement) =
+proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for addressInfo in ad.data.addresses:
     let multiAddr = addressInfo.address
     let ip = multiAddr.getIp().valueOr:
@@ -69,7 +69,7 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) =
 
     ipTree.removeIp(ip)
 
-proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 =
+proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
   ## Calculates the IP similarity score (0.0 to 1.0) for the given IPv4 address
   ## based on how many prefix nodes have more than half the expected count.
   ## Returns a value in [0.0, 1.0].
@@ -82,7 +82,7 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 =
     return 0.0
 
   var v = ipTree.root
-  var score = 32
+  var score = 0
   let bytes = ip.address_v4
   let total = float64(ipTree.root.counter)
 
@@ -102,11 +102,11 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 =
         return float64(score) / 32.0
 
       if float64(v.counter) > threshold:
-        score -= 1
+        score += 1
 
   return float64(score) / 32.0
 
-proc adScore*(ipTree: IpTree, ad: Advertisement): float64 =
+proc adScore*(ipTree: IpTree, ad: Advertisement): float64 {.raises: [].} =
   ## Return the max score for this advertisment
 
   var maxScore = 1.0
