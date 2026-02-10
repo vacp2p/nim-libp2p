@@ -123,3 +123,29 @@ proc setupDestNode*[T: LPProtocol](
 
 proc stopDestNode*(switch: Switch) {.async.} =
   await switch.stop()
+
+###
+
+const NoReplyProtocolCodec* = "/test/1.0.0"
+
+type NoReplyProtocol* = ref object of LPProtocol
+  receivedMessages*: AsyncQueue[seq[byte]]
+
+proc newNoReplyProtocol*(): NoReplyProtocol =
+  let nrProto = NoReplyProtocol()
+  nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
+
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    var buffer: seq[byte]
+
+    try:
+      buffer = await conn.readLp(1024)
+    except LPStreamError:
+      discard
+
+    await conn.close()
+    await nrProto.receivedMessages.put(buffer)
+
+  nrProto.handler = handler
+  nrProto.codec = NoReplyProtocolCodec
+  nrProto

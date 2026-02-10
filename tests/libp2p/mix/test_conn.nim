@@ -24,30 +24,6 @@ import ../../tools/[lifecycle, unittest]
 import ./utils
 import ./mock_mix
 
-const NoReplyProtocolCodec* = "/test/1.0.0"
-
-type NoReplyProtocol* = ref object of LPProtocol
-  receivedMessages*: AsyncQueue[seq[byte]]
-
-proc newNoReplyProtocol*(): NoReplyProtocol =
-  let nrProto = NoReplyProtocol()
-  nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
-
-  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
-    var buffer: seq[byte]
-
-    try:
-      buffer = await conn.readLp(1024)
-    except LPStreamError:
-      discard
-
-    await conn.close()
-    await nrProto.receivedMessages.put(buffer)
-
-  nrProto.handler = handler
-  nrProto.codec = NoReplyProtocolCodec
-  nrProto
-
 suite "Mix Protocol Component":
   asyncTeardown:
     checkTrackers()
@@ -360,3 +336,23 @@ suite "Mix Protocol Component":
     await conn.close()
 
     check response == responseData
+
+  asyncTest "send fails when pool has not enough nodes":
+    let nodes = await setupMixNodes(3) # each node's pool = 2 peers (< PathLength)
+    startAndDeferStop(nodes)
+
+    let (destNode, _) = await setupDestNode(newNoReplyProtocol())
+    defer:
+      await stopDestNode(destNode)
+
+    let conn = nodes[0]
+      .toConnection(
+        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        NoReplyProtocolCodec,
+      )
+      .expect("could not build connection")
+    defer:
+      await conn.close()
+
+    expect LPStreamError:
+      await conn.writeLp(@[1.byte, 2, 3])
