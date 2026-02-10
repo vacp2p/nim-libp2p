@@ -9,7 +9,7 @@ import ./kademlia
 import ./kademlia_discovery/types as kad_types
 import ./kademlia_discovery/randomfind
 import ./capability_discovery/types as cap_types
-import ./capability_discovery/[registrar, advertiser, discoverer]
+import ./capability_discovery/[registrar, advertiser, discoverer, serviceroutingtables]
 
 export kad_types, randomfind, cap_types, registrar, advertiser, discoverer
 
@@ -63,18 +63,6 @@ proc maintainSelfSignedPeerRecord(
   heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
     await disco.refreshSelfSignedPeerRecord()
 
-proc maintainSearchTables(
-    disco: KademliaDiscovery
-) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh search tables", disco.config.bucketRefreshTime:
-    await disco.refreshSearchTables()
-
-proc maintainAdvertTables(
-    disco: KademliaDiscovery
-) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh advertisment tables", disco.config.bucketRefreshTime:
-    await disco.refreshAdvertTables()
-
 proc maintainRegistrarCache(
     disco: KademliaDiscovery
 ) {.async: (raises: [CancelledError]).} =
@@ -82,11 +70,9 @@ proc maintainRegistrarCache(
     chronos.seconds(int(disco.discoConf.advertExpiry)):
     disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry)
 
-proc maintainRegTables(
-    disco: KademliaDiscovery
-) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh registrar tables", disco.config.bucketRefreshTime:
-    await disco.refreshAllRegTables()
+proc maintainTables(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
+  heartbeat "refresh service routing tables", disco.config.bucketRefreshTime:
+    await disco.serviceRoutingTables.refreshAllTables(disco)
 
 proc new*(
     T: typedesc[KademliaDiscovery],
@@ -114,6 +100,7 @@ proc new*(
     registrar: Registrar.new(),
     advertiser: Advertiser.new(),
     discoverer: Discoverer.new(),
+    serviceRoutingTables: ServiceRoutingTableManager.new(),
     services: toHashSet(services),
     discoConf: discoConf,
   )
@@ -171,10 +158,8 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
     return
 
   disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
-  disco.searchTableLoop = disco.maintainSearchTables()
-  disco.advertTableLoop = disco.maintainAdvertTables()
   disco.registrarCacheLoop = disco.maintainRegistrarCache()
-  disco.regTableLoop = disco.maintainRegTables()
+  disco.serviceTableLoop = disco.maintainTables()
   disco.advertiseLoop = disco.runAdvertiseLoop()
 
   await procCall start(KadDHT(disco))
@@ -191,21 +176,13 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
     disco.selfSignedLoop.cancelSoon()
     disco.selfSignedLoop = nil
 
-  if not disco.searchTableLoop.isNil:
-    disco.searchTableLoop.cancelSoon()
-    disco.searchTableLoop = nil
-
-  if not disco.advertTableLoop.isNil:
-    disco.advertTableLoop.cancelSoon()
-    disco.advertTableLoop = nil
-
   if not disco.registrarCacheLoop.isNil:
     disco.registrarCacheLoop.cancelSoon()
     disco.registrarCacheLoop = nil
 
-  if not disco.regTableLoop.isNil:
-    disco.regTableLoop.cancelSoon()
-    disco.regTableLoop = nil
+  if not disco.serviceTableLoop.isNil:
+    disco.serviceTableLoop.cancelSoon()
+    disco.serviceTableLoop = nil
 
   if not disco.advertiseLoop.isNil:
     disco.advertiseLoop.cancelSoon()

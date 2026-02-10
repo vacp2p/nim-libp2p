@@ -1,22 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, sets, options, algorithm, times]
+import std/[sequtils, sets, options, algorithm, times]
 import chronos, chronicles, results
 import
   ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
 import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/types
-import ../kademlia/[protobuf, routingtable]
+import ../kademlia/protobuf
 import ../kademlia_discovery/types
-import ./types
+import ./[types, serviceroutingtables]
 
 logScope:
   topics = "cap-disco advertiser"
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(advTable: initTable[ServiceId, AdvertiseTable](), actionQueue: @[])
+  T(actionQueue: @[])
 
 proc scheduleAction*(
     disco: KademliaDiscovery,
@@ -41,9 +41,9 @@ proc sendRegister*(
     serviceId: ServiceId,
     ad: seq[byte],
     ticket: Opt[Ticket] = Opt.none(Ticket),
-): Future[
-    Result[(protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]
-] {.async: (raises: []).} =
+): Future[Result[(protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]] {.
+    async: (raises: [])
+.} =
   ## Send REGISTER request to a peer
 
   let addrs = kad.switch.peerStore[AddressBook][peerId]
@@ -141,14 +141,9 @@ proc advertise*(
     error "Failed to register ad", err = error
     return
 
-  # Update advTable with closer peers if service still exists
-  if serviceId in disco.advertiser.advTable:
-    for peerId in closerPeers:
-      try:
-        discard disco.advertiser.advTable[serviceId].insert(peerId.toKey())
-      except KeyError:
-        # Service was removed, ignore
-        break
+  # Update service routing table with closer peers if service still exists
+  for peerId in closerPeers:
+    disco.serviceRoutingTables.insertPeer(serviceId, peerId.toKey())
 
   case status
   of protobuf.RegistrationStatus.Confirmed:
@@ -188,7 +183,7 @@ proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledErr
 
     disco.advertiser.actionQueue.delete(0)
 
-    if serviceId notin disco.advertiser.advTable:
+    if not disco.serviceRoutingTables.hasService(serviceId):
       continue
 
     # Create a SignedExtendedPeerRecord for this node
@@ -220,30 +215,14 @@ proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
   ## Include this service in the set of services this node provides.
   ## Creates AdvT and bootstraps it from main KadDHT routing table.
 
-  if serviceId in disco.advertiser.advTable:
-    return
-
-  # Create new AdvertiseTable centered on serviceId
-  var advTable = AdvertiseTable.new(
-    serviceId,
-    config = RoutingTableConfig.new(
-      replication = disco.config.replication, maxBuckets = disco.discoConf.bucketsCount
-    ),
+  disco.serviceRoutingTables.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
   )
 
-  # Bootstrap from main KadDHT routing table
-  for bucket in disco.rtable.buckets:
-    for peer in bucket.peers:
-      let peerId = peer.nodeId.toPeerId().valueOr:
-        continue
+  let advTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
+    error "service not found"
+    return
 
-      let peerKey = peerId.toKey()
-
-      discard advTable.insert(peerKey)
-
-  disco.advertiser.advTable[serviceId] = advTable
-
-  # Schedule registration actions for each bucket
   for bucketIdx in 0 ..< advTable.buckets.len:
     let bucket = advTable.buckets[bucketIdx]
     if bucket.peers.len == 0:
@@ -265,17 +244,5 @@ proc removeProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
   ## Exclude this service from the set of services this node provides.
   ## Removes service from advTable and filters out pending actions.
 
-  if serviceId notin disco.advertiser.advTable:
-    return
-
-  disco.advertiser.advTable.del(serviceId)
+  disco.serviceRoutingTables.removeService(serviceId)
   disco.advertiser.actionQueue.keepItIf(it.serviceId != serviceId)
-
-proc refreshAdvertTables*(disco: KademliaDiscovery) {.async: (raises: []).} =
-  ## Refresh advertisement tables for all services of interest.
-
-  for advertTable in disco.advertiser.advTable.values:
-    let refreshRes = catch:
-      await disco.refreshTable(advertTable)
-    if refreshRes.isErr:
-      error "failed to refresh advert table", error = refreshRes.error.msg

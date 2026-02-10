@@ -53,8 +53,6 @@ type
   IpTree* = ref object
     root*: IpTreeNode
 
-  RegistrarTable* = RoutingTable
-
   Registrar* = ref object
     cache*: OrderedTable[ServiceId, seq[Advertisement]] # service Id -> list of ads
     cacheTimestamps*: Table[AdvertisementKey, int64] # ad key -> insertion time
@@ -64,9 +62,6 @@ type
     timestampService*: Table[ServiceId, int64] # timestamp(service_id_hash)
     boundIp*: Table[string, float64] # bound(IP)
     timestampIp*: Table[string, int64] # timestamp(IP)
-    regTable*: Table[ServiceId, RegistrarTable] # Service routing tables
-
-  AdvertiseTable* = RoutingTable
 
   PendingAction* =
     tuple[
@@ -78,13 +73,9 @@ type
     ]
 
   Advertiser* = ref object
-    advTable*: Table[ServiceId, AdvertiseTable]
     actionQueue*: seq[PendingAction] # Time-ordered queue of pending actions
 
-  SearchTable* = RoutingTable
-
   Discoverer* = ref object
-    discTable*: Table[ServiceId, SearchTable]
 
   KademliaDiscoveryConfig* = object
     kRegister*: int
@@ -168,6 +159,6 @@ proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
       return true
   false
 
-proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey =
+proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
   ## Create a cache key from an advertisement
   (peerId: ad.data.peerId, seqNo: ad.data.seqNo)

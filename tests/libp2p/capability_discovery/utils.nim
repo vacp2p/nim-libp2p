@@ -7,7 +7,9 @@ import results, chronos, chronicles
 import ../../../libp2p/[peerid, crypto/crypto, switch, builders]
 import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../../libp2p/protocols/kademlia_discovery/types
-import ../../../libp2p/protocols/capability_discovery/[types, advertiser, discoverer]
+import
+  ../../../libp2p/protocols/capability_discovery/
+    [types, advertiser, discoverer, serviceroutingtables]
 import ../../tools/crypto
 
 export types, crypto
@@ -105,8 +107,8 @@ proc populateSearchTable*(
     kad: KademliaDiscovery, serviceId: ServiceId, peers: seq[PeerId]
 ) =
   ## Directly populate a SearchTable for testing without going through addServiceInterest
-  if serviceId notin kad.discoverer.discTable:
+  if not kad.serviceRoutingTables.hasService(serviceId):
     return
   for peer in peers:
     let key = peer.toKey()
-    discard kad.discoverer.discTable[serviceId].insert(key)
+    kad.serviceRoutingTables.insertPeer(serviceId, key)

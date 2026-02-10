@@ -4,7 +4,15 @@
 
 import std/[times, net, sequtils]
 import chronos, chronicles, results
-import ../../../libp2p/[peerid, multiaddress, extended_peer_record, routing_record, crypto/crypto]
+import
+  ../../../libp2p/[
+    peerid,
+    multiaddress,
+    extended_peer_record,
+    routing_record,
+    crypto/crypto,
+    signed_envelope,
+  ]
 import ../../../libp2p/protocols/capability_discovery/[types, registrar, iptree]
 import ../../tools/unittest
 import ../../tools/crypto
@@ -22,13 +30,13 @@ proc createTestAdvertisement(
     addrs: seq[MultiAddress] = @[],
 ): Advertisement =
   # Create a private key for signing
-  let privateKey = PrivateKey.random(rng[])
+  let privateKey = PrivateKey.random(rng[]).get()
   # Create ExtendedPeerRecord
   let extRecord = ExtendedPeerRecord(
     peerId: peerId,
     seqNo: getTime().toUnix().uint64,
     addresses: addrs.mapIt(AddressInfo(address: it)),
-    services: @[],  # Empty services for now
+    services: @[], # Empty services for now
   )
   # Sign and create SignedExtendedPeerRecord
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
@@ -84,8 +92,9 @@ suite "Kademlia Discovery Registrar - Waiting Time Calculation":
     let discoConf = KademliaDiscoveryConfig.new()
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # With empty cache, c = 0, so occupancy = 1.0
     # c_s = 0, serviceSim = 0
@@ -97,16 +106,18 @@ suite "Kademlia Discovery Registrar - Waiting Time Calculation":
   test "waitingTime increases with cache occupancy":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
-    let ad1 = createTestAdvertisement(serviceId = makeServiceId(1))
-    let ad2 = createTestAdvertisement(serviceId = makeServiceId(2))
+    let serviceId1 = makeServiceId(1)
+    let serviceId2 = makeServiceId(2)
+    let ad1 = createTestAdvertisement(serviceId1)
+    let ad2 = createTestAdvertisement(serviceId2)
     let now = getTime().toUnix()
 
     # Add some ads to increase cache size
-    registrar.cacheTimestamps[ad1] = now
-    registrar.cacheTimestamps[ad2] = now
+    registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
+    registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now
 
-    let w1 = waitingTime(registrar, discoConf, 1000.0, ad1, now)
-    let w2 = waitingTime(registrar, discoConf, 1000.0, ad2, now)
+    let w1 = registrar.waitingTime(discoConf, ad1, 1000.0, serviceId1, now)
+    let w2 = registrar.waitingTime(discoConf, ad2, 1000.0, serviceId2, now)
 
     # With non-zero cache, occupancy > 1.0, so wait time should increase
     check w1 > 0 or w2 > 0
@@ -122,11 +133,11 @@ suite "Kademlia Discovery Registrar - Waiting Time Calculation":
     let ad3 = createTestAdvertisement(serviceId = serviceId)
 
     let now = getTime().toUnix()
-    registrar.cacheTimestamps[ad1] = now
-    registrar.cacheTimestamps[ad2] = now
-    registrar.cacheTimestamps[ad3] = now
+    registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
+    registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now
+    registrar.cacheTimestamps[ad3.toAdvertisementKey()] = now
 
-    let w = waitingTime(registrar, discoConf, 1000.0, ad1, now)
+    let w = registrar.waitingTime(discoConf, ad1, 1000.0, serviceId, now)
 
     # c_s = 3, so serviceSim = 3/1000 = 0.003
     # This should contribute to wait time
@@ -135,28 +146,30 @@ suite "Kademlia Discovery Registrar - Waiting Time Calculation":
   test "waitingTime returns 0.0 IP similarity for IPs not in tree":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
 
     # Don't populate the tree
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("192.168.1.1")])
     let now = getTime().toUnix()
 
     # First check the IP score is 0
-    let ipScore = registrar.ipTree.ipScore(parseIpAddress("192.168.1.1")).get()
+    let ipScore = registrar.ipTree.ipScore(parseIpAddress("192.168.1.1"))
     check ipScore == 0.0
 
     # Verify waitingTime calculation includes this IP score
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
     # With ipSim = 0, w should be just advertExpiry * occupancy * (serviceSim + safetyParam)
     check w > 0
 
   test "waitingTime uses maximum IP score across multiple addresses":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
 
     # Populate tree with IPs from same subnet
-    discard registrar.ipTree.insertIp(parseIpAddress("192.168.1.10"))
-    discard registrar.ipTree.insertIp(parseIpAddress("192.168.1.20"))
-    discard registrar.ipTree.insertIp(parseIpAddress("192.168.1.30"))
+    registrar.ipTree.insertIp(parseIpAddress("192.168.1.10"))
+    registrar.ipTree.insertIp(parseIpAddress("192.168.1.20"))
+    registrar.ipTree.insertIp(parseIpAddress("192.168.1.30"))
 
     # Ad with multiple addresses - some similar, some not
     let ad = createTestAdvertisement(
@@ -168,7 +181,7 @@ suite "Kademlia Discovery Registrar - Waiting Time Calculation":
     )
 
     let now = getTime().toUnix()
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # The high IP similarity from 192.168.1.50 should increase wait time
     check w > 0
@@ -177,14 +190,15 @@ suite "Kademlia Discovery Registrar - Waiting Time Calculation":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
     let ad = createTestAdvertisement()
+    let serviceId = makeServiceId()
 
     # Fill cache to capacity
     for i in 0 ..< 1000:
       let testAd = createTestAdvertisement(serviceId = makeServiceId(i.byte))
-      registrar.cacheTimestamps[testAd] = getTime().toUnix()
+      registrar.cacheTimestamps[testAd.toAdvertisementKey()] = getTime().toUnix()
 
     let now = getTime().toUnix()
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # At capacity, occupancy = 100.0, so wait time should be very high
     check w >= discoConf.advertExpiry * 100.0 * discoConf.safetyParam
@@ -196,8 +210,9 @@ suite "Kademlia Discovery Registrar - Waiting Time Calculation":
     )
     let ad = createTestAdvertisement()
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # With empty cache and no IP similarity:
     # w = advertExpiry * 1.0 * (0 + 0 + safetyParam)
@@ -222,7 +237,7 @@ suite "Kademlia Discovery Registrar - Lower Bound Enforcement":
     registrar.timestampService[serviceId] = 1000
 
     # Calculate wait time - should be at least bound - elapsed = 1500 - 0 = 1500
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     check w >= 500.0
 
@@ -239,7 +254,7 @@ suite "Kademlia Discovery Registrar - Lower Bound Enforcement":
 
     # elapsed = 2000 - 1000 = 1000
     # effective bound = 1500 - 1000 = 500
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     check w >= 500.0
     check w < 1000.0 # Should not exceed initial bound value significantly
@@ -250,13 +265,14 @@ suite "Kademlia Discovery Registrar - Lower Bound Enforcement":
     let ip = "192.168.1.50"
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress(ip)])
     let now = 1000
+    let serviceId = makeServiceId()
 
     # Set a lower bound for this IP
     registrar.boundIp[ip] = 1500.0
     registrar.timestampIp[ip] = 1000
 
     # Calculate wait time - should be at least bound - elapsed = 1500 - 0 = 1500
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     check w >= 500.0
 
@@ -266,6 +282,7 @@ suite "Kademlia Discovery Registrar - Lower Bound Enforcement":
     let ip1 = "192.168.1.1"
     let ip2 = "10.0.0.1"
     let now = 1000
+    let serviceId = makeServiceId()
 
     # Set bound for IP1 only
     registrar.boundIp[ip1] = 1500.0
@@ -273,11 +290,11 @@ suite "Kademlia Discovery Registrar - Lower Bound Enforcement":
 
     # Ad with IP2 only - should not be affected by IP1's bound
     let ad2 = createTestAdvertisement(addrs = @[createTestMultiAddress(ip2)])
-    let w2 = waitingTime(registrar, discoConf, 1000.0, ad2, now)
+    let w2 = registrar.waitingTime(discoConf, ad2, 1000.0, serviceId, now)
 
     # Ad with IP1 - should be affected by bound
     let ad1 = createTestAdvertisement(addrs = @[createTestMultiAddress(ip1)])
-    let w1 = waitingTime(registrar, discoConf, 1000.0, ad1, now)
+    let w1 = registrar.waitingTime(discoConf, ad1, 1000.0, serviceId, now)
 
     check w1 > w2
 
@@ -304,7 +321,7 @@ suite "Kademlia Discovery Registrar - Lower Bound Enforcement":
       addrs = @[createTestMultiAddress(ip1), createTestMultiAddress(ip2)],
     )
 
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # Should use the most restrictive bound (IP1: 3000)
     check w >= 2000.0
@@ -438,12 +455,12 @@ suite "Kademlia Discovery Registrar - Cache Pruning":
     let now = getTime().toUnix()
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad] = now
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
 
     pruneExpiredAds(registrar, 900.0)
 
     check ad in registrar.cache[serviceId]
-    check ad in registrar.cacheTimestamps
+    check ad.toAdvertisementKey() in registrar.cacheTimestamps
 
   test "pruneExpiredAds removes ad past expiry time":
     let registrar = createTestRegistrar()
@@ -452,12 +469,12 @@ suite "Kademlia Discovery Registrar - Cache Pruning":
     let now = getTime().toUnix()
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad] = now - 1000 # 1000 seconds ago
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000 # 1000 seconds ago
 
     pruneExpiredAds(registrar, 900.0) # 900 second expiry
 
     check ad notin registrar.cache[serviceId]
-    check ad notin registrar.cacheTimestamps
+    check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
   test "pruneExpiredAds removes ad from IP tree":
     let registrar = createTestRegistrar()
@@ -470,8 +487,8 @@ suite "Kademlia Discovery Registrar - Cache Pruning":
 
     # Add to cache and IP tree
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad] = now - 1000 # Expired
-    discard registrar.ipTree.insertIp(parseIpAddress(ip))
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000 # Expired
+    registrar.ipTree.insertIp(parseIpAddress(ip))
 
     check registrar.ipTree.root.counter == 1
 
@@ -487,13 +504,13 @@ suite "Kademlia Discovery Registrar - Cache Pruning":
     let now = getTime().toUnix()
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad] = now - 1000
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000
 
-    check ad in registrar.cacheTimestamps
+    check ad.toAdvertisementKey() in registrar.cacheTimestamps
 
     pruneExpiredAds(registrar, 900.0)
 
-    check ad notin registrar.cacheTimestamps
+    check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
   test "pruneExpiredAds handles multiple ads for same service":
     let registrar = createTestRegistrar()
@@ -504,9 +521,9 @@ suite "Kademlia Discovery Registrar - Cache Pruning":
     let now = getTime().toUnix()
 
     registrar.cache[serviceId] = @[ad1, ad2, ad3]
-    registrar.cacheTimestamps[ad1] = now - 1000 # Expired
-    registrar.cacheTimestamps[ad2] = now # Fresh
-    registrar.cacheTimestamps[ad3] = now - 2000 # Expired
+    registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now - 1000 # Expired
+    registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now # Fresh
+    registrar.cacheTimestamps[ad3.toAdvertisementKey()] = now - 2000 # Expired
 
     pruneExpiredAds(registrar, 900.0)
 
@@ -523,7 +540,7 @@ suite "Kademlia Discovery Registrar - Cache Pruning":
     let now = getTime().toUnix()
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad] = now - 1000
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000
 
     # Should not crash
     pruneExpiredAds(registrar, 900.0)
@@ -538,15 +555,16 @@ suite "Kademlia Discovery Registrar - IP Integration":
   test "waitingTime increases with IP tree similarity score":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
 
     # Populate IP tree with IPs from same subnet
     for i in 1 .. 10:
-      discard registrar.ipTree.insertIp(parseIpAddress("192.168.1." & $i))
+      registrar.ipTree.insertIp(parseIpAddress("192.168.1." & $i))
 
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("192.168.1.50")])
     let now = getTime().toUnix()
 
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # Should have positive wait time due to IP similarity
     check w > 0
@@ -554,12 +572,13 @@ suite "Kademlia Discovery Registrar - IP Integration":
   test "waitingTime returns 0.0 for IPs not in tree":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
 
     # Don't populate the tree
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("192.168.1.1")])
     let now = getTime().toUnix()
 
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # IP similarity should be 0, but we still have safetyParam
     # w = advertExpiry * 1.0 * (0 + 0 + safetyParam)
@@ -568,10 +587,11 @@ suite "Kademlia Discovery Registrar - IP Integration":
   test "waitingTime uses maximum score across multiple IPs":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
 
     # Populate tree with one subnet
     for i in 1 .. 5:
-      discard registrar.ipTree.insertIp(parseIpAddress("192.168.1." & $i))
+      registrar.ipTree.insertIp(parseIpAddress("192.168.1." & $i))
 
     # Ad with addresses from different subnets
     let ad = createTestAdvertisement(
@@ -584,7 +604,7 @@ suite "Kademlia Discovery Registrar - IP Integration":
     )
 
     let now = getTime().toUnix()
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # Should use the maximum (worst) IP similarity
     check w > discoConf.advertExpiry * discoConf.safetyParam
@@ -627,9 +647,9 @@ suite "Kademlia Discovery Registrar - State Management":
     let ad = createTestAdvertisement()
     let timestamp = 12345
 
-    registrar.cacheTimestamps[ad] = timestamp
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = timestamp
 
-    check registrar.cacheTimestamps[ad] == timestamp
+    check registrar.cacheTimestamps[ad.toAdvertisementKey()] == timestamp
 
   test "IP tree is independent from cache":
     let registrar = createTestRegistrar()
@@ -645,7 +665,7 @@ suite "Kademlia Discovery Registrar - State Management":
     check registrar.ipTree.root.counter == 0
 
     # Add to IP tree
-    discard registrar.ipTree.insertIp(parseIpAddress(ip))
+    registrar.ipTree.insertIp(parseIpAddress(ip))
 
     check registrar.ipTree.root.counter == 1
 
@@ -688,9 +708,10 @@ suite "Kademlia Discovery Registrar - Edge Cases":
     let discoConf = KademliaDiscoveryConfig.new()
     let ad = createTestAdvertisement(addrs = @[])
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # Should not crash
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # ipSim should be 0 since no addresses
     check w >= 0
@@ -698,22 +719,24 @@ suite "Kademlia Discovery Registrar - Edge Cases":
   test "waitingTime with IPv6 addresses only (ignored in IP tree)":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
 
     let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
     let ad = createTestAdvertisement(addrs = @[ipv6Addr])
     let now = getTime().toUnix()
 
     # Should not crash - IPv6 is ignored in IP tree
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     check w >= 0
 
   test "waitingTime with mixed IPv4 and IPv6 addresses":
     let registrar = createTestRegistrar()
     let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
 
     # Populate tree with IPv4
-    discard registrar.ipTree.insertIp(parseIpAddress("192.168.1.1"))
+    registrar.ipTree.insertIp(parseIpAddress("192.168.1.1"))
 
     let ipv4Addr = createTestMultiAddress("192.168.1.50")
     let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
@@ -721,7 +744,7 @@ suite "Kademlia Discovery Registrar - Edge Cases":
     let now = getTime().toUnix()
 
     # Should not crash - IPv6 is ignored but IPv4 is scored
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     check w > 0
 
@@ -730,9 +753,10 @@ suite "Kademlia Discovery Registrar - Edge Cases":
     let discoConf = KademliaDiscoveryConfig.new()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # Service not in boundService - no lower bound should be applied
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     check w >= 0
 
@@ -741,9 +765,10 @@ suite "Kademlia Discovery Registrar - Edge Cases":
     let discoConf = KademliaDiscoveryConfig.new()
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # IP not in boundIp - no lower bound should be applied
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     check w >= 0
 
@@ -767,14 +792,14 @@ suite "Kademlia Discovery Registrar - Edge Cases":
 
     registrar.cache[serviceId] = @[ad]
     # Set a very old timestamp (year 1970) to ensure expiry
-    registrar.cacheTimestamps[ad] = 1000.int64
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = 1000.int64
 
     # Very short expiry (1 second) - old ad from 1970 should be pruned
     pruneExpiredAds(registrar, 1.0)
 
     # After pruning, the ad should be removed from both cache and timestamps
     check ad notin registrar.cache[serviceId]
-    check ad notin registrar.cacheTimestamps
+    check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
 # ============================================================================
 # 9. Configuration Variations Tests
@@ -785,19 +810,20 @@ suite "Kademlia Discovery Registrar - Configuration Variations":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # Add some ads
     for i in 0 ..< 100:
       let testAd = createTestAdvertisement(serviceId = makeServiceId(i.byte))
-      registrar.cacheTimestamps[testAd] = now
+      registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConf = KademliaDiscoveryConfig.new()
 
     # Small cache cap = high occupancy
-    let w1 = waitingTime(registrar, discoConf, 100.0, ad, now)
+    let w1 = registrar.waitingTime(discoConf, ad, 100.0, serviceId, now)
 
     # Large cache cap = low occupancy
-    let w2 = waitingTime(registrar, discoConf, 10000.0, ad, now)
+    let w2 = registrar.waitingTime(discoConf, ad, 10000.0, serviceId, now)
 
     check w1 >= w2 # Small cap should give higher wait time
 
@@ -805,19 +831,20 @@ suite "Kademlia Discovery Registrar - Configuration Variations":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # Add some ads
     for i in 0 ..< 500:
       let testAd = createTestAdvertisement(serviceId = makeServiceId(i.byte))
-      registrar.cacheTimestamps[testAd] = now
+      registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     # Low exponent
     let discoConf1 = KademliaDiscoveryConfig.new(occupancyExp = 1.0)
-    let w1 = waitingTime(registrar, discoConf1, 1000.0, ad, now)
+    let w1 = registrar.waitingTime(discoConf1, ad, 1000.0, serviceId, now)
 
     # High exponent
     let discoConf2 = KademliaDiscoveryConfig.new(occupancyExp = 20.0)
-    let w2 = waitingTime(registrar, discoConf2, 1000.0, ad, now)
+    let w2 = registrar.waitingTime(discoConf2, ad, 1000.0, serviceId, now)
 
     # Higher exponent should give higher wait time at same occupancy
     check w2 >= w1
@@ -826,14 +853,15 @@ suite "Kademlia Discovery Registrar - Configuration Variations":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # Short expiry
     let discoConf1 = KademliaDiscoveryConfig.new(advertExpiry = 100.0)
-    let w1 = waitingTime(registrar, discoConf1, 1000.0, ad, now)
+    let w1 = registrar.waitingTime(discoConf1, ad, 1000.0, serviceId, now)
 
     # Long expiry
     let discoConf2 = KademliaDiscoveryConfig.new(advertExpiry = 2000.0)
-    let w2 = waitingTime(registrar, discoConf2, 1000.0, ad, now)
+    let w2 = registrar.waitingTime(discoConf2, ad, 1000.0, serviceId, now)
 
     # Longer expiry should give higher wait time
     check w2 > w1
@@ -842,14 +870,15 @@ suite "Kademlia Discovery Registrar - Configuration Variations":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # Low safety param
     let discoConf1 = KademliaDiscoveryConfig.new(safetyParam = 0.0)
-    let w1 = waitingTime(registrar, discoConf1, 1000.0, ad, now)
+    let w1 = registrar.waitingTime(discoConf1, ad, 1000.0, serviceId, now)
 
     # High safety param
     let discoConf2 = KademliaDiscoveryConfig.new(safetyParam = 1.0)
-    let w2 = waitingTime(registrar, discoConf2, 1000.0, ad, now)
+    let w2 = registrar.waitingTime(discoConf2, ad, 1000.0, serviceId, now)
 
     # Higher safety param should give higher wait time
     check w2 > w1
@@ -858,14 +887,15 @@ suite "Kademlia Discovery Registrar - Configuration Variations":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # Add some ads
     for i in 0 ..< 500:
       let testAd = createTestAdvertisement(serviceId = makeServiceId(i.byte))
-      registrar.cacheTimestamps[testAd] = now
+      registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConf = KademliaDiscoveryConfig.new(occupancyExp = 0.0)
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # With occupancyExp = 0, occupancy = 1.0 / pow(1.0 - c/C, 0) = 1.0 / 1.0 = 1.0
     # w should just be advertExpiry * 1.0 * (serviceSim + ipSim + safetyParam)
@@ -875,14 +905,15 @@ suite "Kademlia Discovery Registrar - Configuration Variations":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix()
+    let serviceId = makeServiceId()
 
     # Fill cache to half
     for i in 0 ..< 500:
       let testAd = createTestAdvertisement(serviceId = makeServiceId(i.byte))
-      registrar.cacheTimestamps[testAd] = now
+      registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConf = KademliaDiscoveryConfig.new(occupancyExp = 1.0)
-    let w = waitingTime(registrar, discoConf, 1000.0, ad, now)
+    let w = registrar.waitingTime(discoConf, ad, 1000.0, serviceId, now)
 
     # With occupancyExp = 1, occupancy = 1.0 / (1.0 - 0.5) = 2.0
     # w should be proportional to this
