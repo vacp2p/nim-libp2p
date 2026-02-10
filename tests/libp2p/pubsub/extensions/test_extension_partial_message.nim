@@ -259,7 +259,9 @@ suite "GossipSub Extensions :: Partial Message Extension":
       cr.sentRPC.len == 2
       cr.sentRPC[1] ==
         PartialMessageExtensionRPC(
-          groupID: groupId, topicID: topic, partsMetadata: pm2.partsMetadata()
+          groupID: groupId,
+          topicID: topic,
+          partsMetadata: pm.partsMetadata() & pm2.partsMetadata(),
         )
 
   test "heartbeat evicts metadata":

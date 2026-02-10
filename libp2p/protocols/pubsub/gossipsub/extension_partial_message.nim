@@ -156,9 +156,10 @@ proc unionWithSentPartsMetadata(
       ext.config.unionPartsMetadata(peerState.sentPartsMetadata.get(), newMetadata)
     if unionRes.isErr():
       warn "failed to create union from the two parts metadata", msg = unionRes.error
+      peerState.sentPartsMetadata = some(newMetadata)
     else:
       peerState.sentPartsMetadata = some(unionRes.get())
-      hasChanged = true
+    hasChanged = true
 
   return hasChanged
 
@@ -274,8 +275,8 @@ proc publishPartialToPeer(
       let data = materializeRes.get()
       if data.len > 0: # some parts have been filled
         hasChanges = true
-        rpc.partialMessage = data 
-        
+        rpc.partialMessage = data
+
         # since some parts have been filled, update requested parts metadata
         # with what has been filled
         let unionRes = ext.config.unionPartsMetadata(
@@ -284,13 +285,14 @@ proc publishPartialToPeer(
         if unionRes.isErr():
           warn "failed to create union from the two parts metadata",
             msg = unionRes.error
+          # technically should never happen since materializeParts was successful
         else:
           peerState.receivedPartsMetadata = some(unionRes.get())
 
-  # should 
+  # union sentPartsMetadata with new parts metadata and send if there are any changes
   if ext.unionWithSentPartsMetadata(peerState, msgPartsMetadata):
     hasChanges = true
-    rpc.partsMetadata = msgPartsMetadata
+    rpc.partsMetadata = peerState.sentPartsMetadata.get()
 
   # if there are any changes send RPC
   if hasChanges:
