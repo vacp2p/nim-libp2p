@@ -273,9 +273,11 @@ proc publishPartialToPeer(
     else:
       let data = materializeRes.get()
       if data.len > 0: # some parts have been filled
-        rpc.partialMessage = data
-        hasChanges = data.len > 0
-
+        hasChanges = true
+        rpc.partialMessage = data 
+        
+        # since some parts have been filled, update requested parts metadata
+        # with what has been filled
         let unionRes = ext.config.unionPartsMetadata(
           peerState.receivedPartsMetadata.get(), msgPartsMetadata
         )
@@ -285,7 +287,7 @@ proc publishPartialToPeer(
         else:
           peerState.receivedPartsMetadata = some(unionRes.get())
 
-  # if partsMetadata was changed, rpc sets new metadata 
+  # should 
   if ext.unionWithSentPartsMetadata(peerState, msgPartsMetadata):
     hasChanges = true
     rpc.partsMetadata = msgPartsMetadata
