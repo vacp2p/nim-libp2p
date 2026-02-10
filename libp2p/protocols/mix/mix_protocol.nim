@@ -395,12 +395,13 @@ proc handleMixMessages(
 
     await allFutures(proofGenFut, delayFut)
 
-    let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
-    if proofGenTimeMs > actualDelayMs.int64:
-      warn "Proof generation time exceeds configured delay",
-        proofGenTimeMs,
-        delayMs = actualDelayMs,
-        hint = "Consider increasing delay to maintain variable timing"
+    if mixProto.spamProtection.isSome():
+      let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
+      if proofGenTimeMs > actualDelayMs.int64:
+        warn "Proof generation time exceeds configured delay",
+          proofGenTimeMs,
+          delayMs = actualDelayMs,
+          hint = "Consider increasing delay to maintain variable timing"
 
     let outgoingPacket = proofGenFut.value().valueOr:
       error "Failed to generate spam protection proof for next hop", err = error

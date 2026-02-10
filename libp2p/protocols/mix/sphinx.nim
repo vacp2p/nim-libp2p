@@ -402,7 +402,7 @@ proc processSphinxPacket*(
       ProcessedSphinxPacket(
         status: Intermediate,
         nextHop: address,
-        delayMs: uint16.fromBytes(delay).int,
+        delayMs: uint16.fromBytesBE(delay).int,
         serializedSphinxPacket: sphinxPkt.serialize(),
       )
     )
