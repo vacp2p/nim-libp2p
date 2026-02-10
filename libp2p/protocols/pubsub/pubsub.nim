@@ -203,6 +203,9 @@ type
     customConnCallbacks*: Option[CustomConnectionCallbacks]
 
 proc topicLabel*(p: PubSub, topic: string): string {.inline.} =
+  ## returns value to be used for `topic` labels.
+  ## 
+
   if p.knownTopics.contains(topic): topic else: "generic"
 
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
