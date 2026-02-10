@@ -337,6 +337,35 @@ suite "Mix Protocol Component":
 
     check response == responseData
 
+  asyncTest "sender receives empty response when destination is unreachable":
+    ## Exit node gets DialFailedError, sends empty reply via SURB,
+    ## sender receives an empty response from readLp().
+    let nodes = await setupMixNodes(
+      10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
+    )
+
+    let (destNode, _) = await setupDestNode(Ping.new())
+    let destPeerId = destNode.peerInfo.peerId
+    let destAddr = destNode.peerInfo.addrs[0]
+    await stopDestNode(destNode)
+
+    startAndDeferStop(nodes)
+
+    let conn = nodes[0]
+      .toConnection(
+        MixDestination.init(destPeerId, destAddr),
+        PingCodec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
+      )
+      .expect("could not build connection")
+    defer:
+      await conn.close()
+
+    await conn.write(@[1.byte, 2, 3, 4, 5])
+
+    let response = await conn.readLp(1024).wait(10.seconds)
+    check response.len == 0
+
   asyncTest "send fails when pool has not enough nodes":
     let nodes = await setupMixNodes(3) # each node's pool = 2 peers (< PathLength)
     startAndDeferStop(nodes)
