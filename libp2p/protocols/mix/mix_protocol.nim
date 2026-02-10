@@ -460,9 +460,9 @@ proc getMaxMessageSizeForCodec*(
     return err("cannot encode messages for this codec")
   return ok(DataSize - totalLen)
 
-proc buildSurb(
+method buildSurb*(
     mixProto: MixProtocol, id: SURBIdentifier, destPeerId: PeerId, exitPeerId: PeerId
-): Result[SURB, string] =
+): Result[SURB, string] {.base, gcsafe, raises: [].} =
   var
     multiAddrs: seq[MultiAddress] = @[]
     publicKeys: seq[FieldElement] = @[]
