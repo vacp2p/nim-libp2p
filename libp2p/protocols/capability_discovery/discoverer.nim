@@ -78,7 +78,7 @@ proc sendGetAds(
 
   return ok((ads, peerIds))
 
-proc serviceLookup*(
+proc lookup*(
     disco: KademliaDiscovery, serviceId: ServiceId
 ): Future[Result[seq[PeerId], string]] {.async: (raises: []).} =
   ## Look up service providers following RFC LOOKUP algorithm
