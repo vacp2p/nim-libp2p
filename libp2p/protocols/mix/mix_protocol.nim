@@ -894,23 +894,24 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
-): Result[T, string] =
+): T =
   ## Constructs a new `MixProtocol` instance for the mix node at `index`,
   ## loading its private info from `nodeInfo` and populating the nodePool with
   ## the public info of all other nodes from `pubInfo`.
-  let mixNodeInfo = MixNodeInfo.readFromFile(index, nodeFolderInfoPath / fmt"nodeInfo").valueOr:
-    return err("Failed to load mix node info for index " & $index & " - err: " & error)
+  let mixNodeInfo = MixNodeInfo
+    .readFromFile(index, nodeFolderInfoPath / fmt"nodeInfo")
+    .expect("Failed to load mix node info for index " & $index)
 
-  let mixProto = MixProtocol.new(
-    mixNodeInfo, switch, TagManager.new(), rng, spamProtection, delayStrategy
-  )
+  let mixProto =
+    T.new(mixNodeInfo, switch, TagManager.new(), rng, spamProtection, delayStrategy)
 
   # Load pub info into the nodePool
   for i in 0 ..< numNodes:
     if i == index:
       continue
-    let pubInfo = MixPubInfo.readFromFile(i, nodeFolderInfoPath / fmt"pubInfo").valueOr:
-      return err("Failed to load pub info from file: " & error)
+    let pubInfo = MixPubInfo.readFromFile(i, nodeFolderInfoPath / fmt"pubInfo").expect(
+        "Failed to load pub info from file"
+      )
     mixProto.nodePool.add(pubInfo)
 
-  return ok(mixProto)
+  mixProto
