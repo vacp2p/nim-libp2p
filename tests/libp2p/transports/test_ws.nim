@@ -150,7 +150,7 @@ suite "WebSocket transport":
     await transport1.stop()
 
 when defined(libp2p_autotls_support):
-  import ../../../libp2p/[autotls/service, autotls/mockservice]
+  import ../../../libp2p/autotls/mockservice
 
   suite "WebSocket transport with autotls":
     asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
