@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import tables, strutils, chronicles, results
+import tables, strutils, chronicles, results, options
 import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, partial_message]
@@ -54,10 +54,8 @@ type
       # number of heartbeats for which metadata will be retained before eviction
 
   PeerGroupState = ref object
-    peerSentMetadata: bool
-      # partial message should be sent only after user seek by sending some metadata.
-    partsMetadata: PartsMetadata
-    sentPartsMetadata: PartsMetadata
+    receivedPartsMetadata: Option[PartsMetadata] # parts metadata peer sent to this node
+    sentPartsMetadata: Option[PartsMetadata] # parts metadata this node sent to peer
 
   GroupState = ref object
     peerState: Table[PeerId, PeerGroupState]
@@ -143,22 +141,26 @@ method isSupported*(
 method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
   ext.reduceHeartbeatsTillEviction()
 
-proc unionPartsMetadata(
+proc unionWithSentPartsMetadata(
     ext: PartialMessageExtension,
     peerState: var PeerGroupState,
     newMetadata: PartsMetadata,
 ): bool =
-  if peerState.sentPartsMetadata != newMetadata:
+  var hasChanged: bool = false
+
+  if peerState.sentPartsMetadata.isNone:
+    peerState.sentPartsMetadata = some(newMetadata)
+    hasChanged = true
+  elif peerState.sentPartsMetadata.get() != newMetadata:
     let unionRes =
-      ext.config.unionPartsMetadata(peerState.sentPartsMetadata, newMetadata)
+      ext.config.unionPartsMetadata(peerState.sentPartsMetadata.get(), newMetadata)
     if unionRes.isErr():
-      debug "failed to create union from the two parts metadata", msg = unionRes.error
+      warn "failed to create union from the two parts metadata", msg = unionRes.error
     else:
-      peerState.sentPartsMetadata = unionRes.get()
+      peerState.sentPartsMetadata = some(unionRes.get())
+      hasChanged = true
 
-    return true # has changed
-
-  return false
+  return hasChanged
 
 proc gossipPartsMetadata*(
     ext: PartialMessageExtension, peersRequestingPartial: Table[string, seq[PeerId]]
@@ -178,7 +180,7 @@ proc gossipPartsMetadata*(
 
       for peerId in peers:
         var peerState = group.getPeerState(peerId)
-        if ext.unionPartsMetadata(peerState, group.lastPublishedMetadata):
+        if ext.unionWithSentPartsMetadata(peerState, group.lastPublishedMetadata):
           ext.config.sendRPC(peerId, rpc)
 
 method onNegotiated*(
@@ -233,8 +235,7 @@ proc handlePartialRPC(
   if rpc.partsMetadata.len > 0:
     var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
     var peerState = groupState.getPeerState(peerId)
-    peerState.partsMetadata = rpc.partsMetadata
-    peerState.peerSentMetadata = true
+    peerState.receivedPartsMetadata = some(rpc.partsMetadata)
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
   ext.config.onIncomingRPC(peerId, rpc)
@@ -261,28 +262,31 @@ proc publishPartialToPeer(
   var peerState = groupState.getPeerState(peer)
   var hasChanges: bool = false
 
-  # if peer has requested partial messages, attempt to fulfill any 
-  # parts that peer is missing.
-  if peerRequestsPartial and peerState.peerSentMetadata:
-    let materializeRes = pm.materializeParts(peerState.partsMetadata)
+  # if peer has requested partial messages and node knows what parts peer has requested, then
+  # attempt to fulfill any parts that peer is missing.
+  if peerRequestsPartial and peerState.receivedPartsMetadata.isSome():
+    let materializeRes = pm.materializeParts(peerState.receivedPartsMetadata.get())
     if materializeRes.isErr():
       # there might be error with last PartsMetadata so it is discarded,
       # to avoid any error with future messages.
-      peerState.partsMetadata = newSeq[byte](0)
+      peerState.receivedPartsMetadata = none(PartsMetadata)
     else:
-      let unionRes =
-        ext.config.unionPartsMetadata(peerState.partsMetadata, msgPartsMetadata)
-      if unionRes.isErr():
-        debug "failed to create union from the two parts metadata", msg = unionRes.error
-      else:
-        peerState.partsMetadata = unionRes.get()
-
       let data = materializeRes.get()
-      rpc.partialMessage = data
-      hasChanges = data.len > 0
+      if data.len > 0: # some parts have been filled
+        rpc.partialMessage = data
+        hasChanges = data.len > 0
+
+        let unionRes = ext.config.unionPartsMetadata(
+          peerState.receivedPartsMetadata.get(), msgPartsMetadata
+        )
+        if unionRes.isErr():
+          warn "failed to create union from the two parts metadata",
+            msg = unionRes.error
+        else:
+          peerState.receivedPartsMetadata = some(unionRes.get())
 
   # if partsMetadata was changed, rpc sets new metadata 
-  if ext.unionPartsMetadata(peerState, msgPartsMetadata):
+  if ext.unionWithSentPartsMetadata(peerState, msgPartsMetadata):
     hasChanges = true
     rpc.partsMetadata = msgPartsMetadata
 
