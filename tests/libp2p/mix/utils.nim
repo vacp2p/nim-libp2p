@@ -132,7 +132,7 @@ proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
       let buffer = await conn.readLp(1024)
       await nrProto.receivedMessages.put(buffer)
     except LPStreamError:
-      raiseAssert "shuld not happen"
+      raiseAssert "should not happen"
     finally:
       await conn.close()
 
