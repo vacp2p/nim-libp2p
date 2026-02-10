@@ -202,6 +202,9 @@ type
     knownTopics*: HashSet[string]
     customConnCallbacks*: Option[CustomConnectionCallbacks]
 
+proc topicLabel*(p: PubSub, topic: string): string {.inline.} =
+  if p.knownTopics.contains(topic): topic else: "generic"
+
 method unsubscribePeer*(p: PubSub, peerId: PeerId) {.base, gcsafe.} =
   ## handle peer disconnects
   ##
@@ -251,41 +254,34 @@ proc broadcast*(
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
     if sub.subscribe:
-      if p.knownTopics.contains(sub.topic):
-        libp2p_pubsub_broadcast_subscriptions.inc(npeers, labelValues = [sub.topic])
-      else:
-        libp2p_pubsub_broadcast_subscriptions.inc(npeers, labelValues = ["generic"])
+      libp2p_pubsub_broadcast_subscriptions.inc(
+        npeers, labelValues = [p.topicLabel(sub.topic)]
+      )
     else:
-      if p.knownTopics.contains(sub.topic):
-        libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = [sub.topic])
-      else:
-        libp2p_pubsub_broadcast_unsubscriptions.inc(npeers, labelValues = ["generic"])
+      libp2p_pubsub_broadcast_unsubscriptions.inc(
+        npeers, labelValues = [p.topicLabel(sub.topic)]
+      )
 
   for smsg in msg.messages:
-    let topic = smsg.topic
-    if p.knownTopics.contains(topic):
-      libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = [topic])
-    else:
-      libp2p_pubsub_broadcast_messages.inc(npeers, labelValues = ["generic"])
+    libp2p_pubsub_broadcast_messages.inc(
+      npeers, labelValues = [p.topicLabel(smsg.topic)]
+    )
 
   msg.control.withValue(control):
     libp2p_pubsub_broadcast_iwant.inc(npeers * control.iwant.len.int64)
 
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = [ihave.topicID])
-      else:
-        libp2p_pubsub_broadcast_ihave.inc(npeers, labelValues = ["generic"])
+      libp2p_pubsub_broadcast_ihave.inc(
+        npeers, labelValues = [p.topicLabel(ihave.topicID)]
+      )
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicID):
-        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = [graft.topicID])
-      else:
-        libp2p_pubsub_broadcast_graft.inc(npeers, labelValues = ["generic"])
+      libp2p_pubsub_broadcast_graft.inc(
+        npeers, labelValues = [p.topicLabel(graft.topicID)]
+      )
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = [prune.topicID])
-      else:
-        libp2p_pubsub_broadcast_prune.inc(npeers, labelValues = ["generic"])
+      libp2p_pubsub_broadcast_prune.inc(
+        npeers, labelValues = [p.topicLabel(prune.topicID)]
+      )
 
   trace "broadcasting messages to peers", peers = sendPeers.len, payload = shortLog(msg)
 
@@ -316,15 +312,9 @@ proc sendSubs*(
 
   for topic in subTopics:
     if subscribe:
-      if p.knownTopics.contains(topic):
-        libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [topic])
-      else:
-        libp2p_pubsub_broadcast_subscriptions.inc(labelValues = ["generic"])
+      libp2p_pubsub_broadcast_subscriptions.inc(labelValues = [p.topicLabel(topic)])
     else:
-      if p.knownTopics.contains(topic):
-        libp2p_pubsub_broadcast_unsubscriptions.inc(labelValues = [topic])
-      else:
-        libp2p_pubsub_broadcast_unsubscriptions.inc(labelValues = ["generic"])
+      libp2p_pubsub_broadcast_unsubscriptions.inc(labelValues = [p.topicLabel(topic)])
 
 proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
   for i in 0 ..< min(rpcMsg.subscriptions.len, p.topicsHigh):
@@ -332,40 +322,24 @@ proc updateMetrics*(p: PubSub, rpcMsg: RPCMsg) =
       rpcMsg.subscriptions[i]
 
     if sub.subscribe:
-      if p.knownTopics.contains(sub.topic):
-        libp2p_pubsub_received_subscriptions.inc(labelValues = [sub.topic])
-      else:
-        libp2p_pubsub_received_subscriptions.inc(labelValues = ["generic"])
+      libp2p_pubsub_received_subscriptions.inc(labelValues = [p.topicLabel(sub.topic)])
     else:
-      if p.knownTopics.contains(sub.topic):
-        libp2p_pubsub_received_unsubscriptions.inc(labelValues = [sub.topic])
-      else:
-        libp2p_pubsub_received_unsubscriptions.inc(labelValues = ["generic"])
+      libp2p_pubsub_received_unsubscriptions.inc(
+        labelValues = [p.topicLabel(sub.topic)]
+      )
 
   for i in 0 ..< rpcMsg.messages.len():
     let topic = rpcMsg.messages[i].topic
-    if p.knownTopics.contains(topic):
-      libp2p_pubsub_received_messages.inc(labelValues = [topic])
-    else:
-      libp2p_pubsub_received_messages.inc(labelValues = ["generic"])
+    libp2p_pubsub_received_messages.inc(labelValues = [p.topicLabel(topic)])
 
   rpcMsg.control.withValue(control):
     libp2p_pubsub_received_iwant.inc(control.iwant.len.int64)
     for ihave in control.ihave:
-      if p.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_received_ihave.inc(labelValues = [ihave.topicID])
-      else:
-        libp2p_pubsub_received_ihave.inc(labelValues = ["generic"])
+      libp2p_pubsub_received_ihave.inc(labelValues = [p.topicLabel(ihave.topicID)])
     for graft in control.graft:
-      if p.knownTopics.contains(graft.topicID):
-        libp2p_pubsub_received_graft.inc(labelValues = [graft.topicID])
-      else:
-        libp2p_pubsub_received_graft.inc(labelValues = ["generic"])
+      libp2p_pubsub_received_graft.inc(labelValues = [p.topicLabel(graft.topicID)])
     for prune in control.prune:
-      if p.knownTopics.contains(prune.topicID):
-        libp2p_pubsub_received_prune.inc(labelValues = [prune.topicID])
-      else:
-        libp2p_pubsub_received_prune.inc(labelValues = ["generic"])
+      libp2p_pubsub_received_prune.inc(labelValues = [p.topicLabel(prune.topicID)])
 
 method rpcHandler*(
     p: PubSub, peer: PubSubPeer, data: sink seq[byte]
