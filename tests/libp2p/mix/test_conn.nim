@@ -22,6 +22,7 @@ import
 
 import ../../tools/[lifecycle, unittest]
 import ./utils
+import ./mock_mix
 
 const NoReplyProtocolCodec* = "/test/1.0.0"
 
@@ -291,3 +292,71 @@ suite "Mix Protocol Component":
 
     # Verify invalid node was removed from pool (should be 6 valid nodes remaining)
     check senderPeerStore[MixPubKeyBook].len == validNodesCount
+
+  asyncTest "multiple SURBs - reply received when one path unavailable":
+    ## 2 SURBs with separate paths.
+    ## Stop a node from SURB[0]'s path after forward delivery.
+    ## Reply must arrive via SURB[1].
+    const TestCodec = "/delayed-response/test/1.0.0"
+    const ReadLen = 1024
+
+    let testPayload = "forward message".toBytes()
+    let responseData = "reply via surviving SURB".toBytes()
+
+    var received = newFuture[seq[byte]]()
+    var proceed = newFuture[void]()
+
+    let destProto = LPProtocol.new()
+    destProto.codec = TestCodec
+    destProto.handler = proc(
+        conn: Connection, proto: string
+    ) {.async: (raises: [CancelledError]).} =
+      try:
+        received.complete(await conn.readLp(ReadLen))
+        await proceed
+        await conn.writeLp(responseData)
+      except CatchableError as e:
+        raiseAssert e.msg
+
+    let (nodes, mock) = await setupMixNodesWithMock(
+      10, destReadBehavior = Opt.some((codec: TestCodec, callback: readLp(ReadLen)))
+    )
+
+    let (destNode, _) = await setupDestNode(destProto)
+
+    # Force separate SURB paths: nodes[2..4] for SURB 0, nodes[5..7] for SURB 1
+    mock.surbPeerSets =
+      @[
+        nodes[2 .. 4].mapIt(it.switch.peerInfo.peerId),
+        nodes[5 .. 7].mapIt(it.switch.peerInfo.peerId),
+      ]
+
+    await startNodes(nodes)
+    defer:
+      await stopDestNode(destNode)
+      await stopNodes(nodes)
+
+    let conn = mock
+      .toConnection(
+        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        TestCodec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(2))),
+      )
+      .expect("could not build connection")
+
+    await conn.writeLp(testPayload)
+
+    check testPayload == await received.wait(10.seconds)
+
+    # Stop a node from SURB[0]'s path
+    let nodeToStop =
+      nodes.filterIt(it.switch.peerInfo.peerId == mock.actualSurbPeers[0][0])[0]
+    await nodeToStop.switch.stop()
+
+    # Signal dest node to send reply — must arrive via SURB[1]
+    proceed.complete()
+
+    let response = await conn.readLp(ReadLen).wait(10.seconds)
+    await conn.close()
+
+    check response == responseData
