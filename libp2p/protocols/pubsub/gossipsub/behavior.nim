@@ -869,7 +869,7 @@ proc onHeartbeat(g: GossipSub) =
   for peer, control in peers:
     # only ihave from here
     for ihave in control.ihave:
-      libp2p_pubsub_broadcast_ihave.inc(labelValues = [p.topicLabel(ihave.topicID)])
+      libp2p_pubsub_broadcast_ihave.inc(labelValues = [g.topicLabel(ihave.topicID)])
       if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
         g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
 

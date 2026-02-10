@@ -420,7 +420,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     if isPruneNotEmpty:
       for prune in respControl.prune:
-        libp2p_pubsub_broadcast_prune.inc(labelValues = [p.topicLabel(prune.topicID)])
+        libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
     trace "sending control message", payload = shortLog(respControl), peer
     g.send(peer, RPCMsg(control: some(respControl)), isHighPriority = true)
@@ -430,7 +430,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       var preambles: seq[ControlPreamble]
 
     for i, smsg in messages:
-      libp2p_pubsub_broadcast_messages.inc(labelValues = [p.topicLabel(smsg.topic)])
+      libp2p_pubsub_broadcast_messages.inc(labelValues = [g.topicLabel(smsg.topic)])
 
       when defined(libp2p_gossipsub_1_4):
         # should we send preamble here? (Not in specs so far)
@@ -621,7 +621,7 @@ proc validateAndRelay(
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     libp2p_pubsub_messages_rebroadcasted.inc(
-      toSendPeers.len.int64, labelValues = [p.topicLabel(topic)]
+      toSendPeers.len.int64, labelValues = [g.topicLabel(topic)]
     )
 
     await handleData(g, topic, msg.data)
@@ -988,7 +988,7 @@ method publish*(
   )
 
   libp2p_pubsub_messages_published.inc(
-    peers.len.int64, labelValues = [p.topicLabel(topic)]
+    peers.len.int64, labelValues = [g.topicLabel(topic)]
   )
 
   trace "Published message to peers", count = peers.len
@@ -1001,7 +1001,7 @@ proc publishPartial*(
   let count = g.extensionsState.publishPartial(topic, pm)
 
   libp2p_pubsub_messages_published_partial.inc(
-    count.int64, labelValues = [p.topicLabel(topic)]
+    count.int64, labelValues = [g.topicLabel(topic)]
   )
 
   trace "Published partial message to peers", count = count
