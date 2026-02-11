@@ -395,12 +395,13 @@ proc handleMixMessages(
 
     await allFutures(proofGenFut, delayFut)
 
-    let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
-    if proofGenTimeMs > actualDelayMs.int64:
-      warn "Proof generation time exceeds configured delay",
-        proofGenTimeMs,
-        delayMs = actualDelayMs,
-        hint = "Consider increasing delay to maintain variable timing"
+    if mixProto.spamProtection.isSome():
+      let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
+      if proofGenTimeMs > actualDelayMs.int64:
+        warn "Proof generation time exceeds configured delay",
+          proofGenTimeMs,
+          delayMs = actualDelayMs,
+          hint = "Consider increasing delay to maintain variable timing"
 
     let outgoingPacket = proofGenFut.value().valueOr:
       error "Failed to generate spam protection proof for next hop", err = error
@@ -460,9 +461,9 @@ proc getMaxMessageSizeForCodec*(
     return err("cannot encode messages for this codec")
   return ok(DataSize - totalLen)
 
-proc buildSurb(
+method buildSurb*(
     mixProto: MixProtocol, id: SURBIdentifier, destPeerId: PeerId, exitPeerId: PeerId
-): Result[SURB, string] =
+): Result[SURB, string] {.base, gcsafe, raises: [].} =
   var
     multiAddrs: seq[MultiAddress] = @[]
     publicKeys: seq[FieldElement] = @[]
@@ -894,23 +895,24 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
-): Result[T, string] =
+): T =
   ## Constructs a new `MixProtocol` instance for the mix node at `index`,
   ## loading its private info from `nodeInfo` and populating the nodePool with
   ## the public info of all other nodes from `pubInfo`.
-  let mixNodeInfo = MixNodeInfo.readFromFile(index, nodeFolderInfoPath / fmt"nodeInfo").valueOr:
-    return err("Failed to load mix node info for index " & $index & " - err: " & error)
+  let mixNodeInfo = MixNodeInfo
+    .readFromFile(index, nodeFolderInfoPath / fmt"nodeInfo")
+    .expect("Failed to load mix node info for index " & $index)
 
-  let mixProto = MixProtocol.new(
-    mixNodeInfo, switch, TagManager.new(), rng, spamProtection, delayStrategy
-  )
+  let mixProto =
+    T.new(mixNodeInfo, switch, TagManager.new(), rng, spamProtection, delayStrategy)
 
   # Load pub info into the nodePool
   for i in 0 ..< numNodes:
     if i == index:
       continue
-    let pubInfo = MixPubInfo.readFromFile(i, nodeFolderInfoPath / fmt"pubInfo").valueOr:
-      return err("Failed to load pub info from file: " & error)
+    let pubInfo = MixPubInfo.readFromFile(i, nodeFolderInfoPath / fmt"pubInfo").expect(
+        "Failed to load pub info from file"
+      )
     mixProto.nodePool.add(pubInfo)
 
-  return ok(mixProto)
+  mixProto
