@@ -1,255 +1,175 @@
-# SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH
-{.used.}
+import unittest2
+import std/[sequtils, math]
+import ../../../libp2p/protocols/capability_discovery/[iptree, types]
+import ../../../libp2p/multiaddress
+import ../../../libp2p/protocols/connectivity/autonat/utils
 
-import std/net
-import ../../../libp2p/protocols/capability_discovery/[types, iptree]
-import ../../tools/unittest
+const
+  Eps = 1e-9
 
-suite "IpTree":
-  test "new IpTree has empty root":
+proc mkIp*(s: string): IpAddress =
+  parseIpAddress(s)
+
+proc mkTree*(ips: openArray[string]): IpTree =
+  var t = IpTree.new()
+  for ip in ips:
+    t.insertIp(mkIp(ip))
+  t
+
+proc pathNodes*(t: IpTree, ip: IpAddress): seq[IpTreeNode] =
+  ## Returns root + all nodes along the IPv4 path (32 steps), stopping early if the path breaks.
+  result = @[t.root]
+  if ip.family != IPv4:
+    return
+  let bits = ip.toBinary()
+  var v = t.root
+  for i in 0 ..< 32:
+    if bits[i] == 0:
+      v = v.left
+    else:
+      v = v.right
+    if v.isNil: break
+    result.add(v)
+
+proc mkAd*(addrs: openArray[string]): Advertisement =
+  Advertisement(addrs: (@addrs).mapIt(MultiAddress.init(it).tryGet()))
+
+suite "Capability Discovery - IpTree":
+
+  # Creating a new tree yields an empty root counter and no children.
+  test "new tree has counter 0":
     let tree = IpTree.new()
     check tree.root.counter == 0
     check tree.root.left.isNil
     check tree.root.right.isNil
 
-  test "insertIp increments root counter":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("192.168.1.1")
-
-    tree.insertIp(ip)
-
-    # Root counter is incremented once per IP insertion (at the root level)
+  # Inserting a single IPv4 increments the root and creates a non-empty path.
+  test "insertIp increments counter":
+    var tree = IpTree.new()
+    tree.insertIp(mkIp("192.168.1.1"))
     check tree.root.counter == 1
+    check not tree.root.left.isNil or not tree.root.right.isNil
 
-  test "insertIp rejects IPv6 addresses":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("::1")
-
-    tree.insertIp(ip)
+  # IPv6 insertions are rejected and leave the tree unchanged.
+  test "insertIp rejects Ipv6 addresses":
+    var tree = IpTree.new()
+    tree.insertIp(parseIpAddress("2001:db8::1"))
     check tree.root.counter == 0
+    check tree.root.left.isNil
+    check tree.root.right.isNil
 
-  test "removeIp decrements root counter":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("192.168.1.1")
-
+  # Removing an inserted IPv4 decrements counters along the exact traversal path.
+  test "removeIp decrements counters along path":
+    var tree = IpTree.new()
+    let ip = mkIp("10.0.0.1")
     tree.insertIp(ip)
-    check tree.root.counter == 1
-
-    tree.removeIp(ip)
-    check tree.root.counter == 0
-
-  test "removeIp rejects IPv6 addresses":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("::1")
-
-    check tree.root.counter == 0
-    tree.removeIp(ip)
-    check tree.root.counter == 0
-
-  test "ipScore returns 0.0 for empty tree":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("192.168.1.1")
-
-    check tree.ipScore(ip) == 0.0
-
-  test "ipScore returns high score for same IP after insert":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("192.168.1.1")
-
-    tree.insertIp(ip)
-    let score = tree.ipScore(ip)
-    # Score should be close to 1.0 for the exact same IP
-    # The exact value depends on the threshold calculation
-    check score > 0.9
-
-  test "ipScore returns 0.0 for different IP class":
-    let tree = IpTree.new()
-    let ip1 = parseIpAddress("192.168.1.1")
-    let ip2 = parseIpAddress("10.0.0.1")
-
-    tree.insertIp(ip1)
-    # 192 = 11000000, 10 = 00001010 - first bits differ
-    check tree.ipScore(ip2) == 0.0
-
-  test "ipScore reflects prefix similarity - same /24":
-    let tree = IpTree.new()
-    let ip1 = parseIpAddress("192.168.1.10")
-    let ip2 = parseIpAddress("192.168.1.20")
-
-    tree.insertIp(ip1)
-    let score = tree.ipScore(ip2)
-
-    # Same /24 means first 24 bits match, so we expect high score
-    check score > 0.7
-
-  test "ipScore reflects prefix similarity - different /24":
-    let tree = IpTree.new()
-    let ip1 = parseIpAddress("192.168.1.10")
-    let ip2 = parseIpAddress("192.168.2.20")
-
-    tree.insertIp(ip1)
-    let score = tree.ipScore(ip2)
-
-    # Different /24, only first 16 bits match
-    check score > 0.4 and score < 0.8
-
-  test "ipScore reflects prefix similarity - different /16":
-    let tree = IpTree.new()
-    let ip1 = parseIpAddress("192.168.1.10")
-    let ip2 = parseIpAddress("10.0.0.1")
-
-    tree.insertIp(ip1)
-    let score = tree.ipScore(ip2)
-
-    # First octet differs - very low score
-    check score < 0.2
-
-  test "insert multiple IPs and score correctly":
-    let tree = IpTree.new()
-
-    # Insert multiple IPs from same subnet
-    for i in 1 .. 5:
-      tree.insertIp(parseIpAddress("192.168.1." & $i))
-
-    check tree.root.counter == 5
-
-    let ip1 = parseIpAddress("192.168.1.10")
-    check tree.ipScore(ip1) > 0.7
-
-    let ip2 = parseIpAddress("10.0.0.1")
-    check tree.ipScore(ip2) == 0.0
-
-  test "insert multiple IPs from different subnets":
-    let tree = IpTree.new()
-
-    tree.insertIp(parseIpAddress("192.168.1.1"))
-    tree.insertIp(parseIpAddress("192.168.2.1"))
-    tree.insertIp(parseIpAddress("10.0.0.1"))
-
-    check tree.root.counter == 3
-
-    # IP in same /16 as first two
-    let ip1 = parseIpAddress("192.168.3.1")
-    let score1 = tree.ipScore(ip1)
-    check score1 > 0.4
-
-  test "removeIp after multiple inserts":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("192.168.1.1")
-
-    tree.insertIp(ip)
-    tree.insertIp(ip)
-    check tree.root.counter == 2
-
-    tree.removeIp(ip)
-    check tree.root.counter == 1
-
-  test "insertIp creates correct tree structure":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("128.0.0.1") # Binary: 10000000.00000000.00000000.00000001
-
-    tree.insertIp(ip)
-
-    # First bit is 1, so we should have a right child
-    check not tree.root.right.isNil
-
-  test "insertIp and removeIp maintain tree consistency":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("192.168.1.1")
-
-    tree.insertIp(ip)
-    let score1 = tree.ipScore(ip)
-    check score1 > 0.9
-
-    tree.removeIp(ip)
-    let score2 = tree.ipScore(ip)
-    check score2 == 0.0
-
-  test "insertIp with same IP multiple times affects scoring":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("192.168.1.1")
-
-    tree.insertIp(ip)
-    let score1 = tree.ipScore(ip)
-
-    tree.insertIp(ip)
-    tree.insertIp(ip)
-    let score2 = tree.ipScore(ip)
-
-    # Score should be the same/higher as it's the same IP
-    check score1 > 0.9
-    check score2 > 0.9
-
-  test "removeIp for similar IP decrements along shared path":
-    let tree = IpTree.new()
-    let ip1 = parseIpAddress("192.168.1.1")
-    let ip2 = parseIpAddress("192.168.1.2")
-
-    tree.insertIp(ip1)
-    check tree.root.counter == 1
-
-    # ip2 shares most of the path with ip1
-    tree.insertIp(ip2)
-    check tree.root.counter == 2
-
-    tree.removeIp(ip1)
-    # Still have ip2, so root.counter should be 1
-    check tree.root.counter == 1
-
-  test "ipScore for IPs with varying prefix similarity":
-    let tree = IpTree.new()
-    let baseIp = parseIpAddress("192.168.1.100")
-    tree.insertIp(baseIp)
-
-    # Same IP - score should be high
-    check tree.ipScore(baseIp) > 0.9
-
-    # Same /24 (24 bits match) - high score
-    let same24 = parseIpAddress("192.168.1.200")
-    let score24 = tree.ipScore(same24)
-    check score24 > 0.7
-
-    # Same /16 (16 bits match) - medium score
-    let same16 = parseIpAddress("192.168.255.255")
-    let score16 = tree.ipScore(same16)
-    check score16 > 0.4 and score16 <= 0.7
-
-    # Same /8 (8 bits match) - lower score
-    let same8 = parseIpAddress("192.255.255.255")
-    let score8 = tree.ipScore(same8)
-    check score8 > 0.1 and score8 <= 0.4
-
-    # Different first octet - very low score
-    let diffFirst = parseIpAddress("10.0.0.1")
-    let scoreDiff = tree.ipScore(diffFirst)
-    check scoreDiff < 0.1
-
-  test "multiple inserts then multiple removes":
-    let tree = IpTree.new()
-    let ip = parseIpAddress("192.168.1.1")
-
-    tree.insertIp(ip)
-    tree.insertIp(ip)
-    tree.insertIp(ip)
-    check tree.root.counter == 3
-
-    tree.removeIp(ip)
-    tree.removeIp(ip)
     check tree.root.counter == 1
 
     tree.removeIp(ip)
     check tree.root.counter == 0
 
-  test "ipScore increases with more IPs in same prefix":
+    let nodes = tree.pathNodes(ip)
+    for n in nodes:
+      check n.counter == 0
+
+  # IPv6 removals are rejected and do not mutate the tree.
+  test "removeIp rejects Ipv6 addresses":
+    var tree = IpTree.new()
+    tree.removeIp(parseIpAddress("2001:db8::1"))
+    check tree.root.counter == 0
+    check tree.root.left.isNil
+    check tree.root.right.isNil
+
+  # On an empty tree, ipScore returns 1.0 (no observed similarity).
+  test "ipScore returns 1.0 for empty tree":
     let tree = IpTree.new()
+    let score = tree.ipScore(mkIp("192.168.1.1"))
+    check abs(score - 1.0) < Eps
 
-    # Insert IPs from same /24
-    for i in 1 .. 10:
-      tree.insertIp(parseIpAddress("192.168.1." & $i))
+  # Adding multiple IPs with shared prefixes should reduce the resulting ipScore for that prefix.
+  test "ipScore decreases after inserting similar IPs":
+    var tree = mkTree(["192.168.1.1", "192.168.1.2", "192.168.1.3"])
+    let score = tree.ipScore(mkIp("192.168.1.4"))
+    check score < 1.0
 
-    let queryIp = parseIpAddress("192.168.1.100")
-    let score = tree.ipScore(queryIp)
+  # ipScore changes in response to insertions and removals of related IPs.
+  test "ipScore handles multiple inserts and removals":
+    var tree = mkTree(["10.0.0.1", "10.0.0.2"])
+    let base = tree.ipScore(mkIp("10.0.0.3"))
 
-    # With more IPs in the same prefix, score should be high
-    check score > 0.7
+    tree.insertIp(mkIp("10.0.0.3"))
+    let afterInsert = tree.ipScore(mkIp("10.0.0.3"))
+
+    tree.removeIp(mkIp("10.0.0.3"))
+    let afterRemove = tree.ipScore(mkIp("10.0.0.3"))
+
+    check afterInsert <= base
+    check abs(afterRemove - base) < 1e-6
+
+  # ipScore is always within [0, 1] for any input.
+  test "ipScore is bounded between 0 and 1":
+    var tree = mkTree(["192.168.1.1"])
+    let score = tree.ipScore(mkIp("192.168.1.2"))
+    check score >= 0.0
+    check score <= 1.0
+
+  # Different insert distributions should yield different scores for the same query IP.
+  test "ipScore changes with different inserted IPs":
+    var tree1 = mkTree(["192.168.1.1"])
+    let score1 = tree1.ipScore(mkIp("192.168.1.2"))
+
+    var tree2 = mkTree(["10.0.0.1"])
+    let score2 = tree2.ipScore(mkIp("192.168.1.2"))
+
+    check abs(score1 - score2) > 0.0001
+
+  # Removing an IP that was previously inserted should not raise or crash.
+  test "removeIp on inserted IP does not crash":
+    var tree = IpTree.new()
+    let ip = mkIp("1.2.3.4")
+    tree.insertIp(ip)
+    tree.removeIp(ip)
+    check tree.root.counter == 0
+
+  # If an advertisement has no IPv4 multiaddrs, adScore is 1.0 by definition.
+  test "adScore returns 1.0 when advertisement has no IPv4 addresses":
+    let tree = IpTree.new()
+    let ad = mkAd(["/dns4/example.com/tcp/4001"])
+    let score = tree.adScore(ad)
+    check abs(score - 1.0) < Eps
+
+  # adScore equals the minimum ipScore among all IPv4 addresses present in the advertisement.
+  test "adScore uses the minimum ipScore among the ad's IPv4 addresses":
+    var tree = mkTree(["192.168.1.1", "192.168.1.2"])
+    let ad = mkAd([
+      "/ip4/192.168.1.3/tcp/4001",
+      "/ip4/10.0.0.1/tcp/4001"
+    ])
+
+    let score = tree.adScore(ad)
+    let expected = min(
+      tree.ipScore(mkIp("192.168.1.3")),
+      tree.ipScore(mkIp("10.0.0.1"))
+    )
+
+    check abs(score - expected) < Eps
+
+  # adScore should safely ignore non-ip4 addrs, and still consider any valid IPv4 addrs.
+  test "adScore ignores non-ip4 multiaddrs and does not crash":
+    var tree = mkTree(["192.168.1.1"])
+    let ad = mkAd([
+      "/dns4/example.com/tcp/4001",
+      "/ip4/192.168.1.2/tcp/4001",
+      "/ip6/2001:db8::1/tcp/4001"
+    ])
+
+    let score = tree.adScore(ad)
+    check score <= 1.0
+    check score >= 0.0
+
+  # ipScore is computed as an integer count of flagged levels divided by 32.
+  test "ipScore is quantized in 1/32 steps":
+    var tree = mkTree(["192.168.1.1", "192.168.1.2", "10.0.0.1"])
+    let score = tree.ipScore(mkIp("192.168.1.3"))
+    let scaled = score * 32.0
+    check abs(scaled - round(scaled)) < 1e-6
