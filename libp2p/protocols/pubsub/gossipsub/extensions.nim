@@ -166,4 +166,3 @@ proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string)
     # should not raise, because this is called whenever IDONTWANT is being sent.
     # so when extension is not configured it should return false, backwards compatible behavior.
     return false
-

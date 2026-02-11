@@ -75,12 +75,12 @@ proc new(
 ): PeerTopicKey {.inline.} =
   $peerId & keyDelimiter & topic
 
-proc toPeerTopic(key: PeerTopicKey): tuple[peer: PeerId, topic: string] {.inline.} =
+proc getPeer(key: PeerTopicKey): PeerId {.inline.} =
   let parts = key.split(keyDelimiter, maxsplit = 1)
   var peerId: PeerId
   discard peerId.init(parts[0])
 
-  (peer: peerId, topic: parts[1])
+  return peerId
 
 template hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
   key.startsWith($peerId & keyDelimiter)
@@ -93,9 +93,11 @@ proc new(
 template hasTopic(key: TopicGroupKey, topic: string): bool =
   key.startsWith(topic & keyDelimiter)
 
-template groupId(key: TopicGroupKey): GroupId =
+proc toTopicGroupId(
+    key: TopicGroupKey
+): tuple[topic: string, groupId: GroupId] {.inline.} =
   let parts = key.split(keyDelimiter, maxsplit = 1)
-  cast[seq[byte]](parts[1])
+  (topic: parts[0], groupId: cast[seq[byte]](parts[1]))
 
 proc doAssert(config: PartialMessageExtensionConfig) =
   proc msg(arg: string): string =
@@ -170,27 +172,27 @@ proc unionWithSentPartsMetadata(
 
   return hasChanged
 
-proc gossipPartsMetadata*(ext: PartialMessageExtension) =
+proc peersRequestingPartial(ext: PartialMessageExtension, topic: string): seq[PeerId] =
+  var peers: seq[PeerId]
+
   for ptKey, topicOpt in ext.peerTopicOpts:
-    # gossip only to peers that have requested partial
-    if not topicOpt.requestsPartial:
+    if topicOpt.requestsPartial:
+      peers.add(ptKey.getPeer())
+
+  return peers
+
+proc gossipPartsMetadata*(ext: PartialMessageExtension) =
+  for tgKey, group in ext.groupState.mpairs:
+    if group.lastPublishedMetadata.len == 0:
+      # node has not published anything on this (topic, group)
       continue
-    let (peerId, topic) = ptKey.toPeerTopic()
-
-    # this topic can have many full logically messages, as partitioned by groupId.
-    # send gossip for every full message (groupId) with same topic.
-    for tgKey, group in ext.groupState.mpairs:
-      if group.lastPublishedMetadata.len == 0:
-        # node has not published anything on this (topic, group)
-        continue
-      if not tgKey.hasTopic(topic):
-        continue
-
+    let (topic, groupId) = tgKey.toTopicGroupId()
+    for peerId in ext.peersRequestingPartial(topic):
       var peerState = group.getPeerState(peerId)
       if ext.unionWithSentPartsMetadata(peerState, group.lastPublishedMetadata):
         let rpc = PartialMessageExtensionRPC(
           topicID: topic,
-          groupID: tgKey.groupId(),
+          groupID: groupId,
           partsMetadata: peerState.sentPartsMetadata.get(),
         )
         ext.config.sendRPC(peerId, rpc)
