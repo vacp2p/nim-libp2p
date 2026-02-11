@@ -2,6 +2,7 @@
 # Copyright (c) Status Research & Development GmbH 
 
 import tables, strutils, chronicles, results, options
+import ../../../utils/tablekey
 import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, partial_message]
@@ -62,8 +63,13 @@ type
     heartbeatsTillEviction: int
     lastPublishedMetadata: PartsMetadata
 
-  PeerTopicKey = string
-  TopicGroupKey = string
+  PeerTopicKey = object of TableKey
+    peerId: PeerId
+    topic: string
+
+  TopicGroupKey = object of TableKey
+    topic: string
+    groupId: GroupId
 
   PartialMessageExtension* = ref object of Extension
     config: PartialMessageExtensionConfig
@@ -73,31 +79,12 @@ type
 proc new(
     T: typedesc[PeerTopicKey], peerId: PeerId, topic: string
 ): PeerTopicKey {.inline.} =
-  $peerId & keyDelimiter & topic
-
-proc getPeer(key: PeerTopicKey): PeerId {.inline.} =
-  let parts = key.split(keyDelimiter, maxsplit = 1)
-  var peerId: PeerId
-  discard peerId.init(parts[0])
-
-  return peerId
-
-template hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
-  key.startsWith($peerId & keyDelimiter)
+  PeerTopicKey(key: TableKey.makeKey(peerId, topic), peerId: peerId, topic: topic)
 
 proc new(
     T: typedesc[TopicGroupKey], topic: string, groupId: GroupId
 ): TopicGroupKey {.inline.} =
-  topic & keyDelimiter & $groupId
-
-template hasTopic(key: TopicGroupKey, topic: string): bool =
-  key.startsWith(topic & keyDelimiter)
-
-proc toTopicGroupId(
-    key: TopicGroupKey
-): tuple[topic: string, groupId: GroupId] {.inline.} =
-  let parts = key.split(keyDelimiter, maxsplit = 1)
-  (topic: parts[0], groupId: cast[seq[byte]](parts[1]))
+  TopicGroupKey(key: TableKey.makeKey(topic, groupId), topic: topic, groupId: groupId)
 
 proc doAssert(config: PartialMessageExtensionConfig) =
   proc msg(arg: string): string =
@@ -176,8 +163,8 @@ proc peersRequestingPartial(ext: PartialMessageExtension, topic: string): seq[Pe
   var peers: seq[PeerId]
 
   for ptKey, topicOpt in ext.peerTopicOpts:
-    if topicOpt.requestsPartial:
-      peers.add(ptKey.getPeer())
+    if topicOpt.requestsPartial and ptKey.topic == topic:
+      peers.add(ptKey.peerId)
 
   return peers
 
@@ -186,13 +173,13 @@ proc gossipPartsMetadata*(ext: PartialMessageExtension) =
     if group.lastPublishedMetadata.len == 0:
       # node has not published anything on this (topic, group)
       continue
-    let (topic, groupId) = tgKey.toTopicGroupId()
-    for peerId in ext.peersRequestingPartial(topic):
+
+    for peerId in ext.peersRequestingPartial(tgKey.topic):
       var peerState = group.getPeerState(peerId)
       if ext.unionWithSentPartsMetadata(peerState, group.lastPublishedMetadata):
         let rpc = PartialMessageExtensionRPC(
-          topicID: topic,
-          groupID: groupId,
+          topicID: tgKey.topic,
+          groupID: tgKey.groupId,
           partsMetadata: peerState.sentPartsMetadata.get(),
         )
         ext.config.sendRPC(peerId, rpc)
@@ -216,7 +203,7 @@ method onRemovePeer*(
   # remove peer subscription options from _peerTopicOpts_
   var toRemove: seq[PeerTopicKey] = @[]
   for key, _ in ext.peerTopicOpts:
-    if key.hasPeer(peerId):
+    if key.peerId == peerId:
       toRemove.add(key)
   for key in toRemove:
     ext.peerTopicOpts.del(key)
