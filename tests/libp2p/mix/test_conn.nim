@@ -184,8 +184,7 @@ suite "Mix Protocol Component":
       MultiAddress.init("/ip4/0.0.0.0").expect("could not initialize invalid multiaddr")
 
     # Get valid keys from any node's pub info (read from pool before clearing)
-    let validPubInfo =
-      nodes[0].nodePool.get(nodes[1].switch.peerInfo.peerId).get()
+    let validPubInfo = nodes[0].nodePool.get(nodes[1].switch.peerInfo.peerId).get()
     let (_, _, validMixPubKey, validLibp2pPubKey) = validPubInfo.get()
 
     let invalidPubInfo = MixPubInfo.init(
@@ -204,9 +203,7 @@ suite "Mix Protocol Component":
     # Save pub info from pool before clearing (need it for re-population)
     var savedPubInfos: seq[MixPubInfo]
     for i in 1 ..< validNodesCount + 1:
-      savedPubInfos.add(
-        nodes[0].nodePool.get(nodes[i].switch.peerInfo.peerId).get()
-      )
+      savedPubInfos.add(nodes[0].nodePool.get(nodes[i].switch.peerInfo.peerId).get())
 
     # Now inject invalid node into sender's (node 0) peerStore
     # Include enough valid nodes so that even after invalid node is removed,
