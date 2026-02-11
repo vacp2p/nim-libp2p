@@ -36,7 +36,7 @@ type MockMixProtocol* = ref object of MixProtocol
 
 method buildSurb*(
     mock: MockMixProtocol, id: SURBIdentifier, destPeerId: PeerId, exitPeerId: PeerId
-): Result[SURB, string] {.raises: [].} =
+): Result[SURB, string] {.gcsafe, raises: [].} =
   # No forced paths configured or all sets consumed — fall back to random selection
   if mock.surbPeerSets.len == 0 or mock.surbCallIndex >= mock.surbPeerSets.len:
     return procCall buildSurb(MixProtocol(mock), id, destPeerId, exitPeerId)
@@ -49,7 +49,7 @@ method buildSurb*(
 
   # Pool must have >= PathLength(3) nodes. We keep our 2 desired peers + the
   # exit node. buildSurb's own filter removes the exit, leaving exactly our 2.
-  let keepInPool = peers.toHashSet() + [exitPeerId].toHashSet()
+  let keepInPool = (peers & exitPeerId).toHashSet()
 
   var removed: seq[MixPubInfo]
   for peerId in mock.nodePool.peerIds():
