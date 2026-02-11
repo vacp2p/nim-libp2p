@@ -55,9 +55,6 @@ suite "GossipSub Extensions :: State":
     # should return false, backwards compatible behavior
     check state.peerRequestsPartial(peerId, "logos") == false
 
-    # noop - should not crash 
-    state.gossipPartsMetadata(initTable[string, seq[PeerId]]())
-
   test "state reports misbehaving when ControlExtensions is sent more then once":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)

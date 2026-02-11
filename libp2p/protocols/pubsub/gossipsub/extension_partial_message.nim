@@ -75,6 +75,13 @@ proc new(
 ): PeerTopicKey {.inline.} =
   $peerId & keyDelimiter & topic
 
+proc toPeerTopic(key: PeerTopicKey): tuple[peer: PeerId, topic: string] {.inline.} =
+  let parts = key.split(keyDelimiter, maxsplit = 1)
+  var peerId: PeerId
+  discard peerId.init(parts[0])
+
+  (peer: peerId, topic: parts[1])
+
 template hasPeer(key: PeerTopicKey, peerId: PeerId): bool =
   key.startsWith($peerId & keyDelimiter)
 
@@ -109,6 +116,17 @@ proc new*(
   config.doAssert()
   PartialMessageExtension(config: config)
 
+method isSupported*(
+    ext: PartialMessageExtension, pe: PeerExtensions
+): bool {.gcsafe, raises: [].} =
+  return pe.partialMessageExtension
+
+proc peerRequestsPartial*(
+    ext: PartialMessageExtension, peerId: PeerId, topic: string
+): bool =
+  let opt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(peerId, topic))
+  return opt.requestsPartial
+
 proc reduceHeartbeatsTillEviction(ext: PartialMessageExtension) =
   # reduce heartbeatsTillEviction and remove groups that hit 0
   var toRemove: seq[TopicGroupKey] = @[]
@@ -126,20 +144,6 @@ template getGroupState(
 
 template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   gs.peerState.mgetOrPut(peerId, PeerGroupState())
-
-proc peerRequestsPartial*(
-    ext: PartialMessageExtension, peerId: PeerId, topic: string
-): bool =
-  let opt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(peerId, topic))
-  return opt.requestsPartial
-
-method isSupported*(
-    ext: PartialMessageExtension, pe: PeerExtensions
-): bool {.gcsafe, raises: [].} =
-  return pe.partialMessageExtension
-
-method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
-  ext.reduceHeartbeatsTillEviction()
 
 proc unionWithSentPartsMetadata(
     ext: PartialMessageExtension,
@@ -166,25 +170,34 @@ proc unionWithSentPartsMetadata(
 
   return hasChanged
 
-proc gossipPartsMetadata*(
-    ext: PartialMessageExtension, peersRequestingPartial: Table[string, seq[PeerId]]
-) =
-  for topic, peers in peersRequestingPartial:
-    for key, group in ext.groupState.mpairs:
-      if not key.hasTopic(topic):
-        continue
+proc gossipPartsMetadata*(ext: PartialMessageExtension) =
+  for ptKey, topicOpt in ext.peerTopicOpts:
+    # gossip only to peers that have requested partial
+    if not topicOpt.requestsPartial:
+      continue
+    let (peerId, topic) = ptKey.toPeerTopic()
+
+    # this topic can have many full logically messages, as partitioned by groupId.
+    # send gossip for every full message (groupId) with same topic.
+    for tgKey, group in ext.groupState.mpairs:
       if group.lastPublishedMetadata.len == 0:
+        # node has not published anything on this (topic, group)
+        continue
+      if not tgKey.hasTopic(topic):
         continue
 
-      for peerId in peers:
-        var peerState = group.getPeerState(peerId)
-        if ext.unionWithSentPartsMetadata(peerState, group.lastPublishedMetadata):
-          let rpc = PartialMessageExtensionRPC(
-            topicID: topic,
-            groupID: key.groupId(),
-            partsMetadata: peerState.sentPartsMetadata.get(),
-          )
-          ext.config.sendRPC(peerId, rpc)
+      var peerState = group.getPeerState(peerId)
+      if ext.unionWithSentPartsMetadata(peerState, group.lastPublishedMetadata):
+        let rpc = PartialMessageExtensionRPC(
+          topicID: topic,
+          groupID: tgKey.groupId(),
+          partsMetadata: peerState.sentPartsMetadata.get(),
+        )
+        ext.config.sendRPC(peerId, rpc)
+
+method onHeartbeat*(ext: PartialMessageExtension) {.gcsafe, raises: [].} =
+  ext.reduceHeartbeatsTillEviction()
+  ext.gossipPartsMetadata()
 
 method onNegotiated*(
     ext: PartialMessageExtension, peerId: PeerId

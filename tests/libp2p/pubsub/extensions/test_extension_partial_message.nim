@@ -355,7 +355,9 @@ suite "GossipSub Extensions :: Partial Message Extension":
   test "gossip metadata":
     const topic = "logos-partial"
     var cr = CallbackRecorder()
-    var ext = PartialMessageExtension.new(cr.config())
+    var cfg = cr.config()
+    cfg.heartbeatsTillEviction = 100 # do not evict for this test
+    var ext = PartialMessageExtension.new(cfg)
 
     # publishing partial will remember parts metadata.
     # but since no one is subscribed there will not be any publish.
@@ -370,9 +372,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.subscribe(peerId, topic, true)
 
     # then do the gossip for parts metadata, with subscribed peer
-    var peersRequestingPartial: Table[string, seq[PeerId]]
-    peersRequestingPartial[topic] = @[peerId]
-    ext.gossipPartsMetadata(peersRequestingPartial)
+    ext.onHeartbeat()
 
     # and because peer has requested partial messages, then
     # it will receive gossip message
@@ -387,5 +387,5 @@ suite "GossipSub Extensions :: Partial Message Extension":
 
     # doing gossip again should not send any message
     # because peer already knows the same parts metadata
-    ext.gossipPartsMetadata(peersRequestingPartial)
+    ext.onHeartbeat()
     check cr.sentRPC.len == 1

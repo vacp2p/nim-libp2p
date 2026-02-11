@@ -865,7 +865,6 @@ proc onHeartbeat(g: GossipSub) =
   for t in toSeq(g.fanout.keys):
     g.replenishFanout(t)
 
-  var peersRequestingPartial: Table[string, seq[PeerId]]
   let peers = g.getGossipPeers()
   for peer, control in peers:
     # only ihave from here
@@ -875,19 +874,14 @@ proc onHeartbeat(g: GossipSub) =
       else:
         libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
 
-      if g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
-        # peer has requested partial messages, therfore IHAVE will not be sent to them.
-        # instead, extensions will gossip parts metadata.
-        peersRequestingPartial.mgetOrPut(ihave.topicID, newSeq[PeerId]()).add(
-          peer.peerId
-        )
-      else:
+      if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
+        # send IHAVE only if peer has not requested partial for topic.
+        # these peers will receive gossip of partial metadata via extension.
         g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
 
   g.mcache.shift() # shift the cache
 
   g.extensionsState.heartbeat()
-  g.extensionsState.gossipPartsMetadata(peersRequestingPartial)
 
 proc heartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
   heartbeat "GossipSub", g.parameters.heartbeatInterval:

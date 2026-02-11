@@ -167,8 +167,3 @@ proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string)
     # so when extension is not configured it should return false, backwards compatible behavior.
     return false
 
-proc gossipPartsMetadata*(
-    state: ExtensionsState, peersRequestingPartial: Table[string, seq[PeerId]]
-) =
-  state.partialMessageExtension.withValue(e):
-    e.gossipPartsMetadata(peersRequestingPartial)
