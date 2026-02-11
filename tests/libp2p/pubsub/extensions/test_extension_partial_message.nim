@@ -359,8 +359,8 @@ suite "GossipSub Extensions :: Partial Message Extension":
     cfg.heartbeatsTillEviction = 100 # do not evict for this test
     var ext = PartialMessageExtension.new(cfg)
 
-    # publishing partial will remember parts metadata.
-    # but since no one is subscribed there will not be any publish.
+    # publishing a partial message will store the parts metadata.
+    # however, since no one is subscribed, nothing will actually be published.
     let pm = MyPartialMessage(
       groupId: groupId,
       data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
@@ -368,14 +368,15 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check ext.publishPartial(topic, pm) == 0
     check cr.sentRPC.len == 0
 
-    # subscribe peer to topic
+    # subscribe peer to topic (requesting partial).
     ext.subscribe(peerId, topic, true)
 
-    # then do the gossip for parts metadata, with subscribed peer
+    # then when gossip happens (on heartbeat), parts metadata 
+    # should be sent to all peers.
     ext.onHeartbeat()
 
     # and because peer has requested partial messages, then
-    # it will receive gossip message
+    # it will receive gossip message.
     check:
       cr.sentRPC.len == 1
       cr.sentRPC[0] ==
@@ -385,7 +386,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
           partsMetadata: MyPartsMetadata.have(toSeq(pm.data.keys)),
         )
 
-    # doing gossip again should not send any message
-    # because peer already knows the same parts metadata
+    # doing gossip again should not send any new messages,
+    # because peer already knows the same parts metadata.
     ext.onHeartbeat()
     check cr.sentRPC.len == 1
