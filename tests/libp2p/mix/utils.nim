@@ -45,12 +45,12 @@ proc setupSwitches*(numNodes: int): seq[Switch] =
 
   return switches
 
-proc setupMixNode(
+proc setupMixNode[T: MixProtocol](
     index, numNodes: int,
     switch: Switch,
     destReadBehavior: Opt[tuple[codec: string, callback: DestReadBehavior]],
     spamProtectionRateLimit: Opt[int],
-): MixProtocol =
+): T =
   let spamProtection =
     if spamProtectionRateLimit.isSome():
       Opt.some(
@@ -59,9 +59,7 @@ proc setupMixNode(
     else:
       Opt.none(SpamProtection)
 
-  let proto = MixProtocol
-    .new(index, numNodes, switch, spamProtection = spamProtection)
-    .expect("should have initialized mix protocol")
+  let proto = T.new(index, numNodes, switch, spamProtection = spamProtection)
 
   if destReadBehavior.isSome():
     let (codec, callback) = destReadBehavior.get()
@@ -79,7 +77,7 @@ proc setupMixNodes*(
   var nodes: seq[MixProtocol] = @[]
   for index, _ in enumerate(switches):
     nodes.add(
-      setupMixNode(
+      setupMixNode[MixProtocol](
         index, numNodes, switches[index], destReadBehavior, spamProtectionRateLimit
       )
     )
@@ -93,22 +91,16 @@ proc setupMixNodesWithMock*(
   let switches = setupSwitches(numNodes)
   var nodes: seq[MixProtocol] = @[]
 
-  let info = MixNodeInfo.readFromFile(0).expect("could not read mix node info")
-  let mock = MockMixProtocol.new(info, switches[0])
-
-  for i in 1 ..< numNodes:
-    mock.nodePool.add(MixPubInfo.readFromFile(i).expect("could not read pub info"))
-
-  if destReadBehavior.isSome():
-    let (codec, cb) = destReadBehavior.get()
-    mock.registerDestReadBehavior(codec, cb)
-
-  switches[0].mount(MixProtocol(mock))
-  nodes.add(MixProtocol(mock))
+  let mock = setupMixNode[MockMixProtocol](
+    0, numNodes, switches[0], destReadBehavior, Opt.none(int)
+  )
+  nodes.add(mock)
 
   for index in 1 ..< numNodes:
     nodes.add(
-      setupMixNode(index, numNodes, switches[index], destReadBehavior, Opt.none(int))
+      setupMixNode[MixProtocol](
+        index, numNodes, switches[index], destReadBehavior, Opt.none(int)
+      )
     )
 
   (nodes, mock)
@@ -123,3 +115,27 @@ proc setupDestNode*[T: LPProtocol](
 
 proc stopDestNode*(switch: Switch) {.async.} =
   await switch.stop()
+
+###
+
+const NoReplyProtocolCodec* = "/test/1.0.0"
+
+type NoReplyProtocol* = ref object of LPProtocol
+  receivedMessages*: AsyncQueue[seq[byte]]
+
+proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
+  let nrProto = NoReplyProtocol()
+  nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
+
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    try:
+      let buffer = await conn.readLp(1024)
+      await nrProto.receivedMessages.put(buffer)
+    except LPStreamError:
+      raiseAssert "should not happen"
+    finally:
+      await conn.close()
+
+  nrProto.handler = handler
+  nrProto.codec = NoReplyProtocolCodec
+  nrProto
