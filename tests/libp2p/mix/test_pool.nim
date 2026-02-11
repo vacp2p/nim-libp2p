@@ -18,7 +18,7 @@ suite "MixNodePool Tests":
   setup:
     peerStore = PeerStore.new()
     pool = MixNodePool.new(peerStore)
-    mixNodes = initializeMixNodes(5)
+    mixNodes = generateMixNodeInfos(5)
 
   test "new creates empty pool":
     check pool.len == 0

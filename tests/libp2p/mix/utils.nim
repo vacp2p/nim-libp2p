@@ -22,30 +22,29 @@ import
 import ../../tools/[unittest, crypto]
 import ./[mock_mix, spam_protection_impl]
 
-proc generateMixNodes*(count: int, basePort: int = 4242): seq[MixNodeInfo] =
-  var nodes = newSeq[MixNodeInfo](count)
+proc generateMixNodeInfo*(port: int): MixNodeInfo =
+  let (mixPrivKey, mixPubKey) = generateKeyPair().expect("Generate key pair error")
+  let
+    rng = newRng()
+    keyPair = SkKeyPair.random(rng[])
+    pubKeyProto = PublicKey(scheme: Secp256k1, skkey: keyPair.pubkey)
+    peerId = PeerId.init(pubKeyProto).expect("PeerId init error")
+    multiAddr = MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{port}").tryGet()
+
+  MixNodeInfo(
+    peerId: peerId,
+    multiAddr: multiAddr,
+    mixPubKey: mixPubKey,
+    mixPrivKey: mixPrivKey,
+    libp2pPubKey: keyPair.pubkey,
+    libp2pPrivKey: keyPair.seckey,
+  )
+
+proc generateMixNodeInfos*(count: int, basePort: int = 4242): seq[MixNodeInfo] =
+  var nodeInfos = newSeq[MixNodeInfo](count)
   for i in 0 ..< count:
-    let (mixPrivKey, mixPubKey) = generateKeyPair().expect("Generate key pair error")
-    let
-      rng = newRng()
-      keyPair = SkKeyPair.random(rng[])
-      pubKeyProto = PublicKey(scheme: Secp256k1, skkey: keyPair.pubkey)
-      peerId = PeerId.init(pubKeyProto).expect("PeerId init error")
-      multiAddr = MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{basePort + i}").tryGet()
-
-    nodes[i] = MixNodeInfo(
-      peerId: peerId,
-      multiAddr: multiAddr,
-      mixPubKey: mixPubKey,
-      mixPrivKey: mixPrivKey,
-      libp2pPubKey: keyPair.pubkey,
-      libp2pPrivKey: keyPair.seckey,
-    )
-  nodes
-
-proc initializeMixNodes*(count: int, basePort: int = 4242): seq[MixNodeInfo] =
-  ## Creates and initializes a set of mix nodes in memory.
-  generateMixNodes(count, basePort)
+    nodeInfos[i] = generateMixNodeInfo(basePort + i)
+  nodeInfos
 
 proc toMixPubInfo*(node: MixNodeInfo): MixPubInfo =
   MixPubInfo.init(node.peerId, node.multiAddr, node.mixPubKey, node.libp2pPubKey)
@@ -60,16 +59,8 @@ proc createSwitch(
   return
     newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
 
-proc setupSwitches(mixNodes: seq[MixNodeInfo]): seq[Switch] =
-  var switches: seq[Switch] = @[]
-  for mixNode in mixNodes:
-    let switch = createSwitch(mixNode.multiAddr, Opt.some(mixNode.libp2pPrivKey))
-    switches.add(switch)
-  switches
-
 proc setupMixNode[T: MixProtocol](
     mixNodeInfo: MixNodeInfo,
-    allNodes: seq[MixNodeInfo],
     switch: Switch,
     destReadBehavior: Opt[tuple[codec: string, callback: DestReadBehavior]],
     spamProtectionRateLimit: Opt[int],
@@ -84,10 +75,6 @@ proc setupMixNode[T: MixProtocol](
 
   let proto = T.new(mixNodeInfo, switch, spamProtection = spamProtection)
 
-  for node in allNodes:
-    if node.peerId != mixNodeInfo.peerId:
-      proto.nodePool.add(node.toMixPubInfo())
-
   if destReadBehavior.isSome():
     let (codec, callback) = destReadBehavior.get()
     proto.registerDestReadBehavior(codec, callback)
@@ -95,21 +82,35 @@ proc setupMixNode[T: MixProtocol](
   switch.mount(proto)
   proto
 
+proc populateNodePool*(nodes: seq[MixProtocol], nodeInfos: seq[MixNodeInfo]) =
+  for i in 0 ..< nodes.len:
+    for j in 0 ..< nodeInfos.len:
+      if i == j:
+        continue
+      nodes[i].nodePool.add(nodeInfos[j].toMixPubInfo())
+
 proc setupMixNodes*(
     numNodes: int,
     destReadBehavior = Opt.none(tuple[codec: string, callback: DestReadBehavior]),
     spamProtectionRateLimit = Opt.none(int),
 ): Future[seq[MixProtocol]] {.async.} =
-  let mixNodes = initializeMixNodes(numNodes)
-  let switches = setupSwitches(mixNodes)
+  let basePort = 4242
   var nodes: seq[MixProtocol] = @[]
+  var nodeInfos: seq[MixNodeInfo] = @[]
   for index in 0 ..< numNodes:
+    let mixNodeInfo = generateMixNodeInfo(basePort + index)
+    nodeInfos.add(mixNodeInfo)
+    let switch =
+      createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))
+
     nodes.add(
       setupMixNode[MixProtocol](
-        mixNodes[index], mixNodes, switches[index], destReadBehavior,
-        spamProtectionRateLimit,
+        mixNodeInfo, switch, destReadBehavior, spamProtectionRateLimit
       )
     )
+
+  populateNodePool(nodes, nodeInfos)
+
   nodes
 
 proc setupMixNodesWithMock*(
@@ -117,21 +118,30 @@ proc setupMixNodesWithMock*(
     destReadBehavior = Opt.none(tuple[codec: string, callback: DestReadBehavior]),
 ): Future[tuple[nodes: seq[MixProtocol], mock: MockMixProtocol]] {.async.} =
   ## Like setupMixNodes, but the first node is a MockMixProtocol.
-  let mixNodes = initializeMixNodes(numNodes)
-  let switches = setupSwitches(mixNodes)
   var nodes: seq[MixProtocol] = @[]
+  var nodeInfos: seq[MixNodeInfo] = @[]
+
+  let basePort = 4242
+  let mockMixNodeInfo = generateMixNodeInfo(basePort)
+  nodeInfos.add(mockMixNodeInfo)
+  let mockSwitch =
+    createSwitch(mockMixNodeInfo.multiAddr, Opt.some(mockMixNodeInfo.libp2pPrivKey))
 
   let mock = setupMixNode[MockMixProtocol](
-    mixNodes[0], mixNodes, switches[0], destReadBehavior, Opt.none(int)
+    mockMixNodeInfo, mockSwitch, destReadBehavior, Opt.none(int)
   )
   nodes.add(mock)
 
   for index in 1 ..< numNodes:
+    let mixNodeInfo = generateMixNodeInfo(basePort + index)
+    nodeInfos.add(mixNodeInfo)
+    let switch =
+      createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))
     nodes.add(
-      setupMixNode[MixProtocol](
-        mixNodes[index], mixNodes, switches[index], destReadBehavior, Opt.none(int)
-      )
+      setupMixNode[MixProtocol](mixNodeInfo, switch, destReadBehavior, Opt.none(int))
     )
+
+  populateNodePool(nodes, nodeInfos)
 
   (nodes, mock)
 
