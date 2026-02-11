@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import tables, strutils, chronicles, results, options
+import tables, chronicles, results, options
 import ../../../utils/tablekey
 import ../../../[peerid]
 import ../rpc/messages
