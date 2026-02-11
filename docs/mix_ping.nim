@@ -64,9 +64,7 @@ proc mixPingSimulation() {.async: (raises: [Exception]).} =
 
   # Set up mix protocols on each mix node
   for index, _ in enumerate(switches):
-    let proto = MixProtocol.new(index, switches.len, switches[index]).expect(
-        "should have initialized mix protocol"
-      )
+    let proto = MixProtocol.new(index, switches.len, switches[index])
 
     # Register how to read ping responses (32 bytes exactly)
     proto.registerDestReadBehavior(PingCodec, readExactly(32))
