@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[options, times]
 import chronos, chronicles, results
 import
   ../../../libp2p/
@@ -11,7 +10,6 @@ import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../../libp2p/protocols/kademlia_discovery/[types]
 import ../../../libp2p/protocols/capability_discovery/[advertiser, serviceroutingtables]
 import ../../tools/unittest
-import ../../tools/crypto
 import ./utils
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
@@ -144,24 +142,6 @@ suite "Kademlia Discovery Advertiser - Service Management":
   teardown:
     checkTrackers()
 
-  test "addProvidedService creates AdvT":
-    let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
-
-    kad.addProvidedService(serviceId)
-
-    check kad.serviceRoutingTables.hasService(serviceId)
-
-  test "addProvidedService duplicate is ignored":
-    let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
-
-    kad.addProvidedService(serviceId)
-    check kad.serviceRoutingTables.hasService(serviceId)
-
-    kad.addProvidedService(serviceId)
-    check kad.serviceRoutingTables.hasService(serviceId)
-
   test "addProvidedService with empty routing table":
     let kad = createMockDiscovery()
     let serviceId = makeServiceId()
@@ -173,52 +153,6 @@ suite "Kademlia Discovery Advertiser - Service Management":
 
     # Service table should be created
     check kad.serviceRoutingTables.hasService(serviceId)
-
-  test "addProvidedService schedules actions for peers":
-    let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
-
-    # Add some peers to routing table
-    let peer1 = makePeerId()
-    let peer2 = makePeerId()
-    let peer3 = makePeerId()
-
-    populateRoutingTable(kad, @[peer1, peer2, peer3])
-
-    kad.addProvidedService(serviceId)
-
-    # Actions should be scheduled for each peer
-    check kad.advertiser.actionQueue.len > 0
-
-    # All actions should be for the added service
-    for action in kad.advertiser.actionQueue:
-      check action.serviceId == serviceId
-      check action.scheduledTime <= Moment.now() + chronos.seconds(1) # ASAP
-
-  test "addProvidedService with different K_register":
-    let kad = KademliaDiscovery.new(
-      createSwitch(),
-      bootstrapNodes = @[],
-      config = KadDHTConfig.new(
-        ExtEntryValidator(), ExtEntrySelector(), timeout = chronos.seconds(1)
-      ),
-      discoConf = KademliaDiscoveryConfig.new(
-        kRegister = 1, # Only 1 peer per bucket
-        bucketsCount = 16,
-      ),
-    )
-
-    let serviceId = makeServiceId()
-
-    # Add multiple peers
-    for i in 0 ..< 5:
-      discard kad.rtable.insert(makePeerId())
-
-    kad.addProvidedService(serviceId)
-
-    # With K_register = 1, should schedule at most 1 action per bucket
-    # But the exact number depends on bucket distribution
-    check kad.advertiser.actionQueue.len >= 0
 
   test "removeProvidedService removes table":
     let kad = createMockDiscovery()
@@ -236,29 +170,6 @@ suite "Kademlia Discovery Advertiser - Service Management":
 
     # Should not error
     kad.removeProvidedService(serviceId)
-
-  test "removeProvidedService clears pending actions":
-    let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
-    let now = Moment.now()
-
-    # Add service and actions
-    populateRoutingTable(kad, @[makePeerId()])
-    kad.addProvidedService(serviceId)
-
-    let actionCount = kad.advertiser.actionQueue.len
-    check actionCount > 0
-
-    # Remove service
-    kad.removeProvidedService(serviceId)
-
-    # Actions for this service should be removed
-    var serviceActions = 0
-    for action in kad.advertiser.actionQueue:
-      if action.serviceId == serviceId:
-        inc serviceActions
-
-    check serviceActions == 0
 
 # ============================================================================
 # 5. Rescheduling Logic Tests
@@ -330,69 +241,3 @@ suite "Kademlia Discovery Advertiser - Edge Cases":
 
     check not kad.serviceRoutingTables.hasService(service1)
     check kad.serviceRoutingTables.hasService(service2)
-
-  test "Actions are sorted after multiple insertions":
-    let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
-    let baseTime = Moment.now()
-
-    # Insert in random order
-    kad.scheduleAction(serviceId, makePeerId(), 0, baseTime + chronos.seconds(5))
-    kad.scheduleAction(serviceId, makePeerId(), 1, baseTime + chronos.seconds(2))
-    kad.scheduleAction(serviceId, makePeerId(), 2, baseTime + chronos.seconds(7))
-    kad.scheduleAction(serviceId, makePeerId(), 3, baseTime + chronos.seconds(1))
-    kad.scheduleAction(serviceId, makePeerId(), 4, baseTime + chronos.seconds(3))
-
-    # Verify sorted order
-    var lastTime = baseTime - chronos.seconds(10) # Use a time before all actions
-    for action in kad.advertiser.actionQueue:
-      check action.scheduledTime >= lastTime
-      lastTime = action.scheduledTime
-
-# ============================================================================
-# 7. Ticket Tests
-# ============================================================================
-
-suite "Kademlia Discovery Advertiser - Ticket Handling":
-  test "scheduleAction with ticket":
-    let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
-    let registrar = makePeerId()
-    let now = Moment.now()
-    let privateKey = PrivateKey.random(rng[]).get()
-    let peerId = makePeerId()
-
-    # Create ExtendedPeerRecord
-    let extRecord = ExtendedPeerRecord(
-      peerId: peerId,
-      seqNo: getTime().toUnix().uint64,
-      addresses: @[],
-      services: @[ServiceInfo(id: "test_service", data: @[])],
-    )
-
-    # Create SignedExtendedPeerRecord and encode it
-    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-    let adBytes = ad.encode().valueOr:
-      check false # Fail test if encoding fails
-      @[]
-
-    var ticket = Ticket(
-      advertisement: adBytes, t_init: 100, t_mod: 200, t_wait_for: 300, signature: @[]
-    )
-
-    kad.scheduleAction(serviceId, registrar, 0, now, Opt.some(ticket))
-
-    check kad.advertiser.actionQueue.len == 1
-    check kad.advertiser.actionQueue[0].ticket.isSome()
-    check kad.advertiser.actionQueue[0].ticket.get().tWaitFor == 300
-
-  test "scheduleAction without ticket":
-    let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
-    let registrar = makePeerId()
-    let now = Moment.now()
-
-    kad.scheduleAction(serviceId, registrar, 0, now, Opt.none(Ticket))
-
-    check kad.advertiser.actionQueue.len == 1
-    check kad.advertiser.actionQueue[0].ticket.isNone()

@@ -136,7 +136,6 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
   disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
   disco.registrarCacheLoop = disco.maintainRegistrarCache()
   disco.serviceTableLoop = disco.maintainTables()
-  disco.advertiseLoop = disco.runAdvertiseLoop()
 
   await procCall start(KadDHT(disco))
 

@@ -109,14 +109,14 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
 proc adScore*(ipTree: IpTree, ad: Advertisement): float64 {.raises: [].} =
   ## Return the max score for this advertisment
 
-  var maxScore = 1.0
+  var maxScore = 0.0
   for addressInfo in ad.data.addresses:
     let multiAddr = addressInfo.address
     let ip = multiAddr.getIp().valueOr:
       continue
 
     let score = ipTree.ipScore(ip)
-    if score < maxScore:
+    if score > maxScore:
       maxScore = score
 
   return maxScore
