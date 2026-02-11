@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, options, sequtils, tables
+import chronos, results, options, sequtils
 import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/
