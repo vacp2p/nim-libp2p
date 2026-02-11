@@ -869,10 +869,7 @@ proc onHeartbeat(g: GossipSub) =
   for peer, control in peers:
     # only ihave from here
     for ihave in control.ihave:
-      if g.knownTopics.contains(ihave.topicID):
-        libp2p_pubsub_broadcast_ihave.inc(labelValues = [ihave.topicID])
-      else:
-        libp2p_pubsub_broadcast_ihave.inc(labelValues = ["generic"])
+      libp2p_pubsub_broadcast_ihave.inc(labelValues = [g.topicLabel(ihave.topicID)])
 
       if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
         # send IHAVE only if peer has not requested partial for topic.
