@@ -44,7 +44,7 @@ type
 
   # Ticket message for Capability Discovery
   # Nested within Register message
-  TicketMessage* {.public.} = object
+  Ticket* {.public.} = object
     advertisement*: seq[byte] # field 1 - Copy of the original advertisement
     tInit*: uint64 # field 2 - Ticket creation timestamp (Unix time in seconds)
     tMod*: uint64 # field 3 - Last modification timestamp (Unix time in seconds)
@@ -56,7 +56,7 @@ type
   RegisterMessage* {.public.} = object
     advertisement*: seq[byte] # field 1 - Encoded advertisement
     status*: Opt[RegistrationStatus] # field 2 - Registration status (response only)
-    ticket*: Opt[TicketMessage] # field 3 - Optional ticket
+    ticket*: Opt[Ticket] # field 3 - Optional ticket
 
   # GetAds message for Capability Discovery
   # Field 22 in the main Message
@@ -93,8 +93,8 @@ proc encode*(peer: Peer): ProtoBuffer {.raises: [].} =
   pb.finish()
   return pb
 
-proc encode*(ticket: TicketMessage): ProtoBuffer {.raises: [], gcsafe.} =
-  ## Encode TicketMessage to protobuf format
+proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
+  ## Encode Ticket to protobuf format
   var pb = initProtoBuffer()
   pb.write(1, ticket.advertisement)
   pb.write(2, ticket.tInit)
@@ -193,10 +193,10 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
 
   return ok(p)
 
-proc decode*(T: type TicketMessage, pb: ProtoBuffer): ProtoResult[T] =
-  ## Decode TicketMessage from protobuf format
+proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
+  ## Decode Ticket from protobuf format
   var ticket =
-    TicketMessage(advertisement: @[], tInit: 0, tMod: 0, tWaitFor: 0, signature: @[])
+    Ticket(advertisement: @[], tInit: 0, tMod: 0, tWaitFor: 0, signature: @[])
 
   discard ?pb.getField(1, ticket.advertisement)
 
@@ -211,9 +211,7 @@ proc decode*(T: type TicketMessage, pb: ProtoBuffer): ProtoResult[T] =
 proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
   ## Decode RegisterMessage from protobuf format
   var regMsg = RegisterMessage(
-    advertisement: @[],
-    status: Opt.none(RegistrationStatus),
-    ticket: Opt.none(TicketMessage),
+    advertisement: @[], status: Opt.none(RegistrationStatus), ticket: Opt.none(Ticket)
   )
 
   discard ?pb.getField(1, regMsg.advertisement)
@@ -226,7 +224,7 @@ proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
 
   var ticketBuf: seq[byte]
   if ?pb.getField(3, ticketBuf):
-    let ticket = ?TicketMessage.decode(initProtoBuffer(ticketBuf))
+    let ticket = ?Ticket.decode(initProtoBuffer(ticketBuf))
     regMsg.ticket = Opt.some(ticket)
 
   return ok(regMsg)

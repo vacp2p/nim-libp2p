@@ -9,7 +9,7 @@ import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../../libp2p/protocols/kademlia_discovery/types
 import
   ../../../libp2p/protocols/capability_discovery/
-    [types, advertiser, discoverer, serviceroutingtables]
+    [types, advertiser, serviceroutingtables]
 import ../../tools/crypto
 
 export types, crypto

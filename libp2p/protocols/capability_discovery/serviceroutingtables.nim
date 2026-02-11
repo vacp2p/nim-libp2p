@@ -25,19 +25,16 @@ proc addService*(
     bucketsCount: int,
 ) {.raises: [].} =
   ## Create a new routing table for the service
-  ## Bootstraps from main KadDHT routing table
 
   if serviceId in manager.tables:
     return
 
-  # Create new RoutingTable centered on serviceId
   var serviceTable = RoutingTable.new(
     serviceId,
     config =
       RoutingTableConfig.new(replication = replication, maxBuckets = bucketsCount),
   )
 
-  # Bootstrap from main KadDHT routing table
   for bucket in mainRoutingTable.buckets:
     for peer in bucket.peers:
       let peerId = peer.nodeId.toPeerId().valueOr:
@@ -72,7 +69,6 @@ proc insertPeer*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, peerKey: Key
 ) {.raises: [].} =
   ## Insert a peer into the service routing table
-  ## Returns true if inserted, false otherwise
 
   let res = catch:
     manager.tables[serviceId]
@@ -86,6 +82,7 @@ proc hasService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
 ): bool {.raises: [].} =
   ## Check if routing table exists for a service
+
   serviceId in manager.tables
 
 proc refreshAllTables*(
@@ -101,12 +98,15 @@ proc refreshAllTables*(
 
 proc count*(manager: ServiceRoutingTableManager): int {.raises: [].} =
   ## Get number of service routing tables
+
   manager.tables.len
 
 proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] {.raises: [].} =
   ## Get all service IDs
+
   manager.tables.keys.toSeq()
 
 proc clear*(manager: ServiceRoutingTableManager) {.raises: [].} =
   ## Clear all service routing tables
+
   manager.tables.clear()

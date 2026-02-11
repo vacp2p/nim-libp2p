@@ -376,14 +376,15 @@ suite "Kademlia Discovery Advertiser - Ticket Handling":
       check false # Fail test if encoding fails
       @[]
 
-    var ticket =
-      Ticket(ad: adBytes, t_init: 100, t_mod: 200, t_wait_for: 300, signature: @[])
+    var ticket = Ticket(
+      advertisement: adBytes, t_init: 100, t_mod: 200, t_wait_for: 300, signature: @[]
+    )
 
     kad.scheduleAction(serviceId, registrar, 0, now, Opt.some(ticket))
 
     check kad.advertiser.actionQueue.len == 1
     check kad.advertiser.actionQueue[0].ticket.isSome()
-    check kad.advertiser.actionQueue[0].ticket.get().t_wait_for == 300
+    check kad.advertiser.actionQueue[0].ticket.get().tWaitFor == 300
 
   test "scheduleAction without ticket":
     let kad = createMockDiscovery()

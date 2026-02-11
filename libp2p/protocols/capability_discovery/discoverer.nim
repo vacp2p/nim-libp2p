@@ -15,9 +15,6 @@ import ./[types, serviceroutingtables]
 logScope:
   topics = "cap-disco discoverer"
 
-proc new*(T: typedesc[Discoverer]): T =
-  T()
-
 proc sendGetAds(
     disco: KademliaDiscovery, peerId: PeerId, serviceId: ServiceId
 ): Future[Result[(seq[Advertisement], seq[PeerId]), string]] {.async: (raises: []).} =

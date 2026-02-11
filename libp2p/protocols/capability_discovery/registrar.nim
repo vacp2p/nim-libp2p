@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sets, heapqueue, times, math, options]
+import std/[tables, sets, heapqueue, times, math]
 import chronos, chronicles, results
 import
   ../../[
@@ -23,18 +23,18 @@ logScope:
 proc new*(T: typedesc[Registrar]): T =
   T(
     cache: initOrderedTable[ServiceId, seq[Advertisement]](),
-    cacheTimestamps: initTable[AdvertisementKey, int64](),
+    cacheTimestamps: initTable[AdvertisementKey, uint64](),
     ipTree: IpTree.new(),
     boundService: initTable[ServiceId, float64](),
-    timestampService: initTable[ServiceId, int64](),
+    timestampService: initTable[ServiceId, uint64](),
     boundIp: initTable[string, float64](),
-    timestampIp: initTable[string, int64](),
+    timestampIp: initTable[string, uint64](),
   )
 
-proc pruneExpiredAds*(registrar: Registrar, advertExpiry: float64) {.raises: [].} =
+proc pruneExpiredAds*(registrar: Registrar, advertExpiry: uint64) {.raises: [].} =
   ## Remove expired advertisements from cache
 
-  let now = getTime().toUnix()
+  let now = getTime().toUnix().uint64
   var toDelete: seq[tuple[serviceId: ServiceId, ad: Advertisement]] = @[]
 
   for serviceId, ads in registrar.cache.mpairs:
@@ -43,7 +43,7 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: float64) {.raises: [].
       let ad = ads[i]
       let adKey = ad.toAdvertisementKey()
       let adTime = registrar.cacheTimestamps.getOrDefault(adKey, 0)
-      if now - adTime > advertExpiry.int64:
+      if now - adTime > advertExpiry:
         # Expired - remove from IP tree
         registrar.ipTree.removeAd(ad)
         toDelete.add((serviceId, ad))
@@ -59,38 +59,36 @@ proc waitingTime*(
     registrar: Registrar,
     discoConf: KademliaDiscoveryConfig,
     ad: Advertisement,
-    advertCacheCap: float64,
+    advertCacheCap: uint64,
     serviceId: ServiceId,
-    now: int64,
+    now: uint64,
 ): float64 {.raises: [].} =
   ## Calculate waiting time for advertisement registration with lower bound enforcement
 
-  let c = registrar.cacheTimestamps.len.float64
+  let c = registrar.cacheTimestamps.len.uint64
+  let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
 
-  let c_s = registrar.cache.getOrDefault(serviceId, @[]).len.float64
-
-  let occupancy =
+  let occupancy: float64 =
     if c >= advertCacheCap:
       100.0 # Cap at high value when full
     else:
-      1.0 / pow(1.0 - c / advertCacheCap, discoConf.occupancyExp)
+      1.0 / pow(1.0 - c.float64 / advertCacheCap.float64, discoConf.occupancyExp)
 
-  let serviceSim = c_s / advertCacheCap
+  let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
 
   var ipKeys: seq[string] = @[]
   let ipSim = registrar.ipTree.adScore(ad)
 
   # Calculate initial waiting time
-  var w =
+  var w: float64 =
     discoConf.advertExpiry * occupancy * (serviceSim + ipSim + discoConf.safetyParam)
 
   # Enforce service ID lower bound (RFC section: Lower Bound Enforcement)
   # w_s = max(w_s, bound(service_id_hash) - (now - timestamp(service_id_hash)))
   if serviceId in registrar.timestampService:
-    let elapsedService =
-      float64(now - registrar.timestampService.getOrDefault(serviceId, 0))
+    let elapsedService = now - registrar.timestampService.getOrDefault(serviceId, 0)
     let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
-    let serviceLowerBound = boundServiceVal - elapsedService
+    let serviceLowerBound = boundServiceVal - elapsedService.float64
     if serviceLowerBound > w:
       w = serviceLowerBound
 
@@ -99,9 +97,9 @@ proc waitingTime*(
   # Check all IPs and use the most restrictive bound
   for ipKey in ipKeys:
     if ipKey in registrar.timestampIp:
-      let elapsedIp = float64(now - registrar.timestampIp.getOrDefault(ipKey, 0))
+      let elapsedIp = now - registrar.timestampIp.getOrDefault(ipKey, 0)
       let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
-      let ipLowerBound = boundIpVal - elapsedIp
+      let ipLowerBound = boundIpVal - elapsedIp.float64
       if ipLowerBound > w:
         w = ipLowerBound
 
@@ -112,16 +110,15 @@ proc updateLowerBounds*(
     serviceId: ServiceId,
     ad: Advertisement,
     w: float64,
-    now: int64,
+    now: uint64,
 ) {.raises: [].} =
   ## Update lower bound state for service and IP (RFC section: Lower Bound Enforcement)
   # Update service lower bound if w exceeds current lower bound
-  let elapsedService =
-    float64(now - registrar.timestampService.getOrDefault(serviceId, 0))
+  let elapsedService = now - registrar.timestampService.getOrDefault(serviceId, 0)
 
   let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
-  if w > (boundServiceVal - elapsedService):
-    registrar.boundService[serviceId] = w + float64(now)
+  if w > boundServiceVal - elapsedService.float64:
+    registrar.boundService[serviceId] = w + now.float64
     registrar.timestampService[serviceId] = now
 
   # Update IP lower bound for all IPs if w exceeds current lower bound
@@ -181,24 +178,10 @@ proc sendRegisterResponse*(
   ## Unified response sender for REGISTER messages
   ## Handles Confirmed, Rejected, and Wait responses
 
-  var ticketMsg = Opt.none(TicketMessage)
-
-  if ticket.isSome():
-    let t = ticket.get()
-    ticketMsg = Opt.some(
-      TicketMessage(
-        advertisement: t.ad,
-        tInit: t.t_init.uint64,
-        tMod: t.t_mod.uint64,
-        tWaitFor: t.t_wait_for,
-        signature: t.signature,
-      )
-    )
-
   let msg = Message(
     msgType: MessageType.register,
     register: Opt.some(
-      RegisterMessage(advertisement: @[], status: Opt.some(status), ticket: ticketMsg)
+      RegisterMessage(advertisement: @[], status: Opt.some(status), ticket: ticket)
     ),
     closerPeers: closerPeers,
   )
@@ -236,7 +219,7 @@ proc processRetryTicket*(
     regMsg: RegisterMessage,
     ad: Advertisement,
     t_wait: float64,
-    now: int64,
+    now: uint64,
 ): float64 {.raises: [].} =
   ## Process retry ticket if provided
   ## Returns remaining wait time (or t_wait if no valid ticket)
@@ -255,27 +238,18 @@ proc processRetryTicket*(
     error "Failed to get registrar public key", error
     return t_remaining
 
-  # Create Ticket from TicketMessage for verification
-  let ticketVal = Ticket(
-    ad: ticketMsg.advertisement,
-    t_init: ticketMsg.tInit.int64,
-    t_mod: ticketMsg.tMod.int64,
-    t_wait_for: ticketMsg.tWaitFor,
-    signature: ticketMsg.signature,
-  )
-
-  if not ticketVal.verify(registrarPubKey):
+  if not ticketMsg.verify(registrarPubKey):
     return t_remaining
 
-  let windowStart = ticketVal.t_mod + ticketVal.t_wait_for.int64
-  let delta = disco.discoConf.registerationWindow.seconds.int64
+  let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
+  let delta = disco.discoConf.registerationWindow.seconds.uint64
   let windowEnd = windowStart + delta
 
   if now >= windowStart and now <= windowEnd:
     # Valid retry, calculate remaining time using accumulated wait
     # from original t_init (RFC spec requirement)
-    let totalWaitSoFar = float64(now - ticketVal.t_init)
-    t_remaining = t_wait - totalWaitSoFar
+    let totalWaitSoFar = now - ticketMsg.tInit
+    t_remaining = t_wait - totalWaitSoFar.float64
 
   return t_remaining
 
@@ -283,7 +257,7 @@ proc acceptAdvertisement*(
     disco: KademliaDiscovery,
     serviceId: ServiceId,
     ad: Advertisement,
-    now: int64,
+    now: uint64,
     closerPeers: seq[Peer],
     conn: Connection,
 ) {.async: (raises: []).} =
@@ -336,8 +310,8 @@ proc waitOrRejectAdvertisement*(
 
   var ticket = ticket
 
-  ticket.t_wait_for = min(disco.discoConf.advertExpiry.uint32, t_remaining.uint32)
-  ticket.t_mod = getTime().toUnix()
+  ticket.tWaitFor = min(disco.discoConf.advertExpiry.uint32, t_remaining.uint32)
+  ticket.tMod = getTime().toUnix().uint64
 
   ticket.sign(disco.switch.peerInfo.privateKey).isOkOr:
     error "Failed to sign ticket", err = error
@@ -354,7 +328,7 @@ proc handleGetAds*(
   let serviceId = msg.key
 
   # Prune expired ads first
-  disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry)
+  disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
   # Get cached ads for this service
   var ads: seq[Advertisement]
@@ -410,14 +384,14 @@ proc handleRegister*(
     await conn.sendRegisterReject(closerPeers)
     return
 
-  let now = getTime().toUnix()
+  let now = getTime().toUnix().uint64
 
   # Prune expired ads first
-  disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry)
+  disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
   # Calculate wait time with lower bound enforcement
   let t_wait = disco.registrar.waitingTime(
-    disco.discoConf, ad, disco.discoConf.advertCacheCap, serviceId, now
+    disco.discoConf, ad, disco.discoConf.advertCacheCap.uint64, serviceId, now
   )
 
   # Update lower bounds for service and IP (RFC section: Lower Bound Enforcement)
@@ -433,6 +407,10 @@ proc handleRegister*(
 
   # Send Wait response with ticket
   let ticket = Ticket(
-    ad: regMsg.advertisement, t_init: now, t_mod: now, t_wait_for: 0, signature: @[]
+    advertisement: regMsg.advertisement,
+    tInit: now,
+    tMod: now,
+    tWaitFor: 0,
+    signature: @[],
   )
   await waitOrRejectAdvertisement(closerPeers, conn, t_remaining, ticket, disco)

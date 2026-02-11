@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, times]
+import std/sets
 import chronos, chronicles, results
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
@@ -16,30 +16,7 @@ export kad_types, randomfind, cap_types, registrar, advertiser, discoverer
 logScope:
   topics = "kad-disco"
 
-proc record*(
-    disco: KademliaDiscovery
-): Future[Result[SignedExtendedPeerRecord, string]] {.async: (raises: []).} =
-  let updateRes = catch:
-    await disco.switch.peerInfo.update()
-  if updateRes.isErr:
-    return err("Failed to update peer info: " & updateRes.error.msg)
-
-  let
-    peerInfo: PeerInfo = disco.switch.peerInfo
-    services: seq[ServiceInfo] = disco.services.toSeq()
-
-  let extPeerRecord = SignedExtendedPeerRecord.init(
-    peerInfo.privateKey,
-    ExtendedPeerRecord(
-      peerId: peerInfo.peerId,
-      seqNo: getTime().toUnix().uint64,
-      addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-      services: services,
-    ),
-  ).valueOr:
-    return err("Failed to create signed peer record: " & $error)
-
-  return ok(extPeerRecord)
+const CapabilityDiscoveryCodec = "/logos/capability-discovery/1.0.0"
 
 proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: []).} =
   let extPeerRecord = (await disco.record()).valueOr:
@@ -68,7 +45,7 @@ proc maintainRegistrarCache(
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "prune expired advertisements",
     chronos.seconds(int(disco.discoConf.advertExpiry)):
-    disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry)
+    disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
 proc maintainTables(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh service routing tables", disco.config.bucketRefreshTime:
@@ -81,7 +58,7 @@ proc new*(
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
     client: bool = false,
-    codec: string = LogosCapabilityDiscoveryCodec,
+    codec: string = CapabilityDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
     discoConf: KademliaDiscoveryConfig = KademliaDiscoveryConfig.new(),
 ): T {.raises: [].} =
@@ -99,7 +76,6 @@ proc new*(
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     registrar: Registrar.new(),
     advertiser: Advertiser.new(),
-    discoverer: Discoverer.new(),
     serviceRoutingTables: ServiceRoutingTableManager.new(),
     services: toHashSet(services),
     discoConf: discoConf,

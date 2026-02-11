@@ -4,15 +4,17 @@
 
 import results
 import ../../../libp2p/[peerid, crypto/crypto, multiaddress]
-import ../../../libp2p/protocols/capability_discovery/[types, protobuf]
+import ../../../libp2p/protocols/capability_discovery/types
+import ../../../libp2p/protocols/kademlia/protobuf
 import ../../tools/[unittest, crypto]
 
 suite "Kademlia Discovery Signatures":
   test "Ticket sign and verify with matching key":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
     var ad = @[1'u8, 2, 3, 4]
-    var ticket =
-      Ticket(ad: ad, t_init: 1000000, t_mod: 2000000, t_wait_for: 3000, signature: @[])
+    var ticket = Ticket(
+      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
+    )
 
     let privateKey = PrivateKey.random(rng[]).get()
     let signResult = ticket.sign(privateKey)
@@ -24,8 +26,9 @@ suite "Kademlia Discovery Signatures":
   test "Ticket verification fails with wrong key":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
     var ad = @[1'u8, 2, 3, 4]
-    var ticket =
-      Ticket(ad: ad, t_init: 1000000, t_mod: 2000000, t_wait_for: 3000, signature: @[])
+    var ticket = Ticket(
+      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
+    )
 
     let privateKey = PrivateKey.random(rng[]).get()
     let signResult = ticket.sign(privateKey)
@@ -34,11 +37,12 @@ suite "Kademlia Discovery Signatures":
     let wrongPublicKey = PrivateKey.random(rng[]).get().getPublicKey().get()
     check ticket.verify(wrongPublicKey) == false
 
-  test "Ticket verification fails with tampered t_init":
+  test "Ticket verification fails with tampered tInit":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
     var ad = @[1'u8, 2, 3, 4]
-    var ticket =
-      Ticket(ad: ad, t_init: 1000000, t_mod: 2000000, t_wait_for: 3000, signature: @[])
+    var ticket = Ticket(
+      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
+    )
 
     let privateKey = PrivateKey.random(rng[]).get()
     let signResult = ticket.sign(privateKey)
@@ -46,15 +50,16 @@ suite "Kademlia Discovery Signatures":
 
     let publicKey = privateKey.getPublicKey().get()
 
-    # Tamper with t_init
-    ticket.t_init = 9999999
+    # Tamper with tInit
+    ticket.tInit = 9999999
     check ticket.verify(publicKey) == false
 
-  test "Ticket verification fails with tampered t_mod":
+  test "Ticket verification fails with tampered tMod":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
     var ad = @[1'u8, 2, 3, 4]
-    var ticket =
-      Ticket(ad: ad, t_init: 1000000, t_mod: 2000000, t_wait_for: 3000, signature: @[])
+    var ticket = Ticket(
+      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
+    )
 
     let privateKey = PrivateKey.random(rng[]).get()
     let signResult = ticket.sign(privateKey)
@@ -62,15 +67,16 @@ suite "Kademlia Discovery Signatures":
 
     let publicKey = privateKey.getPublicKey().get()
 
-    # Tamper with t_mod
-    ticket.t_mod = 8888888
+    # Tamper with tMod
+    ticket.tMod = 8888888
     check ticket.verify(publicKey) == false
 
-  test "Ticket verification fails with tampered t_wait_for":
+  test "Ticket verification fails with tampered tWaitFor":
     let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
     var ad = @[1'u8, 2, 3, 4]
-    var ticket =
-      Ticket(ad: ad, t_init: 1000000, t_mod: 2000000, t_wait_for: 3000, signature: @[])
+    var ticket = Ticket(
+      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
+    )
 
     let privateKey = PrivateKey.random(rng[]).get()
     let signResult = ticket.sign(privateKey)
@@ -78,6 +84,6 @@ suite "Kademlia Discovery Signatures":
 
     let publicKey = privateKey.getPublicKey().get()
 
-    # Tamper with t_wait_for
-    ticket.t_wait_for = 7777
+    # Tamper with tWaitFor
+    ticket.tWaitFor = 7777
     check ticket.verify(publicKey) == false

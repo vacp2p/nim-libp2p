@@ -22,14 +22,6 @@ suite "Kademlia Discovery Discoverer - Initialization":
   test "Discoverer.new creates empty serviceRoutingTables":
     let disco = createMockDiscovery()
 
-    check disco.discoverer != nil
-    check disco.serviceRoutingTables.count == 0
-
-  test "KademliaDiscovery has discoverer initialized":
-    let disco = createMockDiscovery()
-
-    check disco.discoverer != nil
-    # serviceRoutingTables should be initialized and empty
     check disco.serviceRoutingTables.count == 0
 
 suite "Kademlia Discovery Discoverer - Service Lookup":
