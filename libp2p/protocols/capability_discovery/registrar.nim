@@ -15,7 +15,7 @@ import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
 import ../kademlia/routingtable
 import ../kademlia_discovery/types
-import ./[types, iptree, protobuf, serviceroutingtables]
+import ./[types, iptree, serviceroutingtables]
 
 logScope:
   topics = "cap-disco registrar"

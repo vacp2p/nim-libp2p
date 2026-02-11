@@ -14,6 +14,8 @@ import ./[types, serviceroutingtables]
 logScope:
   topics = "cap-disco advertiser"
 
+proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).}
+
 proc new*(T: typedesc[Advertiser]): T =
   T(actionQueue: @[])
 
@@ -33,6 +35,22 @@ proc scheduleAction*(
   let idx = disco.advertiser.actionQueue.lowerBound(action, actionCmp)
 
   disco.advertiser.actionQueue.insert(action, idx)
+
+proc processAction*(disco: KademliaDiscovery) =
+  if disco.advertiseLoop.isNil and disco.advertiser.actionQueue.len > 0:
+    disco.advertiseLoop = disco.runAdvertiseLoop()
+
+proc scheduleAndProcessAction*(
+    disco: KademliaDiscovery,
+    serviceId: ServiceId,
+    registrar: PeerId,
+    bucketIdx: int,
+    scheduledTime: Moment,
+    ticket: Opt[Ticket] = Opt.none(Ticket),
+) =
+  disco.scheduleAction(serviceId, registrar, bucketIdx, scheduledTime, ticket)
+
+  disco.processAction()
 
 proc sendRegister*(
     kad: KademliaDiscovery,
@@ -119,7 +137,9 @@ proc advertise*(
   of protobuf.RegistrationStatus.Confirmed:
     # Schedule re-advertisement after advertExpiry
     let nextTime = Moment.now() + chronos.seconds(int(disco.discoConf.advertExpiry))
-    disco.scheduleAction(serviceId, registrar, bucketIdx, nextTime, Opt.none(Ticket))
+    disco.scheduleAndProcessAction(
+      serviceId, registrar, bucketIdx, nextTime, Opt.none(Ticket)
+    )
   of protobuf.RegistrationStatus.Wait:
     let newTicket = newTicketOpt.valueOr:
       error "no ticket to retry with"
@@ -128,7 +148,9 @@ proc advertise*(
     # Schedule retry after t_wait_for
     let waitTime = min(disco.discoConf.advertExpiry, newTicket.tWaitFor.float64)
     let nextTime = Moment.now() + chronos.seconds(int(waitTime))
-    disco.scheduleAction(serviceId, registrar, bucketIdx, nextTime, Opt.some(newTicket))
+    disco.scheduleAndProcessAction(
+      serviceId, registrar, bucketIdx, nextTime, Opt.some(newTicket)
+    )
   of protobuf.RegistrationStatus.Rejected:
     # Don't reschedule - this registrar rejected us
     return
@@ -161,6 +183,8 @@ proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
 
       disco.scheduleAction(serviceId, peerId, bucketIdx, Moment.now(), Opt.none(Ticket))
 
+  disco.processAction()
+
 proc removeProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
   ## Exclude this service from the set of services this node provides.
 
@@ -174,8 +198,7 @@ proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledErr
     let queue = disco.advertiser.actionQueue
 
     if queue.len == 0:
-      await sleepAsync(1)
-      continue
+      return
 
     let (scheduledTime, serviceId, registrar, bucketIdx, ticket) = queue[0]
     let now = Moment.now()
