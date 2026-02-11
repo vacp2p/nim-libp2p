@@ -870,7 +870,10 @@ proc onHeartbeat(g: GossipSub) =
     # only ihave from here
     for ihave in control.ihave:
       libp2p_pubsub_broadcast_ihave.inc(labelValues = [g.topicLabel(ihave.topicID)])
+
       if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
+        # send IHAVE only if peer has not requested partial for topic.
+        # these peers will receive gossip of partial metadata via extension.
         g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
 
   g.mcache.shift() # shift the cache
