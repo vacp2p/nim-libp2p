@@ -11,21 +11,44 @@
 {.used.}
 
 import chronicles, chronos, results
-import std/[enumerate, sequtils, os]
+import std/[strformat, enumerate, sequtils]
 import
   ../libp2p/[
     protocols/mix,
     protocols/mix/mix_node,
     protocols/mix/mix_protocol,
+    protocols/mix/curve25519,
     protocols/ping,
     peerid,
     multiaddress,
     switch,
     builders,
+    crypto/crypto,
     crypto/secp,
   ]
 
 const NumMixNodes = 10
+
+proc generateMixNodes(count: int, basePort: int = 4242): seq[MixNodeInfo] =
+  var nodes = newSeq[MixNodeInfo](count)
+  for i in 0 ..< count:
+    let (mixPrivKey, mixPubKey) = generateKeyPair().expect("Generate key pair error")
+    let
+      rng = newRng()
+      keyPair = SkKeyPair.random(rng[])
+      pubKeyProto = PublicKey(scheme: Secp256k1, skkey: keyPair.pubkey)
+      peerId = PeerId.init(pubKeyProto).expect("PeerId init error")
+      multiAddr = MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{basePort + i}").tryGet()
+
+    nodes[i] = MixNodeInfo(
+      peerId: peerId,
+      multiAddr: multiAddr,
+      mixPubKey: mixPubKey,
+      mixPrivKey: mixPrivKey,
+      libp2pPubKey: keyPair.pubkey,
+      libp2pPrivKey: keyPair.seckey,
+    )
+  nodes
 
 proc createSwitch(
     multiAddr: MultiAddress, libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey)
@@ -35,36 +58,30 @@ proc createSwitch(
   let privKey = PrivateKey(scheme: Secp256k1, skkey: skkey)
   newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
 
-proc setupSwitches(numNodes: int): seq[Switch] =
-  # Initialize mix nodes
-  let mixNodes = initializeMixNodes(numNodes).expect("could not initialize nodes")
-  var nodes: seq[Switch] = @[]
-
-  for index, mixNode in enumerate(mixNodes):
-    let pubInfo =
-      mixNodes.getMixPubInfoByIndex(index).expect("could not obtain pub info")
-
-    pubInfo.writeToFile(index).expect("could not write pub info")
-    mixNode.writeToFile(index).expect("could not write mix info")
-
-    let switch = createSwitch(mixNode.multiAddr, Opt.some(mixNode.libp2pPrivKey))
-    nodes.add(switch)
-
-  nodes
-
 proc mixPingSimulation() {.async: (raises: [Exception]).} =
-  let switches = setupSwitches(NumMixNodes)
+  let mixNodes = generateMixNodes(NumMixNodes)
+  var switches: seq[Switch] = @[]
+  for mixNode in mixNodes:
+    switches.add(createSwitch(mixNode.multiAddr, Opt.some(mixNode.libp2pPrivKey)))
 
   defer:
     await switches.mapIt(it.stop()).allFutures()
-    deleteNodeInfoFolder()
-    deletePubInfoFolder()
 
   var mixProtos: seq[MixProtocol] = @[]
 
   # Set up mix protocols on each mix node
   for index, _ in enumerate(switches):
-    let proto = MixProtocol.new(index, switches.len, switches[index])
+    let proto = MixProtocol.new(mixNodes[index], switches[index])
+
+    # Populate nodePool with all other nodes' public info
+    for otherIndex, otherNode in enumerate(mixNodes):
+      if otherIndex != index:
+        proto.nodePool.add(
+          MixPubInfo.init(
+            otherNode.peerId, otherNode.multiAddr, otherNode.mixPubKey,
+            otherNode.libp2pPubKey,
+          )
+        )
 
     # Register how to read ping responses (32 bytes exactly)
     proto.registerDestReadBehavior(PingCodec, readExactly(32))
