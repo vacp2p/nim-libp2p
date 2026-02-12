@@ -35,7 +35,6 @@ proc mkAd*(addrs: openArray[string]): Advertisement =
   Advertisement(addrs: (@addrs).mapIt(MultiAddress.init(it).tryGet()))
 
 suite "Capability Discovery - IpTree":
-
   # Creating a new tree yields an empty root counter and no children.
   test "new tree has counter 0":
     let tree = IpTree.new()
