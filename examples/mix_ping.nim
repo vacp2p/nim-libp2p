@@ -47,7 +47,7 @@ proc mixPingSimulation() {.async: (raises: [Exception]).} =
     let proto = MixProtocol.new(nodeInfo, switch)
 
     # Populate nodePool with all other nodes' public info
-    proto.nodePool.add(MixPubInfo.includeAllExcept(mixNodeInfos, nodeInfo))
+    proto.nodePool.add(mixNodeInfos.includeAllExcept(nodeInfo))
 
     # Register how to read ping responses (32 bytes exactly)
     proto.registerDestReadBehavior(PingCodec, readExactly(32))

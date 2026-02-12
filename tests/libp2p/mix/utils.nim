@@ -67,7 +67,7 @@ proc setupMixNodes*(
     let mixNode = setupMixNode[MixProtocol](
       mixNodeInfo, switch, destReadBehavior, spamProtectionRateLimit
     )
-    mixNode.nodePool.add(MixPubInfo.includeAllExcept(nodeInfos, mixNodeInfo))
+    mixNode.nodePool.add(nodeInfos.includeAllExcept(mixNodeInfo))
     nodes.add(mixNode)
 
   nodes
@@ -88,7 +88,7 @@ proc setupMixNodesWithMock*(
   let mock = setupMixNode[MockMixProtocol](
     mockMixNodeInfo, mockSwitch, destReadBehavior, Opt.none(int)
   )
-  mock.nodePool.add(MixPubInfo.includeAllExcept(nodeInfos, mockMixNodeInfo))
+  mock.nodePool.add(nodeInfos.includeAllExcept(mockMixNodeInfo))
   nodes.add(mock)
 
   for index in 1 ..< numNodes:
@@ -97,7 +97,7 @@ proc setupMixNodesWithMock*(
       createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))
     let mixNode =
       setupMixNode[MixProtocol](mixNodeInfo, switch, destReadBehavior, Opt.none(int))
-    mixNode.nodePool.add(MixPubInfo.includeAllExcept(nodeInfos, mixNodeInfo))
+    mixNode.nodePool.add(nodeInfos.includeAllExcept(mixNodeInfo))
     nodes.add(mixNode)
 
   (nodes, mock)

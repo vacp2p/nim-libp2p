@@ -83,7 +83,7 @@ proc toMixPubInfo*(info: MixNodeInfo): MixPubInfo =
   MixPubInfo.init(info.peerId, info.multiAddr, info.mixPubKey, info.libp2pPubKey)
 
 proc includeAllExcept*(
-    T: typedesc[MixPubInfo], all: seq[MixNodeInfo], exceptNode: MixNodeInfo
+    all: seq[MixNodeInfo], exceptNode: MixNodeInfo
 ): seq[MixPubInfo] =
   var nodeInfos = newSeq[MixPubInfo]()
   for n in all:
