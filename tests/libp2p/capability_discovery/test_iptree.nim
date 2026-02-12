@@ -153,11 +153,12 @@ suite "Capability Discovery - IpTree":
   # adScore should safely ignore non-ip4 addrs, and still consider any valid IPv4 addrs.
   test "adScore ignores non-ip4 multiaddrs and does not crash":
     var tree = mkTree(["192.168.1.1"])
-    let ad = mkAd([
-      "/dns4/example.com/tcp/4001",
-      "/ip4/192.168.1.2/tcp/4001",
-      "/ip6/2001:db8::1/tcp/4001"
-    ])
+    let ad = mkAd(
+      [
+        "/dns4/example.com/tcp/4001", "/ip4/192.168.1.2/tcp/4001",
+        "/ip6/2001:db8::1/tcp/4001",
+      ]
+    )
 
     let score = tree.adScore(ad)
     check score <= 1.0
