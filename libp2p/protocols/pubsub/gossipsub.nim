@@ -420,10 +420,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     if isPruneNotEmpty:
       for prune in respControl.prune:
-        if g.knownTopics.contains(prune.topicID):
-          libp2p_pubsub_broadcast_prune.inc(labelValues = [prune.topicID])
-        else:
-          libp2p_pubsub_broadcast_prune.inc(labelValues = ["generic"])
+        libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
     trace "sending control message", payload = shortLog(respControl), peer
     g.send(peer, RPCMsg(control: some(respControl)), isHighPriority = true)
@@ -433,11 +430,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       var preambles: seq[ControlPreamble]
 
     for i, smsg in messages:
-      let topic = smsg.topic
-      if g.knownTopics.contains(topic):
-        libp2p_pubsub_broadcast_messages.inc(labelValues = [topic])
-      else:
-        libp2p_pubsub_broadcast_messages.inc(labelValues = ["generic"])
+      libp2p_pubsub_broadcast_messages.inc(labelValues = [g.topicLabel(smsg.topic)])
 
       when defined(libp2p_gossipsub_1_4):
         # should we send preamble here? (Not in specs so far)
@@ -627,14 +620,9 @@ proc validateAndRelay(
     g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
-    if g.knownTopics.contains(topic):
-      libp2p_pubsub_messages_rebroadcasted.inc(
-        toSendPeers.len.int64, labelValues = [topic]
-      )
-    else:
-      libp2p_pubsub_messages_rebroadcasted.inc(
-        toSendPeers.len.int64, labelValues = ["generic"]
-      )
+    libp2p_pubsub_messages_rebroadcasted.inc(
+      toSendPeers.len.int64, labelValues = [g.topicLabel(topic)]
+    )
 
     await handleData(g, topic, msg.data)
   except CancelledError as exc:
@@ -999,10 +987,9 @@ method publish*(
     useCustomConn = pubParams.useCustomConn,
   )
 
-  if g.knownTopics.contains(topic):
-    libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = [topic])
-  else:
-    libp2p_pubsub_messages_published.inc(peers.len.int64, labelValues = ["generic"])
+  libp2p_pubsub_messages_published.inc(
+    peers.len.int64, labelValues = [g.topicLabel(topic)]
+  )
 
   trace "Published message to peers", count = peers.len
 
@@ -1013,10 +1000,9 @@ proc publishPartial*(
 ): Future[void] {.async: (raises: []).} =
   let count = g.extensionsState.publishPartial(topic, pm)
 
-  if g.knownTopics.contains(topic):
-    libp2p_pubsub_messages_published_partial.inc(count.int64, labelValues = [topic])
-  else:
-    libp2p_pubsub_messages_published_partial.inc(count.int64, labelValues = ["generic"])
+  libp2p_pubsub_messages_published_partial.inc(
+    count.int64, labelValues = [g.topicLabel(topic)]
+  )
 
   trace "Published partial message to peers", count = count
 

@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, tables, results, strutils, stew/byteutils
+import chronos, tables, results, strutils, stew/byteutils, sequtils
 import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/
@@ -259,7 +259,9 @@ suite "GossipSub Extensions :: Partial Message Extension":
       cr.sentRPC.len == 2
       cr.sentRPC[1] ==
         PartialMessageExtensionRPC(
-          groupID: groupId, topicID: topic, partsMetadata: pm2.partsMetadata()
+          groupID: groupId,
+          topicID: topic,
+          partsMetadata: pm.partsMetadata() & pm2.partsMetadata(),
         )
 
   test "heartbeat evicts metadata":
@@ -349,3 +351,42 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # should publish with groupId
     pm.groupId = groupId
     check ext.publishPartial(topic, pm) == 1
+
+  test "gossip metadata":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder()
+    var cfg = cr.config()
+    cfg.heartbeatsTillEviction = 100 # do not evict for this test
+    var ext = PartialMessageExtension.new(cfg)
+
+    # publishing a partial message will store the parts metadata.
+    # however, since no one is subscribed, nothing will actually be published.
+    let pm = MyPartialMessage(
+      groupId: groupId,
+      data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
+    )
+    check ext.publishPartial(topic, pm) == 0
+    check cr.sentRPC.len == 0
+
+    # subscribe peer to topic (requesting partial).
+    ext.subscribe(peerId, topic, true)
+
+    # then when gossip happens (on heartbeat), parts metadata 
+    # should be sent to all peers.
+    ext.onHeartbeat()
+
+    # and because peer has requested partial messages, then
+    # it will receive gossip message.
+    check:
+      cr.sentRPC.len == 1
+      cr.sentRPC[0] ==
+        PartialMessageExtensionRPC(
+          topicID: topic,
+          groupID: groupId,
+          partsMetadata: MyPartsMetadata.have(toSeq(pm.data.keys)),
+        )
+
+    # doing gossip again should not send any new messages,
+    # because peer already knows the same parts metadata.
+    ext.onHeartbeat()
+    check cr.sentRPC.len == 1
