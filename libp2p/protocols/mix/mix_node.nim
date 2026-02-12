@@ -31,17 +31,14 @@ proc initMixNodeInfo*(
   )
 
 proc generateRandom*(T: typedesc[MixNodeInfo], port: int): MixNodeInfo =
-  let (mixPrivKey, mixPubKey) = generateKeyPair().expect("Generate key pair error")
   let
-    rng = newRng()
-    keyPair = SkKeyPair.random(rng[])
+    (mixPrivKey, mixPubKey) = generateKeyPair().expect("Generate key pair error")
+    keyPair = SkKeyPair.random(newRng()[])
     pubKeyProto = PublicKey(scheme: Secp256k1, skkey: keyPair.pubkey)
-    peerId = PeerId.init(pubKeyProto).expect("PeerId init error")
-    multiAddr = MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{port}").tryGet()
 
   MixNodeInfo(
-    peerId: peerId,
-    multiAddr: multiAddr,
+    peerId: PeerId.init(pubKeyProto).expect("PeerId init error"),
+    multiAddr: MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{port}").tryGet(),
     mixPubKey: mixPubKey,
     mixPrivKey: mixPrivKey,
     libp2pPubKey: keyPair.pubkey,
