@@ -18,6 +18,7 @@ import
     crypto/crypto,
     crypto/secp,
   ]
+from ../../../libp2p/protocols/mix/fragmentation import DataSize
 
 import ../../tools/[lifecycle, unittest]
 import ./utils
@@ -302,11 +303,10 @@ suite "Mix Protocol Component":
     let (destNode, _) = await setupDestNode(destProto)
 
     # Force separate SURB paths: nodes[2..4] for SURB 0, nodes[5..7] for SURB 1
-    mock.surbPeerSets =
-      @[
-        nodes[2 .. 4].mapIt(it.switch.peerInfo.peerId),
-        nodes[5 .. 7].mapIt(it.switch.peerInfo.peerId),
-      ]
+    mock.surbPeerSets = @[
+      nodes[2 .. 4].mapIt(it.switch.peerInfo.peerId),
+      nodes[5 .. 7].mapIt(it.switch.peerInfo.peerId),
+    ]
 
     await startNodes(nodes)
     defer:
@@ -386,3 +386,61 @@ suite "Mix Protocol Component":
 
     expect LPStreamError:
       await conn.writeLp(@[1.byte, 2, 3])
+
+  asyncTest "toConnection rejects expectReply without destReadBehavior":
+    let nodes = await setupMixNodes(10) # no destReadBehavior registered
+    startAndDeferStop(nodes)
+
+    let (destNode, _) = await setupDestNode(Ping.new())
+    defer:
+      await stopDestNode(destNode)
+
+    let conn = nodes[0].toConnection(
+      MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+      "/test/codec",
+      MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
+    )
+
+    check:
+      conn.isErr
+      conn.error == "no destination read behavior for codec"
+
+  asyncTest "read from write-only connection raises error":
+    let nodes = await setupMixNodes(10)
+    startAndDeferStop(nodes)
+
+    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    let conn = nodes[0]
+      .toConnection(
+        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        NoReplyProtocolCodec, # no expectReply, connection is write-only
+      )
+      .expect("could not build connection")
+    defer:
+      await conn.close()
+
+    expect LPStreamError:
+      discard await conn.readLp(1024)
+
+  asyncTest "write rejects oversized messages":
+    let nodes = await setupMixNodes(10)
+    startAndDeferStop(nodes)
+
+    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    let conn = nodes[0]
+      .toConnection(
+        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        NoReplyProtocolCodec,
+      )
+      .expect("could not build connection")
+    defer:
+      await conn.close()
+
+    expect LPStreamError:
+      await conn.write(newSeq[byte](DataSize + 1))
