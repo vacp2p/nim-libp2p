@@ -140,10 +140,7 @@ suite "Capability Discovery - IpTree":
   # adScore equals the minimum ipScore among all IPv4 addresses present in the advertisement.
   test "adScore uses the minimum ipScore among the ad's IPv4 addresses":
     var tree = mkTree(["192.168.1.1", "192.168.1.2"])
-    let ad = mkAd([
-      "/ip4/192.168.1.3/tcp/4001",
-      "/ip4/10.0.0.1/tcp/4001"
-    ])
+    let ad = mkAd(["/ip4/192.168.1.3/tcp/4001", "/ip4/10.0.0.1/tcp/4001"])
 
     let score = tree.adScore(ad)
     let expected = min(
