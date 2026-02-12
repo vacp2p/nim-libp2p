@@ -152,9 +152,11 @@ proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
 proc makeControlExtensions*(state: ExtensionsState): ControlExtensions =
   return state.nodeExtensions
 
-proc publishPartial*(state: ExtensionsState, topic: string, pm: PartialMessage): int =
+proc publishPartial*(
+    state: ExtensionsState, topic: string, pm: PartialMessage, peers: seq[PeerId] = @[]
+): int =
   state.partialMessageExtension.withValue(e):
-    return e.publishPartial(topic, pm)
+    return e.publishPartial(topic, pm, peers)
   else:
     # raises because this proc is called by user
     raiseAssert "partial message extension is not configured"
