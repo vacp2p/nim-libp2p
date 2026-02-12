@@ -57,6 +57,7 @@ type
   .}
 
   ConnManager* = ref object of RootObj
+    closed: bool
     maxConnsPerPeer: int
     maxConnectionsIn: int
     maxConnectionsOut: int
@@ -128,23 +129,37 @@ proc peerIsReady(c: ConnManager, peerId: PeerId) =
       readyEvent[].complete()
     c.readyEvents.del(peerId)
 
+proc peerIsNotReady(c: ConnManager, peerId: PeerId) =
+  c.readyPeers.excl(peerId)
+  c.readyEvents.withValue(peerId, readyEvent):
+    if not readyEvent[].finished:
+      readyEvent[].cancelSoon()
+    c.readyEvents.del(peerId)
+
 proc waitForPeerReady*(
     c: ConnManager, peerId: PeerId, timeout = 5.seconds
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## Wait until `storeMuxer` has emitted the `Connected` conn event for `peerId`.
   ## Existing ready peers bypass waiting.
+  if c.closed:
+    return false
+
   if peerId in c.readyPeers:
     return true
 
   let readyEvent = c.getReadyEvent(peerId)
-  if timeout <= 0.seconds:
-    await readyEvent
-    return true
+  if c.closed:
+    if not readyEvent.finished:
+      readyEvent.cancelSoon()
+    return false
 
-  let ready = await readyEvent.withTimeout(timeout)
-  if not ready:
-    c.readyEvents.del(peerId)
-  ready
+  let readyJoin = readyEvent.join()
+  if timeout <= 0.seconds:
+    await readyJoin
+  elif not (await readyJoin.withTimeout(timeout)):
+    return false
+
+  return readyEvent.finished and not readyEvent.cancelled()
 
 proc maxConnections*(c: ConnManager, dir: Direction): int =
   if dir == Direction.In: c.maxConnectionsIn else: c.maxConnectionsOut
@@ -285,8 +300,7 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     if muxers.len > 0:
       c.muxed[peerId] = muxers
     else:
-      c.readyPeers.excl(peerId)
-      c.readyEvents.del(peerId)
+      c.peerIsNotReady(peerId)
       c.muxed.del(peerId)
       libp2p_peers.set(c.muxed.len.int64)
       await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
@@ -480,6 +494,7 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   ##
 
   trace "Closing ConnManager"
+  c.closed = true
   let muxed = c.muxed
   c.muxed.clear()
 
@@ -488,6 +503,11 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   for _, fut in expected:
     await fut.cancelAndWait()
+
+  let readyEvents = c.readyEvents
+  for _, readyEvent in readyEvents:
+    if not readyEvent.finished:
+      readyEvent.cancelSoon()
 
   for _, muxers in muxed:
     for mux in muxers:
