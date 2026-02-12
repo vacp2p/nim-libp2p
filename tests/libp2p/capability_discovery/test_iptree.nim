@@ -4,8 +4,7 @@ import ../../../libp2p/protocols/capability_discovery/[iptree, types]
 import ../../../libp2p/multiaddress
 import ../../../libp2p/protocols/connectivity/autonat/utils
 
-const
-  Eps = 1e-9
+const Eps = 1e-9
 
 proc mkIp*(s: string): IpAddress =
   parseIpAddress(s)
