@@ -143,10 +143,8 @@ suite "Capability Discovery - IpTree":
     let ad = mkAd(["/ip4/192.168.1.3/tcp/4001", "/ip4/10.0.0.1/tcp/4001"])
 
     let score = tree.adScore(ad)
-    let expected = min(
-      tree.ipScore(mkIp("192.168.1.3")),
-      tree.ipScore(mkIp("10.0.0.1"))
-    )
+    let expected =
+      min(tree.ipScore(mkIp("192.168.1.3")), tree.ipScore(mkIp("10.0.0.1")))
 
     check abs(score - expected) < Eps
 
