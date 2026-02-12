@@ -143,9 +143,8 @@ proc updateLowerBounds*(
 proc getRegistrarCloserPeers*(
     disco: KademliaDiscovery, serviceId: ServiceId, count: int
 ): seq[Peer] {.raises: [].} =
-  ## Get closer peers from registrar table for a service
-  ## Falls back to main DHT if table is empty or not found
-  ## Returns properly formatted Peer objects for responses
+  ## Get closer peers from registrar table for a service.
+  ## Falls back to main DHT if table is empty or not found.
 
   var closerPeerKeys: seq[Key] = @[]
   block thisBlock:
@@ -157,14 +156,13 @@ proc getRegistrarCloserPeers*(
         let closerPeer = bucket.randomPeerInBucket(disco.rng)
         closerPeerKeys.add(closerPeer)
 
-  # Fall back to main DHT if regTable not found or empty
   if closerPeerKeys.len == 0:
     closerPeerKeys = disco.rtable.findClosest(serviceId, count)
 
   var closerPeers: seq[Peer] = @[]
   for peerKey in closerPeerKeys:
     let peerId = peerKey.toPeerId().valueOr:
-      debug "Failed to convert key to peer id", error = error
+      debug "failed to convert key to peer id", error
       continue
 
     let addrs = disco.switch.peerStore[AddressBook][peerId]
@@ -181,8 +179,7 @@ proc sendRegisterResponse*(
     closerPeers: seq[Peer],
     ticket: Opt[Ticket] = Opt.none(Ticket),
 ) {.async: (raises: []).} =
-  ## Unified response sender for REGISTER messages
-  ## Handles Confirmed, Rejected, and Wait responses
+  ## Sender for REGISTER message responses
 
   let msg = Message(
     msgType: MessageType.register,
@@ -196,26 +193,25 @@ proc sendRegisterResponse*(
   let writeRes = catch:
     await conn.writeLp(bytes)
   if writeRes.isErr:
-    error "Failed to send register response", err = writeRes.error.msg
+    error "failed to send register response", err = writeRes.error.msg
+    return
 
 proc sendRegisterReject*(
     conn: Connection, closerPeers: seq[Peer] = @[]
 ) {.async: (raises: []).} =
-  ## Helper to send a rejection response
   await conn.sendRegisterResponse(
     kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
   )
 
 proc validateRegisterMessage*(regMsg: RegisterMessage): Opt[Advertisement] =
   ## Validate register message and decode/verify advertisement
-  ## Returns none if invalid, with appropriate debug logging
+  ## Returns none if invalid.
 
   if regMsg.advertisement.len == 0:
-    debug "No advertisement provided in register message"
     return Opt.none(Advertisement)
 
   let ad = Advertisement.decode(regMsg.advertisement).valueOr:
-    debug "Invalid advertisement received", err = error
+    error "invalid advertisement received", error
     return Opt.none(Advertisement)
 
   return Opt.some(ad)
@@ -230,22 +226,20 @@ proc processRetryTicket*(
   ## Process retry ticket if provided
   ## Returns remaining wait time (or t_wait if no valid ticket)
 
-  var t_remaining = t_wait
-
   let ticketMsg = regMsg.ticket.valueOr:
-    return t_remaining
+    return t_wait
 
   # Compare ticket.ad bytes directly with regMsg.advertisement bytes
   if ticketMsg.advertisement != regMsg.advertisement:
-    return t_remaining
+    return t_wait
 
   # Verify ticket signature with registrar's key
   let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().valueOr:
     error "Failed to get registrar public key", error
-    return t_remaining
+    return t_wait
 
   if not ticketMsg.verify(registrarPubKey):
-    return t_remaining
+    return t_wait
 
   let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
   let delta = disco.discoConf.registerationWindow.seconds.uint64
@@ -253,11 +247,11 @@ proc processRetryTicket*(
 
   if now >= windowStart and now <= windowEnd:
     # Valid retry, calculate remaining time using accumulated wait
-    # from original t_init (RFC spec requirement)
+    # from original t_init
     let totalWaitSoFar = now - ticketMsg.tInit
-    t_remaining = t_wait - totalWaitSoFar.float64
+    return t_wait - totalWaitSoFar.float64
 
-  return t_remaining
+  return t_wait
 
 proc acceptAdvertisement*(
     disco: KademliaDiscovery,
@@ -269,14 +263,11 @@ proc acceptAdvertisement*(
 ) {.async: (raises: []).} =
   ## Accept and store advertisement, send Confirmed response
 
-  # Ensure service has a registrar table (create if needed)
   disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
   )
 
-  # Update regTable with peer info
   let peerKey = ad.data.peerId.toKey()
-
   disco.serviceRoutingTables.insertPeer(serviceId, peerKey)
 
   var ads = disco.registrar.cache.getOrDefault(serviceId)
@@ -320,7 +311,7 @@ proc waitOrRejectAdvertisement*(
   ticket.tMod = getTime().toUnix().uint64
 
   ticket.sign(disco.switch.peerInfo.privateKey).isOkOr:
-    error "Failed to sign ticket", err = error
+    error "failed to sign ticket", error
     await conn.sendRegisterReject(closerPeers)
 
   await conn.sendRegisterResponse(
@@ -331,12 +322,11 @@ proc handleGetAds*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: []).} =
   ## Handle GET_ADS request
+
   let serviceId = msg.key
 
-  # Prune expired ads first
   disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
-  # Get cached ads for this service
   var ads: seq[Advertisement]
   for ad in disco.registrar.cache.getOrDefault(serviceId, @[]):
     ads.add(ad)
@@ -344,7 +334,7 @@ proc handleGetAds*(
   var adBufs: seq[seq[byte]] = @[]
   for ad in ads:
     let encodedAd = ad.encode().valueOr:
-      error "Failed to encode ads", error
+      error "failed to encode ads", error
       continue
 
     adBufs.add(encodedAd)
@@ -353,11 +343,9 @@ proc handleGetAds*(
   let fReturn = min(adBufs.len, disco.discoConf.fReturn)
   adBufs.setLen(fReturn)
 
-  # Get closer peers using registrar table or fall back to main DHT
   let closerPeers =
     disco.getRegistrarCloserPeers(serviceId, disco.discoConf.bucketsCount)
 
-  # Send response with new nested GetAds message structure
   let msg = Message(
     msgType: MessageType.getAds,
     getAds: Opt.some(GetAdsMessage(advertisements: adBufs)),
@@ -368,16 +356,16 @@ proc handleGetAds*(
   let writeRes = catch:
     await conn.writeLp(bytes)
   if writeRes.isErr:
-    error "Failed to send get-ads response", err = writeRes.error.msg
+    error "failed to send get-ads response", error = writeRes.error.msg
+    return
 
 proc handleRegister*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: []).} =
-  ## Handle REGISTER request following RFC algorithm
+  ## Handle REGISTER request
 
   let serviceId = msg.key
 
-  # Get closer peers for responses (RFC requires closerPeers in all responses)
   let closerPeers =
     disco.getRegistrarCloserPeers(serviceId, disco.discoConf.bucketsCount)
 
@@ -391,22 +379,17 @@ proc handleRegister*(
 
   let now = getTime().toUnix().uint64
 
-  # Prune expired ads first
   disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
-  # Calculate wait time with lower bound enforcement
   let t_wait = disco.registrar.waitingTime(
     disco.discoConf, ad, disco.discoConf.advertCacheCap.uint64, serviceId, now
   )
 
-  # Update lower bounds for service and IP (RFC section: Lower Bound Enforcement)
   disco.registrar.updateLowerBounds(serviceId, ad, t_wait, now)
 
-  # Process retry ticket if provided
   let t_remaining = disco.processRetryTicket(regMsg, ad, t_wait, now)
 
   if t_remaining <= 0:
-    # Accept the advertisement
     await disco.acceptAdvertisement(serviceId, ad, now, closerPeers, conn)
     return
 
@@ -423,3 +406,5 @@ proc handleRegister*(
   )
 
   await waitOrRejectAdvertisement(closerPeers, conn, t_remaining, ticket, disco)
+
+  return
