@@ -294,7 +294,9 @@ proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
     trace "connection not found", peerId
   return mux
 
-proc storeMuxer*(c: ConnManager, muxer: Muxer) {.raises: [LPError].} =
+proc storeMuxer*(
+    c: ConnManager, muxer: Muxer
+) {.async: (raises: [CancelledError, LPError]).} =
   ## store the connection and muxer
   ##
 
@@ -333,7 +335,9 @@ proc storeMuxer*(c: ConnManager, muxer: Muxer) {.raises: [LPError].} =
     newPeer = true
   libp2p_peers.set(c.muxed.len.int64)
 
-  asyncSpawn c.triggerConnEvent(
+  asyncSpawn c.onClose(muxer)
+
+  await c.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In)
   )
 
@@ -341,8 +345,6 @@ proc storeMuxer*(c: ConnManager, muxer: Muxer) {.raises: [LPError].} =
     asyncSpawn c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
     )
-
-  asyncSpawn c.onClose(muxer)
 
   trace "Stored muxer", muxer, direction = $muxer.connection.dir, peers = c.muxed.len
 

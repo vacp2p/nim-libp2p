@@ -28,7 +28,7 @@ suite "Connection Manager":
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
     let mux = getMuxer(peerId)
 
-    connMngr.storeMuxer(mux)
+    await connMngr.storeMuxer(mux)
     check mux in connMngr
 
     let peerMux = connMngr.selectMuxer(peerId)
@@ -43,7 +43,7 @@ suite "Connection Manager":
     let peers = toSeq(0 ..< 2).mapIt(PeerId.random.tryGet())
     let muxs = toSeq(0 ..< 2).mapIt(getMuxer(peers[it]))
     for mux in muxs:
-      connMngr.storeMuxer(mux)
+      await connMngr.storeMuxer(mux)
 
     let conns = connMngr.getConnections()
     let connsMux = toSeq(conns.values).mapIt(it[0])
@@ -58,7 +58,7 @@ suite "Connection Manager":
     await mux.connection.close()
 
     expect LPError:
-      connMngr.storeMuxer(mux)
+      await connMngr.storeMuxer(mux)
 
     await connMngr.close()
 
@@ -69,7 +69,7 @@ suite "Connection Manager":
     mux.connection.isEof = true
 
     expect LPError:
-      connMngr.storeMuxer(mux)
+      await connMngr.storeMuxer(mux)
 
     await mux.close()
     await connMngr.close()
@@ -82,7 +82,7 @@ suite "Connection Manager":
     muxer.connection = nil
 
     expect LPError:
-      connMngr.storeMuxer(muxer)
+      await connMngr.storeMuxer(muxer)
 
     await conn.close()
     await muxer.close()
@@ -95,8 +95,8 @@ suite "Connection Manager":
     let mux1 = getMuxer(peerId, Direction.Out)
     let mux2 = getMuxer(peerId)
 
-    connMngr.storeMuxer(mux1)
-    connMngr.storeMuxer(mux2)
+    await connMngr.storeMuxer(mux1)
+    await connMngr.storeMuxer(mux2)
     check mux1 in connMngr
     check mux2 in connMngr
 
@@ -120,7 +120,7 @@ suite "Connection Manager":
     muxer.peerId = peerId
     muxer.connection = connection
 
-    connMngr.storeMuxer(muxer)
+    await connMngr.storeMuxer(muxer)
     check muxer in connMngr
 
     let stream = await connMngr.getStream(peerId)
@@ -140,7 +140,7 @@ suite "Connection Manager":
     muxer.peerId = peerId
     muxer.connection = connection
 
-    connMngr.storeMuxer(muxer)
+    await connMngr.storeMuxer(muxer)
     check muxer in connMngr
 
     let stream1 = await connMngr.getStream(peerId, Direction.In)
@@ -156,12 +156,12 @@ suite "Connection Manager":
     let connMngr = ConnManager.new(maxConnsPerPeer = 0)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
-    connMngr.storeMuxer(getMuxer(peerId))
+    await connMngr.storeMuxer(getMuxer(peerId))
 
     let muxs = @[getMuxer(peerId)]
 
     expect TooManyConnectionsError:
-      connMngr.storeMuxer(muxs[0])
+      await connMngr.storeMuxer(muxs[0])
 
     await connMngr.close()
 
@@ -172,12 +172,12 @@ suite "Connection Manager":
     let connMngr = ConnManager.new(maxConnsPerPeer = 0)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
 
-    connMngr.storeMuxer(getMuxer(peerId))
+    await connMngr.storeMuxer(getMuxer(peerId))
 
     let muxs = @[getMuxer(peerId), getMuxer(peerId)]
 
     expect TooManyConnectionsError:
-      connMngr.storeMuxer(muxs[0])
+      await connMngr.storeMuxer(muxs[0])
 
     let waitedConn1 = connMngr.expectConnection(peerId, In)
 
@@ -191,11 +191,11 @@ suite "Connection Manager":
         PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet(), In
       )
       conn = getMuxer(peerId)
-    connMngr.storeMuxer(conn)
+    await connMngr.storeMuxer(conn)
     check (await waitedConn2) == conn
 
     expect TooManyConnectionsError:
-      connMngr.storeMuxer(muxs[1])
+      await connMngr.storeMuxer(muxs[1])
 
     await connMngr.close()
 
@@ -209,7 +209,7 @@ suite "Connection Manager":
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
     let muxer = getMuxer(peerId)
 
-    connMngr.storeMuxer(muxer)
+    await connMngr.storeMuxer(muxer)
 
     check muxer in connMngr
 
@@ -229,7 +229,7 @@ suite "Connection Manager":
 
       let muxer = getMuxer(peerId, dir)
 
-      connMngr.storeMuxer(muxer)
+      await connMngr.storeMuxer(muxer)
 
       check muxer in connMngr
       check not (isNil(connMngr.selectMuxer(peerId, dir)))
