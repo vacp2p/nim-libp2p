@@ -77,6 +77,12 @@ proc waitingTime*(
   let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
 
   var ipKeys: seq[string] = @[]
+  for addressInfo in ad.data.addresses:
+    let multiaddr = addressInfo.address
+    let ip = multiaddr.getIp().valueOr:
+      continue
+    ipKeys.add($ip)
+
   let ipSim = registrar.ipTree.adScore(ad)
 
   # Calculate initial waiting time
@@ -142,14 +148,14 @@ proc getRegistrarCloserPeers*(
   ## Returns properly formatted Peer objects for responses
 
   var closerPeerKeys: seq[Key] = @[]
-
-  # Try to use registrar table first
   block thisBlock:
     if disco.serviceRoutingTables.hasService(serviceId):
       let regTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
         break thisBlock
 
-      closerPeerKeys = regTable.findClosest(serviceId, count)
+      for bucket in regTable.buckets:
+        let closerPeer = bucket.randomPeerInBucket(disco.rng)
+        closerPeerKeys.add(closerPeer)
 
   # Fall back to main DHT if regTable not found or empty
   if closerPeerKeys.len == 0:
@@ -335,16 +341,17 @@ proc handleGetAds*(
   for ad in disco.registrar.cache.getOrDefault(serviceId, @[]):
     ads.add(ad)
 
-  # Limit to F_return ads
-  let fReturn = min(ads.len, disco.discoConf.fReturn)
   var adBufs: seq[seq[byte]] = @[]
-  if ads.len > 0:
-    for i in 0 ..< fReturn:
-      let encodedAd = ads[i].encode().valueOr:
-        error "Failed to encode ads", error
-        continue
+  for ad in ads:
+    let encodedAd = ad.encode().valueOr:
+      error "Failed to encode ads", error
+      continue
 
-      adBufs.add(encodedAd)
+    adBufs.add(encodedAd)
+
+  disco.rng.shuffle(adBufs)
+  let fReturn = min(adBufs.len, disco.discoConf.fReturn)
+  adBufs.setLen(fReturn)
 
   # Get closer peers using registrar table or fall back to main DHT
   let closerPeers =
@@ -375,11 +382,9 @@ proc handleRegister*(
     disco.getRegistrarCloserPeers(serviceId, disco.discoConf.bucketsCount)
 
   let regMsg = msg.register.valueOr:
-    # No register message provided, reject
     await conn.sendRegisterReject(closerPeers)
     return
 
-  # Validate register message and decode/verify advertisement
   let ad = validateRegisterMessage(regMsg).valueOr:
     await conn.sendRegisterReject(closerPeers)
     return
@@ -405,12 +410,16 @@ proc handleRegister*(
     await disco.acceptAdvertisement(serviceId, ad, now, closerPeers, conn)
     return
 
-  # Send Wait response with ticket
+  var init = now
+  if regMsg.ticket.isSome:
+    init = regMsg.ticket.get().tInit
+
   let ticket = Ticket(
     advertisement: regMsg.advertisement,
-    tInit: now,
+    tInit: init,
     tMod: now,
     tWaitFor: 0,
     signature: @[],
   )
+
   await waitOrRejectAdvertisement(closerPeers, conn, t_remaining, ticket, disco)
