@@ -65,6 +65,8 @@ type
     muxed: Table[PeerId, seq[Muxer]]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
+    readyEvents: Table[PeerId, Future[void].Raising([CancelledError])]
+    readyPeers: HashSet[PeerId]
     expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
 
@@ -107,6 +109,42 @@ proc new*(
 
 proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.muxed.getOrDefault(peerId).len
+
+proc getReadyEvent(
+    c: ConnManager, peerId: PeerId
+): Future[void].Raising([CancelledError]) =
+  c.readyEvents.withValue(peerId, readyEvent):
+    if not readyEvent[].finished:
+      return readyEvent[]
+
+  let readyEvent = Future[void].Raising([CancelledError]).init()
+  c.readyEvents[peerId] = readyEvent
+  readyEvent
+
+proc peerIsReady(c: ConnManager, peerId: PeerId) =
+  c.readyPeers.incl(peerId)
+  c.readyEvents.withValue(peerId, readyEvent):
+    if not readyEvent[].finished:
+      readyEvent[].complete()
+    c.readyEvents.del(peerId)
+
+proc waitForPeerReady*(
+    c: ConnManager, peerId: PeerId, timeout = 5.seconds
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  ## Wait until `storeMuxer` has emitted the `Connected` conn event for `peerId`.
+  ## Existing ready peers bypass waiting.
+  if peerId in c.readyPeers:
+    return true
+
+  let readyEvent = c.getReadyEvent(peerId)
+  if timeout <= 0.seconds:
+    await readyEvent
+    return true
+
+  let ready = await readyEvent.withTimeout(timeout)
+  if not ready:
+    c.readyEvents.del(peerId)
+  ready
 
 proc maxConnections*(c: ConnManager, dir: Direction): int =
   if dir == Direction.In: c.maxConnectionsIn else: c.maxConnectionsOut
@@ -247,6 +285,8 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     if muxers.len > 0:
       c.muxed[peerId] = muxers
     else:
+      c.readyPeers.excl(peerId)
+      c.readyEvents.del(peerId)
       c.muxed.del(peerId)
       libp2p_peers.set(c.muxed.len.int64)
       await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
@@ -337,9 +377,15 @@ proc storeMuxer*(
 
   asyncSpawn c.onClose(muxer)
 
-  await c.triggerConnEvent(
+  let connectedEvent = c.triggerConnEvent(
     peerId, ConnEvent(kind: ConnEventKind.Connected, incoming: dir == Direction.In)
   )
+
+  # this notifies that peer is ready once the Connected events have been started
+  # but before waiting for them to be completed, avoiding deadlocks where a 
+  # connected handler would need inbound streams to progress.
+  c.peerIsReady(peerId)
+  await connectedEvent
 
   if newPeer:
     asyncSpawn c.triggerPeerEvents(

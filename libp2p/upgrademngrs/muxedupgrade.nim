@@ -7,6 +7,7 @@ import std/sequtils
 import pkg/[chronos, chronicles, metrics]
 
 import ../upgrademngrs/upgrade, ../muxers/muxer
+import ../connmanager
 
 export Upgrade
 
@@ -16,6 +17,7 @@ logScope:
 type MuxedUpgrade* = ref object of Upgrade
   muxers*: seq[MuxerProvider]
   streamHandler*: StreamHandler
+  connManager*: ConnManager
 
 func getMuxerByCodec(self: MuxedUpgrade, muxerName: string): Opt[MuxerProvider] =
   if muxerName.len == 0 or muxerName == "na":
@@ -86,12 +88,19 @@ proc new*(
     muxers: seq[MuxerProvider],
     secureManagers: openArray[Secure] = [],
     ms: MultistreamSelect,
+    connManager: ConnManager = nil,
 ): T =
-  let upgrader = T(muxers: muxers, secureManagers: @secureManagers, ms: ms)
+  let upgrader =
+    T(muxers: muxers, secureManagers: @secureManagers, ms: ms, connManager: connManager)
 
   upgrader.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
     trace "Starting stream handler", conn
     try:
+      if not isNil(upgrader.connManager):
+        let ready = await upgrader.connManager.waitForPeerReady(conn.peerId)
+        if not ready:
+          debug "Timed out waiting for peer ready before handling stream", conn
+          return
       await upgrader.ms.handle(conn) # handle incoming connection
     except CancelledError as exc:
       return
