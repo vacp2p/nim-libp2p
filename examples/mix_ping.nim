@@ -11,7 +11,7 @@
 {.used.}
 
 import chronicles, chronos, results
-import std/[strformat, enumerate, sequtils]
+import std/[strformat, sequtils]
 import
   ../libp2p/[
     protocols/mix,
@@ -38,26 +38,26 @@ proc createSwitch(
 
 proc mixPingSimulation() {.async: (raises: [Exception]).} =
   let mixNodeInfos = MixNodeInfo.generateRandomMany(NumMixNodes)
-
   var switches: seq[Switch] = @[]
   var mixProtos: seq[MixProtocol] = @[]
 
-  for nodeInfo in mixNodeInfos:
-    switches.add(createSwitch(nodeInfo.multiAddr, Opt.some(nodeInfo.libp2pPrivKey)))
-  defer:
-    await switches.mapIt(it.stop()).allFutures()
-
   # Set up mix protocols on each mix node
-  for index, _ in enumerate(mixNodeInfos):
-    let proto = MixProtocol.new(mixNodeInfos[index], switches[index])
+  for nodeInfo in mixNodeInfos:
+    var switch = createSwitch(nodeInfo.multiAddr, Opt.some(nodeInfo.libp2pPrivKey))
+    let proto = MixProtocol.new(nodeInfo, switch)
 
     # Populate nodePool with all other nodes' public info
-    proto.nodePool.add(MixPubInfo.includeAllExcept(mixNodeInfos, mixNodeInfos[index]))
+    proto.nodePool.add(MixPubInfo.includeAllExcept(mixNodeInfos, nodeInfo))
 
     # Register how to read ping responses (32 bytes exactly)
     proto.registerDestReadBehavior(PingCodec, readExactly(32))
+    switch.mount(proto)
+
+    switches.add(switch)
     mixProtos.add(proto)
-    switches[index].mount(proto)
+
+  defer:
+    await switches.mapIt(it.stop()).allFutures()
 
   # Create a destination node (not part of the mix network)
   let destNode = createSwitch(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
