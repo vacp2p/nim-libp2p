@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/strformat
+import strformat, sequtils
 import ../../crypto/[secp, crypto]
 import ../../[multiaddress, peerid]
 import ./curve25519
@@ -83,10 +83,6 @@ proc toMixPubInfo*(info: MixNodeInfo): MixPubInfo =
   MixPubInfo.init(info.peerId, info.multiAddr, info.mixPubKey, info.libp2pPubKey)
 
 proc includeAllExcept*(
-    all: seq[MixNodeInfo], exceptNode: MixNodeInfo
+    allNodes: seq[MixNodeInfo], exceptNode: MixNodeInfo
 ): seq[MixPubInfo] =
-  var nodeInfos = newSeq[MixPubInfo]()
-  for n in all:
-    if n.peerId != exceptNode.peerId:
-      nodeInfos.add(n.toMixPubInfo)
-  nodeInfos
+  allNodes.mapIt(it.toMixPubInfo()).filterIt(it.peerId != exceptNode.peerId)
