@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import ../../crypto/secp
+import std/strformat
+import ../../crypto/[secp, crypto]
 import ../../[multiaddress, peerid]
 import ./curve25519
 
@@ -29,6 +30,32 @@ proc initMixNodeInfo*(
     libp2pPrivKey: libp2pPrivKey,
   )
 
+proc generateRandom*(T: typedesc[MixNodeInfo], port: int): MixNodeInfo =
+  let (mixPrivKey, mixPubKey) = generateKeyPair().expect("Generate key pair error")
+  let
+    rng = newRng()
+    keyPair = SkKeyPair.random(rng[])
+    pubKeyProto = PublicKey(scheme: Secp256k1, skkey: keyPair.pubkey)
+    peerId = PeerId.init(pubKeyProto).expect("PeerId init error")
+    multiAddr = MultiAddress.init(fmt"/ip4/0.0.0.0/tcp/{port}").tryGet()
+
+  MixNodeInfo(
+    peerId: peerId,
+    multiAddr: multiAddr,
+    mixPubKey: mixPubKey,
+    mixPrivKey: mixPrivKey,
+    libp2pPubKey: keyPair.pubkey,
+    libp2pPrivKey: keyPair.seckey,
+  )
+
+proc generateRandomMany*(
+    T: typedesc[MixNodeInfo], count: int, basePort: int = 4242
+): seq[MixNodeInfo] =
+  var nodeInfos = newSeq[MixNodeInfo](count)
+  for i in 0 ..< count:
+    nodeInfos[i] = MixNodeInfo.generateRandom(basePort + i)
+  nodeInfos
+
 type MixPubInfo* = object
   peerId*: PeerId
   multiAddr*: MultiAddress
@@ -54,3 +81,12 @@ proc get*(info: MixPubInfo): (PeerId, MultiAddress, FieldElement, SkPublicKey) =
 
 proc toMixPubInfo*(info: MixNodeInfo): MixPubInfo =
   MixPubInfo.init(info.peerId, info.multiAddr, info.mixPubKey, info.libp2pPubKey)
+
+proc includeAllExcept*(
+    T: typedesc[MixPubInfo], all: seq[MixNodeInfo], exceptNode: MixNodeInfo
+): seq[MixPubInfo] =
+  var nodeInfos = newSeq[MixPubInfo]()
+  for n in all:
+    if n.peerId != exceptNode.peerId:
+      nodeInfos.add(n.toMixPubInfo)
+  nodeInfos
