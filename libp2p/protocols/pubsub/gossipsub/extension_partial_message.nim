@@ -305,7 +305,11 @@ proc publishPartialToPeer(
   return hasChanges # aka has published
 
 proc publishPartial*(
-    ext: PartialMessageExtension, topic: string, pm: PartialMessage
+    ext: PartialMessageExtension,
+    topic: string,
+    pm: PartialMessage,
+    peers: seq[PeerId] = @[],
+      # overrides the peers to whom partial messages is going to be published.
 ): int {.raises: [].} =
   if pm.groupId().len == 0:
     warn "could not publish partial message without groupId", groupId = pm.groupId()
@@ -316,8 +320,12 @@ proc publishPartial*(
   groupState.lastPublishedMetadata = pm.partsMetadata()
 
   var publishedToCount: int = 0
-  let peers = ext.config.publishToPeers(topic)
-  for _, p in peers:
+  let publishToPeers =
+    if peers.len > 0:
+      peers
+    else:
+      ext.config.publishToPeers(topic)
+  for _, p in publishToPeers:
     if not ext.config.isSupported(p):
       # peer needs to support this extension
       continue
