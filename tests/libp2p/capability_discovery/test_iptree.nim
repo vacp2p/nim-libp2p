@@ -28,7 +28,8 @@ proc pathNodes*(t: IpTree, ip: IpAddress): seq[IpTreeNode] =
       v = v.left
     else:
       v = v.right
-    if v.isNil: break
+    if v.isNil:
+      break
     result.add(v)
 
 proc mkAd*(addrs: openArray[string]): Advertisement =
