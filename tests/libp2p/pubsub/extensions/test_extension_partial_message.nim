@@ -16,14 +16,18 @@ proc isPartialTopic(topic: string): bool =
   # to be requesting partial messages
   return topic.contains("partial")
 
+type PeerRPC = object
+  peerId: PeerId # who sent RPC or to whom RPC was sent to (depending on usage)
+  rpc: PartialMessageExtensionRPC
+
 type CallbackRecorder = ref object
   publishToPeers: seq[PeerId]
-  sentRPC: seq[PartialMessageExtensionRPC]
-  incomingRPC: seq[PartialMessageExtensionRPC]
+  sentRPC: seq[PeerRPC] # peerId - to whom PRC was sent to
+  incomingRPC: seq[PeerRPC] # peerId - who sent RPC
 
 proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
-  proc sendRPC(peerID: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].} =
-    c.sentRPC.add(rpc)
+  proc sendRPC(peerId: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].} =
+    c.sentRPC.add(PeerRPC(peerId: peerId, rpc: rpc))
 
   proc publishToPeers(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
     return c.publishToPeers
@@ -41,9 +45,9 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
     return ok()
 
   proc onIncomingRPC(
-      peer: PeerId, rpc: PartialMessageExtensionRPC
+      peerId: PeerId, rpc: PartialMessageExtensionRPC
   ) {.gcsafe, raises: [].} =
-    c.incomingRPC.add(rpc)
+    c.incomingRPC.add(PeerRPC(peerId: peerId, rpc: rpc))
 
   return PartialMessageExtensionConfig(
     sendRPC: sendRPC,
@@ -187,23 +191,17 @@ suite "GossipSub Extensions :: Partial Message Extension":
     ext.handlePartialMessage(peerId, pmRPC)
     check:
       cr.incomingRPC.len == 1 # should call onIncomingRPC
-      cr.incomingRPC[0] == pmRPC
+      cr.incomingRPC[0] == PeerRPC(peerId: peerId, rpc: pmRPC)
 
-  test "publish partial message":
+  test "publish partial message: to all in topic advertizing parts":
+    # the usecase when application is publishing partial message to all peers subscribed on topic.
+    # and since no peer has asked for any part in particular, only parts metadata are being sent.
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
     var ext = PartialMessageExtension.new(cr.config())
 
     # peer subscribes with partial capability
     ext.subscribe(peerId, topic, true)
-
-    # peer sends RPC seeking parts [1, 2]
-    ext.handlePartialMessage(
-      peerId,
-      PartialMessageExtensionRPC(
-        topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
-      ),
-    )
 
     # application/user is publishing message with parts [1, 2, 3]
     let pm = MyPartialMessage(
@@ -212,20 +210,86 @@ suite "GossipSub Extensions :: Partial Message Extension":
     )
     check ext.publishPartial(topic, pm) == 1 # should publish to one peer
 
-    # the peer should receive partial messages RPC with data of parts [1, 2] = "one" + "two"
+    # the peer should receive partial messages RPC 
     check:
       cr.sentRPC.len == 1
       cr.sentRPC[0] ==
-        PartialMessageExtensionRPC(
-          groupID: groupId,
-          topicID: topic,
-          partialMessage: "onetwo".toBytes,
-          partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+        PeerRPC(
+          peerId: peerId,
+          rpc: PartialMessageExtensionRPC(
+            groupID: groupId,
+            topicID: topic,
+            partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+              # only metadata are sent because peer has not asked for any parts
+            partialMessage: @[],
+          ),
+        )
+
+    # publishing same message again should not send to peer
+    # because peer has already received same parts metadata
+    check ext.publishPartial(topic, pm) == 0
+    check cr.sentRPC.len == 1
+
+  test "publish partial message: selected peers filling request":
+    # usecase when application sends partial message to peer in response to their seeking request.
+    # application only pushes partial message to selected peer (peer that was seeking parts).
+    # this test can be seen as continuation of test above. consider full usecase:
+    # - precondition: all nodes have all parts
+    # - node A: publishes new message (eagerly advertizing new parts)
+    # - node B: receives metadata (this is where first test ends)
+    # - node B: requests missing parts  
+    # - node A: fulfills request sending message only to node B (this is where second test, this test, ends)
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(
+      publishToPeers:
+        @[peerId]
+          # note: this is list of peers that we publish to by default, 
+          # but in this test this list is ignored because test is publishing to selected peers.
+    )
+    var ext = PartialMessageExtension.new(cr.config())
+    let selectedPeerId = PeerId.random(rng).get()
+
+    # must subscribe all peers with partial capability
+    ext.subscribe(peerId, topic, true)
+    ext.subscribe(selectedPeerId, topic, true)
+
+    # selected peer sends RPC seeking parts [1, 2]
+    ext.handlePartialMessage(
+      selectedPeerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1, 2])
+      ),
+    )
+
+    # application/user is publishing message with parts [1, 2, 3] to selected peer
+    # as a response to their seeking request
+    let pm = MyPartialMessage(
+      groupId: groupId,
+      data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
+    )
+    check ext.publishPartial(topic, pm, peers = @[selectedPeerId]) == 1
+      # should publish to selected peer
+
+    # the selected peer should receive partial messages RPC
+    check:
+      cr.sentRPC.len == 1
+      cr.sentRPC[0] ==
+        PeerRPC(
+          peerId: selectedPeerId, # selected peer receives RPC
+          rpc: PartialMessageExtensionRPC(
+            groupID: groupId,
+            topicID: topic,
+            partialMessage: "onetwo".toBytes,
+              # only parts [1, 2] are sent as those were requested
+              # and part [3] is ignored
+            partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+              # peer receives all parts metadata because it was never sent to them
+          ),
         )
 
     # publishing same message again should not send to peer
     # because peer's request is already fulfilled
-    check ext.publishPartial(topic, pm) == 0
+    check ext.publishPartial(topic, pm, peers = @[selectedPeerId]) == 0
     check cr.sentRPC.len == 1
 
   test "publish parts metadata":
@@ -243,8 +307,11 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check:
       cr.sentRPC.len == 1
       cr.sentRPC[0] ==
-        PartialMessageExtensionRPC(
-          groupID: groupId, topicID: topic, partsMetadata: pm.partsMetadata()
+        PeerRPC(
+          peerId: peerId,
+          rpc: PartialMessageExtensionRPC(
+            groupID: groupId, topicID: topic, partsMetadata: pm.partsMetadata()
+          ),
         )
 
     # publishing same message again should not publish
@@ -258,10 +325,13 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check:
       cr.sentRPC.len == 2
       cr.sentRPC[1] ==
-        PartialMessageExtensionRPC(
-          groupID: groupId,
-          topicID: topic,
-          partsMetadata: pm.partsMetadata() & pm2.partsMetadata(),
+        PeerRPC(
+          peerId: peerId,
+          rpc: PartialMessageExtensionRPC(
+            groupID: groupId,
+            topicID: topic,
+            partsMetadata: pm.partsMetadata() & pm2.partsMetadata(),
+          ),
         )
 
   test "heartbeat evicts metadata":
@@ -287,14 +357,20 @@ suite "GossipSub Extensions :: Partial Message Extension":
     let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
     check ext.publishPartial(topic, pm) == 1
 
-    # but published rpc should not have partial message only parts metadata
-    check cr.sentRPC.len == 1
-    let msg1 = cr.sentRPC[0]
+    # and published RPC should not have partial message only parts metadata
+    # as their parts metadata was evicted
     check:
-      msg1.topicID == topic
-      msg1.groupID == groupId
-      msg1.partialMessage.len == 0
-      msg1.partsMetadata.len > 0
+      cr.sentRPC.len == 1
+      cr.sentRPC[0] ==
+        PeerRPC(
+          peerId: peerId,
+          rpc: PartialMessageExtensionRPC(
+            topicID: topic,
+            groupID: groupId,
+            partsMetadata: MyPartsMetadata.have(toSeq(pm.data.keys)),
+            partialMessage: @[],
+          ),
+        )
 
   test "removing peer removes metadata":
     const topic = "logos-partial"
@@ -380,10 +456,13 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check:
       cr.sentRPC.len == 1
       cr.sentRPC[0] ==
-        PartialMessageExtensionRPC(
-          topicID: topic,
-          groupID: groupId,
-          partsMetadata: MyPartsMetadata.have(toSeq(pm.data.keys)),
+        PeerRPC(
+          peerId: peerId,
+          rpc: PartialMessageExtensionRPC(
+            topicID: topic,
+            groupID: groupId,
+            partsMetadata: MyPartsMetadata.have(toSeq(pm.data.keys)),
+          ),
         )
 
     # doing gossip again should not send any new messages,
