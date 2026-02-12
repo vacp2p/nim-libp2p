@@ -74,14 +74,10 @@ proc mixPingSimulation() {.async: (raises: [Exception]).} =
     let proto = MixProtocol.new(mixNodes[index], switches[index])
 
     # Populate nodePool with all other nodes' public info
-    for otherIndex, otherNode in enumerate(mixNodes):
-      if otherIndex != index:
-        proto.nodePool.add(
-          MixPubInfo.init(
-            otherNode.peerId, otherNode.multiAddr, otherNode.mixPubKey,
-            otherNode.libp2pPubKey,
-          )
-        )
+    let pubInfos = mixNodes.mapIt(it.toMixPubInfo()).filterIt(
+        it.peerId != proto.switch.peerInfo.peerId
+      )
+    proto.nodePool.add(pubInfos)
 
     # Register how to read ping responses (32 bytes exactly)
     proto.registerDestReadBehavior(PingCodec, readExactly(32))

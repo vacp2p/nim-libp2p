@@ -3,7 +3,7 @@
 
 {.used.}
 
-import results
+import results, sequtils
 import ../../../libp2p/[crypto/crypto, crypto/secp, multiaddress, peerid, peerstore]
 import ../../../libp2p/protocols/mix/[mix_node, pool]
 import ../../tools/unittest
@@ -43,6 +43,20 @@ suite "MixNodePool Tests":
       peerStore[AddressBook][pubInfo.peerId] == @[pubInfo.multiAddr]
       peerStore[KeyBook][pubInfo.peerId].scheme == Secp256k1
       peerStore[KeyBook][pubInfo.peerId].skkey == pubInfo.libp2pPubKey
+
+  test "bulk add stores multiple mix nodes":
+    let pubInfos = mixNodes.mapIt(it.toMixPubInfo())
+
+    pool.add(pubInfos)
+
+    check pool.len == mixNodes.len
+    for pubInfo in pubInfos:
+      check pool.get(pubInfo.peerId).isSome
+      check pool.get(pubInfo.peerId).get() == pubInfo
+
+  test "bulk add with empty seq is no-op":
+    pool.add(newSeq[MixPubInfo]())
+    check pool.len == 0
 
   test "remove deletes from pool":
     let pubInfo = mixNodes[0].toMixPubInfo()

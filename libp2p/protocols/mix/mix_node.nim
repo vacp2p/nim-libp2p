@@ -51,3 +51,6 @@ proc init*(
 
 proc get*(info: MixPubInfo): (PeerId, MultiAddress, FieldElement, SkPublicKey) =
   (info.peerId, info.multiAddr, info.mixPubKey, info.libp2pPubKey)
+
+proc toMixPubInfo*(info: MixNodeInfo): MixPubInfo =
+  MixPubInfo.init(info.peerId, info.multiAddr, info.mixPubKey, info.libp2pPubKey)

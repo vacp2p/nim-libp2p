@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, std/strformat
+import chronos, results, strformat, sequtils
 import
   ../../../libp2p/[
     protocols/mix,
@@ -46,9 +46,6 @@ proc generateMixNodeInfos*(count: int, basePort: int = 4242): seq[MixNodeInfo] =
     nodeInfos[i] = generateMixNodeInfo(basePort + i)
   nodeInfos
 
-proc toMixPubInfo*(node: MixNodeInfo): MixPubInfo =
-  MixPubInfo.init(node.peerId, node.multiAddr, node.mixPubKey, node.libp2pPubKey)
-
 proc createSwitch(
     multiAddr: MultiAddress = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
     libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey),
@@ -84,10 +81,10 @@ proc setupMixNode[T: MixProtocol](
 
 proc populateNodePool*(nodes: seq[MixProtocol], nodeInfos: seq[MixNodeInfo]) =
   for i in 0 ..< nodes.len:
-    for j in 0 ..< nodeInfos.len:
-      if i == j:
-        continue
-      nodes[i].nodePool.add(nodeInfos[j].toMixPubInfo())
+    let pubInfos = nodeInfos
+      .filterIt(it.peerId != nodes[i].switch.peerInfo.peerId)
+      .mapIt(it.toMixPubInfo())
+    nodes[i].nodePool.add(pubInfos)
 
 proc setupMixNodes*(
     numNodes: int,
