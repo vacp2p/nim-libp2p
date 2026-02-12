@@ -32,6 +32,8 @@ export verifyProof
 export NoSamplingDelayStrategy
 export ExponentialDelayStrategy
 
+export mix_node
+
 export MixNodePool
 export add
 export remove

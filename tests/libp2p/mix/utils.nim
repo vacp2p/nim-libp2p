@@ -7,7 +7,6 @@ import chronos, results, strformat, sequtils
 import
   ../../../libp2p/[
     protocols/mix,
-    protocols/mix/mix_node,
     protocols/mix/mix_protocol,
     protocols/mix/curve25519,
     protocols/ping,
