@@ -35,9 +35,9 @@ suite "Kademlia Discovery Discoverer - Service Lookup":
     check not disco.serviceRoutingTables.hasService(serviceId)
 
     # serviceLookup adds service interest automatically
-    let result = waitFor disco.lookup(serviceId)
+    let res = waitFor disco.lookup(serviceId)
 
-    check result.isOk()
+    check res.isOk()
     check disco.serviceRoutingTables.hasService(serviceId)
 
   test "serviceLookup returns empty seq when no peers available":
@@ -45,10 +45,10 @@ suite "Kademlia Discovery Discoverer - Service Lookup":
     let serviceId = makeServiceId()
 
     # Empty routing table, no peers - should return empty result
-    let result = waitFor disco.lookup(serviceId)
+    let res = waitFor disco.lookup(serviceId)
 
-    check result.isOk()
-    check result.get().len == 0
+    check res.isOk()
+    check res.get().len == 0
 
   test "serviceLookup fLookup config is set correctly":
     let disco = createMockDiscovery(

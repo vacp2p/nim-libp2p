@@ -123,9 +123,7 @@ proc new*(
         await kad.handleGetAds(conn, msg)
       of MessageType.register:
         await kad.handleRegister(conn, msg)
-      else:
-        error "Unhandled kad-dht message type", msg = msg
-        return
+
   return kad
 
 method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
