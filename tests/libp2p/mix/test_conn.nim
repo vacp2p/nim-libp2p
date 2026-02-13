@@ -303,10 +303,11 @@ suite "Mix Protocol Component":
     let (destNode, _) = await setupDestNode(destProto)
 
     # Force separate SURB paths: nodes[2..4] for SURB 0, nodes[5..7] for SURB 1
-    mock.surbPeerSets = @[
-      nodes[2 .. 4].mapIt(it.switch.peerInfo.peerId),
-      nodes[5 .. 7].mapIt(it.switch.peerInfo.peerId),
-    ]
+    mock.surbPeerSets =
+      @[
+        nodes[2 .. 4].mapIt(it.switch.peerInfo.peerId),
+        nodes[5 .. 7].mapIt(it.switch.peerInfo.peerId),
+      ]
 
     await startNodes(nodes)
     defer:
