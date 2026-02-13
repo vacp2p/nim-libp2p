@@ -55,6 +55,7 @@ type
     upgr*: Upgrade
     privateKey*: PrivateKey
     autotls*: Opt[AutotlsService]
+    connManager*: ConnManager
 
   SecureProtocol* {.pure.} = enum
     Noise
@@ -235,7 +236,7 @@ proc withWsTransport*(
 proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
   b.withTransport(
     proc(config: TransportConfig): Transport =
-      QuicTransport.new(config.upgr, config.privateKey)
+      QuicTransport.new(config.upgr, config.privateKey, config.connManager)
   )
 
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder {.public.} =
@@ -377,7 +378,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     connManager =
       ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
     ms = MultistreamSelect.new()
-    muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms)
+    muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
 
   b.autotls.withValue(autotlsService):
     b.services.add(autotlsService)
@@ -387,7 +388,12 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     for tProvider in b.transports:
       transports.add(
         tProvider(
-          TransportConfig(upgr: muxedUpgrade, privateKey: seckey, autotls: b.autotls)
+          TransportConfig(
+            upgr: muxedUpgrade,
+            privateKey: seckey,
+            autotls: b.autotls,
+            connManager: connManager,
+          )
         )
       )
     transports
