@@ -79,6 +79,46 @@ suite "Mix Protocol Component":
       connPeerId != destNode.peerInfo.peerId # not the destination itself
       connPeerId in nodes.mapIt(it.switch.peerInfo.peerId)
 
+  asyncTest "path nodes are non-repeating":
+    let nodes = await setupMixNodes(10)
+    startAndDeferStop(nodes)
+
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    # Send multiple messages and track which mix node delivered each one
+    const numMessages = 20
+    var exitNodes: seq[PeerId]
+
+    for i in 0 ..< numMessages:
+      let conn = nodes[0]
+        .toConnection(
+          MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+          NoReplyProtocolCodec,
+        )
+        .expect("could not build connection")
+
+      await conn.writeLp(@[byte(i)])
+      await conn.close()
+
+      discard await nrProto.receivedMessages.get().wait(5.seconds)
+      exitNodes.add(await nrProto.connPeerIds.get().wait(5.seconds))
+
+    # Count how many times each node served as exit
+    var exitCounts: Table[PeerId, int]
+    for peerId in exitNodes:
+      exitCounts.mgetOrPut(peerId, 0).inc()
+
+    # With 20 messages and 9 eligible nodes,
+    # random selection must produce at least 3 distinct exit nodes.
+    # Sender must never be exit and aestination must never be exit.
+    # No single node should monopolize the exit role.
+    check:
+      exitCounts.len >= 3
+      nodes[0].switch.peerInfo.peerId notin exitCounts
+      destNode.peerInfo.peerId notin exitCounts
+
   when defined(libp2p_mix_experimental_exit_is_dest):
     asyncTest "expect reply, exit == destination":
       let nodes = await setupMixNodes(
@@ -310,10 +350,11 @@ suite "Mix Protocol Component":
     let (destNode, _) = await setupDestNode(destProto)
 
     # Force separate SURB paths: nodes[2..4] for SURB 0, nodes[5..7] for SURB 1
-    mock.surbPeerSets = @[
-      nodes[2 .. 4].mapIt(it.switch.peerInfo.peerId),
-      nodes[5 .. 7].mapIt(it.switch.peerInfo.peerId),
-    ]
+    mock.surbPeerSets =
+      @[
+        nodes[2 .. 4].mapIt(it.switch.peerInfo.peerId),
+        nodes[5 .. 7].mapIt(it.switch.peerInfo.peerId),
+      ]
 
     await startNodes(nodes)
     defer:
