@@ -267,7 +267,7 @@ suite "IpTree":
 
     tree.removeIp(ip)
     let score2 = tree.ipScore(ip)
-    check score2 == 0.0  # No similarity when tree is empty
+    check score2 == 0.0 # No similarity when tree is empty
 
   test "similar IPs with single bit difference":
     # 192.168.1.0 and 192.168.1.1 differ only in last bit
