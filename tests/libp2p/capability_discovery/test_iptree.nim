@@ -263,7 +263,7 @@ suite "IpTree":
 
     tree.insertIp(ip)
     let score1 = tree.ipScore(ip)
-    check score1 > 0.9  # High similarity when IP is in tree
+    check score1 > 0.9 # High similarity when IP is in tree
 
     tree.removeIp(ip)
     let score2 = tree.ipScore(ip)
