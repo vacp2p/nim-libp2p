@@ -81,5 +81,5 @@ proc toMixPubInfo*(info: MixNodeInfo): MixPubInfo =
 
 proc includeAllExcept*(
     allNodes: seq[MixNodeInfo], exceptNode: MixNodeInfo
-): seq[MixPubInfo] =
+): seq[MixPubInfo] {.inline.} =
   allNodes.mapIt(it.toMixPubInfo()).filterIt(it.peerId != exceptNode.peerId)
