@@ -45,6 +45,8 @@ method readOnce*(
 
   # Only wait for reply if cache is empty
   if s.cached.len == 0:
+    if s.replyReceivedFut.isNil:
+      raise newException(LPStreamError, "mix connection does not expect replies")
     try:
       await s.replyReceivedFut
       if s.cached.len == 0:

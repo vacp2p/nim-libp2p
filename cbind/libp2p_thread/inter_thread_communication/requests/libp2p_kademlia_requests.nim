@@ -5,7 +5,9 @@ import std/sequtils
 import chronos, results, sets
 import ../../../[alloc, ffi_types]
 import ../../../../libp2p
+import ../../../../libp2p/extended_peer_record
 import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/protocols/kademlia_discovery/[randomfind, types]
 import ./libp2p_peer_manager_requests
 
 type KademliaMsgType* = enum
@@ -16,6 +18,7 @@ type KademliaMsgType* = enum
   GET_PROVIDERS
   START_PROVIDING
   STOP_PROVIDING
+  RANDOM_RECORDS
 
 type KademliaRequest* = object
   operation: KademliaMsgType
@@ -36,6 +39,27 @@ type GetValueResult* = object
 type ProvidersResult* = object
   providers*: ptr Libp2pPeerInfo
   providersLen*: csize_t
+
+type RandomRecordsResult* = object
+  records*: ptr Libp2pExtendedPeerRecord
+  recordsLen*: csize_t
+
+proc allocServiceInfoArrayFromSeq(
+    services: seq[ServiceInfo]
+): ptr Libp2pServiceInfo {.inline.} =
+  if services.len == 0:
+    return nil
+  result =
+    cast[ptr Libp2pServiceInfo](allocShared(sizeof(Libp2pServiceInfo) * services.len))
+  let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](result)
+  for i, svc in services:
+    servicesArr[i].id = svc.id.alloc()
+    servicesArr[i].dataLen = svc.data.len.csize_t
+    if svc.data.len == 0:
+      servicesArr[i].data = nil
+    else:
+      servicesArr[i].data = cast[ptr byte](allocShared(svc.data.len))
+      copyMem(servicesArr[i].data, addr svc.data[0], svc.data.len)
 
 proc createShared*(
     T: type KademliaRequest,
@@ -80,6 +104,34 @@ proc deallocGetValueResult*(res: ptr GetValueResult) =
     deallocShared(res[].value)
 
   deallocShared(res)
+
+proc deallocLibp2pExtendedPeerRecord*(record: var Libp2pExtendedPeerRecord) =
+  if not record.peerId.isNil():
+    deallocShared(record.peerId)
+  deallocCStringArray(record.addrs, record.addrsLen)
+  if not record.services.isNil():
+    let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](record.services)
+    for i in 0 ..< int(record.servicesLen):
+      if not servicesArr[i].id.isNil():
+        deallocShared(servicesArr[i].id)
+      if not servicesArr[i].data.isNil():
+        deallocShared(servicesArr[i].data)
+    deallocShared(servicesArr)
+
+proc deallocRandomRecordsResult*(res: ptr RandomRecordsResult) =
+  if res.isNil():
+    return
+
+  defer:
+    deallocShared(res)
+
+  if res[].records.isNil():
+    return
+
+  let recordsArr = cast[ptr UncheckedArray[Libp2pExtendedPeerRecord]](res[].records)
+  for i in 0 ..< int(res[].recordsLen):
+    deallocLibp2pExtendedPeerRecord(recordsArr[i])
+  deallocShared(recordsArr)
 
 proc buildGetValueResult(entry: EntryRecord): Result[ptr GetValueResult, string] =
   let valueLen = entry.value.len
@@ -137,13 +189,7 @@ proc buildProvidersResult(
 
       let addrs = provider.addrs.mapIt($it)
       arr[i].addrsLen = addrs.len.csize_t
-      if addrs.len == 0:
-        arr[i].addrs = nil
-      else:
-        arr[i].addrs = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
-        let addrsArr = cast[ptr UncheckedArray[cstring]](arr[i].addrs)
-        for j, addrStr in addrs:
-          addrsArr[j] = addrStr.alloc()
+      arr[i].addrs = allocCStringArrayFromSeq(addrs)
   except ValueError as exc:
     deallocProvidersResult(resPtr)
     return err("Invalid peerId: " & $exc.msg)
@@ -153,9 +199,42 @@ proc buildProvidersResult(
 
   ok(resPtr)
 
+proc buildRandomRecordsResult(
+    records: seq[ExtendedPeerRecord]
+): Result[ptr RandomRecordsResult, string] =
+  let resPtr = cast[ptr RandomRecordsResult](createShared(RandomRecordsResult, 1))
+  resPtr[].recordsLen = records.len.csize_t
+
+  if records.len == 0:
+    resPtr[].records = nil
+    return ok(resPtr)
+
+  resPtr[].records = cast[ptr Libp2pExtendedPeerRecord](allocShared(
+    sizeof(Libp2pExtendedPeerRecord) * records.len
+  ))
+  let arr = cast[ptr UncheckedArray[Libp2pExtendedPeerRecord]](resPtr[].records)
+
+  try:
+    for i, record in records:
+      arr[i].peerId = ($record.peerId).alloc()
+      arr[i].seqNo = record.seqNo
+
+      let addrs = record.addresses.mapIt($it.address)
+      arr[i].addrsLen = addrs.len.csize_t
+      arr[i].addrs = allocCStringArrayFromSeq(addrs)
+
+      let services = record.services
+      arr[i].servicesLen = services.len.csize_t
+      arr[i].services = allocServiceInfoArrayFromSeq(services)
+  except LPError as exc:
+    deallocRandomRecordsResult(resPtr)
+    return err(exc.msg)
+
+  ok(resPtr)
+
 proc process*(
     self: ptr KademliaRequest, kadOpt: Opt[KadDHT]
-): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   defer:
     destroyShared(self)
 
@@ -182,7 +261,7 @@ proc process*(
   else:
     raiseAssert "unsupported path, use specific processor"
 
-  ok("")
+  ok()
 
 proc processFindNode*(
     self: ptr KademliaRequest, kadOpt: Opt[KadDHT]
@@ -265,3 +344,20 @@ proc processGetProviders*(
       return err(exc.msg)
 
   buildProvidersResult(providersSet.toSeq())
+
+proc processRandomRecords*(
+    self: ptr KademliaRequest, kadOpt: Opt[KadDHT]
+): Future[Result[ptr RandomRecordsResult, string]] {.async: (raises: [CancelledError]).} =
+  defer:
+    destroyShared(self)
+
+  let kad = kadOpt.valueOr:
+    return err("kad-dht not initialized")
+
+  if not (kad of KademliaDiscovery):
+    return err("KademliaDiscovery is not mounted")
+
+  let disco = KademliaDiscovery(kad)
+  let records = await disco.randomRecords()
+
+  buildRandomRecordsResult(records)

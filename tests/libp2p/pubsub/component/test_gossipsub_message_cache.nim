@@ -7,7 +7,7 @@ import chronos, std/[sequtils], stew/byteutils
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, floodsub, rpc/messages, rpc/message]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Message Cache":
@@ -20,9 +20,9 @@ suite "GossipSub Component - Message Cache":
     const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -47,9 +47,9 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -87,9 +87,9 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+    await connectHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
@@ -127,9 +127,9 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesHub(nodes[0], nodes[1 .. ^1])
+    await connectHub(nodes[0], nodes[1 .. ^1])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
@@ -178,9 +178,9 @@ suite "GossipSub Component - Message Cache":
     const numberOfNodes = 2
     let nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
@@ -214,9 +214,9 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodes(nodes[0], nodes[1])
+    await connect(nodes[0], nodes[1])
     nodes[0].subscribe(topic, voidTopicHandler)
     nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -239,7 +239,7 @@ suite "GossipSub Component - Message Cache":
       nodes[2].mcache.window(topic).len == 0
 
     # When Node2 connects with Node0 and subscribes to the topic
-    await connectNodes(nodes[0], nodes[2])
+    await connect(nodes[0], nodes[2])
     nodes[2].subscribe(topic, voidTopicHandler)
     waitSubscribe(nodes[0], nodes[2], topic)
     waitSubscribe(nodes[2], nodes[0], topic)
@@ -279,9 +279,9 @@ suite "GossipSub Component - Message Cache":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)

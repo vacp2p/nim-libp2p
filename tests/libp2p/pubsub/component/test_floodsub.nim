@@ -16,7 +16,7 @@ import
     protocols/pubsub/pubsubpeer,
   ]
 import ../../../../libp2p/protocols/pubsub/errors as pubsub_errors
-import ../../../tools/[unittest, futures]
+import ../../../tools/[lifecycle, topology, unittest, futures]
 
 suite "FloodSub Component":
   const topic = "foobar"
@@ -29,8 +29,8 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -51,8 +51,8 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[0].subscribe(topic, handler)
     waitSubscribe(nodes[1], nodes[0], topic)
@@ -65,8 +65,8 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -90,8 +90,8 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, handler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -118,8 +118,8 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topicFoo, handler)
     waitSubscribe(nodes[0], nodes[1], topicFoo)
@@ -162,8 +162,8 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(numberOfNodes, triggerSelf = false).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
     waitSubscribeStar(nodes, topic)
@@ -198,8 +198,8 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(numberOfNodes, triggerSelf = true).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, futs.mapIt(it[1]))
     waitSubscribeStar(nodes, topic)
@@ -231,8 +231,8 @@ suite "FloodSub Component":
       smallNode = generateNodes(1, maxMessageSize = 200).toFloodSub()[0]
       nodes = @[bigNode, smallNode]
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
     waitSubscribeStar(nodes, topic)
@@ -263,8 +263,8 @@ suite "FloodSub Component":
 
     let nodes = generateNodes(2, maxMessageSize = 20000000).toFloodSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, handler)
     waitSubscribeStar(nodes, topic)

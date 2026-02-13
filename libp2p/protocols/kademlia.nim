@@ -22,7 +22,10 @@ proc refreshTable*(
 
   discard await kad.findNode(rtable.selfId)
 
-  for i, bucket in rtable.buckets:
+  # Snapshot bucket count. findNode() can grow buckets and mutate length.
+  # If it changes mid-iteration, Nim triggers an assertion defect.
+  for i in 0 ..< kad.rtable.buckets.len:
+    let bucket = kad.rtable.buckets[i]
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
@@ -105,8 +108,11 @@ proc new*(
         await kad.handleGetProviders(conn, msg)
       of MessageType.ping:
         await kad.handlePing(conn, msg)
-      else:
-        error "Unhandled kad-dht message type", msg = msg
+      of MessageType.register:
+        # unsupported
+        return
+      of MessageType.getAds:
+        # unsupported
         return
 
   return kad

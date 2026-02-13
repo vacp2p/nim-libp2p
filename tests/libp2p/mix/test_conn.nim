@@ -20,32 +20,9 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, unittest]
 import ./utils
-
-const NoReplyProtocolCodec* = "/test/1.0.0"
-
-type NoReplyProtocol* = ref object of LPProtocol
-  receivedMessages*: AsyncQueue[seq[byte]]
-
-proc newNoReplyProtocol*(): NoReplyProtocol =
-  let nrProto = NoReplyProtocol()
-  nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
-
-  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
-    var buffer: seq[byte]
-
-    try:
-      buffer = await conn.readLp(1024)
-    except LPStreamError:
-      discard
-
-    await conn.close()
-    await nrProto.receivedMessages.put(buffer)
-
-  nrProto.handler = handler
-  nrProto.codec = NoReplyProtocolCodec
-  nrProto
+import ./mock_mix
 
 suite "Mix Protocol Component":
   asyncTeardown:
@@ -57,7 +34,7 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(
       10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
     )
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     let (destNode, pingProto) = await setupDestNode(Ping.new())
     defer:
@@ -78,9 +55,9 @@ suite "Mix Protocol Component":
 
   asyncTest "expect no reply, exit != destination":
     let nodes = await setupMixNodes(10)
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    let (destNode, nrProto) = await setupDestNode(newNoReplyProtocol())
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
     defer:
       await stopDestNode(destNode)
 
@@ -107,7 +84,7 @@ suite "Mix Protocol Component":
       let pingProto = Ping.new()
       destNode.switch.mount(pingProto)
 
-      startNodesAndDeferStop(nodes)
+      startAndDeferStop(nodes)
 
       let conn = nodes[0]
         .toConnection(
@@ -169,7 +146,7 @@ suite "Mix Protocol Component":
     let testProto = newLengthPrefixTestProtocol()
     destNode.switch.mount(testProto)
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     let conn = nodes[0]
       .toConnection(
@@ -252,12 +229,12 @@ suite "Mix Protocol Component":
     check senderPeerStore[MixPubKeyBook].len == validNodesCount + 1
 
     # Setup destination node
-    let nrProto = newNoReplyProtocol()
+    let nrProto = NoReplyProtocol.new()
     nodes[1].switch.mount(nrProto)
 
     # Start all switches - they're needed as intermediate nodes in the mix path
     # even though only sender (0) and destination (1) are doing protocol work
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
     # Send messages in a loop until invalid node is encountered and removed
     # With validNodesCount + 1 invalid nodes and PathLength=3, we need multiple attempts
@@ -291,3 +268,120 @@ suite "Mix Protocol Component":
 
     # Verify invalid node was removed from pool (should be 6 valid nodes remaining)
     check senderPeerStore[MixPubKeyBook].len == validNodesCount
+
+  asyncTest "multiple SURBs - reply received when one path unavailable":
+    ## 2 SURBs with separate paths.
+    ## Stop a node from SURB[0]'s path after forward delivery.
+    ## Reply must arrive via SURB[1].
+    const TestCodec = "/delayed-response/test/1.0.0"
+    const ReadLen = 1024
+
+    let testPayload = "forward message".toBytes()
+    let responseData = "reply via surviving SURB".toBytes()
+
+    var received = newFuture[seq[byte]]()
+    var proceed = newFuture[void]()
+
+    let destProto = LPProtocol.new()
+    destProto.codec = TestCodec
+    destProto.handler = proc(
+        conn: Connection, proto: string
+    ) {.async: (raises: [CancelledError]).} =
+      try:
+        received.complete(await conn.readLp(ReadLen))
+        await proceed
+        await conn.writeLp(responseData)
+      except CatchableError as e:
+        raiseAssert e.msg
+
+    let (nodes, mock) = await setupMixNodesWithMock(
+      10, destReadBehavior = Opt.some((codec: TestCodec, callback: readLp(ReadLen)))
+    )
+
+    let (destNode, _) = await setupDestNode(destProto)
+
+    # Force separate SURB paths: nodes[2..4] for SURB 0, nodes[5..7] for SURB 1
+    mock.surbPeerSets =
+      @[
+        nodes[2 .. 4].mapIt(it.switch.peerInfo.peerId),
+        nodes[5 .. 7].mapIt(it.switch.peerInfo.peerId),
+      ]
+
+    await startNodes(nodes)
+    defer:
+      await stopDestNode(destNode)
+      await stopNodes(nodes)
+
+    let conn = mock
+      .toConnection(
+        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        TestCodec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(2))),
+      )
+      .expect("could not build connection")
+
+    await conn.writeLp(testPayload)
+
+    check testPayload == await received.wait(10.seconds)
+
+    # Stop a node from SURB[0]'s path
+    let nodeToStop =
+      nodes.filterIt(it.switch.peerInfo.peerId == mock.actualSurbPeers[0][0])[0]
+    await nodeToStop.switch.stop()
+
+    # Signal dest node to send reply — must arrive via SURB[1]
+    proceed.complete()
+
+    let response = await conn.readLp(ReadLen).wait(10.seconds)
+    await conn.close()
+
+    check response == responseData
+
+  asyncTest "sender receives empty response when destination is unreachable":
+    ## Exit node gets DialFailedError, sends empty reply via SURB,
+    ## sender receives an empty response from readLp().
+    let nodes = await setupMixNodes(
+      10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
+    )
+
+    let (destNode, _) = await setupDestNode(Ping.new())
+    let destPeerId = destNode.peerInfo.peerId
+    let destAddr = destNode.peerInfo.addrs[0]
+    await stopDestNode(destNode)
+
+    startAndDeferStop(nodes)
+
+    let conn = nodes[0]
+      .toConnection(
+        MixDestination.init(destPeerId, destAddr),
+        PingCodec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
+      )
+      .expect("could not build connection")
+    defer:
+      await conn.close()
+
+    await conn.write(@[1.byte, 2, 3, 4, 5])
+
+    let response = await conn.readLp(1024).wait(10.seconds)
+    check response.len == 0
+
+  asyncTest "send fails when pool has not enough nodes":
+    let nodes = await setupMixNodes(3) # each node's pool = 2 peers (< PathLength)
+    startAndDeferStop(nodes)
+
+    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    let conn = nodes[0]
+      .toConnection(
+        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        NoReplyProtocolCodec,
+      )
+      .expect("could not build connection")
+    defer:
+      await conn.close()
+
+    expect LPStreamError:
+      await conn.writeLp(@[1.byte, 2, 3])

@@ -5,7 +5,7 @@
 
 import chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, unittest]
 import ./utils.nim
 
 suite "KadDHT Ping":
@@ -13,11 +13,10 @@ suite "KadDHT Ping":
     checkTrackers()
 
   asyncTest "Simple ping":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     check:
       await kads[0].ping(kads[1].switch.peerInfo.peerId, kads[1].switch.peerInfo.addrs)

@@ -9,7 +9,7 @@
 ################################################################################
 ### Exported types
 
-type Libp2pPrivateKey* = object
+type Libp2pPrivateKey* {.bycopy.} = object
   data*: pointer
   dataLen*: csize_t
 
@@ -57,6 +57,28 @@ type GetProvidersCallback* = proc(
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
+type Libp2pServiceInfo* {.bycopy.} = object
+  id*: cstring
+  data*: ptr byte
+  dataLen*: csize_t
+
+type Libp2pExtendedPeerRecord* {.bycopy.} = object
+  peerId*: cstring
+  seqNo*: uint64
+  addrs*: ptr cstring
+  addrsLen*: csize_t
+  services*: ptr Libp2pServiceInfo
+  servicesLen*: csize_t
+
+type RandomRecordsCallback* = proc(
+  callerRet: cint,
+  records: ptr Libp2pExtendedPeerRecord,
+  recordsLen: csize_t,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
 type Libp2pStream* = object
   conn*: pointer
 
@@ -72,24 +94,32 @@ type PubsubTopicHandler* = proc(
   topic: cstring, data: ptr byte, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
 
+type ReadResponse* = object
+  data*: ptr byte
+  dataLen*: csize_t
+
 # These are used to indicate whether a config item has been set or not
 const Libp2pCfgGossipsub* = 1'u32 shl 0
 const Libp2pCfgGossipsubTriggerSelf* = 1'u32 shl 1
 const Libp2pCfgKad* = 1'u32 shl 2
-const Libp2pCfgDnsResolver* = 1'u32 shl 3
-const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 4
-const Libp2pCfgPrivateKey* = 1'u32 shl 5
+const Libp2pCfgKadDiscovery* = 1'u32 shl 3
+const Libp2pCfgDnsResolver* = 1'u32 shl 4
+const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 5
+const Libp2pCfgPrivateKey* = 1'u32 shl 6
+const Libp2pCfgMix* = 1'u32 shl 7
 
 type Libp2pBootstrapNode* = object
   peerId*: cstring
   multiaddrs*: ptr cstring
   multiaddrsLen*: csize_t
 
-type Libp2pConfig* = object
+type Libp2pConfig* {.bycopy.} = object
   flags*: uint32
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
   mountKad*: cint
+  mountMix*: cint
+  mountKadDiscovery*: cint
   dnsResolver*: cstring
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
@@ -99,6 +129,16 @@ type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
   RET_ERR = 1
   RET_MISSING_CALLBACK = 2
+
+type MixReadBehaviorKind* {.size: sizeof(cint).} = enum
+  MIX_READ_EXACTLY = 0
+  MIX_READ_LP = 1
+
+type MixCurve25519Key* {.bycopy.} = object
+  bytes*: array[32, byte]
+
+type MixSecp256k1PubKey* {.bycopy.} = object
+  bytes*: array[33, byte]
 
 ### End of exported types
 ################################################################################

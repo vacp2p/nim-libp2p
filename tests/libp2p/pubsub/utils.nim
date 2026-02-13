@@ -299,69 +299,11 @@ proc getPeerScore*(node: GossipSub, peerId: PeerId): float64 =
 proc getPeerTopicInfo*(node: GossipSub, peerId: PeerId, topic: string): TopicInfo =
   return node.getPeerStats(peerId).topicInfos.getOrDefault(topic)
 
-proc connectNodes*[T: PubSub](dialer: T, target: T) {.async.} =
+proc connect*[T: PubSub](dialer: T, target: T) {.async.} =
   doAssert dialer.switch.peerInfo.peerId != target.switch.peerInfo.peerId,
     "Could not connect same peer"
   await dialer.switch.connect(target.peerInfo.peerId, target.peerInfo.addrs)
   await sleepAsync(connectWarmup)
-
-proc connectNodesChain*[T: PubSub](nodes: seq[T]) {.async.} =
-  ## Chain: 1-2-3-4-5
-  ## 
-  var futs: seq[Future[void]]
-
-  for i in 0 ..< nodes.len - 1:
-    futs.add(connectNodes(nodes[i], nodes[i + 1]))
-
-  await allFuturesRaising(futs)
-
-proc connectNodesRing*[T: PubSub](nodes: seq[T]) {.async.} =
-  ## Ring: 1-2-3-4-5-1
-  ## 
-  var futs: seq[Future[void]]
-
-  for i in 0 ..< nodes.len - 1:
-    futs.add(connectNodes(nodes[i], nodes[i + 1]))
-  futs.add(connectNodes(nodes[nodes.len - 1], nodes[0]))
-
-  await allFuturesRaising(futs)
-
-proc connectNodesHub*[T: PubSub](hub: T, nodes: seq[T]) {.async.} =
-  ## Hub: hub-1, hub-2, hub-3,...
-  ## 
-  var futs: seq[Future[void]]
-
-  for i in 0 ..< nodes.len:
-    futs.add(connectNodes(hub, nodes[i]))
-
-  await allFuturesRaising(futs)
-
-proc connectNodesStar*[T: PubSub](nodes: seq[T]) {.async.} =
-  ## Star: 1-2; 1-3; 2-1; 2-3, 3-1, 3-2
-  ## 
-  var futs: seq[Future[void]]
-
-  for dialer in nodes:
-    for listener in nodes:
-      if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
-        futs.add(connectNodes(dialer, listener))
-
-  await allFuturesRaising(futs)
-
-proc connectNodesSparse*[T: PubSub](nodes: seq[T], degree: int = 2) {.async.} =
-  doAssert nodes.len >= degree, "nodes count needs to be greater or equal to degree"
-
-  var futs: seq[Future[void]]
-
-  for i, dialer in nodes:
-    if (i mod degree) != 0:
-      continue
-
-    for listener in nodes:
-      if dialer.switch.peerInfo.peerId != listener.switch.peerInfo.peerId:
-        futs.add(connectNodes(dialer, listener))
-
-  await allFuturesRaising(futs)
 
 template waitSubscribeChain*[T: PubSub](nodes: seq[T], topic: string): untyped =
   ## Chain: 1-2-3-4-5
@@ -419,7 +361,7 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
       seen: HashSet[PeerId]
     for n in nodes:
       nodesMesh[n.peerInfo.peerId] =
-        toSeq(GossipSub(n).mesh.getOrDefault(key).items()).mapIt(it.peerId)
+        toSeq(n.mesh.getOrDefault(key).items()).mapIt(it.peerId)
     var ok = 0
     for n in nodes:
       seen.clear()
@@ -438,17 +380,6 @@ proc waitSubGraph*[T: PubSub](nodes: seq[T], key: string) {.async.} =
 
   checkUntilTimeout:
     isGraphConnected()
-
-proc startNodes*[T: PubSub](nodes: seq[T]) {.async.} =
-  await allFuturesRaising(nodes.mapIt(it.switch.start()))
-
-proc stopNodes*[T: PubSub](nodes: seq[T]) {.async.} =
-  await allFuturesRaising(nodes.mapIt(it.switch.stop()))
-
-template startNodesAndDeferStop*[T: PubSub](nodes: seq[T]): untyped =
-  await startNodes(nodes)
-  defer:
-    await stopNodes(nodes)
 
 template waitForNotSubscribed*[T: PubSub](nodes: seq[T], topic: string): untyped =
   checkUntilTimeout:

@@ -5,7 +5,7 @@
 
 import chronos, std/[sequtils], chronicles
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Compatibility":
@@ -36,9 +36,9 @@ suite "GossipSub Component - Compatibility":
       node1PeerId = node1.peerInfo.peerId
       node2PeerId = node2.peerInfo.peerId
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesStar(nodes)
+    await connectStar(nodes)
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
@@ -66,9 +66,9 @@ suite "GossipSub Component - Compatibility":
 
     nodes &= nodeCodec11
 
-    startNodesAndDeferStop(nodes)
+    startAndDeferStop(nodes)
 
-    await connectNodesHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11])
+    await connectHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11])
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(nodeCenter, @[nodeSender, nodeCodec12, nodeCodec11], topic)

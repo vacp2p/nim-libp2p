@@ -18,8 +18,7 @@ type
     ## The data may represent a complete message, a partial message, or be empty.
     ## The encoding and structure of the parts are application-defined.
 
-  PartsMetadata* = ref object
-    data*: seq[byte]
+  PartsMetadata* = seq[byte]
     ## Opaque, encoded metadata describing PartialMessage.
     ##
     ## This metadata MAY describe:
@@ -30,7 +29,7 @@ type
     ## The interpretation and encoding of this metadata are entirely
     ## application-defined.
 
-  PartialMessage* = ref object
+  PartialMessage* = ref object of RootObj
     ## Interface for messages that can be divided into independently transferable parts.
     ##
     ## A PartialMessage may represent:
@@ -41,12 +40,8 @@ type
     ## Implementations define how messages are partitioned into parts, how parts
     ## are encoded, and how availability and requests for parts are represented.
 
-converter toPartsMetadata*(data: seq[byte]): PartsMetadata =
-  PartsMetadata(data: data)
-
-method union*(a, b: PartsMetadata): PartsMetadata {.base, gcsafe, raises: [].} =
-  ## Creates union of two PartsMetadata and returns it.
-  raiseAssert "merge: must be implemented"
+proc `$`*(g: GroupId): string =
+  return cast[string](g)
 
 method groupId*(m: PartialMessage): GroupId {.base, gcsafe, raises: [].} =
   ## Returns the GroupId identifying the logical full message this instance

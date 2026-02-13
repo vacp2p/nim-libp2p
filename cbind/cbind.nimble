@@ -35,7 +35,7 @@ proc buildCBindings(libType: string, params = "") =
 
   exec "nim c --out:" & buildDir & "/libp2p." & ext & " --threads:on --app:" & app &
     " --opt:size --noMain --mm:refc --header --undef:metrics" &
-    " --nimMainPrefix:libp2p --nimcache:nimcache" & " -d:asyncTimer=system libp2p.nim"
+    " --nimMainPrefix:libp2p --nimcache:nimcache libp2p.nim"
 
 task libDynamic, "Generate dynamic bindings":
   buildCBindings "dynamic", ""
@@ -46,4 +46,6 @@ task libStatic, "Generate static bindings":
 task examples, "Build and run C bindings examples":
   buildCBindings "static", ""
   exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a -pthread"
+  exec "g++ -I. -o ../build/mix ./examples/mix.c ../build/libp2p.a -pthread"
   exec "../build/cbindings"
+  exec "../build/mix"

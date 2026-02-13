@@ -63,10 +63,11 @@ int main(int argc, char **argv) {
 
   libp2p_config_t cfg1 = {0};
   cfg1.flags =
-      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF | LIBP2P_CFG_KAD | LIBP2P_CFG_PRIVATE_KEY;
+      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF |
+      LIBP2P_CFG_KAD_DISCOVERY | LIBP2P_CFG_PRIVATE_KEY;
   cfg1.mount_gossipsub = 1;
   cfg1.gossipsub_trigger_self = 1;
-  cfg1.mount_kad = 1;
+  cfg1.mount_kad_discovery = 1;
 
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
@@ -85,10 +86,11 @@ int main(int argc, char **argv) {
 
   libp2p_config_t cfg2 = {0};
   cfg2.flags = LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF |
-               LIBP2P_CFG_KAD | LIBP2P_CFG_KAD_BOOTSTRAP_NODES | LIBP2P_CFG_PRIVATE_KEY;
+               LIBP2P_CFG_KAD_DISCOVERY | LIBP2P_CFG_KAD_BOOTSTRAP_NODES |
+               LIBP2P_CFG_PRIVATE_KEY;
   cfg2.mount_gossipsub = 1;
   cfg2.gossipsub_trigger_self = 1;
-  cfg2.mount_kad = 1;
+  cfg2.mount_kad_discovery = 1;
   libp2p_bootstrap_node_t bootstrap_nodes[1] = {
       {.peerId = pInfo1.peerId,
        .multiaddrs = pInfo1.addrs,
@@ -163,17 +165,17 @@ int main(int argc, char **argv) {
 
   // Kademlia operations
   printf("Found nodes:\n");
-  libp2p_find_node(ctx1, pInfo2.peerId, peers_handler, NULL);
+  libp2p_kad_find_node(ctx1, pInfo2.peerId, peers_handler, NULL);
   waitForCallback();
 
   const uint8_t keyBytes[] = {0xde, 0xad, 0xbe, 0xef};
   const uint8_t valBytes[] = "nim-libp2p";
-  libp2p_put_value(ctx1, keyBytes, sizeof(keyBytes), valBytes,
-                   sizeof(valBytes) - 1, event_handler, NULL);
+  libp2p_kad_put_value(ctx1, keyBytes, sizeof(keyBytes), valBytes,
+                       sizeof(valBytes) - 1, event_handler, NULL);
   waitForCallback();
 
-  libp2p_get_value(ctx2, keyBytes, sizeof(keyBytes), 1, get_value_handler,
-                   NULL);
+  libp2p_kad_get_value(ctx2, keyBytes, sizeof(keyBytes), 1, get_value_handler,
+                       NULL);
   waitForCallback();
 
   uint8_t cidData[32];
@@ -185,13 +187,13 @@ int main(int argc, char **argv) {
   waitForCallback();
 
   const char *cid = cid_buf;
-  libp2p_start_providing(ctx1, cid, event_handler, NULL);
+  libp2p_kad_start_providing(ctx1, cid, event_handler, NULL);
   waitForCallback();
 
-  libp2p_add_provider(ctx1, cid, event_handler, NULL);
+  libp2p_kad_add_provider(ctx1, cid, event_handler, NULL);
   waitForCallback();
 
-  libp2p_get_providers(ctx2, cid, get_providers_handler, NULL);
+  libp2p_kad_get_providers(ctx2, cid, get_providers_handler, NULL);
   waitForCallback();
 
   sleep(5);

@@ -5,7 +5,7 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, rpc/messages]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Fanout Management":
@@ -17,8 +17,8 @@ suite "GossipSub Component - Fanout Management":
   asyncTest "GossipSub send over fanout A -> B":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     let (passed, handler) = createCompleteHandler()
     nodes[1].subscribe(topic, handler)
@@ -57,8 +57,8 @@ suite "GossipSub Component - Fanout Management":
     nodes[1].parameters.dHigh = 0
     nodes[1].parameters.dLow = 0
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     let (passed, handler) = createCompleteHandler()
     nodes[1].subscribe(topic, handler)

@@ -7,7 +7,7 @@ import chronos, stew/byteutils
 import ../../../../libp2p/stream/connection
 import
   ../../../../libp2p/protocols/pubsub/[gossipsub, peertable, pubsubpeer, rpc/messages]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 type DummyConnection* = ref object of Connection
@@ -52,8 +52,8 @@ suite "GossipSub Component - Custom Connection Support":
       )
     )
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribe(nodes[0], nodes[1], topic)
@@ -69,8 +69,8 @@ suite "GossipSub Component - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribe(nodes[0], nodes[1], topic)

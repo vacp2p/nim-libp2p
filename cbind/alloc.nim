@@ -7,11 +7,15 @@
 # used for communication between client and library threads.
 
 import ../libp2p/utils/sequninit
+import ./ffi_types
 
 ## Can be shared safely between threads
 type SharedSeq*[T] = object
   data: ptr UncheckedArray[T]
   len: int
+
+proc len*(s: SharedSeq): int =
+  s.len
 
 template deallocCStringArray*(arrPtr: ptr cstring, len: csize_t) =
   if not arrPtr.isNil():
@@ -42,6 +46,23 @@ proc alloc*(str: string): cstring =
     ret[i] = s[i]
   ret[str.len] = '\0'
   return ret
+
+proc allocCStringArrayFromSeq*(addrs: seq[string]): ptr cstring =
+  if addrs.len == 0:
+    return nil
+  result = cast[ptr cstring](allocShared(sizeof(cstring) * addrs.len))
+  let arr = cast[ptr UncheckedArray[cstring]](result)
+  for i, addrStr in addrs:
+    arr[i] = addrStr.alloc()
+
+proc allocCStringArrayFromCArray*(src: ptr cstring, len: csize_t): ptr cstring =
+  if src.isNil() or len == 0:
+    return nil
+  result = cast[ptr cstring](allocShared(sizeof(cstring) * int(len)))
+  let srcArr = cast[ptr UncheckedArray[cstring]](src)
+  let dstArr = cast[ptr UncheckedArray[cstring]](result)
+  for i in 0 ..< int(len):
+    dstArr[i] = srcArr[i].alloc()
 
 proc allocSharedSeq*[T](s: seq[T]): SharedSeq[T] =
   let data = allocShared(sizeof(T) * s.len)
@@ -100,3 +121,24 @@ proc allocSharedSeqFromCArray*[T](arr: ptr T, len: int): SharedSeq[T] =
     let data = allocShared(sizeof(T) * len)
     copyMem(data, arr, sizeof(T) * len)
     return SharedSeq[T](data: cast[ptr UncheckedArray[T]](data), len: len)
+
+proc deallocReadResponse*(res: ptr ReadResponse) =
+  if res.isNil():
+    return
+
+  if res[].data != nil:
+    deallocShared(res[].data)
+
+  deallocShared(res)
+
+proc allocReadResponse*(data: seq[byte]): ptr ReadResponse =
+  let res = cast[ptr ReadResponse](createShared(ReadResponse, 1))
+  if data.len == 0:
+    res[].data = nil
+    res[].dataLen = 0
+    return res
+
+  res[].dataLen = data.len.csize_t
+  res[].data = cast[ptr byte](allocShared(data.len))
+  copyMem(res[].data, addr data[0], data.len)
+  res

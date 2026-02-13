@@ -43,14 +43,19 @@ suite "GossipSub Extensions :: State":
 
     # procs that return value should return default value
     check state.makeControlExtensions() == ControlExtensions()
-    check state.peerRequestsPartial(peerId, "logos") == false
 
-  test "publishPartial fails when extensions is not configured":
+  test "ensure default behavior for unconfigured partial message extension":
     var state = ExtensionsState.new()
+
+    # expect to fail because this is user facing function, they shouldn't
+    # call if extensions is not configured.
     expect AssertionDefect:
       discard state.publishPartial("logos", nil)
 
-  test "state reports misbehaving when ControlExtensions more then once":
+    # should return false, backwards compatible behavior
+    check state.peerRequestsPartial(peerId, "logos") == false
+
+  test "state reports misbehaving when ControlExtensions is sent more then once":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 
@@ -62,7 +67,7 @@ suite "GossipSub Extensions :: State":
       state.handleRPC(peerId, makeRPC())
       check reportedPeers[] == repeat[PeerId](peerId, i)
 
-  test "state reports misbehaving when ControlExtensions more then once - many peers reported":
+  test "state reports misbehaving when ControlExtensions is sent more then once - many peers reported":
     var (reportedPeers, onMisbehave) = createMisbehaveProc()
     var state = ExtensionsState.new(onMisbehave)
 

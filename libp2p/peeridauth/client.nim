@@ -307,7 +307,7 @@ proc sendWithBearer(
 ): Future[(BearerToken, PeerIDAuthResponse)] {.
     async: (raises: [PeerIDAuthError, CancelledError])
 .} =
-  if bearer.expires.isSome() and DateTime(bearer.expires.get) <= now():
+  if bearer.expires.isSome() and bearer.expires.get <= now():
     raise newException(PeerIDAuthError, "Bearer expired")
   let authHeader = PeerIDAuthPrefix & " bearer=\"" & bearer.token & "\""
   let response =

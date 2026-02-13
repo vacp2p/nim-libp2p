@@ -10,7 +10,7 @@
 import std/json, results
 import chronos, chronos/threadsync
 import
-  ../../[ffi_types, types],
+  ../../[ffi_types, types, alloc],
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
     libp2p_kademlia_requests, libp2p_stream_requests,
@@ -30,6 +30,7 @@ type CallbackKind* {.pure.} = enum
   PEERS
   GET_VALUE
   GET_PROVIDERS
+  RANDOM_RECORDS
   CONNECTED_PEERS
   CONNECTION
   READ
@@ -61,7 +62,7 @@ proc createShared*(
 
 # Handles responses of type Result[string, string] or Result[void, string]
 # Converts the result into a C callback invocation with either RET_OK or RET_ERR
-proc handleRes(res: Result[string, string], request: ptr LibP2PThreadRequest) =
+proc handleRes[T](res: Result[T, string], request: ptr LibP2PThreadRequest) =
   ## Handles the Result responses, which can either be Result[string, string] or
   ## Result[void, string].
 
@@ -77,11 +78,16 @@ proc handleRes(res: Result[string, string], request: ptr LibP2PThreadRequest) =
     return
 
   foreignThreadGc:
-    if res.get() == "":
+    when T is void:
       cb(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
+    elif T is string:
+      if res.get() == "":
+        cb(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
+      else:
+        var msg: cstring = res.get().cstring
+        cb(RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
     else:
-      var msg: cstring = res.get().cstring
-      cb(RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+      raiseAssert "handleRes only supports Result[void, string] or Result[string, string]"
   return
 
 proc handlePeerInfoRes(
@@ -204,12 +210,43 @@ proc handleGetProvidersRes(
 
   deallocProvidersResult(providersRes)
 
+proc handleRandomRecordsRes(
+    res: Result[ptr RandomRecordsResult, string], request: ptr LibP2PThreadRequest
+) =
+  defer:
+    deallocShared(request)
+
+  let cb = cast[RandomRecordsCallback](request[].callback)
+
+  let recordsRes = res.valueOr:
+    foreignThreadGc:
+      let msg = $error
+      cb(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+    return
+
+  foreignThreadGc:
+    cb(
+      RET_OK.cint,
+      recordsRes[].records,
+      recordsRes[].recordsLen,
+      nil,
+      0,
+      request[].userData,
+    )
+
+  deallocRandomRecordsResult(recordsRes)
+
 proc processLifecycle(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
-  handleRes(
-    await cast[ptr LifecycleRequest](request[].reqContent).process(libp2p), request
-  )
+  let req = cast[ptr LifecycleRequest](request[].reqContent)
+  case req[].operation
+  of LifecycleMsgType.GET_PUBLIC_KEY:
+    handleReadRes(await req.processGetPublicKey(libp2p), request)
+  else:
+    handleRes(
+      await cast[ptr LifecycleRequest](request[].reqContent).process(libp2p), request
+    )
 
 proc processPeerManager(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
@@ -254,6 +291,8 @@ proc processKademlia(
     handleGetValueRes(await kadReq.processGetValue(kad), request)
   of CallbackKind.GET_PROVIDERS:
     handleGetProvidersRes(await kadReq.processGetProviders(kad), request)
+  of CallbackKind.RANDOM_RECORDS:
+    handleRandomRecordsRes(await kadReq.processRandomRecords(kad), request)
   else:
     handleRes(await kadReq.process(kad), request)
 
@@ -281,6 +320,14 @@ proc processStream(
   case req[].operation
   of StreamMsgType.DIAL:
     handleConnectionRes(await req.processDial(libp2p), request)
+  of StreamMsgType.MIX_DIAL:
+    handleConnectionRes(await req.processMixDial(libp2p), request)
+  of StreamMsgType.MIX_REGISTER_DEST_READ:
+    handleRes(await req.processMixRegisterDestRead(libp2p), request)
+  of StreamMsgType.MIX_SET_NODE_INFO:
+    handleRes(await req.processMixSetNodeInfo(libp2p), request)
+  of StreamMsgType.MIX_NODEPOOL_ADD:
+    handleRes(await req.processMixNodePoolAdd(libp2p), request)
   of StreamMsgType.CLOSE, StreamMsgType.CLOSE_WITH_EOF:
     handleRes(await req.processClose(libp2p), request)
   of StreamMsgType.RELEASE:

@@ -5,7 +5,7 @@
 
 import chronos, stew/byteutils
 import ../../../../libp2p/protocols/pubsub/[gossipsub, pubsub, rpc/messages]
-import ../../../tools/[unittest]
+import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 suite "GossipSub Component - Signature Flags":
@@ -22,8 +22,8 @@ suite "GossipSub Component - Signature Flags":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -50,8 +50,8 @@ suite "GossipSub Component - Signature Flags":
       )
       .toGossipSub()
 
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -75,8 +75,8 @@ suite "GossipSub Component - Signature Flags":
         2, gossip = true, sign = true, verifySignature = true, anonymize = true
       )
       .toGossipSub() # anonymize = true takes precedence
-    startNodesAndDeferStop(nodes)
-    await connectNodesStar(nodes)
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
@@ -200,8 +200,8 @@ suite "GossipSub Component - Signature Flags":
         .toGossipSub()[0]
         nodes = @[sender, receiver]
 
-      startNodesAndDeferStop(nodes)
-      await connectNodesStar(nodes)
+      startAndDeferStop(nodes)
+      await connectStar(nodes)
 
       let (messageReceivedFut, handler) = createCompleteHandler()
 

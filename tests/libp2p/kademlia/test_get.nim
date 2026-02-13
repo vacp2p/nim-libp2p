@@ -6,7 +6,7 @@
 from std/times import now, utc
 import chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders]
-import ../../tools/[unittest]
+import ../../tools/[lifecycle, topology, unittest]
 import ./utils
 
 suite "KadDHT Get":
@@ -14,11 +14,10 @@ suite "KadDHT Get":
     checkTrackers()
 
   asyncTest "Get from peer":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key = kads[0].rtable.selfId
@@ -38,9 +37,8 @@ suite "KadDHT Get":
       kads[1].containsData(key, value)
 
   asyncTest "Get value that is locally present":
-    let kads = await setupKadSwitches(1)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(1)
+    startAndDeferStop(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -53,12 +51,10 @@ suite "KadDHT Get":
       (await kads[0].getValue(key, quorumOverride = Opt.some(1))).get().value == value
 
   asyncTest "Divergent getVal responses from peers":
-    let kads =
-      await setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
+    startAndDeferStop(kads)
 
-    connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -89,12 +85,10 @@ suite "KadDHT Get":
       kads[4].containsData(key, bestValue)
 
   asyncTest "Could not achieve quorum":
-    let kads =
-      await setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
+    startAndDeferStop(kads)
 
-    connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -114,12 +108,10 @@ suite "KadDHT Get":
     check record.error() == "Not enough valid records to achieve quorum, needed 5 got 1"
 
   asyncTest "Update peers with empty values":
-    let kads =
-      await setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
+    startAndDeferStop(kads)
 
-    connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -148,7 +140,7 @@ suite "KadDHT Get":
 
   asyncTest "Get updates routing table with closerPeers (no record)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
-    let kads = await setupKadSwitches(
+    let kads = setupKadSwitches(
       3,
       PermissiveValidator(),
       CandSelector(),
@@ -156,10 +148,9 @@ suite "KadDHT Get":
       chronos.seconds(1),
       chronos.seconds(1),
     )
-    defer:
-      await stopNodes(kads)
+    startAndDeferStop(kads)
 
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let key = kads[0].rtable.selfId
 
@@ -177,7 +168,7 @@ suite "KadDHT Get":
 
   asyncTest "Get updates routing table with closerPeers (with record)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
-    let kads = await setupKadSwitches(
+    let kads = setupKadSwitches(
       3,
       PermissiveValidator(),
       CandSelector(),
@@ -185,10 +176,9 @@ suite "KadDHT Get":
       chronos.seconds(1),
       chronos.seconds(1),
     )
-    defer:
-      await stopNodes(kads)
+    startAndDeferStop(kads)
 
-    connectNodesHub(kads[0], kads[1 ..^ 1])
+    await connectHub(kads[0], kads[1 ..^ 1])
 
     let
       key = kads[0].rtable.selfId
@@ -209,7 +199,7 @@ suite "KadDHT Get":
       kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
 
   asyncTest "Quorum handling is ignored if quorum is 0 or 1":
-    let kads = await setupKadSwitches(
+    let kads = setupKadSwitches(
       3,
       PermissiveValidator(),
       CandSelector(),
@@ -217,10 +207,9 @@ suite "KadDHT Get":
       chronos.seconds(1),
       chronos.seconds(1),
     )
-    defer:
-      await stopNodes(kads)
+    startAndDeferStop(kads)
 
-    connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -241,7 +230,7 @@ suite "KadDHT Get":
         valueLocal
 
   asyncTest "Get value rejects record where Record.key does not match requested key":
-    let kad = await setupKadSwitch()
+    let kad = setupKad()
 
     let
       key = kad.rtable.selfId
@@ -261,11 +250,11 @@ suite "KadDHT Get":
         )
       )
 
-    let mockKad = await setupMockKadSwitch(getValueResponse = getValueResponse)
-    defer:
-      await stopNodes(@[kad, mockKad])
+    let mockKad = setupMockKad(getValueResponse = getValueResponse)
 
-    connectNodes(kad, mockKad)
+    startAndDeferStop(@[kad, mockKad])
+
+    await connect(kad, mockKad)
 
     check kad.containsNoData(key)
 
@@ -279,7 +268,7 @@ suite "KadDHT Get":
       kad.containsNoData(wrongKey)
 
   asyncTest "Get value rejects response without record":
-    let kad = await setupKadSwitch()
+    let kad = setupKad()
 
     let
       key = kad.rtable.selfId
@@ -292,11 +281,11 @@ suite "KadDHT Get":
         )
       )
 
-    let mockKad = await setupMockKadSwitch(getValueResponse = getValueResponse)
-    defer:
-      await stopNodes(@[kad, mockKad])
+    let mockKad = setupMockKad(getValueResponse = getValueResponse)
 
-    connectNodes(kad, mockKad)
+    startAndDeferStop(@[kad, mockKad])
+
+    await connect(kad, mockKad)
 
     check kad.containsNoData(key)
 
@@ -308,7 +297,7 @@ suite "KadDHT Get":
       kad.containsNoData(key)
 
   asyncTest "Get value rejects record without value":
-    let kad = await setupKadSwitch()
+    let kad = setupKad()
 
     let
       key = kad.rtable.selfId
@@ -327,11 +316,11 @@ suite "KadDHT Get":
         )
       )
 
-    let mockKad = await setupMockKadSwitch(getValueResponse = getValueResponse)
-    defer:
-      await stopNodes(@[kad, mockKad])
+    let mockKad = setupMockKad(getValueResponse = getValueResponse)
 
-    connectNodes(kad, mockKad)
+    startAndDeferStop(@[kad, mockKad])
+
+    await connect(kad, mockKad)
 
     check kad.containsNoData(key)
 
@@ -343,7 +332,7 @@ suite "KadDHT Get":
       kad.containsNoData(key)
 
   asyncTest "Get value succeeds with some peers returning mismatched keys":
-    let kads = await setupKadSwitches(3)
+    let kads = setupKadSwitches(3)
 
     let
       key = kads[0].rtable.selfId
@@ -364,11 +353,11 @@ suite "KadDHT Get":
         )
       )
 
-    let mockKad = await setupMockKadSwitch(getValueResponse = getValueResponse)
-    defer:
-      await stopNodes(kads & mockKad)
+    let mockKad = setupMockKad(getValueResponse = getValueResponse)
 
-    connectNodesHub(kads[0], kads[1 ..^ 1] & mockKad)
+    startAndDeferStop(kads & mockKad)
+
+    await connectHub(kads[0], kads[1 ..^ 1] & mockKad)
 
     # Compliant nodes have valid records
     kads[1].dataTable.insert(key, value, $times.now().utc)
@@ -384,11 +373,10 @@ suite "KadDHT Get":
 
   asyncTest "Get value rejects records that fail validation":
     # Use RestrictiveValidator which rejects all records
-    let kads = await setupKadSwitches(2, RestrictiveValidator(), CandSelector())
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2, RestrictiveValidator(), CandSelector())
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key = kads[0].rtable.selfId
@@ -409,9 +397,10 @@ suite "KadDHT Get":
       kads[0].containsNoData(key)
 
   asyncTest "Get value succeeds when some peers are offline":
-    let kads = await setupKadSwitches(4)
+    let kads = setupKadSwitches(4)
+    startAndDeferStop(kads)
 
-    connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -424,12 +413,6 @@ suite "KadDHT Get":
 
     # Stop one peer before query
     await kads[3].switch.stop()
-
-    defer:
-      await kads[0].switch.stop()
-      await kads[1].switch.stop()
-      await kads[2].switch.stop()
-
     # Query should still succeed with remaining peers (quorum=2)
     let record = await kads[0].getValue(key, quorumOverride = Opt.some(2))
 
@@ -438,9 +421,10 @@ suite "KadDHT Get":
       record.get().value == value
 
   asyncTest "Get value fails when too many peers are offline":
-    let kads = await setupKadSwitches(4)
+    let kads = setupKadSwitches(4)
+    startAndDeferStop(kads)
 
-    connectNodesStar(kads)
+    await connectStar(kads)
 
     let
       key = kads[0].rtable.selfId
@@ -455,10 +439,6 @@ suite "KadDHT Get":
     await kads[2].switch.stop()
     await kads[3].switch.stop()
 
-    defer:
-      await kads[0].switch.stop()
-      await kads[1].switch.stop()
-
     # Query should fail - need quorum of 3 but only 1 peer available
     let record = await kads[0].getValue(key, quorumOverride = Opt.some(3))
 
@@ -466,11 +446,10 @@ suite "KadDHT Get":
       record.isErr()
 
   asyncTest "Get value retrieves binary data with null and high bytes":
-    let kads = await setupKadSwitches(2)
-    defer:
-      await stopNodes(kads)
+    let kads = setupKadSwitches(2)
+    startAndDeferStop(kads)
 
-    connectNodes(kads[0], kads[1])
+    await connect(kads[0], kads[1])
 
     let
       key = kads[0].rtable.selfId
