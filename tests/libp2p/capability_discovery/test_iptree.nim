@@ -287,11 +287,11 @@ suite "IpTree":
     let tree = IpTree.new()
 
     # Insert IPs from completely different networks
-    tree.insertIp(parseIpAddress("10.0.0.1"))      # Class A private
-    tree.insertIp(parseIpAddress("172.16.0.1"))    # Class B private
-    tree.insertIp(parseIpAddress("192.168.0.1"))   # Class C private
-    tree.insertIp(parseIpAddress("8.8.8.8"))       # Google DNS
-    tree.insertIp(parseIpAddress("1.1.1.1"))       # Cloudflare DNS
+    tree.insertIp(parseIpAddress("10.0.0.1")) # Class A private
+    tree.insertIp(parseIpAddress("172.16.0.1")) # Class B private
+    tree.insertIp(parseIpAddress("192.168.0.1")) # Class C private
+    tree.insertIp(parseIpAddress("8.8.8.8")) # Google DNS
+    tree.insertIp(parseIpAddress("1.1.1.1")) # Cloudflare DNS
 
     check tree.root.counter == 5
 
