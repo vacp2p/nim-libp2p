@@ -7,7 +7,6 @@ import chronos, results, stew/byteutils
 import
   ../../../libp2p/[
     protocols/mix,
-    protocols/mix/mix_node,
     protocols/mix/mix_protocol,
     protocols/ping,
     peerid,
@@ -23,8 +22,6 @@ import ./utils
 suite "Spam Protection Component":
   asyncTeardown:
     checkTrackers()
-    deleteNodeInfoFolder()
-    deletePubInfoFolder()
 
   asyncTest "rate limiting spam protection":
     const

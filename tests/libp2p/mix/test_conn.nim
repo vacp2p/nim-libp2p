@@ -7,7 +7,6 @@ import chronos, results, stew/byteutils, sequtils, tables
 import
   ../../../libp2p/[
     protocols/mix,
-    protocols/mix/mix_node,
     protocols/mix/mix_protocol,
     protocols/mix/sphinx,
     protocols/ping,
@@ -27,8 +26,6 @@ import ./mock_mix
 suite "Mix Protocol Component":
   asyncTeardown:
     checkTrackers()
-    deleteNodeInfoFolder()
-    deletePubInfoFolder()
 
   asyncTest "expect reply, exit != destination":
     let nodes = await setupMixNodes(
@@ -186,8 +183,8 @@ suite "Mix Protocol Component":
     let invalidMultiAddr =
       MultiAddress.init("/ip4/0.0.0.0").expect("could not initialize invalid multiaddr")
 
-    # Get valid keys from any node's pub info
-    let validPubInfo = MixPubInfo.readFromFile(1).expect("could not read pub info")
+    # Get valid keys from any node's pub info (read from pool before clearing)
+    let validPubInfo = nodes[0].nodePool.get(nodes[1].switch.peerInfo.peerId).get()
     let (_, _, validMixPubKey, validLibp2pPubKey) = validPubInfo.get()
 
     let invalidPubInfo = MixPubInfo.init(
@@ -203,6 +200,11 @@ suite "Mix Protocol Component":
     let validNodesCount = min(nodes.len - 1, PathLength + 1)
     check nodes.len - 1 >= PathLength + 1
 
+    # Save pub info from pool before clearing (need it for re-population)
+    var savedPubInfos: seq[MixPubInfo]
+    for i in 1 ..< validNodesCount + 1:
+      savedPubInfos.add(nodes[0].nodePool.get(nodes[i].switch.peerInfo.peerId).get())
+
     # Now inject invalid node into sender's (node 0) peerStore
     # Include enough valid nodes so that even after invalid node is removed,
     # we still have sufficient nodes for PathLength = 3
@@ -212,8 +214,7 @@ suite "Mix Protocol Component":
       discard senderPeerStore[MixPubKeyBook].del(peerId)
 
     # Add valid nodes to peerStore
-    for i in 1 ..< validNodesCount + 1:
-      let pubInfo = MixPubInfo.readFromFile(i).expect("could not read pub info")
+    for pubInfo in savedPubInfos:
       senderPeerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
       senderPeerStore[AddressBook][pubInfo.peerId] = @[pubInfo.multiAddr]
       senderPeerStore[KeyBook][pubInfo.peerId] =

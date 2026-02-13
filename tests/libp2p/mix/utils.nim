@@ -1,19 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
-import chronos, results, options, std/[enumerate, tables]
+import chronos, results, strformat
 import
   ../../../libp2p/[
     protocols/mix,
-    protocols/mix/mix_node,
     protocols/mix/mix_protocol,
+    protocols/mix/curve25519,
     protocols/ping,
     peerid,
     multiaddress,
     switch,
     builders,
+    crypto/crypto,
     crypto/secp,
   ]
 
@@ -30,23 +31,8 @@ proc createSwitch(
   return
     newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
 
-proc setupSwitches*(numNodes: int): seq[Switch] =
-  let mixNodes = initializeMixNodes(numNodes).expect("could not initialize nodes")
-  var switches: seq[Switch] = @[]
-  for index, mixNode in enumerate(mixNodes):
-    let pubInfo =
-      mixNodes.getMixPubInfoByIndex(index).expect("could not obtain pub info")
-
-    pubInfo.writeToFile(index).expect("could not write pub info")
-    mixNode.writeToFile(index).expect("could not write mix info")
-
-    let switch = createSwitch(mixNode.multiAddr, Opt.some(mixNode.libp2pPrivKey))
-    switches.add(switch)
-
-  return switches
-
 proc setupMixNode[T: MixProtocol](
-    index, numNodes: int,
+    mixNodeInfo: MixNodeInfo,
     switch: Switch,
     destReadBehavior: Opt[tuple[codec: string, callback: DestReadBehavior]],
     spamProtectionRateLimit: Opt[int],
@@ -59,7 +45,7 @@ proc setupMixNode[T: MixProtocol](
     else:
       Opt.none(SpamProtection)
 
-  let proto = T.new(index, numNodes, switch, spamProtection = spamProtection)
+  let proto = T.new(mixNodeInfo, switch, spamProtection = spamProtection)
 
   if destReadBehavior.isSome():
     let (codec, callback) = destReadBehavior.get()
@@ -73,14 +59,17 @@ proc setupMixNodes*(
     destReadBehavior = Opt.none(tuple[codec: string, callback: DestReadBehavior]),
     spamProtectionRateLimit = Opt.none(int),
 ): Future[seq[MixProtocol]] {.async.} =
-  let switches = setupSwitches(numNodes)
   var nodes: seq[MixProtocol] = @[]
-  for index, _ in enumerate(switches):
-    nodes.add(
-      setupMixNode[MixProtocol](
-        index, numNodes, switches[index], destReadBehavior, spamProtectionRateLimit
-      )
+  let nodeInfos = MixNodeInfo.generateRandomMany(numNodes)
+  for mixNodeInfo in nodeInfos:
+    let switch =
+      createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))
+    let mixNode = setupMixNode[MixProtocol](
+      mixNodeInfo, switch, destReadBehavior, spamProtectionRateLimit
     )
+    mixNode.nodePool.add(nodeInfos.includeAllExcept(mixNodeInfo))
+    nodes.add(mixNode)
+
   nodes
 
 proc setupMixNodesWithMock*(
@@ -88,20 +77,28 @@ proc setupMixNodesWithMock*(
     destReadBehavior = Opt.none(tuple[codec: string, callback: DestReadBehavior]),
 ): Future[tuple[nodes: seq[MixProtocol], mock: MockMixProtocol]] {.async.} =
   ## Like setupMixNodes, but the first node is a MockMixProtocol.
-  let switches = setupSwitches(numNodes)
   var nodes: seq[MixProtocol] = @[]
 
+  let nodeInfos = MixNodeInfo.generateRandomMany(numNodes)
+
+  let mockMixNodeInfo = nodeInfos[0]
+  let mockSwitch =
+    createSwitch(mockMixNodeInfo.multiAddr, Opt.some(mockMixNodeInfo.libp2pPrivKey))
+
   let mock = setupMixNode[MockMixProtocol](
-    0, numNodes, switches[0], destReadBehavior, Opt.none(int)
+    mockMixNodeInfo, mockSwitch, destReadBehavior, Opt.none(int)
   )
+  mock.nodePool.add(nodeInfos.includeAllExcept(mockMixNodeInfo))
   nodes.add(mock)
 
   for index in 1 ..< numNodes:
-    nodes.add(
-      setupMixNode[MixProtocol](
-        index, numNodes, switches[index], destReadBehavior, Opt.none(int)
-      )
-    )
+    let mixNodeInfo = nodeInfos[index]
+    let switch =
+      createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))
+    let mixNode =
+      setupMixNode[MixProtocol](mixNodeInfo, switch, destReadBehavior, Opt.none(int))
+    mixNode.nodePool.add(nodeInfos.includeAllExcept(mixNodeInfo))
+    nodes.add(mixNode)
 
   (nodes, mock)
 
