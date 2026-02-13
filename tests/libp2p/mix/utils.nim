@@ -119,15 +119,18 @@ const NoReplyProtocolCodec* = "/test/1.0.0"
 
 type NoReplyProtocol* = ref object of LPProtocol
   receivedMessages*: AsyncQueue[seq[byte]]
+  connPeerIds*: AsyncQueue[PeerId]
 
 proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
   let nrProto = NoReplyProtocol()
   nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
+  nrProto.connPeerIds = newAsyncQueue[PeerId]()
 
   proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       let buffer = await conn.readLp(1024)
       await nrProto.receivedMessages.put(buffer)
+      await nrProto.connPeerIds.put(conn.peerId)
     except LPStreamError:
       raiseAssert "should not happen"
     finally:
