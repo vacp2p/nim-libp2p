@@ -4,11 +4,9 @@
 {.used.}
 
 import chronos, std/sequtils
-import ../../../libp2p/protocols/[kademlia, kad_disco]
-import ../../tools/[unittest]
+import ../../../libp2p/protocols/kad_disco
+import ../../tools/[lifecycle, topology, unittest]
 import ../capability_discovery/utils
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 suite "Kademlia discovery - FindRandom":
   teardown:

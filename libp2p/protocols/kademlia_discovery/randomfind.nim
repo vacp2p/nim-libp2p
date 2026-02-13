@@ -5,7 +5,7 @@ import std/[sequtils, sets]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
 import ../protocol
-import ../kademlia/[types, find, get, protobuf]
+import ../kademlia/[types, find, get, protobuf, routingtable]
 import ./[types]
 
 logScope:

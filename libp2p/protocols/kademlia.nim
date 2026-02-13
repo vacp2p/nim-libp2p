@@ -108,6 +108,12 @@ proc new*(
         await kad.handleGetProviders(conn, msg)
       of MessageType.ping:
         await kad.handlePing(conn, msg)
+      of MessageType.register:
+        # unsupported
+        return
+      of MessageType.getAds:
+        # unsupported
+        return
 
   return kad
 
