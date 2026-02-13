@@ -72,6 +72,13 @@ suite "Mix Protocol Component":
 
     check data == await nrProto.receivedMessages.get()
 
+    # assert anonymity of the sender
+    let connPeerId = await nrProto.connPeerIds.get()
+    check:
+      connPeerId != nodes[0].switch.peerInfo.peerId # not the sender
+      connPeerId != destNode.peerInfo.peerId # not the destination itself
+      connPeerId in nodes.mapIt(it.switch.peerInfo.peerId)
+
   when defined(libp2p_mix_experimental_exit_is_dest):
     asyncTest "expect reply, exit == destination":
       let nodes = await setupMixNodes(
