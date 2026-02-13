@@ -15,7 +15,6 @@ import ../../tools/unittest
 # A high similarity score triggers increased waiting times for registration.
 
 suite "IpTree":
-
   test "new IpTree has root counter set to 0":
     let tree = IpTree.new()
     check tree.root.counter == 0
