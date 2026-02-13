@@ -8,6 +8,7 @@ import
   ../../../libp2p/[
     protocols/mix,
     protocols/mix/mix_protocol,
+    protocols/mix/serialization,
     protocols/mix/sphinx,
     protocols/ping,
     peerid,
@@ -492,3 +493,25 @@ suite "Mix Protocol Component":
 
     expect LPStreamError:
       await conn.write(newSeq[byte](DataSize + 1))
+
+  asyncTest "no response sent back on failure":
+    let nodes = await setupMixNodes(2)
+    startAndDeferStop(nodes)
+
+    let targetPeerId = nodes[1].switch.peerInfo.peerId
+    let targetAddr = nodes[1].switch.peerInfo.addrs[0]
+
+    # Dial the mix node directly
+    let conn = await nodes[0].switch.dial(targetPeerId, @[targetAddr], @[MixProtocolID])
+    defer:
+      await conn.close()
+
+    # Send a corrupted packet
+    let corruptedPacket = newSeq[byte](PacketSize)
+    await conn.writeLp(corruptedPacket)
+
+    # Wait briefly to give the mix node time to process
+    # Then try to read — expect timeout because no bytes should come back
+    expect AsyncTimeoutError:
+      var buf = newSeq[byte](1)
+      await conn.readExactly(addr buf[0], 1).wait(1.seconds)
