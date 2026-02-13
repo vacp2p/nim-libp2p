@@ -34,7 +34,7 @@ suite "KadDHT Protobuffers":
 
     checkEncodeDecode(
       Message(
-        msgType: MessageType.findNode,
+        msgType: MessageType.putValue,
         key: @[1'u8],
         record: Opt.some(
           Record(key: @[1'u8], value: Opt.some(@[2'u8]), timeReceived: Opt.some("t"))
