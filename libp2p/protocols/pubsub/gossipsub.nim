@@ -247,7 +247,7 @@ proc usesExtensions(g: GossipSub): bool =
     g.parameters.testExtensionConfig.isSome() or #
     g.parameters.partialMessageExtensionConfig.isSome()
 
-proc sendExtensionsControl(g: GossipSub) =
+proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
   proc send() =
     g.extensionsState.addPeer(peer.peerId)
     g.send(
@@ -300,7 +300,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   if g.usesExtensions():
     # if gossipsub uses extensions it must send 
     # extensions control message as first message on the stream
-    g.sendExtensionsControl()
+    g.sendExtensionsControl(peer)
 
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
