@@ -299,9 +299,11 @@ proc connectOnce(
       # if codec was not know, it can be retrieved from newly
       # established connection
       p.codec = newConn.protocol
-      p.codecInitializedFut.complete()
+      if not p.codecInitializedFut.completed:
+        p.codecInitializedFut.complete()
     else:
-      p.codecInitializedFut.complete()
+      if not p.codecInitializedFut.completed:
+        p.codecInitializedFut.complete()
 
     p.connectedFut.complete()
     if p.onEvent != nil:
