@@ -300,6 +300,8 @@ proc connectOnce(
       # established connection
       p.codec = newConn.protocol
       p.codecInitializedFut.complete()
+    else:
+      p.codecInitializedFut.complete()
 
     p.connectedFut.complete()
     if p.onEvent != nil:
