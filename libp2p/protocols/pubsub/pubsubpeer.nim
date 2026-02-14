@@ -294,7 +294,7 @@ proc connectOnce(
         some(p.sendConn.observedAddr.get)
       else:
         none(MultiAddress)
-    
+
     if p.codec == "":
       # if codec was not know, it can be retrieved from newly
       # established connection

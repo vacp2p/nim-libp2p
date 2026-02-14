@@ -259,11 +259,11 @@ proc sendExtensionsControl(g: GossipSub) =
       ),
       true, # use high priority as message must be the first message on the stream
     )
-  
+
   # before extensions control is sent, node need to know if peer actually supports
   # version of gossipsub that supports extensions (in general). 
   # only then node should send extensions control message.
-  
+
   if peer.codec != "":
     # peer already has set codecs
     if gossipExtensionsSupported(peer.codec):
