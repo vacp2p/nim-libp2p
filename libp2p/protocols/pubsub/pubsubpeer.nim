@@ -116,8 +116,9 @@ type
     getConn*: GetConn # callback to establish a new send connection
     onEvent*: OnEvent # Connectivity updates for peer
     codec*: string # the protocol that this peer joined from
+    codecInitializedFut: Future[void]
     sendConn*: Connection # cached send connection
-    connectedFut*: Future[void]
+    connectedFut: Future[void]
     address*: Option[MultiAddress]
     peerId*: PeerId
     handler*: RPCHandler
@@ -268,16 +269,15 @@ proc closeSendConn(
 
 proc connectOnce(
     p: PubSubPeer
-): Future[void] {.async: (raises: [CancelledError, GetConnDialError, LPError]).} =
+): Future[void] {.async: (raises: [CancelledError, GetConnDialError]).} =
   try:
     if p.connectedFut.finished:
       p.connectedFut = newFuture[void]()
     let newConn =
       try:
         await p.getConn().wait(5.seconds)
-      except AsyncTimeoutError as error:
-        trace "getConn timed out", description = error.msg
-        raise (ref LPError)(msg: "Cannot establish send connection: " & error.msg)
+      except AsyncTimeoutError:
+        raise (ref GetConnDialError)(msg: "establishing connection timed out")
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all
@@ -294,8 +294,14 @@ proc connectOnce(
         some(p.sendConn.observedAddr.get)
       else:
         none(MultiAddress)
-    p.connectedFut.complete()
+    
+    if p.codec == "":
+      # if codec was not know, it can be retrieved from newly
+      # established connection
+      p.codec = newConn.protocol
+      p.codecInitializedFut.complete()
 
+    p.connectedFut.complete()
     if p.onEvent != nil:
       p.onEvent(p, PubSubPeerEvent(kind: PubSubPeerEventKind.StreamOpened))
 
@@ -315,8 +321,6 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
         return
       await connectOnce(p)
   except CancelledError as exc:
-    debug "Could not establish send connection", description = exc.msg
-  except LPError as exc:
     debug "Could not establish send connection", description = exc.msg
   except GetConnDialError as exc:
     debug "Could not establish send connection", description = exc.msg
@@ -613,6 +617,7 @@ proc new*(
     getConn: getConn,
     onEvent: onEvent,
     codec: codec,
+    codecInitializedFut: newFuture[void](),
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,

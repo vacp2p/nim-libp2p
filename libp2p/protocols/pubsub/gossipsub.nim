@@ -247,6 +247,39 @@ proc usesExtensions(g: GossipSub): bool =
     g.parameters.testExtensionConfig.isSome() or #
     g.parameters.partialMessageExtensionConfig.isSome()
 
+proc sendExtensionsControl(g: GossipSub) =
+  proc send() =
+    g.extensionsState.addPeer(peer.peerId)
+    g.send(
+      peer,
+      RPCMsg(
+        control: some(
+          ControlMessage(extensions: some(g.extensionsState.makeControlExtensions()))
+        )
+      ),
+      true, # use high priority as message must be the first message on the stream
+    )
+  
+  # before extensions control is sent, node need to know if peer actually supports
+  # version of gossipsub that supports extensions (in general). 
+  # only then node should send extensions control message.
+  
+  if peer.codec != "":
+    # peer already has set codecs
+    if gossipExtensionsSupported(peer.codec):
+      send()
+  else:
+    # it's very likely that codecs will not be set at this point as connection was 
+    # not established and details of negotiated protocol (codecs) are not known.
+    # in this case node needs to wait for connection to be established or 
+    # more precisely for codecs to be initialized.
+    proc addPeerAfterConnected(): Future[void] {.async.} =
+      await peer.codecInitializedFut
+      if gossipExtensionsSupported(peer.codec):
+        send()
+
+    asyncSpawn addPeerAfterConnected()
+
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
     # Make sure stats and peer information match, even when reloading peer stats
@@ -264,34 +297,10 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   when defined(libp2p_gossipsub_1_4):
     peer.preambleBudget = PreamblePeerBudget
 
-  proc sendExtensionsControl() =
-    g.extensionsState.addPeer(peer.peerId)
-    g.send(
-      peer,
-      RPCMsg(
-        control: some(
-          ControlMessage(extensions: some(g.extensionsState.makeControlExtensions()))
-        )
-      ),
-      true,
-    )
-
-  # when peer has codecs use that value, otherwise wait for connection to be 
-  # established then use protocol negotiated from connection. 
-  # after peer codec is known, gossip sends extensions control message as first message
-  # to this peer.
   if g.usesExtensions():
-    if peer.codec != "":
-      if gossipExtensionsSupported(peer.codec):
-        sendExtensionsControl()
-    else:
-      proc addPeerAfterConnected(): Future[void] {.async.} =
-        await peer.connectedFut
-
-        if peer.sendConn != nil and gossipExtensionsSupported(peer.sendConn.protocol):
-          sendExtensionsControl()
-
-      asyncSpawn addPeerAfterConnected()
+    # if gossipsub uses extensions it must send 
+    # extensions control message as first message on the stream
+    g.sendExtensionsControl()
 
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
