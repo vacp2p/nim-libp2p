@@ -386,8 +386,6 @@ method getOrCreatePeer*(
   .} =
     try:
       return await p.switch.dial(peerId, protos)
-    except CancelledError as exc:
-      raise exc
     except DialFailedError as e:
       raise (ref GetConnDialError)(parent: e, msg: e.msg)
 
