@@ -116,7 +116,7 @@ type
     getConn*: GetConn # callback to establish a new send connection
     onEvent*: OnEvent # Connectivity updates for peer
     codec*: string # the protocol that this peer joined from
-    codecInitializedFut: Future[void]
+    codecInitializedFut*: Future[void]
     sendConn*: Connection # cached send connection
     connectedFut: Future[void]
     address*: Option[MultiAddress]
