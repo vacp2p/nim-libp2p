@@ -4,7 +4,9 @@
 {.used.}
 
 import results, stew/byteutils
-import ../../../libp2p/protocols/mix/[mix_message, mix_protocol, serialization]
+import
+  ../../../libp2p/protocols/mix/
+    [fragmentation, mix_message, mix_protocol, serialization]
 import ../../tools/[unittest]
 
 # Define test cases
@@ -69,7 +71,7 @@ suite "mix_message_tests":
 
     # Max SURBs that fit in payload: 
     # (total size - SURB count - minimum message size) / SURB size
-    let maxSurbs = uint8((MessageSize - SurbLenSize - 1) div SurbSize)
+    let maxSurbs = uint8((DataSize - SurbLenSize - 1) div SurbSize)
     check:
       getMaxMessageSizeForCodec(codec, maxSurbs).isOk
       getMaxMessageSizeForCodec(codec, maxSurbs + 1).isErr

@@ -487,8 +487,8 @@ suite "Mix Protocol Component":
     let corruptedPacket = newSeq[byte](PacketSize)
     await conn.writeLp(corruptedPacket)
 
-    # Wait briefly to give the mix node time to process
-    # Then try to read — expect timeout because no bytes should come back
+    # Wait briefly to give the mix node time to process, then try to read.
+    # Assert that MixProtocol doesn't send any information back in case of a failure.
     expect AsyncTimeoutError:
       var buf = newSeq[byte](1)
       await conn.readExactly(addr buf[0], 1).wait(1.seconds)

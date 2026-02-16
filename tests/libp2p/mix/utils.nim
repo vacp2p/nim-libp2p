@@ -117,7 +117,7 @@ proc toMixDestination*(switch: Switch): MixDestination =
   MixDestination.init(switch.peerInfo.peerId, switch.peerInfo.addrs[0])
 
 proc toMixDestination*(node: MixProtocol): MixDestination =
-  MixDestination.init(node.switch.peerInfo.peerId, node.switch.peerInfo.addrs[0])
+  node.switch.toMixDestination()
 
 ###
 
