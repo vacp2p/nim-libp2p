@@ -122,14 +122,14 @@ proc getReadyEvent(
   c.readyEvents[peerId] = readyEvent
   readyEvent
 
-proc peerIsReady(c: ConnManager, peerId: PeerId) =
+proc notifyPeerReady(c: ConnManager, peerId: PeerId) =
   c.readyPeers.incl(peerId)
   c.readyEvents.withValue(peerId, readyEvent):
     if not readyEvent[].finished:
       readyEvent[].complete()
     c.readyEvents.del(peerId)
 
-proc peerIsNotReady(c: ConnManager, peerId: PeerId) =
+proc clearPeerReadyState(c: ConnManager, peerId: PeerId) =
   c.readyPeers.excl(peerId)
   c.readyEvents.withValue(peerId, readyEvent):
     if not readyEvent[].finished:
@@ -148,10 +148,6 @@ proc waitForPeerReady*(
     return true
 
   let readyEvent = c.getReadyEvent(peerId)
-  if c.closed:
-    if not readyEvent.finished:
-      readyEvent.cancelSoon()
-    return false
 
   let readyJoin = readyEvent.join()
   if timeout <= 0.seconds:
@@ -300,7 +296,7 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     if muxers.len > 0:
       c.muxed[peerId] = muxers
     else:
-      c.peerIsNotReady(peerId)
+      c.clearPeerReadyState(peerId)
       c.muxed.del(peerId)
       libp2p_peers.set(c.muxed.len.int64)
       await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
@@ -398,7 +394,7 @@ proc storeMuxer*(
   # this notifies that peer is ready once the Connected events have been started
   # but before waiting for them to be completed, avoiding deadlocks where a 
   # connected handler would need inbound streams to progress.
-  c.peerIsReady(peerId)
+  c.notifyPeerReady(peerId)
   await connectedEvent
 
   if newPeer:

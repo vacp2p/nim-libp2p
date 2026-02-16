@@ -11,7 +11,8 @@ import
   ../multicodec,
   ../muxers/muxer,
   ../stream/connection,
-  ../upgrademngrs/upgrade
+  ../upgrademngrs/upgrade,
+  ../utility
 import ./transport
 import tls/certificate
 
@@ -244,12 +245,6 @@ proc defaultCertGenerator(
 ): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
   return generateX509(kp, encodingFormat = EncodingFormat.PEM)
 
-proc toOptConnManager(connManager: ConnManager): Opt[ConnManager] {.inline.} =
-  if isNil(connManager):
-    Opt.none(ConnManager)
-  else:
-    Opt.some(connManager)
-
 proc new*(
     _: type QuicTransport,
     u: Upgrade,
@@ -257,7 +252,7 @@ proc new*(
     connManager: ConnManager = nil,
 ): QuicTransport =
   let self = QuicTransport(
-    upgrader: QuicUpgrade(ms: u.ms, connManager: toOptConnManager(connManager)),
+    upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
     certGenerator: defaultCertGenerator,
   )
@@ -272,7 +267,7 @@ proc new*(
     connManager: ConnManager = nil,
 ): QuicTransport =
   let self = QuicTransport(
-    upgrader: QuicUpgrade(ms: u.ms, connManager: toOptConnManager(connManager)),
+    upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
     certGenerator: certGenerator,
   )
