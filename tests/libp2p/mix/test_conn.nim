@@ -41,8 +41,8 @@ suite "Mix Protocol Component":
 
     let conn = nodes[0]
       .toConnection(
-        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-        PingCodec,
+        destNode.toMixDestination(),
+        pingProto.codec,
         MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
       )
       .expect("could not build connection")
@@ -60,25 +60,22 @@ suite "Mix Protocol Component":
     defer:
       await stopDestNode(destNode)
 
-    let conn = nodes[0]
-      .toConnection(
-        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-        NoReplyProtocolCodec,
+    let conn = nodes[0].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
       )
-      .expect("could not build connection")
 
     let data = @[1.byte, 2, 3, 4, 5]
     await conn.writeLp(data)
     await conn.close()
 
-    check data == await nrProto.receivedMessages.get()
+    let receivedMsg = await nrProto.receivedMessages.get().wait(2.seconds)
+    check data == receivedMsg.data
 
     # assert anonymity of the sender
-    let connPeerId = await nrProto.connPeerIds.get()
     check:
-      connPeerId != nodes[0].switch.peerInfo.peerId # not the sender
-      connPeerId != destNode.peerInfo.peerId # not the destination itself
-      connPeerId in nodes.mapIt(it.switch.peerInfo.peerId)
+      receivedMsg.connPeerId != nodes[0].switch.peerInfo.peerId # not the sender
+      receivedMsg.connPeerId != destNode.peerInfo.peerId # not the destination itself
+      receivedMsg.connPeerId in nodes.mapIt(it.switch.peerInfo.peerId)
 
   asyncTest "path nodes are non-repeating":
     let nodes = await setupMixNodes(10)
@@ -90,35 +87,27 @@ suite "Mix Protocol Component":
 
     # Send multiple messages and track which mix node delivered each one
     const numMessages = 20
-    var exitNodes: seq[PeerId]
+    var exitNodes: Table[PeerId, int]
 
     for i in 0 ..< numMessages:
       let conn = nodes[0]
-        .toConnection(
-          MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-          NoReplyProtocolCodec,
-        )
+        .toConnection(destNode.toMixDestination(), nrProto.codec)
         .expect("could not build connection")
 
       await conn.writeLp(@[byte(i)])
       await conn.close()
 
-      discard await nrProto.receivedMessages.get().wait(5.seconds)
-      exitNodes.add(await nrProto.connPeerIds.get().wait(5.seconds))
-
-    # Count how many times each node served as exit
-    var exitCounts: Table[PeerId, int]
-    for peerId in exitNodes:
-      exitCounts.mgetOrPut(peerId, 0).inc()
+      let receivedMsg = await nrProto.receivedMessages.get().wait(2.seconds)
+      exitNodes.mgetOrPut(receivedMsg.connPeerId, 0).inc()
 
     # With 20 messages and 9 eligible nodes,
     # random selection must produce at least 3 distinct exit nodes.
     # Sender must never be exit and aestination must never be exit.
     # No single node should monopolize the exit role.
     check:
-      exitCounts.len >= 3
-      nodes[0].switch.peerInfo.peerId notin exitCounts
-      destNode.peerInfo.peerId notin exitCounts
+      exitNodes.len >= 3
+      nodes[0].switch.peerInfo.peerId notin exitNodes
+      destNode.peerInfo.peerId notin exitNodes
 
   when defined(libp2p_mix_experimental_exit_is_dest):
     asyncTest "expect reply, exit == destination":
@@ -135,7 +124,7 @@ suite "Mix Protocol Component":
       let conn = nodes[0]
         .toConnection(
           MixDestination.exitNode(destNode.switch.peerInfo.peerId),
-          PingCodec,
+          pingProto.codec,
           MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
         )
         .expect("could not build connection")
@@ -196,9 +185,7 @@ suite "Mix Protocol Component":
 
     let conn = nodes[0]
       .toConnection(
-        MixDestination.init(
-          destNode.switch.peerInfo.peerId, destNode.switch.peerInfo.addrs[0]
-        ),
+        destNode.toMixDestination(),
         TestCodec,
         MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
       )
@@ -297,12 +284,7 @@ suite "Mix Protocol Component":
       if senderPeerStore[MixPubKeyBook].len < PathLength:
         break
 
-      let conn = nodes[0].toConnection(
-        MixDestination.init(
-          nodes[1].switch.peerInfo.peerId, nodes[1].switch.peerInfo.addrs[0]
-        ),
-        NoReplyProtocolCodec,
-      )
+      let conn = nodes[0].toConnection(nodes[1].toMixDestination(), nrProto.codec)
 
       if conn.isErr:
         # If we can't build connection due to insufficient nodes, break
@@ -364,7 +346,7 @@ suite "Mix Protocol Component":
 
     let conn = mock
       .toConnection(
-        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+        destNode.toMixDestination(),
         TestCodec,
         MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(2))),
       )
@@ -394,7 +376,7 @@ suite "Mix Protocol Component":
       10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
     )
 
-    let (destNode, _) = await setupDestNode(Ping.new())
+    let (destNode, pingProto) = await setupDestNode(Ping.new())
     let destPeerId = destNode.peerInfo.peerId
     let destAddr = destNode.peerInfo.addrs[0]
     await stopDestNode(destNode)
@@ -404,7 +386,7 @@ suite "Mix Protocol Component":
     let conn = nodes[0]
       .toConnection(
         MixDestination.init(destPeerId, destAddr),
-        PingCodec,
+        pingProto.codec,
         MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
       )
       .expect("could not build connection")
@@ -420,16 +402,13 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(3) # each node's pool = 2 peers (< PathLength)
     startAndDeferStop(nodes)
 
-    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
     defer:
       await stopDestNode(destNode)
 
-    let conn = nodes[0]
-      .toConnection(
-        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-        NoReplyProtocolCodec,
+    let conn = nodes[0].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
       )
-      .expect("could not build connection")
     defer:
       await conn.close()
 
@@ -440,12 +419,13 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(10) # no destReadBehavior registered
     startAndDeferStop(nodes)
 
-    let (destNode, _) = await setupDestNode(Ping.new())
+    let destNode = createSwitch()
+    await destNode.start()
     defer:
-      await stopDestNode(destNode)
+      await destNode.stop()
 
     let conn = nodes[0].toConnection(
-      MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
+      destNode.toMixDestination(),
       "/test/codec",
       MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
     )
@@ -458,14 +438,14 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 
-    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
     defer:
       await stopDestNode(destNode)
 
     let conn = nodes[0]
       .toConnection(
-        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-        NoReplyProtocolCodec, # no expectReply, connection is write-only
+        destNode.toMixDestination(),
+        nrProto.codec, # no expectReply, connection is write-only
       )
       .expect("could not build connection")
     defer:
@@ -478,16 +458,13 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 
-    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
     defer:
       await stopDestNode(destNode)
 
-    let conn = nodes[0]
-      .toConnection(
-        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-        NoReplyProtocolCodec,
+    let conn = nodes[0].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
       )
-      .expect("could not build connection")
     defer:
       await conn.close()
 
