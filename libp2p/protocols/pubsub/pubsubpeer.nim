@@ -116,7 +116,7 @@ type
     getConn*: GetConn # callback to establish a new send connection
     onEvent*: OnEvent # Connectivity updates for peer
     codec*: string # the protocol that this peer joined from
-    codecInitializedFut*: Future[void]
+    codecInitializedFut*: Future[void].Raising([CancelledError])
     sendConn*: Connection # cached send connection
     connectedFut: Future[void]
     address*: Option[MultiAddress]
@@ -277,7 +277,7 @@ proc connectOnce(
       try:
         await p.getConn().wait(5.seconds)
       except AsyncTimeoutError:
-        raise (ref GetConnDialError)(msg: "establishing connection timed out")
+        raise newException(GetConnDialError, "establishing connection timed out")
 
     # When the send channel goes up, subscriptions need to be sent to the
     # remote peer - if we had multiple channels up and one goes down, all
@@ -299,11 +299,8 @@ proc connectOnce(
       # if codec was not know, it can be retrieved from newly
       # established connection
       p.codec = newConn.protocol
-      if not p.codecInitializedFut.completed:
-        p.codecInitializedFut.complete()
-    else:
-      if not p.codecInitializedFut.completed:
-        p.codecInitializedFut.complete()
+    if not p.codecInitializedFut.completed:
+      p.codecInitializedFut.complete()
 
     p.connectedFut.complete()
     if p.onEvent != nil:
@@ -621,7 +618,7 @@ proc new*(
     getConn: getConn,
     onEvent: onEvent,
     codec: codec,
-    codecInitializedFut: newFuture[void](),
+    codecInitializedFut: Future[void].Raising([CancelledError])(),
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,

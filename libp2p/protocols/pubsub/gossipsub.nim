@@ -260,25 +260,20 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
       true, # use high priority as message must be the first message on the stream
     )
 
-  # before extensions control is sent, node need to know if peer actually supports
+  # before extensions control is sent, node needs to known if peer actually supports
   # version of gossipsub that supports extensions (in general). 
   # only then node should send extensions control message.
 
-  if peer.codec != "":
-    # peer already has set codecs
+  # it's very likely that codecs will not be set at this point as connection was 
+  # not established and details of negotiated protocol (codecs) are not known.
+  # in this case node needs to wait for connection to be established or 
+  # more precisely for codecs to be initialized.
+  proc addPeerAfterConnected(): Future[void] {.async: (raises: [CancelledError]).} =
+    await peer.codecInitializedFut
     if gossipExtensionsSupported(peer.codec):
       send()
-  else:
-    # it's very likely that codecs will not be set at this point as connection was 
-    # not established and details of negotiated protocol (codecs) are not known.
-    # in this case node needs to wait for connection to be established or 
-    # more precisely for codecs to be initialized.
-    proc addPeerAfterConnected(): Future[void] {.async.} =
-      await peer.codecInitializedFut
-      if gossipExtensionsSupported(peer.codec):
-        send()
 
-    asyncSpawn addPeerAfterConnected()
+  asyncSpawn addPeerAfterConnected()
 
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
