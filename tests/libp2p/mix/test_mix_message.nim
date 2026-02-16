@@ -65,6 +65,7 @@ suite "mix_message_tests":
     check:
       sizeLong.isOk
       sizeLong.get() < size0.get()
+      sizeLong.get() == size0.get() - (longCodec.len - codec.len)
 
   test "getMaxMessageSizeForCodec errors when overhead exceeds capacity":
     let codec = "/test/1.0.0"
