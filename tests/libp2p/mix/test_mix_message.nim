@@ -43,36 +43,33 @@ suite "mix_message_tests":
 
     let size0 = getMaxMessageSizeForCodec(codec, 0)
     check:
-      size0.isOk
       size0.get() > 0
 
     # Adding 1 SURB should reduce available size by a fixed amount (SurbSize)
     let size1 = getMaxMessageSizeForCodec(codec, 1)
     check:
-      size1.isOk
       size1.get() < size0.get()
     let surbOverhead = size0.get() - size1.get()
 
     # Adding 2 SURBs should reduce by exactly double the per-SURB overhead
     let size2 = getMaxMessageSizeForCodec(codec, 2)
     check:
-      size2.isOk
       size2.get() == size0.get() - 2 * surbOverhead
 
     # A longer codec should return a smaller max message size
     let longCodec = "/test/with/a/much/longer/codec/name/1.0.0"
     let sizeLong = getMaxMessageSizeForCodec(longCodec, 0)
     check:
-      sizeLong.isOk
       sizeLong.get() < size0.get()
       sizeLong.get() == size0.get() - (longCodec.len - codec.len)
 
   test "getMaxMessageSizeForCodec errors when overhead exceeds capacity":
     let codec = "/test/1.0.0"
 
-    # Max SURBs that fit in payload: 
-    # (total size - SURB count - minimum message size) / SURB size
-    let maxSurbs = uint8((DataSize - SurbLenSize - 1) div SurbSize)
+    # Max SURBs that fit in payload:
+    # (total size - codec overhead - SURB count byte) / SURB size
+    let codecOverhead = MixMessage.init(@[], codec).serialize().len
+    let maxSurbs = uint8((DataSize - codecOverhead - SurbLenSize) div SurbSize)
     check:
       getMaxMessageSizeForCodec(codec, maxSurbs).isOk
       getMaxMessageSizeForCodec(codec, maxSurbs + 1).isErr

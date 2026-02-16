@@ -72,12 +72,14 @@ suite "Mix Protocol Component":
     check data == receivedMsg.data
 
     # assert anonymity of the sender
+    let sender = nodes[0].switch.peerInfo.peerId
+    let destination = destNode.peerInfo.peerId
     check:
-      receivedMsg.connPeerId != nodes[0].switch.peerInfo.peerId # not the sender
-      receivedMsg.connPeerId != destNode.peerInfo.peerId # not the destination itself
+      receivedMsg.connPeerId != sender
+      receivedMsg.connPeerId != destination
       receivedMsg.connPeerId in nodes.mapIt(it.switch.peerInfo.peerId)
 
-  asyncTest "path nodes are non-repeating":
+  asyncTest "path nodes are random - exit node varies across messages":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 
@@ -103,11 +105,12 @@ suite "Mix Protocol Component":
     # With 20 messages and 9 eligible nodes,
     # random selection must produce at least 3 distinct exit nodes.
     # Sender must never be exit and destination must never be exit.
-    # No single node should monopolize the exit role.
+    let sender = nodes[0].switch.peerInfo.peerId
+    let destination = destNode.peerInfo.peerId
     check:
       exitNodes.len >= 3
-      nodes[0].switch.peerInfo.peerId notin exitNodes
-      destNode.peerInfo.peerId notin exitNodes
+      sender notin exitNodes
+      destination notin exitNodes
 
   when defined(libp2p_mix_experimental_exit_is_dest):
     asyncTest "expect reply, exit == destination":
@@ -419,6 +422,7 @@ suite "Mix Protocol Component":
     let nodes = await setupMixNodes(10) # no destReadBehavior registered
     startAndDeferStop(nodes)
 
+    # No destination protocol needed — toConnection should fail
     let destNode = createSwitch()
     await destNode.start()
     defer:
