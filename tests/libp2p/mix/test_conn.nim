@@ -483,9 +483,8 @@ suite "Mix Protocol Component":
     defer:
       await conn.close()
 
-    # Send a corrupted packet
-    let corruptedPacket = newSeq[byte](PacketSize)
-    await conn.writeLp(corruptedPacket)
+    # Send a "corrupted packet" - raw bytes that are not initiliazed according to the MixMessage structure
+    await conn.writeLp(newSeq[byte](PacketSize))
 
     # Wait briefly to give the mix node time to process
     # Then try to read — expect timeout because no bytes should come back
