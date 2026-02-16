@@ -102,7 +102,7 @@ suite "Mix Protocol Component":
 
     # With 20 messages and 9 eligible nodes,
     # random selection must produce at least 3 distinct exit nodes.
-    # Sender must never be exit and aestination must never be exit.
+    # Sender must never be exit and destination must never be exit.
     # No single node should monopolize the exit role.
     check:
       exitNodes.len >= 3
