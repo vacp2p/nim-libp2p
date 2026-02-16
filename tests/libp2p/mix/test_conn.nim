@@ -19,7 +19,6 @@ import
     crypto/crypto,
     crypto/secp,
   ]
-from ../../../libp2p/protocols/mix/fragmentation import DataSize
 
 import ../../tools/[lifecycle, unittest]
 import ./utils
@@ -472,8 +471,13 @@ suite "Mix Protocol Component":
     defer:
       await conn.close()
 
+    # Write a message at exactly the maximum allowed size — should succeed
+    let maxMessageSize = getMaxMessageSizeForCodec(nrProto.codec, 0).get()
+    await conn.write(newSeq[byte](maxMessageSize))
+
+    # Write a message one byte over the limit — should be rejected
     expect LPStreamError:
-      await conn.write(newSeq[byte](DataSize + 1))
+      await conn.write(newSeq[byte](maxMessageSize + 1))
 
   asyncTest "no response sent back on failure":
     let nodes = await setupMixNodes(2)
