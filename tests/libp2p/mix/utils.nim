@@ -21,7 +21,7 @@ import
 import ../../tools/[unittest, crypto]
 import ./[mock_mix, spam_protection_impl]
 
-proc createSwitch(
+proc createSwitch*(
     multiAddr: MultiAddress = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
     libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey),
 ): Switch =
@@ -113,21 +113,33 @@ proc setupDestNode*[T: LPProtocol](
 proc stopDestNode*(switch: Switch) {.async.} =
   await switch.stop()
 
+proc toMixDestination*(switch: Switch): MixDestination =
+  MixDestination.init(switch.peerInfo.peerId, switch.peerInfo.addrs[0])
+
+proc toMixDestination*(node: MixProtocol): MixDestination =
+  node.switch.toMixDestination()
+
 ###
 
-const NoReplyProtocolCodec* = "/test/1.0.0"
+const NoReplyProtocolCodec = "/test/1.0.0"
+
+type ReceivedMessage* = object
+  connPeerId*: PeerId
+  data*: seq[byte]
 
 type NoReplyProtocol* = ref object of LPProtocol
-  receivedMessages*: AsyncQueue[seq[byte]]
+  receivedMessages*: AsyncQueue[ReceivedMessage]
 
 proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
   let nrProto = NoReplyProtocol()
-  nrProto.receivedMessages = newAsyncQueue[seq[byte]]()
+  nrProto.receivedMessages = newAsyncQueue[ReceivedMessage]()
 
   proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       let buffer = await conn.readLp(1024)
-      await nrProto.receivedMessages.put(buffer)
+      await nrProto.receivedMessages.put(
+        ReceivedMessage(connPeerId: conn.peerId, data: buffer)
+      )
     except LPStreamError:
       raiseAssert "should not happen"
     finally:
