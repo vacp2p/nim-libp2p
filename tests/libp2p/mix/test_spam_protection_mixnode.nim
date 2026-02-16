@@ -5,16 +5,8 @@
 
 import chronos, results, stew/byteutils
 import
-  ../../../libp2p/[
-    protocols/mix,
-    protocols/mix/mix_protocol,
-    protocols/ping,
-    peerid,
-    multiaddress,
-    switch,
-    builders,
-    crypto/secp,
-  ]
+  ../../../libp2p/
+    [protocols/mix, protocols/ping, peerid, multiaddress, switch, builders, crypto/secp]
 
 import ../../tools/[lifecycle, unittest]
 import ./utils
@@ -46,8 +38,8 @@ suite "Spam Protection Component":
     for i in 0 ..< numTestPackets:
       let conn = nodes[0]
         .toConnection(
-          MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-          PingCodec,
+          destNode.toMixDestination(),
+          pingProto.codec,
           MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
         )
         .expect("could not build connection")
@@ -68,8 +60,7 @@ suite "Spam Protection Component":
       await setupMixNodes(numNodes, spamProtectionRateLimit = Opt.some(rateLimit))
     startAndDeferStop(nodes)
 
-    let nrProto = NoReplyProtocol.new()
-    let (destNode, _) = await setupDestNode(nrProto)
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
     defer:
       await stopDestNode(destNode)
 
@@ -78,23 +69,19 @@ suite "Spam Protection Component":
     # Send 3 messages — all should arrive
     for i in 0 ..< rateLimit:
       let conn = nodes[0]
-        .toConnection(
-          MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-          NoReplyProtocolCodec,
-        )
+        .toConnection(destNode.toMixDestination(), nrProto.codec)
         .expect("could not build connection")
+      defer:
+        await conn.close()
 
       await conn.writeLp(testPayload)
-      check testPayload == await nrProto.receivedMessages.get().wait(5.seconds)
-      await conn.close()
+      let receivedMsg = await nrProto.receivedMessages.get().wait(2.seconds)
+      check testPayload == receivedMsg.data
 
     # 4th message — should be dropped at intermediate node
-    let conn = nodes[0]
-      .toConnection(
-        MixDestination.init(destNode.peerInfo.peerId, destNode.peerInfo.addrs[0]),
-        NoReplyProtocolCodec,
+    let conn = nodes[0].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
       )
-      .expect("could not build connection")
     defer:
       await conn.close()
 
