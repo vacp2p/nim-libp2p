@@ -635,3 +635,6 @@ proc new*(
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()
+
+  if result.codec != "":
+    result.codecInitializedFut.complete()
