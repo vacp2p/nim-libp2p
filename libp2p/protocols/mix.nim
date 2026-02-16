@@ -14,22 +14,15 @@ export toConnection
 export MixProtocolID
 export MixProtocol
 
-export initializeMixNodes
-export getMixPubInfoByIndex
-export writeToFile
 export get
 export `new`
 export init
 export getMaxMessageSizeForCodec
-export deleteNodeInfoFolder
-export deletePubInfoFolder
 export MixDestination
 export MixParameters
 export destReadBehaviorCb
 export DestReadBehavior
 export registerDestReadBehavior
-export MixNodes
-export initMixMultiAddrByIndex
 
 # Spam protection exports
 export SpamProtection
@@ -38,6 +31,8 @@ export verifyProof
 
 export NoSamplingDelayStrategy
 export ExponentialDelayStrategy
+
+export mix_node
 
 export MixNodePool
 export add

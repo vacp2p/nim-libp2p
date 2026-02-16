@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import chronicles, chronos, sequtils, os, results, sets
+import chronicles, chronos, sequtils, results, sets
 import std/[strformat, tables], metrics
 import
   ./[
@@ -885,34 +885,4 @@ proc new*(
   mixProto.init(
     mixNodeInfo, switch, tagManager, rng, spamProtection, actualDelayStrategy
   )
-  mixProto
-
-proc new*(
-    T: typedesc[MixProtocol],
-    index, numNodes: int,
-    switch: Switch,
-    nodeFolderInfoPath: string = ".",
-    rng: ref HmacDrbgContext = newRng(),
-    spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
-    delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
-): T =
-  ## Constructs a new `MixProtocol` instance for the mix node at `index`,
-  ## loading its private info from `nodeInfo` and populating the nodePool with
-  ## the public info of all other nodes from `pubInfo`.
-  let mixNodeInfo = MixNodeInfo
-    .readFromFile(index, nodeFolderInfoPath / fmt"nodeInfo")
-    .expect("Failed to load mix node info for index " & $index)
-
-  let mixProto =
-    T.new(mixNodeInfo, switch, TagManager.new(), rng, spamProtection, delayStrategy)
-
-  # Load pub info into the nodePool
-  for i in 0 ..< numNodes:
-    if i == index:
-      continue
-    let pubInfo = MixPubInfo.readFromFile(i, nodeFolderInfoPath / fmt"pubInfo").expect(
-        "Failed to load pub info from file"
-      )
-    mixProto.nodePool.add(pubInfo)
-
   mixProto
