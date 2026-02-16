@@ -123,9 +123,6 @@ proc dispatchFindNode*(
 ): Future[Opt[Message]] {.
     async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
 .} =
-  kad_messages_sent.inc(labelValues = ["findNode"])
-  let startTime = Moment.now()
-
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
   let conn = await kad.switch.dial(peer, addrs, kad.codec)
   defer:
@@ -133,7 +130,9 @@ proc dispatchFindNode*(
 
   let msg = Message(msgType: MessageType.findNode, key: target)
   let encoded = msg.encode()
+  kad_messages_sent.inc(labelValues = ["findNode"])
   kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["findNode"])
+  let startTime = Moment.now()
   await conn.writeLp(encoded.buffer)
 
   let replyBuf = await conn.readLp(MaxMsgSize)
