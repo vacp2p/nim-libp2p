@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[sequtils, tables, sets, heapqueue]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid]
 import ../../utils/heartbeat
 import ../protocol
-import ./[protobuf, types, find]
+import ./[protobuf, types, find, kademlia_metrics]
 
 logScope:
   topics = "kad-dht provider"
@@ -108,7 +108,10 @@ proc dispatchAddProvider(
     key: key,
     providerPeers: @[switch.peerInfo.toPeer()],
   )
-  await conn.writeLp(msg.encode().buffer)
+  let encoded = msg.encode()
+  kad_messages_sent.inc(labelValues = ["addProvider"])
+  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["addProvider"])
+  await conn.writeLp(encoded.buffer)
 
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
   ## Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self's peerInfo to each of them
@@ -184,11 +187,23 @@ proc dispatchGetProviders*(
   defer:
     await conn.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
-  await conn.writeLp(msg.encode().buffer)
+  let encoded = msg.encode()
+  kad_messages_sent.inc(labelValues = ["getProviders"])
+  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["getProviders"])
+  let startTime = Moment.now()
+  await conn.writeLp(encoded.buffer)
 
-  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+  let replyBuf = await conn.readLp(MaxMsgSize)
+  let reply = Message.decode(replyBuf).valueOr:
     error "GetProviders reply decode fail", error = error, conn = conn
     return Opt.none(Message)
+
+  kad_message_bytes_received.inc(replyBuf.len.int64, labelValues = ["getProviders"])
+  kad_message_duration_ms.observe(
+    (Moment.now() - startTime).toFloatMs(), labelValues = ["getProviders"]
+  )
+  if reply.closerPeers.len > 0:
+    kad_responses_with_closer_peers.inc(labelValues = ["getProviders"])
 
   debug "Received reply for GetProviders", peer = peer, reply = reply
 
@@ -239,14 +254,15 @@ proc handleGetProviders*(
   if kad.providerManager.providedKeys.provided.hasKey(msg.key):
     providers.incl(kad.switch.peerInfo.toPeer())
 
+  let response = Message(
+    msgType: MessageType.getProviders,
+    key: msg.key,
+    closerPeers: kad.findClosestPeers(msg.key),
+    providerPeers: providers.toSeq(),
+  )
+  let encoded = response.encode()
+  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["getProviders"])
   try:
-    await conn.writeLp(
-      Message(
-        msgType: MessageType.getProviders,
-        key: msg.key,
-        closerPeers: kad.findClosestPeers(msg.key),
-        providerPeers: providers.toSeq(),
-      ).encode().buffer
-    )
+    await conn.writeLp(encoded.buffer)
   except LPStreamError as exc:
     debug "Failed to send get-providers RPC reply", conn = conn, err = exc.msg
