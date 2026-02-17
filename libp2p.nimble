@@ -26,7 +26,7 @@ let cfg =
   " --styleCheck:usages --styleCheck:error" & (if verbose: "" else: " --verbosity:0") &
   " --skipUserCfg -f" & " --threads:on --opt:speed"
 
-proc runTest(filename: string, moreoptions: string = "") =
+proc runTest(filename: string, moreoptions: string = "", compileOnly: bool = false) =
   var compileCmd = nimc & " " & lang & " " & cfg & " " & flags
   if getEnv("CICOV").len > 0:
     compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
@@ -41,6 +41,9 @@ proc runTest(filename: string, moreoptions: string = "") =
 
   # step 1: compile test binary
   exec compileCmd & " tests/" & filename
+  if compileOnly:
+    return
+
   # step 2: run binary
   exec "./tests/" & filename.toExe & runnerArgs
   # step 3: remove binary
@@ -59,8 +62,15 @@ task testmultiformatexts, "Run multiformat extensions tests":
 task testintegration, "Runs integration tests":
   runTest("integration/test_all")
 
+let workers = getEnv("WORKERS", "0") # 0 = auto-detect CPU count
+
 task test, "Runs the test suite":
-  runTest("test_all")
+  runTest("test_all", compileOnly = true)
+  var parallelCmd = nimc & " c -r tools/parallel_tests.nim -- --binary:tests/test_all"
+  if workers != "0":
+    parallelCmd &= " --workers:" & workers
+  exec parallelCmd
+  rmFile "tests/" & "test_all".toExe
   testmultiformatextsTask()
 
 task testpath, "Run tests matching a specific path":
