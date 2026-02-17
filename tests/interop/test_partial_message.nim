@@ -10,20 +10,26 @@ import ../libp2p/pubsub/extensions/my_partial_message
 import ../tools/[crypto, unittest]
 import ./partial_message
 
-proc sendPartialMessage(gossipsub: GossipSub): Future[void] {.async.} =
-  # implements behavior of other peer 
+proc sendPartialMessage(
+    gossipsub: GossipSub, publishMessage: bool
+): Future[void] {.async.} =
+  # implements behavior of other peer in partial messages interop test.
+  # usually this logic is implemented using other implementation, but here 
+  # we are testing interop logic itself as unit test where other peer is nim node.
 
-  # give time for everything to start
-  await sleepAsync(5.seconds)
+  # give time for nim peer to start and to connect to this peer (other peer).
+  await sleepAsync(3.seconds)
 
-  # subscribe and wait for request to be completed
+  # subscribe on partial topic and wait for request to be completed by nim peer
   gossipsub.subscribe(partialTopic, nil, requestsPartial = true)
   await sleepAsync(1.seconds)
 
-  # publish partial message
-  await gossipsub.publishPartial(partialTopic, makePartialMessage())
+  # by publishing partial message on topic nim peer should get parts metadata 
+  # associated with published message.
+  if publishMessage:
+    await gossipsub.publishPartial(partialTopic, makePartialMessage())
 
-proc createOtherPeer(): Switch =
+proc createOtherPeer(publishMessage: bool): Switch =
   let switch = SwitchBuilder
     .new()
     .withRng(rng())
@@ -61,7 +67,11 @@ proc createOtherPeer(): Switch =
 
   switch.mount(gossipsub)
 
-  asyncSpawn sendPartialMessage(gossipsub)
+  # schedule publishing partial message, because "other peer"
+  # is created and started before "main/interop/nim peer".
+  # scheduling will executed publish after some delay to give 
+  # time for everything to bootstrap.
+  asyncSpawn sendPartialMessage(gossipsub, publishMessage)
 
   switch
 
@@ -72,7 +82,7 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
     checkTrackers()
 
   asyncTest "Happy path":
-    let otherPeerSwitch = createOtherPeer()
+    let otherPeerSwitch = createOtherPeer(true)
 
     await otherPeerSwitch.start()
     defer:
@@ -81,3 +91,25 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
     check await partialMessageInteropTest(
       ourAddress, $otherPeerSwitch.peerInfo.addrs[0], otherPeerSwitch.peerInfo.peerId
     )
+
+  asyncTest "Fils when message is not published":
+    let otherPeerSwitch = createOtherPeer(false)
+
+    await otherPeerSwitch.start()
+    defer:
+      await otherPeerSwitch.stop()
+
+    check not await partialMessageInteropTest(
+      ourAddress,
+      $otherPeerSwitch.peerInfo.addrs[0],
+      otherPeerSwitch.peerInfo.peerId,
+      timeout = 10.seconds,
+    )
+
+  asyncTest "Fails when peer is unreachable":
+    const unreachableAddress = "/ip4/127.0.0.1/tcp/59999"
+    let fakePeerId = PeerId.random().get()
+
+    expect DialFailedError:
+      discard
+        await partialMessageInteropTest(ourAddress, unreachableAddress, fakePeerId)
