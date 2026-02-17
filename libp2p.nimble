@@ -62,14 +62,9 @@ task testmultiformatexts, "Run multiformat extensions tests":
 task testintegration, "Runs integration tests":
   runTest("integration/test_all")
 
-let workers = getEnv("WORKERS", "0") # 0 = auto-detect CPU count
-
 task test, "Runs the test suite":
   runTest("test_all", compileOnly = true)
-  var parallelCmd = nimc & " c -r tools/parallel_tests.nim -- --binary:tests/test_all"
-  if workers != "0":
-    parallelCmd &= " --workers:" & workers
-  exec parallelCmd
+  exec nimc & " c -r tools/parallel_tests.nim"
   rmFile "tests/" & "test_all".toExe
   testmultiformatextsTask()
 

@@ -7,21 +7,19 @@
 ## across N worker processes, and runs the compiled test binary in parallel
 ## with suite-level filters (unittest2 glob patterns).
 ##
-## Usage:
-##   nim c -r tools/parallel_tests.nim -- --binary:tests/test_all --workers:4
-##
-## Options:
-##   --binary:<path>    Path to the compiled test binary (required)
-##   --workers:<N>      Number of parallel workers (default: CPU count)
-##   --xml-dir:<path>   Directory for per-worker XML reports (default: tests/)
+## Configuration via environment variables:
+##   BINARY    Path to the compiled test binary (default: tests/test_all)
+##   WORKERS   Number of parallel workers (default: CPU count)
+##   XML_DIR   Directory for per-worker XML reports (default: tests/)
 
-import std/[algorithm, os, osproc, parseopt, sequtils, strformat,
-            strutils, times]
+import std/[algorithm, os, osproc, sequtils, strformat, strutils, times]
 
 const
   TestDirs = ["tests/libp2p", "tests/interop", "tests/tools"]
   IgnoreDirs = ["multiformat_exts"]
   SuitePrefix = "suite \""
+  DefaultBinary = "tests/test_all"
+  DefaultXmlDir = "tests"
 
 proc extractSuiteName(line: string): string =
   ## Extract suite name from a line like: suite "Name":
@@ -62,44 +60,19 @@ proc partitionSuites(suites: seq[string], workers: int): seq[seq[string]] =
     result[i mod workers].add(suite)
 
 proc main() =
-  var
-    binary = ""
+  let binary = getEnv("BINARY", DefaultBinary)
+  let xmlDir = getEnv("XML_DIR", DefaultXmlDir)
+  var workers =
+    try:
+      parseInt(getEnv("WORKERS", "0"))
+    except ValueError:
+      0
+  if workers <= 0:
     workers = countProcessors()
-    xmlDir = "tests"
-
-  # Parse command-line arguments
-  var p = initOptParser()
-  while true:
-    p.next()
-    case p.kind
-    of cmdEnd:
-      break
-    of cmdLongOption, cmdShortOption:
-      case p.key
-      of "binary":
-        binary = p.val
-      of "workers":
-        workers = parseInt(p.val)
-      of "xml-dir":
-        xmlDir = p.val
-      of "":
-        discard # skip "--" separator
-      else:
-        echo &"Unknown option: {p.key}"
-        quit(1)
-    of cmdArgument:
-      discard
-
-  if binary == "":
-    echo "Error: --binary:<path> is required"
-    quit(1)
 
   if not fileExists(binary):
     echo &"Error: binary not found: {binary}"
     quit(1)
-
-  if workers < 1:
-    workers = 1
 
   # Discover suites
   let suites = discoverSuites()
