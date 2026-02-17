@@ -120,6 +120,9 @@ method close*(session: QuicSession) {.async: (raises: []).} =
 proc getStream(
     session: QuicSession, direction = Direction.In
 ): Future[QuicStream] {.async: (raises: [CancelledError, ConnectionError]).} =
+  if session.closed:
+    raise newException(ConnectionClosedError, "session is closed")
+
   var stream: Stream
   case direction
   of Direction.In:
