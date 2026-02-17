@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import std/[sequtils, sets]
+import std/[hashes, sets]
 import chronos, chronicles, metrics, results
 import lsquic
 import
@@ -35,7 +35,10 @@ type
 
   QuicSession* = ref object of P2PConnection
     connection: QuicConnection
-    streams: seq[QuicStream]
+    streams: HashSet[QuicStream]
+
+func hash*(s: QuicStream): Hash =
+  cast[pointer](s).hash
 
 const alpn = "libp2p"
 
@@ -53,6 +56,7 @@ proc new(
   let quicstream = QuicStream(
     session: session,
     stream: stream,
+    timeout: 0.millis, # QUIC handles idle timeout at the transport layer
     observedAddr: oaddr,
     localAddr: laddr,
     peerId: peerId,
@@ -106,6 +110,7 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
     await stream.stream.close()
   except CancelledError, StreamError:
     discard
+  stream.session.streams.excl(stream)
   await procCall P2PConnection(stream).closeImpl()
 
 # Session
@@ -113,7 +118,12 @@ method closed*(session: QuicSession): bool {.raises: [].} =
   procCall P2PConnection(session).isClosed or session.connection.isClosed
 
 method close*(session: QuicSession) {.async: (raises: []).} =
-  await noCancel allFutures(session.streams.mapIt(it.close()))
+  let streams = session.streams
+  session.streams.clear()
+  var futs = newSeqOfCap[Future[void]](streams.len)
+  for s in streams:
+    futs.add(s.close())
+  await noCancel allFutures(futs)
   session.connection.close()
   await procCall P2PConnection(session).close()
 
@@ -139,7 +149,7 @@ proc getStream(
   # Inherit transportDir from parent session for GossipSub outbound peer tracking
   qs.transportDir = session.transportDir
 
-  session.streams.add(qs)
+  session.streams.incl(qs)
   return qs
 
 method getWrapped*(self: QuicSession): P2PConnection =
@@ -218,7 +228,7 @@ type QuicTransport* = ref object of Transport
   listener: Listener
   client: Opt[QuicClient]
   privateKey: PrivateKey
-  connections: seq[P2PConnection]
+  connections: HashSet[P2PConnection]
   rng: ref HmacDrbgContext
   certGenerator: CertGenerator
 
@@ -359,11 +369,11 @@ proc wrapConnection(
   # Set the transport direction for outbound peer tracking in GossipSub 1.1
   session.transportDir = transportDir
 
-  transport.connections.add(session)
+  transport.connections.incl(session)
 
   proc onClose() {.async: (raises: []).} =
     await noCancel session.join()
-    transport.connections.keepItIf(it != session)
+    transport.connections.excl(session)
     trace "Cleaned up client"
 
   asyncSpawn onClose()
