@@ -94,7 +94,7 @@ method write*(
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
   except StreamError:
-    raise newLPStreamRemoteClosedError()
+    raise newLPStreamEOFError()
 
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
@@ -122,6 +122,9 @@ method close*(session: QuicSession) {.async: (raises: []).} =
 proc getStream(
     session: QuicSession, direction = Direction.In
 ): Future[QuicStream] {.async: (raises: [CancelledError, ConnectionError]).} =
+  if session.closed:
+    raise newException(ConnectionClosedError, "session is closed")
+
   var stream: Stream
   case direction
   of Direction.In:
