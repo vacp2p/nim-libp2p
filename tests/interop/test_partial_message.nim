@@ -68,7 +68,7 @@ proc createOtherPeer(publishMessage: bool): Switch =
   switch.mount(gossipsub)
 
   # schedule publishing partial message, because "other peer"
-  # is created and started before "main/interop/nim peer".
+  # is created and started before "nim peer".
   # scheduling will executed publish after some delay to give 
   # time for everything to bootstrap.
   asyncSpawn sendPartialMessage(gossipsub, publishMessage)
@@ -92,7 +92,7 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
       ourAddress, $otherPeerSwitch.peerInfo.addrs[0], otherPeerSwitch.peerInfo.peerId
     )
 
-  asyncTest "Fils when message is not published":
+  asyncTest "Fails when message is not published":
     let otherPeerSwitch = createOtherPeer(false)
 
     await otherPeerSwitch.start()

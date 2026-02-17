@@ -97,7 +97,7 @@ proc partialMessageInteropTest*(
   defer:
     await switch.stop()
 
-  # other peer is started before nim peer. it is safe to connect to them
+  # other peer was started before nim peer. it is safe to connect to them
   # right away and subscribe to partial messages topic.
   await switch.connect(otherPeerId, @[MultiAddress.init(otherAddr).get()])
   gossipsub.subscribe(partialTopic, nil, requestsPartial = true)
