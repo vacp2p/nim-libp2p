@@ -296,10 +296,9 @@ proc connectOnce(
         none(MultiAddress)
 
     if p.codec == "":
-      # if codec was not know, it can be retrieved from newly
-      # established connection
+      # if codec was not know, it can be retrieved from newly established connection
       p.codec = newConn.protocol
-    if not p.codecInitializedFut.completed:
+    if not p.codecInitializedFut.completed and p.codec != "":
       p.codecInitializedFut.complete()
 
     p.connectedFut.complete()
