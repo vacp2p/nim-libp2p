@@ -22,22 +22,27 @@ proc dispatchGetVal*(
 
   let msg = Message(msgType: MessageType.getValue, key: key)
   let encoded = msg.encode()
-  kad_messages_sent.inc(labelValues = ["getValue"])
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["getValue"])
-  let startTime = Moment.now()
-  await conn.writeLp(encoded.buffer)
 
-  let replyBuf = await conn.readLp(MaxMsgSize)
+  kad_messages_sent.inc(labelValues = [$MessageType.getValue])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
+  )
+
+  var replyBuf: seq[byte]
+  kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
+    await conn.writeLp(encoded.buffer)
+    replyBuf = await conn.readLp(MaxMsgSize)
+
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.getValue]
+  )
+
   let reply = Message.decode(replyBuf).valueOr:
     error "GetValue reply decode fail", error = error, conn = conn
     return Opt.none(Message)
 
-  kad_message_bytes_received.inc(replyBuf.len.int64, labelValues = ["getValue"])
-  kad_message_duration_ms.observe(
-    (Moment.now() - startTime).toFloatMs(), labelValues = ["getValue"]
-  )
   if reply.closerPeers.len > 0:
-    kad_responses_with_closer_peers.inc(labelValues = ["getValue"])
+    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
 
   conn.observedAddr.withValue(observedAddr):
     kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
@@ -148,7 +153,9 @@ method handleGetValue*(
       msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
     )
     let encoded = response.encode()
-    kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["getValue"])
+    kad_message_bytes_sent.inc(
+      encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
+    )
     try:
       await conn.writeLp(encoded.buffer)
     except LPStreamError as exc:
@@ -168,7 +175,9 @@ method handleGetValue*(
     closerPeers: kad.findClosestPeers(key),
   )
   let encoded = response.encode()
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["getValue"])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
+  )
   try:
     await conn.writeLp(encoded.buffer)
   except LPStreamError as exc:

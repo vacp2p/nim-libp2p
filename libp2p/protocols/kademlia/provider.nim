@@ -109,8 +109,10 @@ proc dispatchAddProvider(
     providerPeers: @[switch.peerInfo.toPeer()],
   )
   let encoded = msg.encode()
-  kad_messages_sent.inc(labelValues = ["addProvider"])
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["addProvider"])
+  kad_messages_sent.inc(labelValues = [$MessageType.addProvider])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.addProvider]
+  )
   await conn.writeLp(encoded.buffer)
 
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
@@ -188,22 +190,27 @@ proc dispatchGetProviders*(
     await conn.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
   let encoded = msg.encode()
-  kad_messages_sent.inc(labelValues = ["getProviders"])
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["getProviders"])
-  let startTime = Moment.now()
-  await conn.writeLp(encoded.buffer)
 
-  let replyBuf = await conn.readLp(MaxMsgSize)
+  kad_messages_sent.inc(labelValues = [$MessageType.getProviders])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
+  )
+
+  var replyBuf: seq[byte]
+  kad_message_duration_ms.time(labelValues = [$MessageType.getProviders]):
+    await conn.writeLp(encoded.buffer)
+    replyBuf = await conn.readLp(MaxMsgSize)
+
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.getProviders]
+  )
+
   let reply = Message.decode(replyBuf).valueOr:
     error "GetProviders reply decode fail", error = error, conn = conn
     return Opt.none(Message)
 
-  kad_message_bytes_received.inc(replyBuf.len.int64, labelValues = ["getProviders"])
-  kad_message_duration_ms.observe(
-    (Moment.now() - startTime).toFloatMs(), labelValues = ["getProviders"]
-  )
   if reply.closerPeers.len > 0:
-    kad_responses_with_closer_peers.inc(labelValues = ["getProviders"])
+    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getProviders])
 
   debug "Received reply for GetProviders", peer = peer, reply = reply
 
@@ -261,7 +268,9 @@ proc handleGetProviders*(
     providerPeers: providers.toSeq(),
   )
   let encoded = response.encode()
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["getProviders"])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
+  )
   try:
     await conn.writeLp(encoded.buffer)
   except LPStreamError as exc:

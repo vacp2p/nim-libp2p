@@ -130,22 +130,27 @@ proc dispatchFindNode*(
 
   let msg = Message(msgType: MessageType.findNode, key: target)
   let encoded = msg.encode()
-  kad_messages_sent.inc(labelValues = ["findNode"])
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["findNode"])
-  let startTime = Moment.now()
-  await conn.writeLp(encoded.buffer)
 
-  let replyBuf = await conn.readLp(MaxMsgSize)
+  kad_messages_sent.inc(labelValues = [$MessageType.findNode])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
+  )
+
+  var replyBuf: seq[byte]
+  kad_message_duration_ms.time(labelValues = [$MessageType.findNode]):
+    await conn.writeLp(encoded.buffer)
+    replyBuf = await conn.readLp(MaxMsgSize)
+
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.findNode]
+  )
+
   let reply = Message.decode(replyBuf).valueOr:
     debug "FindNode reply decode fail", error = error, conn = conn
     return Opt.none(Message)
 
-  kad_message_bytes_received.inc(replyBuf.len.int64, labelValues = ["findNode"])
-  kad_message_duration_ms.observe(
-    (Moment.now() - startTime).toFloatMs(), labelValues = ["findNode"]
-  )
   if reply.closerPeers.len > 0:
-    kad_responses_with_closer_peers.inc(labelValues = ["findNode"])
+    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.findNode])
 
   return Opt.some(reply)
 
@@ -268,7 +273,9 @@ method handleFindNode*(
   let response =
     Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target))
   let encoded = response.encode()
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["findNode"])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
+  )
   try:
     await conn.writeLp(encoded.buffer)
   except LPStreamError as exc:

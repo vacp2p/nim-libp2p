@@ -31,20 +31,24 @@ proc dispatchPutVal*(
     record: Opt.some(Record(key: key, value: Opt.some(value))),
   )
   let encoded = msg.encode()
-  kad_messages_sent.inc(labelValues = ["putValue"])
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["putValue"])
-  let startTime = Moment.now()
-  await conn.writeLp(encoded.buffer)
 
-  let replyBuf = await conn.readLp(MaxMsgSize)
+  kad_messages_sent.inc(labelValues = [$MessageType.putValue])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
+  )
+
+  var replyBuf: seq[byte]
+  kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
+    await conn.writeLp(encoded.buffer)
+    replyBuf = await conn.readLp(MaxMsgSize)
+
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.putValue]
+  )
+
   let reply = Message.decode(replyBuf).valueOr:
     error "PutValue reply decode fail", error = error, conn = conn
     return
-
-  kad_message_bytes_received.inc(replyBuf.len.int64, labelValues = ["putValue"])
-  kad_message_duration_ms.observe(
-    (Moment.now() - startTime).toFloatMs(), labelValues = ["putValue"]
-  )
 
   if reply != msg:
     error "Unexpected change between msg and reply: ",
@@ -108,7 +112,9 @@ proc handlePutValue*(
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
   let encoded = msg.encode()
-  kad_message_bytes_sent.inc(encoded.buffer.len.int64, labelValues = ["putValue"])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
+  )
   try:
     await conn.writeLp(encoded.buffer)
   except LPStreamError as exc:
