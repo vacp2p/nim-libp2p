@@ -14,9 +14,9 @@ proc processNode(node: var XmlNode) =
       else:
         message
 
-    node.attrs = toXmlAttributes()
+    node.attrs = {"message": message}.toXmlAttributes()
     node.clear()
-    node.add(newText(combined))
+    node.add(newText(details))
 
   for i in 0 ..< node.len:
     processNode(node[i])

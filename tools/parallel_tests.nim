@@ -10,6 +10,7 @@
 ## Configuration via environment variables:
 ##   BINARY    Path to the compiled test binary (default: tests/test_all)
 ##   WORKERS   Number of parallel workers (default: CPU count)
+##   TIMEOUT   Per-worker timeout in seconds (default: 300)
 ##   XML_DIR   Directory for per-worker XML reports (default: tests/)
 
 import std/[algorithm, os, osproc, sequtils, strformat, strutils, times]
@@ -18,7 +19,8 @@ const
   TestDirs = ["tests/libp2p", "tests/interop", "tests/tools"]
   IgnoreDirs = ["multiformat_exts"]
   SuitePrefix = "suite \""
-  DefaultBinary = "tests" / "test_all" & ExeExt
+  DefaultBinary = "tests" / "test_all".addFileExt(ExeExt)
+  DefaultTimeout = 300 # seconds
   DefaultXmlDir = "tests"
 
 proc extractSuiteName(line: string): string =
@@ -69,6 +71,13 @@ proc main() =
       0
   if workers <= 0:
     workers = countProcessors()
+  var timeout =
+    try:
+      parseInt(getEnv("TIMEOUT", $DefaultTimeout))
+    except ValueError:
+      DefaultTimeout
+  if timeout <= 0:
+    timeout = DefaultTimeout
 
   if not fileExists(binary):
     echo &"Error: binary not found: {binary}"
@@ -109,6 +118,9 @@ proc main() =
     args.add("--output-level=VERBOSE")
     args.add(&"--xml:{xmlDir}/results_worker_{i}.xml")
 
+    let quotedArgs = args.mapIt("\"" & it & "\"").join(" ")
+    echo &"  cmd: {binary} {quotedArgs}"
+
     let process = startProcess(
       binary,
       args = args,
@@ -117,12 +129,18 @@ proc main() =
     processes.add((process, i))
 
   # Wait for all workers
+  let timeoutMs = timeout * 1000
   var failures: seq[int] = @[]
   for (process, i) in processes:
-    let exitCode = waitForExit(process)
+    let exitCode = waitForExit(process, timeoutMs)
     if exitCode != 0:
       failures.add(i)
-      echo &"\nWorker {i} FAILED (exit code: {exitCode})"
+      if running(process):
+        echo &"\nWorker {i} TIMED OUT after {timeout}s, killing"
+        kill(process)
+        discard waitForExit(process)
+      else:
+        echo &"\nWorker {i} FAILED (exit code: {exitCode})"
     else:
       echo &"\nWorker {i} OK"
     close(process)
