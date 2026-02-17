@@ -67,6 +67,11 @@ proc add*(pool: MixNodePool, info: MixPubInfo) =
     pool.peerStore[KeyBook][info.peerId] =
       PublicKey(scheme: Secp256k1, skkey: info.libp2pPubKey)
 
+proc add*(pool: MixNodePool, infos: seq[MixPubInfo]) =
+  ## Add multiple mix nodes to the pool.
+  for info in infos:
+    pool.add(info)
+
 proc remove*(pool: MixNodePool, peerId: PeerId): bool =
   ## Remove a mix node from the pool. Returns true if the node was present.
   pool.peerStore[MixPubKeyBook].del(peerId)
