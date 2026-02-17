@@ -268,12 +268,12 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
   # not established and details of negotiated protocol (codecs) are not known.
   # in this case node needs to wait for connection to be established or 
   # more precisely for codecs to be initialized.
-  proc addPeerAfterConnected(): Future[void] {.async: (raises: [CancelledError]).} =
+  proc sendAfterCodecInitialized(): Future[void] {.async: (raises: [CancelledError]).} =
     await peer.codecInitializedFut
     if gossipExtensionsSupported(peer.codec):
       send()
 
-  asyncSpawn addPeerAfterConnected()
+  asyncSpawn sendAfterCodecInitialized()
 
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
