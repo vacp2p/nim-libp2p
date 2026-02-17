@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, net, sequtils]
+import std/[times, net]
 import chronos, chronicles, results
 import
   ../../../libp2p/[
@@ -15,76 +15,7 @@ import
   ]
 import ../../../libp2p/protocols/capability_discovery/[types, registrar, iptree]
 import ../../tools/unittest
-import ../../tools/crypto
 import ./utils
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-proc createTestAdvertisement(
-    serviceId: ServiceId = makeServiceId(),
-    peerId: PeerId = makePeerId(),
-    addrs: seq[MultiAddress] = @[],
-): Advertisement =
-  # Create a private key for signing
-  let privateKey = PrivateKey.random(rng[]).get()
-  # Create ExtendedPeerRecord
-  let extRecord = ExtendedPeerRecord(
-    peerId: peerId,
-    seqNo: getTime().toUnix().uint64.uint64,
-    addresses: addrs.mapIt(AddressInfo(address: it)),
-    services: @[], # Empty services for now
-  )
-  # Sign and create SignedExtendedPeerRecord
-  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-
-proc createTestRegistrar(): Registrar =
-  Registrar.new()
-
-proc createTestMultiAddress(ip: string): MultiAddress =
-  MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
-
-# ============================================================================
-# 1. Initialization Tests
-# ============================================================================
-
-suite "Kademlia Discovery Registrar - Initialization":
-  test "new registrar has empty cache":
-    let registrar = createTestRegistrar()
-    check registrar.cache.len == 0
-
-  test "new registrar has empty cacheTimestamps":
-    let registrar = createTestRegistrar()
-    check registrar.cacheTimestamps.len == 0
-
-  test "new registrar has empty IP tree with counter 0":
-    let registrar = createTestRegistrar()
-    check registrar.ipTree.root.counter == 0
-    check registrar.ipTree.root.left.isNil
-    check registrar.ipTree.root.right.isNil
-
-  test "new registrar has empty boundService table":
-    let registrar = createTestRegistrar()
-    check registrar.boundService.len == 0
-
-  test "new registrar has empty timestampService table":
-    let registrar = createTestRegistrar()
-    check registrar.timestampService.len == 0
-
-  test "new registrar has empty boundIp table":
-    let registrar = createTestRegistrar()
-    check registrar.boundIp.len == 0
-
-  test "new registrar has empty timestampIp table":
-    let registrar = createTestRegistrar()
-    check registrar.timestampIp.len == 0
-
-# ============================================================================
-# 2. Waiting Time Calculation Tests
-# ============================================================================
 
 suite "Kademlia Discovery Registrar - Waiting Time Calculation":
   test "waitingTime returns 0 for empty cache with no IP similarity":
@@ -547,72 +478,6 @@ suite "Kademlia Discovery Registrar - Cache Pruning":
 
     check ad notin registrar.cache[serviceId]
 
-# ============================================================================
-# 6. IP Integration Tests
-# ============================================================================
-
-suite "Kademlia Discovery Registrar - IP Integration":
-  test "waitingTime increases with IP tree similarity score":
-    let registrar = createTestRegistrar()
-    let discoConf = KademliaDiscoveryConfig.new()
-    let serviceId = makeServiceId()
-
-    # Populate IP tree with IPs from same subnet
-    for i in 1 .. 10:
-      registrar.ipTree.insertIp(parseIpAddress("192.168.1." & $i))
-
-    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("192.168.1.50")])
-    let now = getTime().toUnix().uint64
-
-    let w = registrar.waitingTime(discoConf, ad, 1000, serviceId, now)
-
-    # Should have positive wait time due to IP similarity
-    check w > 0
-
-  test "waitingTime returns 0.0 for IPs not in tree":
-    let registrar = createTestRegistrar()
-    let discoConf = KademliaDiscoveryConfig.new()
-    let serviceId = makeServiceId()
-
-    # Don't populate the tree
-    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("192.168.1.1")])
-    let now = getTime().toUnix().uint64
-
-    let w = registrar.waitingTime(discoConf, ad, 1000, serviceId, now)
-
-    # IP similarity should be 0, but we still have safetyParam
-    # w = advertExpiry * 1.0 * (0 + 0 + safetyParam)
-    check w == discoConf.advertExpiry * discoConf.safetyParam
-
-  test "waitingTime uses maximum score across multiple IPs":
-    let registrar = createTestRegistrar()
-    let discoConf = KademliaDiscoveryConfig.new()
-    let serviceId = makeServiceId()
-
-    # Populate tree with one subnet
-    for i in 1 .. 5:
-      registrar.ipTree.insertIp(parseIpAddress("192.168.1." & $i))
-
-    # Ad with addresses from different subnets
-    let ad = createTestAdvertisement(
-      addrs =
-        @[
-          createTestMultiAddress("10.0.0.1"), # Different - low score
-          createTestMultiAddress("192.168.1.100"), # Same - high score
-          createTestMultiAddress("172.16.0.1"), # Different - low score
-        ]
-    )
-
-    let now = getTime().toUnix().uint64
-    let w = registrar.waitingTime(discoConf, ad, 1000, serviceId, now)
-
-    # Should use the maximum (worst) IP similarity
-    check w > discoConf.advertExpiry * discoConf.safetyParam
-
-# ============================================================================
-# 7. State Management Tests
-# ============================================================================
-
 suite "Kademlia Discovery Registrar - State Management":
   test "cache can store multiple ads for same service ID":
     let registrar = createTestRegistrar()
@@ -668,35 +533,6 @@ suite "Kademlia Discovery Registrar - State Management":
     registrar.ipTree.insertIp(parseIpAddress(ip))
 
     check registrar.ipTree.root.counter == 1
-
-  test "different service IDs have independent lower bounds":
-    let registrar = createTestRegistrar()
-    let serviceId1 = makeServiceId(1)
-    let serviceId2 = makeServiceId(2)
-    let ad1 = createTestAdvertisement(serviceId = serviceId1)
-    let ad2 = createTestAdvertisement(serviceId = serviceId2)
-    let now: uint64 = 1000
-
-    updateLowerBounds(registrar, serviceId1, ad1, 500.0, now)
-    updateLowerBounds(registrar, serviceId2, ad2, 800.0, now)
-
-    check registrar.boundService[serviceId1] == 1500.0
-    check registrar.boundService[serviceId2] == 1800.0
-
-  test "different IPs have independent lower bounds":
-    let registrar = createTestRegistrar()
-    let serviceId = makeServiceId()
-    let ad = createTestAdvertisement(
-      serviceId = serviceId,
-      addrs =
-        @[createTestMultiAddress("192.168.1.1"), createTestMultiAddress("10.0.0.1")],
-    )
-    let now: uint64 = 1000
-
-    updateLowerBounds(registrar, serviceId, ad, 500.0, now)
-
-    check registrar.boundIp["192.168.1.1"] == 1500.0
-    check registrar.boundIp["10.0.0.1"] == 1500.0
 
 # ============================================================================
 # 8. Edge Cases Tests

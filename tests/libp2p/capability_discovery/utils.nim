@@ -2,9 +2,9 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[options]
+import std/[times, options, sequtils]
 import results, chronos, chronicles
-import ../../../libp2p/[peerid, crypto/crypto, switch, builders]
+import ../../../libp2p/[peerid, crypto/crypto, switch, builders, extended_peer_record]
 import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../../libp2p/protocols/kademlia_discovery/types
 import
@@ -15,10 +15,6 @@ import ../../tools/crypto
 export types, crypto
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
-
-# ============================================================================
-# Test Helpers
-# ============================================================================
 
 template checkEncodeDecode*(obj: untyped) =
   check obj == decode(typeof(obj), obj.encode()).get()
@@ -72,6 +68,29 @@ proc makeServiceId*(): ServiceId =
 # Helper to create a service ID with a custom first byte
 proc makeServiceId*(id: byte): ServiceId =
   @[id, 2'u8, 3, 4]
+
+proc createTestAdvertisement*(
+    serviceId: ServiceId = makeServiceId(),
+    peerId: PeerId = makePeerId(),
+    addrs: seq[MultiAddress] = @[],
+): Advertisement =
+  # Create a private key for signing
+  let privateKey = PrivateKey.random(rng[]).get()
+  # Create ExtendedPeerRecord
+  let extRecord = ExtendedPeerRecord(
+    peerId: peerId,
+    seqNo: getTime().toUnix().uint64.uint64,
+    addresses: addrs.mapIt(AddressInfo(address: it)),
+    services: @[], # Empty services for now
+  )
+  # Sign and create SignedExtendedPeerRecord
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
+proc createTestRegistrar*(): Registrar =
+  Registrar.new()
+
+proc createTestMultiAddress*(ip: string): MultiAddress =
+  MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
 
 # Helper to create a mock KademliaDiscovery for testing
 proc createMockDiscovery*(

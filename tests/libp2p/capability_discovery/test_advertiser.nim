@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, chronicles, results
+import chronos, results
 import
   ../../../libp2p/
     [crypto/crypto, multiaddress, extended_peer_record, peerid, routing_record]
@@ -11,12 +11,6 @@ import ../../../libp2p/protocols/kademlia_discovery/[types]
 import ../../../libp2p/protocols/capability_discovery/[advertiser, serviceroutingtables]
 import ../../tools/unittest
 import ./utils
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
-
-# ============================================================================
-# 1. Pure Function Tests (No Mocking Required)
-# ============================================================================
 
 suite "Kademlia Discovery Advertiser - Pure Functions":
   test "actionCmp compares by scheduled time":
