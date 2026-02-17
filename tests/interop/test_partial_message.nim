@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos
+import chronos, stew/byteutils
 import ../../libp2p/[switch, builders, peerid, wire]
 import ../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
 import ../libp2p/pubsub/extensions/my_partial_message
@@ -11,7 +11,7 @@ import ../tools/[crypto, unittest]
 import ./partial_message
 
 proc sendPartialMessage(
-    gossipsub: GossipSub, publishMessage: bool
+    gossipsub: GossipSub, publishMessage: bool, isCorrectMessage: bool
 ): Future[void] {.async.} =
   # implements behavior of other peer in partial messages interop test.
   # usually this logic is implemented using other implementation, but here 
@@ -27,9 +27,14 @@ proc sendPartialMessage(
   # by publishing partial message on topic nim peer should get parts metadata 
   # associated with published message.
   if publishMessage:
-    await gossipsub.publishPartial(partialTopic, makePartialMessage())
+    if isCorrectMessage:
+      await gossipsub.publishPartial(partialTopic, makePartialMessage())
+    else:
+      var pm = makePartialMessage()
+      pm.groupId = "wrong-id".toBytes
+      await gossipsub.publishPartial(partialTopic, pm)
 
-proc createOtherPeer(publishMessage: bool): Switch =
+proc createOtherPeer(publishMessage: bool, isCorrectMessage: bool): Switch =
   let switch = SwitchBuilder
     .new()
     .withRng(rng())
@@ -71,7 +76,7 @@ proc createOtherPeer(publishMessage: bool): Switch =
   # is created and started before "nim peer".
   # scheduling will executed publish after some delay to give 
   # time for everything to bootstrap.
-  asyncSpawn sendPartialMessage(gossipsub, publishMessage)
+  asyncSpawn sendPartialMessage(gossipsub, publishMessage, isCorrectMessage)
 
   switch
 
@@ -82,7 +87,7 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
     checkTrackers()
 
   asyncTest "Happy path":
-    let otherPeerSwitch = createOtherPeer(true)
+    let otherPeerSwitch = createOtherPeer(true, true)
 
     await otherPeerSwitch.start()
     defer:
@@ -92,8 +97,19 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
       ourAddress, $otherPeerSwitch.peerInfo.addrs[0], otherPeerSwitch.peerInfo.peerId
     )
 
+  asyncTest "Fails when wrong message is published":
+    let otherPeerSwitch = createOtherPeer(true, false)
+
+    await otherPeerSwitch.start()
+    defer:
+      await otherPeerSwitch.stop()
+
+    check not await partialMessageInteropTest(
+      ourAddress, $otherPeerSwitch.peerInfo.addrs[0], otherPeerSwitch.peerInfo.peerId
+    )
+
   asyncTest "Fails when message is not published":
-    let otherPeerSwitch = createOtherPeer(false)
+    let otherPeerSwitch = createOtherPeer(false, false)
 
     await otherPeerSwitch.start()
     defer:

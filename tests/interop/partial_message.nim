@@ -56,7 +56,8 @@ proc partialMessageInteropTest*(
     # has published exactly that message and that nim peer has received.
 
     if rpc.topicID != partialTopic:
-      error "partial message topic did not match"
+      error "partial message topic did not match",
+        got = $rpc.topicID, expected = $partialTopic
       requestFulfilled.complete(false)
       return
 
@@ -64,7 +65,8 @@ proc partialMessageInteropTest*(
     let expectedMetadata = MyPartsMetadata.have(toSeq(pm.data.keys))
 
     if rpc.groupID != pm.groupId:
-      error "partial message groupId did not match"
+      error "partial message groupId did not match",
+        got = $rpc.groupID, expected = $pm.groupId
       requestFulfilled.complete(false)
       return
 
@@ -102,6 +104,8 @@ proc partialMessageInteropTest*(
   await switch.connect(otherPeerId, @[MultiAddress.init(otherAddr).get()])
   gossipsub.subscribe(partialTopic, nil, requestsPartial = true)
 
-  # wait on request to be successfully fulfilled
-  let isSuccessfullyFulfilled = await requestFulfilled.withTimeout(timeout)
-  return requestFulfilled.completed() and isSuccessfullyFulfilled
+  # wait on request to be fulfilled
+  try:
+    return await requestFulfilled.wait(timeout)
+  except AsyncTimeoutError:
+    return false
