@@ -14,7 +14,7 @@ type
     value*: Opt[seq[byte]]
     timeReceived*: Opt[string]
 
-  MessageType* {.pure.} = enum
+  MessageType* = enum
     putValue = 0
     getValue = 1
     addProvider = 2
