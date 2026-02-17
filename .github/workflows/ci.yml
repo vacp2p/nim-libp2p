@@ -141,6 +141,7 @@ jobs:
           if [[ '${{ runner.os }}' == 'Windows' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
+          export WORKERS=5
           nimble test
 
       - name: Fix xml newlines

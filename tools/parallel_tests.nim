@@ -18,7 +18,7 @@ const
   TestDirs = ["tests/libp2p", "tests/interop", "tests/tools"]
   IgnoreDirs = ["multiformat_exts"]
   SuitePrefix = "suite \""
-  DefaultBinary = "tests/test_all"
+  DefaultBinary = "tests" / "test_all" & ExeExt
   DefaultXmlDir = "tests"
 
 proc extractSuiteName(line: string): string =
