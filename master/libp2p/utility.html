@@ -182,6 +182,10 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#toChunks%2Cseq%5BT%5D%2Cint" title="toChunks[T](data: seq[T]; size: int): seq[seq[T]]">toChunks[T](data: seq[T]; size: int): seq[seq[T]]</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">toOpt
+  <li><a class="reference" href="#toOpt%2CT" title="toOpt[T: ref object](x: T): Opt[T]">toOpt[T: ref object](x: T): Opt[T]</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">waitForTCPServer
   <li><a class="reference" href="#waitForTCPServer%2CTransportAddress%2Cint" title="waitForTCPServer(taddr: TransportAddress; retries: int = 20;
                  delay: chronos.Duration = 500.milliseconds): Future[bool]">waitForTCPServer(taddr: TransportAddress; retries: int = 20;
@@ -345,6 +349,19 @@ Take first <tt class="docutils literal"><span class="pre"><span class="Identifie
 Splits <tt class="docutils literal"><span class="pre"><span class="Identifier">data</span></span></tt> into chunks of length <tt class="docutils literal"><span class="pre"><span class="Identifier">size</span></span></tt>. The last chunk may be smaller if data.len is not divisible by size.
 <a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utility.nim#L151" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
 <a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utility.nim#L151" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="toOpt-procs-all">
+  <div id="toOpt,T" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#toOpt%2CT"><span class="Identifier">toOpt</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Keyword">object</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">x</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/utility.nim#L201" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/utility.nim#L201" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -523,7 +540,7 @@ Splits <tt class="docutils literal"><span class="pre"><span class="Identifier">d
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-02-18 15:15:15 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-02-18 16:33:12 UTC</small>
       </div>
     </div>
   </div>
