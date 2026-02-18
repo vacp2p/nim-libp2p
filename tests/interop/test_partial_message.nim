@@ -63,7 +63,7 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
     defer:
       await otherPeer.switch.stop()
 
-    # create and start "nim peer" interop test
+    # create and start "nim peer" with interop test
     let interopRes = partialMessageInteropTest(
       ourAddress, $otherPeer.switch.peerInfo.addrs[0], otherPeer.switch.peerInfo.peerId
     )
@@ -82,7 +82,7 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
     defer:
       await otherPeer.switch.stop()
 
-    # create and start "nim peer" interop test
+    # create and start "nim peer" with interop test
     let interopRes = partialMessageInteropTest(
       ourAddress, $otherPeer.switch.peerInfo.addrs[0], otherPeer.switch.peerInfo.peerId
     )
@@ -103,7 +103,7 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
     defer:
       await otherPeer.switch.stop()
 
-    # create and start "nim peer" interop test
+    # create and start "nim peer" with interop test
     let interopRes = partialMessageInteropTest(
       ourAddress,
       $otherPeer.switch.peerInfo.addrs[0],
