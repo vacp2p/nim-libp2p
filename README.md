@@ -62,8 +62,8 @@ Connect with other contributors in our [community channel](https://discord.com/c
 nim-libp2p is used by:
 
 - [Nimbus](https://github.com/status-im/nimbus-eth2), an Ethereum client
-- [nwaku](https://github.com/waku-org/nwaku), a decentralized messaging application
-- [nim-codex](https://github.com/codex-storage/nim-codex), a decentralized storage application
+- [logos-delivery](https://github.com/logos-messaging/logos-delivery), a decentralized messaging protocols
+- [logos-storage](https://github.com/logos-storage/logos-storage-nim), a decentralized storage protocols
 - (open a pull request if you want to be included here)
 
 ## Stability

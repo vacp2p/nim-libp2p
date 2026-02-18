@@ -7,6 +7,8 @@ import std/sequtils
 import pkg/[chronos, chronicles, metrics]
 
 import ../upgrademngrs/upgrade, ../muxers/muxer
+import ../connmanager
+import ../utility
 
 export Upgrade
 
@@ -16,6 +18,7 @@ logScope:
 type MuxedUpgrade* = ref object of Upgrade
   muxers*: seq[MuxerProvider]
   streamHandler*: StreamHandler
+  connManager*: Opt[ConnManager]
 
 func getMuxerByCodec(self: MuxedUpgrade, muxerName: string): Opt[MuxerProvider] =
   if muxerName.len == 0 or muxerName == "na":
@@ -86,12 +89,19 @@ proc new*(
     muxers: seq[MuxerProvider],
     secureManagers: openArray[Secure] = [],
     ms: MultistreamSelect,
+    connManager: Opt[ConnManager] = Opt.none(ConnManager),
 ): T =
-  let upgrader = T(muxers: muxers, secureManagers: @secureManagers, ms: ms)
+  let upgrader =
+    T(muxers: muxers, secureManagers: @secureManagers, ms: ms, connManager: connManager)
 
   upgrader.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
     trace "Starting stream handler", conn
     try:
+      upgrader.connManager.withValue(connManager):
+        let ready = await connManager.waitForPeerReady(conn.peerId)
+        if not ready:
+          debug "Timed out waiting for peer ready before handling stream", conn
+          return
       await upgrader.ms.handle(conn) # handle incoming connection
     except CancelledError as exc:
       return
@@ -100,3 +110,12 @@ proc new*(
     trace "Stream handler done", conn
 
   return upgrader
+
+proc new*(
+    T: type MuxedUpgrade,
+    muxers: seq[MuxerProvider],
+    secureManagers: openArray[Secure] = [],
+    ms: MultistreamSelect,
+    connManager: ConnManager,
+): T =
+  T.new(muxers, secureManagers, ms, connManager.toOpt())
