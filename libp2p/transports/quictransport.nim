@@ -120,10 +120,7 @@ method closed*(session: QuicSession): bool {.raises: [].} =
 method close*(session: QuicSession) {.async: (raises: []).} =
   let streams = session.streams
   session.streams.clear()
-  var futs = newSeqOfCap[Future[void]](streams.len)
-  for s in streams:
-    futs.add(s.close())
-  await noCancel allFutures(futs)
+  await noCancel allFutures(streams.mapIt(it.close()))
   session.connection.close()
   await procCall P2PConnection(session).close()
 
