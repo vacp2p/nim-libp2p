@@ -6,11 +6,13 @@ import chronos, chronicles, metrics, results
 import lsquic
 import
   ../wire,
+  ../connmanager,
   ../multiaddress,
   ../multicodec,
   ../muxers/muxer,
   ../stream/connection,
-  ../upgrademngrs/upgrade
+  ../upgrademngrs/upgrade,
+  ../utility
 import ./transport
 import tls/certificate
 
@@ -207,6 +209,7 @@ method close*(m: QuicMuxer) {.async: (raises: []).} =
 
 # Transport
 type QuicUpgrade = ref object of Upgrade
+  connManager: Opt[ConnManager]
 
 type CertGenerator =
   proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].}
@@ -242,9 +245,14 @@ proc defaultCertGenerator(
 ): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
   return generateX509(kp, encodingFormat = EncodingFormat.PEM)
 
-proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
+proc new*(
+    _: type QuicTransport,
+    u: Upgrade,
+    privateKey: PrivateKey,
+    connManager: ConnManager = nil,
+): QuicTransport =
   let self = QuicTransport(
-    upgrader: QuicUpgrade(ms: u.ms),
+    upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
     certGenerator: defaultCertGenerator,
   )
@@ -256,9 +264,10 @@ proc new*(
     u: Upgrade,
     privateKey: PrivateKey,
     certGenerator: CertGenerator,
+    connManager: ConnManager = nil,
 ): QuicTransport =
   let self = QuicTransport(
-    upgrader: QuicUpgrade(ms: u.ms),
+    upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
     certGenerator: certGenerator,
   )
@@ -433,6 +442,12 @@ method upgrade*(
   muxer.streamHandler = proc(conn: P2PConnection) {.async: (raises: []).} =
     trace "Starting stream handler"
     try:
+      let quicUpgrader = QuicUpgrade(self.upgrader)
+      quicUpgrader.connManager.withValue(connManager):
+        let ready = await connManager.waitForPeerReady(conn.peerId)
+        if not ready:
+          debug "Timed out waiting for peer ready before handling stream", conn
+          return
       await self.upgrader.ms.handle(conn) # handle incoming connection
     except CancelledError as exc:
       return
