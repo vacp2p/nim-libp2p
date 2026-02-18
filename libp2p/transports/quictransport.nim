@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import std/[hashes, sets]
+import std/[hashes, sets, sequtils]
 import chronos, chronicles, metrics, results
 import lsquic
 import
