@@ -78,8 +78,6 @@ proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
   .} =
     try:
       return await p.switch.dial(peerId, GossipSubCodec_12)
-    except CancelledError as exc:
-      raise exc
     except DialFailedError as e:
       raise (ref GetConnDialError)(parent: e, msg: e.msg)
 
