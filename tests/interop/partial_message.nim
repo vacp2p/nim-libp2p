@@ -21,7 +21,7 @@ proc partialMessageInteropTest*(
     ourAddr: string,
     otherAddr: string,
     otherPeerId: PeerId,
-    timeout: Duration = 5.minutes,
+    timeout: Duration = 2.minutes,
 ): Future[bool] {.async.} =
   # this proc implements interop test for testing gossipsub partial message extension.
   # there are two entities:
