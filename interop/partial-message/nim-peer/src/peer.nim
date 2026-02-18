@@ -1,25 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import net, os, chronos
+import chronos
 import ../../../../tests/interop/partial_message
 import ../../../../libp2p/[multiaddress, peerid, wire]
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
 const
-  OurAddr = "/ip6/::1/tcp/3030"
-  PeerAddr = "/ip6/::1/tcp/4040"
+  OurAddr = "/ip4/0.0.0.0/tcp/3131"
+  PeerAddr = "/ip4/0.0.0.0/tcp/4141"
+  OtherPeerIdStr = "12D3KooWSnUDxXeeEnerD1Wf35R5b8bjTMzdAz838aDUUY8GJPGa"
 
 when isMainModule:
-  if paramCount() != 1:
-    quit("Usage: nim r src/nim_peer.nim <peerid>", 1)
+  # if paramCount() != 1:
+  #   quit("Usage: nim r src/peer.nim <peerid>", 1)
 
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
-  if waitFor(waitForTCPServer(ta)):
+  if waitFor(waitForTCPServer(ta, delay = 2.seconds)):
     # ensure other peer has fully started
-    waitFor(sleepAsync(3.seconds))
+    waitFor(sleepAsync(1.seconds))
 
-    let otherPeerId = PeerId.init(paramStr(1)).get()
+    # let otherPeerId = PeerId.init(paramStr(1)).get()
+    let otherPeerId = PeerId.init(OtherPeerIdStr).get()
     let success = waitFor(partialMessageInteropTest(OurAddr, PeerAddr, otherPeerId))
     if success:
       echo "Partial message introp test was successful"
