@@ -10,7 +10,7 @@ import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
 import ../kademlia_discovery/types
-import ./[types, serviceroutingtables]
+import ./[types, serviceroutingtables, capability_discovery_metrics]
 
 logScope:
   topics = "cap-disco discoverer"
@@ -35,16 +35,28 @@ proc sendGetAds(
     await conn.close()
 
   let msg = Message(msgType: MessageType.getAds, key: serviceId)
+  let encodedMsg = msg.encode().buffer
 
-  let writeRes = catch:
-    await conn.writeLp(msg.encode().buffer)
+  cd_messages_sent.inc(labelValues = [$MessageType.getAds])
+  cd_message_bytes_sent.inc(encodedMsg.len.float64, labelValues = [$MessageType.getAds])
+
+  var writeRes: Result[void, ref CatchableError]
+  var readRes: Result[seq[byte], ref CatchableError]
+  cd_message_duration_ms.time(labelValues = [$MessageType.getAds]):
+    writeRes = catch:
+      await conn.writeLp(encodedMsg)
+    readRes = catch:
+      await conn.readLp(MaxMsgSize)
+
   if writeRes.isErr:
-    return err("Connection writing failed: " & writeRes.error.msg)
-
-  let readRes = catch:
-    await conn.readLp(MaxMsgSize)
+    return err("connection writing failed: " & writeRes.error.msg)
   let replyBuf = readRes.valueOr:
-    return err("Connection reading failed: " & error.msg)
+    return err("connection reading failed: " & readRes.error.msg)
+
+  cd_messages_received.inc(labelValues = [$MessageType.getAds])
+  cd_message_bytes_received.inc(
+    replyBuf.len.float64, labelValues = [$MessageType.getAds]
+  )
 
   let reply = Message.decode(replyBuf).valueOr:
     return err("failed to decode message response: " & $error)
@@ -76,6 +88,8 @@ proc lookup*(
     disco: KademliaDiscovery, serviceId: ServiceId
 ): Future[Result[seq[PeerId], string]] {.async: (raises: []).} =
   ## Look up providers for a spcific service id
+
+  cd_lookup_requests.inc()
 
   disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
@@ -112,4 +126,5 @@ proc lookup*(
           if found.len >= disco.discoConf.fLookup:
             break outer
 
+  cd_lookup_peers_found.inc(found.len.float64)
   return ok(found.toSeq())
