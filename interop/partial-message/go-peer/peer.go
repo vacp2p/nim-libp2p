@@ -1,13 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"log/slog"
 	"os"
+	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p-pubsub/partialmessages"
+	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 )
@@ -69,13 +75,72 @@ func loadOrCreateIdentity() (crypto.PrivKey, peer.ID, error) {
 	return priv, pid, nil
 }
 
+type MyPartsMetadata struct {
+	metadata []byte
+}
+
+func (m MyPartsMetadata) Encode() []byte {
+	return m.metadata
+}
+
+func (m MyPartsMetadata) Clone() partialmessages.PartsMetadata {
+	return MyPartsMetadata{metadata: m.metadata}
+}
+
+func (m MyPartsMetadata) Merge(a partialmessages.PartsMetadata) {
+}
+
+func (m MyPartsMetadata) IsSubset(partialmessages.PartsMetadata) bool {
+	return false
+}
+
+type MyPartialMessage struct {
+	groupID  []byte
+	metadata []byte
+}
+
+func (m MyPartialMessage) GroupID() []byte {
+	return m.groupID
+}
+
+func (m MyPartialMessage) PartialMessageBytes(remote peer.ID, partsMetadata partialmessages.PartsMetadata) (msg []byte, nextPartsMetadata partialmessages.PartsMetadata, _ error) {
+	return nil, nil, nil
+}
+
+func (m MyPartialMessage) PartsMetadata() partialmessages.PartsMetadata {
+	return MyPartsMetadata{metadata: m.metadata}
+}
+
+func publishPartialMessage(ps *pubsub.PubSub) {
+	time.Sleep(time.Second * 5)
+	const topicName = "logos-partial"
+	topic, err := ps.Join(topicName)
+	if err != nil {
+		log.Fatalf("Failed to join topic: %v", err)
+	}
+	defer topic.Close()
+
+	pm := MyPartialMessage{
+		groupID:  []byte("interop-group"),
+		metadata: []byte("1h2h3h"),
+	}
+
+	err = ps.PublishPartialMessage(topicName, pm, partialmessages.PublishOptions{})
+	if err != nil {
+		log.Fatalf("Failed to publish partial message topic: %v", err)
+	} else {
+		log.Printf("Partial message published")
+	}
+}
+
 func main() {
+	ctx := context.Background()
 	priv, pid, err := loadOrCreateIdentity()
 	if err != nil {
 		log.Fatalf("Identity setup failed: %v", err)
 	}
 
-	h, err := libp2p.New(
+	host, err := libp2p.New(
 		libp2p.Identity(priv),
 		libp2p.ListenAddrStrings(
 			// only use IPv6 addresses, as this test case also verifies
@@ -87,11 +152,28 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create host: %v", err)
 	}
-	defer h.Close()
+	defer host.Close()
 
-	fmt.Println("Peer ID:", pid.String())
-	fmt.Println("Listen addresses:", h.Addrs())
+	pme := &partialmessages.PartialMessagesExtension{
+		Logger: &slog.Logger{},
+		ValidateRPC: func(from peer.ID, rpc *pb.PartialMessagesExtension) error {
+			return nil
+		},
+		DecodePartsMetadata: func(_ peer.ID, rpc *pb.PartialMessagesExtension) (partialmessages.PartsMetadata, error) {
+			return nil, nil
+		},
+		OnIncomingRPC: func(from peer.ID, rpc *pb.PartialMessagesExtension) error {
+			return nil
+		},
+	}
+	ps, err := pubsub.NewGossipSub(ctx, host, pubsub.WithPartialMessagesExtension(pme))
+	if err != nil {
+		log.Fatalf("Failed to create gossipsub: %v", err)
+	}
+
+	fmt.Println("Peer ID: ", pid.String())
+	fmt.Println("Listen addresses: ", host.Addrs())
 	fmt.Println("Go peer started.")
 
-	select {}
+	publishPartialMessage(ps)
 }
