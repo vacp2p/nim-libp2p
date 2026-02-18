@@ -15,10 +15,18 @@ import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
 import ../kademlia/routingtable
 import ../kademlia_discovery/types
-import ./[types, iptree, serviceroutingtables]
+import ./[types, iptree, serviceroutingtables, capability_discovery_metrics]
 
 logScope:
   topics = "cap-disco registrar"
+
+proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
+  var totalAds = 0
+  for ads in registrar.cache.values:
+    totalAds += ads.len
+  cd_registrar_cache_ads.set(totalAds.float64)
+  cd_registrar_cache_services.set(registrar.cache.len.float64)
+  cd_iptree_unique_ips.set(registrar.ipTree.root.counter.float64)
 
 proc new*(T: typedesc[Registrar]): T =
   T(
@@ -54,6 +62,10 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: uint64) {.raises: [].}
   for (serviceId, ad) in toDelete:
     let adKey = ad.toAdvertisementKey()
     registrar.cacheTimestamps.del(adKey)
+
+  if toDelete.len > 0:
+    cd_registrar_ads_expired.inc(toDelete.len.float64)
+    registrar.updateRegistrarMetrics()
 
 proc waitingTime*(
     registrar: Registrar,
@@ -291,6 +303,7 @@ proc acceptAdvertisement*(
     let adKey = ad.toAdvertisementKey()
     disco.registrar.cacheTimestamps[adKey] = now
     disco.registrar.ipTree.insertAd(ad)
+    disco.registrar.updateRegistrarMetrics()
 
   await conn.sendRegisterResponse(
     kademlia_protobuf.RegistrationStatus.Confirmed, closerPeers
@@ -322,6 +335,8 @@ proc handleGetAds*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: []).} =
   ## Handle GET_ADS request
+
+  cd_messages_received.inc(labelValues = [$MessageType.getAds])
 
   let serviceId = msg.key
 
@@ -364,16 +379,20 @@ proc handleRegister*(
 ) {.async: (raises: []).} =
   ## Handle REGISTER request
 
+  cd_messages_received.inc(labelValues = [$MessageType.register])
+
   let serviceId = msg.key
 
   let closerPeers =
     disco.getRegistrarCloserPeers(serviceId, disco.discoConf.bucketsCount)
 
   let regMsg = msg.register.valueOr:
+    cd_register_requests.inc(labelValues = [$kademlia_protobuf.Rejected])
     await conn.sendRegisterReject(closerPeers)
     return
 
   let ad = validateRegisterMessage(regMsg).valueOr:
+    cd_register_requests.inc(labelValues = [$kademlia_protobuf.Rejected])
     await conn.sendRegisterReject(closerPeers)
     return
 
@@ -390,6 +409,7 @@ proc handleRegister*(
   let t_remaining = disco.processRetryTicket(regMsg, ad, t_wait, now)
 
   if t_remaining <= 0:
+    cd_register_requests.inc(labelValues = [$kademlia_protobuf.Confirmed])
     await disco.acceptAdvertisement(serviceId, ad, now, closerPeers, conn)
     return
 
@@ -405,6 +425,7 @@ proc handleRegister*(
     signature: @[],
   )
 
+  cd_register_requests.inc(labelValues = [$kademlia_protobuf.Wait])
   await waitOrRejectAdvertisement(closerPeers, conn, t_remaining, ticket, disco)
 
   return

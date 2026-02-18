@@ -7,12 +7,21 @@ import ../../[peerid, switch, multihash]
 import ../kademlia/[types, routingtable]
 import ../kademlia
 import ./types
+import ./capability_discovery_metrics
 
 logScope:
   topics = "cap-disco service-routing-tables"
 
 type ServiceRoutingTableManager* = ref object
   tables*: Table[ServiceId, RoutingTable]
+
+proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [].} =
+  cd_service_tables_count.set(manager.tables.len.float64)
+  var totalPeers = 0
+  for table in manager.tables.values:
+    for bucket in table.buckets:
+      totalPeers += bucket.peers.len
+  cd_service_table_peers.set(totalPeers.float64)
 
 proc new*(T: typedesc[ServiceRoutingTableManager]): T =
   T(tables: initTable[ServiceId, RoutingTable]())
@@ -45,6 +54,7 @@ proc addService*(
       discard serviceTable.insert(peerKey)
 
   manager.tables[serviceId] = serviceTable
+  manager.updateServiceTablesMetrics()
 
 proc removeService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
@@ -52,6 +62,7 @@ proc removeService*(
   ## Remove routing table for a service
 
   manager.tables.del(serviceId)
+  manager.updateServiceTablesMetrics()
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
@@ -76,6 +87,7 @@ proc insertPeer*(
     return
 
   discard table.insert(peerKey)
+  cd_service_table_insertions.inc()
   return
 
 proc hasService*(

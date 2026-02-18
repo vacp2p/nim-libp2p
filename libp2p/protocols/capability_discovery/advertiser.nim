@@ -9,10 +9,13 @@ import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/[types, protobuf]
 import ../kademlia_discovery/types
-import ./[types, serviceroutingtables]
+import ./[types, serviceroutingtables, capability_discovery_metrics]
 
 logScope:
   topics = "cap-disco advertiser"
+
+proc updateAdvertiserMetrics(disco: KademliaDiscovery) {.raises: [].} =
+  cd_advertiser_pending_actions.set(disco.advertiser.actionQueue.len.float64)
 
 proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).}
 
@@ -80,15 +83,30 @@ proc sendRegister*(
   var msg =
     Message(msgType: MessageType.register, key: serviceId, register: Opt.some(regMsg))
 
-  let writeRes = catch:
-    await conn.writeLp(msg.encode().buffer)
+  let encodedMsg = msg.encode().buffer
+
+  cd_messages_sent.inc(labelValues = [$MessageType.register])
+  cd_message_bytes_sent.inc(
+    encodedMsg.len.float64, labelValues = [$MessageType.register]
+  )
+
+  var writeRes: Result[void, ref CatchableError]
+  var readRes: Result[seq[byte], ref CatchableError]
+  cd_message_duration_ms.time(labelValues = [$MessageType.register]):
+    writeRes = catch:
+      await conn.writeLp(encodedMsg)
+    readRes = catch:
+      await conn.readLp(MaxMsgSize)
+
   if writeRes.isErr:
     return err("connection writing failed: " & writeRes.error.msg)
-
-  let readRes = catch:
-    await conn.readLp(MaxMsgSize)
   let replyBuf = readRes.valueOr:
-    return err("connection reading failed: " & error.msg)
+    return err("connection reading failed: " & readRes.error.msg)
+
+  cd_messages_received.inc(labelValues = [$MessageType.register])
+  cd_message_bytes_received.inc(
+    replyBuf.len.float64, labelValues = [$MessageType.register]
+  )
 
   let reply = Message.decode(replyBuf).valueOr:
     return err("failed to decode register message response" & $error)
@@ -106,6 +124,8 @@ proc sendRegister*(
 
   let status = registerMsg.status.valueOr:
     return err("register reply status not found")
+
+  cd_register_responses.inc(labelValues = [$status])
 
   return ok((status, registerMsg.ticket, closerPeers))
 
@@ -157,6 +177,8 @@ proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
   )
 
+  cd_advertiser_services_added.inc()
+
   let advTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
     error "service not found", serviceId
     return
@@ -177,6 +199,7 @@ proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
 
       disco.scheduleAction(serviceId, peerId, bucketIdx, Moment.now(), Opt.none(Ticket))
 
+  disco.updateAdvertiserMetrics()
   disco.processAction()
 
 proc removeProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
@@ -184,6 +207,8 @@ proc removeProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
 
   disco.serviceRoutingTables.removeService(serviceId)
   disco.advertiser.actionQueue.keepItIf(it.serviceId != serviceId)
+  cd_advertiser_services_removed.inc()
+  disco.updateAdvertiserMetrics()
 
 proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
   ## Loop through all pre-scheduled actions and execute them at the correct time.
@@ -202,6 +227,7 @@ proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledErr
       await sleepAsync(scheduledTime - now)
 
     disco.advertiser.actionQueue.delete(0)
+    disco.updateAdvertiserMetrics()
 
     if not disco.serviceRoutingTables.hasService(serviceId):
       error "no service routing table found", serviceId
@@ -211,4 +237,5 @@ proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledErr
       error "failed create extended peer record", error
       continue
 
+    cd_advertiser_actions_executed.inc()
     await disco.advertise(serviceId, record, registrar, bucketIdx, ticket)
