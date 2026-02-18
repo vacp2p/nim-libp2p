@@ -3,17 +3,11 @@
 {.used.}
 
 import std/options
-import chronos, chronicles, results
+import chronos, results
 import ../../../libp2p/protocols/kademlia_discovery/[types]
 import ../../../libp2p/protocols/capability_discovery/[discoverer, serviceroutingtables]
 import ../../tools/unittest
 import ./utils
-
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
-
-# ============================================================================
-# 1. Discoverer Initialization Tests
-# ============================================================================
 
 suite "Kademlia Discovery Discoverer - Initialization":
   teardown:
