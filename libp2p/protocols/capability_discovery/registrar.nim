@@ -165,7 +165,8 @@ proc getRegistrarCloserPeers*(
         break thisBlock
 
       for bucket in regTable.buckets:
-        let closerPeer = bucket.randomPeerInBucket(disco.rng)
+        let closerPeer = bucket.randomPeerInBucket(disco.rng).valueOr:
+          continue
         closerPeerKeys.add(closerPeer)
 
   if closerPeerKeys.len == 0:
@@ -283,9 +284,6 @@ proc acceptAdvertisement*(
   disco.serviceRoutingTables.insertPeer(serviceId, peerKey)
 
   var ads = disco.registrar.cache.getOrDefault(serviceId)
-  if serviceId notin disco.registrar.cache:
-    ads = @[]
-    disco.registrar.cache[serviceId] = ads
 
   # Check for duplicate - verify both serviceId and peerId match
   # This prevents overwriting ads from different peers with same peerId
@@ -304,6 +302,8 @@ proc acceptAdvertisement*(
     disco.registrar.cacheTimestamps[adKey] = now
     disco.registrar.ipTree.insertAd(ad)
     disco.registrar.updateRegistrarMetrics()
+
+  disco.registrar.cache[serviceId] = ads
 
   await conn.sendRegisterResponse(
     kademlia_protobuf.RegistrationStatus.Confirmed, closerPeers
@@ -326,6 +326,7 @@ proc waitOrRejectAdvertisement*(
   ticket.sign(disco.switch.peerInfo.privateKey).isOkOr:
     error "failed to sign ticket", error
     await conn.sendRegisterReject(closerPeers)
+    return
 
   await conn.sendRegisterResponse(
     kademlia_protobuf.RegistrationStatus.Wait, closerPeers, Opt.some(ticket)

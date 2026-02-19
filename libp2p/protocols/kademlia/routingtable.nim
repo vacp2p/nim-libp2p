@@ -177,9 +177,12 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: var HmacDrbgContext)
 
   return raw
 
-proc randomPeerInBucket*(bucket: Bucket, rng: ref HmacDrbgContext): Key =
+proc randomPeerInBucket*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
+  if bucket.peers.len <= 0:
+    return Opt.none(Key)
+
   var peers = bucket.peers
 
   rng.shuffle(peers)
 
-  return peers[0].nodeId
+  return Opt.some(peers[0].nodeId)
