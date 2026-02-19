@@ -37,7 +37,7 @@ proc partialMessageInteropTest*(
     .withRng(rng())
     .withAddresses(@[MultiAddress.init(ourAddr).tryGet()])
     .withTcpTransport()
-    .withMplex()
+    .withYamux()
     .withNoise()
     .build()
 

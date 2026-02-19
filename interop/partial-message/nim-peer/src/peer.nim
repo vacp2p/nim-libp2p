@@ -9,7 +9,7 @@ import ../../../../libp2p/[multiaddress, peerid, wire]
 const
   OurAddr = "/ip4/0.0.0.0/tcp/3131"
   PeerAddr = "/ip4/0.0.0.0/tcp/4141"
-  OtherPeerIdStr = "12D3KooWSnUDxXeeEnerD1Wf35R5b8bjTMzdAz838aDUUY8GJPGa"
+  OtherPeerIdStr = "12D3KooWLRJXY5sRBPMGfL5pTPJicyWb7jiHPpgktGicwZiJcdLf"
 
 when isMainModule:
   # if paramCount() != 1:
