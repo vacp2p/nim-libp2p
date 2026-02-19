@@ -15,7 +15,9 @@ import (
 	"github.com/libp2p/go-libp2p-pubsub/partialmessages"
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/network"
 	peer "github.com/libp2p/go-libp2p/core/peer"
+	"github.com/multiformats/go-multiaddr"
 )
 
 const (
@@ -112,12 +114,30 @@ func (m MyPartialMessage) PartsMetadata() partialmessages.PartsMetadata {
 }
 
 func publishPartialMessage(ps *pubsub.PubSub) {
-	time.Sleep(time.Second * 5)
 	const topicName = "logos-partial"
 	topic, err := ps.Join(topicName)
 	if err != nil {
 		log.Fatalf("Failed to join topic: %v", err)
 	}
+
+	subs, err := topic.Subscribe()
+	if err != nil {
+		log.Fatalf("Failed to subscribe to topic: %v", err)
+	}
+
+	go func() {
+		for {
+			msg, err := subs.Next(context.Background())
+			if err != nil {
+				log.Printf("Subscription ended: %v", err)
+				return
+			}
+			log.Printf("Received message on %s from %s", msg.GetTopic(), msg.ReceivedFrom)
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+
 	defer topic.Close()
 
 	pm := MyPartialMessage{
@@ -133,7 +153,23 @@ func publishPartialMessage(ps *pubsub.PubSub) {
 	}
 }
 
+type connectionNotifiee struct {
+	onConnected func()
+}
+
+func (n *connectionNotifiee) Listen(network.Network, multiaddr.Multiaddr)      {}
+func (n *connectionNotifiee) ListenClose(network.Network, multiaddr.Multiaddr) {}
+func (n *connectionNotifiee) OpenedStream(network.Network, network.Stream)     {}
+func (n *connectionNotifiee) ClosedStream(network.Network, network.Stream)     {}
+func (n *connectionNotifiee) Disconnected(_ network.Network, conn network.Conn) {
+}
+func (n *connectionNotifiee) Connected(_ network.Network, conn network.Conn) {
+	fmt.Println("Peer connected")
+	n.onConnected()
+}
+
 func main() {
+	doneC := make(chan struct{})
 	ctx := context.Background()
 	priv, pid, err := loadOrCreateIdentity()
 	if err != nil {
@@ -168,9 +204,20 @@ func main() {
 		log.Fatalf("Failed to create gossipsub: %v", err)
 	}
 
+	// wait for peer to connect then publish partial message
+	host.Network().Notify(&connectionNotifiee{
+		onConnected: func() {
+			close(doneC)
+		},
+	})
+
 	fmt.Println("Peer ID: ", pid.String())
 	fmt.Println("Listen addresses: ", host.Addrs())
 	fmt.Println("Go peer started.")
 
+	<-doneC
+
 	publishPartialMessage(ps)
+
+	time.Sleep(100 * time.Second)
 }
