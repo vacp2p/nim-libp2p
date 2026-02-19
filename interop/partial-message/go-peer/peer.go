@@ -142,7 +142,7 @@ func publishPartialMessage(ps *pubsub.PubSub) {
 
 	pm := MyPartialMessage{
 		groupID:  []byte("interop-group"),
-		metadata: []byte("1h2h3h"),
+		metadata: []byte{1, 'h', 2, 'h', 3, 'h'},
 	}
 
 	err = ps.PublishPartialMessage(topicName, pm, partialmessages.PublishOptions{})
