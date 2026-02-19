@@ -100,14 +100,16 @@ suite "Kademlia Discovery Advertiser - Queue Management":
 
   test "removeProvidedService filters action queue":
     let kad = createMockDiscovery()
-    let serviceId1 = makeServiceId(1)
-    let serviceId2 = makeServiceId(2)
+    let service1 = makeServiceInfo("1")
+    let service2 = makeServiceInfo("2")
+    let serviceId1 = service1.id.hashServiceId()
+    let serviceId2 = service2.id.hashServiceId()
     let now = Moment.now()
 
     # Add services first
     populateRoutingTable(kad, @[makePeerId()])
-    kad.addProvidedService(serviceId1)
-    kad.addProvidedService(serviceId2)
+    kad.addProvidedService(service1)
+    kad.addProvidedService(service2)
 
     # Clear the queue that was populated by addProvidedService
     kad.advertiser.actionQueue.setLen(0)
@@ -121,7 +123,7 @@ suite "Kademlia Discovery Advertiser - Queue Management":
     check kad.advertiser.actionQueue.len == 4
 
     # Remove service1
-    kad.removeProvidedService(serviceId1)
+    kad.removeProvidedService(service1)
 
     # Only service2 actions should remain
     check kad.advertiser.actionQueue.len == 2
@@ -138,32 +140,35 @@ suite "Kademlia Discovery Advertiser - Service Management":
 
   test "addProvidedService with empty routing table":
     let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
 
     # Routing table starts empty
     check kad.rtable.buckets.len == 0
 
-    kad.addProvidedService(serviceId)
+    kad.addProvidedService(service)
 
     # Service table should be created
     check kad.serviceRoutingTables.hasService(serviceId)
 
   test "removeProvidedService removes table":
     let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
 
-    kad.addProvidedService(serviceId)
+    kad.addProvidedService(service)
     check kad.serviceRoutingTables.hasService(serviceId)
 
-    kad.removeProvidedService(serviceId)
+    kad.removeProvidedService(service)
     check not kad.serviceRoutingTables.hasService(serviceId)
 
   test "removeProvidedService non-existent is safe":
     let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
 
     # Should not error
-    kad.removeProvidedService(serviceId)
+    kad.removeProvidedService(service)
 
 # ============================================================================
 # 5. Rescheduling Logic Tests
@@ -184,13 +189,14 @@ suite "Kademlia Discovery Advertiser - Rescheduling Logic":
         discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = bc),
       )
 
-      let serviceId = makeServiceId()
+      let service = makeServiceInfo()
+      let serviceId = service.id.hashServiceId()
 
       # Add peers to routing table
       for i in 0 ..< 10:
         discard kad.rtable.insert(makePeerId())
 
-      kad.addProvidedService(serviceId)
+      kad.addProvidedService(service)
 
       # Service table should be created
       check kad.serviceRoutingTables.hasService(serviceId)
@@ -205,10 +211,12 @@ suite "Kademlia Discovery Advertiser - Edge Cases":
 
   test "Multiple services can be added":
     let kad = createMockDiscovery()
-
-    let service1 = makeServiceId(1)
-    let service2 = makeServiceId(2)
-    let service3 = makeServiceId(3)
+    let service1 = makeServiceInfo("1")
+    let serviceId1 = service1.id.hashServiceId()
+    let service2 = makeServiceInfo("2")
+    let serviceId2 = service2.id.hashServiceId()
+    let service3 = makeServiceInfo("3")
+    let serviceId3 = service3.id.hashServiceId()
 
     populateRoutingTable(kad, @[makePeerId()])
 
@@ -216,15 +224,17 @@ suite "Kademlia Discovery Advertiser - Edge Cases":
     kad.addProvidedService(service2)
     kad.addProvidedService(service3)
 
-    check kad.serviceRoutingTables.hasService(service1)
-    check kad.serviceRoutingTables.hasService(service2)
-    check kad.serviceRoutingTables.hasService(service3)
+    check kad.serviceRoutingTables.hasService(serviceId1)
+    check kad.serviceRoutingTables.hasService(serviceId2)
+    check kad.serviceRoutingTables.hasService(serviceId3)
 
   test "Removing one service doesn't affect others":
     let kad = createMockDiscovery()
 
-    let service1 = makeServiceId(1)
-    let service2 = makeServiceId(2)
+    let service1 = makeServiceInfo("1")
+    let serviceId1 = service1.id.hashServiceId()
+    let service2 = makeServiceInfo("2")
+    let serviceId2 = service2.id.hashServiceId()
 
     populateRoutingTable(kad, @[makePeerId()])
 
@@ -233,5 +243,5 @@ suite "Kademlia Discovery Advertiser - Edge Cases":
 
     kad.removeProvidedService(service1)
 
-    check not kad.serviceRoutingTables.hasService(service1)
-    check kad.serviceRoutingTables.hasService(service2)
+    check not kad.serviceRoutingTables.hasService(serviceId1)
+    check kad.serviceRoutingTables.hasService(serviceId2)

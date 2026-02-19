@@ -22,8 +22,8 @@ type
     getProviders = 3
     findNode = 4
     ping = 5 # Deprecated
-    register = 6 # REGISTER for Capability Discovery
-    getAds = 7 # GET_ADS for Capability Discovery
+    register = 16 # REGISTER for Capability Discovery
+    getAds = 17 # GET_ADS for Capability Discovery
 
   ConnectionType* = enum
     notConnected = 0

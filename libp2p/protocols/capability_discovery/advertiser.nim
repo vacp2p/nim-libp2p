@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, algorithm]
+import std/[sets, sequtils, algorithm]
 import chronos, chronicles, results
 import
   ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
@@ -39,7 +39,8 @@ proc scheduleAction*(
 proc processAction*(disco: KademliaDiscovery) =
   ## Start processing scheduled actions
 
-  if disco.advertiseLoop.isNil and disco.advertiser.actionQueue.len > 0:
+  if (disco.advertiseLoop.isNil or disco.advertiseLoop.finished()) and
+      disco.advertiser.actionQueue.len > 0:
     disco.advertiseLoop = disco.runAdvertiseLoop()
 
 proc scheduleAndProcessAction*(
@@ -170,8 +171,10 @@ proc advertise*(
 
   disco.processAction()
 
-proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
+proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   ## Include this service in the set of services this node provides.
+
+  let serviceId = service.id.hashServiceId()
 
   disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
@@ -199,14 +202,18 @@ proc addProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
 
       disco.scheduleAction(serviceId, peerId, bucketIdx, Moment.now(), Opt.none(Ticket))
 
+  disco.services.incl(service)
   disco.updateAdvertiserMetrics()
   disco.processAction()
 
-proc removeProvidedService*(disco: KademliaDiscovery, serviceId: ServiceId) =
+proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   ## Exclude this service from the set of services this node provides.
+
+  let serviceId = service.id.hashServiceId()
 
   disco.serviceRoutingTables.removeService(serviceId)
   disco.advertiser.actionQueue.keepItIf(it.serviceId != serviceId)
+  disco.services.excl(service)
   cd_advertiser_services_removed.inc()
   disco.updateAdvertiserMetrics()
 
