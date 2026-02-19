@@ -115,7 +115,7 @@ func (m MyPartialMessage) PartsMetadata() partialmessages.PartsMetadata {
 
 func publishPartialMessage(ps *pubsub.PubSub) {
 	const topicName = "logos-partial"
-	topic, err := ps.Join(topicName)
+	topic, err := ps.Join(topicName, pubsub.SupportsPartialMessages())
 	if err != nil {
 		log.Fatalf("Failed to join topic: %v", err)
 	}
