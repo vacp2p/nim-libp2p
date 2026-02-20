@@ -238,6 +238,15 @@ proc createShared*(
   ret[].config.dnsResolver = ret[].config.dnsResolver.alloc()
   ret[].config.kadBootstrapNodes = nil
   ret[].config.kadBootstrapNodesLen = 0
+  # Clear the shallow-copied privKey pointer from applyConfigDefaults before deep-copying
+  ret[].config.privKey.data = nil
+  ret[].config.privKey.dataLen = 0
+  if not config.isNil() and (config[].flags and Libp2pCfgPrivateKey) != 0'u32:
+    if not config[].privKey.data.isNil() and config[].privKey.dataLen > 0:
+      let srcKey = config[].privKey
+      ret[].config.privKey.dataLen = srcKey.dataLen
+      ret[].config.privKey.data = allocShared(srcKey.dataLen.int)
+      copyMem(ret[].config.privKey.data, srcKey.data, srcKey.dataLen.int)
   if not config.isNil() and (config[].flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
     ret[].config.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
     if config[].kadBootstrapNodesLen > 0:
