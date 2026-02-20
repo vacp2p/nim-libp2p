@@ -158,22 +158,6 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
 
   libp2p.mountMix(config)
 
-proc processGetPublicKey*(
-    self: ptr LifecycleRequest, libp2p: ptr LibP2P
-): Future[Result[ptr ReadResponse, string]] {.async: (raises: [CancelledError]).} =
-  let peerInfo = libp2p[].switch.peerInfo
-  if peerInfo.isNil():
-    return err("switch peerInfo is nil")
-
-  let pubKey =
-    case peerInfo.publicKey.scheme
-    of PKScheme.Secp256k1:
-      peerInfo.publicKey.skkey
-    else:
-      return err("peerInfo public key must be secp256k1")
-
-  return ok(allocReadResponse(pubKey.getBytes()))
-
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
@@ -238,6 +222,14 @@ proc createShared*(
   ret[].config.dnsResolver = ret[].config.dnsResolver.alloc()
   ret[].config.kadBootstrapNodes = nil
   ret[].config.kadBootstrapNodesLen = 0
+  ret[].config.privKey.data = nil
+  ret[].config.privKey.dataLen = 0
+  if not config.isNil() and (config[].flags and Libp2pCfgPrivateKey) != 0'u32:
+    if not config[].privKey.data.isNil() and config[].privKey.dataLen > 0:
+      let srcKey = config[].privKey
+      ret[].config.privKey.dataLen = srcKey.dataLen
+      ret[].config.privKey.data = allocShared(srcKey.dataLen.int)
+      copyMem(ret[].config.privKey.data, srcKey.data, srcKey.dataLen.int)
   if not config.isNil() and (config[].flags and Libp2pCfgKadBootstrapNodes) != 0'u32:
     ret[].config.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
     if config[].kadBootstrapNodesLen > 0:
@@ -275,6 +267,25 @@ proc destroyShared(self: ptr LifecycleRequest) =
   if not self[].config.privKey.data.isNil():
     deallocShared(self[].config.privKey.data)
   deallocShared(self)
+
+proc processGetPublicKey*(
+    self: ptr LifecycleRequest, libp2p: ptr LibP2P
+): Future[Result[ptr ReadResponse, string]] {.async: (raises: [CancelledError]).} =
+  defer:
+    destroyShared(self)
+
+  let peerInfo = libp2p[].switch.peerInfo
+  if peerInfo.isNil():
+    return err("switch peerInfo is nil")
+
+  let pubKey =
+    case peerInfo.publicKey.scheme
+    of PKScheme.Secp256k1:
+      peerInfo.publicKey.skkey
+    else:
+      return err("peerInfo public key must be secp256k1")
+
+  return ok(allocReadResponse(pubKey.getBytes()))
 
 proc process*(
     self: ptr LifecycleRequest, libp2p: ptr LibP2P

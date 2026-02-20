@@ -67,7 +67,7 @@ proc allocCStringArrayFromCArray*(src: ptr cstring, len: csize_t): ptr cstring =
 proc allocSharedSeq*[T](s: seq[T]): SharedSeq[T] =
   let data = allocShared(sizeof(T) * s.len)
   if s.len != 0:
-    copyMem(data, s[0].addr, s.len)
+    copyMem(data, s[0].addr, sizeof(T) * s.len)
   return (cast[ptr UncheckedArray[T]](data), s.len)
 
 proc deallocSharedSeq*[T](s: var SharedSeq[T]) =
