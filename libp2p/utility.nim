@@ -197,3 +197,9 @@ proc waitForTCPServer*(
       discard
     await sleepAsync(delay)
   return false
+
+proc toOpt*[T: ref object](x: T): Opt[T] {.inline.} =
+  if x.isNil:
+    Opt.none(T)
+  else:
+    Opt.some(x)

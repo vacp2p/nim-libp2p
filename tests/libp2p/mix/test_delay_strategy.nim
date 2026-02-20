@@ -3,7 +3,7 @@
 
 {.used.}
 
-import std/[sets]
+import std/[math, sets]
 import ../../../libp2p/protocols/mix/delay_strategy
 import ../../tools/[unittest, crypto]
 
@@ -66,3 +66,24 @@ suite "DelayStrategy":
       delays.incl(delay)
 
     check delays.len > NumSamples div 2
+
+  test "ExponentialDelayStrategy truncates at negligible probability threshold":
+    let
+      meanDelayMs: uint16 = 100
+      negligibleProb = DefaultNegligibleProb
+      strategy = ExponentialDelayStrategy.new(meanDelayMs, rng(), negligibleProb)
+      # maxDelay = -mean * ln(negligibleProb)
+      maxDelayMs = uint16(-float64(meanDelayMs) * ln(negligibleProb))
+
+    for _ in 0 ..< 10000:
+      check strategy.generateForIntermediate(meanDelayMs) <= maxDelayMs
+
+  test "ExponentialDelayStrategy respects custom negligibleProb":
+    let
+      meanDelayMs: uint16 = 100
+      negligibleProb = 0.01 # aggressive truncation: max ≈ mean * 4.6
+      strategy = ExponentialDelayStrategy.new(meanDelayMs, rng(), negligibleProb)
+      maxDelayMs = uint16(-float64(meanDelayMs) * ln(negligibleProb))
+
+    for _ in 0 ..< 10000:
+      check strategy.generateForIntermediate(meanDelayMs) <= maxDelayMs
