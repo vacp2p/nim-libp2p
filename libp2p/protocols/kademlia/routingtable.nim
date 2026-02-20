@@ -6,6 +6,7 @@ import bearssl/rand, chronos, chronicles, results
 import ./types
 import ./kademlia_metrics
 import ../../peerid
+import ../../crypto/crypto
 import ../../utils/sequninit
 
 logScope:
@@ -175,3 +176,13 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: var HmacDrbgContext)
       raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
 
   return raw
+
+proc randomPeerInBucket*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
+  if bucket.peers.len <= 0:
+    return Opt.none(Key)
+
+  var peers = bucket.peers
+
+  rng.shuffle(peers)
+
+  return Opt.some(peers[0].nodeId)

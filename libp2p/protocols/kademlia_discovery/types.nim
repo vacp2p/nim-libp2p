@@ -1,45 +1,35 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[sequtils, sets, times]
-import chronos, results, stew/byteutils
+import chronos, results
 import
   ../../[
     peerid, switch, multihash, cid, multicodec, routing_record, extended_peer_record
   ]
 import ../../protobuf/minprotobuf
 import ../kademlia/types
-
-const
-  DefaultSelfSPRRereshTime* = 10.minutes
-
-  ExtendedKademliaDiscoveryCodec* = "/logos/kad/1.0.0"
+import ../capability_discovery/types
+import ../capability_discovery/serviceroutingtables
 
 type KademliaDiscovery* = ref object of KadDHT
-  services*: HashSet[ServiceInfo]
+  registrar*: Registrar
+  advertiser*: Advertiser
+  serviceRoutingTables*: ServiceRoutingTableManager
   selfSignedLoop*: Future[void]
+  serviceTableLoop*: Future[void]
+  advertiseLoop*: Future[void]
+  registrarCacheLoop*: Future[void]
+  services*: HashSet[ServiceInfo]
+  discoConf*: KademliaDiscoveryConfig
 
-proc toKey*(service: ServiceInfo): Key =
-  return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
-
-proc init*(
-    T: typedesc[ExtendedPeerRecord],
-    peerInfo: PeerInfo,
-    seqNo: uint64 = getTime().toUnix().uint64,
-    services: seq[ServiceInfo] = @[],
-): T =
-  T(
-    peerId: peerInfo.peerId,
-    seqNo: seqNo,
-    addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-    services: services,
-  )
+export ServiceInfo
 
 type ExtEntryValidator* = ref object of EntryValidator
 method isValid*(
     self: ExtEntryValidator, key: Key, record: EntryRecord
 ): bool {.raises: [], gcsafe.} =
-  let spr = SignedPeerRecord.decode(record.value).valueOr:
+  let spr = SignedExtendedPeerRecord.decode(record.value).valueOr:
     return false
 
   let expectedPeerId = key.toPeerId().valueOr:
@@ -58,7 +48,7 @@ method select*(
   var bestIdx: int = -1
 
   for i, rec in records:
-    let spr = SignedPeerRecord.decode(rec.value).valueOr:
+    let spr = SignedExtendedPeerRecord.decode(rec.value).valueOr:
       continue
 
     let seqNo = spr.data.seqNo
@@ -70,3 +60,28 @@ method select*(
     return err("No valid records")
 
   return ok(bestIdx)
+
+proc record*(
+    disco: KademliaDiscovery
+): Future[Result[SignedExtendedPeerRecord, string]] {.async: (raises: []).} =
+  let updateRes = catch:
+    await disco.switch.peerInfo.update()
+  if updateRes.isErr:
+    return err("Failed to update peer info: " & updateRes.error.msg)
+
+  let
+    peerInfo: PeerInfo = disco.switch.peerInfo
+    services: seq[ServiceInfo] = disco.services.toSeq()
+
+  let extPeerRecord = SignedExtendedPeerRecord.init(
+    peerInfo.privateKey,
+    ExtendedPeerRecord(
+      peerId: peerInfo.peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
+      services: services,
+    ),
+  ).valueOr:
+    return err("Failed to create signed peer record: " & $error)
+
+  return ok(extPeerRecord)
