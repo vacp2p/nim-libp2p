@@ -124,13 +124,15 @@ proc sendRequestInternal(
 
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
+    let msg = "Couldn't send a request to the libp2p thread: " & $req[]
     deallocShared(req)
-    return err("Couldn't send a request to the libp2p thread: " & $req[])
+    return err(msg)
 
   let fireSyncRes = ctx.reqSignal.fireSync()
   if fireSyncRes.isErr():
+    let msg = "failed fireSync: " & $fireSyncRes.error
     deallocShared(req)
-    return err("failed fireSync: " & $fireSyncRes.error)
+    return err(msg)
 
   if fireSyncRes.get() == false:
     deallocShared(req)
