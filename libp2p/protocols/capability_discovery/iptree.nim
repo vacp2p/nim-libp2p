@@ -45,23 +45,28 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   if v.counter == 0:
     return
 
-  var path: seq[IpTreeNode] = @[]
+  var path: array[32, IpTreeNode]
+  var pathLen = 0
 
   for i in 0 ..< 4:
     let b = bytes[i]
     for bit in countdown(7, 0):
       if v.isNil or v.counter == 0:
         return
-      path.add(v)
+
+      path[pathLen] = v
+      inc pathLen
+
       let goLeft = ((b and (1'u8 shl bit)) == 0)
       let nxt = (if goLeft: v.left else: v.right)
       if nxt.isNil:
         return
       v = nxt
 
-  for n in path:
+  for j in 0 ..< pathLen:
+    let n = path[j]
     if n.counter > 0:
-      n.counter -= 1
+      dec n.counter
 
 proc insertAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for addressInfo in ad.data.addresses:
