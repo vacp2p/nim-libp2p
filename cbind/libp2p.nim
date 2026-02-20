@@ -26,6 +26,9 @@ import
 
 template checkLibParams*(ctx: ptr LibP2PContext, callback: pointer, userData: pointer) =
   ## This template checks common parameters passed to exported functions
+  if isNil(ctx):
+    return RET_ERR.cint
+
   ctx[].userData = userData
 
   if isNil(callback):
