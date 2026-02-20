@@ -81,11 +81,11 @@ proc handleRes[T](res: Result[T, string], request: ptr LibP2PThreadRequest) =
     when T is void:
       cb(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
     elif T is string:
-      if res.get() == "":
+      let msg = res.get()
+      if msg.len == 0:
         cb(RET_OK.cint, cast[ptr cchar](""), 0, request[].userData)
       else:
-        var msg: cstring = res.get().cstring
-        cb(RET_OK.cint, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+        cb(RET_OK.cint, addr msg[0], cast[csize_t](len(msg)), request[].userData)
     else:
       raiseAssert "handleRes only supports Result[void, string] or Result[string, string]"
   return
