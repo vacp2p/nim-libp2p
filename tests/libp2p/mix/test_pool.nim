@@ -3,31 +3,28 @@
 
 {.used.}
 
-import results
+import results, sequtils
 import ../../../libp2p/[crypto/crypto, crypto/secp, multiaddress, peerid, peerstore]
 import ../../../libp2p/protocols/mix/[mix_node, pool]
 import ../../tools/unittest
+import ./utils
 
 suite "MixNodePool Tests":
   var
     peerStore {.threadvar.}: PeerStore
     pool {.threadvar.}: MixNodePool
-    mixNodes {.threadvar.}: MixNodes
+    mixNodes {.threadvar.}: seq[MixNodeInfo]
 
   setup:
     peerStore = PeerStore.new()
     pool = MixNodePool.new(peerStore)
-    mixNodes = initializeMixNodes(5).expect("could not generate mix nodes")
-
-  teardown:
-    deleteNodeInfoFolder()
-    deletePubInfoFolder()
+    mixNodes = MixNodeInfo.generateRandomMany(5)
 
   test "new creates empty pool":
     check pool.len == 0
 
   test "add stores mix node info":
-    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let pubInfo = mixNodes[0].toMixPubInfo()
 
     pool.add(pubInfo)
 
@@ -37,7 +34,7 @@ suite "MixNodePool Tests":
       pool.get(pubInfo.peerId).get() == pubInfo
 
   test "add stores all required data in peerStore":
-    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let pubInfo = mixNodes[0].toMixPubInfo()
 
     pool.add(pubInfo)
 
@@ -47,8 +44,22 @@ suite "MixNodePool Tests":
       peerStore[KeyBook][pubInfo.peerId].scheme == Secp256k1
       peerStore[KeyBook][pubInfo.peerId].skkey == pubInfo.libp2pPubKey
 
+  test "bulk add stores multiple mix nodes":
+    let pubInfos = mixNodes.mapIt(it.toMixPubInfo())
+
+    pool.add(pubInfos)
+
+    check pool.len == mixNodes.len
+    for pubInfo in pubInfos:
+      check pool.get(pubInfo.peerId).isSome
+      check pool.get(pubInfo.peerId).get() == pubInfo
+
+  test "bulk add with empty seq is no-op":
+    pool.add(newSeq[MixPubInfo]())
+    check pool.len == 0
+
   test "remove deletes from pool":
-    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let pubInfo = mixNodes[0].toMixPubInfo()
 
     pool.add(pubInfo)
     check pool.len == 1
@@ -69,7 +80,7 @@ suite "MixNodePool Tests":
     check pool.get(peerId).isNone
 
   test "get returns none when address is missing":
-    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let pubInfo = mixNodes[0].toMixPubInfo()
 
     # Manually add only the mix key, not the address
     peerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
@@ -77,7 +88,7 @@ suite "MixNodePool Tests":
     check pool.get(pubInfo.peerId).isNone
 
   test "get returns none when key scheme is not Secp256k1":
-    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let pubInfo = mixNodes[0].toMixPubInfo()
 
     # Manually add with wrong key scheme
     peerStore[MixPubKeyBook][pubInfo.peerId] = pubInfo.mixPubKey
@@ -87,7 +98,7 @@ suite "MixNodePool Tests":
     check pool.get(pubInfo.peerId).isNone
 
   test "get filters for supported addresses (IPv4 with TCP or QUIC-v1)":
-    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let pubInfo = mixNodes[0].toMixPubInfo()
     let relayPeerId = PeerId.random().expect("could not generate relay peerId")
     let ipv6Addr =
       MultiAddress.init("/ip6/::1/tcp/4242").expect("could not create multiaddr")
@@ -151,7 +162,7 @@ suite "MixNodePool Tests":
 
   test "peerIds returns all peer IDs":
     for i in 0 ..< mixNodes.len:
-      let pubInfo = mixNodes.getMixPubInfoByIndex(i).expect("could not get pub info")
+      let pubInfo = mixNodes[i].toMixPubInfo()
       pool.add(pubInfo)
 
     let peerIds = pool.peerIds()
@@ -159,19 +170,19 @@ suite "MixNodePool Tests":
     check peerIds.len == mixNodes.len
 
     for i in 0 ..< mixNodes.len:
-      let pubInfo = mixNodes.getMixPubInfoByIndex(i).expect("could not get pub info")
+      let pubInfo = mixNodes[i].toMixPubInfo()
       check pubInfo.peerId in peerIds
 
   test "len returns correct count":
     check pool.len == 0
 
     for i in 0 ..< 3:
-      let pubInfo = mixNodes.getMixPubInfoByIndex(i).expect("could not get pub info")
+      let pubInfo = mixNodes[i].toMixPubInfo()
       pool.add(pubInfo)
       check pool.len == i + 1
 
   test "get prefers LastSeenOutboundBook over AddressBook":
-    let pubInfo = mixNodes.getMixPubInfoByIndex(0).expect("could not get pub info")
+    let pubInfo = mixNodes[0].toMixPubInfo()
     let addressBookAddr = MultiAddress.init("/ip4/192.168.1.1/tcp/4242").expect(
         "could not create multiaddr"
       )
@@ -200,14 +211,13 @@ suite "MixNodePool Tests":
   test "multiple operations sequence":
     # Add 3 nodes
     for i in 0 ..< 3:
-      let pubInfo = mixNodes.getMixPubInfoByIndex(i).expect("could not get pub info")
+      let pubInfo = mixNodes[i].toMixPubInfo()
       pool.add(pubInfo)
 
     check pool.len == 3
 
     # Remove middle node
-    let middlePubInfo =
-      mixNodes.getMixPubInfoByIndex(1).expect("could not get pub info")
+    let middlePubInfo = mixNodes[1].toMixPubInfo()
     discard pool.remove(middlePubInfo.peerId)
 
     check:
@@ -216,7 +226,7 @@ suite "MixNodePool Tests":
 
     # Add two more nodes
     for i in 3 ..< 5:
-      let pubInfo = mixNodes.getMixPubInfoByIndex(i).expect("could not get pub info")
+      let pubInfo = mixNodes[i].toMixPubInfo()
       pool.add(pubInfo)
 
     check pool.len == 4

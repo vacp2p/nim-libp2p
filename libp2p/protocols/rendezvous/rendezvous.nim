@@ -244,17 +244,17 @@ proc discover*[E](
     return
   var nextOffset = cookie.offset
   let n = Moment.now()
-  var s = collect(newSeq()):
-    for index in namespaces:
-      var reg = rdv.registered[index]
-      if limit == 0:
-        break
-      if reg.expiration < n or index.uint64 < cookie.offset:
-        continue
-      limit.dec()
-      nextOffset = index.uint64 + 1
-      reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
-      reg.data
+  var s: seq[Register] = @[]
+  for index in namespaces:
+    var reg = rdv.registered[index]
+    if limit == 0:
+      break
+    if reg.expiration < n or index.uint64 < cookie.offset:
+      continue
+    limit.dec()
+    nextOffset = index.uint64 + 1
+    reg.data.ttl = Opt.some((reg.expiration - Moment.now()).seconds.uint64)
+    s.add(reg.data)
   rdv.rng.shuffle(s)
   await conn.sendDiscoverResponse(s, Cookie(offset: nextOffset, ns: d.ns))
 

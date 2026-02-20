@@ -38,18 +38,28 @@ method generateForIntermediate*(
   encodedDelayMs
 
 const DefaultMeanDelayMs* = 100
+const DefaultNegligibleProb* = 1e-6
+  ## Probability below which the tail of the exponential distribution is truncated.
+  ## Yields a maximum delay of mean * -ln(negligibleProb) ≈ mean * 13.8.
 
 type ExponentialDelayStrategy* = ref object of DelayStrategy
   ## Recommended strategy: encodes mean delay, samples from exponential distribution.
+  ## The distribution is truncated at -mean*ln(negligibleProb), discarding the
+  ## impractically long tail while preserving the mixing properties.
   meanDelayMs: uint16
+  negligibleProb: float64
 
 proc new*(
     T: typedesc[ExponentialDelayStrategy],
     meanDelayMs: uint16 = DefaultMeanDelayMs,
     rng: ref HmacDrbgContext,
+    negligibleProb: float64 = DefaultNegligibleProb,
 ): T =
   doAssert(rng != nil, "random is not set")
-  T(meanDelayMs: meanDelayMs, rng: rng)
+  doAssert(
+    negligibleProb > 0.0 and negligibleProb < 1.0, "negligibleProb must be in (0, 1)"
+  )
+  T(meanDelayMs: meanDelayMs, rng: rng, negligibleProb: negligibleProb)
 
 method generateForEntry*(
     self: ExponentialDelayStrategy
@@ -59,11 +69,12 @@ method generateForEntry*(
 method generateForIntermediate*(
     self: ExponentialDelayStrategy, meanDelayMs: uint16
 ): uint16 {.gcsafe, raises: [].} =
-  ## Samples from exponential distribution: delay = -mean * ln(U)
-  ## Fall back to no delay in case of errors
+  ## Samples from exponential distribution: delay = -mean * ln(U), truncated to
+  ## -mean*ln(negligibleProb) to discard the impractically long tail.
   if meanDelayMs == 0:
     return 0u16
+  let maxDelayMs = -float64(meanDelayMs) * ln(self.negligibleProb)
   let randVal = self.rng[].generate(uint64)
   let u = (float64(randVal) + 1.0) / (float64(high(uint64)) + 1.0)
   let delay = -float64(meanDelayMs) * ln(u)
-  min(delay, float64(high(uint16))).uint16
+  min(min(delay, maxDelayMs), float64(high(uint16))).uint16
