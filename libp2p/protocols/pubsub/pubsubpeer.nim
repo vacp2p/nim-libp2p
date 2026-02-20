@@ -239,6 +239,12 @@ proc runHandleLoop*(
         await conn.readLp(p.maxMessageSize)
       except LPStreamRemoteClosedError:
         return
+      except LPStreamClosedError:
+        return
+      except LPStreamResetError:
+        return
+      except LPStreamConnDownError:
+        return
       except LPStreamError as e:
         debug "Exception occurred reading message PubSubPeer.handle",
           conn, peer = p, closed = conn.closed, description = e.msg

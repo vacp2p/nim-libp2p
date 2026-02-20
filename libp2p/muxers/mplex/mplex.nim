@@ -182,7 +182,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
   except LPStreamEOFError as exc:
     trace "Stream EOF", m, description = exc.msg
   except LPStreamError as exc:
-    debug "Unexpected stream exception in mplex read loop", m, description = exc.msg
+    trace "Unexpected stream exception in mplex read loop", m, description = exc.msg
   except MuxerError as exc:
     debug "Unexpected muxer exception in mplex read loop", m, description = exc.msg
   finally:
