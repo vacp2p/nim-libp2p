@@ -65,9 +65,15 @@ proc makePeerId*(): PeerId =
 proc makeServiceId*(): ServiceId =
   @[1'u8, 2, 3, 4]
 
+proc makeServiceInfo*(): ServiceInfo =
+  ServiceInfo(id: "blabla", data: @[1, 2, 3, 4])
+
 # Helper to create a service ID with a custom first byte
 proc makeServiceId*(id: byte): ServiceId =
   @[id, 2'u8, 3, 4]
+
+proc makeServiceInfo*(id: string): ServiceInfo =
+  ServiceInfo(id: id, data: @[1, 2, 3, 4])
 
 proc createTestAdvertisement*(
     serviceId: ServiceId = makeServiceId(),
