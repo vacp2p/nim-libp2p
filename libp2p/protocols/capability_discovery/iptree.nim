@@ -35,8 +35,6 @@ proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
         v = v.right
 
 proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
-  ## Removes an IPv4 address from the IP tree by decrementing counters along the 32-bit path.
-  ## Only supports IPv4.
   if ip.family != IpAddressFamily.IPv4:
     error "Cannot remove Ipv6 from tree"
     return
@@ -44,14 +42,31 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   var v = ipTree.root
   let bytes = ip.address_v4
 
+  if v.counter == 0:
+    return
+
+  var path: array[32, IpTreeNode]
+  var pathLen = 0
+
   for i in 0 ..< 4:
     let b = bytes[i]
     for bit in countdown(7, 0):
-      v.counter -= 1
-      if (b and (1'u8 shl bit)) == 0:
-        v = v.left
-      else:
-        v = v.right
+      if v.isNil or v.counter == 0:
+        return
+
+      path[pathLen] = v
+      inc pathLen
+
+      let goLeft = ((b and (1'u8 shl bit)) == 0)
+      let nxt = (if goLeft: v.left else: v.right)
+      if nxt.isNil:
+        return
+      v = nxt
+
+  for j in 0 ..< pathLen:
+    let n = path[j]
+    if n.counter > 0:
+      dec n.counter
 
 proc insertAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for addressInfo in ad.data.addresses:
