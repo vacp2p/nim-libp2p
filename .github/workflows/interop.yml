@@ -120,3 +120,27 @@ jobs:
 
           cd ../nim-peer
           nim r src/nim_peer.nim
+
+  run-partail-message-interop:
+    name: Run Partial Message interoperability tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: "stable"
+
+      - name: Run Interop
+        run: |
+          nimble setup
+          cd interop/partial-message
+          nim c ./nim-peer/src/peer.nim
+          go build -C ./go-peer -o peer ./peer.go
+          ./go-peer/peer & ./nim-peer/src/peer
