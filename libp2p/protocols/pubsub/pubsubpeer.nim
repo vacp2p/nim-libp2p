@@ -237,7 +237,7 @@ proc runHandleLoop*(
     let data =
       try:
         await conn.readLp(p.maxMessageSize)
-      except LPStreamRemoteClosedError:
+      except LPStreamEOFError:
         return
       except LPStreamError as e:
         debug "Exception occurred reading message PubSubPeer.handle",
