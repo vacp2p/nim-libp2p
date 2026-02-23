@@ -9,17 +9,15 @@ import ../../../../libp2p/[multiaddress, peerid, wire]
 const
   OurAddr = "/ip4/0.0.0.0/tcp/3131"
   PeerAddr = "/ip4/0.0.0.0/tcp/4141"
+  PeerIdFile = "../go-peer/peer.id"
 
 when isMainModule:
-  if paramCount() != 1:
-    quit("Usage: nim r src/peer.nim <peerid>", 1)
-
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
   if waitFor(waitForTCPServer(ta)):
     # ensure other peer has fully started
     waitFor(sleepAsync(1.seconds))
 
-    let otherPeerId = PeerId.init(paramStr(1)).get()
+    let otherPeerId = PeerId.init(readFile(PeerIdFile)).get()
     let success = waitFor(partialMessageInteropTest(OurAddr, PeerAddr, otherPeerId))
     if success:
       echo "Partial message interop test was successful"

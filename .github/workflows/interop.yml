@@ -143,4 +143,4 @@ jobs:
           cd interop/partial-message
           nim c ./nim-peer/src/peer.nim
           go build -C ./go-peer -o peer ./peer.go
-          ./go-peer/peer & ./nim-peer/src/peer $(cat ./go-peer/peer.id)
+          ./go-peer/peer & ./nim-peer/src/peer
