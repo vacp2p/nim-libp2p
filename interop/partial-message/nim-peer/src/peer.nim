@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import chronos, os
+import chronos
 import ../../../../tests/interop/partial_message
 import ../../../../libp2p/[multiaddress, peerid, wire]
 
