@@ -12,7 +12,7 @@ const
 
 when isMainModule:
   if paramCount() != 1:
-    quit("Usage: nim r src/nim_peer.nim <peerid>", 1)
+    quit("Aborting. Peer ID not specified", 1)
 
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
   if waitFor(waitForTCPServer(ta)):
@@ -22,8 +22,8 @@ when isMainModule:
     let otherPeerId = PeerId.init(paramStr(1)).get()
     let success = waitFor(autonatInteropTest(OurAddr, PeerAddr, otherPeerId))
     if success:
-      echo "Autonatv2 introp test was successfull"
+      echo "Autonatv2 interop test was successful"
     else:
-      quit("Autonatv2 introp test has failed", 1)
+      quit("Autonatv2 interop test has failed", 1)
   else:
     quit("timeout waiting for service", 1)

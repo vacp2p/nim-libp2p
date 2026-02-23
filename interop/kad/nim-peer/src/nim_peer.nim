@@ -19,8 +19,8 @@ when isMainModule:
     let otherPeerId = PeerId.init(readFile(PeerIdFile)).get()
     let success = waitFor(kadInteropTest(OurAddr, PeerAddr, otherPeerId))
     if success:
-      echo "Kademlia introp test was successfull"
+      echo "Kademlia interop test was successful"
     else:
-      quit("Kademlia introp test has failed", 1)
+      quit("Kademlia interop test has failed", 1)
   else:
     quit("timeout waiting for service", 1)
