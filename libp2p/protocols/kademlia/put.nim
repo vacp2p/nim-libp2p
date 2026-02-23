@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[times, sequtils]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../protocol
-import ./[protobuf, types, find]
+import ./[protobuf, types, find, kademlia_metrics]
 
 logScope:
   topics = "kad-dht put"
@@ -30,9 +30,23 @@ proc dispatchPutVal*(
     key: key,
     record: Opt.some(Record(key: key, value: Opt.some(value))),
   )
-  await conn.writeLp(msg.encode().buffer)
+  let encoded = msg.encode()
 
-  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+  kad_messages_sent.inc(labelValues = [$MessageType.putValue])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
+  )
+
+  var replyBuf: seq[byte]
+  kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
+    await conn.writeLp(encoded.buffer)
+    replyBuf = await conn.readLp(MaxMsgSize)
+
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.putValue]
+  )
+
+  let reply = Message.decode(replyBuf).valueOr:
     error "PutValue reply decode fail", error = error, conn = conn
     return
 
@@ -97,8 +111,12 @@ proc handlePutValue*(
   kad.dataTable.insert(msg.key, entryRecord.value, $times.now().utc)
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
+  let encoded = msg.encode()
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
+  )
   try:
-    await conn.writeLp(msg.encode().buffer)
+    await conn.writeLp(encoded.buffer)
   except LPStreamError as exc:
     debug "Failed to send find-node RPC reply", conn = conn, err = exc.msg
     return

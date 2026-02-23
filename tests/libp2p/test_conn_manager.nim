@@ -220,6 +220,43 @@ suite "Connection Manager":
 
     await connMngr.close()
 
+  asyncTest "waitForPeerReady unblocks when muxer is stored":
+    let connMngr = ConnManager.new()
+    let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()
+
+    let readyWaiter = connMngr.waitForPeerReady(peerId, 1.seconds)
+    await connMngr.storeMuxer(getMuxer(peerId))
+
+    check await readyWaiter
+    await connMngr.close()
+
+  asyncTest "waitForPeerReady timeout does not break concurrent waiters":
+    let connMngr = ConnManager.new()
+    let peerId = PeerId.random(newRng()).expect("peer should have been created")
+
+    let shortWaiter = connMngr.waitForPeerReady(peerId, 10.millis)
+    let longWaiter = connMngr.waitForPeerReady(peerId, 1.seconds)
+
+    check (await shortWaiter) == false
+    await connMngr.storeMuxer(getMuxer(peerId))
+    check await longWaiter
+
+    await connMngr.close()
+
+  asyncTest "waitForPeerReady cleanup after disconnect":
+    let connMngr = ConnManager.new()
+    let peerId = PeerId.random(newRng()).expect("peer should have been created")
+    let muxer = getMuxer(peerId)
+
+    await connMngr.storeMuxer(muxer)
+    await muxer.close()
+
+    checkUntilTimeout:
+      peerId notin connMngr
+
+    check (await connMngr.waitForPeerReady(peerId, 10.millis)) == false
+    await connMngr.close()
+
   asyncTest "drop connections for peer":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, (newRng())[]).tryGet()).tryGet()

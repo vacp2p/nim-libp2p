@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[times, tables]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../protocol
-import ./[protobuf, types, find, put]
+import ./[protobuf, types, find, put, kademlia_metrics]
 
 logScope:
   topics = "kad-dht get"
@@ -21,11 +21,28 @@ proc dispatchGetVal*(
     await conn.close()
 
   let msg = Message(msgType: MessageType.getValue, key: key)
-  await conn.writeLp(msg.encode().buffer)
+  let encoded = msg.encode()
 
-  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+  kad_messages_sent.inc(labelValues = [$MessageType.getValue])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
+  )
+
+  var replyBuf: seq[byte]
+  kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
+    await conn.writeLp(encoded.buffer)
+    replyBuf = await conn.readLp(MaxMsgSize)
+
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.getValue]
+  )
+
+  let reply = Message.decode(replyBuf).valueOr:
     error "GetValue reply decode fail", error = error, conn = conn
     return Opt.none(Message)
+
+  if reply.closerPeers.len > 0:
+    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
 
   conn.observedAddr.withValue(observedAddr):
     kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
@@ -132,33 +149,37 @@ method handleGetValue*(
   let key = msg.key
 
   let entryRecord = kad.dataTable.get(key).valueOr:
+    let response = Message(
+      msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
+    )
+    let encoded = response.encode()
+    kad_message_bytes_sent.inc(
+      encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
+    )
     try:
-      await conn.writeLp(
-        Message(
-          msgType: MessageType.getValue,
-          key: key,
-          closerPeers: kad.findClosestPeers(key),
-        ).encode().buffer
-      )
+      await conn.writeLp(encoded.buffer)
     except LPStreamError as exc:
       debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
     return
 
-  try:
-    await conn.writeLp(
-      Message(
-        msgType: MessageType.getValue,
+  let response = Message(
+    msgType: MessageType.getValue,
+    key: key,
+    record: Opt.some(
+      Record(
         key: key,
-        record: Opt.some(
-          Record(
-            key: key,
-            value: Opt.some(entryRecord.value),
-            timeReceived: Opt.some(entryRecord.time),
-          )
-        ),
-        closerPeers: kad.findClosestPeers(key),
-      ).encode().buffer
-    )
+        value: Opt.some(entryRecord.value),
+        timeReceived: Opt.some(entryRecord.time),
+      )
+    ),
+    closerPeers: kad.findClosestPeers(key),
+  )
+  let encoded = response.encode()
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
+  )
+  try:
+    await conn.writeLp(encoded.buffer)
   except LPStreamError as exc:
     debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
     return

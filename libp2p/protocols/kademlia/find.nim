@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[tables, sequtils, sets, algorithm]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash]
 import ../protocol
-import ./[routingtable, protobuf, types]
+import ./[routingtable, protobuf, types, kademlia_metrics]
 
 logScope:
   topics = "kad-dht find"
@@ -129,11 +129,28 @@ proc dispatchFindNode*(
     await conn.close()
 
   let msg = Message(msgType: MessageType.findNode, key: target)
-  await conn.writeLp(msg.encode().buffer)
+  let encoded = msg.encode()
 
-  let reply = Message.decode(await conn.readLp(MaxMsgSize)).valueOr:
+  kad_messages_sent.inc(labelValues = [$MessageType.findNode])
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
+  )
+
+  var replyBuf: seq[byte]
+  kad_message_duration_ms.time(labelValues = [$MessageType.findNode]):
+    await conn.writeLp(encoded.buffer)
+    replyBuf = await conn.readLp(MaxMsgSize)
+
+  kad_message_bytes_received.inc(
+    replyBuf.len.int64, labelValues = [$MessageType.findNode]
+  )
+
+  let reply = Message.decode(replyBuf).valueOr:
     debug "FindNode reply decode fail", error = error, conn = conn
     return Opt.none(Message)
+
+  if reply.closerPeers.len > 0:
+    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.findNode])
 
   return Opt.some(reply)
 
@@ -253,10 +270,14 @@ method handleFindNode*(
 ) {.base, async: (raises: [CancelledError]).} =
   let target = msg.key
 
+  let response =
+    Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target))
+  let encoded = response.encode()
+  kad_message_bytes_sent.inc(
+    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
+  )
   try:
-    await conn.writeLp(
-      Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target)).encode().buffer
-    )
+    await conn.writeLp(encoded.buffer)
   except LPStreamError as exc:
     debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg
     return

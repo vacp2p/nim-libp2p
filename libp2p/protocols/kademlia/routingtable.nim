@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import algorithm, sequtils
 import bearssl/rand, chronos, chronicles, results
 import ./types
+import ./kademlia_metrics
 import ../../peerid
 import ../../utils/sequninit
 
@@ -62,6 +63,17 @@ proc replaceOldest(bucket: var Bucket, newNodeId: Key, replication: int): bool =
   bucket.peers[oldestIdx] = NodeEntry(nodeId: newNodeId, lastSeen: Moment.now())
   true
 
+proc updateRoutingTableMetrics*(rtable: RoutingTable) =
+  ## Update routing table gauge metrics
+  var total = 0
+  for i, b in rtable.buckets:
+    total += b.peers.len
+    # Only track non-empty buckets to reduce cardinality
+    if b.peers.len > 0:
+      kad_routing_table_bucket_size.set(b.peers.len.float64, labelValues = [$i])
+  kad_routing_table_peers.set(total.float64)
+  kad_routing_table_buckets.set(rtable.buckets.len.float64)
+
 proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
     debug "Cannot insert self in routing table", nodeId = nodeId
@@ -83,14 +95,17 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
     bucket.peers[keyx.unsafeValue].lastSeen = Moment.now()
   elif bucket.peers.len < rtable.config.replication:
     bucket.peers.add(NodeEntry(nodeId: nodeId, lastSeen: Moment.now()))
+    kad_routing_table_insertions.inc()
   else:
     # eviction policy: replace oldest key
     if not bucket.replaceOldest(nodeId, rtable.config.replication):
       debug "Cannot insert, failed to replace oldest key in bucket",
         bucket = idx, nodeId = nodeId
       return false
+    kad_routing_table_replacements.inc()
 
   rtable.buckets[idx] = bucket
+  updateRoutingTableMetrics(rtable)
   return true
 
 proc insert*(rtable: var RoutingTable, peerId: PeerId): bool =

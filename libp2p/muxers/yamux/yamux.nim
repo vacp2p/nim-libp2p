@@ -650,7 +650,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
   except LPStreamEOFError as exc:
     trace "Stream EOF", description = exc.msg
   except LPStreamError as exc:
-    debug "Unexpected stream exception in yamux read loop", description = exc.msg
+    trace "Unexpected stream exception in yamux read loop", description = exc.msg
   except YamuxError as exc:
     trace "Closing yamux connection", description = exc.msg
     try:

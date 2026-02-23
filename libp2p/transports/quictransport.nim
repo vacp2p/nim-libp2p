@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import std/[sequtils, sets]
+import std/[hashes, sets, sequtils]
 import chronos, chronicles, metrics, results
 import lsquic
 import
   ../wire,
+  ../connmanager,
   ../multiaddress,
   ../multicodec,
   ../muxers/muxer,
   ../stream/connection,
-  ../upgrademngrs/upgrade
+  ../upgrademngrs/upgrade,
+  ../utility
 import ./transport
 import tls/certificate
 
@@ -35,7 +37,10 @@ type
 
   QuicSession* = ref object of P2PConnection
     connection: QuicConnection
-    streams: seq[QuicStream]
+    streams: HashSet[QuicStream]
+
+func hash*(s: QuicStream): Hash =
+  cast[pointer](s).hash
 
 const alpn = "libp2p"
 
@@ -53,6 +58,7 @@ proc new(
   let quicstream = QuicStream(
     session: session,
     stream: stream,
+    timeout: 0.millis, # QUIC handles idle timeout at the transport layer
     observedAddr: oaddr,
     localAddr: laddr,
     peerId: peerId,
@@ -92,7 +98,7 @@ method write*(
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
   except StreamError:
-    raise newLPStreamRemoteClosedError()
+    raise newLPStreamEOFError()
 
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
@@ -106,6 +112,7 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
     await stream.stream.close()
   except CancelledError, StreamError:
     discard
+  stream.session.streams.excl(stream)
   await procCall P2PConnection(stream).closeImpl()
 
 # Session
@@ -113,13 +120,18 @@ method closed*(session: QuicSession): bool {.raises: [].} =
   procCall P2PConnection(session).isClosed or session.connection.isClosed
 
 method close*(session: QuicSession) {.async: (raises: []).} =
-  await noCancel allFutures(session.streams.mapIt(it.close()))
+  let streams = session.streams
+  session.streams.clear()
+  await noCancel allFutures(streams.mapIt(it.close()))
   session.connection.close()
   await procCall P2PConnection(session).close()
 
 proc getStream(
     session: QuicSession, direction = Direction.In
 ): Future[QuicStream] {.async: (raises: [CancelledError, ConnectionError]).} =
+  if session.closed:
+    raise newException(ConnectionClosedError, "session is closed")
+
   var stream: Stream
   case direction
   of Direction.In:
@@ -136,7 +148,7 @@ proc getStream(
   # Inherit transportDir from parent session for GossipSub outbound peer tracking
   qs.transportDir = session.transportDir
 
-  session.streams.add(qs)
+  session.streams.incl(qs)
   return qs
 
 method getWrapped*(self: QuicSession): P2PConnection =
@@ -207,6 +219,7 @@ method close*(m: QuicMuxer) {.async: (raises: []).} =
 
 # Transport
 type QuicUpgrade = ref object of Upgrade
+  connManager: Opt[ConnManager]
 
 type CertGenerator =
   proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].}
@@ -215,7 +228,7 @@ type QuicTransport* = ref object of Transport
   listener: Listener
   client: Opt[QuicClient]
   privateKey: PrivateKey
-  connections: seq[P2PConnection]
+  connections: HashSet[P2PConnection]
   rng: ref HmacDrbgContext
   certGenerator: CertGenerator
 
@@ -242,9 +255,14 @@ proc defaultCertGenerator(
 ): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
   return generateX509(kp, encodingFormat = EncodingFormat.PEM)
 
-proc new*(_: type QuicTransport, u: Upgrade, privateKey: PrivateKey): QuicTransport =
+proc new*(
+    _: type QuicTransport,
+    u: Upgrade,
+    privateKey: PrivateKey,
+    connManager: ConnManager = nil,
+): QuicTransport =
   let self = QuicTransport(
-    upgrader: QuicUpgrade(ms: u.ms),
+    upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
     certGenerator: defaultCertGenerator,
   )
@@ -256,9 +274,10 @@ proc new*(
     u: Upgrade,
     privateKey: PrivateKey,
     certGenerator: CertGenerator,
+    connManager: ConnManager = nil,
 ): QuicTransport =
   let self = QuicTransport(
-    upgrader: QuicUpgrade(ms: u.ms),
+    upgrader: QuicUpgrade(ms: u.ms, connManager: connManager.toOpt()),
     privateKey: privateKey,
     certGenerator: certGenerator,
   )
@@ -356,11 +375,11 @@ proc wrapConnection(
   # Set the transport direction for outbound peer tracking in GossipSub 1.1
   session.transportDir = transportDir
 
-  transport.connections.add(session)
+  transport.connections.incl(session)
 
   proc onClose() {.async: (raises: []).} =
     await noCancel session.join()
-    transport.connections.keepItIf(it != session)
+    transport.connections.excl(session)
     trace "Cleaned up client"
 
   asyncSpawn onClose()
@@ -433,6 +452,12 @@ method upgrade*(
   muxer.streamHandler = proc(conn: P2PConnection) {.async: (raises: []).} =
     trace "Starting stream handler"
     try:
+      let quicUpgrader = QuicUpgrade(self.upgrader)
+      quicUpgrader.connManager.withValue(connManager):
+        let ready = await connManager.waitForPeerReady(conn.peerId)
+        if not ready:
+          debug "Timed out waiting for peer ready before handling stream", conn
+          return
       await self.upgrader.ms.handle(conn) # handle incoming connection
     except CancelledError as exc:
       return

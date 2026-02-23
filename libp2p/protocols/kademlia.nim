@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import chronos, chronicles, results
 import ../utils/heartbeat
 import ../[peerid, switch, multihash]
 import ./protocol
 import ./kademlia/[routingtable, protobuf, types, find, get, put, provider, ping]
+import ./kademlia/kademlia_metrics
 
-export routingtable, protobuf, types, find, get, put, provider, ping
+export routingtable, protobuf, types, find, get, put, provider, ping, kademlia_metrics
 
 logScope:
   topics = "kad-dht"
@@ -89,6 +90,9 @@ proc new*(
       let msg = Message.decode(buf).valueOr:
         debug "Failed to decode message", err = error
         return
+
+      kad_messages_received.inc(labelValues = [$msg.msgType])
+      kad_message_bytes_received.inc(buf.len.int64, labelValues = [$msg.msgType])
 
       case msg.msgType
       of MessageType.findNode:
