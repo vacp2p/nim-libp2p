@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import chronos
+import chronos, os
 import ../../../../tests/interop/partial_message
 import ../../../../libp2p/[multiaddress, peerid, wire]
 
@@ -22,8 +22,8 @@ when isMainModule:
     let otherPeerId = PeerId.init(paramStr(1)).get()
     let success = waitFor(partialMessageInteropTest(OurAddr, PeerAddr, otherPeerId))
     if success:
-      echo "Partial message introp test was successful"
+      echo "Partial message interop test was successful"
     else:
-      quit("Partial message introp test has failed", 1)
+      quit("Partial message interop test has failed", 1)
   else:
     quit("timeout waiting for service", 1)
