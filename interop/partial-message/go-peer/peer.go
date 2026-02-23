@@ -86,10 +86,14 @@ func (m MyPartsMetadata) Encode() []byte {
 }
 
 func (m MyPartsMetadata) Clone() partialmessages.PartsMetadata {
-	return MyPartsMetadata{metadata: m.metadata}
+	clone := make([]byte, len(m.metadata))
+	copy(clone, m.metadata)
+
+	return MyPartsMetadata{metadata: clone}
 }
 
 func (m MyPartsMetadata) Merge(a partialmessages.PartsMetadata) {
+	m.metadata = append(m.metadata, a.Encode()...)
 }
 
 func (m MyPartsMetadata) IsSubset(partialmessages.PartsMetadata) bool {
