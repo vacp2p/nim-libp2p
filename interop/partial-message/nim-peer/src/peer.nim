@@ -9,19 +9,19 @@ import ../../../../libp2p/[multiaddress, peerid, wire]
 const
   OurAddr = "/ip6/::1/tcp/3131"
   PeerAddr = "/ip6/::1/tcp/4141"
-  PeerIdFile = "./go-peer/peer.id"
+  PeerIdFile = "/go-peer/peer.id"
 
 when isMainModule:
   echo "Current directory: ", getCurrentDir()
   echo "Files and directories:"
-  for kind, path in walkDir(getCurrentDir()):
-    echo " - ", path
 
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
   if waitFor(waitForTCPServer(ta)):
     # ensure other peer has fully started
     waitFor(sleepAsync(1.seconds))
 
+    for kind, path in walkDir(getCurrentDir() & PeerIdFile):
+      echo " - ", path
     let otherPeerId = PeerId.init(readFile(PeerIdFile)).get()
     let success = waitFor(partialMessageInteropTest(OurAddr, PeerAddr, otherPeerId))
     if success:
