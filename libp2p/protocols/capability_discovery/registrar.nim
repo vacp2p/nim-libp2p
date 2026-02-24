@@ -277,7 +277,8 @@ proc acceptAdvertisement*(
   ## Accept and store advertisement, send Confirmed response
 
   disco.serviceRoutingTables.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
+    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
+    Interest,
   )
 
   let peerKey = ad.data.peerId.toKey()

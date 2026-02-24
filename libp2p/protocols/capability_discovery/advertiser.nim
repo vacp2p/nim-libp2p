@@ -177,7 +177,8 @@ proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   let serviceId = service.id.hashServiceId()
 
   disco.serviceRoutingTables.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
+    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
+    Provided,
   )
 
   cd_advertiser_services_added.inc()
@@ -211,7 +212,7 @@ proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
 
   let serviceId = service.id.hashServiceId()
 
-  disco.serviceRoutingTables.removeService(serviceId)
+  disco.serviceRoutingTables.removeService(serviceId, Provided)
   disco.advertiser.actionQueue.keepItIf(it.serviceId != serviceId)
   disco.services.excl(service)
   cd_advertiser_services_removed.inc()

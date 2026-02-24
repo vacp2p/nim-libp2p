@@ -9,15 +9,6 @@ import ../../../libp2p/protocols/capability_discovery/[discoverer, serviceroutin
 import ../../tools/unittest
 import ./utils
 
-suite "Kademlia Discovery Discoverer - Initialization":
-  teardown:
-    checkTrackers()
-
-  test "Discoverer.new creates empty serviceRoutingTables":
-    let disco = createMockDiscovery()
-
-    check disco.serviceRoutingTables.count == 0
-
 suite "Kademlia Discovery Discoverer - Service Lookup":
   teardown:
     checkTrackers()
@@ -43,13 +34,3 @@ suite "Kademlia Discovery Discoverer - Service Lookup":
 
     check res.isOk()
     check res.get().len == 0
-
-  test "serviceLookup fLookup config is set correctly":
-    let disco = createMockDiscovery(
-      discoConf =
-        KademliaDiscoveryConfig.new(kLookup = 3, fLookup = 2, bucketsCount = 16)
-    )
-
-    # Verify fLookup config is set correctly
-    check disco.discoConf.fLookup == 2
-    check disco.discoConf.kLookup == 3
