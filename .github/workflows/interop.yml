@@ -137,6 +137,8 @@ jobs:
         with:
           nim-version: "stable"
 
+      # build go and nim clients first to prevent one from waiting on the other to finish building.
+      # the go peer runs in the background because the interop test logic is implemented in the nim peer.
       - name: Run Interop
         run: |
           nimble setup
