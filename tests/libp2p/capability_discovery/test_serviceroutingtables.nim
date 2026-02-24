@@ -87,7 +87,7 @@ suite "ServiceRoutingTableManager":
 
   test "insertPeer on missing service is a no-op":
     let m = ServiceRoutingTableManager.new()
-    m.insertPeer(hashServiceId("ghost"), mkKey(0x01))   # must not crash
+    m.insertPeer(hashServiceId("ghost"), mkKey(0x01)) # must not crash
     check m.count() == 0
 
   test "insertPeer after removeService is a no-op":
