@@ -92,7 +92,8 @@ proc lookup*(
   cd_lookup_requests.inc()
 
   disco.serviceRoutingTables.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount
+    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
+    Interest,
   )
 
   let searchTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
@@ -128,3 +129,20 @@ proc lookup*(
 
   cd_lookup_peers_found.inc(found.len.float64)
   return ok(found.toSeq())
+
+proc addServiceInterest*(disco: KademliaDiscovery, service: ServiceInfo) =
+  ## Add this service to this node's set of interests.
+
+  let serviceId = service.id.hashServiceId()
+
+  disco.serviceRoutingTables.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
+    Interest,
+  )
+
+proc removeServiceInterest*(disco: KademliaDiscovery, service: ServiceInfo) =
+  ## Remove this service from this node's set of interests.
+
+  let serviceId = service.id.hashServiceId()
+
+  disco.serviceRoutingTables.removeService(serviceId, Interest)
