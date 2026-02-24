@@ -223,7 +223,10 @@ proc identify*(
 
       peerStore.updatePeerInfo(info, stream.observedAddr, Opt.some(dir))
   finally:
-    await stream.closeWithEOF()
+    # TODO: once we expose a reset function in the muxers or quic, we should reset
+    # this stream if identify does not exist. In the meantime, closing the stream.
+    # (Do note there's no guarantee other implementations will be sending a EOF)
+    await stream.close() 
 
 proc getMostObservedProtosAndPorts*(self: PeerStore): seq[MultiAddress] =
   return self.identify.observedAddrManager.getMostObservedProtosAndPorts()
