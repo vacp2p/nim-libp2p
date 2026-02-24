@@ -117,7 +117,9 @@ func (m MyPartialMessage) PartsMetadata() partialmessages.PartsMetadata {
 	return MyPartsMetadata{metadata: m.metadata}
 }
 
-func publishPartialMessage(ps *pubsub.PubSub) {
+func publishPartialMessage(ps *pubsub.PubSub, doneC chan struct{}) {
+	defer close(doneC)
+
 	const topicName = "logos-partial"
 	topic, err := ps.Join(topicName, pubsub.SupportsPartialMessages())
 	if err != nil {
@@ -214,7 +216,7 @@ func main() {
 	// wait for peer to connect then publish partial message
 	host.Network().Notify(&connectionNotifiee{
 		onConnected: func() {
-			close(doneC)
+			go publishPartialMessage(ps, doneC)
 		},
 	})
 
@@ -223,8 +225,4 @@ func main() {
 	fmt.Println("Go peer started.")
 
 	<-doneC
-
-	publishPartialMessage(ps)
-
-	time.Sleep(100 * time.Second)
 }
