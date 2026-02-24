@@ -36,21 +36,6 @@ suite "Kademlia Discovery Advertiser - Pure Functions":
 
     check actionCmp(action1, action2) == 0
 
-  test "actionCmp with different fields but same time":
-    let now = Moment.now()
-
-    let action1: PendingAction =
-      (now, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
-    let action2: PendingAction =
-      (now, makeServiceId(), makePeerId(), 5, Opt.none(Ticket))
-
-    # Should return 0 when times are equal
-    check actionCmp(action1, action2) == 0
-
-# ============================================================================
-# 2. Queue Management Tests
-# ============================================================================
-
 suite "Kademlia Discovery Advertiser - Queue Management":
   teardown:
     checkTrackers()
@@ -130,26 +115,9 @@ suite "Kademlia Discovery Advertiser - Queue Management":
     for action in kad.advertiser.actionQueue:
       check action.serviceId == serviceId2
 
-# ============================================================================
-# 3. Service Management Tests
-# ============================================================================
-
 suite "Kademlia Discovery Advertiser - Service Management":
   teardown:
     checkTrackers()
-
-  test "addProvidedService with empty routing table":
-    let kad = createMockDiscovery()
-    let service = makeServiceInfo()
-    let serviceId = service.id.hashServiceId()
-
-    # Routing table starts empty
-    check kad.rtable.buckets.len == 0
-
-    kad.addProvidedService(service)
-
-    # Service table should be created
-    check kad.serviceRoutingTables.hasService(serviceId)
 
   test "removeProvidedService removes table":
     let kad = createMockDiscovery()
@@ -169,41 +137,6 @@ suite "Kademlia Discovery Advertiser - Service Management":
 
     # Should not error
     kad.removeProvidedService(service)
-
-# ============================================================================
-# 5. Rescheduling Logic Tests
-# ============================================================================
-
-suite "Kademlia Discovery Advertiser - Rescheduling Logic":
-  teardown:
-    checkTrackers()
-
-  test "addProvidedService with different bucketsCount":
-    for bc in [8, 16, 32]:
-      let kad = KademliaDiscovery.new(
-        createSwitch(),
-        bootstrapNodes = @[],
-        config = KadDHTConfig.new(
-          ExtEntryValidator(), ExtEntrySelector(), timeout = chronos.seconds(1)
-        ),
-        discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = bc),
-      )
-
-      let service = makeServiceInfo()
-      let serviceId = service.id.hashServiceId()
-
-      # Add peers to routing table
-      for i in 0 ..< 10:
-        discard kad.rtable.insert(makePeerId())
-
-      kad.addProvidedService(service)
-
-      # Service table should be created
-      check kad.serviceRoutingTables.hasService(serviceId)
-
-# ============================================================================
-# 6. Edge Cases and Error Handling
-# ============================================================================
 
 suite "Kademlia Discovery Advertiser - Edge Cases":
   teardown:

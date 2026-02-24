@@ -12,8 +12,15 @@ import ./capability_discovery_metrics
 logScope:
   topics = "cap-disco service-routing-tables"
 
-type ServiceRoutingTableManager* = ref object
-  tables*: Table[ServiceId, RoutingTable]
+type
+  ServiceStatus* = enum
+    Interest = 0
+    Provided = 1
+    Both = 2
+
+  ServiceRoutingTableManager* = ref object
+    tables*: Table[ServiceId, RoutingTable]
+    serviceStatus*: Table[ServiceId, ServiceStatus]
 
 proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [].} =
   cd_service_tables_count.set(manager.tables.len.float64)
@@ -32,10 +39,15 @@ proc addService*(
     mainRoutingTable: RoutingTable,
     replication: int,
     bucketsCount: int,
+    status: ServiceStatus,
 ) {.raises: [].} =
   ## Create a new routing table for the service
 
-  if serviceId in manager.tables:
+  if serviceId in manager.serviceStatus:
+    if status == manager.serviceStatus.getOrDefault(serviceId):
+      return
+
+    manager.serviceStatus[serviceId] = Both
     return
 
   var serviceTable = RoutingTable.new(
@@ -46,23 +58,31 @@ proc addService*(
 
   for bucket in mainRoutingTable.buckets:
     for peer in bucket.peers:
-      let peerId = peer.nodeId.toPeerId().valueOr:
-        continue
-
-      let peerKey = peerId.toKey()
-
-      discard serviceTable.insert(peerKey)
+      discard serviceTable.insert(peer.nodeId)
 
   manager.tables[serviceId] = serviceTable
+  manager.serviceStatus[serviceId] = status
   manager.updateServiceTablesMetrics()
 
 proc removeService*(
-    manager: ServiceRoutingTableManager, serviceId: ServiceId
+    manager: ServiceRoutingTableManager, serviceId: ServiceId, status: ServiceStatus
 ) {.raises: [].} =
   ## Remove routing table for a service
 
-  manager.tables.del(serviceId)
-  manager.updateServiceTablesMetrics()
+  if serviceId notin manager.serviceStatus:
+    return
+
+  if manager.serviceStatus.getOrDefault(serviceId) == status:
+    manager.tables.del(serviceId)
+    manager.serviceStatus.del(serviceId)
+    manager.updateServiceTablesMetrics()
+    return
+
+  if manager.serviceStatus.getOrDefault(serviceId) == Both:
+    if status == Interest:
+      manager.serviceStatus[serviceId] = Provided
+    elif status == Provided:
+      manager.serviceStatus[serviceId] = Interest
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
