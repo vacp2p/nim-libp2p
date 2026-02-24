@@ -95,5 +95,5 @@ suite "ServiceRoutingTableManager":
     let sid = hashServiceId("svc-a")
     m.addService(sid, emptyMain(sid), replication = 3, bucketsCount = 16)
     m.removeService(sid)
-    m.insertPeer(sid, mkKey(0x42))   # must not crash or resurrect table
+    m.insertPeer(sid, mkKey(0x42)) # must not crash or resurrect table
     check m.count() == 0
