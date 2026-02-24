@@ -29,7 +29,9 @@ proc mkKey(seed: byte): Key =
     result[i] = seed
 
 proc emptyMain(sid: ServiceId): RoutingTable =
-  RoutingTable.new(sid, config = RoutingTableConfig.new(replication = 3, maxBuckets = 16))
+  RoutingTable.new(
+    sid, config = RoutingTableConfig.new(replication = 3, maxBuckets = 16)
+  )
 
 proc hasKey*(kad: KademliaDiscovery, key: Key): bool =
   for b in kad.rtable.buckets:
