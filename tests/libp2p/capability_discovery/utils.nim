@@ -19,6 +19,18 @@ trace "chronicles has to be imported to fix Error: undeclared identifier: 'activ
 template checkEncodeDecode*(obj: untyped) =
   check obj == decode(typeof(obj), obj.encode()).get()
 
+proc peersCount(rt: RoutingTable): int =
+  for b in rt.buckets:
+    result += b.peers.len
+
+proc mkKey(seed: byte): Key =
+  result = newSeq[byte](32)
+  for i in 0 ..< 32:
+    result[i] = seed
+
+proc emptyMain(sid: ServiceId): RoutingTable =
+  RoutingTable.new(sid, config = RoutingTableConfig.new(replication = 3, maxBuckets = 16))
+
 proc hasKey*(kad: KademliaDiscovery, key: Key): bool =
   for b in kad.rtable.buckets:
     for ent in b.peers:
