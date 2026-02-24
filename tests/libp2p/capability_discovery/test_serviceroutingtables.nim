@@ -57,7 +57,7 @@ suite "ServiceRoutingTableManager":
   test "removeService on missing service is a no-op":
     let m = ServiceRoutingTableManager.new()
     let sid = hashServiceId("never-added")
-    m.removeService(sid)   # must not crash
+    m.removeService(sid) # must not crash
     check m.count() == 0
 
   test "clear removes all tables":
