@@ -7,8 +7,8 @@ import ../../../../libp2p/[multiaddress, peerid, wire]
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
 const
-  OurAddr = "/ip4/0.0.0.0/tcp/3131"
-  PeerAddr = "/ip4/0.0.0.0/tcp/4141"
+  OurAddr = "/ip6/::1/tcp/3131"
+  PeerAddr = "/ip6/::1/tcp/4141"
   PeerIdFile = "./go-peer/peer.id"
 
 when isMainModule:
