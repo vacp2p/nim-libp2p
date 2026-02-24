@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import chronos
+import chronos, os
 import ../../../../tests/interop/partial_message
 import ../../../../libp2p/[multiaddress, peerid, wire]
 
@@ -12,6 +12,11 @@ const
   PeerIdFile = "./go-peer/peer.id"
 
 when isMainModule:
+  echo "Current directory: ", getCurrentDir()
+  echo "Files and directories:"
+  for kind, path in walkDir(getCurrentDir()):
+    echo " - ", path
+
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
   if waitFor(waitForTCPServer(ta)):
     # ensure other peer has fully started
