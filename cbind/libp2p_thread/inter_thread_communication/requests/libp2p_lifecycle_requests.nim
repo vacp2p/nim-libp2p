@@ -129,11 +129,20 @@ proc mountGossipsub(libp2p: var LibP2P, config: Libp2pConfig) =
 
 proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
   var kad = Opt.none(KadDHT)
-  if config.mountKad != 0:
+  if config.mountKad != 0 or config.mountKadDiscovery != 0:
     let bootstrapNodes = parseBootstrapNodes(config)
-    let k = KadDHT.new(libp2p.switch, bootstrapNodes = bootstrapNodes)
-    libp2p.switch.mount(k)
-    kad = Opt.some(k)
+    if config.mountKadDiscovery != 0:
+      let k = KademliaDiscovery.new(
+        libp2p.switch,
+        bootstrapNodes = bootstrapNodes,
+        codec = ExtendedKademliaDiscoveryCodec,
+      )
+      libp2p.switch.mount(k)
+      kad = Opt.some(KadDHT(k))
+    else:
+      let k = KadDHT.new(libp2p.switch, bootstrapNodes = bootstrapNodes)
+      libp2p.switch.mount(k)
+      kad = Opt.some(k)
   libp2p.kad = kad
 
 proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
@@ -151,7 +160,7 @@ proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
 proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   if config.mountGossipsub != 0:
     libp2p.mountGossipsub(config)
-  if config.mountKad != 0:
+  if config.mountKad != 0 or config.mountKadDiscovery != 0:
     libp2p.mountKad(config)
 
   libp2p.switch.mount(Ping.new())
@@ -169,29 +178,6 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
       privKey = Opt.some(copyKey)
 
   let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
-
-  var gossipSub = Opt.none(GossipSub)
-  if config.mountGossipsub != 0:
-    let gs =
-      GossipSub.init(switch = switch, triggerSelf = config.gossipsubTriggerSelf != 0)
-    switch.mount(gs)
-    gossipSub = Opt.some(gs)
-
-  switch.mount(Ping.new())
-
-  var kad = Opt.none(KadDHT)
-  if config.mountKad != 0 or config.mountKadDiscovery != 0:
-    let bootstrapNodes = parseBootstrapNodes(config)
-    if config.mountKadDiscovery != 0:
-      let k = KademliaDiscovery.new(
-        switch, bootstrapNodes = bootstrapNodes, codec = ExtendedKademliaDiscoveryCodec
-      )
-      switch.mount(k)
-      kad = Opt.some(KadDHT(k))
-    else:
-      let k = KadDHT.new(switch, bootstrapNodes = bootstrapNodes)
-      switch.mount(k)
-      kad = Opt.some(k)
 
   var ret = LibP2P(
     switch: switch,
