@@ -48,8 +48,7 @@ int main(int argc, char **argv) {
   libp2p_private_key_t libp2p_priv_keys[NUM_NODES] = {0};
 
   for (int i = 0; i < NUM_NODES; i++) {
-    libp2p_config_t cfg = {0};
-    cfg.flags = LIBP2P_CFG_MIX | LIBP2P_CFG_PRIVATE_KEY | LIBP2P_CFG_GOSSIPSUB;
+    libp2p_config_t cfg = libp2p_new_default_config();
     cfg.mount_mix = 1;
     cfg.mount_gossipsub = 0;
 

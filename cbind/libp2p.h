@@ -84,17 +84,6 @@ enum {
   LIBP2P_MIX_READ_LP = 1,
 };
 
-enum {
-  LIBP2P_CFG_GOSSIPSUB = 1 << 0,
-  LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF = 1 << 1,
-  LIBP2P_CFG_KAD = 1 << 2,
-  LIBP2P_CFG_KAD_DISCOVERY = 1 << 3,
-  LIBP2P_CFG_DNS_RESOLVER = 1 << 4,
-  LIBP2P_CFG_KAD_BOOTSTRAP_NODES = 1 << 5,
-  LIBP2P_CFG_PRIVATE_KEY = 1 << 6,
-  LIBP2P_CFG_MIX = 1 << 7,
-};
-
 // === Data Structures ===
 
 // Kademlia bootstrap node entry (peer ID + multiaddrs).
@@ -111,23 +100,16 @@ typedef struct libp2p_private_key {
   size_t dataLen;
 } libp2p_private_key_t;
 
-// Node configuration. `flags` is a bitmask of LIBP2P_CFG_* values that
-// explicitly enables each field below; if a flag is not set, that field is
-// ignored and libp2p uses its built-in defaults. Example:
-//   config.flags = LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_KAD;
-//   config.mount_gossipsub = 1;
-//   config.mount_kad = 0;
 typedef struct {
-  uint32_t flags;
-  // Enable/disable gossipsub (default on when flag is set).
+  // Enable/disable gossipsub (default on).
   int mount_gossipsub;
   // If nonzero, deliver published messages to self subscribers too.
   int gossipsub_trigger_self;
-  // Enable/disable Kademlia DHT (default on when flag is set).
+  // Enable/disable Kademlia DHT (default on).
   int mount_kad;
-  // Enable/disable mix protocol support (default off when flag is set).
+  // Enable/disable mix protocol support (default off).
   int mount_mix;
-  // Enable Kademlia Discovery  (default off when flag is set).
+  // Enable Kademlia Discovery  (default off).
   int mount_kad_discovery;
   // DNS resolver address used by name resolution (e.g. "1.1.1.1:53").
   const char *dns_resolver;
@@ -135,7 +117,7 @@ typedef struct {
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   // Number of entries in kad_bootstrap_nodes.
   size_t kad_bootstrap_nodes_len;
-  // Optional private key bytes (only used if LIBP2P_CFG_PRIVATE_KEY is set).
+  // Optional private key bytes (only used if is not nil).
   libp2p_private_key_t priv_key;
 } libp2p_config_t;
 
@@ -243,6 +225,9 @@ int libp2p_create_cid(uint32_t version, const char *multicodec,
 // The returned buffer is only valid during the callback; copy if needed.
 int libp2p_new_private_key(libp2p_pk_scheme scheme,
                            Libp2pBufferCallback callback, void *userData);
+
+// Creates a new libp2p_config_t with default values
+libp2p_config_t libp2p_new_default_config();
 
 // === Lifecycle APIs ===
 

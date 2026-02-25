@@ -98,23 +98,12 @@ type ReadResponse* = object
   data*: ptr byte
   dataLen*: csize_t
 
-# These are used to indicate whether a config item has been set or not
-const Libp2pCfgGossipsub* = 1'u32 shl 0
-const Libp2pCfgGossipsubTriggerSelf* = 1'u32 shl 1
-const Libp2pCfgKad* = 1'u32 shl 2
-const Libp2pCfgKadDiscovery* = 1'u32 shl 3
-const Libp2pCfgDnsResolver* = 1'u32 shl 4
-const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 5
-const Libp2pCfgPrivateKey* = 1'u32 shl 6
-const Libp2pCfgMix* = 1'u32 shl 7
-
 type Libp2pBootstrapNode* = object
   peerId*: cstring
   multiaddrs*: ptr cstring
   multiaddrsLen*: csize_t
 
 type Libp2pConfig* {.bycopy.} = object
-  flags*: uint32
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
   mountKad*: cint
