@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 # Thread Request Example Implementation
 #
@@ -152,6 +152,57 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   return ret
 
+proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
+  var resolved = Libp2pConfig.default()
+
+  if config.isNil():
+    return resolved
+
+  resolved.mountGossipsub = config[].mountGossipsub
+  resolved.gossipsubTriggerSelf = config[].gossipsubTriggerSelf
+  resolved.mountKad = config[].mountKad
+  resolved.mountMix = config[].mountMix
+  resolved.mountKadDiscovery = config[].mountKadDiscovery
+  resolved.manualPrivKey = config[].manualPrivKey
+
+  if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
+    let src = config[].dnsResolver
+    var len = 0
+    while src[len] != '\0':
+      inc len
+    inc len # include null terminator
+
+    resolved.dnsResolver = cast[cstring](allocShared(len))
+    copyMem(resolved.dnsResolver, src, len)
+
+  if config[].manualPrivKey != 0 and not config[].privKey.data.isNil() and
+      config[].privKey.dataLen > 0:
+    let srcKey = config[].privKey
+    resolved.privKey.dataLen = srcKey.dataLen
+    resolved.privKey.data = allocShared(srcKey.dataLen.int)
+    copyMem(resolved.privKey.data, srcKey.data, srcKey.dataLen.int)
+
+  resolved.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
+  if config[].kadBootstrapNodesLen > 0:
+    if not config[].kadBootstrapNodes.isNil() and config[].kadBootstrapNodesLen > 0:
+      resolved.kadBootstrapNodes = cast[ptr Libp2pBootstrapNode](allocShared(
+        sizeof(Libp2pBootstrapNode) * config[].kadBootstrapNodesLen.int
+      ))
+      let src =
+        cast[ptr UncheckedArray[Libp2pBootstrapNode]](config[].kadBootstrapNodes)
+      let dst =
+        cast[ptr UncheckedArray[Libp2pBootstrapNode]](resolved.kadBootstrapNodes)
+      for i in 0 ..< config[].kadBootstrapNodesLen:
+        dst[i].peerId = src[i].peerId.alloc()
+        dst[i].multiaddrsLen = src[i].multiaddrsLen
+        if dst[i].multiaddrsLen == 0 or src[i].multiaddrs.isNil():
+          dst[i].multiaddrs = nil
+        else:
+          dst[i].multiaddrs =
+            allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
+
+  resolved
+
 proc createShared*(
     T: type LifecycleRequest,
     op: LifecycleMsgType,
@@ -163,36 +214,7 @@ proc createShared*(
   var ret = createShared(T)
   ret[].operation = op
   ret[].appCallbacks = appCallbacks
-  ret[].config.dnsResolver = ret[].config.dnsResolver.alloc()
-  ret[].config.kadBootstrapNodes = nil
-  ret[].config.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
-  ret[].config.privKey.data = nil
-  ret[].config.privKey.dataLen = 0
-
-  if not config.isNil() and config[].manualPrivKey != 0:
-    if not config[].privKey.data.isNil() and config[].privKey.dataLen > 0:
-      let srcKey = config[].privKey
-      ret[].config.privKey.dataLen = srcKey.dataLen
-      ret[].config.privKey.data = allocShared(srcKey.dataLen.int)
-      copyMem(ret[].config.privKey.data, srcKey.data, srcKey.dataLen.int)
-
-  if not config.isNil() and config[].kadBootstrapNodesLen > 0:
-    if not config[].kadBootstrapNodes.isNil():
-      ret[].config.kadBootstrapNodes = cast[ptr Libp2pBootstrapNode](allocShared(
-        sizeof(Libp2pBootstrapNode) * config[].kadBootstrapNodesLen.int
-      ))
-      let src =
-        cast[ptr UncheckedArray[Libp2pBootstrapNode]](config[].kadBootstrapNodes)
-      let dst =
-        cast[ptr UncheckedArray[Libp2pBootstrapNode]](ret[].config.kadBootstrapNodes)
-      for i in 0 ..< config[].kadBootstrapNodesLen:
-        dst[i].peerId = src[i].peerId.alloc()
-        dst[i].multiaddrsLen = src[i].multiaddrsLen
-        if dst[i].multiaddrsLen == 0 or src[i].multiaddrs.isNil():
-          dst[i].multiaddrs = nil
-        else:
-          dst[i].multiaddrs =
-            allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
+  ret[].config = copyConfig(config)
 
   return ret
 

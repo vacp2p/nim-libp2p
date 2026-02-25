@@ -263,8 +263,8 @@ proc libp2p_new_private_key(
     )
   return RET_OK.cint
 
-proc libp2p_new_default_config(): Libp2pConfig {.dynlib, exportc, cdecl.} =
-  return Libp2pConfig(
+proc default(T: typedesc[Libp2pConfig]): T =
+  T(
     mountGossipsub: 1,
     gossipsubTriggerSelf: 1,
     mountKad: 1,
@@ -273,7 +273,11 @@ proc libp2p_new_default_config(): Libp2pConfig {.dynlib, exportc, cdecl.} =
     dnsResolver: DefaultDnsResolver.cstring,
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
+    manualPrivKey: 0,
   )
+
+proc libp2p_new_default_config(): Libp2pConfig {.dynlib, exportc, cdecl.} =
+  return Libp2pConfig.default()
 
 proc libp2p_new(
     config: ptr Libp2pConfig, callback: Libp2pCallback, userData: pointer
