@@ -80,13 +80,8 @@ suite "Ticket - boundary values":
   test "all-zero time fields sign and verify correctly":
     # tInit=0, tMod=0, tWaitFor=0 are valid; must not be treated as unsigned
     let key = PrivateKey.random(rng[]).get()
-    var t = Ticket(
-      advertisement: @[0xAB'u8],
-      tInit: 0,
-      tMod: 0,
-      tWaitFor: 0,
-      signature: @[],
-    )
+    var t =
+      Ticket(advertisement: @[0xAB'u8], tInit: 0, tMod: 0, tWaitFor: 0, signature: @[])
 
     check t.sign(key).isOk()
     check t.verify(key.getPublicKey().get())
