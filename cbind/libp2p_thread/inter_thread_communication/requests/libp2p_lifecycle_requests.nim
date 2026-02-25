@@ -143,7 +143,9 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     let src = cast[ptr UncheckedArray[cstring]](config.addrs)
     for i in 0 ..< config.addrsLen:
       if not src[i].isNil():
-        addrs.add(MultiAddress.init($src[i]).get())
+        let addr = MultiAddress.init($src[i]).valueOr:
+            raiseAssert "invalid listen address: " & $error
+          addrs.add(addr)
 
   let switch =
     newStandardSwitch(privKey = privKey, addrs = addrs, nameResolver = dnsResolver)
