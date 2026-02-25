@@ -15,7 +15,7 @@ when isMainModule:
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
   if waitFor(waitForTCPServer(ta)):
     # ensure other peer has fully started
-    waitFor(sleepAsync(1.seconds))
+    waitFor(sleepAsync(5.seconds))
 
     let otherPeerId = PeerId.init(readFile(getCurrentDir() & PeerIdFile)).get()
     let success = waitFor(partialMessageInteropTest(OurAddr, PeerAddr, otherPeerId))
