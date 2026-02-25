@@ -864,7 +864,8 @@ suite "Registrar - REGISTER state machine (integration)":
         # Ticket must be signed by this registrar
         let pubKey = disco.switch.peerInfo.privateKey.getPublicKey().get()
         check reg.ticket.get().verify(pubKey)
-      test()
+
+        check reg.ticket.get().verify(pubKey)
 
   test "retry within window with valid ticket → CONFIRMED and ad cached":
     waitFor:
