@@ -8,82 +8,110 @@ import ../../../libp2p/protocols/capability_discovery/types
 import ../../../libp2p/protocols/kademlia/protobuf
 import ../../tools/[unittest, crypto]
 
-suite "Kademlia Discovery Signatures":
-  test "Ticket sign and verify with matching key":
-    let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    var ad = @[1'u8, 2, 3, 4]
-    var ticket = Ticket(
-      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# ===========================================================================
+# Unit tests
+# ===========================================================================
+
+suite "Ticket - sign and verify":
+  test "sign succeeds and verify passes with matching key":
+    let key = PrivateKey.random(rng[]).get()
+    var t = makeTicket()
+
+    check t.sign(key).isOk()
+    check t.verify(key.getPublicKey().get())
+
+  test "verify fails with a different key":
+    let key = PrivateKey.random(rng[]).get()
+    let wrongKey = PrivateKey.random(rng[]).get()
+    let t = signedTicket(key)
+
+    check not t.verify(wrongKey.getPublicKey().get())
+
+  test "verify fails on empty signature (unsigned ticket)":
+    let key = PrivateKey.random(rng[]).get()
+    let t = makeTicket() # never signed → signature = @[]
+
+    check not t.verify(key.getPublicKey().get())
+
+  test "verify fails with corrupted signature bytes":
+    let key = PrivateKey.random(rng[]).get()
+    var t = signedTicket(key)
+    t.signature[0] = t.signature[0] xor 0xFF
+
+    check not t.verify(key.getPublicKey().get())
+
+suite "Ticket - tamper detection":
+  # The signature covers: advertisement || tInit || tMod || tWaitFor
+  # Mutating any covered field must break verification.
+
+  test "tampered advertisement bytes":
+    let key = PrivateKey.random(rng[]).get()
+    var t = signedTicket(key)
+    t.advertisement[0] = t.advertisement[0] xor 0xFF
+
+    check not t.verify(key.getPublicKey().get())
+
+  test "tampered tInit":
+    let key = PrivateKey.random(rng[]).get()
+    var t = signedTicket(key)
+    t.tInit = t.tInit + 1
+
+    check not t.verify(key.getPublicKey().get())
+
+  test "tampered tMod":
+    let key = PrivateKey.random(rng[]).get()
+    var t = signedTicket(key)
+    t.tMod = t.tMod + 1
+
+    check not t.verify(key.getPublicKey().get())
+
+  test "tampered tWaitFor":
+    let key = PrivateKey.random(rng[]).get()
+    var t = signedTicket(key)
+    t.tWaitFor = t.tWaitFor + 1
+
+    check not t.verify(key.getPublicKey().get())
+
+suite "Ticket - boundary values":
+  test "all-zero time fields sign and verify correctly":
+    # tInit=0, tMod=0, tWaitFor=0 are valid; must not be treated as unsigned
+    let key = PrivateKey.random(rng[]).get()
+    var t = Ticket(
+      advertisement: @[0xAB'u8],
+      tInit: 0,
+      tMod: 0,
+      tWaitFor: 0,
+      signature: @[],
     )
 
-    let privateKey = PrivateKey.random(rng[]).get()
-    let signResult = ticket.sign(privateKey)
-    check signResult.isOk()
+    check t.sign(key).isOk()
+    check t.verify(key.getPublicKey().get())
 
-    let publicKey = privateKey.getPublicKey().get()
-    check ticket.verify(publicKey) == true
-
-  test "Ticket verification fails with wrong key":
-    let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    var ad = @[1'u8, 2, 3, 4]
-    var ticket = Ticket(
-      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
+  test "empty advertisement bytes sign and verify correctly":
+    let key = PrivateKey.random(rng[]).get()
+    var t = Ticket(
+      advertisement: @[],
+      tInit: 1000,
+      tMod: 2000,
+      tWaitFor: 300,
+      signature: @[],
     )
 
-    let privateKey = PrivateKey.random(rng[]).get()
-    let signResult = ticket.sign(privateKey)
-    check signResult.isOk()
+    check t.sign(key).isOk()
+    check t.verify(key.getPublicKey().get())
 
-    let wrongPublicKey = PrivateKey.random(rng[]).get().getPublicKey().get()
-    check ticket.verify(wrongPublicKey) == false
+  test "re-signing overwrites previous signature":
+    # Signing twice must not leave a ticket that verifies against the first key
+    let key1 = PrivateKey.random(rng[]).get()
+    let key2 = PrivateKey.random(rng[]).get()
+    var t = makeTicket()
 
-  test "Ticket verification fails with tampered tInit":
-    let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    var ad = @[1'u8, 2, 3, 4]
-    var ticket = Ticket(
-      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
-    )
+    discard t.sign(key1)
+    discard t.sign(key2) # overwrite
 
-    let privateKey = PrivateKey.random(rng[]).get()
-    let signResult = ticket.sign(privateKey)
-    check signResult.isOk()
-
-    let publicKey = privateKey.getPublicKey().get()
-
-    # Tamper with tInit
-    ticket.tInit = 9999999
-    check ticket.verify(publicKey) == false
-
-  test "Ticket verification fails with tampered tMod":
-    let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    var ad = @[1'u8, 2, 3, 4]
-    var ticket = Ticket(
-      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
-    )
-
-    let privateKey = PrivateKey.random(rng[]).get()
-    let signResult = ticket.sign(privateKey)
-    check signResult.isOk()
-
-    let publicKey = privateKey.getPublicKey().get()
-
-    # Tamper with tMod
-    ticket.tMod = 8888888
-    check ticket.verify(publicKey) == false
-
-  test "Ticket verification fails with tampered tWaitFor":
-    let maddr = MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()
-    var ad = @[1'u8, 2, 3, 4]
-    var ticket = Ticket(
-      advertisement: ad, tInit: 1000000, tMod: 2000000, tWaitFor: 3000, signature: @[]
-    )
-
-    let privateKey = PrivateKey.random(rng[]).get()
-    let signResult = ticket.sign(privateKey)
-    check signResult.isOk()
-
-    let publicKey = privateKey.getPublicKey().get()
-
-    # Tamper with tWaitFor
-    ticket.tWaitFor = 7777
-    check ticket.verify(publicKey) == false
+    check not t.verify(key1.getPublicKey().get())
+    check t.verify(key2.getPublicKey().get())

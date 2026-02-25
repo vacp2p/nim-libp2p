@@ -19,6 +19,29 @@ trace "chronicles has to be imported to fix Error: undeclared identifier: 'activ
 template checkEncodeDecode*(obj: untyped) =
   check obj == decode(typeof(obj), obj.encode()).get()
 
+proc makeNow(): uint64 =
+  getTime().toUnix().uint64
+
+proc fillCache(registrar: Registrar, n: int, now: uint64) =
+  for i in 0 ..< n:
+    let ad = createTestAdvertisement(serviceId = makeServiceId(i.byte))
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
+
+proc makeTicket(): Ticket =
+  Ticket(
+    advertisement: @[1'u8, 2, 3, 4],
+    tInit: 1_000_000,
+    tMod: 2_000_000,
+    tWaitFor: 3000,
+    signature: @[],
+  )
+
+proc signedTicket(privateKey: PrivateKey): Ticket =
+  var t = makeTicket()
+  let res = t.sign(privateKey)
+  doAssert res.isOk(), "sign failed in test helper"
+  t
+
 proc peersCount(rt: RoutingTable): int =
   for b in rt.buckets:
     result += b.peers.len
