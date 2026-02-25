@@ -117,8 +117,7 @@ typedef struct {
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   // Number of entries in kad_bootstrap_nodes.
   size_t kad_bootstrap_nodes_len;
-  int manual_priv_key;
-  // Optional private key bytes (only used if manual_priv_key is set).
+  // Optional private key bytes (only used if is not nil).
   libp2p_private_key_t priv_key;
 } libp2p_config_t;
 

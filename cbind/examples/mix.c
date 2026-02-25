@@ -55,7 +55,6 @@ int main(int argc, char **argv) {
     libp2p_new_private_key(LIBP2P_PK_SECP256K1, private_key_handler,
                            &libp2p_priv_keys[i]);
     waitForCallback();
-    cfg.manual_priv_key = 1;
     cfg.priv_key = libp2p_priv_keys[i];
 
     nodes[i] = libp2p_new(&cfg, event_handler, NULL);

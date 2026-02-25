@@ -69,7 +69,6 @@ int main(int argc, char **argv) {
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
   waitForCallback();
-  cfg1.manual_priv_key = 1;
   cfg1.priv_key = priv_key;
 
   ctx1 = libp2p_new(&cfg1, event_handler, NULL);
