@@ -479,10 +479,12 @@ suite "Registrar - pruneExpiredAds":
     let ip = "192.168.1.1"
     let now = makeNow()
 
-    let adExpired =
-      createTestAdvertisement(serviceId = serviceId, addrs = @[createTestMultiAddress(ip)])
-    let adFresh =
-      createTestAdvertisement(serviceId = serviceId, addrs = @[createTestMultiAddress(ip)])
+    let adExpired = createTestAdvertisement(
+      serviceId = serviceId, addrs = @[createTestMultiAddress(ip)]
+    )
+    let adFresh = createTestAdvertisement(
+      serviceId = serviceId, addrs = @[createTestMultiAddress(ip)]
+    )
 
     registrar.cache[serviceId] = @[adExpired, adFresh]
     registrar.cacheTimestamps[adExpired.toAdvertisementKey()] = now - 1000
