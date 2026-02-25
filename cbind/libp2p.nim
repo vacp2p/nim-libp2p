@@ -262,6 +262,7 @@ proc libp2p_new_private_key(
   return RET_OK.cint
 
 proc libp2p_new_default_config(): Libp2pConfig {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
   return Libp2pConfig.init()
 
 proc libp2p_new(
