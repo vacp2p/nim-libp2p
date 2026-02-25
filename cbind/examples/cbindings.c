@@ -66,6 +66,12 @@ int main(int argc, char **argv) {
   cfg1.gossipsub_trigger_self = 1;
   cfg1.mount_kad_discovery = 1;
 
+  const char *peer1_addrs[] = {
+      "/ip4/127.0.0.1/tcp/5001"
+  };
+  cfg1.addrs = peer1_addrs;
+  cfg1.addrsLen = 1;
+
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
   waitForCallback();

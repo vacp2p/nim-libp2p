@@ -136,7 +136,15 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     PrivateKey.init(keySeq).withValue(copyKey):
       privKey = Opt.some(copyKey)
 
-  let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
+  var addrs: seq[MultiAddress] = @[]
+  if config.addrsLen > 0 and not config.addrs.isNil():
+    let src = cast[ptr UncheckedArray[cstring]](config.addrs)
+    for i in 0 ..< config.addrsLen:
+      if not src[i].isNil():
+        addrs.add(MultiAddress.init($src[i]).get())
+
+  let switch =
+    newStandardSwitch(privKey = privKey, addrs = addrs, nameResolver = dnsResolver)
 
   var ret = LibP2P(
     switch: switch,
@@ -201,6 +209,26 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
           dst[i].multiaddrs =
             allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
 
+  resolved.addrsLen = config[].addrsLen
+  if config[].addrsLen > 0 and not config[].addrs.isNil():
+    resolved.addrs =
+      cast[ptr cstring](allocShared(sizeof(cstring) * config[].addrsLen.int))
+
+    let src = cast[ptr UncheckedArray[cstring]](config[].addrs)
+    let dst = cast[ptr UncheckedArray[cstring]](resolved.addrs)
+
+    for i in 0 ..< config[].addrsLen:
+      if src[i].isNil():
+        dst[i] = nil
+      else:
+        var len = 0
+        while src[i][len] != '\0':
+          inc len
+        inc len # null terminator
+
+        dst[i] = cast[cstring](allocShared(len))
+        copyMem(dst[i], src[i], len)
+
   resolved
 
 proc createShared*(
@@ -223,6 +251,7 @@ proc destroyShared(self: ptr LifecycleRequest) =
   # TODO: Deallocate parameters of GC'd types from the shared memory
   if not self[].config.dnsResolver.isNil():
     deallocShared(self[].config.dnsResolver)
+
   if not self[].config.kadBootstrapNodes.isNil():
     let nodes =
       cast[ptr UncheckedArray[Libp2pBootstrapNode]](self[].config.kadBootstrapNodes)
@@ -231,8 +260,13 @@ proc destroyShared(self: ptr LifecycleRequest) =
         deallocShared(nodes[i].peerId)
       deallocCStringArray(nodes[i].multiaddrs, nodes[i].multiaddrsLen)
     deallocShared(self[].config.kadBootstrapNodes)
+
   if not self[].config.privKey.data.isNil():
     deallocShared(self[].config.privKey.data)
+
+  if not self[].config.addrs.isNil():
+    deallocCStringArray(self[].config.addrs, self[].config.addrsLen)
+
   deallocShared(self)
 
 proc processGetPublicKey*(

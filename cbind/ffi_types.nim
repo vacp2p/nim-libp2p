@@ -110,6 +110,8 @@ type Libp2pConfig* {.bycopy.} = object
   mountMix*: cint
   mountKadDiscovery*: cint
   dnsResolver*: cstring
+  addrs*: ptr cstring
+  addrsLen*: csize_t
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
   manualPrivKey*: cint

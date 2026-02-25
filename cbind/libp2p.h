@@ -103,23 +103,36 @@ typedef struct libp2p_private_key {
 typedef struct {
   // Enable/disable gossipsub (default on).
   int mount_gossipsub;
+
   // If nonzero, deliver published messages to self subscribers too.
   int gossipsub_trigger_self;
+
   // Enable/disable Kademlia DHT (default on).
   int mount_kad;
+
   // Enable/disable mix protocol support (default off).
   int mount_mix;
+
   // Enable Kademlia Discovery  (default off).
   int mount_kad_discovery;
+
   // DNS resolver address used by name resolution (e.g. "1.1.1.1:53").
   const char *dns_resolver;
+
+  // Optional list of listen addresses.
+  const char **addrs;
+  // Number of entries in addrs.
+  size_t addrsLen;
+
   // Optional list of Kademlia bootstrap nodes.
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   // Number of entries in kad_bootstrap_nodes.
   size_t kad_bootstrap_nodes_len;
+
   int manual_priv_key;
   // Optional private key bytes (only used if manual_priv_key is set).
   libp2p_private_key_t priv_key;
+
 } libp2p_config_t;
 
 typedef struct {

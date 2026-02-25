@@ -271,6 +271,8 @@ proc default(T: typedesc[Libp2pConfig]): T =
     mountMix: 0,
     mountKadDiscovery: 0,
     dnsResolver: DefaultDnsResolver.cstring,
+    addrs: nil,
+    addrsLen: 0,
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
     manualPrivKey: 0,
