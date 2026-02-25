@@ -114,7 +114,6 @@ type Libp2pConfig* {.bycopy.} = object
   addrsLen*: csize_t
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
-  manualPrivKey*: cint
   privKey*: Libp2pPrivateKey
 
 type RetCode* {.size: sizeof(cint).} = enum

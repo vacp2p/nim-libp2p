@@ -23,6 +23,8 @@ import ../../../../libp2p/protocols/mix
 import ../../../../libp2p/protocols/mix/mix_protocol
 import ../../../../libp2p/protocols/mix/mix_node
 
+const DefaultDnsResolver = "1.1.1.1:53"
+
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
   START_NODE
@@ -131,7 +133,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
 
   var privKey = Opt.none(PrivateKey)
-  if config.manualPrivKey != 0:
+  if config.privKey.data != nil and config.privKey.dataLen > 0:
     let keySeq = config.privKey.toByteSeq()
     PrivateKey.init(keySeq).withValue(copyKey):
       privKey = Opt.some(copyKey)
@@ -160,6 +162,18 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   return ret
 
+proc init*(T: typedesc[Libp2pConfig]): T =
+  T(
+    mountGossipsub: 1,
+    gossipsubTriggerSelf: 1,
+    mountKad: 1,
+    mountMix: 0,
+    mountKadDiscovery: 0,
+    dnsResolver: DefaultDnsResolver.alloc(),
+    kadBootstrapNodes: nil,
+    kadBootstrapNodesLen: 0,
+  )
+
 proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   var resolved = Libp2pConfig.default()
 
@@ -171,7 +185,6 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountKad = config[].mountKad
   resolved.mountMix = config[].mountMix
   resolved.mountKadDiscovery = config[].mountKadDiscovery
-  resolved.manualPrivKey = config[].manualPrivKey
 
   if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
     let src = config[].dnsResolver
@@ -183,31 +196,27 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
     resolved.dnsResolver = cast[cstring](allocShared(len))
     copyMem(resolved.dnsResolver, src, len)
 
-  if config[].manualPrivKey != 0 and not config[].privKey.data.isNil() and
-      config[].privKey.dataLen > 0:
+  if not config[].privKey.data.isNil() and config[].privKey.dataLen > 0:
     let srcKey = config[].privKey
     resolved.privKey.dataLen = srcKey.dataLen
     resolved.privKey.data = allocShared(srcKey.dataLen.int)
     copyMem(resolved.privKey.data, srcKey.data, srcKey.dataLen.int)
 
   resolved.kadBootstrapNodesLen = config[].kadBootstrapNodesLen
-  if config[].kadBootstrapNodesLen > 0:
-    if not config[].kadBootstrapNodes.isNil() and config[].kadBootstrapNodesLen > 0:
-      resolved.kadBootstrapNodes = cast[ptr Libp2pBootstrapNode](allocShared(
-        sizeof(Libp2pBootstrapNode) * config[].kadBootstrapNodesLen.int
-      ))
-      let src =
-        cast[ptr UncheckedArray[Libp2pBootstrapNode]](config[].kadBootstrapNodes)
-      let dst =
-        cast[ptr UncheckedArray[Libp2pBootstrapNode]](resolved.kadBootstrapNodes)
-      for i in 0 ..< config[].kadBootstrapNodesLen:
-        dst[i].peerId = src[i].peerId.alloc()
-        dst[i].multiaddrsLen = src[i].multiaddrsLen
-        if dst[i].multiaddrsLen == 0 or src[i].multiaddrs.isNil():
-          dst[i].multiaddrs = nil
-        else:
-          dst[i].multiaddrs =
-            allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
+  if not config[].kadBootstrapNodes.isNil() and config[].kadBootstrapNodesLen > 0:
+    resolved.kadBootstrapNodes = cast[ptr Libp2pBootstrapNode](allocShared(
+      sizeof(Libp2pBootstrapNode) * config[].kadBootstrapNodesLen.int
+    ))
+    let src = cast[ptr UncheckedArray[Libp2pBootstrapNode]](config[].kadBootstrapNodes)
+    let dst = cast[ptr UncheckedArray[Libp2pBootstrapNode]](resolved.kadBootstrapNodes)
+    for i in 0 ..< config[].kadBootstrapNodesLen:
+      dst[i].peerId = src[i].peerId.alloc()
+      dst[i].multiaddrsLen = src[i].multiaddrsLen
+      if dst[i].multiaddrsLen == 0 or src[i].multiaddrs.isNil():
+        dst[i].multiaddrs = nil
+      else:
+        dst[i].multiaddrs =
+          allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
 
   resolved.addrsLen = config[].addrsLen
   if config[].addrsLen > 0 and not config[].addrs.isNil():
