@@ -99,6 +99,8 @@ template callEventCallback(ctx: ptr LibP2PContext, eventName: string, body: unty
         RET_ERR, addr msg[0], cast[csize_t](len(msg)), ctx[].eventUserData
       )
 
+const DefaultDnsResolver = "1.1.1.1:53"
+
 # Sends a request to the worker thread and returns success/failure
 proc handleRequest(
     ctx: ptr LibP2PContext,
@@ -260,6 +262,18 @@ proc libp2p_new_private_key(
       userData,
     )
   return RET_OK.cint
+
+proc libp2p_new_default_config(): Libp2pConfig {.dynlib, exportc, cdecl.} =
+  return Libp2pConfig(
+    mountGossipsub: 1,
+    gossipsubTriggerSelf: 1,
+    mountKad: 1,
+    mountMix: 0,
+    mountKadDiscovery: 0,
+    dnsResolver: DefaultDnsResolver.cstring,
+    kadBootstrapNodes: nil,
+    kadBootstrapNodesLen: 0,
+  )
 
 proc libp2p_new(
     config: ptr Libp2pConfig, callback: Libp2pCallback, userData: pointer

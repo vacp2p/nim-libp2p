@@ -61,10 +61,7 @@ int main(int argc, char **argv) {
   PeerInfo pInfo2 = {0};
   char cid_buf[CID_BUF_SIZE] = {0};
 
-  libp2p_config_t cfg1 = {0};
-  cfg1.flags =
-      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF |
-      LIBP2P_CFG_KAD_DISCOVERY | LIBP2P_CFG_PRIVATE_KEY;
+  libp2p_config_t cfg1 = libp2p_new_default_config();
   cfg1.mount_gossipsub = 1;
   cfg1.gossipsub_trigger_self = 1;
   cfg1.mount_kad_discovery = 1;
@@ -84,10 +81,7 @@ int main(int argc, char **argv) {
   libp2p_peerinfo(ctx1, peerinfo_handler, &pInfo1);
   waitForCallback();
 
-  libp2p_config_t cfg2 = {0};
-  cfg2.flags = LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF |
-               LIBP2P_CFG_KAD_DISCOVERY | LIBP2P_CFG_KAD_BOOTSTRAP_NODES |
-               LIBP2P_CFG_PRIVATE_KEY;
+  libp2p_config_t cfg2 = libp2p_new_default_config();
   cfg2.mount_gossipsub = 1;
   cfg2.gossipsub_trigger_self = 1;
   cfg2.mount_kad_discovery = 1;
