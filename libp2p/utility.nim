@@ -195,8 +195,6 @@ proc waitForTCPServer*(
       return true
     except OSError:
       discard
-    except TransportOsError:
-      return true
     await sleepAsync(delay)
   return false
 
