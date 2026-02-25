@@ -598,8 +598,7 @@ suite "Registrar - processRetryTicket":
       tWaitFor: 300,
       signature: @[0xBA.byte, 0xAD.byte], # garbage signature
     )
-    let regMsg =
-      RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
+    let regMsg = RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
 
     let tRemaining = disco.processRetryTicket(regMsg, ad, 500.0, makeNow())
 
