@@ -9,7 +9,7 @@ import ../../../../libp2p/[multiaddress, peerid, wire]
 const
   OurAddr = "/ip6/::1/tcp/3131"
   PeerAddr = "/ip6/::1/tcp/4141"
-  PeerIdFile = "peer.id"
+  PeerIdFile = "/peer.id"
 
 when isMainModule:
   let ta = initTAddress(MultiAddress.init(PeerAddr).get()).get()
