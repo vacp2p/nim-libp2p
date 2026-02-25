@@ -837,7 +837,8 @@ suite "Registrar - GET_ADS response cap (integration)":
         let response = responseConn.lastMessage()
         check response.getAds.isSome()
         check response.getAds.get().advertisements.len <= fReturn
-      test()
+
+        check response.getAds.get().advertisements.len <= fReturn
 
 suite "Registrar - REGISTER state machine (integration)":
   test "first attempt with no ticket → WAIT response with signed ticket":
