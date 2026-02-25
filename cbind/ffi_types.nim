@@ -130,12 +130,13 @@ type Libp2pConfig* {.bycopy.} = object
   dnsResolver*: cstring
   addrs*: ptr cstring
   addrsLen*: csize_t
+  muxer*: cint
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
-  privKey*: Libp2pPrivateKey
   kadValidator*: KadEntryValidator
   kadSelector*: KadEntrySelector
   kadUserData*: pointer
+  privKey*: Libp2pPrivateKey
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0

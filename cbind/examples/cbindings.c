@@ -81,6 +81,8 @@ int main(int argc, char **argv) {
   cfg1.addrs = peer1_addrs;
   cfg1.addrsLen = 1;
 
+  cfg1.muxer = LIBP2P_MUXER_MPLEX;
+
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
   waitForCallback();
@@ -110,6 +112,7 @@ int main(int argc, char **argv) {
   };
   cfg2.kad_bootstrap_nodes = bootstrap_nodes;
   cfg2.kad_bootstrap_nodes_len = 1;
+  cfg2.muxer = LIBP2P_MUXER_MPLEX;
 
   ctx2 = libp2p_new(&cfg2, event_handler, NULL);
   waitForCallback();

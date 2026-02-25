@@ -44,6 +44,15 @@ type CEntrySelector = ref object of EntrySelector
   cb: KadEntrySelector
   userData: pointer
 
+proc fromCint(T: typedesc[MuxerType], val: cint): Result[T, string] =
+  case val
+  of ord(MuxerType.MPLEX).cint:
+    ok(MuxerType.MPLEX)
+  of ord(MuxerType.YAMUX).cint:
+    ok(MuxerType.YAMUX)
+  else:
+    err("invalid muxer")
+
 proc toCRecord(record: EntryRecord): Libp2pKadEntryRecord =
   Libp2pKadEntryRecord(
     value:
@@ -218,8 +227,12 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
           raiseAssert "invalid listen address: " & $error
         addrs.add(address)
 
-  let switch =
-    newStandardSwitch(privKey = privKey, addrs = addrs, nameResolver = dnsResolver)
+  let muxer = MuxerType.fromCint(config.muxer).valueOr:
+    raiseAssert "invalid muxer type"
+
+  let switch = newStandardSwitch(
+    privKey = privKey, addrs = addrs, muxer = muxer, nameResolver = dnsResolver
+  )
 
   var ret = LibP2P(
     switch: switch,
@@ -243,6 +256,9 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     mountMix: 0,
     mountKadDiscovery: 0,
     dnsResolver: DefaultDnsResolver.alloc(),
+    addrs: nil,
+    addrsLen: 0,
+    muxer: ord(MuxerType.MPLEX),
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
   )
@@ -270,6 +286,7 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountKad = config[].mountKad
   resolved.mountMix = config[].mountMix
   resolved.mountKadDiscovery = config[].mountKadDiscovery
+  resolved.muxer = config[].muxer
 
   if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
     let src = config[].dnsResolver
