@@ -967,4 +967,5 @@ suite "Registrar - REGISTER state machine (integration)":
         let response = conn.lastMessage()
         check response.register.get().status.get() == RegistrationStatus.Wait
         check disco.registrar.cache.getOrDefault(serviceId, @[]).len == 0
+
       test()
