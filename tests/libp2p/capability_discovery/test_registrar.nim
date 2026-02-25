@@ -930,6 +930,7 @@ suite "Registrar - REGISTER state machine (integration)":
         check response.register.get().status.get() == RegistrationStatus.Rejected
         # Cache must not grow
         check disco.registrar.cache.getOrDefault(serviceId, @[]).len == 1
+
       test()
 
   test "retry outside δ window → WAIT (ticket not honoured)":
