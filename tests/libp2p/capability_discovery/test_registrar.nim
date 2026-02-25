@@ -815,6 +815,7 @@ suite "Registrar - acceptAdvertisement (integration)":
         await disco.acceptAdvertisement(serviceId, ad2, now, @[], conn)
 
         check disco.registrar.cache.getOrDefault(serviceId, @[]).len == 2
+
       test()
 
 suite "Registrar - GET_ADS response cap (integration)":
