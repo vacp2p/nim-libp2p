@@ -795,6 +795,7 @@ suite "Registrar - acceptAdvertisement (integration)":
         # Timestamp refreshed
         let adKey = ad.toAdvertisementKey()
         check disco.registrar.cacheTimestamps[adKey] == t2
+
       test()
 
   test "different peers same service: both admitted":
