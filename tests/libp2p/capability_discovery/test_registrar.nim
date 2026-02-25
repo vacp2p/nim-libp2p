@@ -137,9 +137,8 @@ suite "Registrar - waitingTime formula":
     registrar.ipTree.insertIp(parseIpAddress("192.168.1.20"))
 
     # One low-similarity addr + one high-similarity addr → should pick high
-    let adHigh = createTestAdvertisement(
-      addrs = @[createTestMultiAddress("192.168.1.50")]
-    )
+    let adHigh =
+      createTestAdvertisement(addrs = @[createTestMultiAddress("192.168.1.50")])
     let adLow = createTestAdvertisement(addrs = @[createTestMultiAddress("1.2.3.4")])
 
     let wHigh = registrar.waitingTime(discoConf, adHigh, 1000, serviceId, now)
