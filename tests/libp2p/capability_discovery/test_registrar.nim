@@ -764,6 +764,7 @@ suite "Registrar - acceptAdvertisement (integration)":
         check disco.registrar.cacheTimestamps.len == 1
         # RFC: admitted ad's IPv4 MUST be added to IP tracking structure
         check disco.registrar.ipTree.root.counter == 1
+
       test()
 
   test "duplicate peer: timestamp refreshed, not added twice":
