@@ -664,11 +664,7 @@ suite "Registrar - ticket signing":
     let encoded = ad.encode().get()
 
     var ticket = Ticket(
-      advertisement: encoded,
-      tInit: 1000,
-      tMod: 1200,
-      tWaitFor: 300,
-      signature: @[],
+      advertisement: encoded, tInit: 1000, tMod: 1200, tWaitFor: 300, signature: @[]
     )
     let signRes = ticket.sign(disco.switch.peerInfo.privateKey)
     check signRes.isOk()
