@@ -646,8 +646,7 @@ suite "Registrar - processRetryTicket":
       signature: @[],
     )
     let _ = ticket.sign(disco.switch.peerInfo.privateKey)
-    let regMsg =
-      RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
+    let regMsg = RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
 
     let tRemaining = disco.processRetryTicket(regMsg, ad, 500.0, now)
     # t_remaining = t_wait - (now - t_init) = 500 - (1300 - 1000) = 200
