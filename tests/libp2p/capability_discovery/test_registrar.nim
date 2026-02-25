@@ -458,8 +458,9 @@ suite "Registrar - pruneExpiredAds":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ip = "192.168.1.1"
-    let ad =
-      createTestAdvertisement(serviceId = serviceId, addrs = @[createTestMultiAddress(ip)])
+    let ad = createTestAdvertisement(
+      serviceId = serviceId, addrs = @[createTestMultiAddress(ip)]
+    )
     let now = makeNow()
 
     registrar.cache[serviceId] = @[ad]
