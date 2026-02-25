@@ -196,8 +196,12 @@ func main() {
 	}
 	defer host.Close()
 
+	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo, // minimum log level
+	})
+
 	pme := &partialmessages.PartialMessagesExtension{
-		Logger: &slog.Logger{},
+		Logger: slog.New(handler),
 		ValidateRPC: func(from peer.ID, rpc *pb.PartialMessagesExtension) error {
 			return nil
 		},
