@@ -891,6 +891,7 @@ suite "Registrar - REGISTER state machine (integration)":
         let response = conn.lastMessage()
         check response.register.get().status.get() == RegistrationStatus.Confirmed
         check disco.registrar.cache.getOrDefault(serviceId, @[]).len == 1
+
       test()
 
   test "duplicate REGISTER after confirmed → REJECTED":
