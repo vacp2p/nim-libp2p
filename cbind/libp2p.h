@@ -84,6 +84,13 @@ enum {
   LIBP2P_MIX_READ_LP = 1,
 };
 
+typedef uint32_t Libp2pMuxer;
+
+enum {
+  LIBP2P_MUXER_MPLEX = 0,
+  LIBP2P_MUXER_YAMUX = 1,
+};
+
 // === Data Structures ===
 
 // Kademlia bootstrap node entry (peer ID + multiaddrs).
@@ -140,18 +147,23 @@ typedef struct {
   // Number of entries in addrs.
   size_t addrsLen;
 
+  // Multiplexer to use
+  Libp2pMuxer muxer;
+
   // Optional list of Kademlia bootstrap nodes.
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   // Number of entries in kad_bootstrap_nodes.
   size_t kad_bootstrap_nodes_len;
-  // Optional private key bytes (only used if is not nil).
-  libp2p_private_key_t priv_key;
   // Optional Kademlia value validator callback.
   KadEntryValidator kad_validator;
   // Optional Kademlia value selector callback.
   KadEntrySelector kad_selector;
   // Opaque user data passed to kad_validator/kad_selector callbacks.
   void *kad_user_data;
+
+  // Optional private key bytes (only used if is not nil).
+  libp2p_private_key_t priv_key;
+
 } libp2p_config_t;
 
 typedef struct {

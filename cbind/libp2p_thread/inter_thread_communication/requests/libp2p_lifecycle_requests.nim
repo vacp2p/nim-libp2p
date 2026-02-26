@@ -44,6 +44,15 @@ type CEntrySelector = ref object of EntrySelector
   cb: KadEntrySelector
   userData: pointer
 
+proc fromCint(T: typedesc[MuxerType], val: cint): Result[T, string] =
+  case val
+  of ord(MuxerType.MPLEX).cint:
+    ok(MuxerType.MPLEX)
+  of ord(MuxerType.YAMUX).cint:
+    ok(MuxerType.YAMUX)
+  else:
+    err("invalid muxer")
+
 proc toCRecord(record: EntryRecord): Libp2pKadEntryRecord =
   Libp2pKadEntryRecord(
     value:
@@ -218,8 +227,12 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
           raiseAssert "invalid listen address: " & $error
         addrs.add(address)
 
-  let switch =
-    newStandardSwitch(privKey = privKey, addrs = addrs, nameResolver = dnsResolver)
+  let muxer = MuxerType.fromCint(config.muxer).valueOr:
+    raiseAssert "invalid muxer type"
+
+  let switch = newStandardSwitch(
+    privKey = privKey, addrs = addrs, muxer = muxer, nameResolver = dnsResolver
+  )
 
   var ret = LibP2P(
     switch: switch,
@@ -243,20 +256,18 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     mountMix: 0,
     mountKadDiscovery: 0,
     dnsResolver: DefaultDnsResolver.alloc(),
+    addrs: nil,
+    addrsLen: 0,
+    muxer: ord(MuxerType.MPLEX),
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
   )
 
-proc cstringLen(str: cstring): int =
-  var len = 0
-  while str[len] != '\0':
-    inc len
-  inc len # include null terminator
-  return len
-
 proc copyCstring(src: cstring, dst: ptr cstring) =
-  let len = cstringLen(src)
-  dst[] = cast[cstring](allocShared(len))
+  let len = src.len
+  if dst.isNil():
+    return
+  dst[] = src.alloc()
   copyMem(dst[], src, len)
 
 proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
@@ -270,6 +281,7 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountKad = config[].mountKad
   resolved.mountMix = config[].mountMix
   resolved.mountKadDiscovery = config[].mountKadDiscovery
+  resolved.muxer = config[].muxer
 
   if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
     let src = config[].dnsResolver
@@ -306,14 +318,8 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
     resolved.addrs =
       cast[ptr cstring](allocShared(sizeof(cstring) * config[].addrsLen.int))
 
-    let src = cast[ptr UncheckedArray[cstring]](config[].addrs)
-    let dst = cast[ptr UncheckedArray[cstring]](resolved.addrs)
-
-    for i in 0 ..< config[].addrsLen:
-      if src[i].isNil():
-        dst[i] = nil
-      else:
-        copyCstring(src[i], addr dst[i])
+    let dst: ptr cstring =
+      allocCStringArrayFromCArray(config[].addrs, config[].addrsLen)
 
   resolved
 
