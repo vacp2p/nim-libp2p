@@ -466,11 +466,16 @@ type TransportType* {.pure.} = enum
   TCP
   Memory
 
+type MuxerType* {.pure.} = enum
+  MPLEX
+  YAMUX
+
 proc newStandardSwitchBuilder*(
     privKey = Opt.none(PrivateKey),
     addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
+    muxer: MuxerType = MuxerType.MPLEX,
     rng = newRng(),
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
@@ -512,16 +517,21 @@ proc newStandardSwitchBuilder*(
     if addrs.len == 0:
       addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
     b = b.withQuicTransport().withAddresses(addrs)
+    return b # quic does not use a muxer
   of TransportType.TCP:
     if addrs.len == 0:
       addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
-    b = b.withTcpTransport(transportFlags).withAddresses(addrs).withMplex(
-        inTimeout, outTimeout
-      )
+    b = b.withTcpTransport(transportFlags).withAddresses(addrs)
   of TransportType.Memory:
     if addrs.len == 0:
       addrs = @[MultiAddress.init(MemoryAutoAddress).tryGet()]
-    b = b.withMemoryTransport().withAddresses(addrs).withMplex(inTimeout, outTimeout)
+    b = b.withMemoryTransport().withAddresses(addrs)
+
+  case muxer
+  of MuxerType.MPLEX:
+    b = b.withMplex(inTimeout, outTimeout)
+  of MuxerType.YAMUX:
+    b = b.withYamux(inTimeout = inTimeout, outTimeout = outTimeout)
 
   b
 
@@ -530,6 +540,7 @@ proc newStandardSwitch*(
     addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
+    muxer: MuxerType = MuxerType.MPLEX,
     rng = newRng(),
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
@@ -547,6 +558,7 @@ proc newStandardSwitch*(
     addrs = addrs,
     transport = transport,
     transportFlags = transportFlags,
+    muxer = muxer,
     rng = rng,
     secureManagers = secureManagers,
     inTimeout = inTimeout,

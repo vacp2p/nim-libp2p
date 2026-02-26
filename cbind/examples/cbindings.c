@@ -36,6 +36,12 @@ static void get_providers_handler(int callerRet,
                                   const Libp2pPeerInfo *providers,
                                   size_t providersLen, const char *msg,
                                   size_t len, void *userData);
+static int permissive_kad_validator(const uint8_t *key, size_t keyLen,
+                                    libp2p_kad_entry_record_t record,
+                                    void *userData);
+static int permissive_kad_selector(const uint8_t *key, size_t keyLen,
+                                   const libp2p_kad_entry_record_t *records,
+                                   size_t recordsLen, void *userData);
 static void peerinfo_handler(int callerret, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userdata);
 
@@ -61,13 +67,37 @@ int main(int argc, char **argv) {
   PeerInfo pInfo2 = {0};
   char cid_buf[CID_BUF_SIZE] = {0};
 
-  libp2p_config_t cfg1 = {0};
-  cfg1.flags =
-      LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF |
-      LIBP2P_CFG_KAD_DISCOVERY | LIBP2P_CFG_PRIVATE_KEY;
+  libp2p_config_t cfg1 = libp2p_new_default_config();
   cfg1.mount_gossipsub = 1;
   cfg1.gossipsub_trigger_self = 1;
   cfg1.mount_kad_discovery = 1;
+  cfg1.kad_validator = permissive_kad_validator;
+  cfg1.kad_selector = permissive_kad_selector;
+  cfg1.kad_user_data = NULL;
+
+  const char *peer1_addrs[] = {
+      "/ip4/127.0.0.1/tcp/5001"
+  };
+  cfg1.addrs = peer1_addrs;
+  cfg1.addrsLen = 1;
+
+  cfg1.muxer = LIBP2P_MUXER_MPLEX;
+  cfg1.transport = LIBP2P_TRANSPORT_TCP;
+
+  // connection limits
+  cfg1.max_connections = 50;
+  cfg1.max_in = 25;
+  cfg1.max_out = 25;
+  cfg1.max_conns_per_peer = 1;
+  // enable circuit relay
+  cfg1.circuit_relay = 1;
+
+  // enable autonat
+  cfg1.autonat = 1;
+  // enable autonat v2
+  cfg1.autonat_v2 = 1;
+  // enable autonat v2 server
+  cfg1.autonat_v2_server = 1;
 
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
@@ -84,13 +114,13 @@ int main(int argc, char **argv) {
   libp2p_peerinfo(ctx1, peerinfo_handler, &pInfo1);
   waitForCallback();
 
-  libp2p_config_t cfg2 = {0};
-  cfg2.flags = LIBP2P_CFG_GOSSIPSUB | LIBP2P_CFG_GOSSIPSUB_TRIGGER_SELF |
-               LIBP2P_CFG_KAD_DISCOVERY | LIBP2P_CFG_KAD_BOOTSTRAP_NODES |
-               LIBP2P_CFG_PRIVATE_KEY;
+  libp2p_config_t cfg2 = libp2p_new_default_config();
   cfg2.mount_gossipsub = 1;
   cfg2.gossipsub_trigger_self = 1;
   cfg2.mount_kad_discovery = 1;
+  cfg2.kad_validator = permissive_kad_validator;
+  cfg2.kad_selector = permissive_kad_selector;
+  cfg2.kad_user_data = NULL;
   libp2p_bootstrap_node_t bootstrap_nodes[1] = {
       {.peerId = pInfo1.peerId,
        .multiaddrs = pInfo1.addrs,
@@ -98,6 +128,8 @@ int main(int argc, char **argv) {
   };
   cfg2.kad_bootstrap_nodes = bootstrap_nodes;
   cfg2.kad_bootstrap_nodes_len = 1;
+  cfg2.muxer = LIBP2P_MUXER_MPLEX;
+  cfg2.transport = LIBP2P_TRANSPORT_TCP;
 
   ctx2 = libp2p_new(&cfg2, event_handler, NULL);
   waitForCallback();
@@ -230,6 +262,31 @@ static void event_handler(int callerRet, const char *msg, size_t len,
   }
 
   signal_callback_executed();
+}
+
+static int permissive_kad_validator(const uint8_t *key, size_t keyLen,
+                                    libp2p_kad_entry_record_t record,
+                                    void *userData) {
+  (void)key;
+  (void)keyLen;
+  (void)record;
+  (void)userData;
+  return 1; // everything is considered valid.
+}
+
+static int permissive_kad_selector(const uint8_t *key, size_t keyLen,
+                                   const libp2p_kad_entry_record_t *records,
+                                   size_t recordsLen, void *userData) {
+  // Always pick the first candidate whenever possible. No ordering between
+  // records is assumed or required.
+  (void)key;
+  (void)keyLen;
+  (void)records;
+  (void)userData;
+  if (recordsLen == 0) {
+    return -1;
+  }
+  return 0;
 }
 
 static void topic_handler(const char *topic, uint8_t *data, size_t len,
