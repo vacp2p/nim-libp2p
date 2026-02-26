@@ -101,6 +101,22 @@ typedef struct libp2p_private_key {
 } libp2p_private_key_t;
 
 typedef struct {
+  const uint8_t *value;
+  size_t valueLen;
+  const char *time;
+  size_t timeLen;
+} libp2p_kad_entry_record_t;
+
+// Return nonzero to accept a key/value record, 0 to reject.
+typedef int (*KadEntryValidator)(const uint8_t *key, size_t keyLen,
+                                 libp2p_kad_entry_record_t record,
+                                 void *userData);
+
+// Return selected record index in [0, recordsLen), or -1 to reject.
+typedef int (*KadEntrySelector)(const uint8_t *key, size_t keyLen,
+                                const libp2p_kad_entry_record_t *records,
+                                size_t recordsLen, void *userData);
+typedef struct {
   // Enable/disable gossipsub (default on).
   int mount_gossipsub;
   // If nonzero, deliver published messages to self subscribers too.
@@ -119,6 +135,12 @@ typedef struct {
   size_t kad_bootstrap_nodes_len;
   // Optional private key bytes (only used if is not nil).
   libp2p_private_key_t priv_key;
+  // Optional Kademlia value validator callback.
+  KadEntryValidator kad_validator;
+  // Optional Kademlia value selector callback.
+  KadEntrySelector kad_selector;
+  // Opaque user data passed to kad_validator/kad_selector callbacks.
+  void *kad_user_data;
 } libp2p_config_t;
 
 typedef struct {

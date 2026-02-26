@@ -62,6 +62,24 @@ type Libp2pServiceInfo* {.bycopy.} = object
   data*: ptr byte
   dataLen*: csize_t
 
+type Libp2pKadEntryRecord* {.bycopy.} = object
+  value*: ptr byte
+  valueLen*: csize_t
+  time*: cstring
+  timeLen*: csize_t
+
+type KadEntryValidator* = proc(
+  key: ptr byte, keyLen: csize_t, record: Libp2pKadEntryRecord, userData: pointer
+): cint {.cdecl, gcsafe, raises: [].}
+
+type KadEntrySelector* = proc(
+  key: ptr byte,
+  keyLen: csize_t,
+  records: ptr Libp2pKadEntryRecord,
+  recordsLen: csize_t,
+  userData: pointer,
+): cint {.cdecl, gcsafe, raises: [].}
+
 type Libp2pExtendedPeerRecord* {.bycopy.} = object
   peerId*: cstring
   seqNo*: uint64
@@ -113,6 +131,9 @@ type Libp2pConfig* {.bycopy.} = object
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
   privKey*: Libp2pPrivateKey
+  kadValidator*: KadEntryValidator
+  kadSelector*: KadEntrySelector
+  kadUserData*: pointer
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
