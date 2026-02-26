@@ -11,6 +11,7 @@ import (
 	"time"
 
 	libp2p "github.com/libp2p/go-libp2p"
+	mplex "github.com/libp2p/go-libp2p-mplex"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-pubsub/partialmessages"
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
@@ -184,6 +185,10 @@ func main() {
 
 	host, err := libp2p.New(
 		libp2p.Identity(priv),
+		libp2p.Muxer(
+			"/mplex/6.7.0",
+			mplex.DefaultTransport,
+		),
 		libp2p.ListenAddrStrings(
 			// only use IPv6 addresses, as this test case also verifies
 			// interoperability with IPv6. we do not want to accidentally

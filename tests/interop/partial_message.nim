@@ -46,7 +46,7 @@ proc partialMessageInteropTest*(
     .withAddresses(@[MultiAddress.init(ourAddr).tryGet()])
     .withPrivateKey(key)
     .withTcpTransport()
-    .withYamux()
+    .withMplex()
     .withNoise()
     .build()
 
