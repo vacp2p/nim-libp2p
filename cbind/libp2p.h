@@ -91,6 +91,14 @@ enum {
   LIBP2P_MUXER_YAMUX = 1,
 };
 
+typedef uint32_t Libp2pTransport;
+
+enum {
+  LIBP2P_TRANSPORT_QUIC = 0,
+  LIBP2P_TRANSPORT_TCP = 1,
+  LIBP2P_TRANSPORT_MEMORY = 2,
+};
+
 // === Data Structures ===
 
 // Kademlia bootstrap node entry (peer ID + multiaddrs).
@@ -149,6 +157,9 @@ typedef struct {
 
   // Multiplexer to use
   Libp2pMuxer muxer;
+
+  // Transport to use
+  Libp2pTransport transport;
 
   // Optional list of Kademlia bootstrap nodes.
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;

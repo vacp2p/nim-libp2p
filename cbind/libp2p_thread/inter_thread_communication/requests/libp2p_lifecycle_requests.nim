@@ -56,6 +56,17 @@ proc fromCint(T: typedesc[MuxerType], val: cint): Result[T, string] =
   else:
     err("invalid muxer")
 
+proc fromCint(T: typedesc[TransportType], val: cint): Result[T, string] =
+  case val
+  of ord(TransportType.QUIC).cint:
+    ok(TransportType.QUIC)
+  of ord(TransportType.TCP).cint:
+    ok(TransportType.TCP)
+  of ord(TransportType.Memory).cint:
+    ok(TransportType.Memory)
+  else:
+    err("invalid transport")
+
 proc toCRecord(record: EntryRecord): Libp2pKadEntryRecord =
   Libp2pKadEntryRecord(
     value:
@@ -233,10 +244,14 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let muxer = MuxerType.fromCint(config.muxer).valueOr:
     raiseAssert "invalid muxer type"
 
+  let transport = TransportType.fromCint(config.transport).valueOr:
+    raiseAssert "invalid transport type"
+
   var switchBuilder = newStandardSwitchBuilder(
     privKey = privKey,
     addrs = addrs,
     muxer = muxer,
+    transport = transport,
     maxConnections = config.maxConnections,
     maxIn = config.maxIn,
     maxOut = config.maxOut,
@@ -283,6 +298,7 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     addrs: nil,
     addrsLen: 0,
     muxer: ord(MuxerType.MPLEX),
+    transport: ord(TransportType.TCP),
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
     maxConnections: DefaultMaxConnections,
@@ -312,6 +328,7 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountMix = config[].mountMix
   resolved.mountKadDiscovery = config[].mountKadDiscovery
   resolved.muxer = config[].muxer
+  resolved.transport = config[].transport
   resolved.maxConnections = config[].maxConnections
   resolved.maxIn = config[].maxIn
   resolved.maxOut = config[].maxOut
