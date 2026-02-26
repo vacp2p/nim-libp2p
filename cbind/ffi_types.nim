@@ -138,6 +138,10 @@ type Libp2pConfig* {.bycopy.} = object
   kadSelector*: KadEntrySelector
   kadUserData*: pointer
   privKey*: Libp2pPrivateKey
+  circuitRelay*: cint
+  autonat*: cint
+  autonatV2*: cint
+  autonatV2Server*: cint
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
