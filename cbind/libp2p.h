@@ -84,6 +84,13 @@ enum {
   LIBP2P_MIX_READ_LP = 1,
 };
 
+typedef uint32_t Libp2pMuxer;
+
+enum {
+  LIBP2P_MUXER_MPLEX = 0,
+  LIBP2P_MUXER_YAMUX = 1,
+};
+
 // === Data Structures ===
 
 // Kademlia bootstrap node entry (peer ID + multiaddrs).
@@ -101,24 +108,62 @@ typedef struct libp2p_private_key {
 } libp2p_private_key_t;
 
 typedef struct {
+  const uint8_t *value;
+  size_t valueLen;
+  const char *time;
+  size_t timeLen;
+} libp2p_kad_entry_record_t;
+
+// Return nonzero to accept a key/value record, 0 to reject.
+typedef int (*KadEntryValidator)(const uint8_t *key, size_t keyLen,
+                                 libp2p_kad_entry_record_t record,
+                                 void *userData);
+
+// Return selected record index in [0, recordsLen), or -1 to reject.
+typedef int (*KadEntrySelector)(const uint8_t *key, size_t keyLen,
+                                const libp2p_kad_entry_record_t *records,
+                                size_t recordsLen, void *userData);
+typedef struct {
   // Enable/disable gossipsub (default on).
   int mount_gossipsub;
+
   // If nonzero, deliver published messages to self subscribers too.
   int gossipsub_trigger_self;
+
   // Enable/disable Kademlia DHT (default on).
   int mount_kad;
+
   // Enable/disable mix protocol support (default off).
   int mount_mix;
+
   // Enable Kademlia Discovery  (default off).
   int mount_kad_discovery;
+
   // DNS resolver address used by name resolution (e.g. "1.1.1.1:53").
   const char *dns_resolver;
+
+  // Optional list of listen addresses.
+  const char **addrs;
+  // Number of entries in addrs.
+  size_t addrsLen;
+
+  // Multiplexer to use
+  Libp2pMuxer muxer;
+
   // Optional list of Kademlia bootstrap nodes.
   const libp2p_bootstrap_node_t *kad_bootstrap_nodes;
   // Number of entries in kad_bootstrap_nodes.
   size_t kad_bootstrap_nodes_len;
+  // Optional Kademlia value validator callback.
+  KadEntryValidator kad_validator;
+  // Optional Kademlia value selector callback.
+  KadEntrySelector kad_selector;
+  // Opaque user data passed to kad_validator/kad_selector callbacks.
+  void *kad_user_data;
+
   // Optional private key bytes (only used if is not nil).
   libp2p_private_key_t priv_key;
+
 } libp2p_config_t;
 
 typedef struct {
