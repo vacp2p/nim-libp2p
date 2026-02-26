@@ -283,11 +283,9 @@ proc init*(T: typedesc[Libp2pConfig]): T =
   )
 
 proc copyCstring(src: cstring, dst: ptr cstring) =
-  let len = src.len
   if dst.isNil():
     return
   dst[] = src.alloc()
-  copyMem(dst[], src, len)
 
 proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   var resolved = Libp2pConfig.default()
@@ -335,11 +333,7 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
 
   resolved.addrsLen = config[].addrsLen
   if config[].addrsLen > 0 and not config[].addrs.isNil():
-    resolved.addrs =
-      cast[ptr cstring](allocShared(sizeof(cstring) * config[].addrsLen.int))
-
-    let dst: ptr cstring =
-      allocCStringArrayFromCArray(config[].addrs, config[].addrsLen)
+    resolved.addrs = allocCStringArrayFromCArray(config[].addrs, config[].addrsLen)
 
   resolved
 
