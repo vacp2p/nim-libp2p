@@ -143,9 +143,9 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     let src = cast[ptr UncheckedArray[cstring]](config.addrs)
     for i in 0 ..< config.addrsLen:
       if not src[i].isNil():
-        let addr = MultiAddress.init($src[i]).valueOr:
-            raiseAssert "invalid listen address: " & $error
-          addrs.add(addr)
+        let address = MultiAddress.init($src[i]).valueOr:
+          raiseAssert "invalid listen address: " & $error
+        addrs.add(address)
 
   let switch =
     newStandardSwitch(privKey = privKey, addrs = addrs, nameResolver = dnsResolver)
@@ -176,6 +176,18 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     kadBootstrapNodesLen: 0,
   )
 
+proc cstringLen(str: cstring): int =
+  var len = 0
+  while str[len] != '\0':
+    inc len
+  inc len # include null terminator
+  return len
+
+proc copyCstring(src: cstring, dst: ptr cstring) =
+  let len = cstringLen(src)
+  dst[] = cast[cstring](allocShared(len))
+  copyMem(dst[], src, len)
+
 proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   var resolved = Libp2pConfig.default()
 
@@ -190,13 +202,7 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
 
   if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
     let src = config[].dnsResolver
-    var len = 0
-    while src[len] != '\0':
-      inc len
-    inc len # include null terminator
-
-    resolved.dnsResolver = cast[cstring](allocShared(len))
-    copyMem(resolved.dnsResolver, src, len)
+    copyCstring(src, addr resolved.dnsResolver)
 
   if not config[].privKey.data.isNil() and config[].privKey.dataLen > 0:
     let srcKey = config[].privKey
@@ -232,13 +238,7 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
       if src[i].isNil():
         dst[i] = nil
       else:
-        var len = 0
-        while src[i][len] != '\0':
-          inc len
-        inc len # null terminator
-
-        dst[i] = cast[cstring](allocShared(len))
-        copyMem(dst[i], src[i], len)
+        copyCstring(src[i], addr dst[i])
 
   resolved
 
