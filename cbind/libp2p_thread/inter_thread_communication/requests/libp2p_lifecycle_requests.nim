@@ -23,7 +23,10 @@ import ../../../../libp2p/protocols/mix
 import ../../../../libp2p/protocols/mix/mix_protocol
 import ../../../../libp2p/protocols/mix/mix_node
 
-const DefaultDnsResolver = "1.1.1.1:53"
+const
+  DefaultDnsResolver = "1.1.1.1:53"
+  DefaultMaxConnections = MaxConnections
+  DefaultMaxConnectionsPerPeer = MaxConnectionsPerPeer
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -231,7 +234,14 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     raiseAssert "invalid muxer type"
 
   let switch = newStandardSwitch(
-    privKey = privKey, addrs = addrs, muxer = muxer, nameResolver = dnsResolver
+    privKey = privKey,
+    addrs = addrs,
+    muxer = muxer,
+    maxConnections = config.maxConnections,
+    maxIn = config.maxIn,
+    maxOut = config.maxOut,
+    maxConnsPerPeer = config.maxConnsPerPeer,
+    nameResolver = dnsResolver,
   )
 
   var ret = LibP2P(
@@ -261,6 +271,10 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     muxer: ord(MuxerType.MPLEX),
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
+    maxConnections: DefaultMaxConnections,
+    maxIn: -1,
+    maxOut: -1,
+    maxConnsPerPeer: DefaultMaxConnectionsPerPeer,
   )
 
 proc copyCstring(src: cstring, dst: ptr cstring) =
@@ -269,7 +283,7 @@ proc copyCstring(src: cstring, dst: ptr cstring) =
   dst[] = src.alloc()
 
 proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
-  var resolved = Libp2pConfig.default()
+  var resolved = Libp2pConfig.init()
 
   if config.isNil():
     return resolved
@@ -280,6 +294,10 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountMix = config[].mountMix
   resolved.mountKadDiscovery = config[].mountKadDiscovery
   resolved.muxer = config[].muxer
+  resolved.maxConnections = config[].maxConnections
+  resolved.maxIn = config[].maxIn
+  resolved.maxOut = config[].maxOut
+  resolved.maxConnsPerPeer = config[].maxConnsPerPeer
 
   if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
     let src = config[].dnsResolver

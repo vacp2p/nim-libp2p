@@ -137,6 +137,10 @@ type Libp2pConfig* {.bycopy.} = object
   kadSelector*: KadEntrySelector
   kadUserData*: pointer
   privKey*: Libp2pPrivateKey
+  maxConnections*: cint
+  maxIn*: cint
+  maxOut*: cint
+  maxConnsPerPeer*: cint
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0

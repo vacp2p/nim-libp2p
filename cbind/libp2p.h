@@ -164,6 +164,15 @@ typedef struct {
   // Optional private key bytes (only used if is not nil).
   libp2p_private_key_t priv_key;
 
+  // Maximum number of connections (in + out)
+  int max_connections;
+  // Maximum number of incoming connections
+  int max_in;
+  // Maximum number of outgoing connections
+  int max_out;
+  // Maximum number of connections per peer
+  int max_conns_per_peer;
+
 } libp2p_config_t;
 
 typedef struct {

@@ -83,6 +83,12 @@ int main(int argc, char **argv) {
 
   cfg1.muxer = LIBP2P_MUXER_MPLEX;
 
+  // connection limits
+  cfg1.max_connections = 50;
+  cfg1.max_in = 25;
+  cfg1.max_out = 25;
+  cfg1.max_conns_per_peer = 1;
+
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
   waitForCallback();
