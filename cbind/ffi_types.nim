@@ -131,12 +131,17 @@ type Libp2pConfig* {.bycopy.} = object
   addrs*: ptr cstring
   addrsLen*: csize_t
   muxer*: cint
+  transport*: cint
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
   kadValidator*: KadEntryValidator
   kadSelector*: KadEntrySelector
   kadUserData*: pointer
   privKey*: Libp2pPrivateKey
+  maxConnections*: cint
+  maxIn*: cint
+  maxOut*: cint
+  maxConnsPerPeer*: cint
   circuitRelay*: cint
   autonat*: cint
   autonatV2*: cint

@@ -82,7 +82,13 @@ int main(int argc, char **argv) {
   cfg1.addrsLen = 1;
 
   cfg1.muxer = LIBP2P_MUXER_MPLEX;
+  cfg1.transport = LIBP2P_TRANSPORT_TCP;
 
+  // connection limits
+  cfg1.max_connections = 50;
+  cfg1.max_in = 25;
+  cfg1.max_out = 25;
+  cfg1.max_conns_per_peer = 1;
   // enable circuit relay
   cfg1.circuit_relay = 1;
 
@@ -123,6 +129,7 @@ int main(int argc, char **argv) {
   cfg2.kad_bootstrap_nodes = bootstrap_nodes;
   cfg2.kad_bootstrap_nodes_len = 1;
   cfg2.muxer = LIBP2P_MUXER_MPLEX;
+  cfg2.transport = LIBP2P_TRANSPORT_TCP;
 
   ctx2 = libp2p_new(&cfg2, event_handler, NULL);
   waitForCallback();
