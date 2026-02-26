@@ -164,6 +164,16 @@ typedef struct {
   // Optional private key bytes (only used if is not nil).
   libp2p_private_key_t priv_key;
 
+  // Enable circuit relay
+  int circuit_relay;
+
+  // Enable autonat
+  int autonat;
+  // Enable autonat v2
+  int autonat_v2;
+  // Enable autonat v2 server
+  int autonat_v2_server;
+
 } libp2p_config_t;
 
 typedef struct {
