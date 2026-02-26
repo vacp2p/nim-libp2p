@@ -172,6 +172,15 @@ typedef struct {
   int max_out;
   // Maximum number of connections per peer
   int max_conns_per_peer;
+  // Enable circuit relay
+  int circuit_relay;
+
+  // Enable autonat
+  int autonat;
+  // Enable autonat v2
+  int autonat_v2;
+  // Enable autonat v2 server
+  int autonat_v2_server;
 
 } libp2p_config_t;
 

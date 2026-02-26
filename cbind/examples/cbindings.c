@@ -88,6 +88,15 @@ int main(int argc, char **argv) {
   cfg1.max_in = 25;
   cfg1.max_out = 25;
   cfg1.max_conns_per_peer = 1;
+  // enable circuit relay
+  cfg1.circuit_relay = 1;
+
+  // enable autonat
+  cfg1.autonat = 1;
+  // enable autonat v2
+  cfg1.autonat_v2 = 1;
+  // enable autonat v2 server
+  cfg1.autonat_v2_server = 1;
 
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);

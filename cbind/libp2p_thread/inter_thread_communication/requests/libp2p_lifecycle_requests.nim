@@ -233,7 +233,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let muxer = MuxerType.fromCint(config.muxer).valueOr:
     raiseAssert "invalid muxer type"
 
-  let switch = newStandardSwitch(
+  var switchBuilder = newStandardSwitchBuilder(
     privKey = privKey,
     addrs = addrs,
     muxer = muxer,
@@ -241,8 +241,22 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     maxIn = config.maxIn,
     maxOut = config.maxOut,
     maxConnsPerPeer = config.maxConnsPerPeer,
-    nameResolver = dnsResolver,
+    nameResolver = dnsResolver
   )
+
+  if config.circuitRelay == 1:
+    switchBuilder = switchBuilder.withCircuitRelay()
+
+  if config.autonat == 1:
+    switchBuilder = switchBuilder.withAutonat()
+
+  if config.autonatV2 == 1:
+    switchBuilder = switchBuilder.withAutonatV2()
+
+  if config.autonatV2Server == 1:
+    switchBuilder = switchBuilder.withAutonatV2Server()
+
+  let switch = switchBuilder.build()
 
   var ret = LibP2P(
     switch: switch,
@@ -275,6 +289,10 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     maxIn: -1,
     maxOut: -1,
     maxConnsPerPeer: DefaultMaxConnectionsPerPeer,
+    circuitRelay: 0,
+    autonat: 0,
+    autonatV2: 0,
+    autonatV2Server: 0,
   )
 
 proc copyCstring(src: cstring, dst: ptr cstring) =
@@ -298,6 +316,10 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.maxIn = config[].maxIn
   resolved.maxOut = config[].maxOut
   resolved.maxConnsPerPeer = config[].maxConnsPerPeer
+  resolved.circuitRelay = config[].circuitRelay
+  resolved.autonat = config[].autonat
+  resolved.autonatV2 = config[].autonatV2
+  resolved.autonatV2Server = config[].autonatV2Server
 
   if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
     let src = config[].dnsResolver
