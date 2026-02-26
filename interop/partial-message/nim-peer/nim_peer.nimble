@@ -1,5 +1,5 @@
 version = "0.1.0"
-author = "Status Research & Development Gmb"
+author = "Status Research & Development GmbH"
 description = "Partial Message peer for interop testing"
 license = "MIT"
 srcDir = "src"
