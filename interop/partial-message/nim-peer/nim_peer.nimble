@@ -3,7 +3,7 @@ author = "Status Research & Development Gmb"
 description = "Partial Message peer for interop testing"
 license = "MIT"
 srcDir = "src"
-bin = @["nim_peer"]
+bin = @["peer"]
 
 # Dependencies
 
