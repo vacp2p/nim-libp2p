@@ -121,7 +121,7 @@ jobs:
           cd ../nim-peer
           nim r src/nim_peer.nim
 
-  run-partail-message-interop:
+  run-partial-message-interop:
     name: Run Partial Message interoperability tests
     runs-on: ubuntu-22.04
     steps:
