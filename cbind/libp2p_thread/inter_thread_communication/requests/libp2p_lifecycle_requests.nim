@@ -44,6 +44,15 @@ type CEntrySelector = ref object of EntrySelector
   cb: KadEntrySelector
   userData: pointer
 
+proc fromCint(T: typedesc[MuxerType], val: cint): Result[T, string] =
+  case val
+  of ord(MuxerType.MPLEX).cint:
+    ok(MuxerType.MPLEX)
+  of ord(MuxerType.YAMUX).cint:
+    ok(MuxerType.YAMUX)
+  else:
+    err("invalid muxer")
+
 proc toCRecord(record: EntryRecord): Libp2pKadEntryRecord =
   Libp2pKadEntryRecord(
     value:
@@ -209,7 +218,22 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     PrivateKey.init(keySeq).withValue(copyKey):
       privKey = Opt.some(copyKey)
 
-  let switch = newStandardSwitch(privKey = privKey, nameResolver = dnsResolver)
+  var addrs: seq[MultiAddress] = @[]
+  if config.addrsLen > 0 and not config.addrs.isNil():
+    let src = cast[ptr UncheckedArray[cstring]](config.addrs)
+    for i in 0 ..< config.addrsLen:
+      if not src[i].isNil():
+        let address = MultiAddress.init($src[i]).valueOr:
+          raiseAssert "invalid listen address: " & $error
+        addrs.add(address)
+
+  let muxer = MuxerType.fromCint(config.muxer).valueOr:
+    raiseAssert "invalid muxer type"
+
+  let switch = newStandardSwitch(
+    privKey = privKey, addrs = addrs, muxer = muxer, nameResolver = dnsResolver
+  )
+
   var ret = LibP2P(
     switch: switch,
     gossipSub: Opt.none(GossipSub),
@@ -232,9 +256,17 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     mountMix: 0,
     mountKadDiscovery: 0,
     dnsResolver: DefaultDnsResolver.alloc(),
+    addrs: nil,
+    addrsLen: 0,
+    muxer: ord(MuxerType.MPLEX),
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
   )
+
+proc copyCstring(src: cstring, dst: ptr cstring) =
+  if dst.isNil():
+    return
+  dst[] = src.alloc()
 
 proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   var resolved = Libp2pConfig.default()
@@ -247,16 +279,11 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountKad = config[].mountKad
   resolved.mountMix = config[].mountMix
   resolved.mountKadDiscovery = config[].mountKadDiscovery
+  resolved.muxer = config[].muxer
 
   if not config[].dnsResolver.isNil() and config[].dnsResolver[0] != '\0':
     let src = config[].dnsResolver
-    var len = 0
-    while src[len] != '\0':
-      inc len
-    inc len # include null terminator
-
-    resolved.dnsResolver = cast[cstring](allocShared(len))
-    copyMem(resolved.dnsResolver, src, len)
+    copyCstring(src, addr resolved.dnsResolver)
 
   if not config[].privKey.data.isNil() and config[].privKey.dataLen > 0:
     let srcKey = config[].privKey
@@ -284,6 +311,10 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
         dst[i].multiaddrs =
           allocCStringArrayFromCArray(src[i].multiaddrs, src[i].multiaddrsLen)
 
+  resolved.addrsLen = config[].addrsLen
+  if config[].addrsLen > 0 and not config[].addrs.isNil():
+    resolved.addrs = allocCStringArrayFromCArray(config[].addrs, config[].addrsLen)
+
   resolved
 
 proc createShared*(
@@ -306,6 +337,7 @@ proc destroyShared(self: ptr LifecycleRequest) =
   # TODO: Deallocate parameters of GC'd types from the shared memory
   if not self[].config.dnsResolver.isNil():
     deallocShared(self[].config.dnsResolver)
+
   if not self[].config.kadBootstrapNodes.isNil():
     let nodes =
       cast[ptr UncheckedArray[Libp2pBootstrapNode]](self[].config.kadBootstrapNodes)
@@ -314,8 +346,13 @@ proc destroyShared(self: ptr LifecycleRequest) =
         deallocShared(nodes[i].peerId)
       deallocCStringArray(nodes[i].multiaddrs, nodes[i].multiaddrsLen)
     deallocShared(self[].config.kadBootstrapNodes)
+
   if not self[].config.privKey.data.isNil():
     deallocShared(self[].config.privKey.data)
+
+  if not self[].config.addrs.isNil():
+    deallocCStringArray(self[].config.addrs, self[].config.addrsLen)
+
   deallocShared(self)
 
 proc processGetPublicKey*(
