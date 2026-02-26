@@ -36,6 +36,12 @@ static void get_providers_handler(int callerRet,
                                   const Libp2pPeerInfo *providers,
                                   size_t providersLen, const char *msg,
                                   size_t len, void *userData);
+static int permissive_kad_validator(const uint8_t *key, size_t keyLen,
+                                    libp2p_kad_entry_record_t record,
+                                    void *userData);
+static int permissive_kad_selector(const uint8_t *key, size_t keyLen,
+                                   const libp2p_kad_entry_record_t *records,
+                                   size_t recordsLen, void *userData);
 static void peerinfo_handler(int callerret, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userdata);
 
@@ -65,6 +71,9 @@ int main(int argc, char **argv) {
   cfg1.mount_gossipsub = 1;
   cfg1.gossipsub_trigger_self = 1;
   cfg1.mount_kad_discovery = 1;
+  cfg1.kad_validator = permissive_kad_validator;
+  cfg1.kad_selector = permissive_kad_selector;
+  cfg1.kad_user_data = NULL;
 
   libp2p_private_key_t priv_key = {0};
   libp2p_new_private_key(LIBP2P_PK_RSA, private_key_handler, &priv_key);
@@ -85,6 +94,9 @@ int main(int argc, char **argv) {
   cfg2.mount_gossipsub = 1;
   cfg2.gossipsub_trigger_self = 1;
   cfg2.mount_kad_discovery = 1;
+  cfg2.kad_validator = permissive_kad_validator;
+  cfg2.kad_selector = permissive_kad_selector;
+  cfg2.kad_user_data = NULL;
   libp2p_bootstrap_node_t bootstrap_nodes[1] = {
       {.peerId = pInfo1.peerId,
        .multiaddrs = pInfo1.addrs,
@@ -224,6 +236,31 @@ static void event_handler(int callerRet, const char *msg, size_t len,
   }
 
   signal_callback_executed();
+}
+
+static int permissive_kad_validator(const uint8_t *key, size_t keyLen,
+                                    libp2p_kad_entry_record_t record,
+                                    void *userData) {
+  (void)key;
+  (void)keyLen;
+  (void)record;
+  (void)userData;
+  return 1; // everything is considered valid.
+}
+
+static int permissive_kad_selector(const uint8_t *key, size_t keyLen,
+                                   const libp2p_kad_entry_record_t *records,
+                                   size_t recordsLen, void *userData) {
+  // Always pick the first candidate whenever possible. No ordering between
+  // records is assumed or required.
+  (void)key;
+  (void)keyLen;
+  (void)records;
+  (void)userData;
+  if (recordsLen == 0) {
+    return -1;
+  }
+  return 0;
 }
 
 static void topic_handler(const char *topic, uint8_t *data, size_t len,
