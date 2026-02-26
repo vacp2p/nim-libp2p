@@ -256,7 +256,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     maxIn = config.maxIn,
     maxOut = config.maxOut,
     maxConnsPerPeer = config.maxConnsPerPeer,
-    nameResolver = dnsResolver
+    nameResolver = dnsResolver,
   )
 
   if config.circuitRelay == 1:
