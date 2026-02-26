@@ -138,6 +138,10 @@ type Libp2pConfig* {.bycopy.} = object
   kadSelector*: KadEntrySelector
   kadUserData*: pointer
   privKey*: Libp2pPrivateKey
+  maxConnections*: cint
+  maxIn*: cint
+  maxOut*: cint
+  maxConnsPerPeer*: cint
   circuitRelay*: cint
   autonat*: cint
   autonatV2*: cint

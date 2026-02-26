@@ -23,7 +23,10 @@ import ../../../../libp2p/protocols/mix
 import ../../../../libp2p/protocols/mix/mix_protocol
 import ../../../../libp2p/protocols/mix/mix_node
 
-const DefaultDnsResolver = "1.1.1.1:53"
+const
+  DefaultDnsResolver = "1.1.1.1:53"
+  DefaultMaxConnections = MaxConnections
+  DefaultMaxConnectionsPerPeer = MaxConnectionsPerPeer
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -247,8 +250,12 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   var switchBuilder = newStandardSwitchBuilder(
     privKey = privKey,
     addrs = addrs,
-    transport = transport,
     muxer = muxer,
+    transport = transport,
+    maxConnections = config.maxConnections,
+    maxIn = config.maxIn,
+    maxOut = config.maxOut,
+    maxConnsPerPeer = config.maxConnsPerPeer,
     nameResolver = dnsResolver,
   )
 
@@ -294,6 +301,10 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     transport: ord(TransportType.TCP),
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
+    maxConnections: DefaultMaxConnections,
+    maxIn: -1,
+    maxOut: -1,
+    maxConnsPerPeer: DefaultMaxConnectionsPerPeer,
     circuitRelay: 0,
     autonat: 0,
     autonatV2: 0,
@@ -306,7 +317,7 @@ proc copyCstring(src: cstring, dst: ptr cstring) =
   dst[] = src.alloc()
 
 proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
-  var resolved = Libp2pConfig.default()
+  var resolved = Libp2pConfig.init()
 
   if config.isNil():
     return resolved
@@ -318,6 +329,10 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountKadDiscovery = config[].mountKadDiscovery
   resolved.muxer = config[].muxer
   resolved.transport = config[].transport
+  resolved.maxConnections = config[].maxConnections
+  resolved.maxIn = config[].maxIn
+  resolved.maxOut = config[].maxOut
+  resolved.maxConnsPerPeer = config[].maxConnsPerPeer
   resolved.circuitRelay = config[].circuitRelay
   resolved.autonat = config[].autonat
   resolved.autonatV2 = config[].autonatV2
