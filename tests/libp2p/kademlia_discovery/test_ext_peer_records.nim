@@ -121,6 +121,7 @@ suite "Signed Extended Peer Record":
     check:
       decoded.isOk() == true
       decoded.get().addresses.len == 0
+      extPR == decoded.get()
 
   test "Decode fails if all addresses are invalid":
     let
@@ -136,8 +137,7 @@ suite "Signed Extended Peer Record":
     let
       privKey = PrivateKey.random(rng[]).tryGet()
       peerId = PeerId.init(privKey).tryGet()
-      multiAddresses =
-        @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
+      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
       services: seq[ServiceInfo] = @[]
       extPR = ExtendedPeerRecord.init(peerId, multiAddresses, 42, services)
 
@@ -147,3 +147,4 @@ suite "Signed Extended Peer Record":
     check:
       decoded.isOk() == true
       decoded.get().services.len == 0
+      extPR == decoded.get()
