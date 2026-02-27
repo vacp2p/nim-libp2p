@@ -126,6 +126,7 @@ func publishPartialMessage(ps *pubsub.PubSub, doneC chan struct{}) {
 	if err != nil {
 		log.Fatalf("Failed to join topic: %v", err)
 	}
+	defer topic.Close()
 
 	subs, err := topic.Subscribe()
 	if err != nil {
@@ -145,8 +146,6 @@ func publishPartialMessage(ps *pubsub.PubSub, doneC chan struct{}) {
 
 	time.Sleep(2 * time.Second)
 
-	defer topic.Close()
-
 	pm := MyPartialMessage{
 		groupID:  []byte("interop-group"),
 		metadata: []byte{1, 'h', 2, 'h', 3, 'h'},
@@ -158,6 +157,10 @@ func publishPartialMessage(ps *pubsub.PubSub, doneC chan struct{}) {
 	} else {
 		log.Printf("Partial message published")
 	}
+
+	// give some time for peer to process data before
+	// terminating the program
+	time.Sleep(2 * time.Second)
 }
 
 type connectionNotifiee struct {
