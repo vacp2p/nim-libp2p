@@ -137,3 +137,74 @@ suite "KadDHT Routing Table":
     check:
       idx == TargetBucket
       rid != selfId
+
+  test "purgeExpired is no-op when purgeStaleEntries is false":
+    let selfId = testKey(0)
+    let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
+    var rt = RoutingTable.new(selfId, config)
+
+    let kid = randomKeyInBucket(selfId, TargetBucket, rng[])
+    discard rt.insert(kid)
+    rt.buckets[TargetBucket].peers[0].lastSeen =
+      Moment.now() - DefaultBucketStaleTime - 1.seconds
+
+    rt.purgeExpired()
+
+    check rt.buckets[TargetBucket].peers.len == 1
+
+  test "purgeExpired removes stale entries when purgeStaleEntries is true":
+    let selfId = testKey(0)
+    let config =
+      RoutingTableConfig.new(hasher = Opt.some(noOpHasher), purgeStaleEntries = true)
+    var rt = RoutingTable.new(selfId, config)
+
+    let kid = randomKeyInBucket(selfId, TargetBucket, rng[])
+    discard rt.insert(kid)
+    rt.buckets[TargetBucket].peers[0].lastSeen =
+      Moment.now() - DefaultBucketStaleTime - 1.seconds
+
+    rt.purgeExpired()
+
+    check rt.buckets[TargetBucket].peers.len == 0
+
+  test "purgeExpired keeps fresh entries":
+    let selfId = testKey(0)
+    let config =
+      RoutingTableConfig.new(hasher = Opt.some(noOpHasher), purgeStaleEntries = true)
+    var rt = RoutingTable.new(selfId, config)
+
+    let stale = randomKeyInBucket(selfId, TargetBucket, rng[])
+    let fresh = randomKeyInBucket(selfId, TargetBucket, rng[])
+    discard rt.insert(stale)
+    discard rt.insert(fresh)
+
+    rt.buckets[TargetBucket].peers[0].lastSeen =
+      Moment.now() - DefaultBucketStaleTime - 1.seconds
+
+    rt.purgeExpired()
+
+    check:
+      rt.buckets[TargetBucket].peers.len == 1
+      rt.buckets[TargetBucket].peers[0].nodeId == fresh
+
+  test "purgeExpired removes stale entries across multiple buckets":
+    let selfId = testKey(0)
+    let config =
+      RoutingTableConfig.new(hasher = Opt.some(noOpHasher), purgeStaleEntries = true)
+    var rt = RoutingTable.new(selfId, config)
+
+    let kid1 = randomKeyInBucket(selfId, TargetBucket, rng[])
+    let kid2 = randomKeyInBucket(selfId, TargetBucket + 1, rng[])
+    discard rt.insert(kid1)
+    discard rt.insert(kid2)
+
+    rt.buckets[TargetBucket].peers[0].lastSeen =
+      Moment.now() - DefaultBucketStaleTime - 1.seconds
+    rt.buckets[TargetBucket + 1].peers[0].lastSeen =
+      Moment.now() - DefaultBucketStaleTime - 1.seconds
+
+    rt.purgeExpired()
+
+    check:
+      rt.buckets[TargetBucket].peers.len == 0
+      rt.buckets[TargetBucket + 1].peers.len == 0

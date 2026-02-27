@@ -18,8 +18,14 @@ proc new*(
     replication = DefaultReplication,
     hasher: Opt[XorDHasher] = NoneHasher,
     maxBuckets: int = DefaultMaxBuckets,
+    purgeStaleEntries: bool = false,
 ): T =
-  RoutingTableConfig(replication: replication, hasher: hasher, maxBuckets: maxBuckets)
+  RoutingTableConfig(
+    replication: replication,
+    hasher: hasher,
+    maxBuckets: maxBuckets,
+    purgeStaleEntries: purgeStaleEntries,
+  )
 
 proc `$`*(rt: RoutingTable): string =
   "selfId(" & $rt.selfId & ") buckets(" & $rt.buckets & ")"
@@ -133,6 +139,26 @@ proc findClosestPeerIds*(rtable: RoutingTable, targetId: Key, count: int): seq[P
     .mapIt(it.toPeerId())
     .filterIt(it.isOk)
     .mapIt(it.value())
+
+proc purgeExpired*(rtable: var RoutingTable) =
+  ## Remove entries from all buckets that have not been refreshed within
+  ## DefaultBucketStaleTime. No-op if purgeStaleEntries is false.
+  if not rtable.config.purgeStaleEntries:
+    return
+
+  let now = Moment.now()
+  var totalPurged = 0
+  for i in 0 ..< rtable.buckets.len:
+    let before = rtable.buckets[i].peers.len
+    rtable.buckets[i].peers.keepItIf(now - it.lastSeen <= DefaultBucketStaleTime)
+    let purged = before - rtable.buckets[i].peers.len
+    if purged > 0:
+      debug "Purged stale routing table entries", bucketIdx = i, count = purged
+      totalPurged += purged
+
+  if totalPurged > 0:
+    kad_routing_table_replacements.inc(totalPurged)
+    updateRoutingTableMetrics(rtable)
 
 proc isStale*(bucket: Bucket): bool =
   if bucket.peers.len == 0:
