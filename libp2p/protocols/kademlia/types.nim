@@ -167,6 +167,7 @@ type
     replication*: int
     hasher*: Opt[XorDHasher]
     maxBuckets*: int
+    purgeStaleEntries*: bool
 
   RoutingTable* = ref object
     selfId*: Key
@@ -296,6 +297,10 @@ type KadDHTConfig* = ref object
   republishProvidedKeysInterval*: chronos.Duration
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
+  purgeStaleEntries*: bool
+    ## When true, routing table entries not refreshed within
+    ## DefaultBucketStaleTime are removed during each bootstrap cycle.
+    ## Defaults to false to preserve existing behaviour.
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -312,6 +317,7 @@ proc new*(
     republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
+    purgeStaleEntries: bool = false,
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,
@@ -327,6 +333,7 @@ proc new*(
     republishProvidedKeysInterval: republishProvidedKeysInterval,
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
+    purgeStaleEntries: purgeStaleEntries,
   )
 
 type KadDHT* = ref object of LPProtocol

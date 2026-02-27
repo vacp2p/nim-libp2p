@@ -21,6 +21,8 @@ proc bootstrap*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
+  kad.rtable.purgeExpired()
+
   discard await kad.findNode(kad.rtable.selfId)
 
   # Snapshot bucket count. findNode() can grow buckets and mutate length.
@@ -55,7 +57,9 @@ proc new*(
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
-    config = RoutingTableConfig.new(replication = config.replication),
+    config = RoutingTableConfig.new(
+      replication = config.replication, purgeStaleEntries = config.purgeStaleEntries
+    ),
   )
   let kad = T(
     rng: rng,
