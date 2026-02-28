@@ -119,13 +119,13 @@ proc hasKey*(kad: KademliaDiscovery, key: Key): bool =
 
 proc createSwitch*(): Switch =
   SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
+  .new()
+  .withRng(rng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .build()
 
 template setupKadSwitch*(
     validator: untyped, selector: untyped, bootstrapNodes: untyped = @[]
