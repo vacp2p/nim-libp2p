@@ -7,6 +7,7 @@ import ../../../libp2p/[peerid, crypto/crypto, multiaddress]
 import ../../../libp2p/protocols/capability_discovery/types
 import ../../../libp2p/protocols/kademlia/protobuf
 import ../../tools/[unittest, crypto]
+import ./utils
 
 # ===========================================================================
 # Unit tests
