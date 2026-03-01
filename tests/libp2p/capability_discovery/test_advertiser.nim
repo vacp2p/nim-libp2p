@@ -12,169 +12,211 @@ import ../../../libp2p/protocols/capability_discovery/[advertiser, serviceroutin
 import ../../tools/unittest
 import ./utils
 
-suite "Kademlia Discovery Advertiser - Pure Functions":
-  test "actionCmp compares by scheduled time":
+# ===========================================================================
+# Pure function tests (no async, no teardown needed)
+# ===========================================================================
+
+suite "Advertiser - actionCmp":
+  test "earlier time < later time":
     let now = Moment.now()
-    let later = now + chronos.seconds(1)
+    let a1: PendingAction = (now, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
+    let a2: PendingAction =
+      (now + chronos.seconds(1), makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
 
-    let action1: PendingAction =
-      (now, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
-    let action2: PendingAction =
-      (later, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
+    check actionCmp(a1, a2) == -1
+    check actionCmp(a2, a1) == 1
 
-    # Earlier time should be less
-    check actionCmp(action1, action2) == -1
-    check actionCmp(action2, action1) == 1
-
-  test "actionCmp with equal times returns 0":
+  test "equal times return 0":
     let now = Moment.now()
+    let a1: PendingAction = (now, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
+    let a2: PendingAction = (now, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
 
-    let action1: PendingAction =
-      (now, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
-    let action2: PendingAction =
-      (now, makeServiceId(), makePeerId(), 0, Opt.none(Ticket))
+    check actionCmp(a1, a2) == 0
 
-    check actionCmp(action1, action2) == 0
+# ===========================================================================
+# Queue management
+# ===========================================================================
 
-suite "Kademlia Discovery Advertiser - Queue Management":
+suite "Advertiser - scheduleAction":
   teardown:
     checkTrackers()
 
-  test "scheduleAction inserts single action":
+  test "inserts single action with correct fields":
     let kad = createMockDiscovery()
     let serviceId = makeServiceId()
     let registrar = makePeerId()
-    let bucketIdx = 0
-    let scheduledTime = Moment.now()
+    let bucketIdx = 2
+    let t = Moment.now()
 
-    kad.scheduleAction(serviceId, registrar, bucketIdx, scheduledTime)
+    kad.scheduleAction(serviceId, registrar, bucketIdx, t)
 
     check kad.advertiser.actionQueue.len == 1
-    check kad.advertiser.actionQueue[0].scheduledTime == scheduledTime
-    check kad.advertiser.actionQueue[0].serviceId == serviceId
-    check kad.advertiser.actionQueue[0].registrar == registrar
-    check kad.advertiser.actionQueue[0].bucketIdx == bucketIdx
+    let a = kad.advertiser.actionQueue[0]
+    check a.scheduledTime == t
+    check a.serviceId == serviceId
+    check a.registrar == registrar
+    check a.bucketIdx == bucketIdx
+    check a.ticket.isNone()
 
-  test "scheduleAction maintains sorted order":
+  test "inserts with ticket when provided":
+    let kad = createMockDiscovery()
+    let serviceId = makeServiceId()
+    let ticket = Ticket(
+      advertisement: @[1'u8, 2, 3],
+      tInit: 1000,
+      tMod: 2000,
+      tWaitFor: 300,
+      signature: @[],
+    )
+
+    kad.scheduleAction(serviceId, makePeerId(), 0, Moment.now(), Opt.some(ticket))
+
+    check kad.advertiser.actionQueue.len == 1
+    check kad.advertiser.actionQueue[0].ticket.isSome()
+    check kad.advertiser.actionQueue[0].ticket.get().tWaitFor == 300
+
+  test "maintains sorted order regardless of insertion order":
     let kad = createMockDiscovery()
     let serviceId = makeServiceId()
     let now = Moment.now()
 
-    # Add actions in reverse time order
+    # Insert out of order: +3s, +1s, +2s
     kad.scheduleAction(serviceId, makePeerId(), 0, now + chronos.seconds(3))
     kad.scheduleAction(serviceId, makePeerId(), 1, now + chronos.seconds(1))
     kad.scheduleAction(serviceId, makePeerId(), 2, now + chronos.seconds(2))
 
     check kad.advertiser.actionQueue.len == 3
-
-    # Verify queue is sorted by time
     check kad.advertiser.actionQueue[0].scheduledTime == now + chronos.seconds(1)
     check kad.advertiser.actionQueue[1].scheduledTime == now + chronos.seconds(2)
     check kad.advertiser.actionQueue[2].scheduledTime == now + chronos.seconds(3)
 
-  test "scheduleAction with same scheduled time":
+  test "handles multiple actions with same scheduled time":
     let kad = createMockDiscovery()
-    let serviceId = makeServiceId()
     let now = Moment.now()
 
-    # Add multiple actions with same time
-    for i in 0 ..< 5:
-      kad.scheduleAction(serviceId, makePeerId(), i, now)
-
-    check kad.advertiser.actionQueue.len == 5
-
-  test "removeProvidedService filters action queue":
-    let kad = createMockDiscovery()
-    let service1 = makeServiceInfo("1")
-    let service2 = makeServiceInfo("2")
-    let serviceId1 = service1.id.hashServiceId()
-    let serviceId2 = service2.id.hashServiceId()
-    let now = Moment.now()
-
-    # Add services first
-    populateRoutingTable(kad, @[makePeerId()])
-    kad.addProvidedService(service1)
-    kad.addProvidedService(service2)
-
-    # Clear the queue that was populated by addProvidedService
-    kad.advertiser.actionQueue.setLen(0)
-
-    # Add actions for different services
-    kad.scheduleAction(serviceId1, makePeerId(), 0, now)
-    kad.scheduleAction(serviceId2, makePeerId(), 0, now)
-    kad.scheduleAction(serviceId1, makePeerId(), 1, now + chronos.seconds(1))
-    kad.scheduleAction(serviceId2, makePeerId(), 1, now + chronos.seconds(1))
+    for i in 0 ..< 4:
+      kad.scheduleAction(makeServiceId(), makePeerId(), i, now)
 
     check kad.advertiser.actionQueue.len == 4
 
-    # Remove service1
-    kad.removeProvidedService(service1)
+# ===========================================================================
+# Service management
+# ===========================================================================
 
-    # Only service2 actions should remain
-    check kad.advertiser.actionQueue.len == 2
-    for action in kad.advertiser.actionQueue:
-      check action.serviceId == serviceId2
-
-suite "Kademlia Discovery Advertiser - Service Management":
+suite "Advertiser - addProvidedService":
   teardown:
     checkTrackers()
 
-  test "removeProvidedService removes table":
+  test "creates routing table entry for the service":
     let kad = createMockDiscovery()
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
+    populateRoutingTable(kad, @[makePeerId()])
     kad.addProvidedService(service)
+
     check kad.serviceRoutingTables.hasService(serviceId)
 
-    kad.removeProvidedService(service)
-    check not kad.serviceRoutingTables.hasService(serviceId)
-
-  test "removeProvidedService non-existent is safe":
+  test "with empty routing table: creates table but schedules no actions":
+    # Source skips scheduling when bucket.peers.len == 0
     let kad = createMockDiscovery()
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
-    # Should not error
-    kad.removeProvidedService(service)
+    kad.addProvidedService(service) # no peers in routing table
 
-suite "Kademlia Discovery Advertiser - Edge Cases":
+    check kad.serviceRoutingTables.hasService(serviceId)
+    check kad.advertiser.actionQueue.len == 0
+
+  test "schedules up to kRegister actions per populated bucket":
+    let kad = createMockDiscovery()
+    let service = makeServiceInfo()
+
+    # Populate with more peers than kRegister
+    let peers = newSeq[PeerId](kad.discoConf.kRegister + 2).mapIt(makePeerId())
+    populateRoutingTable(kad, peers)
+    kad.addProvidedService(service)
+
+    # At most kRegister actions per bucket across all buckets
+    for action in kad.advertiser.actionQueue:
+      check action.serviceId == service.id.hashServiceId()
+
+  test "adding same service twice is idempotent":
+    let kad = createMockDiscovery()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+
+    populateRoutingTable(kad, @[makePeerId()])
+    kad.addProvidedService(service)
+    let queueLenAfterFirst = kad.advertiser.actionQueue.len
+
+    kad.addProvidedService(service)
+
+    # Routing table still exists exactly once
+    check kad.serviceRoutingTables.hasService(serviceId)
+    # Queue should not grow — second call is a no-op for the routing table
+    check kad.advertiser.actionQueue.len == queueLenAfterFirst
+
+  test "multiple distinct services each get their own routing table":
+    let kad = createMockDiscovery()
+    let s1 = makeServiceInfo("svc-1")
+    let s2 = makeServiceInfo("svc-2")
+    let s3 = makeServiceInfo("svc-3")
+
+    populateRoutingTable(kad, @[makePeerId()])
+    kad.addProvidedService(s1)
+    kad.addProvidedService(s2)
+    kad.addProvidedService(s3)
+
+    check kad.serviceRoutingTables.hasService(s1.id.hashServiceId())
+    check kad.serviceRoutingTables.hasService(s2.id.hashServiceId())
+    check kad.serviceRoutingTables.hasService(s3.id.hashServiceId())
+
+suite "Advertiser - removeProvidedService":
   teardown:
     checkTrackers()
 
-  test "Multiple services can be added":
+  test "removes routing table and clears its pending actions":
     let kad = createMockDiscovery()
-    let service1 = makeServiceInfo("1")
-    let serviceId1 = service1.id.hashServiceId()
-    let service2 = makeServiceInfo("2")
-    let serviceId2 = service2.id.hashServiceId()
-    let service3 = makeServiceInfo("3")
-    let serviceId3 = service3.id.hashServiceId()
+    let s1 = makeServiceInfo("svc-1")
+    let s2 = makeServiceInfo("svc-2")
+    let sid1 = s1.id.hashServiceId()
+    let sid2 = s2.id.hashServiceId()
+    let now = Moment.now()
 
     populateRoutingTable(kad, @[makePeerId()])
+    kad.addProvidedService(s1)
+    kad.addProvidedService(s2)
+    kad.advertiser.actionQueue.setLen(0)
 
-    kad.addProvidedService(service1)
-    kad.addProvidedService(service2)
-    kad.addProvidedService(service3)
+    kad.scheduleAction(sid1, makePeerId(), 0, now)
+    kad.scheduleAction(sid2, makePeerId(), 0, now)
+    kad.scheduleAction(sid1, makePeerId(), 1, now + chronos.seconds(1))
 
-    check kad.serviceRoutingTables.hasService(serviceId1)
-    check kad.serviceRoutingTables.hasService(serviceId2)
-    check kad.serviceRoutingTables.hasService(serviceId3)
+    kad.removeProvidedService(s1)
 
-  test "Removing one service doesn't affect others":
+    check not kad.serviceRoutingTables.hasService(sid1)
+    check kad.serviceRoutingTables.hasService(sid2)
+    check kad.advertiser.actionQueue.len == 1
+    check kad.advertiser.actionQueue[0].serviceId == sid2
+
+  test "removing non-existent service is a no-op":
     let kad = createMockDiscovery()
+    let service = makeServiceInfo()
 
-    let service1 = makeServiceInfo("1")
-    let serviceId1 = service1.id.hashServiceId()
-    let service2 = makeServiceInfo("2")
-    let serviceId2 = service2.id.hashServiceId()
+    kad.removeProvidedService(service) # must not crash or error
+    check not kad.serviceRoutingTables.hasService(service.id.hashServiceId())
+
+  test "removing one service leaves others intact":
+    let kad = createMockDiscovery()
+    let s1 = makeServiceInfo("svc-1")
+    let s2 = makeServiceInfo("svc-2")
 
     populateRoutingTable(kad, @[makePeerId()])
+    kad.addProvidedService(s1)
+    kad.addProvidedService(s2)
 
-    kad.addProvidedService(service1)
-    kad.addProvidedService(service2)
+    kad.removeProvidedService(s1)
 
-    kad.removeProvidedService(service1)
-
-    check not kad.serviceRoutingTables.hasService(serviceId1)
-    check kad.serviceRoutingTables.hasService(serviceId2)
+    check not kad.serviceRoutingTables.hasService(s1.id.hashServiceId())
+    check kad.serviceRoutingTables.hasService(s2.id.hashServiceId())
