@@ -58,8 +58,7 @@ suite "Discoverer - lookup":
     # Tables are independent — count reflects both
     check disco.serviceRoutingTables.count() == 2
 
-    test "kRegister cap: result length never exceeds kRegister":
-    # Result size should be bounded by discovery config.
+  test "kRegister cap: result length never exceeds kRegister":
     let kRegister = 5
     let disco = createMockDiscovery(
       discoConf = KademliaDiscoveryConfig.new(kRegister = kRegister, bucketsCount = 16)
