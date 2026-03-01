@@ -58,17 +58,17 @@ suite "Discoverer - lookup":
     # Tables are independent — count reflects both
     check disco.serviceRoutingTables.count() == 2
 
-  test "fLookup cap: result length never exceeds fLookup":
-    # Even if the routing table is populated, found peers are bounded by fLookup.
-    # With no real peers responding, found stays 0; this verifies the cap is
-    # enforced structurally (len <= fLookup) regardless of response content.
-    let fLookup = 5
-    let disco = createMockDiscovery(fLookup = fLookup)
+    test "kRegister cap: result length never exceeds kRegister":
+    # Result size should be bounded by discovery config.
+    let kRegister = 5
+    let disco = createMockDiscovery(
+      discoConf = KademliaDiscoveryConfig.new(kRegister = kRegister, bucketsCount = 16)
+    )
     let serviceId = makeServiceId()
 
-    populateRoutingTable(disco, newSeq[PeerId](10).mapIt(makePeerId()))
+    populateRoutingTable(disco, newSeq.mapIt(makePeerId()))
 
     let res = waitFor disco.lookup(serviceId)
 
     check res.isOk()
-    check res.get().len <= fLookup
+    check res.get().len <= kRegister
