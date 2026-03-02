@@ -19,6 +19,81 @@ trace "chronicles has to be imported to fix Error: undeclared identifier: 'activ
 template checkEncodeDecode*(obj: untyped) =
   check obj == decode(typeof(obj), obj.encode()).get()
 
+proc makeNow*(): uint64 =
+  getTime().toUnix().uint64
+
+# Helper to create a random peer ID
+proc makePeerId*(): PeerId =
+  PeerId.init(PrivateKey.random(rng[]).get()).get()
+
+# Helper to create a service ID
+proc makeServiceId*(): ServiceId =
+  @[1'u8, 2, 3, 4]
+
+# Helper to create a service ID with a custom first byte
+proc makeServiceId*(id: byte): ServiceId =
+  @[id, 2'u8, 3, 4]
+
+proc makeServiceInfo*(): ServiceInfo =
+  ServiceInfo(id: "blabla", data: @[1, 2, 3, 4])
+
+proc makeServiceInfo*(id: string): ServiceInfo =
+  ServiceInfo(id: id, data: @[1, 2, 3, 4])
+
+proc makeTicket*(): Ticket =
+  Ticket(
+    advertisement: @[1'u8, 2, 3, 4],
+    tInit: 1_000_000,
+    tMod: 2_000_000,
+    tWaitFor: 3000,
+    signature: @[],
+  )
+
+proc signedTicket*(privateKey: PrivateKey): Ticket =
+  var t = makeTicket()
+  let res = t.sign(privateKey)
+  doAssert res.isOk(), "sign failed in test helper"
+  t
+
+proc createTestMultiAddress*(ip: string): MultiAddress =
+  MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
+
+proc createTestAdvertisement*(
+    serviceId: ServiceId = makeServiceId(),
+    peerId: PeerId = makePeerId(),
+    addrs: seq[MultiAddress] = @[],
+): Advertisement =
+  let privateKey = PrivateKey.random(rng[]).get()
+  let extRecord = ExtendedPeerRecord(
+    peerId: peerId,
+    seqNo: getTime().toUnix().uint64,
+    addresses: addrs.mapIt(AddressInfo(address: it)),
+    services: @[],
+  )
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
+proc createTestRegistrar*(): Registrar =
+  Registrar.new()
+
+proc fillCache*(registrar: Registrar, n: int, now: uint64) =
+  for i in 0 ..< n:
+    let ad = createTestAdvertisement(serviceId = makeServiceId(i.byte))
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
+
+proc peersCount*(rt: RoutingTable): int =
+  for b in rt.buckets:
+    result += b.peers.len
+
+proc mkKey*(seed: byte): Key =
+  result = newSeq[byte](32)
+  for i in 0 ..< 32:
+    result[i] = seed
+
+proc emptyMain*(sid: ServiceId): RoutingTable =
+  RoutingTable.new(
+    sid, config = RoutingTableConfig.new(replication = 3, maxBuckets = 16)
+  )
+
 proc hasKey*(kad: KademliaDiscovery, key: Key): bool =
   for b in kad.rtable.buckets:
     for ent in b.peers:
@@ -56,47 +131,6 @@ template setupKadSwitch*(
   switch.mount(kad)
   await switch.start()
   (switch, kad)
-
-# Helper to create a random peer ID
-proc makePeerId*(): PeerId =
-  PeerId.init(PrivateKey.random(rng[]).get()).get()
-
-# Helper to create a service ID
-proc makeServiceId*(): ServiceId =
-  @[1'u8, 2, 3, 4]
-
-proc makeServiceInfo*(): ServiceInfo =
-  ServiceInfo(id: "blabla", data: @[1, 2, 3, 4])
-
-# Helper to create a service ID with a custom first byte
-proc makeServiceId*(id: byte): ServiceId =
-  @[id, 2'u8, 3, 4]
-
-proc makeServiceInfo*(id: string): ServiceInfo =
-  ServiceInfo(id: id, data: @[1, 2, 3, 4])
-
-proc createTestAdvertisement*(
-    serviceId: ServiceId = makeServiceId(),
-    peerId: PeerId = makePeerId(),
-    addrs: seq[MultiAddress] = @[],
-): Advertisement =
-  # Create a private key for signing
-  let privateKey = PrivateKey.random(rng[]).get()
-  # Create ExtendedPeerRecord
-  let extRecord = ExtendedPeerRecord(
-    peerId: peerId,
-    seqNo: getTime().toUnix().uint64.uint64,
-    addresses: addrs.mapIt(AddressInfo(address: it)),
-    services: @[], # Empty services for now
-  )
-  # Sign and create SignedExtendedPeerRecord
-  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-
-proc createTestRegistrar*(): Registrar =
-  Registrar.new()
-
-proc createTestMultiAddress*(ip: string): MultiAddress =
-  MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
 
 # Helper to create a mock KademliaDiscovery for testing
 proc createMockDiscovery*(
@@ -174,3 +208,17 @@ proc connect*(kad1, kad2: KademliaDiscovery) {.async.} =
     kad2.switch.peerInfo.addrs
   kad2.switch.peerStore[AddressBook][kad1.switch.peerInfo.peerId] =
     kad1.switch.peerInfo.addrs
+
+proc createTestDisco*(
+    fReturn: int = 3, advertExpiry: float64 = -1, safetyParam: float64 = -1
+): KademliaDiscovery =
+  var conf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
+
+  conf.fReturn = fReturn
+
+  if advertExpiry >= 0:
+    conf.advertExpiry = advertExpiry
+  if safetyParam >= 0:
+    conf.safetyParam = safetyParam
+
+  result = createMockDiscovery(conf)
