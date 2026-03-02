@@ -3,6 +3,7 @@
 {.used.}
 
 import chronos, results
+import std/sequtils
 import
   ../../../libp2p/
     [crypto/crypto, multiaddress, extended_peer_record, peerid, routing_record]
