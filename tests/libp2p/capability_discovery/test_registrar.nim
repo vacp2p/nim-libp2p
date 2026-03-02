@@ -880,8 +880,9 @@ suite "Registrar - REGISTER state machine (integration)":
         let msg2 = Message(
           msgType: MessageType.register,
           key: serviceId,
-          register:
-            Opt.some(types.RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))),
+          register: Opt.some(
+            types.RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
+          ),
         )
         await disco.handleRegister(conn, msg2)
 
