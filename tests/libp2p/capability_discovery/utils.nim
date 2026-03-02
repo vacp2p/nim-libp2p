@@ -210,9 +210,7 @@ proc connect*(kad1, kad2: KademliaDiscovery) {.async.} =
     kad1.switch.peerInfo.addrs
 
 proc createTestDisco*(
-    fReturn: int = 3,
-    advertExpiry: float64 = -1,
-    safetyParam: float64 = -1,
+    fReturn: int = 3, advertExpiry: float64 = -1, safetyParam: float64 = -1
 ): KademliaDiscovery =
   var conf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
 
