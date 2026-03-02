@@ -707,4 +707,3 @@ suite "Registrar - GET_ADS response cap (integration)":
         check response.getAds.get().advertisements.len <= fReturn
 
         check response.getAds.get().advertisements.len <= fReturn
-
