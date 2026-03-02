@@ -19,10 +19,6 @@ trace "chronicles has to be imported to fix Error: undeclared identifier: 'activ
 template checkEncodeDecode*(obj: untyped) =
   check obj == decode(typeof(obj), obj.encode()).get()
 
-# ---------------------------------------------------------------------------
-# Primitive helpers (no dependencies on other helpers below)
-# ---------------------------------------------------------------------------
-
 proc makeNow*(): uint64 =
   getTime().toUnix().uint64
 
@@ -59,10 +55,6 @@ proc signedTicket*(privateKey: PrivateKey): Ticket =
   doAssert res.isOk(), "sign failed in test helper"
   t
 
-# ---------------------------------------------------------------------------
-# Advertisement / registrar helpers (depend on make* helpers above)
-# ---------------------------------------------------------------------------
-
 proc createTestMultiAddress*(ip: string): MultiAddress =
   MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
 
@@ -88,10 +80,6 @@ proc fillCache*(registrar: Registrar, n: int, now: uint64) =
     let ad = createTestAdvertisement(serviceId = makeServiceId(i.byte))
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
 
-# ---------------------------------------------------------------------------
-# Routing table helpers
-# ---------------------------------------------------------------------------
-
 proc peersCount*(rt: RoutingTable): int =
   for b in rt.buckets:
     result += b.peers.len
@@ -112,10 +100,6 @@ proc hasKey*(kad: KademliaDiscovery, key: Key): bool =
       if ent.nodeId == key:
         return true
   return false
-
-# ---------------------------------------------------------------------------
-# Switch / KademliaDiscovery construction helpers
-# ---------------------------------------------------------------------------
 
 proc createSwitch*(): Switch =
   SwitchBuilder
@@ -224,3 +208,19 @@ proc connect*(kad1, kad2: KademliaDiscovery) {.async.} =
     kad2.switch.peerInfo.addrs
   kad2.switch.peerStore[AddressBook][kad1.switch.peerInfo.peerId] =
     kad1.switch.peerInfo.addrs
+
+proc createTestDisco*(
+    fReturn: int = 3,
+    advertExpiry: float64 = -1,
+    safetyParam: float64 = -1,
+): KademliaDiscovery =
+  var conf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
+
+  conf.fReturn = fReturn
+
+  if advertExpiry >= 0:
+    conf.advertExpiry = advertExpiry
+  if safetyParam >= 0:
+    conf.safetyParam = safetyParam
+
+  result = createMockDiscovery(conf)
