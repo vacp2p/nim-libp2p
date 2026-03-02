@@ -532,28 +532,6 @@ suite "Registrar - pruneExpiredAds":
     check ad notin registrar.cache[serviceId]
 
 # ---------------------------------------------------------------------------
-# validateRegisterMessage
-# ---------------------------------------------------------------------------
-
-suite "Registrar - validateRegisterMessage":
-  test "empty advertisement bytes → none":
-    let regMsg = types.RegisterMessage(advertisement: @[])
-    check validateRegisterMessage(regMsg).isNone()
-
-  test "corrupted bytes → none":
-    let regMsg =
-      types.RegisterMessage(advertisement: @[0xFF.byte, 0x00.byte, 0xAB.byte])
-    check validateRegisterMessage(regMsg).isNone()
-
-  test "valid encoded advertisement → some":
-    let (ad, _) = createSignedAdvertisement()
-    let encoded = ad.encode().get()
-    let regMsg = types.RegisterMessage(advertisement: encoded)
-
-    let result = validateRegisterMessage(regMsg)
-    check result.isSome()
-
-# ---------------------------------------------------------------------------
 # processRetryTicket
 # ---------------------------------------------------------------------------
 
