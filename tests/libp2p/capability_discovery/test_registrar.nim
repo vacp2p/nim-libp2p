@@ -541,7 +541,8 @@ suite "Registrar - validateRegisterMessage":
     check validateRegisterMessage(regMsg).isNone()
 
   test "corrupted bytes → none":
-    let regMsg = types.RegisterMessage(advertisement: @[0xFF.byte, 0x00.byte, 0xAB.byte])
+    let regMsg =
+      types.RegisterMessage(advertisement: @[0xFF.byte, 0x00.byte, 0xAB.byte])
     check validateRegisterMessage(regMsg).isNone()
 
   test "valid encoded advertisement → some":
