@@ -154,7 +154,7 @@ jobs:
         with:
           name: Test Report
           path: tests/results_*.xml
-          reporter: java-junit
+          reporter: jest-junit
           list-suites: 'failed'
           list-tests: 'failed'
           fail-on-error: 'false'
