@@ -542,7 +542,8 @@ when false:
       let disco = createTestDisco()
       let ad = createTestAdvertisement()
       let encoded = ad.encode().get()
-      let regMsg = types.RegisterMessage(advertisement: encoded, ticket: Opt.none(Ticket))
+      let regMsg =
+        types.RegisterMessage(advertisement: encoded, ticket: Opt.none(Ticket))
 
       let tRemaining = disco.processRetryTicket(regMsg, ad, 500.0, makeNow())
 
