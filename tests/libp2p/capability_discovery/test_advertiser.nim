@@ -134,7 +134,9 @@ suite "Advertiser - addProvidedService":
     let service = makeServiceInfo()
 
     # Populate with more peers than kRegister
-    let peers = newSeq[PeerId](kad.discoConf.kRegister + 2).mapIt(makePeerId())
+    var peers = newSeq[PeerId](kad.discoConf.kRegister + 2)
+    for i in 0..<peers.len:
+      peers[i] = makePeerId()
     populateRoutingTable(kad, peers)
     kad.addProvidedService(service)
 
