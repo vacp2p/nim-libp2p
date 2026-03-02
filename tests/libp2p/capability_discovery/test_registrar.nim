@@ -538,7 +538,7 @@ suite "Registrar - pruneExpiredAds":
 suite "Registrar - processRetryTicket":
   test "no ticket present: returns t_wait unchanged":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
     let regMsg = types.RegisterMessage(advertisement: encoded, ticket: Opt.none(Ticket))
 
@@ -548,7 +548,7 @@ suite "Registrar - processRetryTicket":
 
   test "ticket with mismatched advertisement bytes: returns t_wait unchanged":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
 
     var ticket = Ticket(
@@ -567,7 +567,7 @@ suite "Registrar - processRetryTicket":
 
   test "ticket with invalid signature: returns t_wait unchanged":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
 
     let ticket = Ticket(
@@ -585,7 +585,7 @@ suite "Registrar - processRetryTicket":
 
   test "ticket submitted too early: returns t_wait unchanged":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
 
     let tMod: uint64 = 2000
@@ -607,7 +607,7 @@ suite "Registrar - processRetryTicket":
 
   test "valid ticket within window: returns reduced remaining time":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
 
     let tInit: uint64 = 1000
@@ -637,7 +637,7 @@ suite "Registrar - processRetryTicket":
 suite "Registrar - ticket signing":
   test "valid ticket verifies with correct public key":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
 
     var ticket = Ticket(
@@ -651,7 +651,7 @@ suite "Registrar - ticket signing":
 
   test "tampered t_wait_for invalidates signature":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
 
     var ticket = Ticket(
@@ -665,7 +665,7 @@ suite "Registrar - ticket signing":
 
   test "tampered t_mod invalidates signature":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
 
     var ticket = Ticket(
@@ -679,7 +679,7 @@ suite "Registrar - ticket signing":
 
   test "tampered advertisement bytes invalidates signature":
     let disco = createTestDisco()
-    let (ad, _) = createSignedAdvertisement()
+    let (ad, _) = createTestAdvertisement()
     let encoded = ad.encode().get()
 
     var ticket = Ticket(
@@ -729,7 +729,7 @@ suite "Registrar - acceptAdvertisement (integration)":
       proc test() {.async.} =
         let disco = createTestDisco()
         let conn = createTestConnection()
-        let (ad, _) = createSignedAdvertisement()
+        let (ad, _) = createTestAdvertisement()
         let serviceId = makeServiceId()
         let now = makeNow()
 
@@ -747,7 +747,7 @@ suite "Registrar - acceptAdvertisement (integration)":
       proc test() {.async.} =
         let disco = createTestDisco()
         let conn = createTestConnection()
-        let (ad, _) = createSignedAdvertisement()
+        let (ad, _) = createTestAdvertisement()
         let serviceId = makeServiceId()
         let t1 = makeNow()
 
@@ -769,8 +769,8 @@ suite "Registrar - acceptAdvertisement (integration)":
       proc test() {.async.} =
         let disco = createTestDisco()
         let conn = createTestConnection()
-        let (ad1, _) = createSignedAdvertisement()
-        let (ad2, _) = createSignedAdvertisement()
+        let (ad1, _) = createTestAdvertisement()
+        let (ad2, _) = createTestAdvertisement()
         let serviceId = makeServiceId()
         let now = makeNow()
 
@@ -793,7 +793,7 @@ suite "Registrar - GET_ADS response cap (integration)":
 
         # Admit fReturn + 2 ads for the same service
         for _ in 0 ..< fReturn + 2:
-          let (ad, _) = createSignedAdvertisement(serviceId = serviceId)
+          let (ad, _) = createTestAdvertisement(serviceId = serviceId)
           await disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
 
         # Issue GET_ADS and capture response
@@ -813,7 +813,7 @@ suite "Registrar - REGISTER state machine (integration)":
       proc test() {.async.} =
         let disco = createTestDisco()
         let conn = createCapturingConnection()
-        let (ad, _) = createSignedAdvertisement()
+        let (ad, _) = createTestAdvertisement()
         let encoded = ad.encode().get()
         let serviceId = makeServiceId()
 
@@ -841,7 +841,7 @@ suite "Registrar - REGISTER state machine (integration)":
         let disco = createTestDisco(advertExpiry = 900.0, safetyParam = 0.0)
         # safetyParam = 0 and empty cache → t_wait = 0 → immediate admission on retry
         let conn = createCapturingConnection()
-        let (ad, _) = createSignedAdvertisement()
+        let (ad, _) = createTestAdvertisement()
         let encoded = ad.encode().get()
         let serviceId = makeServiceId()
 
@@ -875,7 +875,7 @@ suite "Registrar - REGISTER state machine (integration)":
       proc test() {.async.} =
         let disco = createTestDisco(safetyParam = 0.0)
         let conn = createCapturingConnection()
-        let (ad, _) = createSignedAdvertisement()
+        let (ad, _) = createTestAdvertisement()
         let encoded = ad.encode().get()
         let serviceId = makeServiceId()
 
@@ -904,7 +904,7 @@ suite "Registrar - REGISTER state machine (integration)":
       proc test() {.async.} =
         let disco = createTestDisco()
         let conn = createCapturingConnection()
-        let (ad, _) = createSignedAdvertisement()
+        let (ad, _) = createTestAdvertisement()
         let encoded = ad.encode().get()
         let serviceId = makeServiceId()
 
