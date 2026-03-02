@@ -537,17 +537,17 @@ suite "Registrar - pruneExpiredAds":
 
 suite "Registrar - validateRegisterMessage":
   test "empty advertisement bytes → none":
-    let regMsg = RegisterMessage(advertisement: @[])
+    let regMsg = types.RegisterMessage(advertisement: @[])
     check validateRegisterMessage(regMsg).isNone()
 
   test "corrupted bytes → none":
-    let regMsg = RegisterMessage(advertisement: @[0xFF.byte, 0x00.byte, 0xAB.byte])
+    let regMsg = types.RegisterMessage(advertisement: @[0xFF.byte, 0x00.byte, 0xAB.byte])
     check validateRegisterMessage(regMsg).isNone()
 
   test "valid encoded advertisement → some":
     let (ad, _) = createSignedAdvertisement()
     let encoded = ad.encode().get()
-    let regMsg = RegisterMessage(advertisement: encoded)
+    let regMsg = types.RegisterMessage(advertisement: encoded)
 
     let result = validateRegisterMessage(regMsg)
     check result.isSome()
@@ -561,7 +561,7 @@ suite "Registrar - processRetryTicket":
     let disco = createTestDisco()
     let (ad, _) = createSignedAdvertisement()
     let encoded = ad.encode().get()
-    let regMsg = RegisterMessage(advertisement: encoded, ticket: Opt.none(Ticket))
+    let regMsg = types.RegisterMessage(advertisement: encoded, ticket: Opt.none(Ticket))
 
     let tRemaining = disco.processRetryTicket(regMsg, ad, 500.0, makeNow())
 
@@ -580,7 +580,7 @@ suite "Registrar - processRetryTicket":
       signature: @[],
     )
     let _ = ticket.sign(disco.switch.peerInfo.privateKey)
-    let regMsg = RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
+    let regMsg = types.RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
 
     let tRemaining = disco.processRetryTicket(regMsg, ad, 500.0, makeNow())
 
@@ -598,7 +598,7 @@ suite "Registrar - processRetryTicket":
       tWaitFor: 300,
       signature: @[0xBA.byte, 0xAD.byte], # garbage signature
     )
-    let regMsg = RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
+    let regMsg = types.RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
 
     let tRemaining = disco.processRetryTicket(regMsg, ad, 500.0, makeNow())
 
@@ -620,7 +620,7 @@ suite "Registrar - processRetryTicket":
       signature: @[],
     )
     let _ = ticket.sign(disco.switch.peerInfo.privateKey)
-    let regMsg = RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
+    let regMsg = types.RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
 
     let tRemaining = disco.processRetryTicket(regMsg, ad, 500.0, 1000) # now=1000
 
@@ -645,7 +645,7 @@ suite "Registrar - processRetryTicket":
       signature: @[],
     )
     let _ = ticket.sign(disco.switch.peerInfo.privateKey)
-    let regMsg = RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
+    let regMsg = types.RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))
 
     let tRemaining = disco.processRetryTicket(regMsg, ad, 500.0, now)
     # t_remaining = t_wait - (now - t_init) = 500 - (1300 - 1000) = 200
@@ -841,7 +841,7 @@ suite "Registrar - REGISTER state machine (integration)":
         let msg = Message(
           msgType: MessageType.register,
           key: serviceId,
-          register: Opt.some(RegisterMessage(advertisement: encoded)),
+          register: Opt.some(types.RegisterMessage(advertisement: encoded)),
         )
         await disco.handleRegister(conn, msg)
 
@@ -870,7 +870,7 @@ suite "Registrar - REGISTER state machine (integration)":
         let msg1 = Message(
           msgType: MessageType.register,
           key: serviceId,
-          register: Opt.some(RegisterMessage(advertisement: encoded)),
+          register: Opt.some(types.RegisterMessage(advertisement: encoded)),
         )
         await disco.handleRegister(conn, msg1)
         let ticket = conn.lastMessage().register.get().ticket.get()
@@ -880,7 +880,7 @@ suite "Registrar - REGISTER state machine (integration)":
           msgType: MessageType.register,
           key: serviceId,
           register:
-            Opt.some(RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))),
+            Opt.some(types.RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))),
         )
         await disco.handleRegister(conn, msg2)
 
@@ -908,7 +908,7 @@ suite "Registrar - REGISTER state machine (integration)":
         let msg = Message(
           msgType: MessageType.register,
           key: serviceId,
-          register: Opt.some(RegisterMessage(advertisement: encoded)),
+          register: Opt.some(types.RegisterMessage(advertisement: encoded)),
         )
         await disco.handleRegister(conn, msg)
 
@@ -932,7 +932,7 @@ suite "Registrar - REGISTER state machine (integration)":
         let msg1 = Message(
           msgType: MessageType.register,
           key: serviceId,
-          register: Opt.some(RegisterMessage(advertisement: encoded)),
+          register: Opt.some(types.RegisterMessage(advertisement: encoded)),
         )
         await disco.handleRegister(conn, msg1)
         var ticket = conn.lastMessage().register.get().ticket.get()
@@ -945,7 +945,7 @@ suite "Registrar - REGISTER state machine (integration)":
           msgType: MessageType.register,
           key: serviceId,
           register:
-            Opt.some(RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))),
+            Opt.some(types.RegisterMessage(advertisement: encoded, ticket: Opt.some(ticket))),
         )
         await disco.handleRegister(conn, msg2)
 
