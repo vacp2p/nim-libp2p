@@ -66,8 +66,8 @@ suite "Discoverer - lookup":
     )
     let serviceId = makeServiceId()
 
-    var peers = newSeq[PeerId](kRegister + 2)   # or any size you want to populate with
-    for i in 0..<peers.len:
+    var peers = newSeq[PeerId](kRegister + 2) # or any size you want to populate with
+    for i in 0 ..< peers.len:
       peers[i] = makePeerId()
 
     populateRoutingTable(disco, peers)
