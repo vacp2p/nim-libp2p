@@ -41,7 +41,6 @@ const GossipBackoffPeriod* = 1.minutes
 
 const
   BackoffSlackTime* = 2 # seconds
-  PingsPeerBudget* = 100 # maximum of 6.4kb/heartbeat (6.4kb/s with default 1 second/hb)
   IHavePeerBudget* = 10
   PreamblePeerBudget* = 10
   PullOperation* = true

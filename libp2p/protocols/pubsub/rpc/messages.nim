@@ -62,6 +62,7 @@ type
 
     # Experimental extensions fields:
     testExtension*: Option[bool]
+    pingpongExtension*: Option[bool]
 
   ControlMessage* = object
     ihave*: seq[ControlIHave]
@@ -106,15 +107,17 @@ type
     partialMessage*: seq[byte]
     partsMetadata*: seq[byte]
 
+  PingPongExtensionRPC* = object
+    ping*: seq[byte]
+    pong*: seq[byte]
+
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
     control*: Option[ControlMessage]
     partialMessageExtension*: Option[PartialMessageExtensionRPC]
     testExtension*: Option[TestExtensionRPC]
-    # should be experimental extension in future
-    ping*: seq[byte]
-    pong*: seq[byte]
+    pingpongExtension*: Option[PingPongExtensionRPC]
 
 func shortLog*(s: ControlIHave): auto =
   (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
@@ -272,10 +275,14 @@ proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
 
 static:
-  expectedFields(ControlExtensions, @["partialMessageExtension", "testExtension"])
+  expectedFields(ControlExtensions, @["partialMessageExtension", "testExtension", "pingpongExtension"])
 proc byteSize(controlExtensions: ControlExtensions): int =
   controlExtensions.partialMessageExtension.byteSize() + #
-  controlExtensions.testExtension.byteSize()
+  controlExtensions.testExtension.byteSize() + #
+  controlExtensions.pingpongExtension.byteSize()
+
+proc byteSize(rpc: PingPongExtensionRPC): int =
+  rpc.ping.len + rpc.pong.len
 
 proc byteSize(controlExtensions: Option[ControlExtensions]): int =
   controlExtensions.withValue(ce):
@@ -327,16 +334,17 @@ static:
     RPCMsg,
     @[
       "subscriptions", "messages", "control", "partialMessageExtension",
-      "testExtension", "ping", "pong",
+      "testExtension", "pingpongExtension",
     ],
   )
 proc byteSize*(rpc: RPCMsg): int =
   result =
-    rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) + rpc.ping.len +
-    rpc.pong.len
+    rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) 
   rpc.control.withValue(ctrl):
     result += ctrl.byteSize
   rpc.partialMessageExtension.withValue(pme):
     result += pme.byteSize
   rpc.testExtension.withValue(te):
     result += te.byteSize
+  rpc.pingpongExtension.withValue(ppe):
+    result += ppe.byteSize

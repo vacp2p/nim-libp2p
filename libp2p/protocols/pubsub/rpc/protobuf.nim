@@ -166,6 +166,19 @@ proc write*(pb: var ProtoBuffer, field: int, pme: PartialMessageExtensionRPC) =
       ipb.getLen().int64, labelValues = ["partial_message"]
     )
 
+proc write*(pb: var ProtoBuffer, field: int, ppe: PingPongExtensionRPC) =
+  var ipb = initProtoBuffer()
+  ipb.write(1, ppe.ping)
+  ipb.write(2, ppe.pong)
+
+  ipb.finish()
+  pb.write(field, ipb)
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(
+      ipb.getLen().int64, labelValues = ["ping_pong"]
+    )
+
 proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   var pb = initProtoBuffer()
   if len(msg.fromPeer) > 0 and not anonymize:
@@ -472,14 +485,10 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   msg.partialMessageExtension.withValue(pme):
     pb.write(10, pme)
 
-  # TODO(nim-libp2p#1999)
-  # using fields which are unlikely to be used by other extensions
-  if msg.ping.len > 0:
-    pb.write(60, msg.ping)
-  if msg.pong.len > 0:
-    pb.write(61, msg.pong)
-
+  # Experimental extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
+  msg.pingpongExtension.withValue(ppe):
+    pb.write(300000, ppe)
   if msg.testExtension.isSome():
     # if set write empty bytes, this will set filed tag
     pb.write(6492434, newSeq[byte](0))
@@ -498,6 +507,26 @@ proc decodeTestExtensionRPC*(
     ok(some(TestExtensionRPC()))
   else:
     ok(none(TestExtensionRPC))
+
+proc decodePingPongExtensionRPC*(
+    pb: ProtoBuffer, field: int
+): ProtoResult[Option[PingPongExtensionRPC]] {.inline.} =
+  trace "PingPongExtensionRPC: decoding message"
+
+  var bytes: seq[byte]
+  if ?pb.getField(field, bytes):
+    trace "PingPongExtensionRPC: is set"
+  else:
+    trace "PingPongExtensionRPC: is not set"
+    return ok(none(PingPongExtensionRPC))
+
+  var pbp = initProtoBuffer(bytes)
+  var ppe = PingPongExtensionRPC()
+
+  discard pbp.getField(1, ppe.ping)
+  discard pbp.getField(2, ppe.pong) 
+
+  ok(some(ppe))
 
 proc decodePartialMessageExtensionRPC*(
     pb: ProtoBuffer, field: int
@@ -547,11 +576,9 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   assign(rpcMsg.control, ?pb.decodeControl())
   rpcMsg.partialMessageExtension = ?pb.decodePartialMessageExtensionRPC(10)
 
-  discard ?pb.getField(60, rpcMsg.ping)
-  discard ?pb.getField(61, rpcMsg.pong)
-
   # Experimental extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
+  rpcMsg.pingpongExtension = ?pb.decodePingPongExtensionRPC(300000)
   rpcMsg.testExtension = ?pb.decodeTestExtensionRPC(6492434)
 
   ok(rpcMsg)
