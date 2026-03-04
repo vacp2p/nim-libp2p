@@ -16,6 +16,7 @@ import ../../../../libp2p/[multiaddress, peerid]
 import ../../../../libp2p/crypto/secp
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/connectivity/relay/client
+import ../../../../libp2p/services/autorelayservice
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
 import ../../../../libp2p/protocols/kademlia_discovery/types
@@ -261,7 +262,11 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   )
 
   if config.circuitRelay == 1:
-    switchBuilder = switchBuilder.withCircuitRelay(RelayClient.new())
+    let relayClient = RelayClient.new()
+    let autoRelayService = AutoRelayService.new(1, relayClient, nil, newRng())
+    switchBuilder = switchBuilder
+      .withCircuitRelay(relayClient)
+      .withServices(@[Service(autoRelayService)])
 
   if config.autonat == 1:
     switchBuilder = switchBuilder.withAutonat()
