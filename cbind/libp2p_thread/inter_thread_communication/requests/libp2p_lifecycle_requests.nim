@@ -262,11 +262,11 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   )
 
   if config.circuitRelay == 1:
-    let relayClient = RelayClient.new()
+    let relayClient = RelayClient.new(canHop = true)
     let autoRelayService = AutoRelayService.new(1, relayClient, nil, newRng())
-    switchBuilder = switchBuilder
-      .withCircuitRelay(relayClient)
-      .withServices(@[Service(autoRelayService)])
+    switchBuilder = switchBuilder.withCircuitRelay(relayClient).withServices(
+        @[Service(autoRelayService)]
+      )
 
   if config.autonat == 1:
     switchBuilder = switchBuilder.withAutonat()
