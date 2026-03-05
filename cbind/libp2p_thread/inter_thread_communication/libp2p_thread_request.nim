@@ -249,11 +249,27 @@ proc handleReservationRes(
   let rsvp = res.valueOr:
     foreignThreadGc:
       let msg = $error
-      cb(RET_ERR.cint, nil, 0, 0, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+      cb(
+        RET_ERR.cint,
+        nil,
+        0,
+        0,
+        msg[0].addr,
+        cast[csize_t](len(msg)),
+        request[].userData,
+      )
     return
 
   foreignThreadGc:
-    cb(RET_OK.cint, rsvp[].addrs, rsvp[].addrsLen, rsvp[].expireTime, nil, 0, request[].userData)
+    cb(
+      RET_OK.cint,
+      rsvp[].addrs,
+      rsvp[].addrsLen,
+      rsvp[].expireTime,
+      nil,
+      0,
+      request[].userData,
+    )
 
   deallocReservationResult(rsvp)
 

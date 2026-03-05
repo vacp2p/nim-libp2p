@@ -213,7 +213,9 @@ proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
     mix = Opt.some(mixProto)
   libp2p.mix = mix
 
-proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig, relayClient: Opt[RelayClient]) =
+proc mountProtocols(
+    libp2p: var LibP2P, config: Libp2pConfig, relayClient: Opt[RelayClient]
+) =
   if config.mountGossipsub != 0:
     libp2p.mountGossipsub(config)
   if config.mountKad != 0 or config.mountKadDiscovery != 0:

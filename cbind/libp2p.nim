@@ -1172,7 +1172,10 @@ proc libp2p_dial_circuit_relay(
     ctx,
     RequestType.STREAM,
     StreamRequest.createShared(
-      StreamMsgType.DIAL_CIRCUIT_RELAY, peerId = peerId, multiaddr = multiaddr, proto = proto
+      StreamMsgType.DIAL_CIRCUIT_RELAY,
+      peerId = peerId,
+      multiaddr = multiaddr,
+      proto = proto,
     ),
     callback,
     userData,
