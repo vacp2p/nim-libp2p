@@ -39,12 +39,11 @@ proc deallocReservationResult*(res: ptr ReservationResult) =
   deallocCStringArray(res[].addrs, res[].addrsLen)
   deallocShared(res)
 
-proc allocReservationResult(rsvp: Rsvp): ptr ReservationResult =
+proc allocReservationResult(addrs: seq[string], expire: uint64): ptr ReservationResult =
   let res = cast[ptr ReservationResult](createShared(ReservationResult, 1))
-  res[].expireTime = rsvp.expire
-  let addrStrs = rsvp.addrs.mapIt($it)
-  res[].addrsLen = addrStrs.len.csize_t
-  res[].addrs = allocCStringArrayFromSeq(addrStrs)
+  res[].expireTime = expire
+  res[].addrsLen = addrs.len.csize_t
+  res[].addrs = allocCStringArrayFromSeq(addrs)
   res
 
 proc processReserve*(
@@ -73,4 +72,5 @@ proc processReserve*(
     except DialFailedError as exc:
       return err("dial failed: " & exc.msg)
 
-  return ok(allocReservationResult(rsvp))
+  let circuitAddrs = rsvp.addrs.mapIt($it & "/p2p-circuit")
+  return ok(allocReservationResult(circuitAddrs, rsvp.expire))
