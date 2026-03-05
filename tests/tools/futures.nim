@@ -3,8 +3,8 @@
 
 import chronos/futures, chronos, sequtils
 
-proc completedFuture*(): Future[void] =
-  let f = newFuture[void]()
+proc newFutureCompleted*[T](): Future[T] =
+  let f = newFuture[T]()
   f.complete()
   f
 

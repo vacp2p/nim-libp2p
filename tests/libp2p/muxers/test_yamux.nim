@@ -33,8 +33,8 @@ suite "Yamux":
       yamuxb {.inject.} =
         Yamux.new(connb, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
     var
-      handlera = completedFuture()
-      handlerb = completedFuture()
+      handlera = newFutureCompleted[void]()
+      handlerb = newFutureCompleted[void]()
 
     if startHandlera:
       handlera = yamuxa.handle()
