@@ -15,7 +15,7 @@ import
   ./libp2p_thread/inter_thread_communication/libp2p_thread_request,
   ./libp2p_thread/inter_thread_communication/requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
-    libp2p_kademlia_requests, libp2p_stream_requests,
+    libp2p_kademlia_requests, libp2p_stream_requests, libp2p_relay_requests,
   ],
   ../libp2p,
   ../libp2p/crypto/crypto,
@@ -1143,6 +1143,77 @@ proc libp2p_kad_random_records(
   ).isOkOr:
     let msg = "libp2p error: " & $error
     callback(RET_ERR.cint, nil, 0, addr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_dial_circuit_relay(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    multiaddr: cstring,
+    proto: cstring,
+    callback: ConnectionCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil():
+    let msg = "peerId is nil"
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  if multiaddr.isNil():
+    let msg = "multiaddr is nil"
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.STREAM,
+    StreamRequest.createShared(
+      StreamMsgType.DIAL_CIRCUIT_RELAY, peerId = peerId, multiaddr = multiaddr, proto = proto
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  RET_OK.cint
+
+proc libp2p_circuit_relay_reserve(
+    ctx: ptr LibP2PContext,
+    relayPeerId: cstring,
+    relayAddrs: ptr cstring,
+    relayAddrsLen: csize_t,
+    callback: ReservationCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if relayPeerId.isNil():
+    let msg = "relayPeerId is nil"
+    callback(RET_ERR.cint, nil, 0, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.RELAY,
+    RelayRequest.createShared(
+      RelayMsgType.RELAY_RESERVE,
+      peerId = relayPeerId,
+      multiaddrs = relayAddrs,
+      multiaddrsLen = relayAddrsLen,
+    ),
+    callback,
+    CallbackKind.RESERVATION,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
     return RET_ERR.cint
 
   RET_OK.cint

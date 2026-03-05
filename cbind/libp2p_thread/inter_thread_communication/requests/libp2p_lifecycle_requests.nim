@@ -22,6 +22,7 @@ import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/mix
 import ../../../../libp2p/protocols/mix/mix_protocol
 import ../../../../libp2p/protocols/mix/mix_node
+import ../../../../libp2p/protocols/connectivity/relay/client
 
 const
   DefaultDnsResolver = "1.1.1.1:53"
@@ -212,7 +213,7 @@ proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
     mix = Opt.some(mixProto)
   libp2p.mix = mix
 
-proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
+proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig, relayClient: Opt[RelayClient]) =
   if config.mountGossipsub != 0:
     libp2p.mountGossipsub(config)
   if config.mountKad != 0 or config.mountKadDiscovery != 0:
@@ -221,6 +222,7 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   libp2p.switch.mount(Ping.new())
 
   libp2p.mountMix(config)
+  libp2p.relayClient = relayClient
 
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
@@ -262,6 +264,12 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   if config.circuitRelay == 1:
     switchBuilder = switchBuilder.withCircuitRelay()
 
+  var relayClientOpt = Opt.none(RelayClient)
+  if config.circuitRelayClient == 1:
+    let cl = RelayClient.new()
+    switchBuilder = switchBuilder.withCircuitRelay(cl)
+    relayClientOpt = Opt.some(cl)
+
   if config.autonat == 1:
     switchBuilder = switchBuilder.withAutonat()
 
@@ -279,11 +287,12 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     kad: Opt.none(KadDHT),
     mix: Opt.none(MixProtocol),
     mixNodeInfo: Opt.none(MixNodeInfo),
+    relayClient: Opt.none(RelayClient),
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
   )
 
-  mountProtocols(ret, config)
+  mountProtocols(ret, config, relayClientOpt)
 
   return ret
 
@@ -306,6 +315,7 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     maxOut: -1,
     maxConnsPerPeer: DefaultMaxConnectionsPerPeer,
     circuitRelay: 0,
+    circuitRelayClient: 0,
     autonat: 0,
     autonatV2: 0,
     autonatV2Server: 0,
@@ -334,6 +344,7 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.maxOut = config[].maxOut
   resolved.maxConnsPerPeer = config[].maxConnsPerPeer
   resolved.circuitRelay = config[].circuitRelay
+  resolved.circuitRelayClient = config[].circuitRelayClient
   resolved.autonat = config[].autonat
   resolved.autonatV2 = config[].autonatV2
   resolved.autonatV2Server = config[].autonatV2Server
