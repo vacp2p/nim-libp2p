@@ -6,9 +6,9 @@ import ../rpc/messages
 
 type
   PeerExtensions* = object # holds all capabilities that are supported with extensions.
-    testExtension*: bool # is "test extension" supported? 
-    partialMessageExtension*: bool # is "partial message extension" supported?
-    pingpongExtension*: bool # "is ping pong extensions" supported?
+    testExtension*: bool
+    partialMessageExtension*: bool
+    pingpongExtension*: bool
 
   Extension* = ref object of RootObj
     #
