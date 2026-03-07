@@ -105,7 +105,7 @@ proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
   extensions.pingpongExtension.withValue(ppe):
-    ipb.write(300000, ppe)
+    ipb.write(3145728, ppe)
   extensions.testExtension.withValue(te):
     ipb.write(6492434, te)
 
@@ -325,7 +325,7 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
 
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
-  if ?pb.getField(300000, control.pingpongExtension):
+  if ?pb.getField(3145728, control.pingpongExtension):
     trace "decodeExtensions: read pingpongExtension",
       pingpongExtension = control.pingpongExtension
   else:
@@ -493,7 +493,7 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   # Experimental extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
   msg.pingpongExtension.withValue(ppe):
-    pb.write(300000, ppe)
+    pb.write(3145728, ppe)
   if msg.testExtension.isSome():
     # if set write empty bytes, this will set filed tag
     pb.write(6492434, newSeq[byte](0))
@@ -583,7 +583,7 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
 
   # Experimental extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
-  rpcMsg.pingpongExtension = ?pb.decodePingPongExtensionRPC(300000)
+  rpcMsg.pingpongExtension = ?pb.decodePingPongExtensionRPC(3145728)
   rpcMsg.testExtension = ?pb.decodeTestExtensionRPC(6492434)
 
   ok(rpcMsg)
