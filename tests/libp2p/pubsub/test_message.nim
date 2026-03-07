@@ -176,7 +176,7 @@ suite "Message":
       partialMessageExtension: some(partialMessageExtensionRPC), # 4 bytes
       pingpongExtension: some(pingPongExtensionRPC), # 4 bytes
     )
-    check byteSize(rpcMsg) == 30 + 32 + 2 + 2 + 38 + 4 # Total: 108 bytes
+    check byteSize(rpcMsg) == 30 + 32 + 38 + 4 + 4 # Total: 108 bytes
 
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
   # check value before & after decoding equal using protoc cmd tool for reference
