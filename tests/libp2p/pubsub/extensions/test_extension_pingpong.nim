@@ -16,11 +16,11 @@ type PeerPong = object
 type CallbackRecorder = ref object
   sentPongs: seq[PeerPong]
 
-proc config(c: CallbackRecorder, peerBudget: int = 6400): PingPongExtensionConfig =
+proc config(c: CallbackRecorder, peerBudgetBytes: int = 6400): PingPongExtensionConfig =
   proc sendPong(peerId: PeerId, pong: seq[byte]) {.gcsafe, raises: [].} =
     c.sentPongs.add(PeerPong(peerId: peerId, pong: pong))
 
-  return PingPongExtensionConfig(sendPong: sendPong, peerBudget: peerBudget)
+  return PingPongExtensionConfig(sendPong: sendPong, peerBudgetBytes: peerBudgetBytes)
 
 proc handlePingPong(ext: PingPongExtension, peerId: PeerId, ping: seq[byte]) =
   ext.onHandleRPC(
@@ -45,10 +45,10 @@ suite "GossipSub Extensions :: PingPong Extension":
       cfg.sendPong = nil
       let ext = PingPongExtension.new(cfg)
 
-  test "config validation - peerBudget must be positive":
+  test "config validation - peerBudgetBytes must be positive":
     expect AssertionDefect:
       var cfg = CallbackRecorder().config()
-      cfg.peerBudget = 0
+      cfg.peerBudgetBytes = 0
       let ext = PingPongExtension.new(cfg)
 
   test "ping triggers pong with same bytes":
@@ -80,7 +80,7 @@ suite "GossipSub Extensions :: PingPong Extension":
 
   test "budget is tracked and exhausted within heartbeat":
     var cr = CallbackRecorder()
-    let ext = PingPongExtension.new(cr.config(peerBudget = 10))
+    let ext = PingPongExtension.new(cr.config(peerBudgetBytes = 10))
 
     # first ping: 6 bytes, within budget
     let ping1 = @[1'u8, 2, 3, 4, 5, 6]
@@ -94,7 +94,7 @@ suite "GossipSub Extensions :: PingPong Extension":
 
   test "budget is per peer":
     var cr = CallbackRecorder()
-    let ext = PingPongExtension.new(cr.config(peerBudget = 5))
+    let ext = PingPongExtension.new(cr.config(peerBudgetBytes = 5))
 
     let peerId2 = PeerId.random(rng).get()
 
@@ -112,7 +112,7 @@ suite "GossipSub Extensions :: PingPong Extension":
 
   test "heartbeat resets budget for all peers":
     var cr = CallbackRecorder()
-    let ext = PingPongExtension.new(cr.config(peerBudget = 5))
+    let ext = PingPongExtension.new(cr.config(peerBudgetBytes = 5))
 
     let peerId2 = PeerId.random(rng).get()
 
