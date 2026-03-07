@@ -2,9 +2,6 @@
 # Copyright (c) Status Research & Development GmbH 
 
 import chronos/futures, chronos, sequtils
-import ../../libp2p/utils/future
-
-export future.newFutureCompleted
 
 proc allFuturesRaising*(
     args: varargs[FutureBase]
