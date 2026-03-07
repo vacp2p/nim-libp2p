@@ -9,7 +9,7 @@ import ./[extensions_types]
 type
   PingPongExtensionConfig* = object
     sendPong*: proc(peerID: PeerId, pong: seq[byte]) {.gcsafe, raises: [].}
-    peerBudget*: int = 6400 # bytes per heartbeat
+    peerBudgetBytes*: int = 6400 # bytes per heartbeat per peer
 
   PingPongExtension* = ref object of Extension
     config: PingPongExtensionConfig
@@ -17,7 +17,7 @@ type
 
 proc doAssert(config: PingPongExtensionConfig) =
   doAssert(config.sendPong != nil, "PingPongExtensionConfig.sendPong must be set")
-  doAssert(config.peerBudget > 0, "PingPongExtensionConfig.peerBudget must be set")
+  doAssert(config.peerBudgetBytes > 0, "PingPongExtensionConfig.peerBudgetBytes must be set")
 
 proc new*(
     T: typedesc[PingPongExtension], config: PingPongExtensionConfig
@@ -44,6 +44,6 @@ method onHandleRPC*(
 ) {.gcsafe, raises: [].} =
   rpc.pingpongExtension.withValue(ppe):
     if ppe.ping.len > 0 and
-        ext.usedBudget.getOrDefault(peerId) + ppe.ping.len <= ext.config.peerBudget:
+        ext.usedBudget.getOrDefault(peerId) + ppe.ping.len <= ext.config.peerBudgetBytes:
       ext.usedBudget[peerId] = ext.usedBudget.getOrDefault(peerId) + ppe.ping.len
       ext.config.sendPong(peerId, ppe.ping)
