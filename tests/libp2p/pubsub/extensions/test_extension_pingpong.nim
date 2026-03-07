@@ -24,7 +24,9 @@ proc config(c: CallbackRecorder, peerBudget: int = 6400): PingPongExtensionConfi
   return PingPongExtensionConfig(sendPong: sendPong, peerBudget: peerBudget)
 
 proc handlePingPong(ext: PingPongExtension, peerId: PeerId, ping: seq[byte]) =
-  ext.onHandleRPC(peerId, RPCMsg(pingpongExtension: some(PingPongExtensionRPC(ping: ping))))
+  ext.onHandleRPC(
+    peerId, RPCMsg(pingpongExtension: some(PingPongExtensionRPC(ping: ping)))
+  )
 
 suite "GossipSub Extensions :: PingPong Extension":
   let peerId = PeerId.random(rng).get()
