@@ -3,7 +3,6 @@
 
 {.used.}
 
-import tables
 import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/
