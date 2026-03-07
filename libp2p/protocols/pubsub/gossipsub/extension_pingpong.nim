@@ -18,7 +18,8 @@ type
 proc doAssert(config: PingPongExtensionConfig) =
   doAssert(config.sendPong != nil, "PingPongExtensionConfig.sendPong must be set")
   doAssert(
-    config.peerBudgetBytes > 0, "PingPongExtensionConfig.peerBudgetBytes must be set"
+    config.peerBudgetBytes > 0,
+    "PingPongExtensionConfig.peerBudgetBytes must be positive (> 0)"
   )
 
 proc new*(
