@@ -146,14 +146,16 @@ func shortLogOpt[T](s: Option[T]): string =
 func shortLog*(so: Option[ControlExtensions]): auto =
   if so.isNone():
     (
-      partialMessageExtension: "<unset>", #
+      partialMessageExtension: "<unset>",
       testExtension: "<unset>",
+      pingpongExtension: "<unset>",
     )
   else:
     let s = so.get()
     (
       partialMessageExtension: shortLogOpt(s.partialMessageExtension),
       testExtension: shortLogOpt(s.testExtension),
+      pingpongExtension: shortLogOpt(s.pingpongExtension),
     )
 
 func shortLog*(c: ControlMessage): auto =
