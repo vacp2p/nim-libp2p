@@ -134,7 +134,6 @@ type
       ## expensive to look up, so we apply the same salting to them as during
       ## unvalidated message processing
     iHaveBudget*: int
-    pingBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
