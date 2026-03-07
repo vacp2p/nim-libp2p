@@ -24,7 +24,7 @@ import
   ../../peerinfo,
   ../../errors,
   ../../utility,
-  ../../utils/sequninit
+  ../../utils/[sequninit, future]
 
 import results
 export results
@@ -447,9 +447,7 @@ proc handleData*(
       return waiter()
 
   # Fast path - futures finished synchronously or nobody cared about data
-  var res = newFuture[void]()
-  res.complete()
-  return res
+  newFutureCompleted[void]()
 
 method handleConn*(
     p: PubSub, conn: Connection, proto: string

@@ -2,11 +2,9 @@
 # Copyright (c) Status Research & Development GmbH 
 
 import chronos/futures, chronos, sequtils
+import ../../libp2p/utils/future
 
-proc newFutureCompleted*[T](): Future[T] =
-  let f = newFuture[T]()
-  f.complete()
-  f
+export future.newFutureCompleted
 
 proc allFuturesRaising*(
     args: varargs[FutureBase]

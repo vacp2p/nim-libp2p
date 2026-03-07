@@ -11,7 +11,7 @@ import
   ]
 import stew/endians2
 import ../protocol
-import ../../utils/sequninit
+import ../../utils/[sequninit, future]
 import ../../stream/[connection, lpstream]
 import ../../[switch, multicodec, peerinfo, varint]
 import ../../peerstore
@@ -822,11 +822,9 @@ proc reply(
 
 method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: [], raw: true).} =
   ## Stop the MixProtocol background tasks.
-  let fut = newFuture[void]()
-  fut.complete()
   mixProto.started = false
   mixProto.tagManager.stopSoon()
-  fut
+  newFutureCompleted[void]()
 
 proc init*(
     mixProto: MixProtocol,
