@@ -104,6 +104,8 @@ proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
 
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
+  extensions.pingpongExtension.withValue(ppe):
+    ipb.write(300000, ppe)
   extensions.testExtension.withValue(te):
     ipb.write(6492434, te)
 
@@ -323,6 +325,11 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
 
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
+  if ?pb.getField(300000, control.pingpongExtension):
+    trace "decodeExtensions: read pingpongExtension",
+      pingpongExtension = control.pingpongExtension
+  else:
+    trace "decodeExtensions: pingpongExtension is missing"
 
   if ?pb.getField(6492434, control.testExtension):
     trace "decodeExtensions: read testExtension", testExtension = control.testExtension

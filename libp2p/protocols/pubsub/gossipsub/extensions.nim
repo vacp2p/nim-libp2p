@@ -84,10 +84,13 @@ proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
     false
   let partialMessageExtension = ce.partialMessageExtension.valueOr:
     false
+  let pingpongExtension = ce.pingpongExtension.valueOr:
+    false
 
   PeerExtensions(
-    testExtension: testExtension, #
+    testExtension: testExtension,
     partialMessageExtension: partialMessageExtension,
+    pingpongExtension: pingpongExtension,
   )
 
 proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
