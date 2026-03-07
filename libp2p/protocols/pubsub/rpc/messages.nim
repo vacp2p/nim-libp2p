@@ -275,7 +275,10 @@ proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
 
 static:
-  expectedFields(ControlExtensions, @["partialMessageExtension", "testExtension", "pingpongExtension"])
+  expectedFields(
+    ControlExtensions,
+    @["partialMessageExtension", "testExtension", "pingpongExtension"],
+  )
 proc byteSize(controlExtensions: ControlExtensions): int =
   controlExtensions.partialMessageExtension.byteSize() + #
   controlExtensions.testExtension.byteSize() + #
@@ -338,8 +341,7 @@ static:
     ],
   )
 proc byteSize*(rpc: RPCMsg): int =
-  result =
-    rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages) 
+  result = rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages)
   rpc.control.withValue(ctrl):
     result += ctrl.byteSize
   rpc.partialMessageExtension.withValue(pme):

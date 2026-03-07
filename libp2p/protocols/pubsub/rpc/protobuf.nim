@@ -175,9 +175,7 @@ proc write*(pb: var ProtoBuffer, field: int, ppe: PingPongExtensionRPC) =
   pb.write(field, ipb)
 
   when defined(libp2p_protobuf_metrics):
-    libp2p_pubsub_rpc_bytes_write.inc(
-      ipb.getLen().int64, labelValues = ["ping_pong"]
-    )
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["ping_pong"])
 
 proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   var pb = initProtoBuffer()
@@ -524,7 +522,7 @@ proc decodePingPongExtensionRPC*(
   var ppe = PingPongExtensionRPC()
 
   discard pbp.getField(1, ppe.ping)
-  discard pbp.getField(2, ppe.pong) 
+  discard pbp.getField(2, ppe.pong)
 
   ok(some(ppe))
 

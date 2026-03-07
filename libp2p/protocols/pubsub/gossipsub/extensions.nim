@@ -4,9 +4,14 @@
 import std/[options, sets, tables]
 import ../../../[peerid]
 import ../rpc/messages
-import ./[extensions_types, extension_test, extension_partial_message, partial_message, extension_pingpong]
+import
+  ./[
+    extensions_types, extension_test, extension_partial_message, partial_message,
+    extension_pingpong,
+  ]
 
-export TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts, PingPongExtensionConfig
+export
+  TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts, PingPongExtensionConfig
 
 type OnMisbehaveProc* = proc(peer: PeerId) {.gcsafe, raises: [].}
 
@@ -33,7 +38,8 @@ proc new*(
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
       none(PartialMessageExtensionConfig),
-    pingpongExtensionConfig: Option[PingPongExtensionConfig] = none(PingPongExtensionConfig),
+    pingpongExtensionConfig: Option[PingPongExtensionConfig] =
+      none(PingPongExtensionConfig),
     externalExtensions: seq[Extension] = @[],
       # external extensions are created outside of state and they are added to 
       # state's extensions list.
@@ -57,7 +63,7 @@ proc new*(
     partialMessageExtension = some(PartialMessageExtension.new(cfg))
     extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = some(true)
-  
+
   pingpongExtensionConfig.withValue(c):
     extensions.add(PingPongExtension.new(c))
     nodeExtensions.pingpongExtension = some(true)

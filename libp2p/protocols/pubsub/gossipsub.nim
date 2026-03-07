@@ -1085,12 +1085,17 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.parameters.partialMessageExtensionConfig = some(cfg)
 
   var pingPongExtensionConfig = PingPongExtensionConfig()
-  pingPongExtensionConfig.sendPong = proc(peerId: PeerId, pong: seq[byte]) {.gcsafe, raises: [].} =
+  pingPongExtensionConfig.sendPong = proc(
+      peerId: PeerId, pong: seq[byte]
+  ) {.gcsafe, raises: [].} =
     g.peers.withValue(peerId, peer):
-      g.send(peer[], RPCMsg(pingpongExtension: some(PingPongExtensionRPC(pong: pong))), true)
+      g.send(
+        peer[], RPCMsg(pingpongExtension: some(PingPongExtensionRPC(pong: pong))), true
+      )
 
   return ExtensionsState.new(
-    onMissbehaveExtensions, g.parameters.testExtensionConfig,
+    onMissbehaveExtensions,
+    g.parameters.testExtensionConfig,
     g.parameters.partialMessageExtensionConfig,
     some(pingPongExtensionConfig),
   )

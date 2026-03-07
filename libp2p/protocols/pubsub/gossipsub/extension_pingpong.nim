@@ -6,7 +6,8 @@ import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types]
 
-const PingsPeerBudget* = 100 # maximum of 6.4kb/heartbeat (6.4kb/s with default 1 second/hb)
+const PingsPeerBudget* = 100
+  # maximum of 6.4kb/heartbeat (6.4kb/s with default 1 second/hb)
 
 type
   PingPongExtensionConfig* = object
@@ -19,7 +20,9 @@ type
 proc doAssert(config: PingPongExtensionConfig) =
   doAssert(config.sendPong != nil, "PingPongExtensionConfig.sendPong must be set")
 
-proc new*(T: typedesc[PingPongExtension], config: PingPongExtensionConfig): PingPongExtension =
+proc new*(
+    T: typedesc[PingPongExtension], config: PingPongExtensionConfig
+): PingPongExtension =
   config.doAssert()
   PingPongExtension(config: config)
 
