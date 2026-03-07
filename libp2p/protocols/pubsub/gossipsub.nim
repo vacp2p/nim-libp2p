@@ -112,6 +112,7 @@ proc init*(
     sendIDontWantOnPublish = false,
     testExtensionConfig = none(TestExtensionConfig),
     partialMessageExtensionConfig = none(PartialMessageExtensionConfig),
+    pingpongExtensionConfig = none(PingPongExtensionConfig),
 ): GossipSubParams =
   GossipSubParams(
     explicit: true,
@@ -152,6 +153,7 @@ proc init*(
     sendIDontWantOnPublish: sendIDontWantOnPublish,
     testExtensionConfig: testExtensionConfig,
     partialMessageExtensionConfig: partialMessageExtensionConfig,
+    pingpongExtensionConfig: pingpongExtensionConfig,
   )
 
 proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
@@ -244,8 +246,9 @@ method init*(g: GossipSub) =
 
 proc usesExtensions(g: GossipSub): bool =
   return
-    g.parameters.testExtensionConfig.isSome() or #
-    g.parameters.partialMessageExtensionConfig.isSome()
+    g.parameters.testExtensionConfig.isSome() or
+    g.parameters.partialMessageExtensionConfig.isSome() or
+    g.parameters.pingpongExtensionConfig.isSome()
 
 proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
   proc send() =
@@ -1084,20 +1087,23 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     g.parameters.partialMessageExtensionConfig = some(cfg)
 
-  var pingPongExtensionConfig = PingPongExtensionConfig()
-  pingPongExtensionConfig.sendPong = proc(
-      peerId: PeerId, pong: seq[byte]
-  ) {.gcsafe, raises: [].} =
-    g.peers.withValue(peerId, peer):
-      g.send(
-        peer[], RPCMsg(pingpongExtension: some(PingPongExtensionRPC(pong: pong))), true
-      )
+  g.parameters.pingpongExtensionConfig.withValue(c):
+    var cfg = c
+
+    if cfg.sendPong.isNil:
+      cfg.sendPong = proc(peerId: PeerId, pong: seq[byte]) {.gcsafe, raises: [].} =
+        g.peers.withValue(peerId, peer):
+          g.send(
+            peer[], RPCMsg(pingpongExtension: some(PingPongExtensionRPC(pong: pong))), true
+          )
+
+    g.parameters.pingpongExtensionConfig = some(cfg)
 
   return ExtensionsState.new(
     onMissbehaveExtensions,
     g.parameters.testExtensionConfig,
     g.parameters.partialMessageExtensionConfig,
-    some(pingPongExtensionConfig),
+    g.parameters.pingpongExtensionConfig,
   )
 
 method start*(

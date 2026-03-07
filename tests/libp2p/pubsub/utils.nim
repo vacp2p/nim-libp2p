@@ -204,6 +204,8 @@ proc generateNodes*(
     testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
     partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
       none(PartialMessageExtensionConfig),
+    pingpongExtensionConfig: Option[PingPongExtensionConfig] =
+      none(PingPongExtensionConfig),
     transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
@@ -242,6 +244,7 @@ proc generateNodes*(
             p.disconnectBadPeers = disconnectBadPeers
             p.testExtensionConfig = testExtensionConfig
             p.partialMessageExtensionConfig = partialMessageExtensionConfig
+            p.pingpongExtensionConfig = pingpongExtensionConfig
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p

@@ -179,6 +179,7 @@ type
     # Extensions configuration
     testExtensionConfig*: Option[TestExtensionConfig]
     partialMessageExtensionConfig*: Option[PartialMessageExtensionConfig]
+    pingpongExtensionConfig*: Option[PingPongExtensionConfig]
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
