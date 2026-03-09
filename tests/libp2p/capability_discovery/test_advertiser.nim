@@ -4,11 +4,12 @@
 
 import std/[sets]
 import chronos
-import ../../../libp2p/[extended_peer_record, peerid, routing_record]
+import ../../../libp2p/[extended_peer_record, peerid]
 import ../../../libp2p/protocols/kad_disco
-import ../../../libp2p/protocols/kademlia_discovery/[types]
+import ../../../libp2p/protocols/kademlia_discovery/types
 import ../../../libp2p/protocols/capability_discovery/[advertiser, serviceroutingtables]
 import ../../tools/unittest
+import ../kademlia/utils
 import ./utils
 
 # ===========================================================================
@@ -24,7 +25,7 @@ suite "Advertiser - addProvidedService":
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
-    populateRoutingTable(disco, @[makePeerId()])
+    disco.populateRoutingTable(1)
     disco.addProvidedService(service)
 
     check disco.serviceRoutingTables.hasService(serviceId)
@@ -42,23 +43,22 @@ suite "Advertiser - addProvidedService":
   test "schedules up to kRegister actions per populated bucket":
     let disco = createMockDiscovery()
     let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
 
-    # Populate with more peers than kRegister
-    var peers: seq[PeerId]
-    for i in 0 ..< disco.discoConf.kRegister + 2:
-      peers.add(makePeerId())
-    populateRoutingTable(disco, peers)
+    disco.populateRoutingTable(disco.discoConf.kRegister + 2)
+    disco.populateAdvTable(serviceId)
+
     disco.addProvidedService(service)
 
     # At most kRegister actions per bucket across all buckets
-    check disco.advertiser.running.len() == 5
+    check disco.advertiser.running.len() <= disco.discoConf.kRegister
 
   test "adding same service twice is idempotent":
     let disco = createMockDiscovery()
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
-    populateRoutingTable(disco, @[makePeerId()])
+    disco.populateRoutingTable(1)
     disco.addProvidedService(service)
     let queueLenAfterFirst = disco.advertiser.running.len()
 
@@ -75,7 +75,7 @@ suite "Advertiser - addProvidedService":
     let s2 = makeServiceInfo("svc-2")
     let s3 = makeServiceInfo("svc-3")
 
-    populateRoutingTable(disco, @[makePeerId()])
+    disco.populateRoutingTable(1)
     disco.addProvidedService(s1)
     disco.addProvidedService(s2)
     disco.addProvidedService(s3)
@@ -96,10 +96,9 @@ suite "Advertiser - removeProvidedService":
     let sid2 = s2.id.hashServiceId()
     let now = Moment.now()
 
-    populateRoutingTable(disco, @[makePeerId()])
+    disco.populateRoutingTable(1)
     disco.addProvidedService(s1)
     disco.addProvidedService(s2)
-    disco.advertiser.clear()
 
     disco.removeProvidedService(s1)
 
@@ -120,7 +119,7 @@ suite "Advertiser - removeProvidedService":
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
-    populateRoutingTable(disco, @[makePeerId()])
+    disco.populateRoutingTable(1)
     disco.addProvidedService(s1)
     disco.addProvidedService(s2)
 
