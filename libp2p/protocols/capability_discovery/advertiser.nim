@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sets, sequtils, algorithm]
+import std/[sets, sequtils]
 import chronos, chronicles, results
 import
   ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
@@ -14,64 +14,33 @@ import ./[types, serviceroutingtables, capability_discovery_metrics]
 logScope:
   topics = "cap-disco advertiser"
 
-proc updateAdvertiserMetrics(disco: KademliaDiscovery) {.raises: [].} =
-  cd_advertiser_pending_actions.set(disco.advertiser.actionQueue.len.float64)
-
-proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).}
-
 proc new*(T: typedesc[Advertiser]): T =
-  T(actionQueue: @[])
+  T(running: initHashSet[ptr AdvertiseTask]())
 
-proc scheduleAction*(
-    disco: KademliaDiscovery,
-    serviceId: ServiceId,
-    registrar: PeerId,
-    bucketIdx: int,
-    scheduledTime: Moment,
-    ticket: Opt[Ticket] = Opt.none(Ticket),
-) =
-  ## Schedule an action at the given time
-
-  let action: PendingAction = (scheduledTime, serviceId, registrar, bucketIdx, ticket)
-  let idx = disco.advertiser.actionQueue.lowerBound(action, actionCmp)
-  disco.advertiser.actionQueue.insert(action, idx)
-
-proc processAction*(disco: KademliaDiscovery) =
-  ## Start processing scheduled actions
-
-  if (disco.advertiseLoop.isNil or disco.advertiseLoop.finished()) and
-      disco.advertiser.actionQueue.len > 0:
-    disco.advertiseLoop = disco.runAdvertiseLoop()
-
-proc scheduleAndProcessAction*(
-    disco: KademliaDiscovery,
-    serviceId: ServiceId,
-    registrar: PeerId,
-    bucketIdx: int,
-    scheduledTime: Moment,
-    ticket: Opt[Ticket] = Opt.none(Ticket),
-) =
-  disco.scheduleAction(serviceId, registrar, bucketIdx, scheduledTime, ticket)
-
-  disco.processAction()
+proc clear*(a: Advertiser) =
+  for p in a.running:
+    let f = cast[Future[void]](p)
+    if not f.finished:
+      f.cancel()
+  a.running.clear()
 
 proc sendRegister*(
-    kad: KademliaDiscovery,
+    disco: KademliaDiscovery,
     peerId: PeerId,
     serviceId: ServiceId,
     ad: seq[byte],
     ticket: Opt[Ticket] = Opt.none(Ticket),
 ): Future[Result[(protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]] {.
-    async: (raises: [])
+    async: (raises: [CancelledError])
 .} =
   ## Send REGISTER request to a peer
 
-  let addrs = kad.switch.peerStore[AddressBook][peerId]
+  let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
     return err("no address found for peer: " & $peerId)
 
   let connRes = catch:
-    await kad.switch.dial(peerId, addrs, kad.codec)
+    await disco.switch.dial(peerId, addrs, disco.codec)
   let conn = connRes.valueOr:
     return err("dialing peer failed: " & error.msg)
   defer:
@@ -130,51 +99,68 @@ proc sendRegister*(
 
   return ok((status, registerMsg.ticket, closerPeers))
 
-proc advertise*(
+proc startAdvertising*(
     disco: KademliaDiscovery,
     serviceId: ServiceId,
-    ad: Advertisement,
     registrar: PeerId,
     bucketIdx: int,
     ticket: Opt[Ticket],
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   ## Execute a registration action and schedule the next one based on response.
 
-  let adBuf: seq[byte] = ad.encode().valueOr:
+  if not disco.serviceRoutingTables.hasService(serviceId):
+    error "no service routing table found", serviceId
+    return
+
+  let record = (await disco.record()).valueOr:
+    error "failed create extended peer record", error
+    return
+
+  cd_advertiser_actions_executed.inc()
+
+  let adBuf: seq[byte] = record.encode().valueOr:
     error "failed to encode ad", error
     return
 
-  let (status, newTicketOpt, closerPeers) = (
-    await disco.sendRegister(registrar, serviceId, adBuf, ticket)
-  ).valueOr:
-    error "failed to register ad", error
-    return
+  var currentTicket = ticket
 
-  for peerId in closerPeers:
-    disco.serviceRoutingTables.insertPeer(serviceId, peerId.toKey())
-
-  case status
-  of protobuf.RegistrationStatus.Confirmed:
-    let nextTime = Moment.now() + chronos.seconds(int(disco.discoConf.advertExpiry))
-    disco.scheduleAction(serviceId, registrar, bucketIdx, nextTime, Opt.none(Ticket))
-  of protobuf.RegistrationStatus.Wait:
-    let newTicket = newTicketOpt.valueOr:
-      error "no ticket to retry with"
+  while true:
+    let (status, newTicketOpt, closerPeers) = (
+      await disco.sendRegister(registrar, serviceId, adBuf, currentTicket)
+    ).valueOr:
+      error "failed to register ad", error
       return
 
-    let waitTime = min(disco.discoConf.advertExpiry, newTicket.tWaitFor.float64)
-    let nextTime = Moment.now() + chronos.seconds(int(waitTime))
-    disco.scheduleAction(serviceId, registrar, bucketIdx, nextTime, Opt.some(newTicket))
-  of protobuf.RegistrationStatus.Rejected:
-    # Don't reschedule - this registrar rejected us
-    return
+    for peerId in closerPeers:
+      disco.serviceRoutingTables.insertPeer(serviceId, peerId.toKey())
 
-  disco.processAction()
+    case status
+    of protobuf.RegistrationStatus.Confirmed:
+      await sleepAsync(chronos.seconds(int(disco.discoConf.advertExpiry)))
+    of protobuf.RegistrationStatus.Wait:
+      let newTicket = newTicketOpt.valueOr:
+        error "no ticket to retry with"
+        return
+
+      currentTicket = Opt.some(newTicket)
+
+      await sleepAsync(
+        chronos.seconds(
+          int(min(disco.discoConf.advertExpiry, newTicket.tWaitFor.float64))
+        )
+      )
+    of protobuf.RegistrationStatus.Rejected:
+      # Don't reschedule - this registrar rejected us
+      break
 
 proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   ## Include this service in the set of services this node provides.
 
   let serviceId = service.id.hashServiceId()
+
+  if disco.serviceRoutingTables.hasService(serviceId):
+    debug "skipping adding service", id = serviceId
+    return
 
   disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
@@ -197,53 +183,29 @@ proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
 
     let numToRegister = min(disco.discoConf.kRegister, peers.len)
     for i in 0 ..< numToRegister:
-      let peerId = peers[i].nodeId.toPeerId().valueOr:
+      let registrar = peers[i].nodeId.toPeerId().valueOr:
         error "cannot convert key to peer id", error
         continue
 
-      disco.scheduleAction(serviceId, peerId, bucketIdx, Moment.now(), Opt.none(Ticket))
+      let fut =
+        disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket))
+      let task = AdvertiseTask(fut: fut, serviceId: serviceId)
+      disco.advertiser.running.incl cast[ptr AdvertiseTask](addr task)
 
   disco.services.incl(service)
-  disco.updateAdvertiserMetrics()
-  disco.processAction()
 
 proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
-  ## Exclude this service from the set of services this node provides.
-
   let serviceId = service.id.hashServiceId()
 
+  # cancel and remove futures for this service
+  for p in toSeq(disco.advertiser.running):
+    let t = cast[ptr AdvertiseTask](p)
+    if t.serviceId == serviceId:
+      if not t.fut.finished:
+        t.fut.cancel()
+      disco.advertiser.running.excl p
+
+  # remove service from tables
   disco.serviceRoutingTables.removeService(serviceId, Provided)
-  disco.advertiser.actionQueue.keepItIf(it.serviceId != serviceId)
   disco.services.excl(service)
   cd_advertiser_services_removed.inc()
-  disco.updateAdvertiserMetrics()
-
-proc runAdvertiseLoop*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
-  ## Loop through all pre-scheduled actions and execute them at the correct time.
-
-  while true:
-    let queue = disco.advertiser.actionQueue
-
-    if queue.len == 0:
-      # The loop is restarted lazily by processAction()
-      return
-
-    let (scheduledTime, serviceId, registrar, bucketIdx, ticket) = queue[0]
-    let now = Moment.now()
-
-    if scheduledTime > now:
-      await sleepAsync(scheduledTime - now)
-
-    disco.advertiser.actionQueue.delete(0)
-    disco.updateAdvertiserMetrics()
-
-    if not disco.serviceRoutingTables.hasService(serviceId):
-      error "no service routing table found", serviceId
-      continue
-
-    let record = (await disco.record()).valueOr:
-      error "failed create extended peer record", error
-      continue
-
-    cd_advertiser_actions_executed.inc()
-    await disco.advertise(serviceId, record, registrar, bucketIdx, ticket)
