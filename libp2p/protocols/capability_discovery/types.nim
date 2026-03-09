@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils]
+import std/[tables, sequtils, sets]
 import chronos, stew/endians2
 import ../../[peerid, multihash, multiaddress, extended_peer_record]
 import ../kademlia/types
@@ -57,8 +57,12 @@ type
       ticket: Opt[Ticket],
     ]
 
+  AdvertiseTask* = object
+    fut*: Future[void]
+    serviceId*: ServiceId
+
   Advertiser* = ref object
-    actionQueue*: seq[PendingAction] # Time-ordered queue of pending actions
+    running*: HashSet[ptr AdvertiseTask]
 
   KademliaDiscoveryConfig* = object
     kRegister*: int
