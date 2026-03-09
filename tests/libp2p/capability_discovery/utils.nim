@@ -7,6 +7,7 @@ import results, chronos, chronicles
 import ../../../libp2p/[peerid, crypto/crypto, switch, builders, extended_peer_record]
 import ../../../libp2p/protocols/[kad_disco, kademlia]
 import ../../../libp2p/protocols/kademlia_discovery/types
+import ../kademlia/utils
 import
   ../../../libp2p/protocols/capability_discovery/
     [types, advertiser, serviceroutingtables]
@@ -155,11 +156,18 @@ proc createMockDiscovery*(
 
   kad
 
-# Helper to populate routing table with peers
-proc populateRoutingTable*(kad: KademliaDiscovery, peers: seq[PeerId]) =
-  for peer in peers:
-    let key = peer.toKey()
-    discard kad.rtable.insert(key)
+proc populateAdvTable*(disco: KademliaDiscovery, serviceId: ServiceId) =
+  disco.serviceRoutingTables.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
+    Provided,
+  )
+  let advTable = disco.serviceRoutingTables.getTable(serviceId).get()
+
+  # Populate with more peers than kRegister
+  for i in 0 ..< disco.discoConf.kRegister + 2:
+    advTable.buckets[0].peers.add(
+      NodeEntry(nodeId: randomPeerId().toKey(), lastSeen: Moment.now())
+    )
 
 # Helper to directly populate a SearchTable for testing
 proc populateSearchTable*(

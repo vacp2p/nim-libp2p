@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sets, sequtils]
+import std/[sets]
 import chronos, chronicles, results
 import
   ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
@@ -158,10 +158,6 @@ proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
 
   let serviceId = service.id.hashServiceId()
 
-  if disco.serviceRoutingTables.hasService(serviceId):
-    debug "skipping adding service", id = serviceId
-    return
-
   disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Provided,
@@ -179,9 +175,13 @@ proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
       continue
 
     var peers = bucket.peers
-    shuffle(disco.rng, peers)
+    disco.rng.shuffle(peers)
 
     let numToRegister = min(disco.discoConf.kRegister, peers.len)
+    debug "numtoregister",
+      numToRegister = numToRegister,
+      kRegister = disco.discoConf.kRegister,
+      peersLen = peers.len
     for i in 0 ..< numToRegister:
       let registrar = peers[i].nodeId.toPeerId().valueOr:
         error "cannot convert key to peer id", error
@@ -198,7 +198,7 @@ proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   let serviceId = service.id.hashServiceId()
 
   # cancel and remove futures for this service
-  for p in toSeq(disco.advertiser.running):
+  for p in disco.advertiser.running:
     let t = cast[ptr AdvertiseTask](p)
     if t.serviceId == serviceId:
       if not t.fut.finished:
