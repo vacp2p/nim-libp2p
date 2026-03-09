@@ -3,7 +3,7 @@
 
 {.used.}
 
-import bearssl, chronos, options, std/times, stew/byteutils
+import bearssl, chronos, std/times, stew/byteutils
 import
   ../../../libp2p/[
     builders,

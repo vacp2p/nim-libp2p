@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, metrics, std/[options, sequtils]
+import chronos, metrics, std/sequtils
 import
   ../../../libp2p/[
     builders,
