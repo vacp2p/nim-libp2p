@@ -487,14 +487,14 @@ int libp2p_public_key(libp2p_ctx_t *ctx, Libp2pBufferCallback callback,
 
 // === Circuit Relay APIs ===
 
-// Dials proto on dstPeerId through a relay. multiaddr is the relay circuit
-// address returned by libp2p_circuit_relay_reserve (ends in /p2p-circuit).
+// Dials proto on dstPeerId through a relay. multiaddr is the relay address
+// from libp2p_circuit_relay_reserve with "/p2p-circuit" appended by the caller.
 int libp2p_dial_circuit_relay(libp2p_ctx_t *ctx, const char *dstPeerId,
                               const char *multiaddr, const char *proto,
                               ConnectionCallback callback, void *userData);
 
 // Reserves a relay slot on relayPeerId, requires circuit_relay_client=1.
-// The callback receives the relay circuit addresses others use to reach this node.
+// The callback receives relay addresses (without /p2p-circuit suffix).
 int libp2p_circuit_relay_reserve(libp2p_ctx_t *ctx, const char *relayPeerId,
                                   const char **relayAddrs, size_t relayAddrsLen,
                                   ReservationCallback callback, void *userData);

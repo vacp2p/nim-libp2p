@@ -213,9 +213,7 @@ proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
     mix = Opt.some(mixProto)
   libp2p.mix = mix
 
-proc mountProtocols(
-    libp2p: var LibP2P, config: Libp2pConfig, relayClient: Opt[RelayClient]
-) =
+proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   if config.mountGossipsub != 0:
     libp2p.mountGossipsub(config)
   if config.mountKad != 0 or config.mountKadDiscovery != 0:
@@ -224,7 +222,6 @@ proc mountProtocols(
   libp2p.switch.mount(Ping.new())
 
   libp2p.mountMix(config)
-  libp2p.relayClient = relayClient
 
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsResolver =
@@ -289,12 +286,12 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     kad: Opt.none(KadDHT),
     mix: Opt.none(MixProtocol),
     mixNodeInfo: Opt.none(MixNodeInfo),
-    relayClient: Opt.none(RelayClient),
+    relayClient: relayClientOpt,
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
   )
 
-  mountProtocols(ret, config, relayClientOpt)
+  mountProtocols(ret, config)
 
   return ret
 

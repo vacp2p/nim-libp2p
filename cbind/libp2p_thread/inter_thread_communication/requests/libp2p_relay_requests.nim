@@ -72,5 +72,4 @@ proc processReserve*(
     except DialFailedError as exc:
       return err("dial failed: " & exc.msg)
 
-  let circuitAddrs = rsvp.addrs.mapIt($it & "/p2p-circuit")
-  return ok(allocReservationResult(circuitAddrs, rsvp.expire))
+  return ok(allocReservationResult(rsvp.addrs.mapIt($it), rsvp.expire))
