@@ -53,7 +53,6 @@ suite "GossipSub":
     # And peer budgets are set to default values
     check:
       peer.iHaveBudget == IHavePeerBudget
-      peer.pingBudget == PingsPeerBudget
 
     # And peer is disconnected because score < graylistThreshold
     checkUntilTimeout:

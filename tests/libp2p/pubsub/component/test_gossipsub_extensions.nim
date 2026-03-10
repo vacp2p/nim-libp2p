@@ -130,3 +130,41 @@ suite "GossipSub Component - Extensions":
           partialMessage: "onetwothree".toBytes,
           partsMetadata: MyPartsMetadata.have(toSeq(pmData.data.keys)),
         )
+
+  asyncTest "PingPong Extension":
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          pingpongExtensionConfig = some(PingPongExtensionConfig()),
+        )
+        .toGossipSub()
+
+    startAndDeferStop(nodes)
+
+    await connect(nodes[0], nodes[1])
+
+    let pingBytes = @[1'u8, 2, 3, 4, 5]
+    var receivedPong: seq[byte]
+
+    # observe pong received by nodes[0] after it sends a ping
+    nodes[0].addObserver(
+      PubSubObserver(
+        onRecv: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+          msg.pingpongExtension.withValue(ppe):
+            if ppe.pong.len > 0:
+              receivedPong = ppe.pong
+      )
+    )
+
+    # send ping from nodes[0] to nodes[1]
+    nodes[0].send(
+      nodes[0].peers[nodes[1].peerInfo.peerId],
+      RPCMsg(pingpongExtension: some(PingPongExtensionRPC(ping: pingBytes))),
+      isHighPriority = true,
+    )
+
+    # nodes[1] should echo the ping back as a pong
+    checkUntilTimeout:
+      receivedPong == pingBytes
