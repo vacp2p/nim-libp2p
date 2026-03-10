@@ -1168,6 +1168,11 @@ proc libp2p_dial_circuit_relay(
     callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
     return RET_ERR.cint
 
+  if proto.isNil():
+    let msg = "proto is nil"
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
     RequestType.STREAM,

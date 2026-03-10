@@ -184,10 +184,11 @@ typedef struct {
   // Maximum number of connections per peer
   int max_conns_per_peer;
   // Enable circuit relay server: the node forwards connections for other peers.
+  // Ignored when circuit_relay_client is also enabled (client includes server).
   int circuit_relay;
-
   // Enable circuit relay client: the node can use a relay to be reachable
   // behind NAT. Required for libp2p_circuit_relay_reserve() to work.
+  // Also enables relay server functionality.
   int circuit_relay_client;
 
   // Enable autonat
@@ -291,7 +292,8 @@ typedef ValidationResult ValidatorHandler(const char *topic, Message msg);
 typedef void TopicHandler(const char *topic, uint8_t *data, size_t len,
                           void *userData);
 
-// addrs/addrsLen are relay circuit addresses, valid only during the callback.
+// addrs/addrsLen are relay addresses (without /p2p-circuit suffix),
+// valid only during the callback.
 // expireTime is the reservation expiry as a Unix UTC timestamp.
 typedef void (*ReservationCallback)(int callerRet, const char **addrs,
                                     size_t addrsLen, uint64_t expireTime,
@@ -496,8 +498,8 @@ int libp2p_dial_circuit_relay(libp2p_ctx_t *ctx, const char *dstPeerId,
 // Reserves a relay slot on relayPeerId, requires circuit_relay_client=1.
 // The callback receives relay addresses (without /p2p-circuit suffix).
 int libp2p_circuit_relay_reserve(libp2p_ctx_t *ctx, const char *relayPeerId,
-                                  const char **relayAddrs, size_t relayAddrsLen,
-                                  ReservationCallback callback, void *userData);
+                                 const char **relayAddrs, size_t relayAddrsLen,
+                                 ReservationCallback callback, void *userData);
 
 #ifdef __cplusplus
 }

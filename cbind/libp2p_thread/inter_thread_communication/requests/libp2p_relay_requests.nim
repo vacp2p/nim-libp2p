@@ -58,11 +58,11 @@ proc processReserve*(
   let peerId = PeerId.init($self[].peerId).valueOr:
     return err($error)
 
-  let multiaddresses =
-    try:
-      self[].multiaddrs.toSeq().mapIt(MultiAddress.init($it).tryGet())
-    except LPError:
-      return err("invalid multiaddress")
+  var multiaddresses: seq[MultiAddress]
+  for addrStr in self[].multiaddrs.toSeq():
+    let ma = MultiAddress.init($addrStr).valueOr:
+      return err("invalid multiaddress: " & $addrStr)
+    multiaddresses.add(ma)
 
   let rsvp =
     try:

@@ -260,14 +260,14 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     nameResolver = dnsResolver,
   )
 
-  if config.circuitRelay == 1:
-    switchBuilder = switchBuilder.withCircuitRelay()
-
   var relayClientOpt = Opt.none(RelayClient)
   if config.circuitRelayClient == 1:
+    # RelayClient is a subtype of Relay, so this enables both client and server functionality
     let cl = RelayClient.new()
     switchBuilder = switchBuilder.withCircuitRelay(cl)
     relayClientOpt = Opt.some(cl)
+  elif config.circuitRelay == 1:
+    switchBuilder = switchBuilder.withCircuitRelay()
 
   if config.autonat == 1:
     switchBuilder = switchBuilder.withAutonat()
