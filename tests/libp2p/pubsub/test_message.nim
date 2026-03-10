@@ -155,6 +155,11 @@ suite "Message":
       partsMetadata: @[1'u8], # 1 byte
     )
 
+    let pingPongExtensionRPC = PingPongExtensionRPC(
+      ping: @[1'u8, 2], # 2 bytes
+      pong: @[3'u8, 4], # 2 bytes
+    )
+
     let rpcMsg = RPCMsg(
       subscriptions:
         @[
@@ -167,12 +172,11 @@ suite "Message":
           SubOpts(subscribe: false, topic: "b".repeat(14)), # 1 + 14 = 15 bytes
         ],
       messages: @[msg, msg], # 16 * 2 = 32 bytes
-      ping: @[1'u8, 2], # 2 bytes
-      pong: @[3'u8, 4], # 2 bytes
       control: some(control), # 12 + 3 + 3 + 17 + 3 = 38 bytes
       partialMessageExtension: some(partialMessageExtensionRPC), # 4 bytes
+      pingpongExtension: some(pingPongExtensionRPC), # 4 bytes
     )
-    check byteSize(rpcMsg) == 30 + 32 + 2 + 2 + 38 + 4 # Total: 108 bytes
+    check byteSize(rpcMsg) == 30 + 32 + 38 + 4 + 4 # Total: 108 bytes
 
   # check correctly parsed ihave/iwant/graft/prune/idontwant messages
   # check value before & after decoding equal using protoc cmd tool for reference

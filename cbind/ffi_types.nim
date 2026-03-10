@@ -62,6 +62,24 @@ type Libp2pServiceInfo* {.bycopy.} = object
   data*: ptr byte
   dataLen*: csize_t
 
+type Libp2pKadEntryRecord* {.bycopy.} = object
+  value*: ptr byte
+  valueLen*: csize_t
+  time*: cstring
+  timeLen*: csize_t
+
+type KadEntryValidator* = proc(
+  key: ptr byte, keyLen: csize_t, record: Libp2pKadEntryRecord, userData: pointer
+): cint {.cdecl, gcsafe, raises: [].}
+
+type KadEntrySelector* = proc(
+  key: ptr byte,
+  keyLen: csize_t,
+  records: ptr Libp2pKadEntryRecord,
+  recordsLen: csize_t,
+  userData: pointer,
+): cint {.cdecl, gcsafe, raises: [].}
+
 type Libp2pExtendedPeerRecord* {.bycopy.} = object
   peerId*: cstring
   seqNo*: uint64
@@ -98,32 +116,36 @@ type ReadResponse* = object
   data*: ptr byte
   dataLen*: csize_t
 
-# These are used to indicate whether a config item has been set or not
-const Libp2pCfgGossipsub* = 1'u32 shl 0
-const Libp2pCfgGossipsubTriggerSelf* = 1'u32 shl 1
-const Libp2pCfgKad* = 1'u32 shl 2
-const Libp2pCfgKadDiscovery* = 1'u32 shl 3
-const Libp2pCfgDnsResolver* = 1'u32 shl 4
-const Libp2pCfgKadBootstrapNodes* = 1'u32 shl 5
-const Libp2pCfgPrivateKey* = 1'u32 shl 6
-const Libp2pCfgMix* = 1'u32 shl 7
-
 type Libp2pBootstrapNode* = object
   peerId*: cstring
   multiaddrs*: ptr cstring
   multiaddrsLen*: csize_t
 
 type Libp2pConfig* {.bycopy.} = object
-  flags*: uint32
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
   mountKad*: cint
   mountMix*: cint
   mountKadDiscovery*: cint
   dnsResolver*: cstring
+  addrs*: ptr cstring
+  addrsLen*: csize_t
+  muxer*: cint
+  transport*: cint
   kadBootstrapNodes*: ptr Libp2pBootstrapNode
   kadBootstrapNodesLen*: csize_t
+  kadValidator*: KadEntryValidator
+  kadSelector*: KadEntrySelector
+  kadUserData*: pointer
   privKey*: Libp2pPrivateKey
+  maxConnections*: cint
+  maxIn*: cint
+  maxOut*: cint
+  maxConnsPerPeer*: cint
+  circuitRelay*: cint
+  autonat*: cint
+  autonatV2*: cint
+  autonatV2Server*: cint
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
