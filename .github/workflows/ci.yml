@@ -34,6 +34,8 @@ jobs:
             memory_management: refc
           - ref: v2.2.6
             memory_management: refc
+          - ref: v2.2.6
+            memory_management: orc
         include:
           - platform:
               os: linux
