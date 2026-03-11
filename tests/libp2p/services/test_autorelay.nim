@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, options
+import chronos
 import
   ../../../libp2p/[
     builders,

@@ -10,7 +10,7 @@ import std/oids
 import stew/byteutils
 import chronicles, chronos, metrics
 import ../varint, ../peerinfo, ../multiaddress, ../utility, ../errors
-import ../utils/sequninit
+import ../utils/[sequninit, future]
 
 export errors
 
@@ -270,9 +270,7 @@ method closeImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), b
   untrackCounter(s.objName)
   s.closeEvent.fire()
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 method close*(
     s: LPStream
@@ -281,9 +279,7 @@ method close*(
   ##
   if s.isClosed:
     trace "Already closed", s
-    let fut = newFuture[void]()
-    fut.complete()
-    return fut
+    return newFutureCompleted[void]()
 
   s.isClosed = true # Set flag before performing virtual close
 

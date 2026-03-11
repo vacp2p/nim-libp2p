@@ -4,8 +4,8 @@
 {.used.}
 
 import sugar
-import ../../../libp2p/[stream/bridgestream, muxers/yamux/yamux]
-import ../../tools/[unittest, futures]
+import ../../../libp2p/[stream/bridgestream, muxers/yamux/yamux, utils/future]
+import ../../tools/unittest
 
 include ../../../libp2p/muxers/yamux/yamux
 
@@ -33,8 +33,8 @@ suite "Yamux":
       yamuxb {.inject.} =
         Yamux.new(connb, windowSize = ws, inTimeout = inTo, outTimeout = outTo)
     var
-      handlera = completedFuture()
-      handlerb = completedFuture()
+      handlera = newFutureCompleted[void]()
+      handlerb = newFutureCompleted[void]()
 
     if startHandlera:
       handlera = yamuxa.handle()

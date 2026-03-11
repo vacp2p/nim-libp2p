@@ -3,7 +3,7 @@
 
 {.used.}
 
-import std/options, chronos
+import chronos
 import
   ../../../libp2p/[
     transports/tcptransport,
