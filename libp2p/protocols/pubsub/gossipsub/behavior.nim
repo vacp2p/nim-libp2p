@@ -813,7 +813,6 @@ proc onHeartbeat(g: GossipSub) =
       if peer.iDontWants.len > g.parameters.historyLength:
         discard peer.iDontWants.popLast()
       peer.iHaveBudget = IHavePeerBudget
-      peer.pingBudget = PingsPeerBudget
 
       when defined(libp2p_gossipsub_1_4):
         peer.preambleBudget = PreamblePeerBudget
