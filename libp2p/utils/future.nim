@@ -29,3 +29,8 @@ proc anyCompleted*[T](
       raise exc
     except CatchableError:
       continue
+
+template newFutureCompleted*[T](): auto =
+  let fut = newFuture[T]()
+  fut.complete()
+  fut

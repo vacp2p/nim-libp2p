@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import options, chronos
+import chronos
 import
   ../../libp2p/crypto/crypto,
   ../../libp2p/multicodec,

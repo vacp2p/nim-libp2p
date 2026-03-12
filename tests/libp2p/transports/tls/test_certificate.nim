@@ -7,13 +7,12 @@ import times
 import
   ../../../../libp2p/
     [transports/tls/certificate, transports/tls/certificate_ffi, crypto/crypto, peerid]
-import ../../../tools/unittest
+import ../../../tools/[unittest, crypto]
 
 suite "Certificate roundtrip tests":
   test "generate then parse with DER ecoding":
     let schemes = @[Ed25519, Secp256k1, ECDSA]
     for scheme in schemes:
-      var rng = newRng()
       let keypair = KeyPair.random(scheme, rng[]).tryGet()
       let peerId = PeerId.init(keypair.pubkey).tryGet()
 
@@ -25,7 +24,6 @@ suite "Certificate roundtrip tests":
         cert.verify()
 
   test "gnerate with invalid validity time":
-    var rng = newRng()
     let keypair = KeyPair.random(Ed25519, rng[]).tryGet()
 
     # past
@@ -120,7 +118,7 @@ suite "utilities test":
     check 157766400 == dt.toUnix()
 
   test "KeyPair to cert_key_t":
-    let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+    let key = KeyPair.random(PKScheme.RSA, rng[]).get()
 
     let rawSeckey: seq[byte] = key.seckey.getRawBytes.valueOr:
       raiseAssert "Failed to get seckey raw bytes (DER)"

@@ -3,11 +3,11 @@
 
 {.used.}
 
-import std/options, chronos, metrics
+import chronos, metrics
 import
   ../../../libp2p/
     [builders, switch, services/wildcardresolverservice, multiaddress, multicodec]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 proc getAddressesMock(
     addrFamily: AddressFamily
@@ -32,7 +32,7 @@ proc getAddressesMock(
 proc createSwitch(svc: Service, addrs: seq[MultiAddress]): Switch =
   SwitchBuilder
   .new()
-  .withRng(newRng())
+  .withRng(rng)
   .withAddresses(addrs, false)
   .withTcpTransport()
   .withMplex()
