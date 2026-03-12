@@ -16,7 +16,7 @@ import
     protocols/connectivity/autonatv2/client,
     protocols/connectivity/autonatv2/mockserver,
   ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 proc setupAutonat(
     srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
@@ -25,7 +25,7 @@ proc setupAutonat(
   let
     src = newStandardSwitchBuilder(addrs = srcAddrs).build()
     dst = newStandardSwitchBuilder().withAutonatV2Server(config = config).build()
-    client = AutonatV2Client.new(newRng())
+    client = AutonatV2Client.new(rng)
 
   client.setup(src)
   src.mount(client)
@@ -274,7 +274,7 @@ suite "AutonatV2":
     let
       src = newStandardSwitchBuilder().build()
       dst = newStandardSwitchBuilder().build()
-      client = AutonatV2Client.new(newRng())
+      client = AutonatV2Client.new(rng)
       autonatV2Mock = AutonatV2Mock.new()
       reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
 

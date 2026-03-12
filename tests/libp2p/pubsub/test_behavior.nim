@@ -7,7 +7,7 @@ import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles
 import ../../../libp2p/[routing_record, crypto/crypto, multiaddress]
 import
   ../../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, rpc/message]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 suite "GossipSub Behavior":
   const
@@ -149,7 +149,6 @@ suite "GossipSub Behavior":
 
     # And some peers have signed peer records in the SPRBook
     let
-      rng = newRng()
       mockPrivKey0 = PrivateKey.random(ECDSA, rng[]).tryGet()
       mockPrivKey2 = PrivateKey.random(ECDSA, rng[]).tryGet()
       mockAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()

@@ -97,7 +97,7 @@ suite "WebSocket transport":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
 
     # Generate cert with known keypair so we can derive the PeerId (used as CN in cert)
-    let testKeyPair = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+    let testKeyPair = KeyPair.random(PKScheme.RSA, rng[]).get()
     let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
     let (secureKey, secureCert) = tlsCertGenerator(Opt.some(testKeyPair))
 
@@ -156,7 +156,7 @@ when defined(libp2p_autotls_support):
     asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-      let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
       let (privkey, cert) = tlsCertGenerator(Opt.some(key))
       let autotls = MockAutotlsService.new()
       autotls.mockedKey = privkey
@@ -183,7 +183,7 @@ when defined(libp2p_autotls_support):
     asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-      let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
       let (privkey, cert) = tlsCertGenerator(Opt.some(key))
       let autotls = MockAutotlsService.new()
       autotls.mockedKey = privkey
