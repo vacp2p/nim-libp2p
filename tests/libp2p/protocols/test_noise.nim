@@ -136,13 +136,10 @@ suite "Noise":
 
     proc acceptHandler() {.async.} =
       var conn: Connection
-      try:
+      expect LPStreamError:
         conn = await transport1.accept()
         discard await serverNoise.secure(conn, Opt.none(PeerId))
-      except LPStreamError:
-        discard
-      finally:
-        await conn.close()
+      await conn.close()
 
     let
       handlerWait = acceptHandler()
