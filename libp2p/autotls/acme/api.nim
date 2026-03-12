@@ -116,7 +116,6 @@ when defined(libp2p_autotls_support):
     DefaultChalCompletedRetries = 10
     DefaultChalCompletedRetryTime = 1.seconds
     DefaultFinalizeRetries = 10
-    DefaultFinalizeRetryTime = 1.seconds
     ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
 
   type JWK = object
@@ -503,8 +502,7 @@ when defined(libp2p_autotls_support):
       kid: Kid,
       retries: int = DefaultFinalizeRetries,
   ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
-    let finalizeResponse =
-      await self.requestFinalize(domain, finalize, certKeyPair, key, kid)
+    discard await self.requestFinalize(domain, finalize, certKeyPair, key, kid)
     # keep checking order until cert is valid (done)
     return await self.checkCertFinalized(order, key, kid, retries = retries)
 

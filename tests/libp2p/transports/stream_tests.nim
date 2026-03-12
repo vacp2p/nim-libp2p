@@ -346,7 +346,6 @@ template streamTransportTest*(
     const messageSize = 2 * 1024 * 1024
     const chunkSize = 256 * 1024
     const parallelWrites = 10
-    let message = newData(messageSize)
     var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =

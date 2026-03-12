@@ -80,10 +80,6 @@ when defined(libp2p_autotls_support):
     # NoneIp is needed because nim 1.6.16 can't do proper generic inference
     NoneIp = Opt.none(IpAddress)
 
-  type SigParam = object
-    k: string
-    v: seq[byte]
-
   import
     ../crypto/rsa,
     ../utils/heartbeat,
