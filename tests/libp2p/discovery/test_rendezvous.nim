@@ -71,7 +71,6 @@ type CustomRendezVous = GenericRendezVous[CustomPeerRecord]
 
 proc new*(
     T: typedesc[CustomRendezVous],
-    rng: ref HmacDrbgContext = rng,
     minD = rendezvous.MinimumDuration,
     maxD = rendezvous.MaximumDuration,
     peerRecordValidator: PeerRecordValidator[CustomPeerRecord] = checkCustomPeerRecord,
