@@ -75,29 +75,29 @@ template failIfDataMissing(
   if dataLen > 0 and data.isNil():
     failWithMsg(callback, userData, "data is not set")
 
-# template callEventCallback(ctx: ptr LibP2PContext, eventName: string, body: untyped) =
-#   ## This template invokes the event callback for internal events
-#   if isNil(ctx[].eventCallback):
-#     error eventName & " - eventCallback is nil"
-#     return
+template callEventCallback(ctx: ptr LibP2PContext, eventName: string, body: untyped) =
+  ## This template invokes the event callback for internal events
+  if isNil(ctx[].eventCallback):
+    error eventName & " - eventCallback is nil"
+    return
 
-#   if isNil(ctx[].eventUserData):
-#     error eventName & " - eventUserData is nil"
-#     return
+  if isNil(ctx[].eventUserData):
+    error eventName & " - eventUserData is nil"
+    return
 
-#   foreignThreadGc:
-#     try:
-#       let event = body
-#       cast[Libp2pCallback](ctx[].eventCallback)(
-#         RET_OK, addr event[0], cast[csize_t](len(event)), ctx[].eventUserData
-#       )
-#     except Exception, CatchableError:
-#       let msg =
-#         "Exception " & eventName & " when calling 'eventCallBack': " &
-#         getCurrentExceptionMsg()
-#       cast[Libp2pCallback](ctx[].eventCallback)(
-#         RET_ERR, addr msg[0], cast[csize_t](len(msg)), ctx[].eventUserData
-#       )
+  foreignThreadGc:
+    try:
+      let event = body
+      cast[Libp2pCallback](ctx[].eventCallback)(
+        RET_OK, addr event[0], cast[csize_t](len(event)), ctx[].eventUserData
+      )
+    except Exception, CatchableError:
+      let msg =
+        "Exception " & eventName & " when calling 'eventCallBack': " &
+        getCurrentExceptionMsg()
+      cast[Libp2pCallback](ctx[].eventCallback)(
+        RET_ERR, addr msg[0], cast[csize_t](len(msg)), ctx[].eventUserData
+      )
 
 # Sends a request to the worker thread and returns success/failure
 proc handleRequest(
