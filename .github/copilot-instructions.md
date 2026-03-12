@@ -204,9 +204,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Raise `Defect` to signal panics and undefined behavior that the code is not prepared to handle.
 - If you must use exceptions, use specific exception types. Avoid raising or capturing `CatchableError`. Catching `CatchableError` implies that all errors are funnelled through the same exception handler. 
 
-#### Result 
-- Prefer bool, Opt or Result to signal failure outcomes explicitly. Avoid using the `result` identifier
-- Prefer the use of Result when multiple failure paths exist and the calling code might need to differentiate between them.
+#### Result
+- Prefer explicit error-signalling types (`bool`, `Opt`, `Result`) over implicit mechanisms like exceptions or status codes; see the later `#### Results` section for detailed guidance on when to use each.
 
 #### Status codes
 - Avoid status codes
