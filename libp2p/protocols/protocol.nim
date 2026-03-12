@@ -5,6 +5,7 @@
 
 import chronos, results
 import ../stream/connection
+import ../utils/future
 
 export results
 
@@ -25,16 +26,12 @@ method init*(p: LPProtocol) {.base, gcsafe.} =
   discard
 
 method start*(p: LPProtocol) {.base, async: (raises: [CancelledError], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
   p.started = true
-  fut
+  newFutureCompleted[void]()
 
 method stop*(p: LPProtocol) {.base, async: (raises: [], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
   p.started = false
-  fut
+  newFutureCompleted[void]()
 
 proc maxIncomingStreams*(p: LPProtocol): int =
   p.maxIncomingStreams.get(DefaultMaxIncomingStreams)

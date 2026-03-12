@@ -3,7 +3,7 @@
 
 {.used.}
 
-import std/options, chronos, metrics
+import chronos, metrics
 import
   ../../../libp2p/
     [builders, switch, services/wildcardresolverservice, multiaddress, multicodec]

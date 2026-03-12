@@ -3,11 +3,6 @@
 
 import chronos/futures, chronos, sequtils
 
-proc completedFuture*(): Future[void] =
-  let f = newFuture[void]()
-  f.complete()
-  f
-
 proc allFuturesRaising*(
     args: varargs[FutureBase]
 ): Future[void].Raising([CatchableError]) =
