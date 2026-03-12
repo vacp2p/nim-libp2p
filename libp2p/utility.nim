@@ -99,25 +99,25 @@ macro withValue*[T](self: Opt[T] | Option[T], value, body, elseStmt: untyped): u
   let elseBody = elseStmt[0]
   let tempSym = genSym(nskLet, "temp")
   result = newStmtList(
-    nnkLetSection.newTree(
-      nnkIdentDefs.newTree(tempSym, newEmptyNode(), self)
-    ),
+    nnkLetSection.newTree(nnkIdentDefs.newTree(tempSym, newEmptyNode(), self)),
     nnkIfStmt.newTree(
       nnkElifBranch.newTree(
         newCall(ident"isSome", tempSym),
         newStmtList(
           nnkLetSection.newTree(
             nnkIdentDefs.newTree(
-              nnkPragmaExpr.newTree(value, nnkPragma.newTree(ident"inject", ident"used")),
+              nnkPragmaExpr.newTree(
+                value, nnkPragma.newTree(ident"inject", ident"used")
+              ),
               newEmptyNode(),
-              newCall(ident"get", tempSym)
+              newCall(ident"get", tempSym),
             )
           ),
-          body
-        )
+          body,
+        ),
       ),
-      nnkElse.newTree(elseBody)
-    )
+      nnkElse.newTree(elseBody),
+    ),
   )
 
 template valueOr*[T](self: Option[T], body: untyped): untyped =

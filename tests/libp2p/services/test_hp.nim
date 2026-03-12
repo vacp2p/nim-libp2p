@@ -38,14 +38,6 @@ proc createSwitch(
 
   return builder.build()
 
-proc buildRelayMA(switchRelay: Switch, switchClient: Switch): MultiAddress =
-  MultiAddress
-  .init(
-    $switchRelay.peerInfo.addrs[0] & "/p2p/" & $switchRelay.peerInfo.peerId &
-      "/p2p-circuit/p2p/" & $switchClient.peerInfo.peerId
-  )
-  .get()
-
 suite "Hole Punching":
   teardown:
     checkTrackers()
@@ -214,8 +206,6 @@ suite "Hole Punching":
     let switchAux2 = createSwitch()
     let switchAux3 = createSwitch()
     let switchAux4 = createSwitch()
-
-    var awaiter = newFuture[void]()
 
     await allFuturesRaising(
       switchRelay.start(),

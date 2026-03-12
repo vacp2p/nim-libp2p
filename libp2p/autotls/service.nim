@@ -84,7 +84,6 @@ when defined(libp2p_autotls_support):
     k: string
     v: seq[byte]
 
-
   import
     ../crypto/rsa,
     ../utils/heartbeat,

@@ -113,8 +113,8 @@ suite "AutonatV2 Service":
 
   asyncTest "Reachability unknown before starting switch":
     let
-      (service, client) = newService(NetworkReachability.Reachable)
-      switch = createSwitch(service)
+      (service, _) = newService(NetworkReachability.Reachable)
+    discard createSwitch(service)
     check service.networkReachability == NetworkReachability.Unknown
 
   asyncTest "Peer must be reachable":

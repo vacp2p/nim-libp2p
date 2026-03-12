@@ -241,7 +241,7 @@ suite "Sphinx Tests":
     check msg == message
 
   test "create surb empty public keys":
-    let (message, _, _, delay, _, _) = createDummyData()
+    let (_, _, _, delay, _, _) = createDummyData()
     check createSURB(@[], delay, @[], randomI()).isErr()
 
   test "surb sphinx process invalid mac":
