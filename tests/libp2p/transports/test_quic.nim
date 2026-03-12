@@ -7,14 +7,14 @@ import chronos, random, stew/byteutils
 import
   ../../../libp2p/
     [transports/transport, transports/quictransport, upgrademngrs/upgrade, muxers/muxer]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto as cryptoTools]
 import ./basic_tests
 import ./stream_tests
 import ./utils
 
 proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   try:
-    return QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, (newRng())[]).tryGet())
+    return QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, rng[]).tryGet())
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
@@ -112,7 +112,7 @@ suite "Quic transport":
 
   asyncTest "peer ID extraction from certificate":
     # Create server with known private key
-    let serverPrivateKey = PrivateKey.random(ECDSA, (newRng())[]).tryGet()
+    let serverPrivateKey = PrivateKey.random(ECDSA, rng[]).tryGet()
     let expectedPeerId = PeerId.init(serverPrivateKey).tryGet()
 
     let server = await createQuicTransport(

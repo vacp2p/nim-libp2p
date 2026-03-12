@@ -13,7 +13,7 @@ import
       protocols/perf/server,
       protocols/perf/core,
     ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 proc createSwitch(
     isServer: bool = false,
@@ -22,7 +22,7 @@ proc createSwitch(
     useYamux: bool = false,
 ): Switch =
   var builder = SwitchBuilder.new()
-  builder = builder.withRng(newRng()).withNoise()
+  builder = builder.withRng(rng).withNoise()
 
   if useQuic:
     builder = builder.withQuicTransport().withAddresses(

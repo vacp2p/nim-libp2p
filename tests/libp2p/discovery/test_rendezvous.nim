@@ -18,7 +18,7 @@ import
     builders,
     utils/offsettedseq,
   ]
-import ../../tools/[lifecycle, topology, unittest]
+import ../../tools/[lifecycle, topology, unittest, crypto]
 import ./utils
 
 type CustomPeerRecord* = object
@@ -71,7 +71,6 @@ type CustomRendezVous = GenericRendezVous[CustomPeerRecord]
 
 proc new*(
     T: typedesc[CustomRendezVous],
-    rng: ref HmacDrbgContext = newRng(),
     minD = rendezvous.MinimumDuration,
     maxD = rendezvous.MaximumDuration,
     peerRecordValidator: PeerRecordValidator[CustomPeerRecord] = checkCustomPeerRecord,

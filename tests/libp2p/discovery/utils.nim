@@ -18,7 +18,7 @@ import ../../tools/[crypto]
 proc createSwitch*(): Switch =
   SwitchBuilder
   .new()
-  .withRng(newRng())
+  .withRng(rng)
   .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
   .withMemoryTransport()
   .withMplex()
@@ -32,7 +32,7 @@ proc createSwitch*(rdv: RendezVous): Switch =
 
   SwitchBuilder
   .new()
-  .withRng(newRng())
+  .withRng(rng)
   .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
   .withMemoryTransport()
   .withMplex()

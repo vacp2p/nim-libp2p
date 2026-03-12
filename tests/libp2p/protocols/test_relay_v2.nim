@@ -13,12 +13,12 @@ import
     protocols/connectivity/relay/utils,
     protocols/connectivity/relay/client,
   ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng)
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
     .withTcpTransport()
 

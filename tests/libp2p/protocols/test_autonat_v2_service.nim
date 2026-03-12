@@ -14,7 +14,7 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import ../../tools/[unittest, futures]
+import ../../tools/[unittest, futures, crypto]
 
 proc createSwitch(
     autonatSvc: Service = nil,
@@ -25,7 +25,7 @@ proc createSwitch(
 ): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng)
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
     .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
@@ -105,7 +105,7 @@ proc newService(
         ),
         expectedDials = expectedDials,
       )
-  (AutonatV2Service.new(newRng(), client = client, config = config), client)
+  (AutonatV2Service.new(rng, client = client, config = config), client)
 
 suite "AutonatV2 Service":
   teardown:
