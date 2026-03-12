@@ -200,7 +200,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 
 #### Exceptions 
 - In general, prefer explicit error handling mechanisms like using `Result`
-- Use explicit {.raises.} annotation for each public `*` function.
+- For new or significantly modified public `*` functions, prefer adding an explicit `{.raises.}` annotation; existing public APIs may not yet follow this consistently.
 - Raise `Defect` to signal panics and undefined behavior that the code is not prepared to handle.
 - If you must use exceptions, use specific exception types. Avoid raising or capturing `CatchableError`. Catching `CatchableError` implies that all errors are funnelled through the same exception handler. 
 
