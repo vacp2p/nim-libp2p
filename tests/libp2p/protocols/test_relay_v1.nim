@@ -3,7 +3,7 @@
 
 {.used.}
 
-import options, bearssl, chronos, stew/byteutils
+import bearssl, chronos, stew/byteutils
 import
   ../../../libp2p/[
     protocols/connectivity/relay/relay,
@@ -22,7 +22,7 @@ import
     upgrademngrs/upgrade,
     varint,
   ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 proc new(T: typedesc[RelayTransport], relay: Relay): T =
   T.new(relay = relay, upgrader = relay.switch.transports[0].upgrader)
@@ -99,7 +99,7 @@ suite "Circuit Relay":
     r = Relay.new(circuitRelayV1 = true)
     src = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -108,7 +108,7 @@ suite "Circuit Relay":
       .build()
     dst = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -117,7 +117,7 @@ suite "Circuit Relay":
       .build()
     srelay = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()

@@ -8,12 +8,12 @@ import ./autonatv2
 import
   ../../libp2p/
     [builders, peerid, switch, wire, protocols/connectivity/autonatv2/service]
-import ../tools/[unittest]
+import ../tools/[unittest, crypto]
 
 proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng)
     .withAddresses(@[MultiAddress.init(address).get()])
     .withTcpTransport()
     .withYamux()

@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, metrics, std/[options, sequtils]
+import chronos, metrics, std/sequtils
 import
   ../../../libp2p/[
     builders,
@@ -14,7 +14,7 @@ import
     nameresolving/mockresolver,
   ]
 import ../../stubs/autonatclientstub
-import ../../tools/[unittest, futures]
+import ../../tools/[unittest, futures, crypto]
 
 proc createSwitch(
     autonatSvc: Service = nil,
@@ -25,7 +25,7 @@ proc createSwitch(
 ): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng)
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
     .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
@@ -52,7 +52,7 @@ suite "Autonat Service":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 3)
     autonatClientStub.answer = NotReachable
 
-    let autonatService = AutonatService.new(autonatClientStub, newRng())
+    let autonatService = AutonatService.new(autonatClientStub, rng)
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -81,7 +81,7 @@ suite "Autonat Service":
 
   asyncTest "Peer must be reachable":
     let autonatService =
-      AutonatService.new(AutonatClient.new(), newRng(), Opt.some(1.seconds))
+      AutonatService.new(AutonatClient.new(), rng, Opt.some(1.seconds))
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -129,8 +129,7 @@ suite "Autonat Service":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 6)
     autonatClientStub.answer = NotReachable
 
-    let autonatService =
-      AutonatService.new(autonatClientStub, newRng(), Opt.some(1.seconds))
+    let autonatService = AutonatService.new(autonatClientStub, rng, Opt.some(1.seconds))
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -177,7 +176,7 @@ suite "Autonat Service":
 
   asyncTest "Peer must be reachable when one connected peer has autonat disabled":
     let autonatService = AutonatService.new(
-      AutonatClient.new(), newRng(), Opt.some(1.seconds), maxQueueSize = 2
+      AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 2
     )
 
     let switch1 = createSwitch(autonatService)
@@ -221,9 +220,8 @@ suite "Autonat Service":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 6)
     autonatClientStub.answer = NotReachable
 
-    let autonatService = AutonatService.new(
-      autonatClientStub, newRng(), Opt.some(1.seconds), maxQueueSize = 3
-    )
+    let autonatService =
+      AutonatService.new(autonatClientStub, rng, Opt.some(1.seconds), maxQueueSize = 3)
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -271,7 +269,7 @@ suite "Autonat Service":
   asyncTest "Calling setup and stop twice must work":
     let switch = createSwitch()
     let autonatService = AutonatService.new(
-      AutonatClientStub.new(expectedDials = 0), newRng(), Opt.some(1.seconds)
+      AutonatClientStub.new(expectedDials = 0), rng, Opt.some(1.seconds)
     )
 
     check (await autonatService.setup(switch)) == true
@@ -284,7 +282,7 @@ suite "Autonat Service":
 
   asyncTest "Must bypass maxConnectionsPerPeer limit":
     let autonatService = AutonatService.new(
-      AutonatClient.new(), newRng(), Opt.some(1.seconds), maxQueueSize = 1
+      AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 1
     )
 
     let switch1 = createSwitch(autonatService, maxConnsPerPeer = 0)
@@ -327,13 +325,13 @@ suite "Autonat Service":
 
   asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
     let autonatService1 = AutonatService.new(
-      AutonatClient.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
+      AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
     let autonatService2 = AutonatService.new(
-      AutonatClient.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
+      AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
     let autonatService3 = AutonatService.new(
-      AutonatClient.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
+      AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
 
     let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 0)
@@ -385,10 +383,10 @@ suite "Autonat Service":
 
   asyncTest "Must work for one peer when two peers ask each other at the same time with max 1 conn per peer":
     let autonatService1 = AutonatService.new(
-      AutonatClient.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
+      AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
     let autonatService2 = AutonatService.new(
-      AutonatClient.new(), newRng(), Opt.some(500.millis), maxQueueSize = 3
+      AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
 
     let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 0)
@@ -434,7 +432,7 @@ suite "Autonat Service":
 
   asyncTest "Must work with low maxConnections":
     let autonatService = AutonatService.new(
-      AutonatClient.new(), newRng(), Opt.some(1.seconds), maxQueueSize = 1
+      AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 1
     )
 
     let switch1 = createSwitch(autonatService, maxConns = 4)
@@ -484,7 +482,7 @@ suite "Autonat Service":
     )
 
   asyncTest "Peer must not ask an incoming peer":
-    let autonatService = AutonatService.new(AutonatClient.new(), newRng())
+    let autonatService = AutonatService.new(AutonatClient.new(), rng)
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()

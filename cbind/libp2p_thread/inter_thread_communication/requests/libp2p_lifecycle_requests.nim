@@ -17,6 +17,7 @@ import ../../../../libp2p/crypto/secp
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/protocols/kad_disco
 import ../../../../libp2p/protocols/kademlia_discovery/types
 import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/mix

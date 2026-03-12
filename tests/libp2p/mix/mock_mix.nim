@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, options, sets, sequtils
+import chronos, results, sets, sequtils
 import
   ../../../libp2p/[
     protocols/mix,

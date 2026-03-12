@@ -3,7 +3,7 @@
 
 {.used.}
 
-import std/options, chronos
+import chronos
 import
   ../../../libp2p/[
     transports/tcptransport,
@@ -14,12 +14,12 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng)
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
     .withTcpTransport()
     .withMplex()
