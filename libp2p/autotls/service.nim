@@ -32,19 +32,10 @@ const
   DefaultRenewCheckTime* = 1.hours
   DefaultRenewBufferTime* = 1.hours
 
-  DefaultIssueRetries = 3
-  DefaultIssueRetryTime = 1.seconds
-
   AutoTLSBroker* = "registration.libp2p.direct"
   AutoTLSDNSServer* = "libp2p.direct"
   HttpOk* = 200
   HttpCreated* = 201
-  # NoneIp is needed because nim 1.6.16 can't do proper generic inference
-  NoneIp = Opt.none(IpAddress)
-
-type SigParam = object
-  k: string
-  v: seq[byte]
 
 type AutotlsCert* = ref object
   cert*: TLSCertificate
@@ -82,6 +73,17 @@ type AutotlsService* = ref object of Service
 
 when defined(libp2p_autotls_support):
   import json, sequtils, bearssl/pem
+
+  const
+    DefaultIssueRetries = 3
+    DefaultIssueRetryTime = 1.seconds
+    # NoneIp is needed because nim 1.6.16 can't do proper generic inference
+    NoneIp = Opt.none(IpAddress)
+
+  type SigParam = object
+    k: string
+    v: seq[byte]
+
 
   import
     ../crypto/rsa,

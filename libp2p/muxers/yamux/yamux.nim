@@ -458,10 +458,11 @@ type Yamux* = ref object of Muxer
   inTimeout: Duration
   outTimeout: Duration
 
-proc lenBySrc(m: Yamux, isSrc: bool): int =
-  for v in m.channels.values():
-    if v.isSrc == isSrc:
-      result += 1
+when defined(libp2p_yamux_metrics):
+  proc lenBySrc(m: Yamux, isSrc: bool): int =
+    for v in m.channels.values():
+      if v.isSrc == isSrc:
+        result += 1
 
 proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   try:

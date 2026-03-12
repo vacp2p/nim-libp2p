@@ -12,6 +12,7 @@ switch("warningAsError", "ResultShadowed:on")
 switch("warningAsError", "UnreachableElse:on")
 switch("warningAsError", "UnusedImport:on")
 switch("warningAsError", "UseBase:on")
+switch("hintAsError", "XDeclaredButNotUsed:on")
 switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
 switch("hintAsError", "DuplicateModuleImport:on")
 

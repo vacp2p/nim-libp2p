@@ -89,7 +89,7 @@ template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped 
   ## Note: This is a template, and it will be inlined at the call site, offering good performance.
   let temp = (self)
   if temp.isSome:
-    let value {.inject.} = temp.get()
+    let value {.inject, used.} = temp.get()
     body
 
 template withValue*[T, E](self: Result[T, E], value, body: untyped): untyped =
@@ -97,13 +97,28 @@ template withValue*[T, E](self: Result[T, E], value, body: untyped): untyped =
 
 macro withValue*[T](self: Opt[T] | Option[T], value, body, elseStmt: untyped): untyped =
   let elseBody = elseStmt[0]
-  quote:
-    let temp = (`self`)
-    if temp.isSome:
-      let `value` {.inject.} = temp.get()
-      `body`
-    else:
-      `elseBody`
+  let tempSym = genSym(nskLet, "temp")
+  result = newStmtList(
+    nnkLetSection.newTree(
+      nnkIdentDefs.newTree(tempSym, newEmptyNode(), self)
+    ),
+    nnkIfStmt.newTree(
+      nnkElifBranch.newTree(
+        newCall(ident"isSome", tempSym),
+        newStmtList(
+          nnkLetSection.newTree(
+            nnkIdentDefs.newTree(
+              nnkPragmaExpr.newTree(value, nnkPragma.newTree(ident"inject", ident"used")),
+              newEmptyNode(),
+              newCall(ident"get", tempSym)
+            )
+          ),
+          body
+        )
+      ),
+      nnkElse.newTree(elseBody)
+    )
+  )
 
 template valueOr*[T](self: Option[T], body: untyped): untyped =
   let temp = (self)

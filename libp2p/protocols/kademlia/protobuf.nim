@@ -68,8 +68,7 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
 
   pb.write(2, msg.key)
 
-  msg.record.withValue(record):
-    pb.writeOpt(3, msg.record)
+  pb.writeOpt(3, msg.record)
 
   for peer in msg.closerPeers:
     pb.write(8, peer.encode())
@@ -104,9 +103,7 @@ proc decode*(T: type Record, pb: ProtoBuffer): ProtoResult[T] =
   return ok(r)
 
 proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
-  var
-    p: Peer
-    id: seq[byte]
+  var p: Peer
 
   ?pb.getRequiredField(1, p.id)
 

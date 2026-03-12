@@ -123,7 +123,7 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
     if ma.protocols.isOk():
       let sma = toSeq(ma.items())
       result = sma.len >= 2 and CircuitRelay.match(sma[^1].tryGet())
-  except CatchableError as exc:
+  except CatchableError:
     result = false
   trace "Handles return", ma, result
 
