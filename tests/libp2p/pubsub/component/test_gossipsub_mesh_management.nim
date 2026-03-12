@@ -58,15 +58,12 @@ suite "GossipSub Component - Mesh Management":
         )
 
   asyncTest "GossipSub should add remote peer topic subscriptions":
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
 
     checkUntilTimeout:
       topic in nodes[1].topics
@@ -74,16 +71,13 @@ suite "GossipSub Component - Mesh Management":
       nodes[0].gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
   asyncTest "GossipSub should add remote peer topic subscriptions if both peers are subscribed":
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
 
-    nodes[0].subscribe(topic, handler)
-    nodes[1].subscribe(topic, handler)
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
     check:
@@ -149,10 +143,8 @@ suite "GossipSub Component - Mesh Management":
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
     ### await connectStar(nodes)
 
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      discard
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
 
     await invalidDetected.wait(10.seconds)
 

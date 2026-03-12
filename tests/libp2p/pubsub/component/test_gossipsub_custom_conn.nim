@@ -15,7 +15,7 @@ type DummyConnection* = ref object of Connection
 method write*(
     self: DummyConnection, msg: seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-  discard
+  discard "."
 
 proc new*(T: typedesc[DummyConnection]): DummyConnection =
   let instance = T()
