@@ -4,7 +4,7 @@
 
 **nim-libp2p** is a native Nim implementation of the [libp2p](https://libp2p.io) peer-to-peer networking stack. It is used in production by [Nimbus (Ethereum client)](https://github.com/status-im/nimbus-eth2) and other projects.
 
-- **Language**: Nim (requires Nim >= 2.0.0; see `libp2p.nimble` and `.github/workflows/ci.yml` for currently supported versions)
+- **Language**: Nim ( see `libp2p.nimble` and `.github/workflows/ci.yml` for currently supported versions)
 - **License**: Apache 2.0 OR MIT
 - **Version**: 1.15.3
 - **Author**: Status Research & Development GmbH
@@ -165,15 +165,20 @@ The test runner (`libp2p.nimble`) always compiles with:
 
 ## Code Conventions
 
+#### `result` return
+- DO NOT USE `result` for returning values.
+- Use expression-based return or explicit return keyword with a value
+
 ### Async Model
 - All async code uses **chronos** (`import chronos`)
 - Use `async` / `await` / `Future[T]` patterns
 - Async procedures return `Future[T]` or `Future[void]`
+- Manually created `Futures` should specify the exceptions they raise: `Future[someType].Raising([ListOfExceptionsHere]).init()`
 
 ### Error Handling
 - Use the **results** library: `Result[T, E]`, `?`, `valueOr`, `isOk`, `isErr`
 - Custom error types are in `libp2p/errors.nim` (derive from `LPError`)
-- Prefer `valueOr` over `tryGet()` when catching errors — `tryGet()` raises `ResultError[string]` which is NOT a subtype of `LPError`
+- Use `valueOr` over `tryGet()` when catching errors — `tryGet()` raises `ResultError[string]` which is NOT a subtype of `LPError`
 - Example: use `let ma = maResult.valueOr: return err(...)` not `let ma = maResult.tryGet()`
 
 ### Logging
@@ -190,13 +195,113 @@ The test runner (`libp2p.nimble`) always compiles with:
 - For C bindings (`cbind/`): use `createShared`/`freeShared` for cross-thread objects
 
 ### Style
+
+#### General
 - Nim identifier naming: `camelCase` for variables/procedures, `PascalCase` for types
 - Style check is **strict** — naming must match declaration exactly
 - No bare `except` clauses (use typed exceptions)
 - No unused imports
-- Format all code with `nph` before committing
-- `discard` should not be used for empty body statements: if used in try-except block when error is expected it is better to use expect instead
-for callbacks they should either raise an error because they should not be called or if it is indeed noop callback it should be written once then reused always
+
+#### Exceptions
+- For new or significantly modified public `*` functions, add an explicit `{.raises.}` annotation; existing public APIs may not yet follow this consistently.
+- If you must use exceptions, use specific exception types. Avoid raising or capturing `CatchableError`. Catching `CatchableError` implies that all errors are funnelled through the same exception handler.
+- Do not catch `CancelledError`. By not catching, it is propagated by default. Sometimes this exception is captured and re-raised which is fine.
+- Use `e` as error variable name in `except` clause like `except LPStreamEOFError as e`
+
+#### Result
+- Use explicit error-signalling types (`bool`, `Opt`, `Result`) over implicit mechanisms like exceptions or status codes
+- For optional values, use `Opt[T]` from `results` (import `results` and use the unqualified `Opt[T]` type).
+- Do not use other option-like types such as `options.Option`.
+
+#### Status codes
+- Avoid status codes
+
+#### Binary data
+- Use `byte` to denote binary data. Use `seq[byte]` for dynamic byte arrays.
+- Avoid `string` for binary data. If stdlib returns strings, [convert](https://github.com/status-im/nim-stew/blob/76beeb769e30adc912d648c014fd95bf748fef24/stew/byteutils.nim#L141) to `seq[byte]` as early as possible
+
+#### Converters
+- Avoid using converters.
+
+#### Finalizers
+- Don't use finalizers.
+
+#### Import, export
+- Use specific imports. Avoid `include`.
+
+#### Inline functions
+- Avoid using explicit {.inline.} functions.
+
+#### Integers
+- Use signed integers for counting, lengths, array indexing etc.
+- Use unsigned integers of specified size for interfacing with binary data, bit manipulation, low-level hardware access and similar contexts.
+- Don't cast `pointer` to `int`.
+- Avoid `Natural` - implicit conversion from `int` to `Natural` can raise a `Defect`
+
+#### Macros
+- Be judicious in macro usage - use more simple constructs.
+- Avoid generating public API functions with macros.
+- Write as much code as possible in templates, and glue together using macros
+
+#### Memory allocation
+- Prefer to use stack-based and statically sized data types in core/low-level libraries.
+- Use heap allocation in glue layers.
+- Avoid `alloca`.
+
+#### Object construction
+- Use `Xxx(x: 42, y: Yyy(z: 54))` style, or if type has an `init` or `new` function, `Type.init(a, b, c)`.
+- Prefer that the default 0-initialization is a valid state for the type.
+- Avoid using `var instance: Type` which disable several compiler diagnostics
+- If a function creates a stack object, it should be called `init`. If it returns a heap object `new`
+
+#### Functions and procedures
+- Use `func` when possible. Use `proc` when side effects cannot conveniently be avoided.
+- Avoid public functions and variables (`*`) that don't make up an intended part of public API.
+- Use `openArray` as argument type over `seq` for traversals
+
+#### Callbacks, closures and forward declarations
+- Annotate proc type definitions and forward declarations with `{.raises: [], gcsafe.}` or specific exception types.
+
+#### `range`
+- Avoid range types.
+
+#### `ref object` types
+- Avoid ref object types, except:
+- Use explicit `ref MyType` where reference semantics are needed, allowing the caller to choose where possible.
+
+#### Variable declaration
+- Use the most restrictive of `const`, `let` and `var` that the situation allows.
+
+#### Variable initialization
+- Prefer expressions to initialize variables and return values
+
+#### Hex output
+- Print hex output in lowercase. Accept upper and lower case.
+
+#### Standard library usage
+- Use the Nim standard library judiciously. Prefer smaller, separate packages that implement similar functionality, where available.
+- Use the following stdlib replacements that offer safer API (allowing more issues to be detected at compile time):
+```
+    async -> chronos
+    bitops -> stew/bitops2
+    endians -> stew/endians2
+    exceptions -> results
+    io -> stew/io2
+    sqlite -> nim-sqlite3-abi
+    streams -> nim-faststreams
+```
+
+#### `stew`
+- stew contains small utilities and replacements for std libraries.
+- If similar libraries exist in `std` and `stew`, use [stew](https://github.com/status-im/nim-stew).
+
+#### `discard`
+- `discard` should not be used for empty body statements in tests: if used in try-except block when error is expected it is better to use `expect` instead. For callbacks, they should either raise an error because they should not be called, or, if it is indeed a noop callback, it should be written once then reused always.
+
+#### RNG
+- Do not use `newRng()`. In the nim-libp2p test files, do not use `newRng()`. Instead use `rng` template from `tests/tools/crypto.nim`
+- Ignore `nim-libp2p/tests/tools/crypto.nim` (that's the definition file)
+
 ### API Stability
 - Procedures marked with `.public.` pragma are backward-compatible within MAJOR versions
 - Internal procedures may change at MINOR versions
