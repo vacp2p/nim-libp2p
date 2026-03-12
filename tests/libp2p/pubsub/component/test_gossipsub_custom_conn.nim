@@ -11,15 +11,12 @@ import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 type DummyConnection* = ref object of Connection
+  data: seq[byte]
 
 method write*(
     self: DummyConnection, msg: seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-  discard "."
-
-proc new*(T: typedesc[DummyConnection]): DummyConnection =
-  let instance = T()
-  instance
+  self.data.add(msg)
 
 suite "GossipSub Component - Custom Connection Support":
   const topic = "foobar"
@@ -30,8 +27,8 @@ suite "GossipSub Component - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers custom connection and peer selection":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    var
-      customConnCreated = false
+    var 
+      dummyConn = DummyConnection()
       peerSelectionCalled = false
 
     nodes[0].customConnCallbacks = some(
@@ -39,8 +36,7 @@ suite "GossipSub Component - Custom Connection Support":
         customConnCreationCB: proc(
             destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
         ): Connection =
-          customConnCreated = true
-          return DummyConnection.new(),
+          return dummyConn,
         customPeerSelectionCB: proc(
             allPeers: HashSet[PubSubPeer],
             directPeers: HashSet[PubSubPeer],
@@ -64,7 +60,7 @@ suite "GossipSub Component - Custom Connection Support":
 
     check:
       peerSelectionCalled
-      customConnCreated
+      dummyConn.data.len > 0
 
   asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
