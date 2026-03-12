@@ -19,7 +19,7 @@ import
     wire,
     utils/ipaddr,
   ]
-import ../tools/[unittest]
+import ../tools/[unittest, crypto]
 
 suite "WebSocket transport integration":
   teardown:
@@ -34,7 +34,7 @@ suite "WebSocket transport integration":
 
     let switch1 = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()])
       .withNameResolver(DnsResolver.new(@[initTAddress("1.1.1.1:53")]))
       .withWsTransport()
@@ -44,7 +44,7 @@ suite "WebSocket transport integration":
 
     let switch2 = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(
         @[
           MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),

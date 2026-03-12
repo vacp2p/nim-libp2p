@@ -6,7 +6,7 @@
 import random, results, chronicles, bearssl/rand
 import ../../../libp2p/crypto/crypto
 import ../../../libp2p/protocols/mix/[curve25519, serialization, sphinx, tag_manager]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 # Helper function to pad/truncate message
 proc addPadding(message: openArray[byte], size: int): seq[byte] =
@@ -43,7 +43,7 @@ proc createDummyData(): (
   return (message, privateKeys, publicKeys, delay, hops, dest)
 
 template randomI(): SURBIdentifier =
-  newRng()[].generate(SURBIdentifier)
+  rng[].generate(SURBIdentifier)
 
 # Unit tests for sphinx.nim
 suite "Sphinx Tests":

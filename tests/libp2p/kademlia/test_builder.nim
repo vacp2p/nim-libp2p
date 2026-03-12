@@ -6,7 +6,7 @@
 import chronos
 import ../../../libp2p/[switch, builders]
 import ../../../libp2p/protocols/kademlia
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 import ./utils.nim
 
 suite "KadDHT Switch Builder":
@@ -16,7 +16,7 @@ suite "KadDHT Switch Builder":
   asyncTest "Build switch with withKademlia":
     var switch1 = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -26,7 +26,7 @@ suite "KadDHT Switch Builder":
 
     var switch2 = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -45,7 +45,7 @@ suite "KadDHT Switch Builder":
   asyncTest "Use Kad as a client only":
     var switch1 = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -55,7 +55,7 @@ suite "KadDHT Switch Builder":
 
     var switch2 = SwitchBuilder
       .new()
-      .withRng(newRng())
+      .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
