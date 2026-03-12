@@ -19,7 +19,7 @@ suite "GossipSub Extensions :: Test Extension":
 
   test "config validation":
     expect AssertionDefect:
-      let ext = TestExtension.new(TestExtensionConfig())
+      discard TestExtension.new(TestExtensionConfig())
 
   test "onNegotiated callback called":
     var negotiatedPeers: seq[PeerId]
