@@ -245,7 +245,7 @@ suite "Multistream select":
     proc testHandler(
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      raiseAssert "must not happen"
+      raiseAssert "must not be reached"
 
     var protocol: LPProtocol = new LPProtocol
     protocol.handler = testHandler
@@ -270,7 +270,7 @@ suite "Multistream select":
     proc testHandler(
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      raiseAssert "must not happen"
+      raiseAssert "must not be reached"
 
     protocol.handler = testHandler
     ms.addHandler("/unabvailable/proto/1.0.0", protocol)
@@ -406,12 +406,12 @@ suite "Multistream select":
     protocol.handler = proc(
         conn: Connection, proto: string
     ) {.async: (raises: [CancelledError]).} =
-      raiseAssert "must not happen"
+      raiseAssert "must not be reached"
 
     proc testHandler(
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      raiseAssert "must not happen"
+      raiseAssert "must not be reached"
 
     protocol.handler = testHandler
     msListen.addHandler("/test/proto1/1.0.0", protocol)
