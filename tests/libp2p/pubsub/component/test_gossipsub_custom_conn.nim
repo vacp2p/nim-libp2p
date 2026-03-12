@@ -27,7 +27,7 @@ suite "GossipSub Component - Custom Connection Support":
   asyncTest "publish with useCustomConn triggers custom connection and peer selection":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
-    var 
+    var
       dummyConn = DummyConnection()
       peerSelectionCalled = false
 

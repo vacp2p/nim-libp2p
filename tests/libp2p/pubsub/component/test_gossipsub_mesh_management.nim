@@ -143,7 +143,6 @@ suite "GossipSub Component - Mesh Management":
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
     ### await connectStar(nodes)
 
-
     nodes[1].subscribe(topic, voidTopicHandler)
 
     await invalidDetected.wait(10.seconds)
