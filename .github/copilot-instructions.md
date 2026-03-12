@@ -210,8 +210,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 
 #### Result
 - Use explicit error-signalling types (`bool`, `Opt`, `Result`) over implicit mechanisms like exceptions or status codes
-- Use `results.Opt` for optional value.
-- Do not use other types like `options.Option`.
+- For optional values, use `Opt[T]` from `results` (import `results` and use the unqualified `Opt[T]` type).
+- Do not use other option-like types such as `options.Option`.
 
 #### Status codes
 - Avoid status codes
