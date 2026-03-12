@@ -100,6 +100,24 @@ suite "Mplex":
       check string.fromBytes(msg.data) == "hello from channel 0!!"
       await conn.close()
 
+  suite "test":
+    asyncTest "test test":
+      proc writeHandler(
+          data: seq[byte]
+      ) {.async: (raises: [CancelledError, LPStreamError]).} =
+        discard
+
+      let
+        conn = TestBufferStream.new(writeHandler)
+        chann = LPChannel.init(1, conn, true)
+
+      await chann.close()
+      expect LPStreamClosedError:
+        await chann.write("Hello")
+
+      await chann.reset()
+      await conn.close()
+
   suite "channel half-closed":
     asyncTest "(local close) - should close for write":
       proc writeHandler(
