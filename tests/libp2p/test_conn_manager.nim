@@ -396,8 +396,7 @@ suite "Connection Manager":
       let slot = connMngr.getOutgoingSlot()
 
       let muxer = getMuxer(
-        PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet(),
-        Direction.In,
+        PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet(), Direction.In
       )
 
       slot.trackMuxer(muxer)

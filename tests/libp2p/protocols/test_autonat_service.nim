@@ -129,8 +129,7 @@ suite "Autonat Service":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 6)
     autonatClientStub.answer = NotReachable
 
-    let autonatService =
-      AutonatService.new(autonatClientStub, rng, Opt.some(1.seconds))
+    let autonatService = AutonatService.new(autonatClientStub, rng, Opt.some(1.seconds))
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()
@@ -221,9 +220,8 @@ suite "Autonat Service":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 6)
     autonatClientStub.answer = NotReachable
 
-    let autonatService = AutonatService.new(
-      autonatClientStub, rng, Opt.some(1.seconds), maxQueueSize = 3
-    )
+    let autonatService =
+      AutonatService.new(autonatClientStub, rng, Opt.some(1.seconds), maxQueueSize = 3)
 
     let switch1 = createSwitch(autonatService)
     let switch2 = createSwitch()

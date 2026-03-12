@@ -363,7 +363,5 @@ when defined(libp2p_autotls_support):
       )
       expect(ACMEError):
         discard await acme.getCertificate(
-          api.Domain("some.domain"),
-          KeyPair.random(PKScheme.RSA, rng[]).get,
-          challenge,
+          api.Domain("some.domain"), KeyPair.random(PKScheme.RSA, rng[]).get, challenge
         )

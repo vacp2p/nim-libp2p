@@ -143,8 +143,7 @@ suite "Autorelay":
             relayMA in addresses
         allChecksCompleted.complete()
 
-    let autorelay =
-      AutoRelayService.new(maxNumRelays = 2, relayClient, checkMA, rng)
+    let autorelay = AutoRelayService.new(maxNumRelays = 2, relayClient, checkMA, rng)
     switchClient = createSwitch(relayClient, autorelay)
     await allFutures(switchClient.start(), rel1.start(), rel2.start(), rel3.start())
     await switchClient.connect(rel1.peerInfo.peerId, rel1.peerInfo.addrs)
