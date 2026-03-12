@@ -195,7 +195,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 - No bare `except` clauses (use typed exceptions)
 - No unused imports
 - Format all code with `nph` before committing
-
+- `discard` should not be used for empty body statements: if used in try-except block when error is expected it is better to use expect instead
+for callbacks they should either raise an error because they should not be called or if it is indeed noop callback it should be written once then reused always
 ### API Stability
 - Procedures marked with `.public.` pragma are backward-compatible within MAJOR versions
 - Internal procedures may change at MINOR versions
