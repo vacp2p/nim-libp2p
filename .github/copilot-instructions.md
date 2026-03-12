@@ -262,7 +262,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Prefer `openArray` as argument type over `seq` for traversals
 
 #### Callbacks, closures and forward declarations
-- Annotate proc type definitions and forward declarations with `{.raises [], gcsafe.}` or specific exception types.
+- Annotate proc type definitions and forward declarations with `{.raises: [], gcsafe.}` or specific exception types.
 
 #### `range`
 - Avoid range types.
