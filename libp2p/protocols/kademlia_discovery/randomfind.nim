@@ -31,13 +31,10 @@ proc randomRecords*(
     if addRes.isErr:
       error "cannot enqueue peer", error = addRes.error.msg
 
-  let findRes = catch:
-    await disco.findNode(randomKey, queue)
-  if findRes.isErr:
-    error "kad find node failed", error = findRes.error.msg
+  let findNodeFut = disco.findNode(randomKey, queue)
 
   var buffers: seq[seq[byte]]
-  while not queue.empty():
+  while not findNodeFut.finished or not queue.empty():
     let (peerId, _) = await queue.popFirst()
 
     let res = catch:
@@ -56,6 +53,11 @@ proc randomRecords*(
       continue
 
     buffers.add(buffer)
+
+  let findNodeRes = catch:
+    await findNodeFut
+  if findNodeRes.isErr:
+    error "kad find node failed", error = findNodeRes.error.msg
 
   var records: HashSet[ExtendedPeerRecord]
   for buffer in buffers:
