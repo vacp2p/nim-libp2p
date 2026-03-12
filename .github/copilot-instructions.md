@@ -173,7 +173,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 - All async code uses **chronos** (`import chronos`)
 - Use `async` / `await` / `Future[T]` patterns
 - Async procedures return `Future[T]` or `Future[void]`
-- Manually created `Futures` should specify the exceptions they raise: `Future[someType].Raising([ListOfExceptionsHere])()`
+- Manually created `Futures` should specify the exceptions they raise: `Future[someType].Raising([ListOfExceptionsHere]).init()`
 
 ### Error Handling
 - Use the **results** library: `Result[T, E]`, `?`, `valueOr`, `isOk`, `isErr`
