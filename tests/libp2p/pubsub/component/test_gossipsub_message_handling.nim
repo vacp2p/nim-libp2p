@@ -443,16 +443,13 @@ suite "GossipSub Component - Message Handling":
       inc aReceived
       check aReceived < 2
 
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     proc handlerC(topic: string, data: seq[byte]) {.async.} =
       inc cReceived
       check cReceived < 2
       cRelayed.done()
 
     nodes[0].subscribe(topic, handlerA)
-    nodes[1].subscribe(topic, handlerB)
+    nodes[1].subscribe(topic, voidTopicHandler)
     nodes[2].subscribe(topic, handlerC)
     waitSubscribeStar(nodes, topic)
 
