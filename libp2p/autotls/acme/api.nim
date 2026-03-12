@@ -452,7 +452,7 @@ when defined(libp2p_autotls_support):
       kid: Kid,
       retries: int = DefaultChalCompletedRetries,
   ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
-    let completedResponse = await self.sendChallengeCompleted(chalURL, key, kid)
+    discard await self.sendChallengeCompleted(chalURL, key, kid)
     # check until acme server is done (poll validation)
     return await self.checkChallengeCompleted(chalURL, key, kid, retries = retries)
 
