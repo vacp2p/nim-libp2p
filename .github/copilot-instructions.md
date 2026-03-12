@@ -288,11 +288,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Print hex output in lowercase. Accept upper and lower case.
 
 #### Results
-- Use `Result` to document all outcomes of functions.
-- Use `cstring` errors to provide diagnostics without expectation of error differentiation.
-- Use enum errors when error kind matters.
-- Use complex types when additional error information needs to be included.
-- Use `Opt` (`Result`-based Option) for simple functions that fail only in trivial ways.
+Refer to the earlier `#### Result` section for authoritative guidelines on using `Result` and `Opt`-based APIs.
 
 #### Standard library usage
 - Use the Nim standard library judiciously. Prefer smaller, separate packages that implement similar functionality, where available.
