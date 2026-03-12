@@ -245,7 +245,7 @@ suite "Multistream select":
     proc testHandler(
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      discard
+      raiseAssert "must not happen"
 
     var protocol: LPProtocol = new LPProtocol
     protocol.handler = testHandler
@@ -270,7 +270,7 @@ suite "Multistream select":
     proc testHandler(
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      discard
+      raiseAssert "must not happen"
 
     protocol.handler = testHandler
     ms.addHandler("/unabvailable/proto/1.0.0", protocol)
@@ -406,14 +406,12 @@ suite "Multistream select":
     protocol.handler = proc(
         conn: Connection, proto: string
     ) {.async: (raises: [CancelledError]).} =
-      # never reached
-      discard
+      raiseAssert "must not happen"
 
     proc testHandler(
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      # never reached
-      discard
+      raiseAssert "must not happen"
 
     protocol.handler = testHandler
     msListen.addHandler("/test/proto1/1.0.0", protocol)
@@ -426,10 +424,10 @@ suite "Multistream select":
       let conn = await transport1.accept()
       try:
         await msListen.handle(conn)
-      except LPStreamEOFError:
-        discard
-      except LPStreamClosedError:
-        discard
+      except LPStreamEOFError as e:
+        raiseAssert "unexpected error: " & e.msg
+      except LPStreamClosedError as e:
+        raiseAssert "unexpected error: " & e.msg
       finally:
         await conn.close()
 
