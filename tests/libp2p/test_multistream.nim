@@ -202,6 +202,11 @@ proc newTestNaStream(na: NaHandler): TestNaStream =
   result.na = na
   result.step = 1
 
+proc noReachHandler(
+    conn: Connection, proto: string
+): Future[void] {.async: (raises: [CancelledError]).} =
+  raiseAssert "must not be reached"
+
 suite "Multistream select":
   teardown:
     checkTrackers()
@@ -242,13 +247,8 @@ suite "Multistream select":
 
     conn = Connection(newTestLsStream(testLsHandler))
 
-    proc testHandler(
-        conn: Connection, proto: string
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      raiseAssert "must not be reached"
-
     var protocol: LPProtocol = new LPProtocol
-    protocol.handler = testHandler
+    protocol.handler = noReachHandler
     ms.addHandler("/test/proto1/1.0.0", protocol)
     ms.addHandler("/test/proto2/1.0.0", protocol)
     await ms.handle(conn)
@@ -267,12 +267,7 @@ suite "Multistream select":
     conn = newTestNaStream(testNaHandler)
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(
-        conn: Connection, proto: string
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      raiseAssert "must not be reached"
-
-    protocol.handler = testHandler
+    protocol.handler = noReachHandler
     ms.addHandler("/unabvailable/proto/1.0.0", protocol)
 
     await ms.handle(conn)
@@ -403,17 +398,7 @@ suite "Multistream select":
 
     let msListen = MultistreamSelect.new()
     var protocol: LPProtocol = new LPProtocol
-    protocol.handler = proc(
-        conn: Connection, proto: string
-    ) {.async: (raises: [CancelledError]).} =
-      raiseAssert "must not be reached"
-
-    proc testHandler(
-        conn: Connection, proto: string
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      raiseAssert "must not be reached"
-
-    protocol.handler = testHandler
+    protocol.handler = noReachHandler
     msListen.addHandler("/test/proto1/1.0.0", protocol)
     msListen.addHandler("/test/proto2/1.0.0", protocol)
 
