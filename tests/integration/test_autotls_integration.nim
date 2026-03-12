@@ -22,14 +22,14 @@ when defined(linux) and defined(amd64):
       nameresolving/dnsresolver,
       wire,
     ]
-  import ../tools/[unittest]
+  import ../tools/[unittest, crypto]
 
   suite "AutoTLS Integration":
     asyncTeardown:
       checkTrackers()
 
     asyncTest "request challenge without ACMEClient (ACMEApi only)":
-      let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
       let acmeApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       defer:
         await acmeApi.close()
@@ -75,7 +75,7 @@ when defined(linux) and defined(amd64):
 
       let switch = SwitchBuilder
         .new()
-        .withRng(newRng())
+        .withRng(rng)
         .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
         .withTcpTransport()
         .withAutotls(

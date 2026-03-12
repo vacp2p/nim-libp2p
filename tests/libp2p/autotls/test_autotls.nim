@@ -15,7 +15,7 @@ when defined(libp2p_autotls_support):
       autotls/acme/client,
       wire,
     ]
-  import ../../tools/[unittest]
+  import ../../tools/[unittest, crypto]
 
   suite "AutoTLS ACME API":
     var api {.threadvar.}: MockACMEApi
@@ -27,7 +27,7 @@ when defined(libp2p_autotls_support):
 
     asyncSetup:
       api = await MockACMEApi.new()
-      key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+      key = KeyPair.random(PKScheme.RSA, rng[]).get()
 
     asyncTest "register to acme server":
       api.mockedResponses.add(
@@ -96,7 +96,7 @@ when defined(libp2p_autotls_support):
     asyncTest "register with unsupported keys":
       let unsupportedSchemes = [PKScheme.Ed25519, PKScheme.Secp256k1, PKScheme.ECDSA]
       for scheme in unsupportedSchemes:
-        let unsupportedKey = KeyPair.random(scheme, newRng()[]).get()
+        let unsupportedKey = KeyPair.random(scheme, rng[]).get()
         expect(ACMEError):
           discard await api.requestRegister(unsupportedKey)
 
@@ -187,7 +187,7 @@ when defined(libp2p_autotls_support):
         "some-domain",
         parseUri("http://example.com/some-finalize-url"),
         parseUri("http://example.com/some-order-url"),
-        KeyPair.random(PKScheme.RSA, newRng()[]).get,
+        KeyPair.random(PKScheme.RSA, rng[]).get,
         key,
         "kid",
       )
@@ -206,7 +206,7 @@ when defined(libp2p_autotls_support):
         "some-domain",
         parseUri("http://example.com/some-finalize-url"),
         parseUri("http://example.com/some-order-url"),
-        KeyPair.random(PKScheme.RSA, newRng()[]).get,
+        KeyPair.random(PKScheme.RSA, rng[]).get,
         key,
         "kid",
         retries = 1,
@@ -231,7 +231,7 @@ when defined(libp2p_autotls_support):
         "some-domain",
         parseUri("http://example.com/some-finalize-url"),
         parseUri("http://example.com/some-order-url"),
-        KeyPair.random(PKScheme.RSA, newRng()[]).get,
+        KeyPair.random(PKScheme.RSA, rng[]).get,
         key,
         "kid",
       )
@@ -287,7 +287,7 @@ when defined(libp2p_autotls_support):
         discard await api.requestFinalize(
           "some-domain",
           parseUri("http://example.com/some-finalize-url"),
-          KeyPair.random(PKScheme.RSA, newRng()[]).get,
+          KeyPair.random(PKScheme.RSA, rng[]).get,
           key,
           "kid",
         )
@@ -364,6 +364,6 @@ when defined(libp2p_autotls_support):
       expect(ACMEError):
         discard await acme.getCertificate(
           api.Domain("some.domain"),
-          KeyPair.random(PKScheme.RSA, newRng()[]).get,
+          KeyPair.random(PKScheme.RSA, rng[]).get,
           challenge,
         )
