@@ -34,14 +34,10 @@ proc close*(self: MemoryListener) =
     self.accept.fail(newException(MemoryTransportAcceptStopped, "Listener closed"))
     self.onListenerEnd(self.address)
 
-proc accept*(
-    self: MemoryListener
-): Future[Connection] {.gcsafe, raises: [].} =
+proc accept*(self: MemoryListener): Future[Connection] {.gcsafe, raises: [].} =
   return self.accept
 
-proc dial*(
-    self: MemoryListener
-): Future[Connection] {.gcsafe, raises: [].} =
+proc dial*(self: MemoryListener): Future[Connection] {.gcsafe, raises: [].} =
   let (connA, connB) = bridgedConnections()
 
   self.onListenerEnd(self.address)

@@ -225,9 +225,7 @@ proc pubkeyBytes*(pubkey: PublicKey): seq[byte] {.raises: [PeerIDAuthError].} =
       PeerIDAuthError, "Failed to get bytes from PeerInfo's publicKey", exc
     )
 
-proc parse3339DateTime(
-    timeStr: string
-): DateTime {.raises: [ValueError].} =
+proc parse3339DateTime(timeStr: string): DateTime {.raises: [ValueError].} =
   let parts = timeStr.split('.')
   let base = parse(parts[0], "yyyy-MM-dd'T'HH:mm:ss")
   let millis = parseInt(parts[1].strip(chars = {'Z'}))
