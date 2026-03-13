@@ -71,7 +71,7 @@ proc new*(
         debug "Dcutr receiver has directly connected to the remote peer."
       finally:
         for fut in futs:
-          fut.cancel()
+          fut.cancelSoon()
     except CancelledError as err:
       trace "cancelled Dcutr receiver"
       raise err

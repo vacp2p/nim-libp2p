@@ -238,7 +238,7 @@ method stop*(
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     if not isNil(self.scheduleHandle):
-      self.scheduleHandle.cancel()
+      self.scheduleHandle.cancelSoon()
       self.scheduleHandle = nil
     if not isNil(self.newConnectedPeerHandler):
       switch.connManager.removePeerEventHandler(

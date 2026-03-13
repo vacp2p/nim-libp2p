@@ -93,8 +93,7 @@ proc runTestWithException(server: Switch, client: Switch) {.async.} =
     stats.uploadBytes == bytesToUpload
     stats.downloadBytes > 0
 
-  perfFut.cancel() # cancelling future will raise exception in perfClient
-  await sleepAsync(10.milliseconds)
+  await perfFut.cancelAndWait() # cancelling future will raise exception in perfClient
 
   # after cancelling perf, stats must indicate that it is final one
   stats = perfClient.currentStats()
