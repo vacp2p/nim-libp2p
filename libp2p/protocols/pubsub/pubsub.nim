@@ -623,7 +623,8 @@ method publish*(
 
   return 0
 
-{.push hint[XCannotRaiseY]: off.} # Base initPubSub keeps `raises: [InitializationError]` to match overrides.
+{.push hint[XCannotRaiseY]: off.}
+  # Base initPubSub keeps `raises: [InitializationError]` to match overrides.
 method initPubSub*(p: PubSub) {.base, raises: [InitializationError].} =
   ## perform pubsub initialization
   p.observers = new(seq[PubSubObserver])
