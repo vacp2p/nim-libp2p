@@ -36,12 +36,12 @@ proc close*(self: MemoryListener) =
 
 proc accept*(
     self: MemoryListener
-): Future[Connection] {.gcsafe, raises: [CatchableError].} =
+): Future[Connection] {.gcsafe, raises: [].} =
   return self.accept
 
 proc dial*(
     self: MemoryListener
-): Future[Connection] {.gcsafe, raises: [CatchableError].} =
+): Future[Connection] {.gcsafe, raises: [].} =
   let (connA, connB) = bridgedConnections()
 
   self.onListenerEnd(self.address)

@@ -227,7 +227,7 @@ proc pubkeyBytes*(pubkey: PublicKey): seq[byte] {.raises: [PeerIDAuthError].} =
 
 proc parse3339DateTime(
     timeStr: string
-): DateTime {.raises: [ValueError, TimeParseError].} =
+): DateTime {.raises: [ValueError].} =
   let parts = timeStr.split('.')
   let base = parse(parts[0], "yyyy-MM-dd'T'HH:mm:ss")
   let millis = parseInt(parts[1].strip(chars = {'Z'}))
