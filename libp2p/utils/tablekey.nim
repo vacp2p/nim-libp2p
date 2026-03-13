@@ -8,10 +8,10 @@ const keyDelimiter = "::"
 type TableKey* = object of RootObj
   key*: string
 
-proc `==`(a, b: TableKey): bool =
+proc `==`(a, b: TableKey): bool {.used.} =
   a.key == b.key
 
-proc hash(x: TableKey): Hash =
+proc hash(x: TableKey): Hash {.used.} =
   hash(x.key)
 
 proc makeKey*(T: typedesc[TableKey], args: varargs[string, `$`]): string =

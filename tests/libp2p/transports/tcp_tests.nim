@@ -158,14 +158,14 @@ template tcpTests*() =
 
       let listeningPortTransport1 = transport1.addrs[0][multiCodec("tcp")].get()
 
-      let conn = await transport1.dial(transport2.addrs[0])
+      discard await transport1.dial(transport2.addrs[0])
       let acceptedConn = await transport2.accept()
       let acceptedPort2 = acceptedConn.observedAddr.get()[multiCodec("tcp")].get()
       check listeningPortTransport1 != acceptedPort2
 
       transport1.networkReachability = NetworkReachability.NotReachable
 
-      let conn2 = await transport1.dial(transport3.addrs[0])
+      discard await transport1.dial(transport3.addrs[0])
       let acceptedConn3 = await transport3.accept()
       let acceptedPort3 = acceptedConn3.observedAddr.get()[multiCodec("tcp")].get()
       check listeningPortTransport1 == acceptedPort3

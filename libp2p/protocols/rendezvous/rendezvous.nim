@@ -352,7 +352,7 @@ proc requestLocally*[E](rdv: GenericRendezVous[E], ns: string): seq[E] =
           let res = SignedPayload[E].decode(rdv.registered[index].data.signedPeerRecord).valueOr:
             continue
           res.data
-  except exceptions.KeyError as exc:
+  except exceptions.KeyError:
     @[]
 
 proc requestPeer[E](

@@ -97,47 +97,47 @@ suite "GossipSub Extensions :: Partial Message Extension":
     var cr = CallbackRecorder()
 
     expect AssertionDefect:
-      let ext = PartialMessageExtension.new(PartialMessageExtensionConfig())
+      discard PartialMessageExtension.new(PartialMessageExtensionConfig())
 
     expect AssertionDefect:
       var config = cr.config()
       config.sendRPC = nil
-      let ext = PartialMessageExtension.new(config)
+      discard PartialMessageExtension.new(config)
 
     expect AssertionDefect:
       var config = cr.config()
       config.publishToPeers = nil
-      let ext = PartialMessageExtension.new(config)
+      discard PartialMessageExtension.new(config)
 
     expect AssertionDefect:
       var config = cr.config()
       config.isSupported = nil
-      let ext = PartialMessageExtension.new(config)
+      discard PartialMessageExtension.new(config)
 
     expect AssertionDefect:
       var config = cr.config()
       config.nodeTopicOpts = nil
-      let ext = PartialMessageExtension.new(config)
+      discard PartialMessageExtension.new(config)
 
     expect AssertionDefect:
       var config = cr.config()
       config.validateRPC = nil
-      let ext = PartialMessageExtension.new(config)
+      discard PartialMessageExtension.new(config)
 
     expect AssertionDefect:
       var config = cr.config()
       config.onIncomingRPC = nil
-      let ext = PartialMessageExtension.new(config)
+      discard PartialMessageExtension.new(config)
 
     expect AssertionDefect:
       var config = cr.config()
       config.unionPartsMetadata = nil
-      let ext = PartialMessageExtension.new(config)
+      discard PartialMessageExtension.new(config)
 
     expect AssertionDefect:
       var config = cr.config()
       config.heartbeatsTillEviction = 0
-      let ext = PartialMessageExtension.new(config)
+      discard PartialMessageExtension.new(config)
 
   test "subscribe/unsubscribe":
     const topicPartial = "logos-partial"
