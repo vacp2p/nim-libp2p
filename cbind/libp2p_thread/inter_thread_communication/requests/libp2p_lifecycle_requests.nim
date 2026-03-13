@@ -23,6 +23,7 @@ import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/mix
 import ../../../../libp2p/protocols/mix/mix_protocol
 import ../../../../libp2p/protocols/mix/mix_node
+import ../../../../libp2p/protocols/connectivity/relay/client
 
 const
   DefaultDnsResolver = "1.1.1.1:53"
@@ -260,7 +261,13 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     nameResolver = dnsResolver,
   )
 
-  if config.circuitRelay == 1:
+  var relayClientOpt = Opt.none(RelayClient)
+  if config.circuitRelayClient == 1:
+    # RelayClient is a subtype of Relay, so this enables both client and server functionality
+    let cl = RelayClient.new()
+    switchBuilder = switchBuilder.withCircuitRelay(cl)
+    relayClientOpt = Opt.some(cl)
+  elif config.circuitRelay == 1:
     switchBuilder = switchBuilder.withCircuitRelay()
 
   if config.autonat == 1:
@@ -280,6 +287,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     kad: Opt.none(KadDHT),
     mix: Opt.none(MixProtocol),
     mixNodeInfo: Opt.none(MixNodeInfo),
+    relayClient: relayClientOpt,
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
   )
@@ -307,6 +315,7 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     maxOut: -1,
     maxConnsPerPeer: DefaultMaxConnectionsPerPeer,
     circuitRelay: 0,
+    circuitRelayClient: 0,
     autonat: 0,
     autonatV2: 0,
     autonatV2Server: 0,
@@ -335,6 +344,7 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.maxOut = config[].maxOut
   resolved.maxConnsPerPeer = config[].maxConnsPerPeer
   resolved.circuitRelay = config[].circuitRelay
+  resolved.circuitRelayClient = config[].circuitRelayClient
   resolved.autonat = config[].autonat
   resolved.autonatV2 = config[].autonatV2
   resolved.autonatV2Server = config[].autonatV2Server

@@ -60,7 +60,7 @@ proc consumeTo*(q: var ZeroQueue, pbytes: pointer, nbytes: int): int =
   var consumed = 0
   while consumed < nbytes and not q.isEmpty():
     let chunk = q.popChunk(nbytes - consumed)
-    let dest = cast[pointer](cast[ByteAddress](pbytes) + consumed)
+    let dest = cast[pointer](cast[uint](pbytes) + consumed.uint)
     let offsetPtr = cast[ptr byte](cast[int](unsafeAddr chunk.data[0]) + chunk.start)
     copyMem(dest, offsetPtr, chunk.len())
     consumed += chunk.len()

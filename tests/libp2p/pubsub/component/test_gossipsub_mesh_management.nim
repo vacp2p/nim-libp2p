@@ -44,7 +44,6 @@ suite "GossipSub Component - Mesh Management":
     let
       expectedNumberOfPeers = numberOfNodes - 1
       dHigh = 7
-      d = 6
       dLow = 4
 
     for i in 0 ..< numberOfNodes:

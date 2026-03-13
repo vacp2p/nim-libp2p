@@ -220,7 +220,6 @@ proc decode*(_: typedesc[DiscoverResponse], buf: seq[byte]): Opt[DiscoverRespons
       not checkedEnumAssign(dr.status, statusOrd):
     return Opt.none(DiscoverResponse)
   for reg in registrations:
-    var r: Register
     let regOpt = Register.decode(reg).valueOr:
       return
     dr.registrations.add(regOpt)

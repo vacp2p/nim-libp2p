@@ -13,7 +13,7 @@ import
   ../../[ffi_types, types, alloc],
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
-    libp2p_kademlia_requests, libp2p_stream_requests,
+    libp2p_kademlia_requests, libp2p_stream_requests, libp2p_relay_requests,
   ],
   ../../../libp2p
 
@@ -23,6 +23,7 @@ type RequestType* {.pure.} = enum
   PUBSUB
   KADEMLIA
   STREAM
+  RELAY
 
 type CallbackKind* {.pure.} = enum
   DEFAULT
@@ -34,6 +35,7 @@ type CallbackKind* {.pure.} = enum
   CONNECTED_PEERS
   CONNECTION
   READ
+  RESERVATION
 
 ## Central request object passed to the LibP2P thread
 type LibP2PThreadRequest* = object
@@ -236,6 +238,49 @@ proc handleRandomRecordsRes(
 
   deallocRandomRecordsResult(recordsRes)
 
+proc handleReservationRes(
+    res: Result[ptr ReservationResult, string], request: ptr LibP2PThreadRequest
+) =
+  defer:
+    deallocShared(request)
+
+  let cb = cast[ReservationCallback](request[].callback)
+
+  let rsvp = res.valueOr:
+    foreignThreadGc:
+      let msg = $error
+      cb(
+        RET_ERR.cint,
+        nil,
+        0,
+        0,
+        msg[0].addr,
+        cast[csize_t](len(msg)),
+        request[].userData,
+      )
+    return
+
+  foreignThreadGc:
+    cb(
+      RET_OK.cint,
+      rsvp[].addrs,
+      rsvp[].addrsLen,
+      rsvp[].expireTime,
+      nil,
+      0,
+      request[].userData,
+    )
+
+  deallocReservationResult(rsvp)
+
+proc processRelay(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  let req = cast[ptr RelayRequest](request[].reqContent)
+  case req[].operation
+  of RelayMsgType.RELAY_RESERVE:
+    handleReservationRes(await req.processReserve(libp2p), request)
+
 proc processLifecycle(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
@@ -320,6 +365,8 @@ proc processStream(
   case req[].operation
   of StreamMsgType.DIAL:
     handleConnectionRes(await req.processDial(libp2p), request)
+  of StreamMsgType.DIAL_CIRCUIT_RELAY:
+    handleConnectionRes(await req.processDialCircuitRelay(libp2p), request)
   of StreamMsgType.MIX_DIAL:
     handleConnectionRes(await req.processMixDial(libp2p), request)
   of StreamMsgType.MIX_REGISTER_DEST_READ:
@@ -353,6 +400,8 @@ proc process*(
     await processKademlia(request, libp2p)
   of RequestType.STREAM:
     await processStream(request, libp2p)
+  of RequestType.RELAY:
+    await processRelay(request, libp2p)
 
 # String representation of the request type
 proc `$`*(self: LibP2PThreadRequest): string =

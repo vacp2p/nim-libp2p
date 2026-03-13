@@ -109,7 +109,7 @@ suite "GossipSub Component - Message Handling":
       await teardownTest(gossip0, gossip1)
 
     let messageSize = gossip1.maxMessageSize + 10
-    let (bigIWantMessageIds, sentMessages) =
+    let (bigIWantMessageIds, _) =
       createMessages(gossip0, gossip1, topic, messageSize, messageSize)
 
     gossip1.broadcast(

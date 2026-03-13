@@ -330,9 +330,6 @@ suite "Autonat Service":
     let autonatService2 = AutonatService.new(
       AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
-    let autonatService3 = AutonatService.new(
-      AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
-    )
 
     let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 0)
     let switch2 = createSwitch(autonatService2, maxConnsPerPeer = 0)
@@ -340,7 +337,6 @@ suite "Autonat Service":
 
     let awaiter1 = newFuture[void]()
     let awaiter2 = newFuture[void]()
-    let awaiter3 = newFuture[void]()
 
     proc statusAndConfidenceHandler1(
         networkReachability: NetworkReachability, confidence: Opt[float]
