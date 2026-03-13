@@ -258,7 +258,9 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
       peer,
       RPCMsg(
         control: Opt.some(
-          ControlMessage(extensions: Opt.some(g.extensionsState.makeControlExtensions()))
+          ControlMessage(
+            extensions: Opt.some(g.extensionsState.makeControlExtensions())
+          )
         )
       ),
       true, # use high priority as message must be the first message on the stream
@@ -489,7 +491,8 @@ proc sendIDontWant(
   g.broadcast(
     peers,
     RPCMsg(
-      control: Opt.some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
+      control:
+        Opt.some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
     ),
     isHighPriority = true,
   )

@@ -235,9 +235,7 @@ proc handleGraft*(
 
   return prunes
 
-proc getPeers(
-    prune: ControlPrune, peer: PubSubPeer
-): seq[(PeerId, Opt[PeerRecord])] =
+proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Opt[PeerRecord])] =
   var routingRecords: seq[(PeerId, Opt[PeerRecord])]
   for record in prune.peers:
     var peerRecord = Opt.none(PeerRecord)

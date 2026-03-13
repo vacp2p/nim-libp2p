@@ -55,7 +55,9 @@ suite "GossipSub Component - Custom Connection Support":
     waitSubscribe(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(
-      topic, "hello".toBytes(), publishParams = Opt.some(PublishParams(useCustomConn: true))
+      topic,
+      "hello".toBytes(),
+      publishParams = Opt.some(PublishParams(useCustomConn: true)),
     ), 1
 
     check:

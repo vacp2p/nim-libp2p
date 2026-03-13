@@ -103,11 +103,7 @@ proc init*(
   msg
 
 proc init*(
-    T: type Message,
-    peerId: PeerId,
-    data: seq[byte],
-    topic: string,
-    seqno: Opt[uint64],
+    T: type Message, peerId: PeerId, data: seq[byte], topic: string, seqno: Opt[uint64]
 ): Message {.gcsafe, raises: [].} =
   var msg = Message(data: data, topic: topic)
   msg.fromPeer = peerId
