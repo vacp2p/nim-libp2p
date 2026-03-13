@@ -32,7 +32,8 @@ export results
 
 import
   ./gossipsub/[types, scoring, behavior, preamblestore, extensions],
-  ../../utils/heartbeat
+  ../../utils/heartbeat,
+  ../../utils/future
 
 export types, scoring, behavior, pubsub
 
@@ -1113,14 +1114,11 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 method start*(
     g: GossipSub
 ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
-
   trace "gossipsub start"
 
   if not g.heartbeatFut.isNil:
     warn "Starting gossipsub twice"
-    return fut
+    return newFutureCompleted[void]()
 
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
@@ -1128,17 +1126,14 @@ method start*(
   when defined(libp2p_gossipsub_1_4):
     g.preambleExpirationFut = g.preambleExpirationHeartbeat()
   g.started = true
-  fut
+  newFutureCompleted[void]()
 
 method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
-
   trace "gossipsub stop"
   g.started = false
   if g.heartbeatFut.isNil:
     warn "Stopping gossipsub without starting it"
-    return fut
+    return newFutureCompleted[void]()
 
   # stop heartbeat interval
   when defined(libp2p_gossipsub_1_4):
@@ -1148,7 +1143,7 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()
   g.heartbeatFut = nil
-  fut
+  newFutureCompleted[void]()
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   procCall FloodSub(g).initPubSub()
