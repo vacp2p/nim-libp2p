@@ -373,14 +373,6 @@ const MultiBaseCodecs = [
   ),
 ]
 
-proc initMultiBaseCodeTable(): Table[char, MBCodec] {.compileTime.} =
-  for item in MultiBaseCodecs:
-    result[item.code] = item
-
-proc initMultiBaseNameTable(): Table[string, MBCodec] {.compileTime.} =
-  for item in MultiBaseCodecs:
-    result[item.name] = item
-
 proc initLists(
     codecs: seq[MBCodec]
 ): (Table[char, MBCodec], Table[string, MBCodec]) {.compileTime.} =

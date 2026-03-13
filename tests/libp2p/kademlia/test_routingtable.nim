@@ -56,7 +56,7 @@ suite "KadDHT Routing Table":
     check rt.buckets[TargetBucket].peers.len == config.replication
 
     # new entry should evict oldest entry
-    let (oldest, oldestIdx) = rt.buckets[TargetBucket].oldestPeer()
+    let (oldest, _) = rt.buckets[TargetBucket].oldestPeer()
 
     check rt.insert(randomKeyInBucket(selfId, TargetBucket, rng[]))
 

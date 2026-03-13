@@ -47,7 +47,7 @@ proc setupNodes*(count: int): seq[RendezVous] =
 
   for x in 0 ..< count:
     var rdv: RendezVous = RendezVous.new()
-    let node = createSwitch(rdv)
+    discard createSwitch(rdv)
     rdvs.add(rdv)
 
   return rdvs

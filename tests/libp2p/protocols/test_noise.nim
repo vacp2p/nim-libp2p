@@ -106,7 +106,6 @@ suite "Noise":
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
 
@@ -127,7 +126,6 @@ suite "Noise":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -145,7 +143,6 @@ suite "Noise":
       handlerWait = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(
         rng, clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8]
       )
@@ -166,7 +163,6 @@ suite "Noise":
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
-      readTask = newFuture[void]()
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(server)
@@ -186,7 +182,6 @@ suite "Noise":
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
     let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
@@ -227,7 +222,6 @@ suite "Noise":
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientInfo = PeerInfo.new(clientPrivKey, transport1.addrs)
       clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
     let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
@@ -284,7 +278,7 @@ suite "Noise":
     await switch1.start()
     await switch2.start()
     expect DialFailedError:
-      let conn =
+      discard
         await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     await allFuturesRaising(switch1.stop(), switch2.stop())

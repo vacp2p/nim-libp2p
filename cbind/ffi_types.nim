@@ -143,9 +143,25 @@ type Libp2pConfig* {.bycopy.} = object
   maxOut*: cint
   maxConnsPerPeer*: cint
   circuitRelay*: cint
+  circuitRelayClient*: cint
   autonat*: cint
   autonatV2*: cint
   autonatV2Server*: cint
+
+type ReservationCallback* = proc(
+  callerRet: cint,
+  addrs: ptr cstring,
+  addrsLen: csize_t,
+  expireTime: uint64,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
+type ReservationResult* = object
+  addrs*: ptr cstring
+  addrsLen*: csize_t
+  expireTime*: uint64
 
 type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0

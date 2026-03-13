@@ -94,7 +94,7 @@ proc dialBack(
     await conn.writeLp(DialBack(nonce: nonce).encode().buffer)
 
     # receive DialBackResponse
-    let dialBackResp = DialBackResponse.decode(
+    discard DialBackResponse.decode(
       initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
     ).valueOr:
       trace "DialBack failed, could not decode DialBackResponse"
