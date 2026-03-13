@@ -44,7 +44,7 @@ suite "GossipSub Component - Skip MCache Support":
     let publishData = "hello".toBytes()
 
     tryPublish await nodes[0].publish(
-      topic, publishData, publishParams = none(PublishParams)
+      topic, publishData, publishParams = Opt.none(PublishParams)
     ), 1
 
     check:
