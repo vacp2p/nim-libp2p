@@ -110,67 +110,47 @@ suite "withValue and valueOr templates":
     self.x.inc()
     return Opt.some(self)
 
-  proc objIncAndOption(self: TestObj): Opt[TestObj] =
-    self.x.inc()
-    return Opt.some(self)
-
-  test "withValue calls right branch when Opt/Option is none":
+  test "withValue calls right branch when Opt is none":
     var counter = 0
-    # check Opt/Option withValue with else
+    # check Opt withValue with else
     Opt.none(TestObj).withValue(v):
       fail()
     else:
       counter.inc()
-    Opt.none(TestObj).withValue(v):
-      fail()
-    else:
-      counter.inc()
-    check counter == 2
+    check counter == 1
 
-    # check Opt/Option withValue without else
+    # check Opt withValue without else
     Opt.none(TestObj).withValue(v):
       fail()
-    Opt.none(TestObj).withValue(v):
-      fail()
+    check counter == 1
 
-  test "withValue calls right branch when Opt/Option is some":
+  test "withValue calls right branch when Opt is some":
     var counter = 1
-    # check Opt/Option withValue with else
-    Opt.some(counter).withValue(v):
-      counter.inc(v)
-    else:
-      fail()
+    # check Opt withValue with else
     Opt.some(counter).withValue(v):
       counter.inc(v)
     else:
       fail()
 
-    # check Opt/Option withValue without else
+    # check Opt withValue without else
     Opt.some(counter).withValue(v):
       counter.inc(v)
-    Opt.some(counter).withValue(v):
-      counter.inc(v)
-    check counter == 16
+    
+    check counter == 4
 
-  test "withValue calls right branch when Opt/Option is some with proc call":
+  test "withValue calls right branch when Opt is some with proc call":
     var obj = TestObj(x: 0)
-    # check Opt/Option withValue with else
+    # check Opt withValue with else
     objIncAndOpt(obj).withValue(v):
       v.x.inc()
     else:
       fail()
-    objIncAndOption(obj).withValue(v):
-      v.x.inc()
-    else:
-      fail()
 
-    # check Opt/Option withValue without else
+    # check Opt withValue without else
     objIncAndOpt(obj).withValue(v):
       v.x.inc()
-    objIncAndOption(obj).withValue(v):
-      v.x.inc()
-
-    check obj.x == 8
+    
+    check obj.x == 4
 
   test "valueOr calls with and without proc call":
     var obj = Opt.none(TestObj).valueOr:
