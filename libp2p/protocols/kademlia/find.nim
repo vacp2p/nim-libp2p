@@ -22,7 +22,7 @@ type LookupState* = object
   attempts*: Table[PeerId, int]
 
 type DispatchProc* = proc(kad: KadDHT, peer: PeerId, target: Key): Future[Opt[Message]] {.
-  async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+  async: (raises: [CancelledError, LPStreamError]), gcsafe
 .}
 
 type ReplyHandler* = proc(
@@ -120,11 +120,14 @@ proc dispatchFindNode*(
     peer: PeerId,
     target: Key,
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
-): Future[Opt[Message]] {.
-    async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
-.} =
+): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
-  let conn = await kad.switch.dial(peer, addrs, kad.codec)
+  let conn =
+    try:
+      await kad.switch.dial(peer, addrs, kad.codec)
+    except DialFailedError as e:
+      error "FindNode could not dial peer", description = e.msg
+      return Opt.none(Message)
   defer:
     await conn.close()
 
@@ -188,7 +191,7 @@ proc iterativeLookup*(
     let dispatchWithPeer = proc(
         peerId: PeerId
     ): Future[(PeerId, Opt[Message])] {.
-        async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+        async: (raises: [CancelledError, LPStreamError]), gcsafe
     .} =
       let msg = await dispatch(kad, peerId, target)
       return (peerId, msg)
@@ -229,9 +232,7 @@ method findNode*(
 
   let dispatchFind = proc(
       kad: KadDHT, peer: PeerId, target: Key
-  ): Future[Opt[Message]] {.
-      async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
-  .} =
+  ): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
     return await dispatchFindNode(kad, peer, target)
 
   let state = await kad.iterativeLookup(target, dispatchFind, ignoreReply, stop)
