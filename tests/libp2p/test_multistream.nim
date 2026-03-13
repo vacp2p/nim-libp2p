@@ -14,6 +14,7 @@ import
     transports/tcptransport,
     protocols/protocol,
     upgrademngrs/upgrade,
+    utils/future,
   ]
 import ../tools/[unittest, sync]
 
@@ -61,16 +62,12 @@ method readOnce*(
 method write*(
     s: TestSelectStream, msg: seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 method close(s: TestSelectStream) {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 proc newTestSelectStream(): TestSelectStream =
   new result
@@ -123,16 +120,12 @@ method write*(
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
     return s.ls(msg)
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 method close(s: TestLsStream): Future[void] {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
   new result
@@ -186,16 +179,12 @@ method write*(
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
     return s.na(string.fromBytes(msg))
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 method close(s: TestNaStream): Future[void] {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
   new result

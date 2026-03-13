@@ -14,6 +14,7 @@ import
   ../../dial,
   ../../routing_record,
   ../../utils/heartbeat,
+  ../../utils/future,
   ../../stream/connection,
   ../../utils/semaphore,
   ../../utils/offsettedseq
@@ -620,8 +621,7 @@ proc deletesRegister*[E](
 method start*[E](
     rdv: GenericRendezVous[E]
 ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
+  let fut = newFutureCompleted[void]()
   if not rdv.registerDeletionLoop.isNil:
     warn "Starting rendezvous twice"
     return fut
@@ -632,12 +632,11 @@ method start*[E](
 method stop*[E](
     rdv: GenericRendezVous[E]
 ): Future[void] {.async: (raises: [], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
   if rdv.registerDeletionLoop.isNil:
     warn "Stopping rendezvous without starting it"
-    return fut
+    return newFutureCompleted[void]()
+
   rdv.started = false
   rdv.registerDeletionLoop.cancelSoon()
   rdv.registerDeletionLoop = nil
-  fut
+  newFutureCompleted[void]()
