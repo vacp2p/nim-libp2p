@@ -76,7 +76,7 @@ method setup*(
     ) {.async: (raises: [CancelledError]).} =
       trace "Peer Left", peerId
       self.relayPeers.withValue(peerId, future):
-        future[].cancel()
+        future[].cancelSoon()
 
     switch.addPeerEventHandler(handlePeerIdentified, Identified)
     switch.addPeerEventHandler(handlePeerLeft, Left)
@@ -147,7 +147,7 @@ method stop*(
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     self.running = false
-    self.runner.cancel()
+    self.runner.cancelSoon()
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
     await switch.peerInfo.update()
   return hasBeenStopped

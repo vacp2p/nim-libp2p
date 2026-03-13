@@ -277,7 +277,7 @@ suite "Mplex":
 
       var data = newSeq[byte](1)
       let rfut = chann.readExactly(addr data[0], 1)
-      rfut.cancel()
+      rfut.cancelSoon()
       let xfut = chann.reset()
 
       check await allFutures(rfut, xfut).withTimeout(100.millis)
@@ -853,7 +853,7 @@ suite "Mplex":
       checkUntilTimeout:
         listenStreams.len == 10 and dialStreams.len == 10
 
-      mplexHandle.cancel()
+      mplexHandle.cancelSoon()
       await allFuturesRaising((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)

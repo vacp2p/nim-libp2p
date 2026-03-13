@@ -212,7 +212,7 @@ method accept*(
   proc cancelAcceptFuts() =
     for fut in self.acceptFuts:
       if not fut.completed():
-        fut.cancel()
+        fut.cancelSoon()
 
   if not self.running:
     raise newTransportClosedError()
