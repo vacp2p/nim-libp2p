@@ -135,7 +135,7 @@ suite "withValue and valueOr templates":
     # check Opt withValue without else
     Opt.some(counter).withValue(v):
       counter.inc(v)
-    
+
     check counter == 4
 
   test "withValue calls right branch when Opt is some with proc call":
@@ -149,7 +149,7 @@ suite "withValue and valueOr templates":
     # check Opt withValue without else
     objIncAndOpt(obj).withValue(v):
       v.x.inc()
-    
+
     check obj.x == 4
 
   test "valueOr calls with and without proc call":
