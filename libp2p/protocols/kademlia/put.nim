@@ -21,8 +21,13 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
 
 proc dispatchPutVal*(
     switch: Switch, peer: PeerId, key: Key, value: seq[byte], codec: string
-) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
+) {.async: (raises: [CancelledError, LPStreamError]).} =
+  let conn =
+    try:
+      await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
+    except DialFailedError as e:
+      error "PutVal could not dial peer", description = e.msg
+      return
   defer:
     await conn.close()
   let msg = Message(

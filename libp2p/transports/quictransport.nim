@@ -348,7 +348,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection, transportDir: Direction
-): QuicSession {.raises: [TransportOsError].} =
+): QuicSession {.raises: [].} =
   var observedAddr: MultiAddress
   var localAddr: MultiAddress
   try:

@@ -120,7 +120,7 @@ proc handleDialDataRequest*(
 
 proc checkAddrIdx(
     self: AutonatV2Client, addrIdx: AddrIdx, testAddrs: seq[MultiAddress], nonce: Nonce
-): bool {.raises: [AutonatV2Error].} =
+): bool {.raises: [].} =
   debug "checking addrs", addrIdx = addrIdx, testAddrs = testAddrs, nonce = nonce
   let dialBackAddrs = self.expectedNonces.getOrDefault(nonce).valueOr:
     debug "Not expecting this nonce",
