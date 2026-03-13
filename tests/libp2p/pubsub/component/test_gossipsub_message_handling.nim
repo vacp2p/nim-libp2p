@@ -59,7 +59,8 @@ proc createMessages(
     let data = newSeqWith(size, i.byte)
     sentMessages.incl(data)
 
-    let msg = Message.init(gossip1.peerInfo.peerId, data, topic, some(uint64(i + 1)))
+    let msg =
+      Message.init(gossip1.peerInfo.peerId, data, topic, Opt.some(uint64(i + 1)))
     let iwantMessageId = gossip1.msgIdProvider(msg).expect(MsgIdSuccess)
     iwantMessageIds.add(iwantMessageId)
     gossip1.mcache.put(iwantMessageId, msg)
@@ -89,7 +90,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg(
-        control: some(
+        control: Opt.some(
           ControlMessage(
             ihave: @[ControlIHave(topicID: topic, messageIDs: iwantMessageIds)]
           )
@@ -115,7 +116,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg(
-        control: some(
+        control: Opt.some(
           ControlMessage(
             ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
           )
@@ -144,7 +145,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg(
-        control: some(
+        control: Opt.some(
           ControlMessage(
             ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
           )
@@ -171,7 +172,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg(
-        control: some(
+        control: Opt.some(
           ControlMessage(
             ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
           )

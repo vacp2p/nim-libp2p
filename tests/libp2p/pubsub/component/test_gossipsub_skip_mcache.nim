@@ -26,7 +26,7 @@ suite "GossipSub Component - Skip MCache Support":
     let publishData = "hello".toBytes()
 
     tryPublish await nodes[0].publish(
-      topic, publishData, publishParams = some(PublishParams(skipMCache: true))
+      topic, publishData, publishParams = Opt.some(PublishParams(skipMCache: true))
     ), 1
 
     check:

@@ -146,7 +146,7 @@ suite "GossipSub Component - Scoring":
     waitSubscribeStar(nodes, topic)
 
     let msg = RPCMsg(
-      control: some(
+      control: Opt.some(
         ControlMessage(
           prune:
             @[
@@ -168,7 +168,7 @@ suite "GossipSub Component - Scoring":
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
     let msg2 = RPCMsg(
-      control: some(
+      control: Opt.some(
         ControlMessage(
           prune:
             @[

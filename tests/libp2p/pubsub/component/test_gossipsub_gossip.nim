@@ -17,8 +17,10 @@ suite "GossipSub Component - Gossip Protocol":
   asyncTest "messages sent to peers not in the mesh are propagated via gossip":
     let
       numberOfNodes = 5
-      dValues = DValues(dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1))
-      nodes = generateNodes(numberOfNodes, gossip = true, dValues = some(dValues))
+      dValues = DValues(
+        dLow: Opt.some(2), dHigh: Opt.some(3), d: Opt.some(2), dOut: Opt.some(1)
+      )
+      nodes = generateNodes(numberOfNodes, gossip = true, dValues = Opt.some(dValues))
         .toGossipSub()
 
     startAndDeferStop(nodes)
@@ -45,13 +47,17 @@ suite "GossipSub Component - Gossip Protocol":
     let
       numberOfNodes = 20
       dValues = DValues(
-        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(0)
+        dLow: Opt.some(2),
+        dHigh: Opt.some(3),
+        d: Opt.some(2),
+        dOut: Opt.some(1),
+        dLazy: Opt.some(0),
       )
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          dValues = some(dValues),
-          gossipFactor = some(0.float),
+          dValues = Opt.some(dValues),
+          gossipFactor = Opt.some(0.float),
         )
         .toGossipSub()
 
@@ -81,13 +87,17 @@ suite "GossipSub Component - Gossip Protocol":
     let
       numberOfNodes = 20
       dValues = DValues(
-        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(4)
+        dLow: Opt.some(2),
+        dHigh: Opt.some(3),
+        d: Opt.some(2),
+        dOut: Opt.some(1),
+        dLazy: Opt.some(4),
       )
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          dValues = some(dValues),
-          gossipFactor = some(0.5),
+          dValues = Opt.some(dValues),
+          gossipFactor = Opt.some(0.5),
         )
         .toGossipSub()
 
@@ -118,13 +128,17 @@ suite "GossipSub Component - Gossip Protocol":
     let
       numberOfNodes = 20
       dValues = DValues(
-        dLow: some(2), dHigh: some(3), d: some(2), dOut: some(1), dLazy: some(6)
+        dLow: Opt.some(2),
+        dHigh: Opt.some(3),
+        d: Opt.some(2),
+        dOut: Opt.some(1),
+        dLazy: Opt.some(6),
       )
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          dValues = some(dValues),
-          gossipFactor = some(0.float),
+          dValues = Opt.some(dValues),
+          gossipFactor = Opt.some(0.float),
         )
         .toGossipSub()
 

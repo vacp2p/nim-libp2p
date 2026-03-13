@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles
+import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles, results
 import ../../../libp2p/[routing_record, crypto/crypto, multiaddress]
 import
   ../../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, rpc/message]
@@ -785,7 +785,8 @@ suite "GossipSub Behavior":
     for i in 0 .. 5:
       let conn = conns[i]
       inc seqno
-      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg =
+        Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     check gossipSub.fanout[topic].len == 15
@@ -815,7 +816,8 @@ suite "GossipSub Behavior":
     for i in 0 .. 5:
       let conn = conns[i]
       inc seqno
-      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg =
+        Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let gossipPeers = gossipSub.getGossipPeers()
@@ -839,7 +841,8 @@ suite "GossipSub Behavior":
     for i in 0 .. 5:
       let conn = conns[i]
       inc seqno
-      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg =
+        Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let gossipPeers = gossipSub.getGossipPeers()
@@ -863,7 +866,8 @@ suite "GossipSub Behavior":
     for i in 0 .. 5:
       let conn = conns[i]
       inc seqno
-      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg =
+        Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let gossipPeers = gossipSub.getGossipPeers()

@@ -29,7 +29,8 @@ suite "GossipSub Component - Extensions":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          testExtensionConfig = some(TestExtensionConfig(onNegotiated: onNegotiated)),
+          testExtensionConfig =
+            Opt.some(TestExtensionConfig(onNegotiated: onNegotiated)),
         )
         .toGossipSub()
 
@@ -70,7 +71,7 @@ suite "GossipSub Component - Extensions":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          partialMessageExtensionConfig = some(
+          partialMessageExtensionConfig = Opt.some(
             PartialMessageExtensionConfig(
               unionPartsMetadata: my_partial_message.unionPartsMetadata,
               validateRPC: validateRPC,
@@ -137,7 +138,7 @@ suite "GossipSub Component - Extensions":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          pingpongExtensionConfig = some(PingPongExtensionConfig()),
+          pingpongExtensionConfig = Opt.some(PingPongExtensionConfig()),
         )
         .toGossipSub()
 
@@ -161,7 +162,7 @@ suite "GossipSub Component - Extensions":
     # send ping from nodes[0] to nodes[1]
     nodes[0].send(
       nodes[0].peers[nodes[1].peerInfo.peerId],
-      RPCMsg(pingpongExtension: some(PingPongExtensionRPC(ping: pingBytes))),
+      RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: pingBytes))),
       isHighPriority = true,
     )
 
