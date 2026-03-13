@@ -69,13 +69,16 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
   block:
     asyncTest suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
-      proc serverHandler(server: StreamServer, transp: StreamTransport) {.async.} =
-        var wstream = newAsyncStreamWriter(transp)
-        await wstream.write(message)
-        await wstream.finish()
-        await wstream.closeWait()
-        await transp.closeWait()
-        handlerFut.complete()
+      proc serverHandler(server: StreamServer, transp: StreamTransport) {.async: (raises: []).} =
+        try:
+          var wstream = newAsyncStreamWriter(transp)
+          await wstream.write(message)
+          await wstream.finish()
+          await wstream.closeWait()
+          await transp.closeWait()
+          handlerFut.complete()
+        except CancelledError, AsyncStreamError:
+          raiseAssert "unexpected error: " & getCurrentExceptionMsg()
 
       let server = createStreamServer(listenTA, serverHandler, {ReuseAddr})
       server.start()
@@ -97,14 +100,17 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
 
     asyncTest suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
-      proc serverHandler(server: StreamServer, transp: StreamTransport) {.async.} =
-        var rstream = newAsyncStreamReader(transp)
-        let msg = await rstream.read(message.len)
-        check string.fromBytes(msg) == message
+      proc serverHandler(server: StreamServer, transp: StreamTransport) {.async: (raises: []).} =
+        try:
+          var rstream = newAsyncStreamReader(transp)
+          let msg = await rstream.read(message.len)
+          check string.fromBytes(msg) == message
 
-        await rstream.closeWait()
-        await transp.closeWait()
-        handlerFut.complete()
+          await rstream.closeWait()
+          await transp.closeWait()
+          handlerFut.complete()
+        except CancelledError, AsyncStreamError:
+          raiseAssert "unexpected error: " & getCurrentExceptionMsg()
 
       let server = createStreamServer(listenTA, serverHandler, {ReuseAddr})
       server.start()

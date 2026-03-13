@@ -91,7 +91,7 @@ proc connect*(
 
 proc createStreamServer*[T](
     ma: MultiAddress,
-    cbproc: StreamCallback,
+    cbproc: StreamCallback2,
     flags: set[ServerFlags] = {},
     udata: ref T,
     sock: AsyncFD = asyncInvalidSocket,
