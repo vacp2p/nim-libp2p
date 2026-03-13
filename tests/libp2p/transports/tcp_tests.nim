@@ -69,7 +69,9 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
   block:
     asyncTest suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
-      proc serverHandler(server: StreamServer, transp: StreamTransport) {.async: (raises: []).} =
+      proc serverHandler(
+          server: StreamServer, transp: StreamTransport
+      ) {.async: (raises: []).} =
         try:
           var wstream = newAsyncStreamWriter(transp)
           await wstream.write(message)
@@ -100,7 +102,9 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
 
     asyncTest suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
-      proc serverHandler(server: StreamServer, transp: StreamTransport) {.async: (raises: []).} =
+      proc serverHandler(
+          server: StreamServer, transp: StreamTransport
+      ) {.async: (raises: []).} =
         try:
           var rstream = newAsyncStreamReader(transp)
           let msg = await rstream.read(message.len)
