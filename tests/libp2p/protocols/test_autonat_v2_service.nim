@@ -112,14 +112,13 @@ suite "AutonatV2 Service":
     checkTrackers()
 
   asyncTest "Reachability unknown before starting switch":
-    let
-      (service, client) = newService(NetworkReachability.Reachable)
-      switch = createSwitch(service)
+    let (service, _) = newService(NetworkReachability.Reachable)
+    discard createSwitch(service)
     check service.networkReachability == NetworkReachability.Unknown
 
   asyncTest "Peer must be reachable":
     let
-      (service, client) = newService(NetworkReachability.Reachable)
+      (service, _) = newService(NetworkReachability.Reachable)
       switch = createSwitch(service)
     var switches = createSwitches(3)
 
@@ -203,7 +202,7 @@ suite "AutonatV2 Service":
     await switches.stopAll()
 
   asyncTest "Peer must be reachable when one connected peer has autonat disabled":
-    let (service, client) = newService(
+    let (service, _) = newService(
       NetworkReachability.Reachable,
       expectedDials = 3,
       config = AutonatV2ServiceConfig.new(
@@ -279,7 +278,7 @@ suite "AutonatV2 Service":
     await switches.stopAll()
 
   asyncTest "Calling setup and stop twice must work":
-    let (service, client) = newService(
+    let (service, _) = newService(
       NetworkReachability.NotReachable,
       config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
     )
@@ -294,7 +293,7 @@ suite "AutonatV2 Service":
     await switch.stop()
 
   asyncTest "Must bypass maxConnectionsPerPeer limit":
-    let (service, client) = newService(
+    let (service, _) = newService(
       NetworkReachability.Reachable,
       config = AutonatV2ServiceConfig.new(
         scheduleInterval = Opt.some(1.seconds), maxQueueSize = 1
@@ -333,32 +332,24 @@ suite "AutonatV2 Service":
 
   asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
     let
-      (service1, client1) = newService(
+      (service1, _) = newService(
         NetworkReachability.Reachable,
         config = AutonatV2ServiceConfig.new(
           scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
         ),
       )
-      (service2, client2) = newService(
+      (service2, _) = newService(
         NetworkReachability.Reachable,
         config = AutonatV2ServiceConfig.new(
           scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
         ),
       )
-      (service3, client3) = newService(
-        NetworkReachability.Reachable,
-        config = AutonatV2ServiceConfig.new(
-          scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
-        ),
-      )
-
       switch1 = createSwitch(service1, maxConnsPerPeer = 0)
       switch2 = createSwitch(service2, maxConnsPerPeer = 0)
       switch3 = createSwitch(service2, maxConnsPerPeer = 0)
 
       awaiter1 = newFuture[void]()
       awaiter2 = newFuture[void]()
-      awaiter3 = newFuture[void]()
 
     proc statusAndConfidenceHandler1(
         networkReachability: NetworkReachability, confidence: Opt[float]
@@ -398,13 +389,13 @@ suite "AutonatV2 Service":
 
   asyncTest "Must work for one peer when two peers ask each other at the same time with max 1 conn per peer":
     let
-      (service1, client1) = newService(
+      (service1, _) = newService(
         NetworkReachability.Reachable,
         config = AutonatV2ServiceConfig.new(
           scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
         ),
       )
-      (service2, client2) = newService(
+      (service2, _) = newService(
         NetworkReachability.Reachable,
         config = AutonatV2ServiceConfig.new(
           scheduleInterval = Opt.some(500.millis), maxQueueSize = 3
@@ -451,7 +442,7 @@ suite "AutonatV2 Service":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "Must work with low maxConnections":
-    let (service, client) = newService(
+    let (service, _) = newService(
       NetworkReachability.Reachable,
       config = AutonatV2ServiceConfig.new(
         scheduleInterval = Opt.some(1.seconds), maxQueueSize = 1
@@ -496,7 +487,7 @@ suite "AutonatV2 Service":
     await switches.stopAll()
 
   asyncTest "Peer must not ask an incoming peer":
-    let (service, client) = newService(
+    let (service, _) = newService(
       NetworkReachability.Reachable,
       config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
     )

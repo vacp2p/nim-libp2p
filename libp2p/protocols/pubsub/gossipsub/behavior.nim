@@ -57,13 +57,15 @@ declareCounter(
   labels = ["topic"],
 )
 declareGauge(libp2p_gossipsub_received_iwants, "received iwants", labels = ["kind"])
-declareCounter(
-  libp2p_gossipsub_preamble_saved_iwants,
-  "number of iwant requests avoided by preamble",
-  labels = ["topic"],
-)
+when defined(libp2p_gossipsub_1_4):
+  declareCounter(
+    libp2p_gossipsub_preamble_saved_iwants,
+    "number of iwant requests avoided by preamble",
+    labels = ["topic"],
+  )
 
-const MaxHeIsReceiving = 50
+when defined(libp2p_gossipsub_1_4):
+  const MaxHeIsReceiving = 50
 
 proc grafted*(g: GossipSub, p: PubSubPeer, topic: string) =
   g.withPeerStats(p.peerId) do(stats: var PeerStats):

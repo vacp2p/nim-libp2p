@@ -117,11 +117,6 @@ proc writeLp(
     let c = await mixProto.getConn(pid, addrs, codecs, forceNewStream = true)
     await c.writeLp(payload)
 
-# Spam protection helper functions
-
-proc isSpamProtectionEnabled(mixProto: MixProtocol): bool {.inline.} =
-  mixProto.spamProtection.isOk
-
 proc generateAndAppendProof(
     mixProto: MixProtocol, packet: seq[byte], label: string
 ): Result[seq[byte], string] =
@@ -188,16 +183,6 @@ proc verifyProof(
 
   trace "Spam protection proof verified successfully"
   ok()
-
-proc extractAndVerifyProof(
-    mixProto: MixProtocol, packetWithProof: var seq[byte], label: string
-): Result[seq[byte], string] =
-  ## Extract and verify spam protection proof from the packet.
-  let (sphinxPacket, proof) = ?mixProto.extractProof(packetWithProof, label)
-
-  ?mixProto.verifyProof(sphinxPacket, proof, label)
-
-  ok(sphinxPacket)
 
 proc handleMixMessages(
     mixProto: MixProtocol,
@@ -465,7 +450,6 @@ method buildSurb*(
     mixProto: MixProtocol, id: SURBIdentifier, destPeerId: PeerId, exitPeerId: PeerId
 ): Result[SURB, string] {.base, gcsafe, raises: [].} =
   var
-    multiAddrs: seq[MultiAddress] = @[]
     publicKeys: seq[FieldElement] = @[]
     hops: seq[Hop] = @[]
     delay: seq[seq[byte]] = @[]

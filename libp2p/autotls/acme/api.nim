@@ -17,13 +17,6 @@ logScope:
 const
   LetsEncryptURL* = "https://acme-v02.api.letsencrypt.org"
   LetsEncryptURLStaging* = "https://acme-staging-v02.api.letsencrypt.org"
-  Alg = "RS256"
-  DefaultChalCompletedRetries = 10
-  DefaultChalCompletedRetryTime = 1.seconds
-  DefaultFinalizeRetries = 10
-  DefaultFinalizeRetryTime = 1.seconds
-  DefaultRandStringSize = 256
-  ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
 
 type Authorization* = string
 type Domain* = string
@@ -43,45 +36,6 @@ type ACMEApi* = ref object of RootObj
 type HTTPResponse* = object
   body*: JsonNode
   headers*: HttpTable
-
-type JWK = object
-  kty: string
-  n: string
-  e: string
-
-# whether the request uses Kid or not
-type ACMERequestType = enum
-  ACMEJwkRequest
-  ACMEKidRequest
-
-type ACMERequestHeader = object
-  alg: string
-  typ: string
-  nonce: Nonce
-  url: string
-  case kind: ACMERequestType
-  of ACMEJwkRequest:
-    jwk: JWK
-  of ACMEKidRequest:
-    kid: Kid
-
-type Email = string
-
-type ACMERegisterRequest* = object
-  termsOfServiceAgreed: bool
-  contact: seq[Email]
-
-type ACMEAccountStatus = enum
-  valid = "valid"
-  deactivated = "deactivated"
-  revoked = "revoked"
-
-type ACMERegisterResponseBody = object
-  status*: ACMEAccountStatus
-
-type ACMERegisterResponse* = object
-  kid*: Kid
-  status*: ACMEAccountStatus
 
 type ACMEChallengeStatus* {.pure.} = enum
   PENDING = "pending"
@@ -108,18 +62,6 @@ type ACMEChallenge* = object
   `type`*: ACMEChallengeType
   status*: ACMEChallengeStatus
   token*: ACMEChallengeToken
-
-type ACMEChallengeIdentifier = object
-  `type`: string
-  value: string
-
-type ACMEChallengeRequest = object
-  identifiers: seq[ACMEChallengeIdentifier]
-
-type ACMEChallengeResponseBody = object
-  status: ACMEOrderStatus
-  authorizations: seq[Authorization]
-  finalize: string
 
 type ACMEChallengeResponse* = object
   status*: ACMEOrderStatus
@@ -168,6 +110,64 @@ type ACMECertificate* = object
 
 when defined(libp2p_autotls_support):
   import sequtils, strutils, jwt, bearssl/pem
+
+  const
+    Alg = "RS256"
+    DefaultChalCompletedRetries = 10
+    DefaultChalCompletedRetryTime = 1.seconds
+    DefaultFinalizeRetries = 10
+    ACMEHttpHeaders = [("Content-Type", "application/jose+json")]
+
+  type JWK = object
+    kty: string
+    n: string
+    e: string
+
+  # whether the request uses Kid or not
+  type ACMERequestType = enum
+    ACMEJwkRequest
+    ACMEKidRequest
+
+  type ACMERequestHeader = object
+    alg: string
+    typ: string
+    nonce: Nonce
+    url: string
+    case kind: ACMERequestType
+    of ACMEJwkRequest:
+      jwk: JWK
+    of ACMEKidRequest:
+      kid: Kid
+
+  type Email = string
+
+  type ACMERegisterRequest* = object
+    termsOfServiceAgreed: bool
+    contact: seq[Email]
+
+  type ACMEAccountStatus = enum
+    valid = "valid"
+    deactivated = "deactivated"
+    revoked = "revoked"
+
+  type ACMERegisterResponseBody = object
+    status*: ACMEAccountStatus
+
+  type ACMERegisterResponse* = object
+    kid*: Kid
+    status*: ACMEAccountStatus
+
+  type ACMEChallengeIdentifier = object
+    `type`: string
+    value: string
+
+  type ACMEChallengeRequest = object
+    identifiers: seq[ACMEChallengeIdentifier]
+
+  type ACMEChallengeResponseBody = object
+    status: ACMEOrderStatus
+    authorizations: seq[Authorization]
+    finalize: string
 
   template handleError*(msg: string, body: untyped): untyped =
     try:
@@ -451,7 +451,7 @@ when defined(libp2p_autotls_support):
       kid: Kid,
       retries: int = DefaultChalCompletedRetries,
   ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
-    let completedResponse = await self.sendChallengeCompleted(chalURL, key, kid)
+    discard await self.sendChallengeCompleted(chalURL, key, kid)
     # check until acme server is done (poll validation)
     return await self.checkChallengeCompleted(chalURL, key, kid, retries = retries)
 
@@ -502,8 +502,7 @@ when defined(libp2p_autotls_support):
       kid: Kid,
       retries: int = DefaultFinalizeRetries,
   ): Future[bool] {.async: (raises: [ACMEError, CancelledError]).} =
-    let finalizeResponse =
-      await self.requestFinalize(domain, finalize, certKeyPair, key, kid)
+    discard await self.requestFinalize(domain, finalize, certKeyPair, key, kid)
     # keep checking order until cert is valid (done)
     return await self.checkCertFinalized(order, key, kid, retries = retries)
 

@@ -300,12 +300,6 @@ proc makeConfig(self: QuicTransport): TLSConfig =
   )
   return tlsConfig
 
-proc getRng(self: QuicTransport): ref HmacDrbgContext =
-  if self.rng.isNil:
-    self.rng = newRng()
-
-  return self.rng
-
 proc toMultiAddress(ta: TransportAddress): MultiAddress {.raises: [MaError].} =
   ## Returns quic MultiAddress from TransportAddress
   MultiAddress.init(ta, IPPROTO_UDP).get() & MultiAddress.init("/quic-v1").get()
@@ -354,7 +348,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection, transportDir: Direction
-): QuicSession {.raises: [TransportOsError].} =
+): QuicSession {.raises: [].} =
   var observedAddr: MultiAddress
   var localAddr: MultiAddress
   try:
@@ -459,7 +453,7 @@ method upgrade*(
           debug "Timed out waiting for peer ready before handling stream", conn
           return
       await self.upgrader.ms.handle(conn) # handle incoming connection
-    except CancelledError as exc:
+    except CancelledError:
       return
     except CatchableError as exc:
       trace "exception in stream handler", conn, msg = exc.msg

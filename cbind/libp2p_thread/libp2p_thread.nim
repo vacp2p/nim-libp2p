@@ -251,3 +251,14 @@ proc sendRequestToLibP2PThread*(
 ): Result[void, string] =
   ## Sends a request to the LibP2P thread for buffer callbacks
   sendRequest(ctx, reqType, reqContent, userData, callbackKind, cast[pointer](callback))
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: ReservationCallback,
+    callbackKind: CallbackKind,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for reservation callbacks
+  sendRequest(ctx, reqType, reqContent, userData, callbackKind, cast[pointer](callback))

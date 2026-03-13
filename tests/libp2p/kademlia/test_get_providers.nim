@@ -24,9 +24,7 @@ suite "KadDHT - Get Providers":
     # topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3]
     await connectChain(kads)
 
-    let
-      key = kads[0].rtable.selfId
-      cid = key.toCid()
+    let key = kads[0].rtable.selfId
 
     # Add key to kads[3] providedKeys locally (without broadcasting via addProvider)
     kads[3].providerManager.providedKeys.provided[key] = Moment.now()

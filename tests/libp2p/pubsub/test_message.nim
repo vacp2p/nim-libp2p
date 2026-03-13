@@ -31,7 +31,6 @@ suite "Message":
     let
       seqno = 11'u64
       seckey = PrivateKey.random(Ed25519, rng[]).get()
-      pubkey = seckey.getPublicKey().get()
       peer = PeerInfo.new(seckey)
     check peer.peerId.hasPublicKey() == true
     var msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)

@@ -51,10 +51,11 @@ declareCounter(
 declareCounter(
   libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant"
 )
-declareCounter(
-  libp2p_gossipsub_imreceiving_saved_messages,
-  "number of duplicates avoided by imreceiving",
-)
+when defined(libp2p_gossipsub_1_4):
+  declareCounter(
+    libp2p_gossipsub_imreceiving_saved_messages,
+    "number of duplicates avoided by imreceiving",
+  )
 declareCounter(
   libp2p_gossipsub_saved_bytes,
   "bytes saved by gossipsub optimizations",
@@ -414,7 +415,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
   respControl.prune.add(g.handleGraft(peer, control.graft))
-  let (messages, msgIDs) = g.handleIWant(peer, control.iwant)
+  let (messages, msgIDs {.used.}) = g.handleIWant(peer, control.iwant)
 
   let
     isPruneNotEmpty = respControl.prune.len > 0

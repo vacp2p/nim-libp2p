@@ -89,7 +89,7 @@ template withValue*[T](self: Opt[T], value, body: untyped): untyped =
   ## Note: This is a template, and it will be inlined at the call site, offering good performance.
   let temp = (self)
   if temp.isSome:
-    let value {.inject.} = temp.get()
+    let value {.inject, used.} = temp.get()
     body
 
 template withValue*[T, E](self: Result[T, E], value, body: untyped): untyped =
@@ -100,7 +100,7 @@ macro withValue*[T](self: Opt[T], value, body, elseStmt: untyped): untyped =
   quote:
     let temp = (`self`)
     if temp.isSome:
-      let `value` {.inject.} = temp.get()
+      let `value` {.inject, used.} = temp.get()
       `body`
     else:
       `elseBody`

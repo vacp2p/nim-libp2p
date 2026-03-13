@@ -108,7 +108,7 @@ proc init*(
     data: seq[byte],
     topic: string,
     seqno: Opt[uint64],
-): Message {.gcsafe, raises: [LPError].} =
+): Message {.gcsafe, raises: [].} =
   var msg = Message(data: data, topic: topic)
   msg.fromPeer = peerId
 

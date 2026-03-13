@@ -38,18 +38,18 @@ suite "GossipSub Extensions :: PingPong Extension":
 
   test "config validation - sendPong must be set":
     expect AssertionDefect:
-      let ext = PingPongExtension.new(PingPongExtensionConfig())
+      discard PingPongExtension.new(PingPongExtensionConfig())
 
     expect AssertionDefect:
       var cfg = CallbackRecorder().config()
       cfg.sendPong = nil
-      let ext = PingPongExtension.new(cfg)
+      discard PingPongExtension.new(cfg)
 
   test "config validation - peerBudgetBytes must be positive":
     expect AssertionDefect:
       var cfg = CallbackRecorder().config()
       cfg.peerBudgetBytes = 0
-      let ext = PingPongExtension.new(cfg)
+      discard PingPongExtension.new(cfg)
 
   test "ping triggers pong with same bytes":
     var cr = CallbackRecorder()
