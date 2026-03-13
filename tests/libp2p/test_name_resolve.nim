@@ -251,7 +251,6 @@ suite "Name resolving":
       proc clientMark2(
           transp: DatagramTransport, raddr: TransportAddress
       ): Future[void] {.async.} =
-        let msg = transp.getMessage()
         let resp =
           "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
           "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &

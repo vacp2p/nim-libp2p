@@ -113,9 +113,8 @@ proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Opt[AutonatMsg] =
     var peerInfo: AutonatPeerInfo
     if r4:
       var pid: PeerId
-      let
-        r5 = ?pbPeerInfo.getField(1, pid).toOpt()
-        r6 = ?pbPeerInfo.getRepeatedField(2, peerInfo.addrs).toOpt()
+      let r5 = ?pbPeerInfo.getField(1, pid).toOpt()
+      discard ?pbPeerInfo.getRepeatedField(2, peerInfo.addrs).toOpt()
       if r5:
         peerInfo.id = Opt.some(pid)
       dial.peerInfo = Opt.some(peerInfo)

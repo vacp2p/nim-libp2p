@@ -601,7 +601,6 @@ suite "Switch":
     let privateKey = PrivateKey.random(rng[]).tryGet()
     let peerInfo = PeerInfo.new(privateKey)
 
-    var conns = 0
     var switches: seq[Switch]
     let allDisconnected = newWaitGroup(5)
     let allConnected = newWaitGroup(5)

@@ -111,7 +111,7 @@ suite "GossipSub":
 
   asyncTest "unsubscribePeer - handles nil peer gracefully":
     # Given a GossipSub instance
-    let (gossipSub, conns, peers) = setupGossipSubWithPeers(0, topic)
+    let (gossipSub, conns, _) = setupGossipSubWithPeers(0, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
 
@@ -267,7 +267,7 @@ suite "GossipSub":
       not gossipSub.gossipsub.hasPeer(topic, peer)
 
   asyncTest "subscribe and unsubscribeAll":
-    let (gossipSub, conns, peers) =
+    let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)

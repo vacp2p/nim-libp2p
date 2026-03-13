@@ -40,8 +40,8 @@ suite "Connection Manager":
   asyncTest "get all connections":
     let connMngr = ConnManager.new()
 
-    let peers = toSeq(0 ..< 2).mapIt(PeerId.random.tryGet())
-    let muxs = toSeq(0 ..< 2).mapIt(getMuxer(peers[it]))
+    let peers = @[PeerId.random.tryGet(), PeerId.random.tryGet()]
+    let muxs = peers.mapIt(getMuxer(it))
     for mux in muxs:
       await connMngr.storeMuxer(mux)
 

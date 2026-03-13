@@ -54,8 +54,9 @@ proc resolveOneAddress(
     dnsval = getHostname(ma)
     resolvedAddresses = await self.resolveIp(prefix & dnsval, port, domain)
 
-  resolvedAddresses.mapIt:
-    let address = MultiAddress.init(it).valueOr:
+  var resultAddrs: seq[MultiAddress]
+  for resolvedAddr in resolvedAddresses:
+    let address = MultiAddress.init(resolvedAddr).valueOr:
       raise maErr error
     var createdAddress = address[0].valueOr:
       raise maErr error
@@ -65,7 +66,8 @@ proc resolveOneAddress(
       if DNS.match(part):
         continue
       createdAddress &= part
-    createdAddress
+    resultAddrs.add(createdAddress)
+  resultAddrs
 
 proc resolveDnsAddr*(
     self: NameResolver, ma: MultiAddress, depth: int = 0

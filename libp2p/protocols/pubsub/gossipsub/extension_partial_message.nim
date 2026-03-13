@@ -10,8 +10,6 @@ import ./[extensions_types, partial_message]
 logScope:
   topics = "libp2p partial message"
 
-const keyDelimiter = "::"
-
 type
   TopicOpts* = object
     requestsPartial*: bool

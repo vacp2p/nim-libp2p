@@ -38,7 +38,6 @@ proc multiAddrToBytes*(
     peerId: PeerId, multiAddr: MultiAddress
 ): Result[seq[byte], string] {.raises: [].} =
   var ma = multiAddr
-  let sma = multiAddr.items().toSeq()
   var res: seq[byte] = @[]
 
   let baseAddr = ?getBaseTransport(multiAddr)
