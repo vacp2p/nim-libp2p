@@ -13,6 +13,7 @@ import ../../../../libp2p/protocols/mix/mix_node
 
 type StreamMsgType* = enum
   DIAL
+  DIAL_CIRCUIT_RELAY
   MIX_DIAL
   MIX_REGISTER_DEST_READ
   MIX_SET_NODE_INFO
@@ -101,6 +102,28 @@ proc processDial*(
   handle[].conn = cast[pointer](conn)
   libp2p[].connections[handle] = conn
 
+  return ok(handle)
+
+proc processDialCircuitRelay*(
+    self: ptr StreamRequest, libp2p: ptr LibP2P
+): Future[Result[ptr Libp2pStream, string]] {.async: (raises: [CancelledError]).} =
+  defer:
+    destroyShared(self)
+
+  let dstPeerId = PeerId.init($self[].peerId).valueOr:
+    return err($error)
+  let relayCircuitAddr = MultiAddress.init($self[].multiaddr).valueOr:
+    return err($error)
+
+  let conn =
+    try:
+      await libp2p.switch.dial(dstPeerId, @[relayCircuitAddr], $self[].proto)
+    except DialFailedError as exc:
+      return err(exc.msg)
+
+  let handle = cast[ptr Libp2pStream](createShared(Libp2pStream, 1))
+  handle[].conn = cast[pointer](conn)
+  libp2p[].connections[handle] = conn
   return ok(handle)
 
 proc processMixRegisterDestRead*(
