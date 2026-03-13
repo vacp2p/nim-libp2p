@@ -253,7 +253,6 @@ suite "Name resolving":
 
       proc clientMark2(
           transp: DatagramTransport, raddr: TransportAddress
-<<<<<<< fix-deprecated-callback
       ): Future[void] {.async: (raises: []).} =
         try:
           let resp =
@@ -265,16 +264,6 @@ suite "Name resolving":
           await transp.sendTo(raddr, resp)
         except CancelledError, transport.TransportError:
           raiseAssert "unexpected error: " & getCurrentExceptionMsg()
-=======
-      ): Future[void] {.async.} =
-        let resp =
-          "\xae\xbf\x81\x80\x00\x01\x00\x03\x00\x00\x00\x00\x06\x73\x74\x61" &
-          "\x74\x75\x73\x02\x69\x6d\x00\x00\x01\x00\x01\xc0\x0c\x00\x01\x00" &
-          "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x18\xb5\xc0\x0c\x00\x01\x00" &
-          "\x01\x00\x00\x00\x4f\x00\x04\xac\x43\x0a\xa1\xc0\x0c\x00\x01\x00" &
-          "\x01\x00\x00\x00\x4f\x00\x04\x68\x16\x19\xb5"
-        await transp.sendTo(raddr, resp)
->>>>>>> master
 
       let
         unresponsiveServer = newDatagramTransport(clientMark1)
