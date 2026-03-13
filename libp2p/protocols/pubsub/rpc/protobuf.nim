@@ -3,7 +3,6 @@
 
 {.push raises: [].}
 
-import options
 import stew/assign2
 import chronicles
 import messages, ../../../peerid, ../../../utility, ../../../protobuf/minprotobuf
@@ -338,7 +337,7 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
 
   ok(control)
 
-proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inline.} =
+proc decodeControl*(pb: ProtoBuffer): ProtoResult[Opt[ControlMessage]] {.inline.} =
   trace "decodeControl: decoding message"
   var buffer: seq[byte]
   if ?pb.getField(3, buffer):
@@ -371,7 +370,7 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
       for item in idontwant:
         control.idontwant.add(?decodeIWant(initProtoBuffer(item)))
     if ?cpb.getField(6, extensions):
-      control.extensions = some(?decodeExtensions(initProtoBuffer(extensions)))
+      control.extensions = Opt.some(?decodeExtensions(initProtoBuffer(extensions)))
 
     when defined(libp2p_gossipsub_1_4):
       if ?cpb.getRepeatedField(7, preamble):
@@ -386,9 +385,9 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
       prune_count = len(control.prune),
       ihave_count = len(control.ihave),
       iwant_count = len(control.iwant)
-    ok(some(control))
+    ok(Opt.some(control))
   else:
-    ok(none[ControlMessage]())
+    ok(Opt.none(ControlMessage))
 
 proc decodeSubscription*(pb: ProtoBuffer): ProtoResult[SubOpts] {.inline.} =
   when defined(libp2p_protobuf_metrics):
@@ -504,18 +503,18 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
 
 proc decodeTestExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Option[TestExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[TestExtensionRPC]] {.inline.} =
   trace "TestExtensionRPC: decoding message"
 
   var testExtension: seq[byte]
   if ?pb.getField(field, testExtension):
-    ok(some(TestExtensionRPC()))
+    ok(Opt.some(TestExtensionRPC()))
   else:
-    ok(none(TestExtensionRPC))
+    ok(Opt.none(TestExtensionRPC))
 
 proc decodePingPongExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Option[PingPongExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[PingPongExtensionRPC]] {.inline.} =
   trace "PingPongExtensionRPC: decoding message"
 
   var bytes: seq[byte]
@@ -523,7 +522,7 @@ proc decodePingPongExtensionRPC*(
     trace "PingPongExtensionRPC: is set"
   else:
     trace "PingPongExtensionRPC: is not set"
-    return ok(none(PingPongExtensionRPC))
+    return ok(Opt.none(PingPongExtensionRPC))
 
   var pbp = initProtoBuffer(bytes)
   var ppe = PingPongExtensionRPC()
@@ -531,11 +530,11 @@ proc decodePingPongExtensionRPC*(
   discard pbp.getField(1, ppe.ping)
   discard pbp.getField(2, ppe.pong)
 
-  ok(some(ppe))
+  ok(Opt.some(ppe))
 
 proc decodePartialMessageExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Option[PartialMessageExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[PartialMessageExtensionRPC]] {.inline.} =
   trace "PartialMessageExtensionRPC: decoding message"
 
   var partialMessgeExtensionsRPCBytes: seq[byte]
@@ -543,7 +542,7 @@ proc decodePartialMessageExtensionRPC*(
     trace "decodePartialMessageExtensionRPC: is set"
   else:
     trace "decodePartialMessageExtensionRPC: is not set"
-    return ok(none(PartialMessageExtensionRPC))
+    return ok(Opt.none(PartialMessageExtensionRPC))
 
   var pbp = initProtoBuffer(partialMessgeExtensionsRPCBytes)
   var pme = PartialMessageExtensionRPC()
@@ -570,7 +569,7 @@ proc decodePartialMessageExtensionRPC*(
   else:
     trace "decodePartialMessageExtensionRPC: partsMetadata is missing"
 
-  ok(some(pme))
+  ok(Opt.some(pme))
 
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   trace "decodeRpcMsg: decoding message", payload = msg.shortLog()

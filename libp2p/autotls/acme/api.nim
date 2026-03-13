@@ -167,7 +167,7 @@ type ACMECertificate* = object
   certKeyPair*: KeyPair
 
 when defined(libp2p_autotls_support):
-  import options, sequtils, strutils, jwt, bearssl/pem
+  import sequtils, strutils, jwt, bearssl/pem
 
   template handleError*(msg: string, body: untyped): untyped =
     try:

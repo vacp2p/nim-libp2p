@@ -75,10 +75,10 @@ proc verify*(m: Message): bool =
 
 proc init*(
     T: type Message,
-    peer: Option[PeerInfo],
+    peer: Opt[PeerInfo],
     data: seq[byte],
     topic: string,
-    seqno: Option[uint64],
+    seqno: Opt[uint64],
     sign: bool = true,
 ): Message {.gcsafe, raises: [].} =
   if sign and peer.isNone():
@@ -107,7 +107,7 @@ proc init*(
     peerId: PeerId,
     data: seq[byte],
     topic: string,
-    seqno: Option[uint64],
+    seqno: Opt[uint64],
 ): Message {.gcsafe, raises: [LPError].} =
   var msg = Message(data: data, topic: topic)
   msg.fromPeer = peerId

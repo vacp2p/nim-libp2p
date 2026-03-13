@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, options, strutils, stew/byteutils
+import chronos, strutils, stew/byteutils
 import
   ../../../libp2p/[
     peerid,

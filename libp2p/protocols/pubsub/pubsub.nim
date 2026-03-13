@@ -200,7 +200,7 @@ type
     rng*: ref HmacDrbgContext
 
     knownTopics*: HashSet[string]
-    customConnCallbacks*: Option[CustomConnectionCallbacks]
+    customConnCallbacks*: Opt[CustomConnectionCallbacks]
 
 proc topicLabel*(p: PubSub, topic: string): string {.inline.} =
   ## returns value to be used for `topic` labels.
@@ -307,8 +307,8 @@ proc sendSubs*(
     var subOpt = SubOpts(subscribe: subscribe, topic: topic)
     if subscribe:
       p.topics.withValue(topic, topicData):
-        subOpt.requestsPartial = some(topicData[].requestsPartial)
-        subOpt.supportsSendingPartial = some(topicData[].supportsSendingPartial)
+        subOpt.requestsPartial = Opt.some(topicData[].requestsPartial)
+        subOpt.supportsSendingPartial = Opt.some(topicData[].supportsSendingPartial)
     subscriptions.add(subOpt)
 
   p.send(peer, RPCMsg(subscriptions: subscriptions), isHighPriority = true)
@@ -610,7 +610,7 @@ method publish*(
     p: PubSub,
     topic: string,
     data: seq[byte],
-    publishParams: Option[PublishParams] = none(PublishParams),
+    publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.base, async: (raises: []), public.} =
   ## publish to a ``topic``
   ##
@@ -700,8 +700,8 @@ proc init*[PubParams: object | bool](
     maxMessageSize: int = 1024 * 1024,
     rng: ref HmacDrbgContext = newRng(),
     parameters: PubParams = false,
-    customConnCallbacks: Option[CustomConnectionCallbacks] =
-      none(CustomConnectionCallbacks),
+    customConnCallbacks: Opt[CustomConnectionCallbacks] =
+      Opt.none(CustomConnectionCallbacks),
 ): P {.raises: [InitializationError], public.} =
   let pubsub =
     when PubParams is bool:

@@ -110,9 +110,9 @@ proc init*(
     disconnectPeerAboveRateLimit = false,
     maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish = false,
-    testExtensionConfig = none(TestExtensionConfig),
-    partialMessageExtensionConfig = none(PartialMessageExtensionConfig),
-    pingpongExtensionConfig = none(PingPongExtensionConfig),
+    testExtensionConfig = Opt.none(TestExtensionConfig),
+    partialMessageExtensionConfig = Opt.none(PartialMessageExtensionConfig),
+    pingpongExtensionConfig = Opt.none(PingPongExtensionConfig),
 ): GossipSubParams =
   GossipSubParams(
     explicit: true,
@@ -256,8 +256,8 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
     g.send(
       peer,
       RPCMsg(
-        control: some(
-          ControlMessage(extensions: some(g.extensionsState.makeControlExtensions()))
+        control: Opt.some(
+          ControlMessage(extensions: Opt.some(g.extensionsState.makeControlExtensions()))
         )
       ),
       true, # use high priority as message must be the first message on the stream
@@ -429,7 +429,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
     trace "sending control message", payload = shortLog(respControl), peer
-    g.send(peer, RPCMsg(control: some(respControl)), isHighPriority = true)
+    g.send(peer, RPCMsg(control: Opt.some(respControl)), isHighPriority = true)
 
   if messages.len > 0:
     when defined(libp2p_gossipsub_1_4):
@@ -452,7 +452,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     when defined(libp2p_gossipsub_1_4):
       g.broadcast(
         @[peer],
-        RPCMsg(control: some(ControlMessage(preamble: preambles))),
+        RPCMsg(control: Opt.some(ControlMessage(preamble: preambles))),
         isHighPriority = true,
       )
 
@@ -488,7 +488,7 @@ proc sendIDontWant(
   g.broadcast(
     peers,
     RPCMsg(
-      control: some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
+      control: Opt.some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
     ),
     isHighPriority = true,
   )
@@ -505,7 +505,7 @@ when defined(libp2p_gossipsub_1_4):
     g.broadcast(
       toSendPeers.filterIt(it.codec == GossipSubCodec_14),
       RPCMsg(
-        control: some(
+        control: Opt.some(
           ControlMessage(
             preamble:
               @[
@@ -811,7 +811,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Remove peers from the mesh since we're no longer both interested
     # in the topic
     let msg = RPCMsg(
-      control: some(
+      control: Opt.some(
         ControlMessage(
           prune:
             @[
@@ -827,7 +827,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     g.broadcast(mpeers, msg, isHighPriority = true)
 
     for peer in mpeers:
-      g.pruned(peer, topic, backoff = some(g.parameters.unsubscribeBackoff))
+      g.pruned(peer, topic, backoff = Opt.some(g.parameters.unsubscribeBackoff))
 
     g.mesh.del(topic)
 
@@ -910,7 +910,7 @@ method publish*(
     g: GossipSub,
     topic: string,
     data: seq[byte],
-    publishParams: Option[PublishParams] = none(PublishParams),
+    publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
   logScope:
     topic
@@ -950,10 +950,10 @@ method publish*(
   let
     msg =
       if g.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+        Message.init(Opt.none(PeerInfo), data, topic, Opt.none(uint64), false)
       else:
         inc g.msgSeqno
-        Message.init(some(g.peerInfo), data, topic, some(g.msgSeqno), g.sign)
+        Message.init(Opt.some(g.peerInfo), data, topic, Opt.some(g.msgSeqno), g.sign)
     msgId = g.msgIdProvider(msg).valueOr:
       trace "Error generating message id, skipping publish", error = error
       libp2p_gossipsub_failed_publish.inc()
@@ -1057,9 +1057,9 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.onNegotiated.isNil:
       cfg.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg(testExtension: some(TestExtensionRPC())), false)
+          g.send(peer[], RPCMsg(testExtension: Opt.some(TestExtensionRPC())), false)
 
-    g.parameters.testExtensionConfig = some(cfg)
+    g.parameters.testExtensionConfig = Opt.some(cfg)
 
   g.parameters.partialMessageExtensionConfig.withValue(c):
     var cfg = c
@@ -1069,7 +1069,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
           peerId: PeerId, rpc: PartialMessageExtensionRPC
       ) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg(partialMessageExtension: some(rpc)), false)
+          g.send(peer[], RPCMsg(partialMessageExtension: Opt.some(rpc)), false)
 
     if cfg.publishToPeers.isNil:
       cfg.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
@@ -1085,7 +1085,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
           )
         return TopicOpts()
 
-    g.parameters.partialMessageExtensionConfig = some(cfg)
+    g.parameters.partialMessageExtensionConfig = Opt.some(cfg)
 
   g.parameters.pingpongExtensionConfig.withValue(c):
     var cfg = c
@@ -1095,11 +1095,11 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
         g.peers.withValue(peerId, peer):
           g.send(
             peer[],
-            RPCMsg(pingpongExtension: some(PingPongExtensionRPC(pong: pong))),
+            RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: pong))),
             true,
           )
 
-    g.parameters.pingpongExtensionConfig = some(cfg)
+    g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
   return ExtensionsState.new(
     onMissbehaveExtensions, g.parameters.testExtensionConfig,

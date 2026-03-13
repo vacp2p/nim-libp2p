@@ -5,7 +5,7 @@
 
 {.push raises: [].}
 
-import ../varint, ../utility, stew/endians2, results, options
+import ../varint, ../utility, stew/endians2, results
 import ../utils/sequninit
 export results, utility
 
@@ -192,7 +192,7 @@ proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
 proc write*(pb: var ProtoBuffer, field: int, value: bool) =
   pb.write(field, uint64(value))
 
-proc write*(pb: var ProtoBuffer, field: int, value: Option[bool]) =
+proc write*(pb: var ProtoBuffer, field: int, value: Opt[bool]) =
   value.withValue(boolValue):
     pb.write(field, uint64(boolValue))
 
@@ -589,14 +589,14 @@ proc getField*(
     ok(false)
 
 proc getField*(
-    pb: ProtoBuffer, field: int, output: var Option[bool]
+    pb: ProtoBuffer, field: int, output: var Opt[bool]
 ): ProtoResult[bool] {.inline.} =
   var boolValue: uint64
   if ?pb.getField(field, boolValue):
-    output = some(bool(boolValue))
+    output = Opt.some(bool(boolValue))
     ok(true)
   else:
-    output = none(bool)
+    output = Opt.none(bool)
     ok(false)
 
 proc getRequiredField*[T](

@@ -31,10 +31,10 @@ suite "GossipSub Component - Custom Connection Support":
       dummyConn = DummyConnection()
       peerSelectionCalled = false
 
-    nodes[0].customConnCallbacks = some(
+    nodes[0].customConnCallbacks = Opt.some(
       CustomConnectionCallbacks(
         customConnCreationCB: proc(
-            destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
+            destAddr: Opt[MultiAddress], destPeerId: PeerId, codec: string
         ): Connection =
           return dummyConn,
         customPeerSelectionCB: proc(
@@ -55,7 +55,7 @@ suite "GossipSub Component - Custom Connection Support":
     waitSubscribe(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(
-      topic, "hello".toBytes(), publishParams = some(PublishParams(useCustomConn: true))
+      topic, "hello".toBytes(), publishParams = Opt.some(PublishParams(useCustomConn: true))
     ), 1
 
     check:
@@ -75,5 +75,5 @@ suite "GossipSub Component - Custom Connection Support":
       discard await nodes[0].publish(
         topic,
         "hello".toBytes(),
-        publishParams = some(PublishParams(useCustomConn: true)),
+        publishParams = Opt.some(PublishParams(useCustomConn: true)),
       )

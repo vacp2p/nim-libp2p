@@ -3,10 +3,10 @@
 
 {.push raises: [].}
 
-import options, sequtils
+import sequtils
 import ../../../[peerid, routing_record, utility]
 
-export options
+export results
 
 proc expectedFields[T](
     t: typedesc[T], existingFieldNames: seq[string]
@@ -35,11 +35,11 @@ type
     subscribe*: bool
     topic*: string
     # When true, it signals the receiver that the sender prefers partial messages.
-    requestsPartial*: Option[bool]
+    requestsPartial*: Opt[bool]
     # When true, it signals the receiver that the sender supports sending partial
     # messages on this topic.
     # When requestsPartial is true, this is assumed to be true.
-    supportsSendingPartial*: Option[bool]
+    supportsSendingPartial*: Opt[bool]
 
   MessageId* = seq[byte]
 
@@ -58,11 +58,11 @@ type
     key*: seq[byte]
 
   ControlExtensions* = object
-    partialMessageExtension*: Option[bool]
+    partialMessageExtension*: Opt[bool]
 
     # Experimental extensions fields:
-    testExtension*: Option[bool]
-    pingpongExtension*: Option[bool]
+    testExtension*: Opt[bool]
+    pingpongExtension*: Opt[bool]
 
   ControlMessage* = object
     ihave*: seq[ControlIHave]
@@ -70,7 +70,7 @@ type
     graft*: seq[ControlGraft]
     prune*: seq[ControlPrune]
     idontwant*: seq[ControlIWant]
-    extensions*: Option[ControlExtensions]
+    extensions*: Opt[ControlExtensions]
     when defined(libp2p_gossipsub_1_4):
       preamble*: seq[ControlPreamble]
       imreceiving*: seq[ControlIMReceiving]
@@ -114,10 +114,10 @@ type
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
-    control*: Option[ControlMessage]
-    partialMessageExtension*: Option[PartialMessageExtensionRPC]
-    testExtension*: Option[TestExtensionRPC]
-    pingpongExtension*: Option[PingPongExtensionRPC]
+    control*: Opt[ControlMessage]
+    partialMessageExtension*: Opt[PartialMessageExtensionRPC]
+    testExtension*: Opt[TestExtensionRPC]
+    pingpongExtension*: Opt[PingPongExtensionRPC]
 
 func shortLog*(s: ControlIHave): auto =
   (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
@@ -137,13 +137,13 @@ func shortLog*(s: ControlPreamble): auto =
 func shortLog*(s: ControlIMReceiving): auto =
   (messageID: s.messageID.shortLog)
 
-func shortLogOpt[T](s: Option[T]): string =
+func shortLogOpt[T](s: Opt[T]): string =
   if s.isNone():
     "<unset>"
   else:
     $s.get()
 
-func shortLog*(so: Option[ControlExtensions]): auto =
+func shortLog*(so: Opt[ControlExtensions]): auto =
   if so.isNone():
     (
       partialMessageExtension: "<unset>",
@@ -200,9 +200,9 @@ func shortLog*(m: RPCMsg): auto =
   (
     subscriptions: m.subscriptions,
     messages: mapIt(m.messages, it.shortLog),
-    control: m.control.get(ControlMessage()).shortLog,
+    control: m.control.valueOr(ControlMessage()).shortLog,
     partialMessageExtension:
-      m.partialMessageExtension.get(PartialMessageExtensionRPC()).shortLog,
+      m.partialMessageExtension.valueOr(PartialMessageExtensionRPC()).shortLog,
     testExtension: m.testExtension.shortLogOpt,
   )
 
@@ -211,7 +211,7 @@ static:
 proc byteSize(peerInfo: PeerInfoMsg): int =
   peerInfo.peerId.len + peerInfo.signedPeerRecord.len
 
-proc byteSize(v: Option[bool]): int =
+proc byteSize(v: Opt[bool]): int =
   if v.isSome(): 1 else: 0
 
 static:
@@ -289,7 +289,7 @@ proc byteSize(controlExtensions: ControlExtensions): int =
 proc byteSize(rpc: PingPongExtensionRPC): int =
   rpc.ping.len + rpc.pong.len
 
-proc byteSize(controlExtensions: Option[ControlExtensions]): int =
+proc byteSize(controlExtensions: Opt[ControlExtensions]): int =
   controlExtensions.withValue(ce):
     ce.byteSize()
   else:

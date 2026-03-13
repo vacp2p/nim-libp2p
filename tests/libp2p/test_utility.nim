@@ -3,7 +3,7 @@
 
 {.used.}
 
-import options, chronos
+import chronos
 import ../../libp2p/utility
 import ../tools/[unittest]
 
@@ -110,9 +110,9 @@ suite "withValue and valueOr templates":
     self.x.inc()
     return Opt.some(self)
 
-  proc objIncAndOption(self: TestObj): Option[TestObj] =
+  proc objIncAndOption(self: TestObj): Opt[TestObj] =
     self.x.inc()
-    return some(self)
+    return Opt.some(self)
 
   test "withValue calls right branch when Opt/Option is none":
     var counter = 0
@@ -121,7 +121,7 @@ suite "withValue and valueOr templates":
       fail()
     else:
       counter.inc()
-    none(TestObj).withValue(v):
+    Opt.none(TestObj).withValue(v):
       fail()
     else:
       counter.inc()
@@ -130,7 +130,7 @@ suite "withValue and valueOr templates":
     # check Opt/Option withValue without else
     Opt.none(TestObj).withValue(v):
       fail()
-    none(TestObj).withValue(v):
+    Opt.none(TestObj).withValue(v):
       fail()
 
   test "withValue calls right branch when Opt/Option is some":
@@ -140,7 +140,7 @@ suite "withValue and valueOr templates":
       counter.inc(v)
     else:
       fail()
-    some(counter).withValue(v):
+    Opt.some(counter).withValue(v):
       counter.inc(v)
     else:
       fail()
@@ -148,7 +148,7 @@ suite "withValue and valueOr templates":
     # check Opt/Option withValue without else
     Opt.some(counter).withValue(v):
       counter.inc(v)
-    some(counter).withValue(v):
+    Opt.some(counter).withValue(v):
       counter.inc(v)
     check counter == 16
 
@@ -173,10 +173,10 @@ suite "withValue and valueOr templates":
     check obj.x == 8
 
   test "valueOr calls with and without proc call":
-    var obj = none(TestObj).valueOr:
+    var obj = Opt.none(TestObj).valueOr:
       TestObj(x: 0)
     check obj.x == 0
-    obj = some(TestObj(x: 2)).valueOr:
+    obj = Opt.some(TestObj(x: 2)).valueOr:
       fail()
       return
     check obj.x == 2

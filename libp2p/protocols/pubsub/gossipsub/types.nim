@@ -4,13 +4,13 @@
 {.push raises: [].}
 
 import chronos
-import std/[options, tables, sets, heapqueue]
+import std/[tables, sets, heapqueue]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
 import extensions
 
-export options, tables, sets
+export results, tables, sets
 
 const
   GossipSubCodec_14* = "/meshsub/1.4.0"
@@ -177,15 +177,15 @@ type
     sendIDontWantOnPublish*: bool
 
     # Extensions configuration
-    testExtensionConfig*: Option[TestExtensionConfig]
-    partialMessageExtensionConfig*: Option[PartialMessageExtensionConfig]
-    pingpongExtensionConfig*: Option[PingPongExtensionConfig]
+    testExtensionConfig*: Opt[TestExtensionConfig]
+    partialMessageExtensionConfig*: Opt[PartialMessageExtensionConfig]
+    pingpongExtensionConfig*: Opt[PingPongExtensionConfig]
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
   OngoingReceivesStore* = PreambleStore
 
-  RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
+  RoutingRecordsPair* = tuple[id: PeerId, record: Opt[PeerRecord]]
   RoutingRecordsHandler* = proc(
     peer: PeerId,
     tag: string, # For gossipsub, the topic

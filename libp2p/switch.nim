@@ -7,7 +7,7 @@
 
 {.push raises: [].}
 
-import std/[tables, options, sequtils, sets, oids]
+import std/[tables, sequtils, sets, oids]
 
 import chronos, chronicles, metrics
 
