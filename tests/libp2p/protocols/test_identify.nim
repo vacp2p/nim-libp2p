@@ -3,7 +3,7 @@
 
 {.used.}
 
-import options, chronos, chronicles
+import chronos, chronicles
 import
   ../../../libp2p/[
     protocols/identify,

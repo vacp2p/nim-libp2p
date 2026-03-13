@@ -6,7 +6,7 @@
 
 {.push raises: [].}
 
-import std/[sequtils, options, strutils, sugar]
+import std/[sequtils, strutils, sugar]
 import results, chronos, chronicles
 import
   ../protobuf/minprotobuf,
@@ -39,14 +39,14 @@ type
   IdentifyNoPubKeyError* = object of IdentifyError
 
   IdentifyInfo* {.public.} = object
-    pubkey*: Option[PublicKey]
+    pubkey*: Opt[PublicKey]
     peerId*: PeerId
     addrs*: seq[MultiAddress]
-    observedAddr*: Option[MultiAddress]
-    protoVersion*: Option[string]
-    agentVersion*: Option[string]
+    observedAddr*: Opt[MultiAddress]
+    protoVersion*: Opt[string]
+    agentVersion*: Opt[string]
     protos*: seq[string]
-    signedPeerRecord*: Option[Envelope]
+    signedPeerRecord*: Opt[Envelope]
 
   Identify* = ref object of LPProtocol
     peerInfo*: PeerInfo
@@ -111,18 +111,18 @@ proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
 
   var pb = initProtoBuffer(buf)
   if ?pb.getField(1, pubkey).toOpt():
-    iinfo.pubkey = some(pubkey)
+    iinfo.pubkey = Opt.some(pubkey)
     if ?pb.getField(8, signedPeerRecord).toOpt() and
         pubkey == signedPeerRecord.envelope.publicKey:
-      iinfo.signedPeerRecord = some(signedPeerRecord.envelope)
+      iinfo.signedPeerRecord = Opt.some(signedPeerRecord.envelope)
   discard ?pb.getRepeatedField(2, iinfo.addrs).toOpt()
   discard ?pb.getRepeatedField(3, iinfo.protos).toOpt()
   if ?pb.getField(4, oaddr).toOpt():
-    iinfo.observedAddr = some(oaddr)
+    iinfo.observedAddr = Opt.some(oaddr)
   if ?pb.getField(5, protoVersion).toOpt():
-    iinfo.protoVersion = some(protoVersion)
+    iinfo.protoVersion = Opt.some(protoVersion)
   if ?pb.getField(6, agentVersion).toOpt():
-    iinfo.agentVersion = some(agentVersion)
+    iinfo.agentVersion = Opt.some(agentVersion)
 
   Opt.some(iinfo)
 

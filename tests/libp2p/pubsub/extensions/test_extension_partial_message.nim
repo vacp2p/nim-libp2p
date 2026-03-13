@@ -72,7 +72,7 @@ proc subscribe(
           SubOpts(
             topic: topic,
             subscribe: subscribe,
-            requestsPartial: some(isPartialTopic(topic)),
+            requestsPartial: Opt.some(isPartialTopic(topic)),
           )
         ]
     ),
@@ -81,7 +81,7 @@ proc subscribe(
 proc handlePartialMessage(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  ext.onHandleRPC(peerId, RPCMsg(partialMessageExtension: some(rpc)))
+  ext.onHandleRPC(peerId, RPCMsg(partialMessageExtension: Opt.some(rpc)))
 
 suite "GossipSub Extensions :: Partial Message Extension":
   let peerId = PeerId.random(rng).get()

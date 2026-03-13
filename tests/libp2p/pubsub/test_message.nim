@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, options, strutils, stew/byteutils
+import chronos, strutils, stew/byteutils, results
 import
   ../../../libp2p/[
     peerid,
@@ -23,7 +23,7 @@ suite "Message":
     var seqno = 11'u64
     let
       peer = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
-      msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)
+      msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
 
     check verify(msg)
 
@@ -33,7 +33,7 @@ suite "Message":
       seckey = PrivateKey.random(Ed25519, rng[]).get()
       peer = PeerInfo.new(seckey)
     check peer.peerId.hasPublicKey() == true
-    var msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)
+    var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
     msg.key = @[]
     # get the key from fromPeer field (inlined)
     check verify(msg)
@@ -42,7 +42,7 @@ suite "Message":
     let
       seqno = 11'u64
       peer = PeerInfo.new(PrivateKey.random(RSA, rng[]).get())
-    var msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)
+    var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
     msg.key = @[]
     # shouldn't work since there's no key field
     # and the key is not inlined in peerid (too large)
@@ -59,7 +59,7 @@ suite "Message":
           "valid private key bytes"
         )
       peer = PeerInfo.new(seckey)
-      msg = Message.init(some(peer), @[], topic, some(seqno), sign = true)
+      msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
       msgIdResult = msg.defaultMsgIdProvider()
 
     check:
@@ -79,7 +79,7 @@ suite "Message":
         )
       peer = PeerInfo.new(seckey)
 
-    var msg = Message.init(peer.some, @[], topic, some(seqno), sign = true)
+    var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
     msg.fromPeer = PeerId()
     let msgIdResult = msg.defaultMsgIdProvider()
 
@@ -97,7 +97,7 @@ suite "Message":
           "valid private key bytes"
         )
       peer = PeerInfo.new(seckey)
-      msg = Message.init(some(peer), @[], topic, uint64.none, sign = true)
+      msg = Message.init(Opt.some(peer), @[], topic, Opt.none(uint64), sign = true)
       msgIdResult = msg.defaultMsgIdProvider()
 
     check:
@@ -165,15 +165,15 @@ suite "Message":
           SubOpts(
             subscribe: true,
             topic: "a".repeat(12),
-            requestsPartial: some(true),
-            supportsSendingPartial: some(true),
+            requestsPartial: Opt.some(true),
+            supportsSendingPartial: Opt.some(true),
           ), # 1 + 12 + 1 + 1 = 15 bytes
           SubOpts(subscribe: false, topic: "b".repeat(14)), # 1 + 14 = 15 bytes
         ],
       messages: @[msg, msg], # 16 * 2 = 32 bytes
-      control: some(control), # 12 + 3 + 3 + 17 + 3 = 38 bytes
-      partialMessageExtension: some(partialMessageExtensionRPC), # 4 bytes
-      pingpongExtension: some(pingPongExtensionRPC), # 4 bytes
+      control: Opt.some(control), # 12 + 3 + 3 + 17 + 3 = 38 bytes
+      partialMessageExtension: Opt.some(partialMessageExtensionRPC), # 4 bytes
+      pingpongExtension: Opt.some(pingPongExtensionRPC), # 4 bytes
     )
     check byteSize(rpcMsg) == 30 + 32 + 38 + 4 + 4 # Total: 108 bytes
 
@@ -182,7 +182,7 @@ suite "Message":
   asyncTest "RPCMsg:ControlMessage - encoding and decoding":
     let id: seq[byte] = @[123]
     let message = RPCMsg(
-      control: some(
+      control: Opt.some(
         ControlMessage(
           ihave: @[ControlIHave(topicID: topic, messageIDs: @[id])],
           iwant: @[ControlIWant(messageIDs: @[id])],
@@ -209,10 +209,10 @@ suite "Message":
       actualDecoded == message
 
   asyncTest "RPCMsg:testExtension - encoding and decoding":
-    let messageWith = RPCMsg(testExtension: some(TestExtensionRPC()))
+    let messageWith = RPCMsg(testExtension: Opt.some(TestExtensionRPC()))
     var decoded = decodeRpcMsg(encodeRpcMsg(messageWith, true)).value
     check decoded.testExtension.isSome()
 
-    let messageWithout = RPCMsg(testExtension: none(TestExtensionRPC))
+    let messageWithout = RPCMsg(testExtension: Opt.none(TestExtensionRPC))
     decoded = decodeRpcMsg(encodeRpcMsg(messageWithout, true)).value
     check decoded.testExtension.isNone()

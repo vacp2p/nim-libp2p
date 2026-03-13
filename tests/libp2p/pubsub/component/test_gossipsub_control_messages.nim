@@ -21,9 +21,14 @@ suite "GossipSub Component - Control Messages":
       graftMessage = ControlMessage(graft: @[ControlGraft(topicID: topic)])
       numberOfNodes = 2
       # First part of the hack: Weird dValues so peers are not GRAFTed automatically
-      dValues = DValues(dLow: some(0), dHigh: some(0), d: some(0), dOut: some(-1))
+      dValues = DValues(
+        dLow: Opt.some(0), dHigh: Opt.some(0), d: Opt.some(0), dOut: Opt.some(-1)
+      )
       nodes = generateNodes(
-          numberOfNodes, gossip = true, verifySignature = false, dValues = some(dValues)
+          numberOfNodes,
+          gossip = true,
+          verifySignature = false,
+          dValues = Opt.some(dValues),
         )
         .toGossipSub()
       n0 = nodes[0]
@@ -49,16 +54,17 @@ suite "GossipSub Component - Control Messages":
 
     # Second part of the hack
     # Set values so peers can be GRAFTed
-    let newDValues =
-      some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(1)))
+    let newDValues = Opt.some(
+      DValues(dLow: Opt.some(1), dHigh: Opt.some(1), d: Opt.some(1), dOut: Opt.some(1))
+    )
     n0.parameters.applyDValues(newDValues)
     n1.parameters.applyDValues(newDValues)
 
     # When a GRAFT message is sent
     let p0 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_12])
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
-    n1.broadcast(@[p0], RPCMsg(control: some(graftMessage)), isHighPriority = false)
+    n0.broadcast(@[p1], RPCMsg(control: Opt.some(graftMessage)), isHighPriority = false)
+    n1.broadcast(@[p0], RPCMsg(control: Opt.some(graftMessage)), isHighPriority = false)
 
     checkUntilTimeout:
       nodes.allIt(it.mesh.getOrDefault(topic).len == 1)
@@ -98,7 +104,7 @@ suite "GossipSub Component - Control Messages":
 
     # When a GRAFT message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg(control: some(graftMessage)), isHighPriority = false)
+    n0.broadcast(@[p1], RPCMsg(control: Opt.some(graftMessage)), isHighPriority = false)
 
     # Then the peer is not GRAFTed
     checkUntilTimeout:
@@ -138,7 +144,7 @@ suite "GossipSub Component - Control Messages":
 
     # When a PRUNE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
+    n0.broadcast(@[p1], RPCMsg(control: Opt.some(pruneMessage)), isHighPriority = false)
 
     # Then the peer is PRUNEd
     checkUntilTimeout:
@@ -149,7 +155,7 @@ suite "GossipSub Component - Control Messages":
 
     # When another PRUNE message is sent
     let p0 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_12])
-    n1.broadcast(@[p0], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
+    n1.broadcast(@[p0], RPCMsg(control: Opt.some(pruneMessage)), isHighPriority = false)
 
     # Then the peer is PRUNEd
     checkUntilTimeout:
@@ -187,7 +193,7 @@ suite "GossipSub Component - Control Messages":
 
     # When a PRUNE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg(control: some(pruneMessage)), isHighPriority = false)
+    n0.broadcast(@[p1], RPCMsg(control: Opt.some(pruneMessage)), isHighPriority = false)
 
     # Then the peer is not PRUNEd
     checkUntilTimeout:
@@ -228,7 +234,7 @@ suite "GossipSub Component - Control Messages":
 
     # When an IHAVE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
+    n0.broadcast(@[p1], RPCMsg(control: Opt.some(ihaveMessage)), isHighPriority = false)
 
     # Wait until IHAVE response is received
     # Then the peer has exactly one IHAVE message with the correct message ID
@@ -265,7 +271,7 @@ suite "GossipSub Component - Control Messages":
 
     # When an IWANT message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg(control: some(iwantMessage)), isHighPriority = false)
+    n0.broadcast(@[p1], RPCMsg(control: Opt.some(iwantMessage)), isHighPriority = false)
 
     # Wait until IWANT response is received
     # Then the peer has exactly one IWANT message with the correct message ID
@@ -299,7 +305,7 @@ suite "GossipSub Component - Control Messages":
 
     # When an IHAVE message is sent from node0
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg(control: some(ihaveMessage)), isHighPriority = false)
+    n0.broadcast(@[p1], RPCMsg(control: Opt.some(ihaveMessage)), isHighPriority = false)
 
     # Wait until IWANT response is received
     # Then node0 should receive exactly one IWANT message from node1
@@ -329,7 +335,7 @@ suite "GossipSub Component - Control Messages":
     nodes[2].broadcast(
       nodes[2].mesh[topic],
       RPCMsg(
-        control: some(
+        control: Opt.some(
           ControlMessage(idontwant: @[ControlIWant(messageIDs: @[newSeq[byte](10)])])
         )
       ),

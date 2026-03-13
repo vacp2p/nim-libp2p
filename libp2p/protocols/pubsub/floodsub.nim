@@ -189,7 +189,7 @@ method publish*(
     f: FloodSub,
     topic: string,
     data: seq[byte],
-    publishParams: Option[PublishParams] = none(PublishParams),
+    publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
@@ -209,10 +209,10 @@ method publish*(
   let
     msg =
       if f.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+        Message.init(Opt.none(PeerInfo), data, topic, Opt.none(uint64), false)
       else:
         inc f.msgSeqno
-        Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
+        Message.init(Opt.some(f.peerInfo), data, topic, Opt.some(f.msgSeqno), f.sign)
     msgId = f.msgIdProvider(msg).valueOr:
       trace "Error generating message id, skipping publish", error = error
       return 0

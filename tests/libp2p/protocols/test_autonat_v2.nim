@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import chronos, std/options, net
+import chronos, net
 import
   ../../../libp2p/[
     switch,

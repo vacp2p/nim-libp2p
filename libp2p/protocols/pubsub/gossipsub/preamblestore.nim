@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import std/[tables, heapqueue, sets, options]
+import std/[tables, heapqueue, sets]
 import ./types
 import chronos
 import ../rpc/messages
@@ -64,16 +64,16 @@ proc del*(ps: var PreambleStore, msgId: MessageId) =
 proc len*(ps: var PreambleStore): int =
   return ps.byId.len
 
-proc popExpired*(ps: var PreambleStore, now: Moment): Option[PreambleInfo] =
+proc popExpired*(ps: var PreambleStore, now: Moment): Opt[PreambleInfo] =
   while ps.heap.len > 0:
     if ps.heap[0].deleted:
       discard ps.heap.pop()
     elif ps.heap[0].expiresAt <= now:
       let top = ps.heap.pop()
       ps.byId.del(top.messageId)
-      return some(top)
+      return Opt.some(top)
     else:
-      return none(PreambleInfo)
+      return Opt.none(PreambleInfo)
 
 template withValue*(ps: var PreambleStore, key: MessageId, value, body: untyped) =
   try:

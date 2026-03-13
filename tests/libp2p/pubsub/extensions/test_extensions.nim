@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, options, sequtils
+import chronos, results, sequtils
 import ../../../../libp2p/peerid
 import
   ../../../../libp2p/protocols/pubsub/
@@ -12,7 +12,7 @@ import ../../../tools/[unittest, crypto]
 import ./extension_recording
 
 proc makeRPC(extensions: ControlExtensions = ControlExtensions()): RPCMsg =
-  RPCMsg(control: some(ControlMessage(extensions: some(extensions))))
+  RPCMsg(control: Opt.some(ControlMessage(extensions: Opt.some(extensions))))
 
 proc createMisbehaveProc*(): (ref seq[PeerId], OnMisbehaveProc) =
   let peers = new seq[PeerId]
@@ -113,7 +113,7 @@ suite "GossipSub Extensions :: State":
     check ext.negotiatedPeers.len == 0
 
     # assert that onNegotiated is not called (testExtension is false)
-    state.handleRPC(peerId, makeRPC(ControlExtensions(testExtension: some(false))))
+    state.handleRPC(peerId, makeRPC(ControlExtensions(testExtension: Opt.some(false))))
     check ext.handledRPC.len == 2
     check ext.negotiatedPeers.len == 0
     state.addPeer(peerId)
@@ -121,7 +121,7 @@ suite "GossipSub Extensions :: State":
 
     # assert that onNegotiated is called (handleRPC, then addPeer)
     let peerId1 = PeerId.random(rng).get()
-    state.handleRPC(peerId1, makeRPC(ControlExtensions(testExtension: some(true))))
+    state.handleRPC(peerId1, makeRPC(ControlExtensions(testExtension: Opt.some(true))))
     check ext.handledRPC.len == 3
     check ext.negotiatedPeers.len == 0
     state.addPeer(peerId1)
@@ -131,7 +131,7 @@ suite "GossipSub Extensions :: State":
     let peerId2 = PeerId.random(rng).get()
     state.addPeer(peerId2)
     check ext.negotiatedPeers.len == 1
-    state.handleRPC(peerId2, makeRPC(ControlExtensions(testExtension: some(true))))
+    state.handleRPC(peerId2, makeRPC(ControlExtensions(testExtension: Opt.some(true))))
     check ext.handledRPC.len == 4
     check ext.negotiatedPeers == @[peerId1, peerId2]
 

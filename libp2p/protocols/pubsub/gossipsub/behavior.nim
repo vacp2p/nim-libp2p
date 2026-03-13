@@ -84,7 +84,7 @@ proc pruned*(
     p: PubSubPeer,
     topic: string,
     setBackoff: bool = true,
-    backoff = none(Duration),
+    backoff = Opt.none(Duration),
 ) =
   if setBackoff:
     let
@@ -235,18 +235,16 @@ proc handleGraft*(
 
   return prunes
 
-proc getPeers(
-    prune: ControlPrune, peer: PubSubPeer
-): seq[(PeerId, Option[PeerRecord])] =
-  var routingRecords: seq[(PeerId, Option[PeerRecord])]
+proc getPeers(prune: ControlPrune, peer: PubSubPeer): seq[(PeerId, Opt[PeerRecord])] =
+  var routingRecords: seq[(PeerId, Opt[PeerRecord])]
   for record in prune.peers:
-    var peerRecord = none(PeerRecord)
+    var peerRecord = Opt.none(PeerRecord)
     if record.signedPeerRecord.len > 0:
       SignedPeerRecord.decode(record.signedPeerRecord).toOpt().withValue(spr):
         if record.peerId != spr.data.peerId:
           trace "peer sent envelope with wrong public key", peer
         else:
-          peerRecord = some(spr.data)
+          peerRecord = Opt.some(spr.data)
       else:
         trace "peer sent invalid SPR", peer
 
@@ -416,7 +414,7 @@ when defined(libp2p_gossipsub_1_4):
           g.broadcast(
             peers,
             RPCMsg(
-              control: some(
+              control: Opt.some(
                 ControlMessage(
                   imreceiving:
                     @[
@@ -692,11 +690,11 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
   # Send changes to peers after table updates to avoid stale state
   if grafts.len > 0:
     let graft =
-      RPCMsg(control: some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
+      RPCMsg(control: Opt.some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
     g.broadcast(grafts, graft, isHighPriority = true)
   if prunes.len > 0:
     let prune = RPCMsg(
-      control: some(
+      control: Opt.some(
         ControlMessage(
           prune:
             @[
@@ -839,7 +837,7 @@ proc onHeartbeat(g: GossipSub) =
         prunes &= peer
     if prunes.len > 0:
       let prune = RPCMsg(
-        control: some(
+        control: Opt.some(
           ControlMessage(
             prune:
               @[
@@ -875,7 +873,7 @@ proc onHeartbeat(g: GossipSub) =
       if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
         # send IHAVE only if peer has not requested partial for topic.
         # these peers will receive gossip of partial metadata via extension.
-        g.send(peer, RPCMsg(control: some(control)), isHighPriority = true)
+        g.send(peer, RPCMsg(control: Opt.some(control)), isHighPriority = true)
 
   g.mcache.shift() # shift the cache
 
@@ -929,7 +927,7 @@ when defined(libp2p_gossipsub_1_4):
           g.broadcast(
             @[peer],
             RPCMsg(
-              control: some(
+              control: Opt.some(
                 ControlMessage(
                   iwant: @[ControlIWant(messageIDs: @[expiredOngoingReceive.messageId])]
                 )

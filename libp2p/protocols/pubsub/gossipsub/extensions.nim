@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import std/[options, sets, tables]
+import std/[sets, tables]
 import ../../../[peerid]
 import ../rpc/messages
 import
@@ -28,18 +28,18 @@ type ExtensionsState* = ref object
   nodeExtensions: ControlExtensions # tells what node's capabilities are.
   extensions: seq[Extension]
     # list of all extensions. state will delegate events to all elements of this list.
-  partialMessageExtension: Option[PartialMessageExtension]
+  partialMessageExtension: Opt[PartialMessageExtension]
     # partialMessageExtension is needed to expose specific functionality of PartialMessageExtension 
     # via state.
 
 proc new*(
     T: typedesc[ExtensionsState],
     onMisbehave: OnMisbehaveProc = noopMisbehave,
-    testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
-    partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
-      none(PartialMessageExtensionConfig),
-    pingpongExtensionConfig: Option[PingPongExtensionConfig] =
-      none(PingPongExtensionConfig),
+    testExtensionConfig: Opt[TestExtensionConfig] = Opt.none(TestExtensionConfig),
+    partialMessageExtensionConfig: Opt[PartialMessageExtensionConfig] =
+      Opt.none(PartialMessageExtensionConfig),
+    pingpongExtensionConfig: Opt[PingPongExtensionConfig] =
+      Opt.none(PingPongExtensionConfig),
     externalExtensions: seq[Extension] = @[],
       # external extensions are created outside of state and they are added to 
       # state's extensions list.
@@ -48,25 +48,25 @@ proc new*(
 
   var nodeExtensions = ControlExtensions()
   var extensions = newSeq[Extension]()
-  var partialMessageExtension: Option[PartialMessageExtension] =
-    none(PartialMessageExtension)
+  var partialMessageExtension: Opt[PartialMessageExtension] =
+    Opt.none(PartialMessageExtension)
 
   testExtensionConfig.withValue(c):
     extensions.add(TestExtension.new(c))
-    nodeExtensions.testExtension = some(true)
+    nodeExtensions.testExtension = Opt.some(true)
 
   partialMessageExtensionConfig.withValue(c):
     var cfg = c # var is needed to set isSupported
     cfg.isSupported = proc(peerId: PeerId): bool {.gcsafe, raises: [].} =
       let peerExt = state.peerExtensions.getOrDefault(peerId)
       return state.partialMessageExtension.get().isSupported(peerExt)
-    partialMessageExtension = some(PartialMessageExtension.new(cfg))
+    partialMessageExtension = Opt.some(PartialMessageExtension.new(cfg))
     extensions.add(partialMessageExtension.get())
-    nodeExtensions.partialMessageExtension = some(true)
+    nodeExtensions.partialMessageExtension = Opt.some(true)
 
   pingpongExtensionConfig.withValue(c):
     extensions.add(PingPongExtension.new(c))
-    nodeExtensions.pingpongExtension = some(true)
+    nodeExtensions.pingpongExtension = Opt.some(true)
 
   extensions.add(externalExtensions)
 

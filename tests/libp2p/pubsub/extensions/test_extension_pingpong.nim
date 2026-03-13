@@ -24,7 +24,7 @@ proc config(c: CallbackRecorder, peerBudgetBytes: int = 6400): PingPongExtension
 
 proc handlePingPong(ext: PingPongExtension, peerId: PeerId, ping: seq[byte]) =
   ext.onHandleRPC(
-    peerId, RPCMsg(pingpongExtension: some(PingPongExtensionRPC(ping: ping)))
+    peerId, RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: ping)))
   )
 
 suite "GossipSub Extensions :: PingPong Extension":

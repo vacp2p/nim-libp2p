@@ -9,7 +9,7 @@ runnableExamples:
 
 {.push raises: [].}
 
-import options, tables, chronos, chronicles, sequtils
+import tables, chronos, chronicles, sequtils
 import
   switch,
   peerid,
