@@ -577,7 +577,7 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   var rpcMsg = RPCMsg()
   assign(rpcMsg.messages, ?pb.decodeMessages())
   assign(rpcMsg.subscriptions, ?pb.decodeSubscriptions())
-  assign(rpcMsg.control, ?pb.decodeControl())
+  rpcMsg.control = ?pb.decodeControl()
   rpcMsg.partialMessageExtension = ?pb.decodePartialMessageExtensionRPC(10)
 
   # Experimental extensions should register their messages here.
