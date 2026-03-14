@@ -929,7 +929,9 @@ suite "Switch":
       # this randomly locks the Windows CI job
       skip()
     else:
-      proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+      proc handle(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
         try:
           let msg = string.fromBytes(await conn.readLp(1024))
           check "Hello!" == msg
