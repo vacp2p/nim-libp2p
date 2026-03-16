@@ -183,6 +183,9 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Use `async` / `await` / `Future[T]` patterns
 - Async procedures return `Future[T]` or `Future[void]`
 - Manually created `Futures` should specify the exceptions they raise: `Future[someType].Raising([ListOfExceptionsHere]).init()`
+- `init()` procedure should always be called with identifier of future that explains purpose of future or where it was created. For example `init("Stream.readOnce")`
+- `cancel()` procedure of `Future` type is deprecated, code should ether call `cancelSoon()` for non blocking call or `cancelAndWait()` for blocking call till future is canceled.
+- Give suggestions if  `cancelSoon()` or `cancelAndWait()` should be called.
 
 ### Error Handling
 - Use the **results** library: `Result[T, E]`, `?`, `valueOr`, `isOk`, `isErr`
@@ -210,6 +213,23 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Style check is **strict** — naming must match declaration exactly
 - No bare `except` clauses (use typed exceptions)
 - No unused imports
+
+#### Detecting unused symbols
+- Always check for unused identifiers. Flag any variable, parameter, procedure, function, iterator, template, or macro that meets any of these conditions:
+  - Declared but never referenced anywhere in the module or project
+  - A proc/func/iterator that is never called
+  - A template or macro that is never expanded
+  - A variable that is shadowed and the outer declaration is unused
+  - A parameter that is never used inside its body
+  - A let/var/const that is only assigned but never read
+  - A symbol that is exported (*) but never used internally or externally
+- For each unused identifier, report:
+  - The name of the symbol, file and line number
+  - Why it is considered unused
+- Do not warn about:
+  - Symbols marked with `{.used.}`
+  - Symbols required by an interface, callback, or external API
+  - Compile‑time only symbols used via `static`, `when`, or macro expansion
 
 #### Exceptions
 - For new or significantly modified public `*` functions, add an explicit `{.raises.}` annotation; existing public APIs may not yet follow this consistently.
