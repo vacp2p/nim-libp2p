@@ -21,13 +21,8 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
 
 proc dispatchPutVal*(
     switch: Switch, peer: PeerId, key: Key, value: seq[byte], codec: string
-) {.async: (raises: [CancelledError, LPStreamError]).} =
-  let conn =
-    try:
-      await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
-    except DialFailedError as e:
-      error "PutVal could not dial peer", description = e.msg
-      return
+) {.async: (raises: [CancelledError, DialFailedError, LPStreamError, ValueError]).} =
+  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
   defer:
     await conn.close()
   let msg = Message(
@@ -52,14 +47,13 @@ proc dispatchPutVal*(
   )
 
   let reply = Message.decode(replyBuf).valueOr:
-    error "PutValue reply decode fail", error = error, conn = conn
-    return
+    raise newException(ValueError, "PutValue reply decode fail")
+
+  debug "Got PutValue reply", msg = msg, reply = reply, conn = conn
 
   if reply != msg:
     error "Unexpected change between msg and reply: ",
       msg = msg, reply = reply, conn = conn
-
-  debug "Got PutValue reply", msg = msg, reply = reply, conn = conn
 
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
