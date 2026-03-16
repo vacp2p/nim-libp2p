@@ -38,15 +38,18 @@ jobs:
           import os
           import sys
           import json
+          import pathlib
           from datetime import datetime, timedelta, timezone
           from github import Github
           from openai import OpenAI
 
           # ── tuneable limits ──────────────────────────────────────────────────
-          MAX_PR_BODY_CHARS   = 1000   # per-PR description truncation
-          MAX_PATCH_CHARS     = 1500   # per-file patch truncation
-          MAX_PAYLOAD_CHARS   = 12000  # total PR payload sent to the model
-          MAX_INSTRUCTIONS_CHARS = 4000  # characters of current instructions included
+          MAX_PR_BODY_CHARS      = 1000   # per-PR description truncation
+          MAX_PATCH_CHARS        = 1500   # per-file patch truncation
+          MAX_PR_PAYLOAD_CHARS   = 12000  # total PR payload sent to the model
+          MAX_REPO_PAYLOAD_CHARS = 10000  # total repo-state payload sent to the model
+          MAX_REPO_FILE_CHARS    = 2000   # per-file snippet from the repo
+          MAX_INSTRUCTIONS_CHARS = 4000   # characters of current instructions included
           # ─────────────────────────────────────────────────────────────────────
 
           github_token = os.environ["GITHUB_TOKEN"]
@@ -59,8 +62,53 @@ jobs:
           with open(".github/copilot-instructions.md", "r") as f:
               current_instructions = f.read()
 
-          # Fetch merged PRs from the last 7 days, paginating until updated_at
-          # falls outside the window.
+          # ── 1. Collect a representative snapshot of the current repository ──
+          # Priority-ordered list of files whose content best reflects the
+          # project's current coding conventions.
+          REPO_SNAPSHOT_FILES = [
+              "config.nims",
+              "libp2p/errors.nim",
+              "libp2p/switch.nim",
+              "libp2p/builders.nim",
+              "libp2p/peerid.nim",
+              "libp2p/multiaddress.nim",
+              "libp2p/stream/connection.nim",
+              "libp2p/protocols/pubsub/gossipsub.nim",
+              "libp2p/muxers/yamux/yamux.nim",
+              "libp2p/transports/tcptransport.nim",
+              "libp2p/crypto/crypto.nim",
+              "tests/libp2p/test_switch.nim",
+          ]
+
+          repo_snippets = {}
+          total_repo_chars = 0
+          for rel_path in REPO_SNAPSHOT_FILES:
+              full_path = pathlib.Path(rel_path)
+              if not full_path.exists():
+                  continue
+              try:
+                  text = full_path.read_text(encoding="utf-8", errors="replace")
+                  snippet = text[:MAX_REPO_FILE_CHARS]
+                  if total_repo_chars + len(snippet) > MAX_REPO_PAYLOAD_CHARS:
+                      remaining = MAX_REPO_PAYLOAD_CHARS - total_repo_chars
+                      if remaining <= 0:
+                          break
+                      snippet = snippet[:remaining]
+                  repo_snippets[rel_path] = snippet
+                  total_repo_chars += len(snippet)
+              except OSError:
+                  continue
+
+          repo_state_section = "\n\n".join(
+              f"### {path}\n```nim\n{content}\n```"
+              for path, content in repo_snippets.items()
+          )
+          print(
+              f"Collected {len(repo_snippets)} repo file(s) "
+              f"({total_repo_chars} chars) for analysis."
+          )
+
+          # ── 2. Fetch merged PRs from the last 7 days ──────────────────────
           one_week_ago = datetime.now(timezone.utc) - timedelta(days=7)
           merged_prs = []
 
@@ -85,50 +133,59 @@ jobs:
                       )
               merged_prs.append(pr_info)
 
-          if not merged_prs:
-              print("No merged PRs found in the last week. Nothing to update.")
-              with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-                  fh.write("has_changes=false\n")
-              sys.exit(0)
-
           print(f"Found {len(merged_prs)} merged PR(s) in the last week.")
 
-          # Truncate the payload at a PR boundary so the JSON remains valid.
+          # Truncate the PR payload at a PR boundary so the JSON remains valid.
           included_prs = []
-          total_chars = 0
+          total_pr_chars = 0
           for pr_info in merged_prs:
               serialized = json.dumps(pr_info, indent=2)
-              if total_chars + len(serialized) > MAX_PAYLOAD_CHARS:
+              if total_pr_chars + len(serialized) > MAX_PR_PAYLOAD_CHARS:
                   print(
-                      f"Payload limit reached; including {len(included_prs)} of "
+                      f"PR payload limit reached; including {len(included_prs)} of "
                       f"{len(merged_prs)} PRs."
                   )
                   break
               included_prs.append(pr_info)
-              total_chars += len(serialized)
+              total_pr_chars += len(serialized)
 
           prs_summary = json.dumps(included_prs, indent=2)
 
-          prompt = f"""You are a technical documentation expert analyzing a Nim/libp2p GitHub \
-repository's merged pull requests to discover NEW coding conventions that should be added to \
-the project's Copilot coding-agent instructions file.
+          # ── 3. Build the prompt combining both evidence sources ────────────
+          pr_section = (
+              prs_summary
+              if included_prs
+              else "(no pull requests were merged in the last 7 days)"
+          )
+
+          prompt = f"""You are a technical documentation expert maintaining a Nim/libp2p \
+GitHub repository's Copilot coding-agent instructions file. Your job is to update \
+`copilot-instructions.md` based on two sources of evidence:
+
+1. **Current repository source code** — reflects the actual conventions in use today.
+2. **Merged pull requests from the last 7 days** — reflects recent intentional changes.
 
 ## Current copilot-instructions.md (first {MAX_INSTRUCTIONS_CHARS} characters)
 {current_instructions[:MAX_INSTRUCTIONS_CHARS]}
 
+## Current repository source code (representative snippets)
+{repo_state_section}
+
 ## Merged pull requests from the last 7 days
-{prs_summary}
+{pr_section}
 
 ## Your task
 1. Read the current instructions carefully and understand which conventions are already documented.
-2. Examine each merged PR for patterns in code style, architecture decisions, error handling, \
-testing practices, or any other convention that appears to be intentional.
-3. Identify patterns that are NEW — not already covered in the current instructions.
+2. Examine the repository source snippets for coding patterns, idioms, or conventions that \
+are consistently used but NOT yet documented in the instructions.
+3. Examine merged PRs for patterns introduced or reinforced this week that are NOT yet documented.
 4. Add only genuinely new, non-redundant rules/guidelines to the appropriate section(s) of the \
-document.  If no new patterns are found, return the original document unchanged.
-5. Preserve the existing document structure, formatting, and tone exactly.
-6. Return ONLY the complete updated copilot-instructions.md content — no preamble, no explanation, \
-no markdown fences around the whole document.
+document. If no new patterns are found, return the original document unchanged.
+5. If existing documented rules are contradicted or outdated based on the current code, \
+update them to reflect the current reality.
+6. Preserve the existing document structure, formatting, and tone exactly.
+7. Return ONLY the complete updated copilot-instructions.md content — no preamble, \
+no explanation, no markdown fences around the whole document.
 """
 
           ai_client = OpenAI(
@@ -148,7 +205,7 @@ no markdown fences around the whole document.
                           "You are a helpful assistant that maintains coding-guidelines "
                           "documentation for software projects. You are precise, concise, "
                           "and only add content that is clearly supported by the evidence "
-                          "in the provided pull requests."
+                          "in the provided source code and pull requests."
                       ),
                   },
                   {"role": "user", "content": prompt},
@@ -202,8 +259,9 @@ no markdown fences around the whole document.
             --body "## Weekly Copilot Instructions Update
 
 This PR was automatically generated by the weekly update workflow.
-It updates \`.github/copilot-instructions.md\` based on patterns
-observed in pull requests merged during the last 7 days.
+It updates \`.github/copilot-instructions.md\` based on:
+- Analysis of **current repository source code** (representative file snapshots)
+- Patterns observed in **pull requests merged during the last 7 days**
 
 ### What to review
 - Check that the suggested additions are accurate and appropriate.
