@@ -1,0 +1,222 @@
+name: Weekly Copilot Instructions Update
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Every Monday at 3AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  models: read
+
+jobs:
+  update-copilot-instructions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Python dependencies
+        run: pip install openai PyGithub
+
+      - name: Fetch merged PRs and generate instructions update
+        id: generate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 << 'PYEOF'
+          import os
+          import sys
+          import json
+          from datetime import datetime, timedelta, timezone
+          from github import Github
+          from openai import OpenAI
+
+          # ── tuneable limits ──────────────────────────────────────────────────
+          MAX_PR_BODY_CHARS   = 1000   # per-PR description truncation
+          MAX_PATCH_CHARS     = 1500   # per-file patch truncation
+          MAX_PAYLOAD_CHARS   = 12000  # total PR payload sent to the model
+          MAX_INSTRUCTIONS_CHARS = 4000  # characters of current instructions included
+          # ─────────────────────────────────────────────────────────────────────
+
+          github_token = os.environ["GITHUB_TOKEN"]
+          repo_name = os.environ["REPO"]
+
+          gh = Github(github_token)
+          repo = gh.get_repo(repo_name)
+
+          # Read current copilot-instructions.md
+          with open(".github/copilot-instructions.md", "r") as f:
+              current_instructions = f.read()
+
+          # Fetch merged PRs from the last 7 days, paginating until updated_at
+          # falls outside the window.
+          one_week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+          merged_prs = []
+
+          pulls = repo.get_pulls(state="closed", sort="updated", direction="desc")
+          for pr in pulls:
+              if pr.updated_at < one_week_ago:
+                  # All subsequent PRs were updated even earlier; stop scanning.
+                  break
+              if pr.merged_at is None or pr.merged_at < one_week_ago:
+                  continue
+              pr_info = {
+                  "number": pr.number,
+                  "title": pr.title,
+                  "body": (pr.body or "")[:MAX_PR_BODY_CHARS],
+                  "merged_at": pr.merged_at.isoformat(),
+                  "files": [],
+              }
+              for f in pr.get_files():
+                  if f.patch:
+                      pr_info["files"].append(
+                          {"filename": f.filename, "patch": f.patch[:MAX_PATCH_CHARS]}
+                      )
+              merged_prs.append(pr_info)
+
+          if not merged_prs:
+              print("No merged PRs found in the last week. Nothing to update.")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+                  fh.write("has_changes=false\n")
+              sys.exit(0)
+
+          print(f"Found {len(merged_prs)} merged PR(s) in the last week.")
+
+          # Truncate the payload at a PR boundary so the JSON remains valid.
+          included_prs = []
+          total_chars = 0
+          for pr_info in merged_prs:
+              serialized = json.dumps(pr_info, indent=2)
+              if total_chars + len(serialized) > MAX_PAYLOAD_CHARS:
+                  print(
+                      f"Payload limit reached; including {len(included_prs)} of "
+                      f"{len(merged_prs)} PRs."
+                  )
+                  break
+              included_prs.append(pr_info)
+              total_chars += len(serialized)
+
+          prs_summary = json.dumps(included_prs, indent=2)
+
+          prompt = f"""You are a technical documentation expert analyzing a Nim/libp2p GitHub \
+repository's merged pull requests to discover NEW coding conventions that should be added to \
+the project's Copilot coding-agent instructions file.
+
+## Current copilot-instructions.md (first {MAX_INSTRUCTIONS_CHARS} characters)
+{current_instructions[:MAX_INSTRUCTIONS_CHARS]}
+
+## Merged pull requests from the last 7 days
+{prs_summary}
+
+## Your task
+1. Read the current instructions carefully and understand which conventions are already documented.
+2. Examine each merged PR for patterns in code style, architecture decisions, error handling, \
+testing practices, or any other convention that appears to be intentional.
+3. Identify patterns that are NEW — not already covered in the current instructions.
+4. Add only genuinely new, non-redundant rules/guidelines to the appropriate section(s) of the \
+document.  If no new patterns are found, return the original document unchanged.
+5. Preserve the existing document structure, formatting, and tone exactly.
+6. Return ONLY the complete updated copilot-instructions.md content — no preamble, no explanation, \
+no markdown fences around the whole document.
+"""
+
+          ai_client = OpenAI(
+              base_url="https://models.inference.ai.azure.com",
+              api_key=github_token,
+          )
+
+          # temperature=0.1 for deterministic, conservative output — we want
+          # the model to stay close to established conventions and avoid
+          # hallucinating patterns not present in the evidence.
+          response = ai_client.chat.completions.create(
+              model="gpt-4o",
+              messages=[
+                  {
+                      "role": "system",
+                      "content": (
+                          "You are a helpful assistant that maintains coding-guidelines "
+                          "documentation for software projects. You are precise, concise, "
+                          "and only add content that is clearly supported by the evidence "
+                          "in the provided pull requests."
+                      ),
+                  },
+                  {"role": "user", "content": prompt},
+              ],
+              max_tokens=8192,
+              temperature=0.1,
+          )
+
+          updated = response.choices[0].message.content.strip()
+
+          # Strip accidental outer markdown fences
+          if updated.startswith("```markdown"):
+              updated = updated[len("```markdown"):].lstrip("\n")
+          elif updated.startswith("```"):
+              updated = updated[3:].lstrip("\n")
+          if updated.endswith("```"):
+              updated = updated[:-3].rstrip("\n")
+          updated = updated.strip()
+
+          if updated == current_instructions.strip():
+              print("No new patterns identified. Skipping PR creation.")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+                  fh.write("has_changes=false\n")
+          else:
+              with open(".github/copilot-instructions.md", "w") as f:
+                  f.write(updated + "\n")
+              print("copilot-instructions.md updated with new patterns.")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+                  fh.write("has_changes=true\n")
+          PYEOF
+
+      - name: Create branch and open PR
+        if: steps.generate.outputs.has_changes == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          BRANCH="chore/copilot-instructions-update-${DATE}"
+
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          git checkout -b "$BRANCH"
+          git add .github/copilot-instructions.md
+          git commit -m "chore: weekly update of copilot-instructions.md [skip ci]"
+          git push origin "$BRANCH"
+
+          PR_URL=$(gh pr create \
+            --title "chore: weekly update of copilot-instructions.md ($(date +%Y-%m-%d))" \
+            --body "## Weekly Copilot Instructions Update
+
+This PR was automatically generated by the weekly update workflow.
+It updates \`.github/copilot-instructions.md\` based on patterns
+observed in pull requests merged during the last 7 days.
+
+### What to review
+- Check that the suggested additions are accurate and appropriate.
+- Remove or refine any suggestions that don't match project conventions.
+- Merge when the content looks good." \
+            --base "$DEFAULT_BRANCH" \
+            --head "$BRANCH")
+
+          echo "Created PR: $PR_URL"
+
+          # Attempt to assign the GitHub Copilot coding agent to the PR.
+          # This requires the Copilot coding agent feature to be enabled for
+          # the repository; the step does not fail if it is not available.
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          gh pr edit "$PR_NUMBER" --add-assignee "copilot" \
+            || echo "Note: could not assign @copilot directly (feature may not be enabled)"
