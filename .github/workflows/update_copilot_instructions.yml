@@ -32,11 +32,11 @@ jobs:
         id: generate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_MODEL_TOKEN: ${{ secrets.AI_MODEL_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           python3 << 'PYEOF'
           import os
-          import sys
           import json
           import pathlib
           from datetime import datetime, timedelta, timezone
@@ -53,6 +53,7 @@ jobs:
           # ─────────────────────────────────────────────────────────────────────
 
           github_token = os.environ["GITHUB_TOKEN"]
+          ai_model_token = os.environ["AI_MODEL_TOKEN"]
           repo_name = os.environ["REPO"]
 
           gh = Github(github_token)
@@ -190,7 +191,7 @@ no explanation, no markdown fences around the whole document.
 
           ai_client = OpenAI(
               base_url="https://models.inference.ai.azure.com",
-              api_key=github_token,
+              api_key=ai_model_token,
           )
 
           # temperature=0.1 for deterministic, conservative output — we want
