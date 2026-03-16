@@ -20,6 +20,7 @@ import
 import ../../tools/[lifecycle, topology, unittest, crypto]
 import ./utils
 
+# XXX protobuf_ser
 type CustomPeerRecord* = object
   peerId*: PeerId
   seqNo*: uint64
@@ -93,7 +94,7 @@ proc new*(
     try:
       let
         buf = await conn.readLp(4096)
-        msg = Message.decode(buf).tryGet()
+        msg = decodeMessage(buf)
       case msg.msgType
       of MessageType.Register:
         await rdv.register(conn, msg.register.tryGet(), pr)

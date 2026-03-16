@@ -9,7 +9,6 @@ import chronos, chronicles, stew/[byteutils, objects]
 import
   ./protobuf,
   ../protocol,
-  ../../protobuf/minprotobuf,
   ../../switch,
   ../../dial,
   ../../routing_record,
@@ -127,7 +126,7 @@ proc sendRegisterResponse*(
       registerResponse: Opt.some(RegisterResponse(status: Ok, ttl: Opt.some(ttl))),
     )
   )
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc sendRegisterResponseError*(
     conn: Connection, status: ResponseStatus, text: string = ""
@@ -138,7 +137,7 @@ proc sendRegisterResponseError*(
       registerResponse: Opt.some(RegisterResponse(status: status, text: Opt.some(text))),
     )
   )
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc sendDiscoverResponse*(
     conn: Connection, s: seq[Register], cookie: Cookie
@@ -148,12 +147,12 @@ proc sendDiscoverResponse*(
       msgType: MessageType.DiscoverResponse,
       discoverResponse: Opt.some(
         DiscoverResponse(
-          status: Ok, registrations: s, cookie: Opt.some(cookie.encode().buffer)
+          status: Ok, registrations: s, cookie: Opt.some(encode(cookie))
         )
       ),
     )
   )
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc sendDiscoverResponseError*(
     conn: Connection, status: ResponseStatus, text: string = ""
@@ -164,7 +163,7 @@ proc sendDiscoverResponseError*(
       discoverResponse: Opt.some(DiscoverResponse(status: status, text: Opt.some(text))),
     )
   )
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc countRegister*[E](rdv: GenericRendezVous[E], peerId: PeerId): int =
   for data in rdv.registered:
@@ -242,8 +241,8 @@ proc discover*[E](
   var cookie =
     if d.cookie.isSome():
       try:
-        Cookie.decode(d.cookie.tryGet()).tryGet()
-      except CatchableError:
+        decodeCookie(d.cookie.get())
+      except SerializationError:
         await conn.sendDiscoverResponseError(InvalidCookie)
         return
     else:
@@ -297,7 +296,7 @@ proc advertisePeer[E](
       await conn.writeLp(msg)
       let
         buf = await conn.readLp(4096)
-        msgRecv = Message.decode(buf).tryGet()
+        msgRecv = decodeMessage(buf)
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
       elif msgRecv.registerResponse.tryGet().status != ResponseStatus.Ok:
@@ -354,7 +353,7 @@ proc advertise*[E](
   let futs = collect(newSeq()):
     for peer in peers:
       trace "Send Advertise", peerId = peer, ns
-      rdv.advertisePeer(peer, msg.buffer).withTimeout(5.seconds)
+      rdv.advertisePeer(peer, msg).withTimeout(5.seconds)
 
   await allFutures(futs)
 
@@ -402,11 +401,13 @@ proc requestPeer[E](
     else:
       Opt.none(seq[byte])
   await conn.writeLp(
-    encode(Message(msgType: MessageType.Discover, discover: Opt.some(d))).buffer
+    encode(Message(msgType: MessageType.Discover, discover: Opt.some(d)))
   )
-  let
-    buf = await conn.readLp(MaximumMessageLen)
-    msgRcv = Message.decode(buf).valueOr:
+  let buf = await conn.readLp(MaximumMessageLen)
+  let msgRcv =
+    try:
+      decodeMessage(buf)
+    except SerializationError:
       debug "Message undecodable"
       return @[]
   if msgRcv.msgType != MessageType.DiscoverResponse:
@@ -509,7 +510,7 @@ proc unsubscribe*[E](
       let conn = await rdv.switch.dial(peerId, RendezVousCodec)
       defer:
         await conn.close()
-      await conn.writeLp(msg.buffer)
+      await conn.writeLp(msg)
     except CatchableError as exc:
       trace "exception while unsubscribing", description = exc.msg
 
@@ -560,7 +561,7 @@ proc new*(
     try:
       let
         buf = await conn.readLp(4096)
-        msg = Message.decode(buf).tryGet()
+        msg = decodeMessage(buf)
       case msg.msgType
       of MessageType.Register:
         await rdv.register(
@@ -569,9 +570,9 @@ proc new*(
       of MessageType.RegisterResponse:
         trace "Got an unexpected Register Response", response = msg.registerResponse
       of MessageType.Unregister:
-        rdv.unregister(conn, msg.unregister.tryGet())
+        rdv.unregister(conn, msg.unregister.get())
       of MessageType.Discover:
-        await rdv.discover(conn, msg.discover.tryGet())
+        await rdv.discover(conn, msg.discover.get())
       of MessageType.DiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:

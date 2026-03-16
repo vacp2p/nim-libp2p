@@ -3,7 +3,7 @@
 
 {.used.}
 
-import ../../../libp2p/[protocols/rendezvous/protobuf, protobuf/minprotobuf]
+import ../../../libp2p/[protocols/rendezvous/protobuf]
 import ../../tools/[unittest]
 
 suite "RendezVous Protobuf":
@@ -14,126 +14,111 @@ suite "RendezVous Protobuf":
 
   test "Cookie roundtrip with namespace":
     let originalCookie = Cookie(offset: 42'u64, ns: Opt.some(namespace))
-    let decodeResult = Cookie.decode(originalCookie.encode().buffer)
-    check decodeResult.isSome()
-    let decodedCookie = decodeResult.get()
+    let decodedCookie = decodeCookie(encode(originalCookie))
     check:
       decodedCookie.offset == originalCookie.offset
       decodedCookie.ns.get() == originalCookie.ns.get()
-      decodedCookie.encode().buffer == originalCookie.encode().buffer # roundtrip again
+      encode(decodedCookie) == encode(originalCookie) # roundtrip again
 
   test "Cookie roundtrip without namespace":
     let originalCookie = Cookie(offset: 7'u64)
-    let decodeResult = Cookie.decode(originalCookie.encode().buffer)
-    check decodeResult.isSome()
-    let decodedCookie = decodeResult.get()
+    let decodedCookie = decodeCookie(encode(originalCookie))
     check:
       decodedCookie.offset == originalCookie.offset
       decodedCookie.ns.isNone()
-      decodedCookie.encode().buffer == originalCookie.encode().buffer
+      encode(decodedCookie) == encode(originalCookie)
 
   test "Cookie decode fails when missing offset":
-    var emptyCookieBuffer = initProtoBuffer()
-    check Cookie.decode(emptyCookieBuffer.buffer).isNone()
+    expect(SerializationError):
+      discard decodeCookie(default(seq[byte]))
 
   test "Register roundtrip with ttl":
     let originalRegister =
       Register(ns: namespace, signedPeerRecord: @[byte 1, 2, 3], ttl: Opt.some(60'u64))
-    let decodeResult = Register.decode(originalRegister.encode().buffer)
-    check decodeResult.isSome()
-    let decodedRegister = decodeResult.get()
+    let decodedRegister = decodeRegister(encode(originalRegister))
     check:
       decodedRegister.ns == originalRegister.ns
       decodedRegister.signedPeerRecord == originalRegister.signedPeerRecord
       decodedRegister.ttl.get() == originalRegister.ttl.get()
-      decodedRegister.encode().buffer == originalRegister.encode().buffer
+      encode(decodedRegister) == encode(originalRegister)
 
   test "Register roundtrip without ttl":
     let originalRegister = Register(ns: namespace, signedPeerRecord: @[byte 4, 5])
-    let decodeResult = Register.decode(originalRegister.encode().buffer)
-    check decodeResult.isSome()
-    let decodedRegister = decodeResult.get()
+    let decodedRegister = decodeRegister(encode(originalRegister))
     check:
       decodedRegister.ns == originalRegister.ns
       decodedRegister.signedPeerRecord == originalRegister.signedPeerRecord
       decodedRegister.ttl.isNone()
-      decodedRegister.encode().buffer == originalRegister.encode().buffer
+      encode(decodedRegister) == encode(originalRegister)
 
   test "Register decode fails when missing namespace":
-    var bufferMissingNamespace = initProtoBuffer()
-    bufferMissingNamespace.write(2, @[byte 1])
-    check Register.decode(bufferMissingNamespace.buffer).isNone()
+    expect(SerializationError):
+      # field 2; value: @[1]
+      discard decodeRegister(@[byte 0x12, 0x01, 0x01])
 
   test "Register decode fails when missing signedPeerRecord":
-    var bufferMissingSignedPeerRecord = initProtoBuffer()
-    bufferMissingSignedPeerRecord.write(1, namespace)
-    check Register.decode(bufferMissingSignedPeerRecord.buffer).isNone()
+    expect(SerializationError):
+      # field 1; value: "ns"
+      discard decodeRegister(@[byte 0x0A, 0x02, 0x6E, 0x73])
 
   test "RegisterResponse roundtrip successful":
     let originalResponse = RegisterResponse(
       status: ResponseStatus.Ok, text: Opt.some("ok"), ttl: Opt.some(10'u64)
     )
-    let decodeResult = RegisterResponse.decode(originalResponse.encode().buffer)
-    check decodeResult.isSome()
-    let decodedResponse = decodeResult.get()
+    let decodedResponse =
+      decodeRegisterResponse(encode(originalResponse))
     check:
       decodedResponse.status == originalResponse.status
       decodedResponse.text.get() == originalResponse.text.get()
       decodedResponse.ttl.get() == originalResponse.ttl.get()
-      decodedResponse.encode().buffer == originalResponse.encode().buffer
+      encode(decodedResponse) == encode(originalResponse)
 
   test "RegisterResponse roundtrip failed":
     let originalResponse = RegisterResponse(status: ResponseStatus.InvalidNamespace)
-    let decodeResult = RegisterResponse.decode(originalResponse.encode().buffer)
-    check decodeResult.isSome()
-    let decodedResponse = decodeResult.get()
+    let decodedResponse =
+      decodeRegisterResponse(encode(originalResponse))
     check:
       decodedResponse.status == originalResponse.status
       decodedResponse.text.isNone()
       decodedResponse.ttl.isNone()
-      decodedResponse.encode().buffer == originalResponse.encode().buffer
+      encode(decodedResponse) == encode(originalResponse)
 
   test "RegisterResponse decode fails invalid status enum":
-    var bufferInvalidStatusValue = initProtoBuffer()
-    bufferInvalidStatusValue.write(1, uint(999))
-    check RegisterResponse.decode(bufferInvalidStatusValue.buffer).isNone()
+    expect(SerializationError):
+      # field 1; value: 999
+      discard decodeRegisterResponse(@[byte 0x08, 0xE7, 0x07])
 
   test "RegisterResponse decode fails missing status":
-    var bufferMissingStatusField = initProtoBuffer()
-    bufferMissingStatusField.write(2, "msg")
-    check RegisterResponse.decode(bufferMissingStatusField.buffer).isNone()
+    expect(SerializationError):
+      # field 2; value: "msg"
+      discard decodeRegisterResponse(@[byte 0x12, 0x03, 0x6D, 0x73, 0x67])
 
   test "Unregister roundtrip":
     let originalUnregister = Unregister(ns: namespace)
-    let decodeResult = Unregister.decode(originalUnregister.encode().buffer)
-    check decodeResult.isSome()
-    let decodedUnregister = decodeResult.get()
+    let decodedUnregister =
+      decodeUnregister(encode(originalUnregister))
     check:
       decodedUnregister.ns == originalUnregister.ns
-      decodedUnregister.encode().buffer == originalUnregister.encode().buffer
+      encode(decodedUnregister) == encode(originalUnregister)
 
   test "Unregister decode fails when missing namespace":
-    var bufferMissingUnregisterNamespace = initProtoBuffer()
-    check Unregister.decode(bufferMissingUnregisterNamespace.buffer).isNone()
+    expect(SerializationError):
+      discard decodeUnregister(default(seq[byte]))
 
   test "Discover roundtrip with all optional fields":
     let originalDiscover = Discover(
       ns: Opt.some(namespace), limit: Opt.some(5'u64), cookie: Opt.some(@[byte 1, 2, 3])
     )
-    let decodeResult = Discover.decode(originalDiscover.encode().buffer)
-    check decodeResult.isSome()
-    let decodedDiscover = decodeResult.get()
+    let decodedDiscover = decodeDiscover(encode(originalDiscover))
     check:
       decodedDiscover.ns.get() == originalDiscover.ns.get()
       decodedDiscover.limit.get() == originalDiscover.limit.get()
       decodedDiscover.cookie.get() == originalDiscover.cookie.get()
-      decodedDiscover.encode().buffer == originalDiscover.encode().buffer
+      encode(decodedDiscover) == encode(originalDiscover)
 
   test "Discover decode empty buffer yields empty object":
     var emptyDiscoverBuffer: seq[byte] = @[]
-    let decodeResult = Discover.decode(emptyDiscoverBuffer)
-    check decodeResult.isSome()
-    let decodedDiscover = decodeResult.get()
+    let decodedDiscover = decodeDiscover(emptyDiscoverBuffer)
     check:
       decodedDiscover.ns.isNone()
       decodedDiscover.limit.isNone()
@@ -147,46 +132,42 @@ suite "RendezVous Protobuf":
       status: ResponseStatus.Ok,
       text: Opt.some("t"),
     )
-    let decodeResult = DiscoverResponse.decode(originalResponse.encode().buffer)
-    check decodeResult.isSome()
-    let decodedResponse = decodeResult.get()
+    let decodedResponse =
+      decodeDiscoverResponse(encode(originalResponse))
     check:
       decodedResponse.status == originalResponse.status
       decodedResponse.registrations.len == 1
       decodedResponse.registrations[0].ns == registrationEntry.ns
       decodedResponse.cookie.get() == originalResponse.cookie.get()
       decodedResponse.text.get() == originalResponse.text.get()
-      decodedResponse.encode().buffer == originalResponse.encode().buffer
+      encode(decodedResponse) == encode(originalResponse)
 
   test "DiscoverResponse roundtrip failed":
     let originalResponse = DiscoverResponse(status: ResponseStatus.InternalError)
-    let decodeResult = DiscoverResponse.decode(originalResponse.encode().buffer)
-    check decodeResult.isSome()
-    let decodedResponse = decodeResult.get()
+    let decodedResponse =
+      decodeDiscoverResponse(encode(originalResponse))
     check:
       decodedResponse.status == originalResponse.status
       decodedResponse.registrations.len == 0
       decodedResponse.cookie.isNone()
       decodedResponse.text.isNone()
-      decodedResponse.encode().buffer == originalResponse.encode().buffer
+      encode(decodedResponse) == encode(originalResponse)
 
   test "DiscoverResponse decode fails with invalid registration":
-    var bufferInvalidRegistration = initProtoBuffer()
-    bufferInvalidRegistration.write(1, @[byte 0x00, 0xFF])
-    bufferInvalidRegistration.write(3, ResponseStatus.Ok.uint)
-    check DiscoverResponse.decode(bufferInvalidRegistration.buffer).isNone()
+    expect(SerializationError):
+      # field 1; value @[byte 0x00, 0xFF]
+      # field 3; value ResponseStatus.Ok
+      discard decodeDiscoverResponse(@[byte 0x0A, 0x02, 0x00, 0xFF, 0x18, 0x00])
 
   test "DiscoverResponse decode fails missing status":
-    var bufferMissingDiscoverResponseStatus = initProtoBuffer()
-    check DiscoverResponse.decode(bufferMissingDiscoverResponseStatus.buffer).isNone()
+    expect(SerializationError):
+      discard decodeDiscoverResponse(default(seq[byte]))
 
   test "Message roundtrip Register variant":
     let registerPayload = Register(ns: namespace, signedPeerRecord: @[byte 1])
     let originalMessage =
       Message(msgType: MessageType.Register, register: Opt.some(registerPayload))
-    let decodeResult = Message.decode(originalMessage.encode().buffer)
-    check decodeResult.isSome()
-    let decodedMessage = decodeResult.get()
+    let decodedMessage = decodeMessage(encode(originalMessage))
     check:
       decodedMessage.msgType == originalMessage.msgType
       decodedMessage.register.get().ns == registerPayload.ns
@@ -197,9 +178,7 @@ suite "RendezVous Protobuf":
       msgType: MessageType.RegisterResponse,
       registerResponse: Opt.some(registerResponsePayload),
     )
-    let decodeResult = Message.decode(originalMessage.encode().buffer)
-    check decodeResult.isSome()
-    let decodedMessage = decodeResult.get()
+    let decodedMessage = decodeMessage(encode(originalMessage))
     check:
       decodedMessage.msgType == originalMessage.msgType
       decodedMessage.registerResponse.get().status == registerResponsePayload.status
@@ -208,9 +187,7 @@ suite "RendezVous Protobuf":
     let unregisterPayload = Unregister(ns: namespace)
     let originalMessage =
       Message(msgType: MessageType.Unregister, unregister: Opt.some(unregisterPayload))
-    let decodeResult = Message.decode(originalMessage.encode().buffer)
-    check decodeResult.isSome()
-    let decodedMessage = decodeResult.get()
+    let decodedMessage = decodeMessage(encode(originalMessage))
     check:
       decodedMessage.unregister.get().ns == unregisterPayload.ns
 
@@ -218,9 +195,7 @@ suite "RendezVous Protobuf":
     let discoverPayload = Discover(limit: Opt.some(1'u64))
     let originalMessage =
       Message(msgType: MessageType.Discover, discover: Opt.some(discoverPayload))
-    let decodeResult = Message.decode(originalMessage.encode().buffer)
-    check decodeResult.isSome()
-    let decodedMessage = decodeResult.get()
+    let decodedMessage = decodeMessage(encode(originalMessage))
     check:
       decodedMessage.discover.get().limit.get() == discoverPayload.limit.get()
 
@@ -230,20 +205,17 @@ suite "RendezVous Protobuf":
       msgType: MessageType.DiscoverResponse,
       discoverResponse: Opt.some(discoverResponsePayload),
     )
-    let decodeResult = Message.decode(originalMessage.encode().buffer)
-    check decodeResult.isSome()
-    let decodedMessage = decodeResult.get()
+    let decodedMessage = decodeMessage(encode(originalMessage))
     check:
       decodedMessage.discoverResponse.get().status == discoverResponsePayload.status
 
   test "Message decode header only":
     var headerOnlyMessage = Message(msgType: MessageType.Register)
-    let decodeResult = Message.decode(headerOnlyMessage.encode().buffer)
-    check decodeResult.isSome()
+    let decodeResult = decodeMessage(encode(headerOnlyMessage))
     check:
-      decodeResult.get().register.isNone()
+      decodeResult.register.isNone()
 
   test "Message decode fails invalid msgType":
-    var bufferInvalidMessageType = initProtoBuffer()
-    bufferInvalidMessageType.write(1, uint(999))
-    check Message.decode(bufferInvalidMessageType.buffer).isNone()
+    expect(SerializationError):
+      # field 1; value: 999
+      discard decodeMessage(@[byte 0x08, 0xE7, 0x07])
