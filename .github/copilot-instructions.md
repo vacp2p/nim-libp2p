@@ -111,13 +111,11 @@ switch("warningAsError", "ImplicitDefaultValue:on")
 switch("warningAsError", "LockLevel:on")
 switch("warningAsError", "ObservableStores:on")
 switch("warningAsError", "ResultShadowed:on")
-switch("warningAsError", "UnreachableCode:on")
 switch("warningAsError", "UnreachableElse:on")
 switch("warningAsError", "UnusedImport:on")
 switch("warningAsError", "UseBase:on")
 switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
 switch("hintAsError", "DuplicateModuleImport:on")
-switch("hintAsError", "XCannotRaiseY:on")
 --styleCheck: usages
 --styleCheck: error
 --mm: refc          # Reference counting (not ORC yet)
@@ -214,7 +212,7 @@ The test runner (`libp2p.nimble`) always compiles with:
   - A template or macro that is never expanded
   - A variable that is shadowed and the outer declaration is unused
   - A parameter that is never used inside its body
-  -  A let/var/const that is only assigned but never read
+  - A let/var/const that is only assigned but never read
   - A symbol that is exported (*) but never used internally or externally
 - For each unused identifier, report:
   - The name of the symbol, file and line number
