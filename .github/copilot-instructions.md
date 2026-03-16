@@ -4,7 +4,7 @@
 
 **nim-libp2p** is a native Nim implementation of the [libp2p](https://libp2p.io) peer-to-peer networking stack. It is used in production by [Nimbus (Ethereum client)](https://github.com/status-im/nimbus-eth2) and other projects.
 
-- **Language**: Nim ( see `libp2p.nimble` and `.github/workflows/ci.yml` for currently supported versions)
+- **Language**: Nim (see `libp2p.nimble` and `.github/workflows/ci.yml` for currently supported versions)
 - **License**: Apache 2.0 OR MIT
 - **Version**: 1.15.3
 - **Author**: Status Research & Development GmbH
@@ -93,413 +93,55 @@ nim c -r tests/tools/test_multiaddress.nim
 ### Code Formatting
 ```sh
 nimble install nph@v0.6.1   # Install formatter (once)
-nimble format               # Format all code
-```
-
-### Logging / Debug
-```sh
-nim c -r -d:chronicles_log_level=debug examples/helloworld.nim
-nim c -r -d:chronicles_enabled_topics:switch:TRACE,quictransport:INFO examples/helloworld.nim
+nimble format
 ```
 
 ---
 
-## Compiler Configuration (`config.nims`)
+## Coding Conventions
 
-Warnings are treated as errors. All of the following must pass cleanly:
+### General
+- Use `raises: []` pragmas to explicitly declare exception safety for procedures where applicable.
+- Use `{.push public.}` and `{.push raises: [].}` pragmas at the top of modules to enforce consistent visibility and exception handling.
+- Use `logScope` to define logging topics for modules (e.g., `logScope: topics = "libp2p switch"`).
+- Avoid using deprecated constructs; replace them with updated alternatives (e.g., use `TransportBuilder` instead of `TransportProvider`).
 
-```nim
-switch("warningAsError", "BareExcept:on")
-switch("warningAsError", "CaseTransition:on")
-switch("warningAsError", "CStringConv:on")
-switch("warningAsError", "ImplicitDefaultValue:on")
-switch("warningAsError", "LockLevel:on")
-switch("warningAsError", "ObservableStores:on")
-switch("warningAsError", "ResultShadowed:on")
-switch("warningAsError", "UnreachableCode:on")
-switch("warningAsError", "UnreachableElse:on")
-switch("warningAsError", "UnusedImport:on")
-switch("warningAsError", "UseBase:on")
-switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
-switch("hintAsError", "DuplicateModuleImport:on")
-switch("hintAsError", "XCannotRaiseY:on")
---styleCheck: usages
---styleCheck: error
---mm: refc          # Reference counting (not ORC yet)
-```
+### Compiler Configuration
+- The following warnings are treated as errors in `config.nims`:
+  - `BareExcept`
+  - `CaseTransition`
+  - `CStringConv`
+  - `ImplicitDefaultValue`
+  - `LockLevel`
+  - `ObservableStores`
+  - `ResultShadowed`
+  - `UnreachableCode`
+  - `UnreachableElse`
+  - `UnusedImport`
+  - `UseBase`
+- The following hints are treated as errors in `config.nims`:
+  - `ConvFromXtoItselfNotNeeded`
+  - `DuplicateModuleImport`
+  - `XCannotRaiseY`
 
-**Important**: The style checker enforces consistent identifier casing. Identifier names must match their declaration exactly.
+### Testing
+- Unit tests should mirror the source structure and be placed in the `tests/libp2p/` directory.
+- Integration tests should be placed in the `tests/integration/` directory and focus on testing interactions between components (e.g., WebSocket, AutoTLS, peer ID authentication).
+- Interoperability tests with other implementations should be placed in the `tests/interop/` directory.
 
----
-
-## Compile-Time Feature Flags
-
-These flags are used in CI and tests:
-
-| Flag | Purpose |
-|------|---------|
-| `-d:libp2p_autotls_support` | Enable AutoTLS support |
-| `-d:libp2p_gossipsub_1_4` | Enable GossipSub v1.4 |
-| `-d:libp2p_mix_experimental_exit_is_dest` | MIX protocol: exit node is destination |
-| `-d:libp2p_expensive_metrics` | Per-peer cardinality metrics |
-| `-d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,...` | Known agent metrics |
-| `-d:KnownLibP2PTopics=topic1,topic2` | GossipSub topic metrics |
-| `-d:libp2p_multicodec_exts=<path>` | MultiCodec extensions file |
-| `-d:libp2p_multihash_exts=<path>` | MultiHash extensions file |
-| `-d:libp2p_multiaddress_exts=<path>` | MultiAddress extensions file |
-| `-d:libp2p_multibase_exts=<path>` | MultiBase extensions file |
-| `-d:libp2p_contentids_exts=<path>` | ContentIds extensions file |
-
-The test runner (`libp2p.nimble`) always compiles with:
-`-d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4`
-
----
-
-## Key Dependencies
-
-- **chronos** (`>= 4.0.4`) — Async I/O framework (core dependency, used everywhere)
-- **chronicles** (`>= 0.11.0`) — Structured logging
-- **stew** (`>= 0.4.2`) — Utility library
-- **results** — Result/Option types for error handling
-- **nimcrypto** — Cryptographic algorithms
-- **secp256k1** — Secp256k1 curve operations
-- **bearssl** — TLS/SSL
-- **dnsclient** (`>= 0.3.0, < 0.4.0`) — DNS client (used by AutoTLS)
-- **websock** (`>= 0.2.1`) — WebSocket transport
-- **nim-lsquic** — QUIC transport (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
-- **nim-jwt** — JWT library for AutoTLS/ACME (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
-- **unittest2** — Testing framework
-
----
-
-## Code Conventions
-
-#### `result` return
-- DO NOT USE `result` for returning values.
-- Use expression-based return or explicit return keyword with a value
-
-### Async Model
-- All async code uses **chronos** (`import chronos`)
-- Use `async` / `await` / `Future[T]` patterns
-- Async procedures return `Future[T]` or `Future[void]`
-- Manually created `Futures` should specify the exceptions they raise: `Future[someType].Raising([ListOfExceptionsHere]).init()`
-
-### Error Handling
-- Use the **results** library: `Result[T, E]`, `?`, `valueOr`, `isOk`, `isErr`
-- Custom error types are in `libp2p/errors.nim` (derive from `LPError`)
-- Use `valueOr` over `tryGet()` when catching errors — `tryGet()` raises `ResultError[string]` which is NOT a subtype of `LPError`
-- Example: use `let ma = maResult.valueOr: return err(...)` not `let ma = maResult.tryGet()`
+### Modules
+- Use `LPError` as the base exception type for libp2p-specific errors.
+- Use `SwitchBuilder` for constructing `Switch` objects with a fluent interface.
+- Use `MultiAddress` for handling multi-address representations.
+- Use `shortLog` for compact string representations of `PeerId` objects in logs.
+- Use `checkFutures` macro to handle sequences of futures, with optional exclusion of specific exceptions.
 
 ### Logging
-- Use **chronicles**: `logScope`, `trace`, `debug`, `info`, `warn`, `error`
-- Example:
-  ```nim
-  logScope:
-    topics = "switch"
-  debug "Connecting to peer", peerId
-  ```
-
-### Memory Management
-- Memory model: `--mm:refc` (reference counting)
-- For C bindings (`cbind/`): use `createShared`/`freeShared` for cross-thread objects
-
-### Style
-
-#### General
-- Nim identifier naming: `camelCase` for variables/procedures, `PascalCase` for types
-- Style check is **strict** — naming must match declaration exactly
-- No bare `except` clauses (use typed exceptions)
-- No unused imports
-
-#### Exceptions
-- For new or significantly modified public `*` functions, add an explicit `{.raises.}` annotation; existing public APIs may not yet follow this consistently.
-- If you must use exceptions, use specific exception types. Avoid raising or capturing `CatchableError`. Catching `CatchableError` implies that all errors are funnelled through the same exception handler.
-- Do not catch `CancelledError`. By not catching, it is propagated by default. Sometimes this exception is captured and re-raised which is fine.
-- Use `e` as error variable name in `except` clause like `except LPStreamEOFError as e`
-
-#### Result
-- Use explicit error-signalling types (`bool`, `Opt`, `Result`) over implicit mechanisms like exceptions or status codes
-- For optional values, use `Opt[T]` from `results` (import `results` and use the unqualified `Opt[T]` type).
-- Do not use other option-like types such as `options.Option`.
-
-#### Status codes
-- Avoid status codes
-
-#### Binary data
-- Use `byte` to denote binary data. Use `seq[byte]` for dynamic byte arrays.
-- Avoid `string` for binary data. If stdlib returns strings, [convert](https://github.com/status-im/nim-stew/blob/76beeb769e30adc912d648c014fd95bf748fef24/stew/byteutils.nim#L141) to `seq[byte]` as early as possible
-
-#### Converters
-- Avoid using converters.
-
-#### Finalizers
-- Don't use finalizers.
-
-#### Import, export
-- Use specific imports. Avoid `include`.
-
-#### Inline functions
-- Avoid using explicit {.inline.} functions.
-
-#### Integers
-- Use signed integers for counting, lengths, array indexing etc.
-- Use unsigned integers of specified size for interfacing with binary data, bit manipulation, low-level hardware access and similar contexts.
-- Don't cast `pointer` to `int`.
-- Avoid `Natural` - implicit conversion from `int` to `Natural` can raise a `Defect`
-
-#### Macros
-- Be judicious in macro usage - use more simple constructs.
-- Avoid generating public API functions with macros.
-- Write as much code as possible in templates, and glue together using macros
-
-#### Memory allocation
-- Prefer to use stack-based and statically sized data types in core/low-level libraries.
-- Use heap allocation in glue layers.
-- Avoid `alloca`.
-
-#### Object construction
-- Use `Xxx(x: 42, y: Yyy(z: 54))` style, or if type has an `init` or `new` function, `Type.init(a, b, c)`.
-- Prefer that the default 0-initialization is a valid state for the type.
-- Avoid using `var instance: Type` which disable several compiler diagnostics
-- If a function creates a stack object, it should be called `init`. If it returns a heap object `new`
-
-#### Functions and procedures
-- Use `func` when possible. Use `proc` when side effects cannot conveniently be avoided.
-- Avoid public functions and variables (`*`) that don't make up an intended part of public API.
-- Use `openArray` as argument type over `seq` for traversals
-
-#### Callbacks, closures and forward declarations
-- Annotate proc type definitions and forward declarations with `{.raises: [], gcsafe.}` or specific exception types.
-
-#### `range`
-- Avoid range types.
-
-#### `ref object` types
-- Avoid ref object types, except:
-- Use explicit `ref MyType` where reference semantics are needed, allowing the caller to choose where possible.
-
-#### Variable declaration
-- Use the most restrictive of `const`, `let` and `var` that the situation allows.
-
-#### Variable initialization
-- Prefer expressions to initialize variables and return values
-
-#### Hex output
-- Print hex output in lowercase. Accept upper and lower case.
-
-#### Standard library usage
-- Use the Nim standard library judiciously. Prefer smaller, separate packages that implement similar functionality, where available.
-- Use the following stdlib replacements that offer safer API (allowing more issues to be detected at compile time):
-```
-    async -> chronos
-    bitops -> stew/bitops2
-    endians -> stew/endians2
-    exceptions -> results
-    io -> stew/io2
-    sqlite -> nim-sqlite3-abi
-    streams -> nim-faststreams
-```
-
-#### `stew`
-- stew contains small utilities and replacements for std libraries.
-- If similar libraries exist in `std` and `stew`, use [stew](https://github.com/status-im/nim-stew).
-
-#### `discard`
-- `discard` should not be used for empty body statements in tests: if used in try-except block when error is expected it is better to use `expect` instead. For callbacks, they should either raise an error because they should not be called, or, if it is indeed a noop callback, it should be written once then reused always.
-
-#### RNG
-- Do not use `newRng()`. In the nim-libp2p test files, do not use `newRng()`. Instead use `rng` template from `tests/tools/crypto.nim`
-- Ignore `nim-libp2p/tests/tools/crypto.nim` (that's the definition file)
-
-### API Stability
-- Procedures marked with `.public.` pragma are backward-compatible within MAJOR versions
-- Internal procedures may change at MINOR versions
-
-### Experimental GossipSub Extensions
-- Must use protobuf field numbers `> 0x200000` to force ≥4-byte tags
-  (see `libp2p/protocols/pubsub/rpc/protobuf.nim`)
+- Use `chronicles` for structured logging.
+- Use `debug` for non-critical issues and `trace` for detailed exception messages and stack traces.
 
 ---
 
-## Source Module Guide
+## Contribution Guidelines
 
-### Core Modules
-| Module | Purpose |
-|--------|---------|
-| `switch.nim` | Central hub: manages peers, protocols, transports |
-| `standard_switch.nim` | Pre-configured Switch with sensible defaults |
-| `builders.nim` | Builder API for constructing Switch instances |
-| `peerid.nim` | Peer identity (cryptographic key-based) |
-| `peerinfo.nim` | Metadata about a peer (addresses, protocols) |
-| `peerstore.nim` | Storage and lookup of peer information |
-| `multiaddress.nim` | Composable multi-protocol network addresses |
-| `multistream.nim` | Protocol negotiation over streams |
-| `errors.nim` | Base error type `LPError` |
-
-### Transport Layer (`transports/`)
-| Transport | File |
-|-----------|------|
-| TCP | `tcptransport.nim` |
-| QUIC | `quictransport.nim` |
-| WebSocket | `wstransport.nim` |
-| Tor | `tortransport.nim` |
-| In-memory (testing) | `memorytransport.nim` |
-
-### Muxers (`muxers/`)
-- `mplex/mplex.nim` — Mplex multiplexer
-- `yamux/yamux.nim` — Yamux multiplexer
-
-### Security (`protocols/secure/`)
-- `noise.nim` — Noise protocol (primary)
-- `plaintext.nim` — No encryption (testing only)
-
-### Pub/Sub (`protocols/pubsub/`)
-- `gossipsub.nim` — GossipSub (primary pub/sub, used in production)
-- `floodsub.nim` — FloodSub (simpler, for compatibility)
-- `gossipsub/` — Extensions: scoring, behavior, partial messages, ping-pong
-
-### Connectivity (`protocols/connectivity/`)
-- `autonat/` — AutoNAT v1 (NAT detection)
-- `autonatv2/` — AutoNAT v2 (enhanced dial-back NAT detection)
-- `dcutr/` — Direct Connection Upgrade Through Relay (hole punching)
-- `relay/` — Circuit Relay v1/v2
-
-### Performance (`protocols/perf/`)
-- `core.nim`, `client.nim`, `server.nim` — libp2p perf protocol for measuring throughput between peers
-
-### Discovery (`protocols/`)
-- `kademlia.nim` + `kademlia/` — Kademlia DHT
-- `kad_disco.nim` + `kademlia_discovery/` — Kademlia-based peer discovery
-- `rendezvous.nim` — Rendezvous server protocol
-
-### Privacy (`protocols/mix/`)
-- Sphinx mix network for privacy-preserving message routing
-- Curve25519, fragmentation, delay strategies, spam protection
-
-### Services (`services/`)
-- `autorelayservice.nim` — Automatic relay selection and connection
-- `hpservice.nim` — Hole punching service
-- `wildcardresolverservice.nim` — DNS wildcard resolver
-
-### AutoTLS (`autotls/`)
-- Automatic TLS certificate management using the ACME protocol
-- `service.nim` — AutoTLS service (enabled with `-d:libp2p_autotls_support`)
-- `acme/` — ACME client and API for certificate issuance
-
----
-
-## Test Conventions
-
-- Tests are in `tests/libp2p/` mirroring source structure
-- Test files named `test_*.nim`
-- Main runner: `tests/test_all.nim`
-- Use `unittest2` framework
-- Tests can be compiled and run directly: `nim c -r tests/libp2p/test_switch.nim`
-- Path filtering: `-d:path=<substring>` selects test files whose path contains the substring
-- Integration tests are in `tests/integration/` (run with `nimble testintegration`)
-- Interoperability tests are in `tests/interop/`
-
-### Test Stubs and Utilities
-- `tests/stubs/` — Mock objects
-- `tests/stublogger.nim` — Logger stub for tests
-- `tests/imports.nim` — Common test imports
-
----
-
-## C Bindings (`cbind/`)
-
-The `cbind/` directory contains the C/FFI layer for using nim-libp2p from C/C++:
-
-- `libp2p.nim` — FFI function implementations (exported with `{.exportc.}`)
-- `libp2p.h` — Generated C header
-- `ffi_types.nim` — C-compatible type definitions
-- `alloc.nim` — Cross-thread memory allocation helpers
-- `libp2p_thread/` — Thread management for async operations from C
-- `examples/cbindings.c`, `examples/mix.c` — C usage examples
-
-```sh
-cd cbind
-nimble libDynamic    # Build .so/.dylib/.dll
-nimble libStatic     # Build .a
-nimble examples      # Build and run C examples
-```
-
-**cbind conventions**:
-- Validate all `cstring` pointer parameters for `nil` before use; call the callback with `RET_ERR` if nil
-- Use `valueOr` (not `tryGet()`) when converting cstring multiaddresses to `MultiAddress` objects
-
----
-
-## CI Workflows (`.github/workflows/`)
-
-| Workflow | Description |
-|----------|-------------|
-| `ci.yml` | Main CI: Linux (amd64/i386), macOS (arm64), Windows; Nim v2.0.16 & v2.2.6 |
-| `daily_amd64.yml` / `daily_i386.yml` | Extended daily tests |
-| `daily_common.yml` | Shared steps/config reused by daily workflows |
-| `daily_nimbus.yml` | Nimbus-specific test matrix |
-| `daily_tests_no_flags.yml` | Tests without experimental flags |
-| `cbindings.yml` | C bindings compilation and tests |
-| `coverage.yml` | Code coverage (uploads to codecov) |
-| `linters.yml` | nph formatting checks |
-| `pr_lint.yml` | PR title/description linting |
-| `auto_assign_pr.yml` | Automatically assigns reviewers to PRs |
-| `examples.yml` | Example compilation/execution |
-| `interop.yml` | Cross-implementation interoperability |
-| `performance.yml` | Performance benchmarks |
-| `documentation.yml` | Docs generation and deployment |
-| `dependencies.yml` | Dependency update automation |
-
----
-
-## Common Issues and Fixes
-
-### `Error: undeclared identifier` when compiling
-This usually means stale nimble packages. Fix:
-1. Remove `~/.nimble`
-2. Re-install Nim freshly
-3. `nimble install nimble` (get latest nimble)
-4. `nimble install -dy` in the project
-
-### Formatting errors in CI
-Run `nimble format` locally before pushing. The `linters.yml` CI workflow checks formatting with `nph`.
-
-### Windows-specific
-`--define:nimRawSetjmp` is set on Windows (non-MSVC) to avoid stack corruption with SEH and exceptions.
-
-### QUIC transport
-Uses `nim-lsquic` (pinned GitHub commit). May require extra system dependencies for building.
-
----
-
-## Documentation
-
-- **API docs**: https://vacp2p.github.io/nim-libp2p/docs/
-- **libp2p spec**: https://github.com/libp2p/specs
-- **Chronos async**: https://github.com/status-im/nim-chronos
-- **Chronicles logging**: https://github.com/status-im/nim-chronicles
-- **Community Discord**: https://discord.com/channels/1204447718093750272/1351621032263417946
-
----
-
-## Quick Reference
-
-```sh
-# Build (check compilation)
-nim c libp2p.nim
-
-# Run all tests
-nimble test
-
-# Run specific test
-nimble testpath switch          # tests matching "switch"
-nimble testpath protocols/pubsub
-
-# Format code (required before PR)
-nimble format
-
-# Install/lock dependencies
-nimble install -dy              # fresh install
-nimble pin                      # create lockfile
-nimble install_pinned           # install from lockfile
-```
+Refer to `docs/contributing.md` for detailed contribution guidelines, including code style, commit message format, and pull request process.
