@@ -103,16 +103,17 @@ suite "RendezVous Errors":
 
       let
         peerNode = peerNodes[0]
-        messageBuf = encode(getMessage(peerNode)).buffer
+        messageBuf = Protobuf.encode(getMessage(peerNode))
 
       let
         responseBuf = await sendRdvMessage(peerNode, rendezvousNode, messageBuf)
-        responseMessage = Message.decode(responseBuf).tryGet()
+        responseMessage = Protobuf.decode(responseBuf, Message)
         actualStatus =
-          if responseMessage.registerResponse.isSome():
-            responseMessage.registerResponse.get.status
+          if responseMessage.msgType == MsgTypeRegisterResponse:
+            responseMessage.registerResponse.status
           else:
-            responseMessage.discoverResponse.get.status
+            check responseMessage.msgType == MsgTypeDiscoverResponse
+            responseMessage.discoverResponse.status
 
       check actualStatus == expectedStatus
 
@@ -129,12 +130,12 @@ suite "RendezVous Errors":
     )
 
     # Attempt one more registration which should be rejected with NotAuthorized
-    let messageBuf = encode(
+    let messageBuf = Protobuf.encode(
       prepareRegisterMessage(
         namespace, peerNodes[0].switch.peerInfo.signedPeerRecord.encode().get, 2.hours
       )
-    ).buffer
+    )
 
     let responseBuf = await sendRdvMessage(peerNodes[0], rendezvousNode, messageBuf)
-    let responseMessage = Message.decode(responseBuf).tryGet()
-    check responseMessage.registerResponse.get.status == ResponseStatus.NotAuthorized
+    let responseMessage = Protobuf.decode(responseBuf, Message)
+    check responseMessage.registerResponse.status == ResponseNotAuthorized
