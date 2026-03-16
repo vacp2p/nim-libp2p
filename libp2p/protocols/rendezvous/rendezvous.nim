@@ -10,7 +10,6 @@ import
 import
   ./protobuf,
   ../protocol,
-  #../../protobuf/minprotobuf,
   ../../switch,
   ../../dial,
   ../../routing_record,

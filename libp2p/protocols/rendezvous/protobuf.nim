@@ -5,6 +5,8 @@ import protobuf_serialization
 
 export protobuf_serialization
 
+# Implements https://github.com/libp2p/specs/blob/master/rendezvous/README.md#protobuf
+
 const
   MsgTypeRegister* = 0'u32
   MsgTypeRegisterResponse* = 1'u32
