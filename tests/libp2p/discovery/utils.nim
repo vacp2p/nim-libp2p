@@ -114,18 +114,16 @@ proc prepareRegisterMessage*(
     namespace: string, spr: seq[byte], ttl: Duration
 ): Message =
   Message(
-    msgType: MessageType.Register,
-    register: Opt.some(
-      Register(ns: namespace, signedPeerRecord: spr, ttl: Opt.some(ttl.seconds.uint64))
-    ),
+    msgType: MsgTypeRegister,
+    register: Register(ns: namespace, signedPeerRecord: spr, ttl: ttl.seconds.uint64),
   )
 
 proc prepareDiscoverMessage*(
-    ns: Opt[string] = Opt.none(string),
-    limit: Opt[uint64] = Opt.none(uint64),
-    cookie: Opt[seq[byte]] = Opt.none(seq[byte]),
+    ns = "",
+    limit = 0'u64,
+    cookie = default(seq[byte]),
 ): Message =
   Message(
-    msgType: MessageType.Discover,
-    discover: Opt.some(Discover(ns: ns, limit: limit, cookie: cookie)),
+    msgType: MsgTypeDiscover,
+    discover: Discover(ns: ns, limit: limit, cookie: cookie),
   )
