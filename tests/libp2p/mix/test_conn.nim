@@ -10,6 +10,7 @@ import
     protocols/mix/mix_protocol,
     protocols/mix/serialization,
     protocols/mix/sphinx,
+    protocols/mix/delay_strategy,
     protocols/ping,
     peerid,
     peerstore,
@@ -499,3 +500,39 @@ suite "Mix Protocol Component":
     expect AsyncTimeoutError:
       var buf = newSeq[byte](1)
       await conn.readExactly(addr buf[0], 1).wait(1.seconds)
+
+  asyncTest "forward path node down - hop 2 or exit":
+    ## With 4 mix nodes the sender (node 0) has a pool of exactly 3 nodes.
+    ## After sending, we identify the first hop, then stop one of the other two nodes).
+
+    ## The high delay ensures intermediaries hold the packet long enough
+    ## for us to stop the target node before it is forwarded.
+    let delay = Opt.some(DelayStrategy(ExponentialDelayStrategy.new(5000, newRng())))
+
+    let nodes = await setupMixNodes(4, delayStrategy = delay)
+    startAndDeferStop(nodes)
+
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    let sender = nodes[0]
+
+    let conn = sender.toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
+      )
+    defer:
+      await conn.close()
+
+    await conn.writeLp(@[1.byte, 2, 3])
+
+    # Filter out the first hop
+    let nodesToStop =
+      nodes[1 ..^ 1].filterIt(not sender.switch.isConnected(it.switch.peerInfo.peerId))
+
+    # Stop hop 2 or exit
+    await nodesToStop[0].switch.stop()
+
+    # Destination must never receive the message
+    expect AsyncTimeoutError:
+      discard await nrProto.receivedMessages.get().wait(2.seconds)
