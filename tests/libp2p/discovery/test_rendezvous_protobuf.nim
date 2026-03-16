@@ -48,10 +48,9 @@ suite "RendezVous Protobuf":
       Protobuf.encode(decodedRegister) == Protobuf.encode(originalRegister)
 
   test "RegisterResponse roundtrip successful":
-    let originalResponse = RegisterResponse(
-      status: ResponseOk, text: "ok", ttl: 10'u64
-    )
-    let decodedResponse = Protobuf.decode(Protobuf.encode(originalResponse), RegisterResponse)
+    let originalResponse = RegisterResponse(status: ResponseOk, text: "ok", ttl: 10'u64)
+    let decodedResponse =
+      Protobuf.decode(Protobuf.encode(originalResponse), RegisterResponse)
     check:
       decodedResponse.status == originalResponse.status
       decodedResponse.text == originalResponse.text
@@ -60,7 +59,8 @@ suite "RendezVous Protobuf":
 
   test "RegisterResponse roundtrip failed":
     let originalResponse = RegisterResponse(status: ResponseInvalidNamespace)
-    let decodedResponse = Protobuf.decode(Protobuf.encode(originalResponse), RegisterResponse)
+    let decodedResponse =
+      Protobuf.decode(Protobuf.encode(originalResponse), RegisterResponse)
     check:
       decodedResponse.status == originalResponse.status
       decodedResponse.text.len == 0
@@ -69,15 +69,15 @@ suite "RendezVous Protobuf":
 
   test "Unregister roundtrip":
     let originalUnregister = Unregister(ns: namespace)
-    let decodedUnregister = Protobuf.decode(Protobuf.encode(originalUnregister), Unregister)
+    let decodedUnregister =
+      Protobuf.decode(Protobuf.encode(originalUnregister), Unregister)
     check:
       decodedUnregister.ns == originalUnregister.ns
       Protobuf.encode(decodedUnregister) == Protobuf.encode(originalUnregister)
 
   test "Discover roundtrip with all optional fields":
-    let originalDiscover = Discover(
-      ns: namespace, limit: 5'u64, cookie: @[byte 1, 2, 3]
-    )
+    let originalDiscover =
+      Discover(ns: namespace, limit: 5'u64, cookie: @[byte 1, 2, 3])
     let decodedDiscover = Protobuf.decode(Protobuf.encode(originalDiscover), Discover)
     check:
       decodedDiscover.ns == originalDiscover.ns
@@ -101,7 +101,8 @@ suite "RendezVous Protobuf":
       status: ResponseOk,
       text: "t",
     )
-    let decodedResponse = Protobuf.decode(Protobuf.encode(originalResponse), DiscoverResponse)
+    let decodedResponse =
+      Protobuf.decode(Protobuf.encode(originalResponse), DiscoverResponse)
     check:
       decodedResponse.status == originalResponse.status
       decodedResponse.registrations.len == 1
@@ -112,7 +113,8 @@ suite "RendezVous Protobuf":
 
   test "DiscoverResponse roundtrip failed":
     let originalResponse = DiscoverResponse(status: ResponseInternalError)
-    let decodedResponse = Protobuf.decode(Protobuf.encode(originalResponse), DiscoverResponse)
+    let decodedResponse =
+      Protobuf.decode(Protobuf.encode(originalResponse), DiscoverResponse)
     check:
       decodedResponse.status == originalResponse.status
       decodedResponse.registrations.len == 0
@@ -122,8 +124,7 @@ suite "RendezVous Protobuf":
 
   test "Message roundtrip Register variant":
     let registerPayload = Register(ns: namespace, signedPeerRecord: @[byte 1])
-    let originalMessage =
-      Message(msgType: MsgTypeRegister, register: registerPayload)
+    let originalMessage = Message(msgType: MsgTypeRegister, register: registerPayload)
     let decodedMessage = Protobuf.decode(Protobuf.encode(originalMessage), Message)
     check:
       decodedMessage.msgType == originalMessage.msgType
@@ -132,8 +133,7 @@ suite "RendezVous Protobuf":
   test "Message roundtrip RegisterResponse variant":
     let registerResponsePayload = RegisterResponse(status: ResponseOk)
     let originalMessage = Message(
-      msgType: MsgTypeRegisterResponse,
-      registerResponse: registerResponsePayload,
+      msgType: MsgTypeRegisterResponse, registerResponse: registerResponsePayload
     )
     let decodedMessage = Protobuf.decode(Protobuf.encode(originalMessage), Message)
     check:
@@ -150,8 +150,7 @@ suite "RendezVous Protobuf":
 
   test "Message roundtrip Discover variant":
     let discoverPayload = Discover(limit: 1'u64)
-    let originalMessage =
-      Message(msgType: MsgTypeDiscover, discover: discoverPayload)
+    let originalMessage = Message(msgType: MsgTypeDiscover, discover: discoverPayload)
     let decodedMessage = Protobuf.decode(Protobuf.encode(originalMessage), Message)
     check:
       decodedMessage.discover.limit == discoverPayload.limit
@@ -159,8 +158,7 @@ suite "RendezVous Protobuf":
   test "Message roundtrip DiscoverResponse variant":
     let discoverResponsePayload = DiscoverResponse(status: ResponseUnavailable)
     let originalMessage = Message(
-      msgType: MsgTypeDiscoverResponse,
-      discoverResponse: discoverResponsePayload,
+      msgType: MsgTypeDiscoverResponse, discoverResponse: discoverResponsePayload
     )
     let decodedMessage = Protobuf.decode(Protobuf.encode(originalMessage), Message)
     check:

@@ -84,15 +84,15 @@ suite "RendezVous Errors":
         ),
         ResponseInvalidNamespace,
       ),
-      #(
-      #  "Discover - Invalid Cookie",
-      #  (
-      #    proc(node: RendezVous): Message =
-      #      # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
-      #      prepareDiscoverMessage(cookie = newSeq[byte]())
-      #  ),
-      #  ResponseInvalidCookie,
-      #),
+        #(
+        #  "Discover - Invalid Cookie",
+        #  (
+        #    proc(node: RendezVous): Message =
+        #      # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
+        #      prepareDiscoverMessage(cookie = newSeq[byte]())
+        #  ),
+        #  ResponseInvalidCookie,
+        #),
     ]
 
   for test in testCases:

@@ -5,7 +5,8 @@
 
 import tables, sequtils, sugar, sets
 import metrics except collect
-import chronos, chronicles, bearssl/rand, stew/[byteutils, objects], protobuf_serialization
+import
+  chronos, chronicles, bearssl/rand, stew/[byteutils, objects], protobuf_serialization
 import
   ./protobuf,
   ../protocol,
@@ -157,15 +158,10 @@ proc save*[E](
         if update == false:
           return
         rdv.registered[index].expiration = rdv.expiredDT
-    let ttl = if r.ttl == 0:
-      rdv.minTTL
-    else:
-      r.ttl
+    let ttl = if r.ttl == 0: rdv.minTTL else: r.ttl
     rdv.registered.add(
       RegisteredData(
-        peerId: peerId,
-        expiration: Moment.now() + ttl.int64.seconds,
-        data: r,
+        peerId: peerId, expiration: Moment.now() + ttl.int64.seconds, data: r
       )
     )
     rdv.namespaces[nsSalted].add(rdv.registered.high)
@@ -180,17 +176,16 @@ proc register*[E](
   libp2p_rendezvous_register.inc()
   if r.ns.len < MinimumNamespaceLen or r.ns.len > MaximumNamespaceLen:
     return conn.sendRegisterResponseError(ResponseInvalidNamespace)
-  let ttl = if r.ttl == 0:
-    rdv.minTTL
-  else:
-    r.ttl
+  let ttl = if r.ttl == 0: rdv.minTTL else: r.ttl
   if ttl < rdv.minTTL or ttl > rdv.maxTTL:
     return conn.sendRegisterResponseError(ResponseInvalidTTL)
   let pr = rdv.peerRecordValidator(peerRecord, r.signedPeerRecord, conn.peerId)
   if pr.isErr():
     return conn.sendRegisterResponseError(ResponseInvalidSignedPeerRecord, pr.error())
   if rdv.countRegister(conn.peerId) >= RegistrationLimitPerPeer:
-    return conn.sendRegisterResponseError(ResponseNotAuthorized, "Registration limit reached")
+    return conn.sendRegisterResponseError(
+      ResponseNotAuthorized, "Registration limit reached"
+    )
 
   rdv.save(r.ns, conn.peerId, r)
   libp2p_rendezvous_registered.inc()
@@ -379,15 +374,14 @@ proc requestPeer[E](
         default(seq[byte])
     else:
       default(seq[byte])
-  await conn.writeLp(
-    Protobuf.encode(Message(msgType: MsgTypeDiscover, discover: d))
-  )
+  await conn.writeLp(Protobuf.encode(Message(msgType: MsgTypeDiscover, discover: d)))
   let buf = await conn.readLp(MaximumMessageLen)
-  let msgRcv = try:
-    Protobuf.decode(buf, Message)
-  except SerializationError:
-    debug "Message undecodable"
-    return @[]
+  let msgRcv =
+    try:
+      Protobuf.decode(buf, Message)
+    except SerializationError:
+      debug "Message undecodable"
+      return @[]
   if msgRcv.msgType != MsgTypeDiscoverResponse:
     debug "Unexpected discover response", msgType = msgRcv.msgType
     return @[]
@@ -432,10 +426,11 @@ proc request*[E](
       for r in registrations:
         if limit == 0:
           break
-        let ttl = if r.ttl == 0:
-          rdv.maxTTL + 1
-        else:
-          r.ttl
+        let ttl =
+          if r.ttl == 0:
+            rdv.maxTTL + 1
+          else:
+            r.ttl
         if ttl > rdv.maxTTL:
           continue
         let
@@ -448,12 +443,8 @@ proc request*[E](
               s[pr.peerId]
             except exceptions.KeyError:
               raiseAssert "checked with hasKey"
-          let rSavedTtl = if rSaved.ttl == 0:
-            rdv.maxTTL
-          else:
-            rSaved.ttl
-          if (prSaved.seqNo == pr.seqNo and rSavedTtl < ttl) or
-              prSaved.seqNo < pr.seqNo:
+          let rSavedTtl = if rSaved.ttl == 0: rdv.maxTTL else: rSaved.ttl
+          if (prSaved.seqNo == pr.seqNo and rSavedTtl < ttl) or prSaved.seqNo < pr.seqNo:
             s[pr.peerId] = (pr, r)
         else:
           s[pr.peerId] = (pr, r)
@@ -484,9 +475,8 @@ proc unsubscribe*[E](
   if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
     raise newException(RendezVousError, "Invalid namespace")
 
-  let msg = Protobuf.encode(
-    Message(msgType: MsgTypeUnregister, unregister: Unregister(ns: ns))
-  )
+  let msg =
+    Protobuf.encode(Message(msgType: MsgTypeUnregister, unregister: Unregister(ns: ns)))
 
   proc unsubscribePeer(peerId: PeerId) {.async: (raises: []).} =
     try:
