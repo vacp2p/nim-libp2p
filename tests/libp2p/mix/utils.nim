@@ -47,8 +47,9 @@ proc setupMixNode[T: MixProtocol](
     else:
       Opt.none(SpamProtection)
 
-  let proto = T.new(mixNodeInfo, switch, spamProtection = spamProtection,
-    delayStrategy = delayStrategy)
+  let proto = T.new(
+    mixNodeInfo, switch, spamProtection = spamProtection, delayStrategy = delayStrategy
+  )
 
   if destReadBehavior.isSome():
     let (codec, callback) = destReadBehavior.get()
