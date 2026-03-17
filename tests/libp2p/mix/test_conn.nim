@@ -79,6 +79,26 @@ suite "Mix Protocol Component":
       receivedMsg.connPeerId != destination
       receivedMsg.connPeerId in nodes.mapIt(it.switch.peerInfo.peerId)
 
+  asyncTest "multiple sequential messages on same connection":
+    let nodes = await setupMixNodes(10)
+    startAndDeferStop(nodes)
+
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    let conn = nodes[0].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
+      )
+    defer:
+      await conn.close()
+
+    for i in 0 ..< 3:
+      let msg = @[byte(i)]
+      await conn.writeLp(msg)
+      let received = await nrProto.receivedMessages.get().wait(2.seconds)
+      check received.data == msg
+
   asyncTest "path nodes are random - exit node varies across messages":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
