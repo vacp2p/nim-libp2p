@@ -507,7 +507,7 @@ suite "Mix Protocol Component":
 
     ## The high delay ensures intermediaries hold the packet long enough
     ## to stop the target node before it is forwarded.
-    let delay = Opt.some(DelayStrategy(ExponentialDelayStrategy.new(5000, newRng())))
+    let delay = Opt.some(DelayStrategy(ExponentialDelayStrategy.new(1000, newRng())))
 
     let nodes = await setupMixNodes(4, delayStrategy = delay)
     startAndDeferStop(nodes)
@@ -531,11 +531,12 @@ suite "Mix Protocol Component":
       nodes[1 ..^ 1].filterIt(not sender.switch.isConnected(it.switch.peerInfo.peerId))
 
     # Stop hop 2 or exit
-    # await nodesToStop[0].switch.stop()
+    await nodesToStop[0].switch.stop()
 
     # Destination must never receive the message
+    # Wait at least 5s to ensure failure is from the stopped node
     expect AsyncTimeoutError:
-      discard await nrProto.receivedMessages.get().wait(2.seconds)
+      discard await nrProto.receivedMessages.get().wait(5.seconds)
 
   asyncTest "replay protection - duplicate packet is silently dropped":
     ## Use mock to capture real Sphinx packet, then replay it.
