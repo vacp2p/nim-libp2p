@@ -112,7 +112,7 @@ List of packages modules implemented in nim-libp2p:
 | [plaintext](nim-libp2p/libp2p/protocols/secure/plaintext.nim) | Plain text for development purposes |
 | **Stream Multiplexers** | |
 | [mplex](nim-libp2p/libp2p/muxers/mplex/mplex.nim) | [MPlex](https://github.com/libp2p/specs/tree/master/mplex) multiplexer |
-| [yamux](nim-libp2p/libp2p/muxers/yamux/yamux.nim) | [Yamux](https://docs.libp2p.io/concepts/multiplex/yamux/) multiplexer |
+| [yamux](nim-libp2p/libp2p/muxers/yamux/yamux.nim) | [Yamux](https://github.com/libp2p/specs/tree/master/yamux) multiplexer |
 | **Data Types** | |
 | [peer-id](nim-libp2p/libp2p/peerid.nim) | [Cryptographic peer identifiers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-id) |
 | [peer-store](nim-libp2p/libp2p/peerstore.nim) | [Address book of known peers](https://docs.libp2p.io/concepts/fundamentals/peers/#peer-store) |
