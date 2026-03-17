@@ -3,13 +3,14 @@
 
 {.used.}
 
-import chronos, results, stew/byteutils, sequtils, tables
+import algorithm, chronos, results, stew/byteutils, sequtils, tables
 import
   ../../../libp2p/[
     protocols/mix,
     protocols/mix/mix_protocol,
     protocols/mix/serialization,
     protocols/mix/sphinx,
+    protocols/mix/delay_strategy,
     protocols/ping,
     peerid,
     peerstore,
@@ -20,7 +21,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[crypto, lifecycle, unittest]
 import ./utils
 import ./mock_mix
 
@@ -77,6 +78,32 @@ suite "Mix Protocol Component":
       receivedMsg.connPeerId != sender
       receivedMsg.connPeerId != destination
       receivedMsg.connPeerId in nodes.mapIt(it.switch.peerInfo.peerId)
+
+  asyncTest "multiple sequential messages on same connection":
+    let nodes = await setupMixNodes(10)
+    startAndDeferStop(nodes)
+
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    let conn = nodes[0].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
+      )
+    defer:
+      await conn.close()
+
+    let messages = (0 ..< 10).mapIt(newSeqWith(5, it.byte))
+
+    for msg in messages:
+      await conn.writeLp(msg)
+
+    var received: seq[seq[byte]]
+    for _ in messages:
+      let msg = await nrProto.receivedMessages.get().wait(2.seconds)
+      received.add(msg.data)
+
+    check received.sorted == messages
 
   asyncTest "path nodes are random - exit node varies across messages":
     let nodes = await setupMixNodes(10)
@@ -369,7 +396,46 @@ suite "Mix Protocol Component":
     let response = await conn.readLp(ReadLen).wait(10.seconds)
     await conn.close()
 
-    check response == responseData
+    check:
+      response == responseData
+      mock.receivedPacketCount == 1
+
+  asyncTest "multiple SURBs - both replies received, only one delivered":
+    ## 2 SURBs, all paths healthy. Exit sends reply via ALL SURBs.
+    ## Both replies arrive at the sender's mix layer, 
+    ## but only one is delivered to the application.
+    let (nodes, mock) = await setupMixNodesWithMock(
+      10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
+    )
+
+    let (destNode, pingProto) = await setupDestNode(Ping.new())
+
+    await startNodes(nodes)
+    defer:
+      await stopDestNode(destNode)
+      await stopNodes(nodes)
+
+    let conn = mock
+      .toConnection(
+        destNode.toMixDestination(),
+        pingProto.codec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(2))),
+      )
+      .expect("could not build connection")
+    defer:
+      await conn.close()
+
+    let response = await pingProto.ping(conn)
+    check response != 0.seconds
+
+    # Second read: no more replies delivered
+    expect LPStreamEOFError:
+      var buf: byte
+      await conn.readExactly(addr buf, 1)
+
+    # Both SURB replies arrived at the mix layer
+    checkUntilTimeout:
+      mock.receivedPacketCount == 2
 
   asyncTest "sender receives empty response when destination is unreachable":
     ## Exit node gets DialFailedError, sends empty reply via SURB,
@@ -499,3 +565,79 @@ suite "Mix Protocol Component":
     expect AsyncTimeoutError:
       var buf = newSeq[byte](1)
       await conn.readExactly(addr buf[0], 1).wait(1.seconds)
+
+  asyncTest "forward path node down - hop 2 or exit":
+    ## With 4 mix nodes the sender (node 0) has a pool of exactly 3 nodes.
+    ## After sending, we identify the first hop, then stop one of the other two nodes.
+
+    ## The high delay ensures intermediaries hold the packet long enough
+    ## to stop the target node before it is forwarded.
+    let delay = Opt.some(DelayStrategy(ExponentialDelayStrategy.new(1000, rng())))
+
+    let nodes = await setupMixNodes(4, delayStrategy = delay)
+    startAndDeferStop(nodes)
+
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    let sender = nodes[0]
+
+    let conn = sender.toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
+      )
+    defer:
+      await conn.close()
+
+    await conn.writeLp(@[1.byte, 2, 3])
+
+    # Filter out the first hop
+    let nodesToStop =
+      nodes[1 ..^ 1].filterIt(not sender.switch.isConnected(it.switch.peerInfo.peerId))
+
+    # Stop hop 2 or exit
+    await nodesToStop[0].switch.stop()
+
+    # Destination must never receive the message
+    # Wait at least 5s to ensure failure is from the stopped node
+    expect AsyncTimeoutError:
+      discard await nrProto.receivedMessages.get().wait(5.seconds)
+
+  asyncTest "replay protection - duplicate packet is silently dropped":
+    ## Use mock to capture real Sphinx packet, then replay it.
+    ## The second one must be silently dropped.
+    ## With 4 nodes and node 1 as a sender, mock is guaranteed to be in the path.
+    let (nodes, mock) = await setupMixNodesWithMock(4)
+
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    await startNodes(nodes)
+    defer:
+      await stopNodes(nodes)
+
+    let conn = nodes[1].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
+      )
+
+    let testPayload = "forward message".toBytes()
+    await conn.writeLp(testPayload)
+    await conn.close()
+
+    let receivedMsg = await nrProto.receivedMessages.get().wait(5.seconds)
+    check receivedMsg.data == testPayload
+
+    # Replay: send the exact same bytes to the mock again (who is the sender doesn't matter)
+    let rawConn = await nodes[1].switch.dial(
+      mock.switch.peerInfo.peerId, @[mock.switch.peerInfo.addrs[0]], @[MixProtocolID]
+    )
+    defer:
+      await rawConn.close()
+
+    check mock.capturedBytes.len > 0
+    await rawConn.writeLp(mock.capturedBytes)
+
+    # Destination must not receive a second message
+    expect AsyncTimeoutError:
+      discard await nrProto.receivedMessages.get().wait(2.seconds)

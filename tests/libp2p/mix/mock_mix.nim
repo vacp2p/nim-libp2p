@@ -13,6 +13,7 @@ import
     protocols/mix/serialization,
     peerid,
     switch,
+    stream/lpstream,
   ]
 
 type MockMixProtocol* = ref object of MixProtocol
@@ -33,6 +34,10 @@ type MockMixProtocol* = ref object of MixProtocol
   ## After the message is sent, mock.actualSurbPeers records which 2 peers were
   ## selected for each SURB, so tests can target specific nodes.
   actualSurbPeers*: seq[seq[PeerId]]
+  ## Incoming raw bytes in handleMixMessages are captured here
+  capturedBytes*: seq[byte]
+  ## Count of packets received via handleMixMessages
+  receivedPacketCount*: int
 
 method buildSurb*(
     mock: MockMixProtocol, id: SURBIdentifier, destPeerId: PeerId, exitPeerId: PeerId
@@ -65,3 +70,16 @@ method buildSurb*(
   mock.actualSurbPeers.add(peers)
   mock.surbCallIndex.inc
   surb
+
+method handleMixMessages*(
+    mock: MockMixProtocol,
+    fromPeerId: PeerId,
+    receivedBytes: sink seq[byte],
+    metadataBytes: sink seq[byte],
+) {.async: (raises: [LPStreamError, CancelledError]).} =
+  mock.capturedBytes = @receivedBytes
+  mock.receivedPacketCount.inc
+
+  await procCall handleMixMessages(
+    MixProtocol(mock), fromPeerId, receivedBytes, metadataBytes
+  )
