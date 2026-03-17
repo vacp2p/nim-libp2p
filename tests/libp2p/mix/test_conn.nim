@@ -370,7 +370,48 @@ suite "Mix Protocol Component":
     let response = await conn.readLp(ReadLen).wait(10.seconds)
     await conn.close()
 
-    check response == responseData
+    check:
+      response == responseData
+      mock.receivedPacketCount == 1
+
+  asyncTest "multiple SURBs - both replies received, only one delivered":
+    ## 2 SURBs, all paths healthy. Exit sends reply via ALL SURBs.
+    ## Both replies arrive at the sender's mix layer, 
+    ## but only one is delivered to the application.
+    let (nodes, mock) = await setupMixNodesWithMock(
+      10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
+    )
+
+    let (destNode, pingProto) = await setupDestNode(Ping.new())
+
+    await startNodes(nodes)
+    defer:
+      await stopDestNode(destNode)
+      await stopNodes(nodes)
+
+    mock.receivedPacketCount = 0
+
+    let conn = mock
+      .toConnection(
+        destNode.toMixDestination(),
+        pingProto.codec,
+        MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(2))),
+      )
+      .expect("could not build connection")
+    defer:
+      await conn.close()
+
+    let response = await pingProto.ping(conn)
+    check response != 0.seconds
+
+    # Second read: no more replies delivered
+    expect LPStreamEOFError:
+      var buf: byte
+      await conn.readExactly(addr buf, 1)
+
+    # Both SURB replies arrived at the mix layer
+    checkUntilTimeout:
+      mock.receivedPacketCount == 2
 
   asyncTest "sender receives empty response when destination is unreachable":
     ## Exit node gets DialFailedError, sends empty reply via SURB,

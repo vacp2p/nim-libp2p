@@ -36,6 +36,8 @@ type MockMixProtocol* = ref object of MixProtocol
   actualSurbPeers*: seq[seq[PeerId]]
   ## Incoming raw bytes in handleMixMessages are captured here
   capturedBytes*: seq[byte]
+  ## Count of packets received via handleMixMessages
+  receivedPacketCount*: int
 
 method buildSurb*(
     mock: MockMixProtocol, id: SURBIdentifier, destPeerId: PeerId, exitPeerId: PeerId
@@ -76,6 +78,7 @@ method handleMixMessages*(
     metadataBytes: sink seq[byte],
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
   mock.capturedBytes = receivedBytes
+  mock.receivedPacketCount.inc
 
   await procCall handleMixMessages(
     MixProtocol(mock), fromPeerId, receivedBytes, metadataBytes
