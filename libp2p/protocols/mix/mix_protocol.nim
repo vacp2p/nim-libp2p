@@ -184,12 +184,12 @@ proc verifyProof(
   trace "Spam protection proof verified successfully"
   ok()
 
-proc handleMixMessages(
+method handleMixMessages*(
     mixProto: MixProtocol,
     fromPeerId: PeerId,
     receivedBytes: sink seq[byte],
     metadataBytes: sink seq[byte],
-) {.async: (raises: [LPStreamError, CancelledError]).} =
+) {.base, async: (raises: [LPStreamError, CancelledError]).} =
   when defined(enable_mix_benchmarks):
     let startTime = getTime()
 

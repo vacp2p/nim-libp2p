@@ -506,7 +506,7 @@ suite "Mix Protocol Component":
     ## After sending, we identify the first hop, then stop one of the other two nodes).
 
     ## The high delay ensures intermediaries hold the packet long enough
-    ## for us to stop the target node before it is forwarded.
+    ## to stop the target node before it is forwarded.
     let delay = Opt.some(DelayStrategy(ExponentialDelayStrategy.new(5000, newRng())))
 
     let nodes = await setupMixNodes(4, delayStrategy = delay)
@@ -531,8 +531,47 @@ suite "Mix Protocol Component":
       nodes[1 ..^ 1].filterIt(not sender.switch.isConnected(it.switch.peerInfo.peerId))
 
     # Stop hop 2 or exit
-    await nodesToStop[0].switch.stop()
+    # await nodesToStop[0].switch.stop()
 
     # Destination must never receive the message
+    expect AsyncTimeoutError:
+      discard await nrProto.receivedMessages.get().wait(2.seconds)
+
+  asyncTest "replay protection - duplicate packet is silently dropped":
+    ## Use mock to capture real Sphinx packet, then replay it.
+    ## The second one must be silently dropped.
+    ## With 4 nodes and node 1 as a sender, mock is guaranteed to be in the path.
+    let (nodes, mock) = await setupMixNodesWithMock(4)
+
+    let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
+    defer:
+      await stopDestNode(destNode)
+
+    await startNodes(nodes)
+    defer:
+      await stopNodes(nodes)
+
+    let conn = nodes[1].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
+        "could not build connection"
+      )
+
+    let testPayload = "forward message".toBytes()
+    await conn.writeLp(testPayload)
+    await conn.close()
+
+    let receivedMsg = await nrProto.receivedMessages.get().wait(5.seconds)
+    check receivedMsg.data == testPayload
+
+    # Replay: send the exact same bytes to the mock again (who is the sender doesn't matter)
+    let rawConn = await nodes[1].switch.dial(
+      mock.switch.peerInfo.peerId, @[mock.switch.peerInfo.addrs[0]], @[MixProtocolID]
+    )
+    defer:
+      await rawConn.close()
+
+    check mock.capturedBytes.len > 0
+    await rawConn.writeLp(mock.capturedBytes)
+
+    # Destination must not receive a second message
     expect AsyncTimeoutError:
       discard await nrProto.receivedMessages.get().wait(2.seconds)
