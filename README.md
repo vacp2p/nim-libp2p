@@ -131,7 +131,7 @@ List of packages modules implemented in nim-libp2p:
 | [crypto](nim-libp2p/libp2p/crypto/crypto.nim) | Cryptographic backend (RSA, Ed25519, Secp256k1, ECDSA) |
 | [crypto-secp256k1](nim-libp2p/libp2p/crypto/secp.nim) | Secp256k1 elliptic curve |
 | [multistream-select](nim-libp2p/libp2p/multistream.nim) | [Protocol negotiation](https://github.com/multiformats/multistream-select) |
-| [autotls](nim-libp2p/libp2p/autotls/service.nim) | Automatic TLS certificate provisioning via ACME |
+| [autotls](nim-libp2p/libp2p/autotls/service.nim) | [Automatic TLS](https://github.com/libp2p/specs/blob/master/tls/autotls-client.md) certificate provisioning via ACME |
 | [nameresolving](nim-libp2p/libp2p/nameresolving/dnsresolver.nim) | DNS name resolver for multiaddresses |
 | **Pubsub** | |
 | [pubsub](nim-libp2p/libp2p/protocols/pubsub/pubsub.nim) | Pub-Sub generic interface |
