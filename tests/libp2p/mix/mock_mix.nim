@@ -34,7 +34,7 @@ type MockMixProtocol* = ref object of MixProtocol
   ## After the message is sent, mock.actualSurbPeers records which 2 peers were
   ## selected for each SURB, so tests can target specific nodes.
   actualSurbPeers*: seq[seq[PeerId]]
-  ## Incoming raw bytes in handleMixMessages are captured here before
+  ## Incoming raw bytes in handleMixMessages are captured here
   capturedBytes*: seq[byte]
 
 method buildSurb*(
