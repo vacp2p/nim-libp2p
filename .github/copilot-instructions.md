@@ -28,14 +28,18 @@ nim-libp2p/
 │   │   ├── pubsub/             # GossipSub, FloodSub
 │   │   ├── kademlia/           # Kademlia DHT
 │   │   ├── mix/                # Sphinx Mix Network (privacy)
+│   │   ├── perf/               # Performance measurement protocol
 │   │   └── secure/             # Noise, Plaintext
 │   ├── transports/             # TCP, QUIC, WebSocket, Tor, Memory
 │   ├── stream/                 # Stream abstractions
+│   ├── autotls/                # Automatic TLS certificate management (ACME)
 │   ├── services/               # Auto-relay, hole punching, wildcard resolver
 │   └── utils/                  # Utilities
 ├── tests/
 │   ├── test_all.nim            # Main test runner
-│   └── libp2p/                 # Unit tests mirroring source structure
+│   ├── libp2p/                 # Unit tests mirroring source structure
+│   ├── integration/            # Integration tests (WebSocket, AutoTLS, peer ID auth)
+│   └── interop/                # Cross-implementation interoperability tests
 ├── examples/                   # Tutorial and example applications
 ├── cbind/                      # C/FFI bindings layer
 ├── docs/                       # Documentation
@@ -43,6 +47,7 @@ nim-libp2p/
 │   ├── contributing.md         # Contribution guidelines
 │   ├── compile_time_flags.md   # All compile-time flags documented
 │   └── common_hurdles.md       # Known issues and fixes
+├── tools/                      # Developer tools (dependency pinner, markdown runner, etc.)
 ├── libp2p.nim                  # Main entry point (re-exports public APIs)
 ├── libp2p.nimble               # Package manifest and build tasks
 ├── config.nims                 # Compiler configuration (warnings, style, memory)
@@ -111,11 +116,13 @@ switch("warningAsError", "ImplicitDefaultValue:on")
 switch("warningAsError", "LockLevel:on")
 switch("warningAsError", "ObservableStores:on")
 switch("warningAsError", "ResultShadowed:on")
+switch("warningAsError", "UnreachableCode:on")
 switch("warningAsError", "UnreachableElse:on")
 switch("warningAsError", "UnusedImport:on")
 switch("warningAsError", "UseBase:on")
 switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
 switch("hintAsError", "DuplicateModuleImport:on")
+switch("hintAsError", "XCannotRaiseY:on")
 --styleCheck: usages
 --styleCheck: error
 --mm: refc          # Reference counting (not ORC yet)
@@ -157,8 +164,10 @@ The test runner (`libp2p.nimble`) always compiles with:
 - **nimcrypto** — Cryptographic algorithms
 - **secp256k1** — Secp256k1 curve operations
 - **bearssl** — TLS/SSL
-- **websock** — WebSocket transport
+- **dnsclient** (`>= 0.3.0, < 0.4.0`) — DNS client (used by AutoTLS)
+- **websock** (`>= 0.2.1`) — WebSocket transport
 - **nim-lsquic** — QUIC transport (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
+- **nim-jwt** — JWT library for AutoTLS/ACME (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
 - **unittest2** — Testing framework
 
 ---
@@ -174,6 +183,9 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Use `async` / `await` / `Future[T]` patterns
 - Async procedures return `Future[T]` or `Future[void]`
 - Manually created `Futures` should specify the exceptions they raise: `Future[someType].Raising([ListOfExceptionsHere]).init()`
+- `init()` procedure should always be called with identifier of future that explains purpose of future or where it was created. For example `init("Stream.readOnce")`
+- `cancel()` procedure of `Future` type is deprecated, code should ether call `cancelSoon()` for non blocking call or `cancelAndWait()` for blocking call till future is canceled.
+- Give suggestions if  `cancelSoon()` or `cancelAndWait()` should be called.
 
 ### Error Handling
 - Use the **results** library: `Result[T, E]`, `?`, `valueOr`, `isOk`, `isErr`
@@ -201,6 +213,23 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Style check is **strict** — naming must match declaration exactly
 - No bare `except` clauses (use typed exceptions)
 - No unused imports
+
+#### Detecting unused symbols
+- Always check for unused identifiers. Flag any variable, parameter, procedure, function, iterator, template, or macro that meets any of these conditions:
+  - Declared but never referenced anywhere in the module or project
+  - A proc/func/iterator that is never called
+  - A template or macro that is never expanded
+  - A variable that is shadowed and the outer declaration is unused
+  - A parameter that is never used inside its body
+  - A let/var/const that is only assigned but never read
+  - A symbol that is exported (*) but never used internally or externally
+- For each unused identifier, report:
+  - The name of the symbol, file and line number
+  - Why it is considered unused
+- Do not warn about:
+  - Symbols marked with `{.used.}`
+  - Symbols required by an interface, callback, or external API
+  - Compile‑time only symbols used via `static`, `when`, or macro expansion
 
 #### Exceptions
 - For new or significantly modified public `*` functions, add an explicit `{.raises.}` annotation; existing public APIs may not yet follow this consistently.
@@ -351,9 +380,12 @@ The test runner (`libp2p.nimble`) always compiles with:
 
 ### Connectivity (`protocols/connectivity/`)
 - `autonat/` — AutoNAT v1 (NAT detection)
-- `autonatv2/` — AutoNAT v2 (dial-back)
+- `autonatv2/` — AutoNAT v2 (enhanced dial-back NAT detection)
 - `dcutr/` — Direct Connection Upgrade Through Relay (hole punching)
 - `relay/` — Circuit Relay v1/v2
+
+### Performance (`protocols/perf/`)
+- `core.nim`, `client.nim`, `server.nim` — libp2p perf protocol for measuring throughput between peers
 
 ### Discovery (`protocols/`)
 - `kademlia.nim` + `kademlia/` — Kademlia DHT
@@ -369,6 +401,11 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `hpservice.nim` — Hole punching service
 - `wildcardresolverservice.nim` — DNS wildcard resolver
 
+### AutoTLS (`autotls/`)
+- Automatic TLS certificate management using the ACME protocol
+- `service.nim` — AutoTLS service (enabled with `-d:libp2p_autotls_support`)
+- `acme/` — ACME client and API for certificate issuance
+
 ---
 
 ## Test Conventions
@@ -379,6 +416,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Use `unittest2` framework
 - Tests can be compiled and run directly: `nim c -r tests/libp2p/test_switch.nim`
 - Path filtering: `-d:path=<substring>` selects test files whose path contains the substring
+- Integration tests are in `tests/integration/` (run with `nimble testintegration`)
+- Interoperability tests are in `tests/interop/`
 
 ### Test Stubs and Utilities
 - `tests/stubs/` — Mock objects
@@ -417,15 +456,19 @@ nimble examples      # Build and run C examples
 |----------|-------------|
 | `ci.yml` | Main CI: Linux (amd64/i386), macOS (arm64), Windows; Nim v2.0.16 & v2.2.6 |
 | `daily_amd64.yml` / `daily_i386.yml` | Extended daily tests |
+| `daily_common.yml` | Shared steps/config reused by daily workflows |
 | `daily_nimbus.yml` | Nimbus-specific test matrix |
 | `daily_tests_no_flags.yml` | Tests without experimental flags |
 | `cbindings.yml` | C bindings compilation and tests |
 | `coverage.yml` | Code coverage (uploads to codecov) |
 | `linters.yml` | nph formatting checks |
+| `pr_lint.yml` | PR title/description linting |
+| `auto_assign_pr.yml` | Automatically assigns reviewers to PRs |
 | `examples.yml` | Example compilation/execution |
 | `interop.yml` | Cross-implementation interoperability |
 | `performance.yml` | Performance benchmarks |
 | `documentation.yml` | Docs generation and deployment |
+| `dependencies.yml` | Dependency update automation |
 
 ---
 
