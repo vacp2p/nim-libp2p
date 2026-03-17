@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, stew/byteutils, sequtils, tables
+import algorithm, chronos, results, stew/byteutils, sequtils, tables
 import
   ../../../libp2p/[
     protocols/mix,
@@ -93,11 +93,17 @@ suite "Mix Protocol Component":
     defer:
       await conn.close()
 
-    for i in 0 ..< 3:
-      let msg = @[byte(i)]
+    let messages = (0 ..< 10).mapIt(newSeqWith(5, it.byte))
+
+    for msg in messages:
       await conn.writeLp(msg)
-      let received = await nrProto.receivedMessages.get().wait(2.seconds)
-      check received.data == msg
+
+    var received: seq[seq[byte]]
+    for _ in messages:
+      let msg = await nrProto.receivedMessages.get().wait(2.seconds)
+      received.add(msg.data)
+
+    check received.sorted == messages
 
   asyncTest "path nodes are random - exit node varies across messages":
     let nodes = await setupMixNodes(10)
@@ -408,8 +414,6 @@ suite "Mix Protocol Component":
     defer:
       await stopDestNode(destNode)
       await stopNodes(nodes)
-
-    mock.receivedPacketCount = 0
 
     let conn = mock
       .toConnection(
