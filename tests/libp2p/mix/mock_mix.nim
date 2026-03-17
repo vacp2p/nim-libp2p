@@ -77,7 +77,7 @@ method handleMixMessages*(
     receivedBytes: sink seq[byte],
     metadataBytes: sink seq[byte],
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
-  mock.capturedBytes = receivedBytes
+  mock.capturedBytes = @receivedBytes
   mock.receivedPacketCount.inc
 
   await procCall handleMixMessages(

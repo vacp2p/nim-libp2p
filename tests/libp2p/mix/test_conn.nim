@@ -21,7 +21,7 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[crypto, lifecycle, unittest]
 import ./utils
 import ./mock_mix
 
@@ -564,11 +564,11 @@ suite "Mix Protocol Component":
 
   asyncTest "forward path node down - hop 2 or exit":
     ## With 4 mix nodes the sender (node 0) has a pool of exactly 3 nodes.
-    ## After sending, we identify the first hop, then stop one of the other two nodes).
+    ## After sending, we identify the first hop, then stop one of the other two nodes.
 
     ## The high delay ensures intermediaries hold the packet long enough
     ## to stop the target node before it is forwarded.
-    let delay = Opt.some(DelayStrategy(ExponentialDelayStrategy.new(1000, newRng())))
+    let delay = Opt.some(DelayStrategy(ExponentialDelayStrategy.new(1000, rng())))
 
     let nodes = await setupMixNodes(4, delayStrategy = delay)
     startAndDeferStop(nodes)
