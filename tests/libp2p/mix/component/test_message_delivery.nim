@@ -5,14 +5,15 @@
 
 import algorithm, chronos, results, stew/byteutils, sequtils, tables
 import
-  ../../../../libp2p/[
-    protocols/mix,
-    protocols/mix/mix_protocol,
-    protocols/ping,
-    peerid,
-    switch,
-    builders,
-  ]
+  ../../../../libp2p/
+    [
+      protocols/mix,
+      protocols/mix/mix_protocol,
+      protocols/ping,
+      peerid,
+      switch,
+      builders,
+    ]
 
 import ../../../tools/[lifecycle, unittest]
 import ../utils
