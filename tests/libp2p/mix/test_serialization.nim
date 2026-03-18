@@ -3,11 +3,21 @@
 
 {.used.}
 
-import results
+import results, std/sequtils
 import ../../../libp2p/protocols/mix/serialization
 import ../../tools/[unittest]
 
-# Define test cases
+proc makeSurb(seed: byte): SURB =
+  SURB(
+    hop: Hop.init(newSeq[byte](AddrSize)),
+    header: Header.init(
+      newSeqWith(AlphaSize, seed),
+      newSeqWith(BetaSize, seed),
+      newSeqWith(GammaSize, seed),
+    ),
+    key: newSeqWith(k, seed),
+  )
+
 suite "serialization_tests":
   test "serialize_and_deserialize_header":
     let header = Header.init(
@@ -73,3 +83,34 @@ suite "serialization_tests":
       header.Beta == deserializedSP.Hdr.Beta
       header.Gamma == deserializedSP.Hdr.Gamma
       payload == deserializedSP.Payload
+
+  test "serializeMessageWithSURBs and extractSURBs round-trip":
+    let
+      msg = @[1'u8, 2, 3, 4, 5]
+      surbs = @[makeSurb(0xAA), makeSurb(0xBB)]
+      serialized = serializeMessageWithSURBs(msg, surbs).expect("serialize error")
+      (extractedSurbs, extractedMsg) = extractSURBs(serialized).expect("extract error")
+
+    check:
+      extractedSurbs.len == 2
+      extractedMsg == msg
+      extractedSurbs[0].header.Alpha == surbs[0].header.Alpha
+      extractedSurbs[1].header.Alpha == surbs[1].header.Alpha
+      extractedSurbs[0].key == surbs[0].key
+      extractedSurbs[1].key == surbs[1].key
+
+  test "serializeMessageWithSURBs rejects too many SURBs":
+    let maxSurbs = (MessageSize - SurbLenSize - 1) div SurbSize
+    let tooMany = newSeqWith(maxSurbs + 1, makeSurb(0x01))
+    let res = serializeMessageWithSURBs(@[], tooMany)
+    check:
+      res.isErr()
+      res.error == "too many SURBs"
+
+  test "extractSURBs rejects too many declared SURBs":
+    let maxSurbs = (MessageSize - SurbLenSize - 1) div SurbSize
+    let data = @[byte(maxSurbs + 1)] & newSeq[byte](100)
+    let res = extractSURBs(data)
+    check:
+      res.isErr()
+      res.error == "too many SURBs"

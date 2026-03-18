@@ -244,6 +244,14 @@ suite "Sphinx Tests":
     let (_, _, _, delay, _, _) = createDummyData()
     check createSURB(@[], delay, @[], randomI()).isErr()
 
+  test "create surb with zero id returns error":
+    let (_, _, publicKeys, delay, hops, _) = createDummyData()
+    let zeroId = default(SURBIdentifier)
+    let res = createSURB(publicKeys, delay, hops, zeroId)
+    check:
+      res.isErr()
+      res.error == "id should be initialized"
+
   test "surb sphinx process invalid mac":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
@@ -341,3 +349,46 @@ suite "Sphinx Tests":
         .expect("Reply processing failed")
 
       check paddedMessage == msg
+
+  test "checkReplay returns false for new packet, true for replay":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    let packet = SphinxPacket.deserialize(sp.serialize()).expect("deserialize error")
+
+    # First check - not a replay
+    let first = checkReplay(packet, privateKeys[0], tm).expect("checkReplay error")
+    check not first.isReplay
+
+    # Second check - replay detected
+    let second = checkReplay(packet, privateKeys[0], tm).expect("checkReplay error")
+    check second.isReplay
+
+    # Shared secret should be the same both times
+    check first.sharedSecret == second.sharedSecret
+
+  test "processSphinxPacket with reused sharedSecret":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    let packet = SphinxPacket.deserialize(sp.serialize()).expect("deserialize error")
+
+    # Normal path
+    let normal =
+      processSphinxPacket(packet, privateKeys[0], tm).expect("normal processing error")
+
+    # Reused sharedSecret
+    var tm2 = TagManager.new(autoStart = false)
+    let replay = checkReplay(packet, privateKeys[0], tm2).expect("checkReplay error")
+    check not replay.isReplay
+
+    let reused = processSphinxPacket(
+        packet, privateKeys[0], tm2, Opt.some(replay.sharedSecret)
+      )
+      .expect("reused processing error")
+
+    check:
+      normal.status == reused.status
+      normal.serializedSphinxPacket == reused.serializedSphinxPacket
