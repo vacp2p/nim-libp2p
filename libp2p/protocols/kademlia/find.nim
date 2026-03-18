@@ -96,15 +96,8 @@ proc hasResponsesFromClosestAvailable*(
 
   var closetsRespondedCnt = 0
   for (c, _) in candidates:
-    if state.responded.hasKey(c):
-      try:
-        if state.responded[c] == RespondedStatus.Success:
-          closetsRespondedCnt.inc(1)
-      except KeyError:
-        raiseAssert "checked with hasKey"
-    else:
-      # It's a close peer but has not been queried yet
-      break
+    if RespondedStatus.Success == state.responded.getOrDefault(c):
+      closetsRespondedCnt.inc(1)
 
   return closetsRespondedCnt >= state.kad.config.replication
 
