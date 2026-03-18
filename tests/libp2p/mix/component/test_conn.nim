@@ -5,7 +5,7 @@
 
 import algorithm, chronos, results, stew/byteutils, sequtils, tables
 import
-  ../../../libp2p/[
+  ../../../../libp2p/[
     protocols/mix,
     protocols/mix/mix_protocol,
     protocols/mix/serialization,
@@ -21,9 +21,9 @@ import
     crypto/secp,
   ]
 
-import ../../tools/[crypto, lifecycle, unittest]
-import ./utils
-import ./mock_mix
+import ../../../tools/[crypto, lifecycle, unittest]
+import ../utils
+import ../mock_mix
 
 suite "Mix Protocol Component":
   asyncTeardown:
