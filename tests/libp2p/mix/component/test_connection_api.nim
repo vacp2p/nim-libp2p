@@ -8,7 +8,6 @@ import
   ../../../../libp2p/[
     protocols/mix,
     protocols/mix/mix_protocol,
-    protocols/mix/serialization,
     switch,
     builders,
   ]

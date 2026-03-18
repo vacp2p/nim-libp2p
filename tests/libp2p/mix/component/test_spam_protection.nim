@@ -11,7 +11,7 @@ import
 import ../../../tools/[lifecycle, unittest]
 import ../utils
 
-suite "Spam Protection Component":
+suite "Mix Protocol - Spam Protection":
   asyncTeardown:
     checkTrackers()
 

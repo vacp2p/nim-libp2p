@@ -3,12 +3,11 @@
 
 {.used.}
 
-import chronos, results, stew/byteutils, sequtils
+import chronos, results, stew/byteutils, sequtils, tables
 import
   ../../../../libp2p/[
     protocols/mix,
     protocols/mix/mix_protocol,
-    protocols/mix/serialization,
     protocols/mix/sphinx,
     protocols/mix/delay_strategy,
     protocols/ping,

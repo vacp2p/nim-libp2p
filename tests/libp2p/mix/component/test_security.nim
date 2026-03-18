@@ -9,7 +9,6 @@ import
     protocols/mix,
     protocols/mix/mix_protocol,
     protocols/mix/serialization,
-    protocols/mix/sphinx,
     switch,
     builders,
   ]
