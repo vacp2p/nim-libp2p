@@ -9,10 +9,10 @@ import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/[types, protobuf]
 import ../kademlia_discovery/types
-import ./[types, serviceroutingtables, capability_discovery_metrics]
+import ./[types, serviceroutingtables, service_discovery_metrics]
 
 logScope:
-  topics = "cap-disco advertiser"
+  topics = "service-disco advertiser"
 
 proc new*(T: typedesc[Advertiser]): T =
   T(running: initHashSet[ptr AdvertiseTask]())

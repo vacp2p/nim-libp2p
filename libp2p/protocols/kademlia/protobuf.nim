@@ -22,8 +22,8 @@ type
     getProviders = 3
     findNode = 4
     ping = 5 # Deprecated
-    register = 16 # REGISTER for Capability Discovery
-    getAds = 17 # GET_ADS for Capability Discovery
+    register = 16 # REGISTER for Service Discovery
+    getAds = 17 # GET_ADS for Service Discovery
 
   ConnectionType* = enum
     notConnected = 0
@@ -36,13 +36,13 @@ type
     addrs*: seq[MultiAddress]
     connection*: ConnectionType
 
-  # Registration status for Capability Discovery
+  # Registration status for Service Discovery
   RegistrationStatus* = enum
     Confirmed = 0
     Wait = 1
     Rejected = 2
 
-  # Ticket message for Capability Discovery
+  # Ticket message for Service Discovery
   # Nested within Register message
   Ticket* {.public.} = object
     advertisement*: seq[byte] # field 1 - Copy of the original advertisement
@@ -51,14 +51,14 @@ type
     tWaitFor*: uint32 # field 4 - Remaining wait time in seconds
     signature*: seq[byte] # field 5 - Ed25519 signature
 
-  # Register message for Capability Discovery
+  # Register message for Service Discovery
   # Field 21 in the main Message
   RegisterMessage* {.public.} = object
     advertisement*: seq[byte] # field 1 - Encoded advertisement
     status*: Opt[RegistrationStatus] # field 2 - Registration status (response only)
     ticket*: Opt[Ticket] # field 3 - Optional ticket
 
-  # GetAds message for Capability Discovery
+  # GetAds message for Service Discovery
   # Field 22 in the main Message
   GetAdsMessage* {.public.} = object
     advertisements*: seq[seq[byte]] # field 1 - List of encoded advertisements

@@ -3,7 +3,7 @@
 {.used.}
 
 import std/net
-import ../../../libp2p/protocols/capability_discovery/[types, iptree]
+import ../../../libp2p/protocols/service_discovery/[types, iptree]
 import ../../tools/unittest
 
 # IP Similarity Score Semantics:

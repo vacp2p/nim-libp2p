@@ -5,7 +5,7 @@
 import std/options
 import chronos, results
 import ../../../libp2p/protocols/kademlia_discovery/[types]
-import ../../../libp2p/protocols/capability_discovery/[discoverer, serviceroutingtables]
+import ../../../libp2p/protocols/service_discovery/[discoverer, serviceroutingtables]
 import ../../tools/unittest
 import ./utils
 

@@ -9,8 +9,8 @@ import
   ]
 import ../../protobuf/minprotobuf
 import ../kademlia/types
-import ../capability_discovery/types
-import ../capability_discovery/serviceroutingtables
+import ../service_discovery/types
+import ../service_discovery/serviceroutingtables
 
 type KademliaDiscovery* = ref object of KadDHT
   registrar*: Registrar

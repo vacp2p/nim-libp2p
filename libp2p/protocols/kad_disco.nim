@@ -8,15 +8,15 @@ import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
 import ./kademlia_discovery/types as kad_types
 import ./kademlia_discovery/randomfind
-import ./capability_discovery/types as cap_types
-import ./capability_discovery/[registrar, advertiser, discoverer, serviceroutingtables]
+import ./service_discovery/types as cap_types
+import ./service_discovery/[registrar, advertiser, discoverer, serviceroutingtables]
 
 export kad_types, randomfind, cap_types, registrar, advertiser, discoverer
 
 logScope:
   topics = "kad-disco"
 
-const CapabilityDiscoveryCodec = "/logos/capability-discovery/1.0.0"
+const ServiceDiscoveryCodec = "/logos/service-discovery/1.0.0"
 
 proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: []).} =
   let extPeerRecord = (await disco.record()).valueOr:
@@ -58,7 +58,7 @@ proc new*(
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
     client: bool = false,
-    codec: string = CapabilityDiscoveryCodec,
+    codec: string = ServiceDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
     discoConf: KademliaDiscoveryConfig = KademliaDiscoveryConfig.new(),
 ): T {.raises: [].} =

@@ -7,10 +7,10 @@ import ../../[peerid, switch, multihash]
 import ../kademlia/[types, routingtable]
 import ../kademlia
 import ./types
-import ./capability_discovery_metrics
+import ./service_discovery_metrics
 
 logScope:
-  topics = "cap-disco service-routing-tables"
+  topics = "service-disco service-routing-tables"
 
 type
   ServiceStatus* = enum
