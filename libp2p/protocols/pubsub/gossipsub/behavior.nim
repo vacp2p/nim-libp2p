@@ -283,8 +283,8 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 
 when defined(libp2p_gossipsub_1_4):
   proc addPossiblePeerToQuery(g: GossipSub, peer: PubSubPeer, messageId: MessageId) =
-    g.ongoingReceives.addPossiblePeerToQuery(messageId, peer)
-    g.ongoingIWantReceives.addPossiblePeerToQuery(messageId, peer)
+    g.ongoingReceives.addPossiblePeerToQuery(messageId, peer.peerId)
+    g.ongoingIWantReceives.addPossiblePeerToQuery(messageId,  peer.peerId)
 
 proc handleIHave*(
     g: GossipSub, peer: PubSubPeer, ihaves: seq[ControlIHave]
@@ -400,14 +400,12 @@ when defined(libp2p_gossipsub_1_4):
         #We send imreceiving only if received from mesh members
         if peer notin peers:
           if not g.ongoingIWantReceives.hasKey(preamble.messageID):
-            g.ongoingIWantReceives[preamble.messageID] =
-              PreambleInfo.init(preamble, peer, starts, expires)
+            g.ongoingIWantReceives.insert(PreambleInfo.init(preamble, peer.peerId, starts, expires))
 
           trace "preamble: ignoring out of mesh peer", peer
           continue
 
-        g.ongoingReceives[preamble.messageID] =
-          PreambleInfo.init(preamble, peer, starts, expires)
+        g.ongoingReceives.insert(PreambleInfo.init(preamble, peer.peerId, starts, expires))
 
         #Send imreceiving only if received from faster mesh members
         if bytesPerSecond >= toSendPeers.medianDownloadRate():
@@ -898,11 +896,8 @@ when defined(libp2p_gossipsub_1_4):
       while true:
         var expiredOngoingReceive = g.ongoingReceives.popExpired(Moment.now()).valueOr:
           break
-
-        if not expiredOngoingReceive.sender.isNil:
-          let sender = expiredOngoingReceive.sender
-          if g.peers.hasKey(sender.peerId):
-            sender.behaviourPenalty += 0.1
+        g.peers.withValue(expiredOngoingReceive.sender, peer):
+          peer[].behaviourPenalty += 0.1
 
         if PullOperation:
           var possiblePeers = expiredOngoingReceive.possiblePeersToQuery()
@@ -945,9 +940,8 @@ when defined(libp2p_gossipsub_1_4):
           # Setting new data before reinserting the preamble
           expiredOngoingReceive.startsAt = starts
           expiredOngoingReceive.expiresAt = expires
-          expiredOngoingReceive.sender = peer
-          g.ongoingIWantReceives[expiredOngoingReceive.messageId] =
-            expiredOngoingReceive
+          expiredOngoingReceive.sender = peer.peerId
+          g.ongoingIWantReceives.insert(expiredOngoingReceive)
 
       while true:
         let expiredOngoingIWantReceived = g.ongoingIWantReceives.popExpired(

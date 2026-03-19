@@ -8,7 +8,7 @@
 {.used.}
 
 import
-  std/[hashes, strutils],
+  std/[hashes, sets, strutils],
   stew/base58,
   results,
   chronicles,
@@ -225,3 +225,10 @@ func getField*(
       ok(true)
     else:
       err(ProtoError.IncorrectBlob)
+
+type PeerSet* = object
+    order*: seq[PeerId]
+    peers*: HashSet[PeerId]
+
+proc init*(T: typedesc[PeerSet]): T =
+  PeerSet(order: @[], peers: initHashSet[PeerId]())
