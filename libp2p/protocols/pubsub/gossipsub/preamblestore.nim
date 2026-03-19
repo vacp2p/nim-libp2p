@@ -6,6 +6,10 @@ import ../rpc/messages
 import ../../../peerid
 
 type
+  PeerSet* = object
+    order*: seq[PeerId]
+    peers*: HashSet[PeerId]
+
   PreambleInfo* = ref object
     messageId*: MessageId
     messageLength*: uint32
@@ -19,6 +23,9 @@ type
   PreambleStore* = object
     byId*: Table[MessageId, PreambleInfo]
     heap*: HeapQueue[PreambleInfo]
+
+proc init*(T: typedesc[PeerSet]): T =
+  PeerSet(order: @[], peers: initHashSet[PeerId]())
 
 proc `<`(a, b: PreambleInfo): bool =
   a.expiresAt < b.expiresAt

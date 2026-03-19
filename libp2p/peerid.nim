@@ -226,9 +226,3 @@ func getField*(
     else:
       err(ProtoError.IncorrectBlob)
 
-type PeerSet* = object
-  order*: seq[PeerId]
-  peers*: HashSet[PeerId]
-
-proc init*(T: typedesc[PeerSet]): T =
-  PeerSet(order: @[], peers: initHashSet[PeerId]())
