@@ -20,7 +20,7 @@ import
     crypto/secp,
   ]
 
-import ../../../tools/[crypto, lifecycle, unittest]
+import ../../../tools/[lifecycle, unittest]
 import ../utils
 import ../mock_mix
 
@@ -170,7 +170,7 @@ suite "Mix Protocol - Node Failures":
 
     ## The high delay ensures intermediaries hold the packet long enough
     ## to stop the target node before it is forwarded.
-    let delay = Opt.some(DelayStrategy(ExponentialDelayStrategy.new(1000, rng())))
+    let delay = Opt.some(DelayStrategy(FixedDelayStrategy(delayMs: 1000)))
 
     let nodes = await setupMixNodes(4, delayStrategy = delay)
     startAndDeferStop(nodes)
