@@ -114,3 +114,22 @@ suite "serialization_tests":
     check:
       res.isErr()
       res.error == "too many SURBs"
+
+  test "Header deserialize rejects undersized input":
+    let tooShort = newSeq[byte](HeaderSize - 1)
+    check:
+      Header.deserialize(tooShort).isErr()
+
+  test "SphinxPacket deserialize rejects wrong-size input":
+    let tooShort = newSeq[byte](PacketSize - 1)
+    let tooLong = newSeq[byte](PacketSize + 1)
+    check:
+      SphinxPacket.deserialize(tooShort).isErr()
+      SphinxPacket.deserialize(tooLong).isErr()
+
+  test "Message deserialize rejects wrong-size input":
+    let tooShort = newSeq[byte](PayloadSize - 1)
+    let tooLong = newSeq[byte](PayloadSize + 1)
+    check:
+      Message.deserialize(tooShort).isErr()
+      Message.deserialize(tooLong).isErr()

@@ -123,6 +123,75 @@ suite "Sphinx Tests":
 
     check invalidMacPkt.status == InvalidMAC
 
+  test "tampered Beta invalidates MAC":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    var packetBytes = sp.serialize()
+
+    # Tamper a byte in Beta
+    packetBytes[AlphaSize] = packetBytes[AlphaSize] xor 0x01
+
+    let tamperedPacket =
+      SphinxPacket.deserialize(packetBytes).expect("deserialize error")
+    let processed =
+      processSphinxPacket(tamperedPacket, privateKeys[0], tm).expect("processing error")
+
+    check processed.status == InvalidMAC
+
+  test "tampered Gamma invalidates MAC":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    var packetBytes = sp.serialize()
+
+    # Tamper a byte in Gamma
+    let gammaOffset = AlphaSize + BetaSize
+    packetBytes[gammaOffset] = packetBytes[gammaOffset] xor 0x01
+
+    let tamperedPacket =
+      SphinxPacket.deserialize(packetBytes).expect("deserialize error")
+    let processed =
+      processSphinxPacket(tamperedPacket, privateKeys[0], tm).expect("processing error")
+
+    check processed.status == InvalidMAC
+
+  test "tampered Delta passes MAC but corrupts message":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    var packetBytes = sp.serialize()
+
+    # Tamper a byte in Delta
+    packetBytes[HeaderSize] = packetBytes[HeaderSize] xor 0x01
+
+    let tamperedPacket =
+      SphinxPacket.deserialize(packetBytes).expect("deserialize error")
+
+    # MAC passes at intermediate hops - proving MAC only covers Beta, not Delta
+    let processedSP1 =
+      processSphinxPacket(tamperedPacket, privateKeys[0], tm).expect("processing error")
+    check processedSP1.status == Intermediate
+
+    let packet2 = SphinxPacket.deserialize(processedSP1.serializedSphinxPacket).expect(
+        "deserialize error"
+      )
+    let processedSP2 =
+      processSphinxPacket(packet2, privateKeys[1], tm).expect("processing error")
+    check processedSP2.status == Intermediate
+
+    # At exit, the delta integrity check catches the corruption (not MAC)
+    let packet3 = SphinxPacket.deserialize(processedSP2.serializedSphinxPacket).expect(
+        "deserialize error"
+      )
+    let exitResult = processSphinxPacket(packet3, privateKeys[2], tm)
+    check:
+      exitResult.isErr()
+      exitResult.error() == "delta_prime should be all zeros"
+
   test "sphinx process duplicate tag":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
 
