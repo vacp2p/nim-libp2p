@@ -8,7 +8,7 @@
 {.used.}
 
 import
-  std/[hashes, sets, strutils],
+  std/[hashes, strutils],
   stew/base58,
   results,
   chronicles,
@@ -225,4 +225,3 @@ func getField*(
       ok(true)
     else:
       err(ProtoError.IncorrectBlob)
-
