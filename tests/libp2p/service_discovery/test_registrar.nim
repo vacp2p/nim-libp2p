@@ -13,7 +13,7 @@ import
     crypto/crypto,
     signed_envelope,
   ]
-import ../../../libp2p/protocols/capability_discovery/[types, registrar, iptree]
+import ../../../libp2p/protocols/service_discovery/[types, registrar, iptree]
 import ../../tools/unittest
 import ./utils
 

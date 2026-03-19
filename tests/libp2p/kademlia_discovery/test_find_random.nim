@@ -6,7 +6,7 @@
 import chronos, std/sequtils
 import ../../../libp2p/protocols/kad_disco
 import ../../tools/[lifecycle, topology, unittest]
-import ../capability_discovery/utils
+import ../service_discovery/utils
 
 suite "Kademlia discovery - FindRandom":
   teardown:

@@ -15,10 +15,10 @@ import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
 import ../kademlia/routingtable
 import ../kademlia_discovery/types
-import ./[types, iptree, serviceroutingtables, capability_discovery_metrics]
+import ./[types, iptree, serviceroutingtables, service_discovery_metrics]
 
 logScope:
-  topics = "cap-disco registrar"
+  topics = "service-disco registrar"
 
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   var totalAds = 0

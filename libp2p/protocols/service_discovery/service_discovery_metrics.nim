@@ -8,15 +8,15 @@ import metrics
 export metrics
 
 # Message metrics
-declarePublicCounter cd_messages_sent, "capability discovery messages sent", ["type"]
+declarePublicCounter cd_messages_sent, "service discovery messages sent", ["type"]
 declarePublicCounter cd_messages_received,
-  "capability discovery messages received", ["type"]
+  "service discovery messages received", ["type"]
 declarePublicCounter cd_message_bytes_sent,
-  "capability discovery message bytes sent", ["type"]
+  "service discovery message bytes sent", ["type"]
 declarePublicCounter cd_message_bytes_received,
-  "capability discovery message bytes received", ["type"]
+  "service discovery message bytes received", ["type"]
 declarePublicHistogram cd_message_duration_ms,
-  "capability discovery message round trip duration in milliseconds",
+  "service discovery message round trip duration in milliseconds",
   ["type"],
   buckets = [10.0, 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0]
 
@@ -26,8 +26,8 @@ declarePublicCounter cd_register_responses,
 declarePublicCounter cd_register_requests, "registration requests handled", ["status"]
 
 # Lookup metrics
-declarePublicCounter cd_lookup_requests, "capability lookup requests initiated"
-declarePublicCounter cd_lookup_peers_found, "peers found during capability lookup"
+declarePublicCounter cd_lookup_requests, "service lookup requests initiated"
+declarePublicCounter cd_lookup_peers_found, "peers found during service lookup"
 
 # Registrar cache metrics
 declarePublicGauge cd_registrar_cache_ads, "total advertisements in registrar cache"

@@ -7,7 +7,7 @@ import chronos
 import ../../../libp2p/[extended_peer_record, peerid]
 import ../../../libp2p/protocols/kad_disco
 import ../../../libp2p/protocols/kademlia_discovery/types
-import ../../../libp2p/protocols/capability_discovery/[advertiser, serviceroutingtables]
+import ../../../libp2p/protocols/service_discovery/[advertiser, serviceroutingtables]
 import ../../tools/unittest
 import ../kademlia/utils
 import ./utils

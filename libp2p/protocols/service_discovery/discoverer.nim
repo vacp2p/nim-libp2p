@@ -10,10 +10,10 @@ import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
 import ../kademlia_discovery/types
-import ./[types, serviceroutingtables, capability_discovery_metrics]
+import ./[types, serviceroutingtables, service_discovery_metrics]
 
 logScope:
-  topics = "cap-disco discoverer"
+  topics = "service-disco discoverer"
 
 proc sendGetAds(
     disco: KademliaDiscovery, peerId: PeerId, serviceId: ServiceId
