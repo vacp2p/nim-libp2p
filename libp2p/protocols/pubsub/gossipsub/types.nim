@@ -4,11 +4,11 @@
 {.push raises: [].}
 
 import chronos
-import std/[tables, sets, heapqueue]
+import std/[tables, sets]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
-import extensions
+import extensions, preamblestore
 
 export results, tables, sets
 
@@ -62,24 +62,6 @@ type
     meshMessageDeliveries*: float64
     meshFailurePenalty*: float64
     invalidMessageDeliveries*: float64
-
-  PeerSet* = object
-    order*: seq[PeerId]
-    peers*: HashSet[PeerId]
-
-  PreambleInfo* = ref object
-    messageId*: MessageId
-    messageLength*: uint32
-    topicId*: string
-    sender*: PubSubPeer
-    startsAt*: Moment
-    expiresAt*: Moment
-    deleted*: bool # tombstone marker
-    peerSet*: PeerSet
-
-  PreambleStore* = object
-    byId*: Table[MessageId, PreambleInfo]
-    heap*: HeapQueue[PreambleInfo]
 
   TopicParams* {.public.} = object
     topicWeight*: float64
