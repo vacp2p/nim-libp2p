@@ -6,7 +6,7 @@
 import chronos
 import
   ../../../libp2p/
-    [peerid, protocols/pubsub/gossipsub/preamblestore, protocols/pubsub/rpc/message]
+    [peerid, protocols/pubsub/gossipsub/preamblestore, protocols/pubsub/rpc/messages]
 import ../../tools/[unittest]
 import ./utils
 

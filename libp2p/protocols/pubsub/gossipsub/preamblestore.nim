@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH 
 
 import chronos, std/[tables, heapqueue, sets]
-import ../rpc/message
+import ../rpc/messages
 import ../../../peerid
 
 type
