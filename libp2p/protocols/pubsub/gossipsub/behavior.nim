@@ -284,7 +284,7 @@ proc handlePrune*(g: GossipSub, peer: PubSubPeer, prunes: seq[ControlPrune]) =
 when defined(libp2p_gossipsub_1_4):
   proc addPossiblePeerToQuery(g: GossipSub, peer: PubSubPeer, messageId: MessageId) =
     g.ongoingReceives.addPossiblePeerToQuery(messageId, peer.peerId)
-    g.ongoingIWantReceives.addPossiblePeerToQuery(messageId,  peer.peerId)
+    g.ongoingIWantReceives.addPossiblePeerToQuery(messageId, peer.peerId)
 
 proc handleIHave*(
     g: GossipSub, peer: PubSubPeer, ihaves: seq[ControlIHave]
@@ -400,12 +400,16 @@ when defined(libp2p_gossipsub_1_4):
         #We send imreceiving only if received from mesh members
         if peer notin peers:
           if not g.ongoingIWantReceives.hasKey(preamble.messageID):
-            g.ongoingIWantReceives.insert(PreambleInfo.init(preamble, peer.peerId, starts, expires))
+            g.ongoingIWantReceives.insert(
+              PreambleInfo.init(preamble, peer.peerId, starts, expires)
+            )
 
           trace "preamble: ignoring out of mesh peer", peer
           continue
 
-        g.ongoingReceives.insert(PreambleInfo.init(preamble, peer.peerId, starts, expires))
+        g.ongoingReceives.insert(
+          PreambleInfo.init(preamble, peer.peerId, starts, expires)
+        )
 
         #Send imreceiving only if received from faster mesh members
         if bytesPerSecond >= toSendPeers.medianDownloadRate():
