@@ -98,15 +98,17 @@ proc write*(pb: var ProtoBuffer, field: int, imreceiving: ControlIMReceiving) =
 proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
   var ipb = initProtoBuffer()
 
-  extensions.partialMessageExtension.withValue(pme):
-    ipb.write(10, pme)
+  extensions.partialMessageExtension.withValue(v):
+    ipb.write(10, v)
 
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
-  extensions.pingpongExtension.withValue(ppe):
-    ipb.write(3145728, ppe)
-  extensions.testExtension.withValue(te):
-    ipb.write(6492434, te)
+  extensions.pingpongExtension.withValue(v):
+    ipb.write(3145728, v)
+  extensions.preambleExtension.withValue(v):
+    ipb.write(4194304, v)
+  extensions.testExtension.withValue(v):
+    ipb.write(6492434, v)
 
   if ipb.buffer.len > 0:
     ipb.finish()
@@ -129,12 +131,10 @@ proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
     ipb.write(5, idontwant)
   if control.extensions.isSome():
     ipb.write(6, control.extensions.get())
-
-  when defined(libp2p_gossipsub_1_4):
-    for preamble in control.preamble:
-      ipb.write(7, preamble)
-    for imreceiving in control.imreceiving:
-      ipb.write(8, imreceiving)
+  for preamble in control.preamble:
+    ipb.write(7, preamble)
+  for imreceiving in control.imreceiving:
+    ipb.write(8, imreceiving)
 
   if len(ipb.buffer) > 0:
     ipb.finish()
@@ -330,6 +330,12 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
   else:
     trace "decodeExtensions: pingpongExtension is missing"
 
+  if ?pb.getField(4194304, control.preambleExtension):
+    trace "decodeExtensions: read preambleExtension",
+      preambleExtension = control.preambleExtension
+  else:
+    trace "decodeExtensions: preambleExtension is missing"
+
   if ?pb.getField(6492434, control.testExtension):
     trace "decodeExtensions: read testExtension", testExtension = control.testExtension
   else:
@@ -349,10 +355,8 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Opt[ControlMessage]] {.inline.
     var prunepbs: seq[seq[byte]]
     var idontwant: seq[seq[byte]]
     var extensions: seq[byte]
-
-    when defined(libp2p_gossipsub_1_4):
-      var preamble: seq[seq[byte]]
-      var imreceiving: seq[seq[byte]]
+    var preamble: seq[seq[byte]]
+    var imreceiving: seq[seq[byte]]
 
     if ?cpb.getRepeatedField(1, ihavepbs):
       for item in ihavepbs:
@@ -371,14 +375,12 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Opt[ControlMessage]] {.inline.
         control.idontwant.add(?decodeIWant(initProtoBuffer(item)))
     if ?cpb.getField(6, extensions):
       control.extensions = Opt.some(?decodeExtensions(initProtoBuffer(extensions)))
-
-    when defined(libp2p_gossipsub_1_4):
-      if ?cpb.getRepeatedField(7, preamble):
-        for item in preamble:
-          control.preamble.add(?decodePreamble(initProtoBuffer(item)))
-      if ?cpb.getRepeatedField(8, imreceiving):
-        for item in imreceiving:
-          control.imreceiving.add(?decodeIMReceiving(initProtoBuffer(item)))
+    if ?cpb.getRepeatedField(7, preamble):
+      for item in preamble:
+        control.preamble.add(?decodePreamble(initProtoBuffer(item)))
+    if ?cpb.getRepeatedField(8, imreceiving):
+      for item in imreceiving:
+        control.imreceiving.add(?decodeIMReceiving(initProtoBuffer(item)))
 
     trace "decodeControl: message statistics",
       graft_count = len(control.graft),

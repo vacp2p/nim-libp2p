@@ -63,6 +63,7 @@ type
     # Experimental extensions fields:
     testExtension*: Opt[bool]
     pingpongExtension*: Opt[bool]
+    preambleExtension*: Opt[bool]
 
   ControlMessage* = object
     ihave*: seq[ControlIHave]
@@ -71,9 +72,8 @@ type
     prune*: seq[ControlPrune]
     idontwant*: seq[ControlIWant]
     extensions*: Opt[ControlExtensions]
-    when defined(libp2p_gossipsub_1_4):
-      preamble*: seq[ControlPreamble]
-      imreceiving*: seq[ControlIMReceiving]
+    preamble*: seq[ControlPreamble]
+    imreceiving*: seq[ControlIMReceiving]
 
   ControlIHave* = object
     topicID*: string
@@ -149,6 +149,7 @@ func shortLog*(so: Opt[ControlExtensions]): auto =
       partialMessageExtension: "<unset>",
       testExtension: "<unset>",
       pingpongExtension: "<unset>",
+      preambleExtension: "<unset>",
     )
   else:
     let s = so.get()
@@ -156,27 +157,19 @@ func shortLog*(so: Opt[ControlExtensions]): auto =
       partialMessageExtension: shortLogOpt(s.partialMessageExtension),
       testExtension: shortLogOpt(s.testExtension),
       pingpongExtension: shortLogOpt(s.pingpongExtension),
+      preambleExtension: shortLogOpt(s.preambleExtension),
     )
 
 func shortLog*(c: ControlMessage): auto =
-  when defined(libp2p_gossipsub_1_4):
-    (
-      ihave: mapIt(c.ihave, it.shortLog),
-      iwant: mapIt(c.iwant, it.shortLog),
-      graft: mapIt(c.graft, it.shortLog),
-      prune: mapIt(c.prune, it.shortLog),
-      extensions: shortLog(c.extensions),
-      preamble: mapIt(c.preamble, it.shortLog),
-      imreceiving: mapIt(c.imreceiving, it.shortLog),
-    )
-  else:
-    (
-      ihave: mapIt(c.ihave, it.shortLog),
-      iwant: mapIt(c.iwant, it.shortLog),
-      graft: mapIt(c.graft, it.shortLog),
-      prune: mapIt(c.prune, it.shortLog),
-      extensions: shortLog(c.extensions),
-    )
+  (
+    ihave: mapIt(c.ihave, it.shortLog),
+    iwant: mapIt(c.iwant, it.shortLog),
+    graft: mapIt(c.graft, it.shortLog),
+    prune: mapIt(c.prune, it.shortLog),
+    extensions: shortLog(c.extensions),
+    preamble: mapIt(c.preamble, it.shortLog),
+    imreceiving: mapIt(c.imreceiving, it.shortLog),
+  )
 
 func shortLog*(msg: Message): auto =
   (
@@ -279,12 +272,16 @@ proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
 static:
   expectedFields(
     ControlExtensions,
-    @["partialMessageExtension", "testExtension", "pingpongExtension"],
+    @[
+      "partialMessageExtension", "testExtension", "pingpongExtension",
+      "preambleExtension",
+    ],
   )
 proc byteSize(controlExtensions: ControlExtensions): int =
-  controlExtensions.partialMessageExtension.byteSize() + #
-  controlExtensions.testExtension.byteSize() + #
-  controlExtensions.pingpongExtension.byteSize()
+  controlExtensions.partialMessageExtension.byteSize() +
+    controlExtensions.testExtension.byteSize() +
+    controlExtensions.pingpongExtension.byteSize() +
+    controlExtensions.preambleExtension.byteSize()
 
 proc byteSize(rpc: PingPongExtensionRPC): int =
   rpc.ping.len + rpc.pong.len
@@ -308,31 +305,20 @@ static:
 proc byteSize(pme: PartialMessageExtensionRPC): int =
   pme.topicID.len + pme.groupID.len + pme.partialMessage.len + pme.partsMetadata.len
 
-when defined(libp2p_gossipsub_1_4):
-  static:
-    expectedFields(
-      ControlMessage,
-      @[
-        "ihave", "iwant", "graft", "prune", "idontwant", "extensions", "preamble",
-        "imreceiving",
-      ],
-    )
-  proc byteSize(control: ControlMessage): int =
-    control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
-      control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
-      control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions) +
-      control.preamble.foldl(a + b.byteSize, 0) +
-      control.imreceiving.foldl(a + b.byteSize, 0)
-
-else:
-  static:
-    expectedFields(
-      ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "extensions"]
-    )
-  proc byteSize(control: ControlMessage): int =
-    control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
-      control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
-      control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions)
+static:
+  expectedFields(
+    ControlMessage,
+    @[
+      "ihave", "iwant", "graft", "prune", "idontwant", "extensions", "preamble",
+      "imreceiving",
+    ],
+  )
+proc byteSize(control: ControlMessage): int =
+  control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
+    control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
+    control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions) +
+    control.preamble.foldl(a + b.byteSize, 0) +
+    control.imreceiving.foldl(a + b.byteSize, 0)
 
 static:
   expectedFields(
@@ -352,3 +338,24 @@ proc byteSize*(rpc: RPCMsg): int =
     result += te.byteSize
   rpc.pingpongExtension.withValue(ppe):
     result += ppe.byteSize
+
+# TODO reuse const
+const preambleMessageSizeThreshold = 40 * 1024 # 40KiB
+
+proc withPreamble*(
+    _: typedesc[ControlMessage], msgs: seq[Message], msgIds: seq[MessageId]
+): ControlMessage =
+  var preambles: seq[ControlPreamble]
+  for i, m in msgs:
+    if m.data.len < preambleMessageSizeThreshold:
+      preambles.add(
+        ControlPreamble(
+          topicID: m.topic, messageID: msgIds[i], messageLength: m.data.len.uint32
+        )
+      )
+  ControlMessage(preamble: preambles)
+
+proc withPreamble*(
+    _: typedesc[ControlMessage], msg: Message, msgId: MessageId
+): ControlMessage =
+  ControlMessage.withPreamble(@[msg], @[msgId])

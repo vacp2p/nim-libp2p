@@ -9,6 +9,7 @@ type
     testExtension*: bool
     partialMessageExtension*: bool
     pingpongExtension*: bool
+    preambleExtension*: bool
 
   Extension* = ref object of RootObj
     #
@@ -20,6 +21,9 @@ method isSupported*(
   ## should return _true_ if this extension is supported by
   ## provided PeerExtensions.
   raiseAssert "isSupported: must be implemented"
+
+method stop*(ext: Extension) {.base, gcsafe, raises: [].} =
+  discard # noop by default # TODO raise assert
 
 method onHeartbeat*(ext: Extension) {.base, gcsafe, raises: [].} =
   ## called on every gossipsub heartbeat.
