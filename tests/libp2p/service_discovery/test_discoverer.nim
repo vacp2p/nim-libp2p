@@ -69,7 +69,7 @@ suite "Discoverer - lookup":
     for i in 0 ..< peers.len:
       peers[i] = makePeerId()
 
-    populateRoutingTable(disco, peers)
+    populateSearchTable(disco, serviceId, peers)
 
     let res = waitFor disco.lookup(serviceId)
 
