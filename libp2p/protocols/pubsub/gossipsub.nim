@@ -1100,8 +1100,10 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
       cfg.broadcastPreamble = proc(
           preambleMsg: ControlMessage, peers: seq[PeerId]
       ) {.gcsafe, raises: [].} =
+        let peersToBroadcast =
+          peers.filterIt(it in g.peers).mapIt(g.peers.getOrDefault(it))
         g.broadcast(
-          peers.mapIt(g.peers.getOrDefault(it)),
+          peersToBroadcast,
           RPCMsg(control: Opt.some(preambleMsg)),
           isHighPriority = true,
         )
