@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, tables, sequtils, algorithm
+import chronos, chronicles, tables, sequtils, algorithm, results
 import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, preamblestore, ../bandwidth]
@@ -15,8 +15,8 @@ type
   PreambleExtensionConfig* = object
     maxPreamblePeerBudget*: int = 10
     maxHeIsReceiving*: int = 50
-    broadcastPreamble*:
-      proc(preamble: ControlMessage, peers: seq[PeerId]) {.gcsafe, raises: [].}
+    broadcastControl*:
+      proc(msg: ControlMessage, peers: seq[PeerId]) {.gcsafe, raises: [].}
     hasSeen*: proc(mid: MessageId): bool {.gcsafe, raises: [].}
     mashAndDirectPeersForTopic*: proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
 
@@ -43,8 +43,8 @@ proc doAssert(config: PreambleExtensionConfig) =
     "PreambleExtensionConfig.maxHeIsReceiving must be positive (> 0)",
   )
   doAssert(
-    config.broadcastPreamble != nil,
-    "PreambleExtensionConfig.broadcastPreamble must be set",
+    config.broadcastControl != nil,
+    "PreambleExtensionConfig.broadcastControl must be set",
   )
   doAssert(config.hasSeen != nil, "PreambleExtensionConfig.hasSeen must be set")
   doAssert(
@@ -62,12 +62,6 @@ method isSupported*(
     ext: PreambleExtension, pe: PeerExtensions
 ): bool {.gcsafe, raises: [].} =
   return pe.preambleExtension
-
-method onStop*(ext: PreambleExtension) {.gcsafe, raises: [].} =
-  discard # TODO
-
-method onHeartbeat*(ext: PreambleExtension) {.gcsafe, raises: [].} =
-  ext.preambleBudgetUsed.clear()
 
 method onNegotiated*(ext: PreambleExtension, peerId: PeerId) {.gcsafe, raises: [].} =
   ext.supportingPeers.add(peerId)
@@ -145,7 +139,7 @@ proc handlePreamble*(
 
     # Send imreceiving only if received from faster mesh members
     if bytesPerSecond >= ext.medianDownloadRate(toSendPeers):
-      ext.config.broadcastPreamble(ControlMessage.withImreceiving(preamble), peers)
+      ext.config.broadcastControl(ControlMessage.withImreceiving(preamble), peers)
 
 proc handleIMReceiving*(
     ext: PreambleExtension, peerId: PeerId, imreceivings: seq[ControlIMReceiving]
@@ -202,7 +196,7 @@ proc preambleBroadcast*(
     return
 
   let broadcastToPeers = peers.filterIt(it in ext.supportingPeers)
-  ext.config.broadcastPreamble(preambleMsg, broadcastToPeers)
+  ext.config.broadcastControl(preambleMsg, broadcastToPeers)
 
 proc preambleBroadcastIfNotReceiving*(
     ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
@@ -239,3 +233,55 @@ proc preambleMsgReceived*(
       peerState.bandwidthTracking.download.update(startTime, msgLen)
   except KeyError:
     discard
+
+proc selectFirstPeerFromSupporting(
+    ext: PreambleExtension, possiblePeers: seq[PeerId]
+): Opt[PeerId] =
+  for peerId in possiblePeers:
+    if peerId in ext.supportingPeers:
+      return Opt.some(peerId)
+  return Opt.none(PeerId)
+
+proc preambleExpirationTick*(ext: PreambleExtension) =
+  let now = Moment.now()
+
+  while true:
+    var expired = ext.ongoingReceives.popExpired(now).valueOr:
+      break
+
+    # todo +0.1 behaviour
+
+    var possiblePeers = expired.possiblePeersToQuery()
+    # todo shuffle peers
+
+    let chosenPeer = ext.selectFirstPeerFromSupporting(possiblePeers)
+    if chosenPeer.isNone:
+      trace "no peer available to send IWANT for an expiredOngoingReceive",
+        messageID = expired.messageId
+      continue
+
+    let startsAt = Moment.now()
+    ext.config.broadcastControl(
+      ControlMessage.withIWant(expired.messageId), @[chosenPeer.get()]
+    )
+
+    let peerState = ext.peerState.getOrDefault(chosenPeer.get())
+    let bytesPerSecond = peerState.bandwidthTracking.download.value()
+    let transmissionTimeMs =
+      calculateReceiveTimeMs(expired.messageLength.int64, bytesPerSecond.int64)
+    let expires = startsAt + transmissionTimeMs.milliseconds
+
+    expired.startsAt = startsAt
+    expired.expiresAt = expires
+    expired.sender = chosenPeer.get()
+    ext.ongoingIWantReceives.insert(expired)
+
+  while true:
+    let expiredIWant = ext.ongoingIWantReceives.popExpired(now).valueOr:
+      break
+    # TODO: what should we do here?
+    discard expiredIWant
+
+method onHeartbeat*(ext: PreambleExtension) {.gcsafe, raises: [].} =
+  ext.preambleBudgetUsed.clear()
+  ext.preambleExpirationTick()

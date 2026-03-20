@@ -371,3 +371,6 @@ proc withImreceiving*(
         )
       ]
   )
+
+proc withIWant*(_: typedesc[ControlMessage], msgId: MessageId): ControlMessage =
+  ControlMessage(iwant: @[ControlIWant(messageIDs: @[msgId])])

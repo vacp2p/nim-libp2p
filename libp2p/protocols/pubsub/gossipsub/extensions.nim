@@ -223,4 +223,5 @@ proc preambleHandleIHave*(
     state: ExtensionsState, peerId: PeerId, msgId: MessageId
 ): bool =
   state.preambleExtension.withValue(e):
-    e.handleIHave(peerId, msgId)
+    return e.handleIHave(peerId, msgId)
+  return false
