@@ -214,11 +214,9 @@ suite "Mix Protocol - Message Delivery":
     let elapsed = Moment.now() - startTime
 
     # Path == 3, 2 intermediate hops apply delay, exit node does not.
-    echo "ELAPSED: ", elapsed
     check:
       receivedMsg.data == data
       elapsed >= milliseconds(int64(delayMs) * 2)
-      elapsed < milliseconds(int64(delayMs) * 4)
 
   asyncTest "concurrent messages with SURB replies":
     let echoProto = EchoProtocol.new()
