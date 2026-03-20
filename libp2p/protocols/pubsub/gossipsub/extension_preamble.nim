@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, tables, sequtils
+import chronos, chronicles, tables, sequtils, algorithm
 import ../../../[peerid]
 import ../rpc/messages
 import ./[extensions_types, preamblestore, ../bandwidth]
+
+logScope:
+  topics = "libp2p preamble"
 
 const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
 
@@ -14,6 +17,8 @@ type
     maxHeIsReceiving*: int = 50
     broadcastPreamble*:
       proc(preamble: ControlMessage, peers: seq[PeerId]) {.gcsafe, raises: [].}
+    hasSeen*: proc(mid: MessageId): bool {.gcsafe, raises: [].}
+    mashAndDirectPeersForTopic*: proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
 
   PeerState = ref object
     heIsReceivings*: Table[MessageId, uint32]
@@ -40,6 +45,11 @@ proc doAssert(config: PreambleExtensionConfig) =
   doAssert(
     config.broadcastPreamble != nil,
     "PreambleExtensionConfig.broadcastPreamble must be set",
+  )
+  doAssert(config.hasSeen != nil, "PreambleExtensionConfig.hasSeen must be set")
+  doAssert(
+    config.mashAndDirectPeersForTopic != nil,
+    "PreambleExtensionConfig.mashAndDirectPeersForTopic must be set",
   )
 
 proc new*(
@@ -74,9 +84,72 @@ method onRemovePeer*(ext: PreambleExtension, peerId: PeerId) {.gcsafe, raises: [
 
   ext.peerState.del(peerId)
 
+proc medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
+  if peers.len == 0:
+    return 0
+
+  let vals = peers
+    .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
+    .sorted()
+  let mid = vals.len div 2
+  if vals.len mod 2 == 0:
+    (vals[mid - 1] + vals[mid]) / 2
+  else:
+    vals[mid]
+
+proc handlePreamble*(
+    ext: PreambleExtension, peerId: PeerId, preambles: seq[ControlPreamble]
+) =
+  let starts = Moment.now()
+
+  for preamble in preambles:
+    let peerUsedBudget = ext.preambleBudgetUsed.getOrDefault(peerId)
+    if peerUsedBudget >= ext.config.maxPreamblePeerBudget:
+      return
+    ext.preambleBudgetUsed[peerId] = peerUsedBudget + 1
+
+    if ext.config.hasSeen(preamble.messageID):
+      continue
+
+    let peerState = ext.peerState.getOrDefault(peerId)
+    if peerState.heIsSendings.hasKey(preamble.messageID):
+      continue
+
+    if ext.ongoingReceives.hasKey(preamble.messageID):
+      #TODO: add to conflicts_watch if length is different
+      continue
+
+    peerState.heIsSendings[preamble.messageID] = starts
+
+    var toSendPeers = ext.config.mashAndDirectPeersForTopic(preamble.topicID)
+    var peers = toSendPeers.filterIt(it in ext.supportingPeers)
+
+    let bytesPerSecond = peerState.bandwidthTracking.download.value()
+    let transmissionTimeMs =
+      calculateReceiveTimeMs(preamble.messageLength.int64, bytesPerSecond.int64)
+    let expires = starts + transmissionTimeMs.milliseconds
+
+    # We send imreceiving only if received from mesh members
+    if peerId notin peers:
+      trace "preamble: ignoring out of mesh peer", peerId
+      if not ext.ongoingIWantReceives.hasKey(preamble.messageID):
+        ext.ongoingIWantReceives.insert(
+          PreambleInfo.init(preamble, peerId, starts, expires)
+        )
+      continue
+
+    ext.ongoingReceives.insert(PreambleInfo.init(preamble, peerId, starts, expires))
+
+    # Send imreceiving only if received from faster mesh members
+    if bytesPerSecond >= ext.medianDownloadRate(toSendPeers):
+      ext.config.broadcastPreamble(ControlMessage.withImreceiving(preamble), peers)
+
 method onHandleRPC*(
     ext: PreambleExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
+  rpc.control.withValue(control):
+    ext.handlePreamble(peerId, control.preamble)
+
   # read control message read preamble and imreceiving
   # g.handlePreamble(peer, control.preamble)
   # g.handleIMReceiving(peer, control.imreceiving)

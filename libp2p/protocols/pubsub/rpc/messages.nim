@@ -359,3 +359,15 @@ proc withPreamble*(
     _: typedesc[ControlMessage], msg: Message, msgId: MessageId
 ): ControlMessage =
   ControlMessage.withPreamble(@[msg], @[msgId])
+
+proc withImreceiving*(
+    _: typedesc[ControlMessage], preamble: ControlPreamble
+): ControlMessage =
+  ControlMessage(
+    imreceiving:
+      @[
+        ControlIMReceiving(
+          messageID: preamble.messageID, messageLength: preamble.messageLength
+        )
+      ]
+  )

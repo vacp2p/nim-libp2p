@@ -1090,6 +1090,18 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
             RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: pong))),
             true,
           )
+    if cfg.hasSeen.isNil:
+      cfg.hasSeen = proc(mid: MessageId): bool {.gcsafe, raises: [].} =
+        return g.hasSeen(g.salt(mid))
+    if cfg.mashAndDirectPeersForTopic.isNil:
+      cfg.mashAndDirectPeersForTopic = proc(
+          topic: string
+      ): seq[PeerId] {.gcsafe, raises: [].} =
+        var peers = HashSet[PeerId]()
+        g.mesh.withValue(preamble.topicID, meshPeers):
+          peers.incl(meshPeers[].mapIt(it.peerId))
+        peers.incl(g.subscribedDirectPeers.getOrDefault(topic).mapIt(it.peerId))
+        return peers.toSeq()
 
     g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
