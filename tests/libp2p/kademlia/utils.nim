@@ -171,7 +171,7 @@ proc toPeer*(node: KadDHT): Peer =
 proc randomPeerId*(): PeerId =
   PeerId.random(rng()).get()
 
-proc populateRoutingTable*(kad: KadDHT, count: int) =
+method populateRoutingTable*(kad: KadDHT, count: int) {.base.} =
   for i in 0 ..< count:
     discard kad.rtable.insert(randomPeerId())
 
