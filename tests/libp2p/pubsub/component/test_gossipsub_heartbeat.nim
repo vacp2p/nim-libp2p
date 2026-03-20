@@ -125,7 +125,7 @@ suite "GossipSub Component - Heartbeat":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
 
-    # Wait for begging of the heartbeat to increase chances for
+    # Wait for beginning of the heartbeat to increase chances for
     # peer graft to happen within same heartbeat
     node0.waitForNextHeartbeat()
 
