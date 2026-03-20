@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets]
 import chronos, chronicles, results
 import
   ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
@@ -86,7 +85,7 @@ proc sendGetAds(
 
 proc lookup*(
     disco: KademliaDiscovery, serviceId: ServiceId
-): Future[Result[seq[PeerId], string]] {.async: (raises: []).} =
+): Future[Result[seq[Advertisement], string]] {.async: (raises: []).} =
   ## Look up providers for a spcific service id
 
   cd_lookup_requests.inc()
@@ -99,7 +98,7 @@ proc lookup*(
   let searchTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
     return err("service table not found for service id: " & $serviceId)
 
-  var found = initHashSet[PeerId]()
+  var found = newSeqOfCap[Advertisement](disco.discoConf.fLookup)
   block outer:
     for bucketIdx in 0 ..< searchTable.buckets.len:
       var bucket = searchTable.buckets[bucketIdx]
@@ -122,13 +121,13 @@ proc lookup*(
           disco.serviceRoutingTables.insertPeer(serviceId, nodeId.toKey())
 
         for ad in ads:
-          found.incl(ad.data.peerId)
+          found.add(ad)
 
           if found.len >= disco.discoConf.fLookup:
             break outer
 
-  cd_lookup_peers_found.inc(found.len.float64)
-  return ok(found.toSeq())
+  cd_lookup_peers_found.inc(found.len.int64)
+  return ok(found)
 
 proc addServiceInterest*(disco: KademliaDiscovery, service: ServiceInfo) =
   ## Add this service to this node's set of interests.
