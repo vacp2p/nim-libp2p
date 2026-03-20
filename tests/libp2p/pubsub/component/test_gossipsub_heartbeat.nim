@@ -112,7 +112,7 @@ suite "GossipSub Component - Heartbeat":
           ),
           pruneBackoff = 20.milliseconds,
           opportunisticGraftThreshold = 600,
-          heartbeatInterval = 500.milliseconds,
+          heartbeatInterval = 1000.milliseconds,
         )
         .toGossipSub()
       node0 = nodes[0]
@@ -124,6 +124,10 @@ suite "GossipSub Component - Heartbeat":
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
+
+    # Wait for beginning of the heartbeat to increase chances for
+    # peer graft to happen within same heartbeat
+    await node0.waitForNextHeartbeat()
 
     # Keep track of initial mesh of Node0
     let startingMesh = node0.mesh[topic].toSeq()
