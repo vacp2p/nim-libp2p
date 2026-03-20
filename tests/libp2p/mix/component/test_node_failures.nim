@@ -170,9 +170,9 @@ suite "Mix Protocol - Node Failures":
 
     ## The high delay ensures intermediaries hold the packet long enough
     ## to stop the target node before it is forwarded.
-    let delay = Opt.some(DelayStrategy(FixedDelayStrategy(delayMs: 1000)))
+    let delayStrategy: DelayStrategy = FixedDelayStrategy(delayMs: 1000)
 
-    let nodes = await setupMixNodes(4, delayStrategy = delay)
+    let nodes = await setupMixNodes(4, delayStrategy = Opt.some(delayStrategy))
     startAndDeferStop(nodes)
 
     let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())

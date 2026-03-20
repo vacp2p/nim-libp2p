@@ -161,14 +161,15 @@ suite "Mix Protocol - Message Delivery":
     ## from protocols using readLp() were losing their length prefix when
     ## flowing back through the mix network.
     let testPayload = "Privacy for everyone and transparency for people in power is one way to reduce corruption".toBytes()
+    let echoProto = EchoProtocol.new()
 
     let nodes = await setupMixNodes(
       10,
-      destReadBehavior = Opt.some((codec: EchoCodec, callback: readLp(EchoMaxReadLen))),
+      destReadBehavior =
+        Opt.some((codec: echoProto.codec, callback: readLp(EchoMaxReadLen))),
     )
 
     let destNode = nodes[^1]
-    let echoProto = EchoProtocol.new()
     destNode.switch.mount(echoProto)
 
     startAndDeferStop(nodes)
@@ -176,7 +177,7 @@ suite "Mix Protocol - Message Delivery":
     let conn = nodes[0]
       .toConnection(
         destNode.toMixDestination(),
-        EchoCodec,
+        echoProto.codec,
         MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
       )
       .expect("could not build connection")
@@ -190,10 +191,9 @@ suite "Mix Protocol - Message Delivery":
     check response == testPayload
 
   asyncTest "intermediate nodes apply delay":
-    let delayMs: uint16 = 200
-    let nodes = await setupMixNodes(
-      10, delayStrategy = Opt.some(DelayStrategy(FixedDelayStrategy(delayMs: delayMs)))
-    )
+    let delayMs: uint16 = 300
+    let delayStrategy: DelayStrategy = FixedDelayStrategy(delayMs: delayMs)
+    let nodes = await setupMixNodes(10, delayStrategy = Opt.some(delayStrategy))
     startAndDeferStop(nodes)
 
     let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
@@ -215,19 +215,22 @@ suite "Mix Protocol - Message Delivery":
 
     # Path == 3, 2 intermediate hops apply delay, exit node does not.
     # Minimum expected: 2 * 200ms = 400ms.
-    echo elapsed
     check:
       receivedMsg.data == data
       elapsed >= milliseconds(int64(float64(delayMs) * 2.0))
+      elapsed < milliseconds(int64(float64(delayMs) * 3.0))
 
   asyncTest "concurrent messages with SURB replies":
+    let echoProto = EchoProtocol.new()
+
     let nodes = await setupMixNodes(
       10,
-      destReadBehavior = Opt.some((codec: EchoCodec, callback: readLp(EchoMaxReadLen))),
+      destReadBehavior =
+        Opt.some((codec: echoProto.codec, callback: readLp(EchoMaxReadLen))),
     )
     startAndDeferStop(nodes)
 
-    let (destNode, echoProto) = await setupDestNode(EchoProtocol.new())
+    let (destNode, _) = await setupDestNode(echoProto)
     defer:
       await stopDestNode(destNode)
 
@@ -237,7 +240,7 @@ suite "Mix Protocol - Message Delivery":
       let conn = node
         .toConnection(
           dest,
-          EchoCodec,
+          echoProto.codec,
           MixParameters(expectReply: Opt.some(true), numSurbs: Opt.some(byte(1))),
         )
         .expect("could not build connection")

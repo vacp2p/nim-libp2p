@@ -154,23 +154,27 @@ proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
   nrProto.codec = NoReplyProtocolCodec
   nrProto
 
-const EchoCodec* = "/echo/test/1.0.0"
+const EchoCodec = "/echo/test/1.0.0"
 const EchoMaxReadLen* = 1024
 
 type EchoProtocol* = ref object of LPProtocol
 
-proc new*(T: typedesc[EchoProtocol], codec: string = EchoCodec): EchoProtocol =
+proc new*(T: typedesc[EchoProtocol]): EchoProtocol =
   let echoProto = EchoProtocol()
 
   proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       let request = await conn.readLp(EchoMaxReadLen)
       await conn.writeLp(request)
+    except CancelledError as e:
+      raise e
     except CatchableError as e:
       raiseAssert "Echo handler error: " & e.msg
+    finally:
+      await conn.close()
 
   echoProto.handler = handler
-  echoProto.codec = codec
+  echoProto.codec = EchoCodec
   echoProto
 
 ###
@@ -184,4 +188,4 @@ method generateForEntry*(self: FixedDelayStrategy): uint16 =
 method generateForIntermediate*(
     self: FixedDelayStrategy, encodedDelayMs: uint16
 ): uint16 =
-  encodedDelayMs
+  self.delayMs
