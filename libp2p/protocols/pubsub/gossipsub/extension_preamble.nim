@@ -144,16 +144,29 @@ proc handlePreamble*(
     if bytesPerSecond >= ext.medianDownloadRate(toSendPeers):
       ext.config.broadcastPreamble(ControlMessage.withImreceiving(preamble), peers)
 
+proc handleIMReceiving*(
+    ext: PreambleExtension, peerId: PeerId, imreceivings: seq[ControlIMReceiving]
+) =
+  for imreceiving in imreceivings:
+    let peerState = ext.peerState.getOrDefault(peerId)
+    if peerState.heIsReceivings.len > ext.config.maxHeIsReceiving:
+      return
+
+    # Ignore if message length is different
+    ext.ongoingReceives.withValue(imreceiving.messageID, pInfo):
+      if pInfo.messageLength != imreceiving.messageLength:
+        continue
+
+    peerState.heIsReceivings[imreceiving.messageID] = imreceiving.messageLength
+    # No need to check mcache. In that case, we might have already transmitted/transmitting
+
 method onHandleRPC*(
     ext: PreambleExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
   rpc.control.withValue(control):
     ext.handlePreamble(peerId, control.preamble)
-
-  # read control message read preamble and imreceiving
-  # g.handlePreamble(peer, control.preamble)
-  # g.handleIMReceiving(peer, control.imreceiving)
-  discard # TODO
+  rpc.control.withValue(control):
+    ext.handleIMReceiving(peerId, control.imreceiving)
 
 proc preambleBroadcast*(
     ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
