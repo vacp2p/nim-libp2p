@@ -97,11 +97,14 @@ proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
     false
   let pingpongExtension = ce.pingpongExtension.valueOr:
     false
+  let preambleExtension = ce.preambleExtension.valueOr:
+    false
 
   PeerExtensions(
     testExtension: testExtension,
     partialMessageExtension: partialMessageExtension,
     pingpongExtension: pingpongExtension,
+    preambleExtension: preambleExtension,
   )
 
 proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
@@ -217,7 +220,7 @@ proc preambleMsgReceived*(
     e.preambleMsgReceived(peerId, msgId, msgLen)
 
 proc preambleHandleIHave*(
-    state: ExtensionsState, peerId: PeerId, messageId: MessageId
+    state: ExtensionsState, peerId: PeerId, msgId: MessageId
 ): bool =
   state.preambleExtension.withValue(e):
     e.handleIHave(peerId, msgId)
