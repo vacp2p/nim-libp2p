@@ -127,7 +127,7 @@ suite "GossipSub Component - Heartbeat":
 
     # Wait for beginning of the heartbeat to increase chances for
     # peer graft to happen within same heartbeat
-    node0.waitForNextHeartbeat()
+    await node0.waitForNextHeartbeat()
 
     # Keep track of initial mesh of Node0
     let startingMesh = node0.mesh[topic].toSeq()
