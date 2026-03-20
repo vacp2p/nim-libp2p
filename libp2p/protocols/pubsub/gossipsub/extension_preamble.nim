@@ -95,8 +95,14 @@ proc preambleBroadcastIfNotReceiving*(
     ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
 ) =
   proc isMsgInIMReceiving(peerId: PeerId): bool =
+    let msgId =
+      try:
+        preambleMsg.preamble[0].messageID
+      except KeyError:
+        return false
+
     let peerState = ext.peerState.getOrDefault(peerId)
-    if peerState.heIsReceivings.hasKey(preambleMsg.preamble[0].messageID):
+    if peerState.heIsReceivings.hasKey(msgId):
       # libp2p_gossipsub_imreceiving_saved_messages.inc
       return true
     return false
@@ -113,7 +119,10 @@ proc preambleMsgReceived*(
   ext.ongoingReceives.del(msgId)
   ext.ongoingIWantReceives.del(msgId)
 
-  var peerState = ext.peerState[peerId]
-  var startTime: Moment
-  if peerState.heIsSendings.pop(msgId, startTime):
-    peerState.bandwidthTracking.download.update(startTime, msgLen)
+  try:
+    var peerState = ext.peerState[peerId]
+    var startTime: Moment
+    if peerState.heIsSendings.pop(msgId, startTime):
+      peerState.bandwidthTracking.download.update(startTime, msgLen)
+  except KeyError:
+    discard
