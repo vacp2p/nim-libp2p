@@ -9,6 +9,7 @@ import
     protocols/mix,
     protocols/mix/mix_protocol,
     protocols/mix/curve25519,
+    protocols/mix/delay_strategy,
     protocols/ping,
     peerid,
     multiaddress,
@@ -36,6 +37,7 @@ proc setupMixNode[T: MixProtocol](
     switch: Switch,
     destReadBehavior: Opt[tuple[codec: string, callback: DestReadBehavior]],
     spamProtectionRateLimit: Opt[int],
+    delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ): T =
   let spamProtection =
     if spamProtectionRateLimit.isSome():
@@ -45,7 +47,9 @@ proc setupMixNode[T: MixProtocol](
     else:
       Opt.none(SpamProtection)
 
-  let proto = T.new(mixNodeInfo, switch, spamProtection = spamProtection)
+  let proto = T.new(
+    mixNodeInfo, switch, spamProtection = spamProtection, delayStrategy = delayStrategy
+  )
 
   if destReadBehavior.isSome():
     let (codec, callback) = destReadBehavior.get()
@@ -58,6 +62,7 @@ proc setupMixNodes*(
     numNodes: int,
     destReadBehavior = Opt.none(tuple[codec: string, callback: DestReadBehavior]),
     spamProtectionRateLimit = Opt.none(int),
+    delayStrategy = Opt.none(DelayStrategy),
 ): Future[seq[MixProtocol]] {.async.} =
   var nodes: seq[MixProtocol] = @[]
   let nodeInfos = MixNodeInfo.generateRandomMany(numNodes)
@@ -65,7 +70,7 @@ proc setupMixNodes*(
     let switch =
       createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))
     let mixNode = setupMixNode[MixProtocol](
-      mixNodeInfo, switch, destReadBehavior, spamProtectionRateLimit
+      mixNodeInfo, switch, destReadBehavior, spamProtectionRateLimit, delayStrategy
     )
     mixNode.nodePool.add(nodeInfos.includeAllExcept(mixNodeInfo))
     nodes.add(mixNode)
@@ -148,3 +153,39 @@ proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
   nrProto.handler = handler
   nrProto.codec = NoReplyProtocolCodec
   nrProto
+
+const EchoCodec = "/echo/test/1.0.0"
+const EchoMaxReadLen* = 1024
+
+type EchoProtocol* = ref object of LPProtocol
+
+proc new*(T: typedesc[EchoProtocol]): EchoProtocol =
+  let echoProto = EchoProtocol()
+
+  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    try:
+      let request = await conn.readLp(EchoMaxReadLen)
+      await conn.writeLp(request)
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      raiseAssert "Echo handler error: " & e.msg
+    finally:
+      await conn.close()
+
+  echoProto.handler = handler
+  echoProto.codec = EchoCodec
+  echoProto
+
+###
+
+type FixedDelayStrategy* = ref object of DelayStrategy
+  delayMs*: uint16
+
+method generateForEntry*(self: FixedDelayStrategy): uint16 =
+  self.delayMs
+
+method generateForIntermediate*(
+    self: FixedDelayStrategy, encodedDelayMs: uint16
+): uint16 =
+  self.delayMs

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import hashes, chronos, results, chronicles
+import hashes, chronos, chronicles
 import ../../stream/connection
 import ./[serialization]
 from fragmentation import DataSize

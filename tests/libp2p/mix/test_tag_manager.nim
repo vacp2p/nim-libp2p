@@ -58,6 +58,19 @@ suite "Tag Manager":
     tm.addTag(tag)
     check tm.len == 1
 
+  test "checkAndAddTag returns false for new tag, true for duplicate":
+    let tag = makeTag(1)
+
+    # First call - tag is new, should return false
+    check:
+      not tm.checkAndAddTag(tag)
+      tm.len == 1
+
+    # Second call - tag already exists, should return true
+    check:
+      tm.checkAndAddTag(tag)
+      tm.len == 1
+
   test "tag expiration and purge":
     let shortTTL = chronos.milliseconds(30)
     let tmShort = TagManager.new(tagTTL = shortTTL, autoStart = false)

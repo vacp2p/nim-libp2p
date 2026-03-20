@@ -5,13 +5,13 @@
 
 import chronos, results, stew/byteutils
 import
-  ../../../libp2p/
+  ../../../../libp2p/
     [protocols/mix, protocols/ping, peerid, multiaddress, switch, builders, crypto/secp]
 
-import ../../tools/[lifecycle, unittest]
-import ./utils
+import ../../../tools/[lifecycle, unittest]
+import ../utils
 
-suite "Spam Protection Component":
+suite "Mix Protocol - Spam Protection":
   asyncTeardown:
     checkTrackers()
 
