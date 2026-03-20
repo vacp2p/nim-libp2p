@@ -133,7 +133,7 @@ proc onRemovePeer(state: ExtensionsState, peerId: PeerId) =
 
 proc stop*(state: ExtensionsState) =
   for _, e in state.extensions:
-    e.stop()
+    e.onStop()
 
 proc heartbeat*(state: ExtensionsState) =
   # triggers heartbeat event in extensions state.
@@ -210,6 +210,8 @@ proc preambleBroadcastIfNotReceiving*(
   state.preambleExtension.withValue(e):
     e.preambleBroadcastIfNotReceiving(preambleMsg, peers)
 
-proc preambleMsgReceived*(state: ExtensionsState, peerId: PeerId, msgId: MessageId) =
+proc preambleMsgReceived*(
+    state: ExtensionsState, peerId: PeerId, msgId: MessageId, msgLen: int
+) =
   state.preambleExtension.withValue(e):
-    e.preambleMsgReceived(peerId, msgId)
+    e.preambleMsgReceived(peerId, msgId, msgLen)

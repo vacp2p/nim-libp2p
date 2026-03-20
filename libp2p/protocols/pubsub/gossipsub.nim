@@ -714,7 +714,7 @@ method rpcHandler*(
       msgId = msgIdResult.get
       msgIdSalted = g.salt(msgId)
 
-    g.extensionsState.preambleMsgReceived(peer.peerId, msgId)
+    g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.len)
     when defined(libp2p_gossipsub_1_4):
       if msg.data.len > preambleMessageSizeThreshold:
         g.ongoingReceives.del(msgId)

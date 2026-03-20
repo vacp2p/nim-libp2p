@@ -22,7 +22,7 @@ method isSupported*(
   ## provided PeerExtensions.
   raiseAssert "isSupported: must be implemented"
 
-method stop*(ext: Extension) {.base, gcsafe, raises: [].} =
+method onStop*(ext: Extension) {.base, gcsafe, raises: [].} =
   discard # noop by default # TODO raise assert
 
 method onHeartbeat*(ext: Extension) {.base, gcsafe, raises: [].} =
