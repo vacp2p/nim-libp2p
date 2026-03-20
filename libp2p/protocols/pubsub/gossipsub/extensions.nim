@@ -215,3 +215,9 @@ proc preambleMsgReceived*(
 ) =
   state.preambleExtension.withValue(e):
     e.preambleMsgReceived(peerId, msgId, msgLen)
+
+proc preambleHandleIHave*(
+    state: ExtensionsState, peerId: PeerId, messageId: MessageId
+): bool =
+  state.preambleExtension.withValue(e):
+    e.handleIHave(peerId, msgId)

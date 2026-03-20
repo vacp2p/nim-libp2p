@@ -84,23 +84,26 @@ method onRemovePeer*(ext: PreambleExtension, peerId: PeerId) {.gcsafe, raises: [
 
   ext.peerState.del(peerId)
 
-proc medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
-  if peers.len == 0:
+proc medianValue(vals: seq[float]): float =
+  if vals.len == 0:
     return 0
 
-  let vals = peers
-    .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
-    .sorted()
   let mid = vals.len div 2
   if vals.len mod 2 == 0:
     (vals[mid - 1] + vals[mid]) / 2
   else:
     vals[mid]
 
+proc medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
+  peers
+  .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
+  .sorted()
+  .medianValue()
+
 proc handlePreamble*(
     ext: PreambleExtension, peerId: PeerId, preambles: seq[ControlPreamble]
 ) =
-  let starts = Moment.now()
+  let startTime = Moment.now()
 
   for preamble in preambles:
     let peerUsedBudget = ext.preambleBudgetUsed.getOrDefault(peerId)
@@ -119,7 +122,7 @@ proc handlePreamble*(
       #TODO: add to conflicts_watch if length is different
       continue
 
-    peerState.heIsSendings[preamble.messageID] = starts
+    peerState.heIsSendings[preamble.messageID] = startTime
 
     var toSendPeers = ext.config.mashAndDirectPeersForTopic(preamble.topicID)
     var peers = toSendPeers.filterIt(it in ext.supportingPeers)
@@ -127,18 +130,18 @@ proc handlePreamble*(
     let bytesPerSecond = peerState.bandwidthTracking.download.value()
     let transmissionTimeMs =
       calculateReceiveTimeMs(preamble.messageLength.int64, bytesPerSecond.int64)
-    let expires = starts + transmissionTimeMs.milliseconds
+    let expires = startTime + transmissionTimeMs.milliseconds
 
     # We send imreceiving only if received from mesh members
     if peerId notin peers:
       trace "preamble: ignoring out of mesh peer", peerId
       if not ext.ongoingIWantReceives.hasKey(preamble.messageID):
         ext.ongoingIWantReceives.insert(
-          PreambleInfo.init(preamble, peerId, starts, expires)
+          PreambleInfo.init(preamble, peerId, startTime, expires)
         )
       continue
 
-    ext.ongoingReceives.insert(PreambleInfo.init(preamble, peerId, starts, expires))
+    ext.ongoingReceives.insert(PreambleInfo.init(preamble, peerId, startTime, expires))
 
     # Send imreceiving only if received from faster mesh members
     if bytesPerSecond >= ext.medianDownloadRate(toSendPeers):
@@ -160,13 +163,37 @@ proc handleIMReceiving*(
     peerState.heIsReceivings[imreceiving.messageID] = imreceiving.messageLength
     # No need to check mcache. In that case, we might have already transmitted/transmitting
 
+proc addPossiblePeerToQuery(
+    ext: PreambleExtension, peerId: PeerId, messageId: MessageId
+) =
+  ext.ongoingReceives.addPossiblePeerToQuery(messageId, peerId)
+  ext.ongoingIWantReceives.addPossiblePeerToQuery(messageId, peerId)
+
+proc handleIDontWant(
+    ext: PreambleExtension, peerId: PeerId, iDontWants: seq[ControlIWant]
+) =
+  try:
+    var peerState = ext.peerState[peerId]
+    for dontWant in iDontWants:
+      for messageId in dontWant.messageIDs:
+        peerState.heIsReceivings.del(messageId)
+        ext.addPossiblePeerToQuery(peerId, messageId)
+  except KeyError:
+    discard
+
+proc handleIHave*(ext: PreambleExtension, peerId: PeerId, messageId: MessageId): bool =
+  if ext.ongoingReceives.hasKey(messageId) or ext.ongoingIWantReceives.hasKey(messageId):
+    ext.addPossiblePeerToQuery(peerId, messageId)
+    return true
+  return false
+
 method onHandleRPC*(
     ext: PreambleExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
   rpc.control.withValue(control):
     ext.handlePreamble(peerId, control.preamble)
-  rpc.control.withValue(control):
     ext.handleIMReceiving(peerId, control.imreceiving)
+    ext.handleIDontWant(peerId, control.idontwant)
 
 proc preambleBroadcast*(
     ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
