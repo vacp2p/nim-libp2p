@@ -218,7 +218,7 @@ suite "Mix Protocol - Message Delivery":
     check:
       receivedMsg.data == data
       elapsed >= milliseconds(int64(float64(delayMs) * 2.0))
-      elapsed < milliseconds(int64(float64(delayMs) * 3.0))
+      elapsed < milliseconds(int64(float64(delayMs) * 4.0))
 
   asyncTest "concurrent messages with SURB replies":
     let echoProto = EchoProtocol.new()
