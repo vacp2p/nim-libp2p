@@ -3,6 +3,7 @@
 
 import chronos, chronicles, tables, sequtils, algorithm, results
 import ../../../[peerid]
+import ../../../crypto/crypto
 import ../rpc/messages
 import ./[extensions_types, preamblestore, ../bandwidth]
 
@@ -26,6 +27,7 @@ type
     bandwidthTracking: BandwidthTracking
 
   PreambleExtension* = ref object of Extension
+    rng: ref HmacDrbgContext
     config: PreambleExtensionConfig
     supportingPeers: seq[PeerId]
     preambleBudgetUsed: Table[PeerId, int]
@@ -56,7 +58,7 @@ proc new*(
     T: typedesc[PreambleExtension], config: PreambleExtensionConfig
 ): PreambleExtension =
   config.doAssert()
-  PreambleExtension(config: config)
+  PreambleExtension(rng: newRng(), config: config)
 
 method isSupported*(
     ext: PreambleExtension, pe: PeerExtensions
@@ -252,7 +254,7 @@ proc preambleExpirationTick*(ext: PreambleExtension) =
     # todo +0.1 behaviour
 
     var possiblePeers = expired.possiblePeersToQuery()
-    # todo shuffle peers
+    ext.rng.shuffle(possiblePeers)
 
     let chosenPeer = ext.selectFirstPeerFromSupporting(possiblePeers)
     if chosenPeer.isNone:
