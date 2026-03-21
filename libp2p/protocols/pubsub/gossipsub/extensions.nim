@@ -134,10 +134,6 @@ proc onRemovePeer(state: ExtensionsState, peerId: PeerId) =
     if e.isSupported(state.peerExtensions.getOrDefault(peerId)):
       e.onRemovePeer(peerId)
 
-proc stop*(state: ExtensionsState) =
-  for _, e in state.extensions:
-    e.onStop()
-
 proc heartbeat*(state: ExtensionsState) =
   # triggers heartbeat event in extensions state.
 

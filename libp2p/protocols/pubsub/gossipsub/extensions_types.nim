@@ -22,9 +22,6 @@ method isSupported*(
   ## provided PeerExtensions.
   raiseAssert "isSupported: must be implemented"
 
-method onStop*(ext: Extension) {.base, gcsafe, raises: [].} =
-  discard # noop by default # TODO raise assert
-
 method onHeartbeat*(ext: Extension) {.base, gcsafe, raises: [].} =
   ## called on every gossipsub heartbeat.
   raiseAssert "onHeartbeat: must be implemented"
