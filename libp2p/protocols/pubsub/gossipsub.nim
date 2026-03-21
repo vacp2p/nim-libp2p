@@ -1153,7 +1153,7 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
   # stop heartbeat interval
   when defined(libp2p_gossipsub_1_4):
     g.preambleExpirationFut.cancelSoon()
-  
+
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()
