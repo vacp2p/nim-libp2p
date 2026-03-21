@@ -110,7 +110,12 @@ proc handlePreamble*(
     if ext.config.hasSeen(preamble.messageID):
       continue
 
-    let peerState = ext.peerState.getOrDefault(peerId)
+    let peerState =
+      try:
+        ext.peerState[peerId]
+      except KeyError:
+        continue
+
     if peerState.heIsSendings.hasKey(preamble.messageID):
       continue
 
@@ -140,7 +145,7 @@ proc handlePreamble*(
     ext.ongoingReceives.insert(PreambleInfo.init(preamble, peerId, startTime, expires))
 
     # Send imreceiving only if received from faster mesh members
-    if bytesPerSecond >= ext.medianDownloadRate(toSendPeers):
+    if bytesPerSecond >= ext.medianDownloadRate(toSendPeers) and peers.len > 0:
       ext.config.broadcastControl(ControlMessage.withImreceiving(preamble), peers)
 
 proc handleIMReceiving*(
@@ -198,6 +203,8 @@ proc preambleBroadcast*(
     return
 
   let broadcastToPeers = peers.filterIt(it in ext.supportingPeers)
+  if broadcastToPeers.len == 0:
+    return
   ext.config.broadcastControl(preambleMsg, broadcastToPeers)
 
 proc preambleBroadcastIfNotReceiving*(
