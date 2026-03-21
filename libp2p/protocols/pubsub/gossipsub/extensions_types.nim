@@ -9,6 +9,7 @@ type
     testExtension*: bool
     partialMessageExtension*: bool
     pingpongExtension*: bool
+    preambleExtension*: bool
 
   Extension* = ref object of RootObj
     #

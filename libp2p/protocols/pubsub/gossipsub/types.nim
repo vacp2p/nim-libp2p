@@ -162,6 +162,7 @@ type
     testExtensionConfig*: Opt[TestExtensionConfig]
     partialMessageExtensionConfig*: Opt[PartialMessageExtensionConfig]
     pingpongExtensionConfig*: Opt[PingPongExtensionConfig]
+    preambleExtensionConfig*: Opt[PreambleExtensionConfig]
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]

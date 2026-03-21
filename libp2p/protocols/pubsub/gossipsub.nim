@@ -250,7 +250,8 @@ proc usesExtensions(g: GossipSub): bool =
   return
     g.parameters.testExtensionConfig.isSome() or
     g.parameters.partialMessageExtensionConfig.isSome() or
-    g.parameters.pingpongExtensionConfig.isSome()
+    g.parameters.pingpongExtensionConfig.isSome() or
+    g.parameters.preambleExtensionConfig.isSome()
 
 proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
   proc send() =
@@ -436,27 +437,18 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     g.send(peer, RPCMsg(control: Opt.some(respControl)), isHighPriority = true)
 
   if messages.len > 0:
-    when defined(libp2p_gossipsub_1_4):
-      var preambles: seq[ControlPreamble]
-
     for i, smsg in messages:
       libp2p_pubsub_broadcast_messages.inc(labelValues = [g.topicLabel(smsg.topic)])
 
-      when defined(libp2p_gossipsub_1_4):
-        # should we send preamble here? (Not in specs so far)
-        # So receiver will send IMReciving only for preambles received from mesh members
-        preambles.add(
-          ControlPreamble(
-            topicID: smsg.topic,
-            messageID: msgIDs[i],
-            messageLength: smsg.data.len.uint32,
-          )
-        )
-
+    # should we send preamble here? (Not in specs so far)
+    # So receiver will send IMReciving only for preambles received from mesh members
+    g.extensionsState.preambleBroadcast(
+      ControlMessage.withPreamble(messages, msgIDs), @[peer.peerId]
+    )
     when defined(libp2p_gossipsub_1_4):
       g.broadcast(
         @[peer],
-        RPCMsg(control: Opt.some(ControlMessage(preamble: preambles))),
+        RPCMsg(control: Opt.some(ControlMessage.withPreamble(messages, msgIDs))),
         isHighPriority = true,
       )
 
@@ -509,20 +501,7 @@ when defined(libp2p_gossipsub_1_4):
 
     g.broadcast(
       toSendPeers.filterIt(it.codec == GossipSubCodec_14),
-      RPCMsg(
-        control: Opt.some(
-          ControlMessage(
-            preamble:
-              @[
-                ControlPreamble(
-                  topicID: msg.topic,
-                  messageID: msgId,
-                  messageLength: msg.data.len.uint32,
-                )
-              ]
-          )
-        )
-      ),
+      RPCMsg(control: Opt.some(ControlMessage.withPreamble(msg, msgId))),
       isHighPriority = true,
     )
 
@@ -604,6 +583,9 @@ proc validateAndRelay(
 
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
+    g.extensionsState.preambleBroadcastIfNotReceiving(
+      ControlMessage.withPreamble(msg, msgId), toSendPeers.mapIt(it.peerId)
+    )
     when defined(libp2p_gossipsub_1_4):
       proc isMsgInIMReceiving(it: PubSubPeer): bool =
         if it.heIsReceivings.hasKey(msgId):
@@ -732,6 +714,7 @@ method rpcHandler*(
       msgId = msgIdResult.get
       msgIdSalted = g.salt(msgId)
 
+    g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.len)
     when defined(libp2p_gossipsub_1_4):
       if msg.data.len > preambleMessageSizeThreshold:
         g.ongoingReceives.del(msgId)
@@ -983,6 +966,10 @@ method publish*(
     if not pubParams.skipIDontWant and isLargeMessage(msg, msgId):
       g.sendIDontWant(msg, msgId, peers)
 
+    if not pubParams.skipPreamble:
+      g.extensionsState.preambleBroadcast(
+        ControlMessage.withPreamble(msg, msgId), peers.mapIt(it.peerId)
+      )
     when defined(libp2p_gossipsub_1_4):
       if not pubParams.skipPreamble:
         g.sendPreamble(msg, msgId, peers)
@@ -1106,9 +1093,37 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
 
     g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
+  g.parameters.preambleExtensionConfig.withValue(c):
+    var cfg = c
+
+    if cfg.broadcastControl.isNil:
+      cfg.broadcastControl = proc(
+          msg: ControlMessage, peers: seq[PeerId]
+      ) {.gcsafe, raises: [].} =
+        let peersToBroadcast =
+          peers.filterIt(it in g.peers).mapIt(g.peers.getOrDefault(it))
+        g.broadcast(
+          peersToBroadcast, RPCMsg(control: Opt.some(msg)), isHighPriority = true
+        )
+    if cfg.hasSeen.isNil:
+      cfg.hasSeen = proc(mid: MessageId): bool {.gcsafe, raises: [].} =
+        return g.hasSeen(g.salt(mid))
+    if cfg.mashAndDirectPeersForTopic.isNil:
+      cfg.mashAndDirectPeersForTopic = proc(
+          topic: string
+      ): seq[PeerId] {.gcsafe, raises: [].} =
+        var peers = HashSet[PubSubPeer]()
+        g.mesh.withValue(topic, meshPeers):
+          peers.incl(meshPeers[])
+        peers.incl(g.subscribedDirectPeers.getOrDefault(topic))
+        return peers.toSeq().mapIt(it.peerId)
+
+    g.parameters.preambleExtensionConfig = Opt.some(cfg)
+
   return ExtensionsState.new(
     onMissbehaveExtensions, g.parameters.testExtensionConfig,
     g.parameters.partialMessageExtensionConfig, g.parameters.pingpongExtensionConfig,
+    g.parameters.preambleExtensionConfig,
   )
 
 method start*(

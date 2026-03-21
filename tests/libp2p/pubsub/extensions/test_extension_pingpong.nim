@@ -31,7 +31,7 @@ suite "GossipSub Extensions :: PingPong Extension":
   let peerId = PeerId.random(rng).get()
 
   test "isSupported":
-    let ext = PingPongExtension.new(CallbackRecorder().config())
+    let ext = PingPongExtension.new()
     check:
       ext.isSupported(PeerExtensions()) == false
       ext.isSupported(PeerExtensions(pingpongExtension: true)) == true

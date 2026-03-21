@@ -1,0 +1,296 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH
+
+import chronos, chronicles, tables, sequtils, algorithm, results
+import ../../../[peerid]
+import ../../../crypto/crypto
+import ../rpc/messages
+import ./[extensions_types, preamblestore, ../bandwidth]
+
+logScope:
+  topics = "libp2p preamble"
+
+const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
+
+type
+  PreambleExtensionConfig* = object
+    maxPreamblePeerBudget*: int = 10
+    maxHeIsReceiving*: int = 50
+    broadcastControl*:
+      proc(msg: ControlMessage, peers: seq[PeerId]) {.gcsafe, raises: [].}
+    hasSeen*: proc(mid: MessageId): bool {.gcsafe, raises: [].}
+    mashAndDirectPeersForTopic*: proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
+
+  PeerState = ref object
+    heIsReceivings*: Table[MessageId, uint32]
+    heIsSendings*: Table[MessageId, Moment]
+    bandwidthTracking: BandwidthTracking
+
+  PreambleExtension* = ref object of Extension
+    rng: ref HmacDrbgContext
+    config: PreambleExtensionConfig
+    supportingPeers: seq[PeerId]
+    preambleBudgetUsed: Table[PeerId, int]
+    peerState: Table[PeerId, PeerState]
+    ongoingReceives*: PreambleStore # list of messages we are receiving
+    ongoingIWantReceives*: PreambleStore # list of iwant replies we are receiving
+
+proc doAssert(config: PreambleExtensionConfig) =
+  doAssert(
+    config.maxPreamblePeerBudget > 0,
+    "PreambleExtensionConfig.maxPreamblePeerBudget must be positive (> 0)",
+  )
+  doAssert(
+    config.maxHeIsReceiving > 0,
+    "PreambleExtensionConfig.maxHeIsReceiving must be positive (> 0)",
+  )
+  doAssert(
+    config.broadcastControl != nil,
+    "PreambleExtensionConfig.broadcastControl must be set",
+  )
+  doAssert(config.hasSeen != nil, "PreambleExtensionConfig.hasSeen must be set")
+  doAssert(
+    config.mashAndDirectPeersForTopic != nil,
+    "PreambleExtensionConfig.mashAndDirectPeersForTopic must be set",
+  )
+
+proc new*(
+    T: typedesc[PreambleExtension], config: PreambleExtensionConfig
+): PreambleExtension =
+  config.doAssert()
+  PreambleExtension(rng: newRng(), config: config)
+
+method isSupported*(
+    ext: PreambleExtension, pe: PeerExtensions
+): bool {.gcsafe, raises: [].} =
+  return pe.preambleExtension
+
+method onNegotiated*(ext: PreambleExtension, peerId: PeerId) {.gcsafe, raises: [].} =
+  ext.supportingPeers.add(peerId)
+
+  var peerState = PeerState.new()
+  peerState.bandwidthTracking =
+    BandwidthTracking(download: ExponentialMovingAverage.init())
+  ext.peerState[peerId] = peerState
+
+method onRemovePeer*(ext: PreambleExtension, peerId: PeerId) {.gcsafe, raises: [].} =
+  let i = ext.supportingPeers.find(peerId)
+  if i != -1:
+    ext.supportingPeers.delete(i)
+
+  ext.peerState.del(peerId)
+
+proc medianValue(vals: seq[float]): float =
+  if vals.len == 0:
+    return 0
+
+  let mid = vals.len div 2
+  if vals.len mod 2 == 0:
+    (vals[mid - 1] + vals[mid]) / 2
+  else:
+    vals[mid]
+
+proc medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
+  peers
+  .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
+  .sorted()
+  .medianValue()
+
+proc handlePreamble*(
+    ext: PreambleExtension, peerId: PeerId, preambles: seq[ControlPreamble]
+) =
+  let startTime = Moment.now()
+
+  for preamble in preambles:
+    let peerUsedBudget = ext.preambleBudgetUsed.getOrDefault(peerId)
+    if peerUsedBudget >= ext.config.maxPreamblePeerBudget:
+      return
+    ext.preambleBudgetUsed[peerId] = peerUsedBudget + 1
+
+    if ext.config.hasSeen(preamble.messageID):
+      continue
+
+    let peerState =
+      try:
+        ext.peerState[peerId]
+      except KeyError:
+        continue
+
+    if peerState.heIsSendings.hasKey(preamble.messageID):
+      continue
+
+    if ext.ongoingReceives.hasKey(preamble.messageID):
+      #TODO: add to conflicts_watch if length is different
+      continue
+
+    peerState.heIsSendings[preamble.messageID] = startTime
+
+    var toSendPeers = ext.config.mashAndDirectPeersForTopic(preamble.topicID)
+    var peers = toSendPeers.filterIt(it in ext.supportingPeers)
+
+    let bytesPerSecond = peerState.bandwidthTracking.download.value()
+    let transmissionTimeMs =
+      calculateReceiveTimeMs(preamble.messageLength.int64, bytesPerSecond.int64)
+    let expires = startTime + transmissionTimeMs.milliseconds
+
+    # We send imreceiving only if received from mesh members
+    if peerId notin peers:
+      trace "preamble: ignoring out of mesh peer", peerId
+      if not ext.ongoingIWantReceives.hasKey(preamble.messageID):
+        ext.ongoingIWantReceives.insert(
+          PreambleInfo.init(preamble, peerId, startTime, expires)
+        )
+      continue
+
+    ext.ongoingReceives.insert(PreambleInfo.init(preamble, peerId, startTime, expires))
+
+    # Send imreceiving only if received from faster mesh members
+    if bytesPerSecond >= ext.medianDownloadRate(toSendPeers) and peers.len > 0:
+      ext.config.broadcastControl(ControlMessage.withImreceiving(preamble), peers)
+
+proc handleIMReceiving*(
+    ext: PreambleExtension, peerId: PeerId, imreceivings: seq[ControlIMReceiving]
+) =
+  for imreceiving in imreceivings:
+    let peerState = ext.peerState.getOrDefault(peerId)
+    if peerState.heIsReceivings.len > ext.config.maxHeIsReceiving:
+      return
+
+    # Ignore if message length is different
+    ext.ongoingReceives.withValue(imreceiving.messageID, pInfo):
+      if pInfo.messageLength != imreceiving.messageLength:
+        continue
+
+    peerState.heIsReceivings[imreceiving.messageID] = imreceiving.messageLength
+    # No need to check mcache. In that case, we might have already transmitted/transmitting
+
+proc addPossiblePeerToQuery(
+    ext: PreambleExtension, peerId: PeerId, messageId: MessageId
+) =
+  ext.ongoingReceives.addPossiblePeerToQuery(messageId, peerId)
+  ext.ongoingIWantReceives.addPossiblePeerToQuery(messageId, peerId)
+
+proc handleIDontWant(
+    ext: PreambleExtension, peerId: PeerId, iDontWants: seq[ControlIWant]
+) =
+  try:
+    var peerState = ext.peerState[peerId]
+    for dontWant in iDontWants:
+      for messageId in dontWant.messageIDs:
+        peerState.heIsReceivings.del(messageId)
+        ext.addPossiblePeerToQuery(peerId, messageId)
+  except KeyError:
+    discard
+
+proc handleIHave*(ext: PreambleExtension, peerId: PeerId, messageId: MessageId): bool =
+  if ext.ongoingReceives.hasKey(messageId) or ext.ongoingIWantReceives.hasKey(messageId):
+    ext.addPossiblePeerToQuery(peerId, messageId)
+    return true
+  return false
+
+method onHandleRPC*(
+    ext: PreambleExtension, peerId: PeerId, rpc: RPCMsg
+) {.gcsafe, raises: [].} =
+  rpc.control.withValue(control):
+    ext.handlePreamble(peerId, control.preamble)
+    ext.handleIMReceiving(peerId, control.imreceiving)
+    ext.handleIDontWant(peerId, control.idontwant)
+
+proc preambleBroadcast*(
+    ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
+) =
+  if preambleMsg.preamble.len == 0: # no preambles, skip sending
+    return
+
+  let broadcastToPeers = peers.filterIt(it in ext.supportingPeers)
+  if broadcastToPeers.len == 0:
+    return
+  ext.config.broadcastControl(preambleMsg, broadcastToPeers)
+
+proc preambleBroadcastIfNotReceiving*(
+    ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
+) =
+  proc isMsgInIMReceiving(peerId: PeerId): bool =
+    let msgId =
+      try:
+        preambleMsg.preamble[0].messageID
+      except KeyError:
+        return false
+
+    let peerState = ext.peerState.getOrDefault(peerId)
+    if peerState.heIsReceivings.hasKey(msgId):
+      # libp2p_gossipsub_imreceiving_saved_messages.inc
+      return true
+    return false
+
+  let broadcastToPeers = peers.filterIt(isMsgInIMReceiving(it))
+  ext.preambleBroadcast(preambleMsg, broadcastToPeers)
+
+proc preambleMsgReceived*(
+    ext: PreambleExtension, peerId: PeerId, msgId: MessageId, msgLen: int
+) =
+  if msgLen < preambleMessageSizeThreshold:
+    return
+
+  ext.ongoingReceives.del(msgId)
+  ext.ongoingIWantReceives.del(msgId)
+
+  try:
+    var peerState = ext.peerState[peerId]
+    var startTime: Moment
+    if peerState.heIsSendings.pop(msgId, startTime):
+      peerState.bandwidthTracking.download.update(startTime, msgLen)
+  except KeyError:
+    discard
+
+proc selectFirstPeerFromSupporting(
+    ext: PreambleExtension, possiblePeers: seq[PeerId]
+): Opt[PeerId] =
+  for peerId in possiblePeers:
+    if peerId in ext.supportingPeers:
+      return Opt.some(peerId)
+  return Opt.none(PeerId)
+
+proc preambleExpirationTick*(ext: PreambleExtension) =
+  let now = Moment.now()
+
+  while true:
+    var expired = ext.ongoingReceives.popExpired(now).valueOr:
+      break
+
+    # todo +0.1 behaviour
+
+    var possiblePeers = expired.possiblePeersToQuery()
+    ext.rng.shuffle(possiblePeers)
+
+    let chosenPeer = ext.selectFirstPeerFromSupporting(possiblePeers)
+    if chosenPeer.isNone:
+      trace "no peer available to send IWANT for an expiredOngoingReceive",
+        messageID = expired.messageId
+      continue
+
+    let startsAt = Moment.now()
+    ext.config.broadcastControl(
+      ControlMessage.withIWant(expired.messageId), @[chosenPeer.get()]
+    )
+
+    let peerState = ext.peerState.getOrDefault(chosenPeer.get())
+    let bytesPerSecond = peerState.bandwidthTracking.download.value()
+    let transmissionTimeMs =
+      calculateReceiveTimeMs(expired.messageLength.int64, bytesPerSecond.int64)
+    let expires = startsAt + transmissionTimeMs.milliseconds
+
+    expired.startsAt = startsAt
+    expired.expiresAt = expires
+    expired.sender = chosenPeer.get()
+    ext.ongoingIWantReceives.insert(expired)
+
+  while true:
+    let expiredIWant = ext.ongoingIWantReceives.popExpired(now).valueOr:
+      break
+    # TODO: what should we do here?
+    discard expiredIWant
+
+method onHeartbeat*(ext: PreambleExtension) {.gcsafe, raises: [].} =
+  ext.preambleBudgetUsed.clear()
+  ext.preambleExpirationTick()

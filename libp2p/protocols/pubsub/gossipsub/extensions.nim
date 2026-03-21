@@ -7,11 +7,12 @@ import ../rpc/messages
 import
   ./[
     extensions_types, extension_test, extension_partial_message, partial_message,
-    extension_pingpong,
+    extension_pingpong, extension_preamble,
   ]
 
 export
-  TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts, PingPongExtensionConfig
+  TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts,
+  PingPongExtensionConfig, PreambleExtensionConfig
 
 type OnMisbehaveProc* = proc(peer: PeerId) {.gcsafe, raises: [].}
 
@@ -29,8 +30,9 @@ type ExtensionsState* = ref object
   extensions: seq[Extension]
     # list of all extensions. state will delegate events to all elements of this list.
   partialMessageExtension: Opt[PartialMessageExtension]
-    # partialMessageExtension is needed to expose specific functionality of PartialMessageExtension 
-    # via state.
+    # partialMessageExtension is needed to expose specific functionality of PartialMessageExtension via state.
+  preambleExtension: Opt[PreambleExtension]
+    # preambleExtension is needed to expose specific functionality of PreambleExtension via state.
 
 proc new*(
     T: typedesc[ExtensionsState],
@@ -40,6 +42,8 @@ proc new*(
       Opt.none(PartialMessageExtensionConfig),
     pingpongExtensionConfig: Opt[PingPongExtensionConfig] =
       Opt.none(PingPongExtensionConfig),
+    preambleExtensionConfig: Opt[PreambleExtensionConfig] =
+      Opt.none(PreambleExtensionConfig),
     externalExtensions: seq[Extension] = @[],
       # external extensions are created outside of state and they are added to 
       # state's extensions list.
@@ -50,6 +54,7 @@ proc new*(
   var extensions = newSeq[Extension]()
   var partialMessageExtension: Opt[PartialMessageExtension] =
     Opt.none(PartialMessageExtension)
+  var preambleExtension: Opt[PreambleExtension] = Opt.none(PreambleExtension)
 
   testExtensionConfig.withValue(c):
     extensions.add(TestExtension.new(c))
@@ -68,6 +73,11 @@ proc new*(
     extensions.add(PingPongExtension.new(c))
     nodeExtensions.pingpongExtension = Opt.some(true)
 
+  preambleExtensionConfig.withValue(c):
+    preambleExtension = Opt.some(PreambleExtension.new(c))
+    extensions.add(preambleExtension.get())
+    nodeExtensions.preambleExtension = Opt.some(true)
+
   extensions.add(externalExtensions)
 
   state = T(
@@ -76,6 +86,7 @@ proc new*(
     nodeExtensions: nodeExtensions,
     extensions: extensions,
     partialMessageExtension: partialMessageExtension,
+    preambleExtension: preambleExtension,
   )
   return state
 
@@ -86,11 +97,14 @@ proc toPeerExtensions(ce: ControlExtensions): PeerExtensions =
     false
   let pingpongExtension = ce.pingpongExtension.valueOr:
     false
+  let preambleExtension = ce.preambleExtension.valueOr:
+    false
 
   PeerExtensions(
     testExtension: testExtension,
     partialMessageExtension: partialMessageExtension,
     pingpongExtension: pingpongExtension,
+    preambleExtension: preambleExtension,
   )
 
 proc onHandleRPC(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
@@ -182,3 +196,28 @@ proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string)
     # should not raise, because this is called whenever IDONTWANT is being sent.
     # so when extension is not configured it should return false, backwards compatible behavior.
     return false
+
+proc preambleBroadcast*(
+    state: ExtensionsState, preambleMsg: ControlMessage, peers: seq[PeerId]
+) =
+  state.preambleExtension.withValue(e):
+    e.preambleBroadcast(preambleMsg, peers)
+
+proc preambleBroadcastIfNotReceiving*(
+    state: ExtensionsState, preambleMsg: ControlMessage, peers: seq[PeerId]
+) =
+  state.preambleExtension.withValue(e):
+    e.preambleBroadcastIfNotReceiving(preambleMsg, peers)
+
+proc preambleMsgReceived*(
+    state: ExtensionsState, peerId: PeerId, msgId: MessageId, msgLen: int
+) =
+  state.preambleExtension.withValue(e):
+    e.preambleMsgReceived(peerId, msgId, msgLen)
+
+proc preambleHandleIHave*(
+    state: ExtensionsState, peerId: PeerId, msgId: MessageId
+): bool =
+  state.preambleExtension.withValue(e):
+    return e.handleIHave(peerId, msgId)
+  return false
