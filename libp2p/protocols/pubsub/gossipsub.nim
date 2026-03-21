@@ -1103,9 +1103,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
         let peersToBroadcast =
           peers.filterIt(it in g.peers).mapIt(g.peers.getOrDefault(it))
         g.broadcast(
-          peersToBroadcast,
-          RPCMsg(control: Opt.some(msg)),
-          isHighPriority = true,
+          peersToBroadcast, RPCMsg(control: Opt.some(msg)), isHighPriority = true
         )
     if cfg.hasSeen.isNil:
       cfg.hasSeen = proc(mid: MessageId): bool {.gcsafe, raises: [].} =
