@@ -6,6 +6,7 @@ import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash]
 import ../protocol
 import ./[routingtable, protobuf, types, kademlia_metrics]
+from times import getTime, Time, toUnix, fromUnix, `-`, initTime, `$`, inMilliseconds
 
 logScope:
   topics = "kad-dht find"
@@ -20,6 +21,58 @@ type LookupState* = object
   shortlist*: Table[PeerId, XorDistance]
   responded*: Table[PeerId, RespondedStatus]
   attempts*: Table[PeerId, int]
+
+type LookupPeerLog* = tuple[
+  pid: string,       # full base58
+  dist: string,      # stringify XorDistance
+  responded: string, # stringify RespondedStatus
+  attempts: int
+]
+
+func hexLower*(d: XorDistance): string {.raises: [].} =
+  ## 32 bytes -> 64 hex chars
+  toHex(d, lowercase = true)
+
+func `$`*(d: XorDistance): string {.raises: [].} =
+  hexLower(d)
+
+
+proc lookupPeersLog*(state: LookupState): seq[LookupPeerLog] {.raises: [].} =
+  var all: HashSet[PeerId]
+  for pid in state.attempts.keys:   all.incl(pid)
+  for pid in state.responded.keys:  all.incl(pid)
+  for pid in state.shortlist.keys:  all.incl(pid)
+
+  result = newSeqOfCap[LookupPeerLog](all.len)
+
+  for pid in all.items:
+    let attempts = state.attempts.getOrDefault(pid, 0)
+
+    let respondedStr =
+      if state.responded.hasKey(pid):
+        $state.responded.getOrDefault(pid)   # no KeyError
+      else:
+        "missing"
+
+    let distStr =
+      if state.shortlist.hasKey(pid):
+        hexLower(state.shortlist.getOrDefault(pid))
+      else:
+        "missing"
+
+    result.add((pid: $pid, dist: distStr, responded: respondedStr, attempts: attempts))
+
+  result.sort(proc(a, b: LookupPeerLog): int =
+    result = cmp(b.attempts, a.attempts)
+    if result == 0: result = cmp(a.pid, b.pid)
+  )
+
+func keyShortLog*(k: Key): PeerId {.raises: [].} =
+  ## Prefer PeerId if `k` happens to be a valid PeerId byte form; otherwise hex.
+  let pidRes = PeerId.init(k)         # Result[PeerId, cstring]
+  if pidRes.isOk():
+    return pidRes.get()
+
 
 type DispatchProc* = proc(kad: KadDHT, peer: PeerId, target: Key): Future[Opt[Message]] {.
   async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
@@ -215,7 +268,7 @@ method findNode*(
     kad: KadDHT, target: Key, queue = newAsyncQueue[(PeerId, Opt[Message])]()
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a `target` key.
-
+  let start = getTime()
   let ignoreReply = proc(
       peerId: PeerId, msgOpt: Opt[Message], _: var LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
@@ -235,6 +288,9 @@ method findNode*(
     return await dispatchFindNode(kad, peer, target)
 
   let state = await kad.iterativeLookup(target, dispatchFind, ignoreReply, stop)
+  let duration = (getTime() - start).inMilliseconds()
+  let target_id = keyShortLog(target)
+  info "Lookup finished", target = target_id, duration_ms = duration, peers = state.lookupPeersLog()
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 

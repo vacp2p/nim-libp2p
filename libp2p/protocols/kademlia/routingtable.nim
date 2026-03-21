@@ -76,7 +76,9 @@ proc updateRoutingTableMetrics*(rtable: RoutingTable) =
 
 proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
-    debug "Cannot insert self in routing table", nodeId = nodeId
+    let key = PeerId.init(nodeId).get()
+
+    debug "Cannot insert self in routing table", peerId = key
     return false # No self insertion
 
   let idx = bucketIndex(rtable.selfId, nodeId, rtable.config.hasher)

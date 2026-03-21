@@ -36,7 +36,7 @@ type
 
 func shortLog*(p: PeerInfo): auto =
   (
-    peerId: $p.peerId,
+    peerId: p.peerId,
     listenAddrs: mapIt(p.listenAddrs, $it),
     addrs: mapIt(p.addrs, $it),
     protocols: mapIt(p.protocols, $it),
