@@ -30,12 +30,6 @@ import
 
 export types, scoring, behavior, pubsub, results
 
-when defined(libp2p_gossipsub_1_4):
-  {.
-    error:
-      "-d:libp2p_gossipsub_1_4 has become obsolete! Use GossipSub Preamble extensions."
-  .}
-
 logScope:
   topics = "libp2p gossipsub"
 
@@ -1060,7 +1054,7 @@ method start*(
 ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
   trace "gossipsub start"
 
-  if not g.heartbeatFut.isNil:
+  if g.started:
     warn "Starting gossipsub twice"
     return newFutureCompleted[void]()
 
@@ -1072,15 +1066,15 @@ method start*(
 
 method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
   trace "gossipsub stop"
-  g.started = false
-  if g.heartbeatFut.isNil:
+
+  if not g.started:
     warn "Stopping gossipsub without starting it"
     return newFutureCompleted[void]()
 
+  g.started = false
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
   g.heartbeatFut.cancelSoon()
-  g.heartbeatFut = nil
   newFutureCompleted[void]()
 
 method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
