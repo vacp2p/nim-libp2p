@@ -6,7 +6,7 @@
 {.push raises: [].}
 
 import std/[sets, sequtils]
-import chronos, chronicles, metrics
+import chronos, chronicles, metrics, results
 import chronos/ratelimit
 import
   ./pubsub,
@@ -26,8 +26,7 @@ import
 
 when defined(libp2p_gossipsub_1_4):
   import ./bandwidth
-
-import results
+  
 export results
 
 import
