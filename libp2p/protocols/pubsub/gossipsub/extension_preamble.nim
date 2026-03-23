@@ -101,6 +101,11 @@ func medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
 
 proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Preamble]) =
   let startTime = Moment.now()
+  let peerState =
+    try:
+      ext.peerState[peerId]
+    except KeyError:
+      return
 
   for preamble in preambles:
     let peerUsedBudget = ext.preambleBudgetUsed.getOrDefault(peerId)
@@ -110,12 +115,6 @@ proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Prea
 
     if ext.config.hasSeen(preamble.messageID):
       continue
-
-    let peerState =
-      try:
-        ext.peerState[peerId]
-      except KeyError:
-        continue
 
     if peerState.heIsSendings.hasKey(preamble.messageID):
       continue
