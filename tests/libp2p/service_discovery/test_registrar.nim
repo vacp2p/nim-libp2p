@@ -912,11 +912,7 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
     let adBuf = ad.encode().get()
 
     var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: 1_000,
-      tMod: 1_100,
-      tWaitFor: 50,
-      signature: @[],
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
