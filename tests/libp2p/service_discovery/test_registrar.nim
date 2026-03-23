@@ -793,7 +793,6 @@ suite "Kademlia Discovery Registrar - Register Message Validation":
     check decoded.get().data.peerId == ad.data.peerId
     check decoded.get().data.seqNo == ad.data.seqNo
 
-
 suite "Kademlia Discovery Registrar - Retry Ticket Processing":
   test "processRetryTicket returns original wait time when no ticket is present":
     let disco = createMockDiscovery()
