@@ -196,9 +196,14 @@ method onHandleRPC*(
     ext.handleIMReceiving(peerId, control.imreceiving)
     ext.handleIDontWant(peerId, control.idontwant)
 
+func filterOutMessagesBelowThreshold(msg: ControlMessage): ControlMessage =
+  let preamble = msg.preamble.filterIt(it.messageLength >= preambleMessageSizeThreshold)
+  return ControlMessage(preamble: preamble)
+
 proc preambleBroadcast*(
-    ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
+    ext: PreambleExtension, msg: ControlMessage, peers: seq[PeerId]
 ) =
+  let preambleMsg = filterOutMessagesBelowThreshold(msg)
   if preambleMsg.preamble.len == 0: # no preambles, skip sending
     return
 

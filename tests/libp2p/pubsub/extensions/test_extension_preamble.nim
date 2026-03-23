@@ -13,7 +13,7 @@ import
   ]
 import ../../../tools/[unittest, crypto]
 
-const largeMsgLen = preambleMessageSizeThreshold + 1024
+const largeMsgLen = preambleMessageSizeThreshold
 const smallMsgLen = preambleMessageSizeThreshold - 1
 
 type BroadcastedControl = object
@@ -396,6 +396,17 @@ suite "GossipSub Extensions :: Preamble Extension":
     ext.preambleBroadcast(preambleMsg, @[peerId, peerId2])
 
     check cr.broadcastedControls == @[BC(preambleMsg, @[peerId])]
+
+  test "preambleBroadcast: skips messages below size threshold":
+    var cr = CallbackRecorder()
+    let ext = PreambleExtension.new(cr.makeConfig())
+    ext.onNegotiated(peerId)
+
+    let msg = ControlMessage(
+      preamble: @[makePreamble(msgId1, messageLength = smallMsgLen.uint32)]
+    )
+    ext.preambleBroadcast(msg, @[peerId])
+    check cr.broadcastedControls.len == 0
 
   test "preambleBroadcast: skips empty preamble list":
     var cr = CallbackRecorder()

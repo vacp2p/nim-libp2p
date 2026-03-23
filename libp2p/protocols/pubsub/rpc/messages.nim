@@ -339,20 +339,16 @@ proc byteSize*(rpc: RPCMsg): int =
   rpc.pingpongExtension.withValue(ppe):
     result += ppe.byteSize
 
-# TODO reuse const
-const preambleMessageSizeThreshold = 40 * 1024 # 40KiB
-
 proc withPreamble*(
     _: typedesc[ControlMessage], msgs: seq[Message], msgIds: seq[MessageId]
 ): ControlMessage =
   var preambles: seq[ControlPreamble]
   for i, m in msgs:
-    if m.data.len < preambleMessageSizeThreshold:
-      preambles.add(
-        ControlPreamble(
-          topicID: m.topic, messageID: msgIds[i], messageLength: m.data.len.uint32
-        )
+    preambles.add(
+      ControlPreamble(
+        topicID: m.topic, messageID: msgIds[i], messageLength: m.data.len.uint32
       )
+    )
   ControlMessage(preamble: preambles)
 
 proc withPreamble*(
