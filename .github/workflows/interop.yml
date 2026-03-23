@@ -36,6 +36,7 @@ jobs:
           # the same name as "transport-interop" artifacts
           test-results-suffix: transport-interop
           extra-versions: ${{ github.workspace }}/interop/transport/version.json
+          worker-count: 4
 
   # run-hole-punching-interop:
   #   name: Run hole punching interoperability tests
