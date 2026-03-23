@@ -21,8 +21,7 @@ type
   PreambleExtensionConfig* = object
     maxPreamblePeerBudget*: int = 10
     maxHeIsReceiving*: int = 50
-    broadcastControl*:
-      proc(msg: ControlMessage, peers: seq[PeerId]) {.gcsafe, raises: [].}
+    broadcastRPC*: proc(msg: RPCMsg, peers: seq[PeerId]) {.gcsafe, raises: [].}
     hasSeen*: proc(mid: MessageId): bool {.gcsafe, raises: [].}
     mashAndDirectPeersForTopic*: proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
 
@@ -50,8 +49,7 @@ proc doAssert(config: PreambleExtensionConfig) =
     "PreambleExtensionConfig.maxHeIsReceiving must be positive (> 0)",
   )
   doAssert(
-    config.broadcastControl != nil,
-    "PreambleExtensionConfig.broadcastControl must be set",
+    config.broadcastRPC != nil, "PreambleExtensionConfig.broadcastRPC must be set"
   )
   doAssert(config.hasSeen != nil, "PreambleExtensionConfig.hasSeen must be set")
   doAssert(
@@ -101,9 +99,7 @@ proc medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
   .sorted()
   .medianValue()
 
-proc handlePreamble*(
-    ext: PreambleExtension, peerId: PeerId, preambles: seq[ControlPreamble]
-) =
+proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Preamble]) =
   let startTime = Moment.now()
 
   for preamble in preambles:
@@ -151,10 +147,10 @@ proc handlePreamble*(
 
     # Send imreceiving only if received from faster mesh members
     if bytesPerSecond >= ext.medianDownloadRate(toSendPeers) and peers.len > 0:
-      ext.config.broadcastControl(ControlMessage.withImreceiving(preamble), peers)
+      ext.config.broadcastRPC(RPCMsg.withIMReceiving(preamble), peers)
 
 proc handleIMReceiving*(
-    ext: PreambleExtension, peerId: PeerId, imreceivings: seq[ControlIMReceiving]
+    ext: PreambleExtension, peerId: PeerId, imreceivings: seq[IMReceiving]
 ) =
   for imreceiving in imreceivings:
     let peerState = ext.peerState.getOrDefault(peerId)
@@ -196,33 +192,34 @@ proc handleIHave*(ext: PreambleExtension, peerId: PeerId, messageId: MessageId):
 method onHandleRPC*(
     ext: PreambleExtension, peerId: PeerId, rpc: RPCMsg
 ) {.gcsafe, raises: [].} =
-  rpc.control.withValue(control):
-    ext.handlePreamble(peerId, control.preamble)
-    ext.handleIMReceiving(peerId, control.imreceiving)
-    ext.handleIDontWant(peerId, control.idontwant)
+  rpc.preambleExtension.withValue(v):
+    ext.handlePreamble(peerId, v.preamble)
+    ext.handleIMReceiving(peerId, v.imreceiving)
+  rpc.control.withValue(v):
+    ext.handleIDontWant(peerId, v.idontwant)
 
-func filterOutMessagesBelowThreshold(msg: ControlMessage): ControlMessage =
-  let preamble = msg.preamble.filterIt(it.messageLength >= preambleMessageSizeThreshold)
-  return ControlMessage(preamble: preamble)
+func filterOutMessagesBelowThreshold(msg: RPCMsg): RPCMsg =
+  let preamble = msg.preambleExtension.get().preamble.filterIt(
+      it.messageLength >= preambleMessageSizeThreshold
+    )
+  return RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(preamble: preamble)))
 
-proc preambleBroadcast*(
-    ext: PreambleExtension, msg: ControlMessage, peers: seq[PeerId]
-) =
-  let preambleMsg = filterOutMessagesBelowThreshold(msg)
-  if preambleMsg.preamble.len == 0: # no preambles, skip sending
+proc preambleBroadcast*(ext: PreambleExtension, msg: RPCMsg, peers: seq[PeerId]) =
+  let msgFiltered = filterOutMessagesBelowThreshold(msg)
+  if msgFiltered.preambleExtension.get().preamble.len == 0: # no preambles, skip sending
     return
 
   let broadcastToPeers = peers.filterIt(it in ext.supportingPeers)
   if broadcastToPeers.len == 0:
     return
-  ext.config.broadcastControl(preambleMsg, broadcastToPeers)
+  ext.config.broadcastRPC(msgFiltered, broadcastToPeers)
 
 proc preambleBroadcastIfNotReceiving*(
-    ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
+    ext: PreambleExtension, msg: RPCMsg, peers: seq[PeerId]
 ) =
   proc isMsgInIMReceiving(peerId: PeerId): bool =
     try:
-      let msgId = preambleMsg.preamble[0].messageID
+      let msgId = msg.preambleExtension.get().preamble[0].messageID
       let peerState = ext.peerState[peerId]
       if peerState.heIsReceivings.hasKey(msgId):
         libp2p_gossipsub_imreceiving_saved_messages.inc
@@ -232,7 +229,7 @@ proc preambleBroadcastIfNotReceiving*(
     return false
 
   let broadcastToPeers = peers.filterIt(isMsgInIMReceiving(it))
-  ext.preambleBroadcast(preambleMsg, broadcastToPeers)
+  ext.preambleBroadcast(msg, broadcastToPeers)
 
 proc preambleMsgReceived*(
     ext: PreambleExtension, peerId: PeerId, msgId: MessageId, msgLen: int
@@ -266,8 +263,6 @@ proc preambleExpirationTick*(ext: PreambleExtension) =
     var expired = ext.ongoingReceives.popExpired(now).valueOr:
       break
 
-    # todo +0.1 behaviour
-
     var possiblePeers = expired.possiblePeersToQuery()
     ext.rng.shuffle(possiblePeers)
 
@@ -278,8 +273,9 @@ proc preambleExpirationTick*(ext: PreambleExtension) =
       continue
 
     let startsAt = Moment.now()
-    ext.config.broadcastControl(
-      ControlMessage.withIWant(expired.messageId), @[chosenPeer.get()]
+    ext.config.broadcastRPC(
+      RPCMsg(control: Opt.some(ControlMessage.withIWant(expired.messageId))),
+      @[chosenPeer.get()],
     )
 
     let peerState = ext.peerState.getOrDefault(chosenPeer.get())

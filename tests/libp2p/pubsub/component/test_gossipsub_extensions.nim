@@ -175,7 +175,7 @@ suite "GossipSub Component - Extensions":
     const topic = "preamble-topic"
     let messageID = @[1.byte, 2, 3, 4]
 
-    var receivedImReceiving: seq[ControlIMReceiving]
+    var receivedImReceiving: seq[IMReceiving]
 
     let
       numberOfNodes = 2
@@ -192,8 +192,8 @@ suite "GossipSub Component - Extensions":
     n1.addObserver(
       PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
-          msgs.control.withValue(ctrl):
-            for ir in ctrl.imreceiving:
+          msgs.preambleExtension.withValue(pe):
+            for ir in pe.imreceiving:
               receivedImReceiving.add(ir)
       )
     )
@@ -208,19 +208,14 @@ suite "GossipSub Component - Extensions":
     # n1 sends a preamble to n0 announcing a large incoming message
     n1.send(
       n1.peers[n0.peerInfo.peerId],
-      RPCMsg(
-        control: Opt.some(
-          ControlMessage(
-            preamble:
-              @[
-                ControlPreamble(
-                  topicID: topic,
-                  messageID: messageID,
-                  messageLength: preambleMessageSizeThreshold,
-                )
-              ]
+      RPCMsg.withPreamble(
+        @[
+          Preamble(
+            topicID: topic,
+            messageID: messageID,
+            messageLength: preambleMessageSizeThreshold,
           )
-        )
+        ]
       ),
       isHighPriority = false,
     )

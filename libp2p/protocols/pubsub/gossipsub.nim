@@ -431,7 +431,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     # should we send preamble here? (Not in specs so far)
     # So receiver will send IMReciving only for preambles received from mesh members
     g.extensionsState.preambleBroadcast(
-      ControlMessage.withPreamble(messages, msgIDs), @[peer.peerId]
+      RPCMsg.withPreamble(messages, msgIDs), @[peer.peerId]
     )
 
     # iwant replies have lower priority
@@ -551,7 +551,7 @@ proc validateAndRelay(
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     g.extensionsState.preambleBroadcastIfNotReceiving(
-      ControlMessage.withPreamble(msg, msgId), toSendPeers.mapIt(it.peerId)
+      RPCMsg.withPreamble(msg, msgId), toSendPeers.mapIt(it.peerId)
     )
 
     # In theory, if topics are the same in all messages, we could batch - we'd
@@ -907,7 +907,7 @@ method publish*(
 
     if not pubParams.skipPreamble:
       g.extensionsState.preambleBroadcast(
-        ControlMessage.withPreamble(msg, msgId), peers.mapIt(it.peerId)
+        RPCMsg.withPreamble(msg, msgId), peers.mapIt(it.peerId)
       )
 
   g.broadcast(
@@ -1032,15 +1032,11 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
   g.parameters.preambleExtensionConfig.withValue(c):
     var cfg = c
 
-    if cfg.broadcastControl.isNil:
-      cfg.broadcastControl = proc(
-          msg: ControlMessage, peers: seq[PeerId]
-      ) {.gcsafe, raises: [].} =
+    if cfg.broadcastRPC.isNil:
+      cfg.broadcastRPC = proc(msg: RPCMsg, peers: seq[PeerId]) {.gcsafe, raises: [].} =
         let peersToBroadcast =
           peers.filterIt(it in g.peers).mapIt(g.peers.getOrDefault(it))
-        g.broadcast(
-          peersToBroadcast, RPCMsg(control: Opt.some(msg)), isHighPriority = true
-        )
+        g.broadcast(peersToBroadcast, msg, isHighPriority = true)
     if cfg.hasSeen.isNil:
       cfg.hasSeen = proc(mid: MessageId): bool {.gcsafe, raises: [].} =
         return g.hasSeen(g.salt(mid))

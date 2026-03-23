@@ -197,17 +197,15 @@ proc peerRequestsPartial*(state: ExtensionsState, peerId: PeerId, topic: string)
     # so when extension is not configured it should return false, backwards compatible behavior.
     return false
 
-proc preambleBroadcast*(
-    state: ExtensionsState, preambleMsg: ControlMessage, peers: seq[PeerId]
-) =
+proc preambleBroadcast*(state: ExtensionsState, msg: RPCMsg, peers: seq[PeerId]) =
   state.preambleExtension.withValue(e):
-    e.preambleBroadcast(preambleMsg, peers)
+    e.preambleBroadcast(msg, peers)
 
 proc preambleBroadcastIfNotReceiving*(
-    state: ExtensionsState, preambleMsg: ControlMessage, peers: seq[PeerId]
+    state: ExtensionsState, msg: RPCMsg, peers: seq[PeerId]
 ) =
   state.preambleExtension.withValue(e):
-    e.preambleBroadcastIfNotReceiving(preambleMsg, peers)
+    e.preambleBroadcastIfNotReceiving(msg, peers)
 
 proc preambleMsgReceived*(
     state: ExtensionsState, peerId: PeerId, msgId: MessageId, msgLen: int
