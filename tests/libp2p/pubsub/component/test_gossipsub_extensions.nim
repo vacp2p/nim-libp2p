@@ -173,9 +173,6 @@ suite "GossipSub Component - Extensions":
 
   asyncTest "Preamble Extension":
     const topic = "preamble-topic"
-    let messageID = @[1.byte, 2, 3, 4]
-
-    var receivedImReceiving: seq[IMReceiving]
 
     let
       numberOfNodes = 2
@@ -183,12 +180,14 @@ suite "GossipSub Component - Extensions":
           numberOfNodes,
           gossip = true,
           preambleExtensionConfig = Opt.some(PreambleExtensionConfig()),
+          sendIDontWantOnPublish = true,
         )
         .toGossipSub()
       n0 = nodes[0]
       n1 = nodes[1]
 
     # Capture IMReceiving messages received by n1 (sent by n0 after processing the preamble)
+    var receivedImReceiving: seq[IMReceiving]
     n1.addObserver(
       PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
@@ -205,21 +204,11 @@ suite "GossipSub Component - Extensions":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
-    # n1 sends a preamble to n0 announcing a large incoming message
-    n1.send(
-      n1.peers[n0.peerInfo.peerId],
-      RPCMsg.withPreamble(
-        @[
-          Preamble(
-            topicID: topic,
-            messageID: messageID,
-            messageLength: preambleMessageSizeThreshold,
-          )
-        ]
-      ),
-      isHighPriority = false,
-    )
+    # publishing large message should publish preamble (n0 will receive preamble as well).
+    let msgLength = preambleMessageSizeThreshold + 4 # some large message length
+    discard await n1.publish(topic, newSeq[byte](msgLength))
 
-    # n0 should process the preamble and broadcast IMReceiving back to n1
+    # node n1 should receive IMReceiving right after it broadcasted preamble.
     checkUntilTimeout:
-      receivedImReceiving.anyIt(it.messageID == messageID)
+      receivedImReceiving.len == 1
+      receivedImReceiving[0].messageLength == msgLength.uint32
