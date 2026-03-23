@@ -25,7 +25,7 @@ import
   ../../switch
 
 when defined(libp2p_gossipsub_1_4):
-  import ./bandwidth
+  {.error: "-d:libp2p_gossipsub_1_4 has became obsolete! Use GossipSub Preamble extensions.".}
   
 export results
 
@@ -51,11 +51,6 @@ declareCounter(
 declareCounter(
   libp2p_gossipsub_idontwant_saved_messages, "number of duplicates avoided by idontwant"
 )
-when defined(libp2p_gossipsub_1_4):
-  declareCounter(
-    libp2p_gossipsub_imreceiving_saved_messages,
-    "number of duplicates avoided by imreceiving",
-  )
 declareCounter(
   libp2p_gossipsub_saved_bytes,
   "bytes saved by gossipsub optimizations",
@@ -72,7 +67,7 @@ when defined(libp2p_expensive_metrics):
   )
 
 proc gossipExtensionsSupported(proto: string): bool =
-  return proto == GossipSubCodec_13 or proto == GossipSubCodec_14
+  return proto == GossipSubCodec_13
 
 proc init*(
     _: type[GossipSubParams],
@@ -237,9 +232,6 @@ method init*(g: GossipSub) =
 
   g.handler = handler
 
-  when defined(libp2p_gossipsub_1_4):
-    g.codecs &= GossipSubCodec_14
-
   g.codecs &= GossipSubCodec_13
   g.codecs &= GossipSubCodec_12
   g.codecs &= GossipSubCodec_11
@@ -294,9 +286,6 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
     g.disconnectIfBadScorePeer(peer, stats.score)
 
   peer.iHaveBudget = IHavePeerBudget
-
-  when defined(libp2p_gossipsub_1_4):
-    peer.preambleBudget = PreamblePeerBudget
 
   if g.usesExtensions():
     # if gossipsub uses extensions it must send 
@@ -411,9 +400,6 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
   var respControl: ControlMessage
   g.handleIDontWant(peer, control.idontwant)
-  when defined(libp2p_gossipsub_1_4):
-    g.handlePreamble(peer, control.preamble)
-    g.handleIMReceiving(peer, control.imreceiving)
   let iwant = g.handleIHave(peer, control.ihave)
   if iwant.messageIDs.len > 0:
     respControl.iwant.add(iwant)
@@ -444,12 +430,6 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
     g.extensionsState.preambleBroadcast(
       ControlMessage.withPreamble(messages, msgIDs), @[peer.peerId]
     )
-    when defined(libp2p_gossipsub_1_4):
-      g.broadcast(
-        @[peer],
-        RPCMsg(control: Opt.some(ControlMessage.withPreamble(messages, msgIDs))),
-        isHighPriority = true,
-      )
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
@@ -488,21 +468,6 @@ proc sendIDontWant(
     ),
     isHighPriority = true,
   )
-
-when defined(libp2p_gossipsub_1_4):
-  const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
-
-  proc sendPreamble(
-      g: GossipSub, msg: Message, msgId: MessageId, toSendPeers: var HashSet[PubSubPeer]
-  ) =
-    if msg.data.len < preambleMessageSizeThreshold:
-      return
-
-    g.broadcast(
-      toSendPeers.filterIt(it.codec == GossipSubCodec_14),
-      RPCMsg(control: Opt.some(ControlMessage.withPreamble(msg, msgId))),
-      isHighPriority = true,
-    )
 
 const iDontWantMessageSizeThreshold* = 512
 
@@ -585,27 +550,6 @@ proc validateAndRelay(
     g.extensionsState.preambleBroadcastIfNotReceiving(
       ControlMessage.withPreamble(msg, msgId), toSendPeers.mapIt(it.peerId)
     )
-    when defined(libp2p_gossipsub_1_4):
-      proc isMsgInIMReceiving(it: PubSubPeer): bool =
-        if it.heIsReceivings.hasKey(msgId):
-          libp2p_gossipsub_imreceiving_saved_messages.inc
-          return true
-        return false
-
-      proc deferSend(deferPeers: HashSet[PubSubPeer]) {.async.} =
-        let receiveTimeMs = calculateReceiveTimeMs(msg.data.len)
-        await sleepAsync(receiveTimeMs.milliseconds)
-        for deferPeer in deferPeers:
-          if not deferPeer.isMsgInIdontWant:
-            #No need to send preamble at timeout
-            g.broadcast(@[deferPeer], RPCMsg(messages: @[msg]), isHighPriority = false)
-
-      let allPeers = toSendPeers
-      toSendPeers.exclIfIt(isMsgInIMReceiving(it))
-      g.sendPreamble(msg, msgId, toSendPeers)
-      if not PullOperation:
-        let receivingPeers = allPeers - toSendPeers
-        asyncSpawn deferSend(receivingPeers)
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
@@ -714,13 +658,6 @@ method rpcHandler*(
       msgIdSalted = g.salt(msgId)
 
     g.extensionsState.preambleMsgReceived(peer.peerId, msgId, msg.data.len)
-    when defined(libp2p_gossipsub_1_4):
-      if msg.data.len > preambleMessageSizeThreshold:
-        g.ongoingReceives.del(msgId)
-        g.ongoingIWantReceives.del(msgId)
-        var startTime: Moment
-        if peer.heIsSendings.pop(msgId, startTime):
-          peer.bandwidthTracking.download.update(startTime, msg.data.len)
 
     if g.addSeen(msgIdSalted):
       trace "Dropping already-seen message", msgId = shortLog(msgId), peer
@@ -969,9 +906,6 @@ method publish*(
       g.extensionsState.preambleBroadcast(
         ControlMessage.withPreamble(msg, msgId), peers.mapIt(it.peerId)
       )
-    when defined(libp2p_gossipsub_1_4):
-      if not pubParams.skipPreamble:
-        g.sendPreamble(msg, msgId, peers)
 
   g.broadcast(
     peers,
@@ -1137,8 +1071,6 @@ method start*(
   g.heartbeatFut = g.heartbeat()
   g.scoringHeartbeatFut = g.scoringHeartbeat()
   g.directPeersLoop = g.maintainDirectPeers()
-  when defined(libp2p_gossipsub_1_4):
-    g.preambleExpirationFut = g.preambleExpirationHeartbeat()
   g.started = true
   newFutureCompleted[void]()
 
@@ -1148,10 +1080,6 @@ method stop*(g: GossipSub): Future[void] {.async: (raises: [], raw: true).} =
   if g.heartbeatFut.isNil:
     warn "Stopping gossipsub without starting it"
     return newFutureCompleted[void]()
-
-  # stop heartbeat interval
-  when defined(libp2p_gossipsub_1_4):
-    g.preambleExpirationFut.cancelSoon()
 
   g.directPeersLoop.cancelSoon()
   g.scoringHeartbeatFut.cancelSoon()
