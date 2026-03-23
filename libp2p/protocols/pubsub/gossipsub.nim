@@ -23,21 +23,18 @@ import
   ../../peerid,
   ../../utility,
   ../../switch
+import
+  ./gossipsub/[types, scoring, behavior, preamblestore, extensions],
+  ../../utils/heartbeat,
+  ../../utils/future
+
+export types, scoring, behavior, pubsub, results
 
 when defined(libp2p_gossipsub_1_4):
   {.
     error:
       "-d:libp2p_gossipsub_1_4 has became obsolete! Use GossipSub Preamble extensions."
   .}
-
-export results
-
-import
-  ./gossipsub/[types, scoring, behavior, preamblestore, extensions],
-  ../../utils/heartbeat,
-  ../../utils/future
-
-export types, scoring, behavior, pubsub
 
 logScope:
   topics = "libp2p gossipsub"
