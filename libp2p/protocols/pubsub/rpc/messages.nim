@@ -335,8 +335,8 @@ static:
   expectedFields(
     RPCMsg,
     @[
-      "subscriptions", "messages", "control", "testExtension",
-      "partialMessageExtension", "pingpongExtension", "preambleExtension",
+      "subscriptions", "messages", "control", "partialMessageExtension",
+      "testExtension", "pingpongExtension", "preambleExtension",
     ],
   )
 proc byteSize*(rpc: RPCMsg): int =
