@@ -816,9 +816,7 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
 
   test "processRetryTicket returns original wait time for mismatched ticket advertisement":
     let disco = createMockDiscovery()
-    let ad = createTestAdvertisement(
-      addrs = @[createTestMultiAddress("10.0.0.1")]
-    )
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
     let otherAd = createTestAdvertisement(
