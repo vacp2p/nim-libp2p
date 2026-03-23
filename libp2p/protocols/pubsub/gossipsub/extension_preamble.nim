@@ -95,6 +95,7 @@ func medianValue(vals: seq[float]): float =
 
 func medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
   peers
+  .filterIt(ext.peerState.hasKey(it))
   .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
   .sorted()
   .medianValue()
@@ -151,8 +152,13 @@ proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Prea
 proc handleIMReceiving*(
     ext: PreambleExtension, peerId: PeerId, imreceivings: seq[IMReceiving]
 ) =
+  let peerState =
+    try:
+      ext.peerState[peerId]
+    except KeyError:
+      return
+
   for imreceiving in imreceivings:
-    let peerState = ext.peerState.getOrDefault(peerId)
     if peerState.heIsReceivings.len > ext.config.maxHeIsReceiving:
       return
 
