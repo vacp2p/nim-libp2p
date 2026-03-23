@@ -5,7 +5,7 @@ import chronos, chronicles, tables, sequtils, algorithm, results, metrics
 import ../../../[peerid]
 import ../../../crypto/crypto
 import ../rpc/messages
-import ./[extensions_types, preamblestore, ../bandwidth]
+import ./[extensions_types, preamblestore, bandwidth]
 
 logScope:
   topics = "libp2p preamble"
