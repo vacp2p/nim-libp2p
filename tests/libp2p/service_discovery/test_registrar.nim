@@ -846,9 +846,7 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
     let disco = createMockDiscovery()
     let otherDisco = createMockDiscovery()
 
-    let ad = createTestAdvertisement(
-      addrs = @[createTestMultiAddress("10.0.0.1")]
-    )
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
     var ticket = Ticket(
