@@ -5,7 +5,9 @@
 
 import chronos, algorithm, stew/byteutils, sequtils
 import
-  ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
+  ../../../../libp2p/protocols/pubsub/[
+    gossipsub, gossipsub/extensions, gossipsub/extension_preamble, rpc/message
+  ]
 import ../../../tools/[lifecycle, unittest]
 import ../extensions/my_partial_message
 import ../utils
@@ -169,3 +171,61 @@ suite "GossipSub Component - Extensions":
     # nodes[1] should echo the ping back as a pong
     checkUntilTimeout:
       receivedPong == pingBytes
+
+  asyncTest "Preamble Extension":
+    const topic = "preamble-topic"
+    let messageID = @[1.byte, 2, 3, 4]
+
+    var receivedImReceiving: seq[ControlIMReceiving]
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          preambleExtensionConfig = Opt.some(PreambleExtensionConfig()),
+        )
+        .toGossipSub()
+      n0 = nodes[0]
+      n1 = nodes[1]
+
+    # Capture IMReceiving messages received by n1 (sent by n0 after processing the preamble)
+    n1.addObserver(
+      PubSubObserver(
+        onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
+          msgs.control.withValue(ctrl):
+            for ir in ctrl.imreceiving:
+              receivedImReceiving.add(ir)
+      )
+    )
+
+    startAndDeferStop(nodes)
+
+    await connect(nodes[0], nodes[1])
+
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    # n1 sends a preamble to n0 announcing a large incoming message
+    n1.send(
+      n1.peers[n0.peerInfo.peerId],
+      RPCMsg(
+        control: Opt.some(
+          ControlMessage(
+            preamble:
+              @[
+                ControlPreamble(
+                  topicID: topic,
+                  messageID: messageID,
+                  messageLength: preambleMessageSizeThreshold,
+                )
+              ]
+          )
+        )
+      ),
+      isHighPriority = false,
+    )
+
+    # n0 should process the preamble and broadcast IMReceiving back to n1
+    checkUntilTimeout:
+      receivedImReceiving.anyIt(it.messageID == messageID)
