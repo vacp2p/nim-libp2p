@@ -817,9 +817,7 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
-    let otherAd = createTestAdvertisement(
-      addrs = @[createTestMultiAddress("10.0.0.2")]
-    )
+    let otherAd = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.2")])
     let otherAdBuf = otherAd.encode().get()
 
     var ticket = Ticket(
