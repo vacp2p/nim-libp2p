@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, tables, sequtils, algorithm, results
+import chronos, chronicles, tables, sequtils, algorithm, results, metrics
 import ../../../[peerid]
 import ../../../crypto/crypto
 import ../rpc/messages
@@ -11,6 +11,11 @@ logScope:
   topics = "libp2p preamble"
 
 const preambleMessageSizeThreshold* = 40 * 1024 # 40KiB
+
+declareCounter(
+  libp2p_gossipsub_imreceiving_saved_messages,
+  "number of duplicates avoided by imreceiving",
+)
 
 type
   PreambleExtensionConfig* = object
@@ -216,16 +221,14 @@ proc preambleBroadcastIfNotReceiving*(
     ext: PreambleExtension, preambleMsg: ControlMessage, peers: seq[PeerId]
 ) =
   proc isMsgInIMReceiving(peerId: PeerId): bool =
-    let msgId =
-      try:
-        preambleMsg.preamble[0].messageID
-      except KeyError:
-        return false
-
-    let peerState = ext.peerState.getOrDefault(peerId)
-    if peerState.heIsReceivings.hasKey(msgId):
-      # libp2p_gossipsub_imreceiving_saved_messages.inc
-      return true
+    try:
+      let msgId = preambleMsg.preamble[0].messageID
+      let peerState = ext.peerState[peerId]
+      if peerState.heIsReceivings.hasKey(msgId):
+        libp2p_gossipsub_imreceiving_saved_messages.inc
+        return true
+    except KeyError:
+      return false
     return false
 
   let broadcastToPeers = peers.filterIt(isMsgInIMReceiving(it))
