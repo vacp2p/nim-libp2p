@@ -33,7 +33,7 @@ export types, scoring, behavior, pubsub, results
 when defined(libp2p_gossipsub_1_4):
   {.
     error:
-      "-d:libp2p_gossipsub_1_4 has became obsolete! Use GossipSub Preamble extensions."
+      "-d:libp2p_gossipsub_1_4 has become obsolete! Use GossipSub Preamble extensions."
   .}
 
 logScope:
