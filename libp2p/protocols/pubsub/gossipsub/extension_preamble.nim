@@ -23,7 +23,7 @@ type
     maxHeIsReceiving*: int = 50
     broadcastRPC*: proc(msg: RPCMsg, peers: seq[PeerId]) {.gcsafe, raises: [].}
     hasSeen*: proc(mid: MessageId): bool {.gcsafe, raises: [].}
-    mashAndDirectPeersForTopic*: proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
+    meshAndDirectPeersForTopic*: proc(topic: string): seq[PeerId] {.gcsafe, raises: [].}
 
   PeerState = ref object
     heIsReceivings*: Table[MessageId, uint32]
@@ -53,8 +53,8 @@ proc doAssert(config: PreambleExtensionConfig) =
   )
   doAssert(config.hasSeen != nil, "PreambleExtensionConfig.hasSeen must be set")
   doAssert(
-    config.mashAndDirectPeersForTopic != nil,
-    "PreambleExtensionConfig.mashAndDirectPeersForTopic must be set",
+    config.meshAndDirectPeersForTopic != nil,
+    "PreambleExtensionConfig.meshAndDirectPeersForTopic must be set",
   )
 
 proc new*(
@@ -125,7 +125,7 @@ proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Prea
 
     peerState.heIsSendings[preamble.messageID] = startTime
 
-    var toSendPeers = ext.config.mashAndDirectPeersForTopic(preamble.topicID)
+    var toSendPeers = ext.config.meshAndDirectPeersForTopic(preamble.topicID)
     var peers = toSendPeers.filterIt(it in ext.supportingPeers)
 
     let bytesPerSecond = peerState.bandwidthTracking.download.value()

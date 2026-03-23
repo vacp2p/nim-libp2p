@@ -38,7 +38,7 @@ proc makeConfig(
   proc hasSeen(mid: MessageId): bool {.gcsafe, raises: [].} =
     mid in c.seenMessages
 
-  proc mashAndDirectPeersForTopic(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
+  proc meshAndDirectPeersForTopic(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
     return c.meshPeers
 
   return PreambleExtensionConfig(
@@ -46,7 +46,7 @@ proc makeConfig(
     maxHeIsReceiving: maxHeIsReceiving,
     broadcastRPC: broadcastRPC,
     hasSeen: hasSeen,
-    mashAndDirectPeersForTopic: mashAndDirectPeersForTopic,
+    meshAndDirectPeersForTopic: meshAndDirectPeersForTopic,
   )
 
 proc makePreamble(
@@ -109,7 +109,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
     expect AssertionDefect:
       var cfg = cr.makeConfig()
-      cfg.mashAndDirectPeersForTopic = nil
+      cfg.meshAndDirectPeersForTopic = nil
       discard PreambleExtension.new(cfg)
 
   test "onNegotiated adds peer to supportingPeers":

@@ -1037,8 +1037,8 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.hasSeen.isNil:
       cfg.hasSeen = proc(mid: MessageId): bool {.gcsafe, raises: [].} =
         return g.hasSeen(g.salt(mid))
-    if cfg.mashAndDirectPeersForTopic.isNil:
-      cfg.mashAndDirectPeersForTopic = proc(
+    if cfg.meshAndDirectPeersForTopic.isNil:
+      cfg.meshAndDirectPeersForTopic = proc(
           topic: string
       ): seq[PeerId] {.gcsafe, raises: [].} =
         var peers = HashSet[PubSubPeer]()
