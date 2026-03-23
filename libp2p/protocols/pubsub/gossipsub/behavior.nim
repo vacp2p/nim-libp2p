@@ -18,7 +18,7 @@ import
     signed_envelope,
     utils/heartbeat,
   ]
-  
+
 logScope:
   topics = "libp2p gossipsub"
 
@@ -288,8 +288,8 @@ proc handleIHave*(
             elif msgId notin res.messageIDs:
               if g.extensionsState.preambleHandleIHave(peer.peerId, msgId):
                 libp2p_gossipsub_preamble_saved_iwants.inc(
-                    labelValues = [ihave.topicID]
-                  )
+                  labelValues = [ihave.topicID]
+                )
                 continue
               res.messageIDs.add(msgId)
               dec peer.iHaveBudget

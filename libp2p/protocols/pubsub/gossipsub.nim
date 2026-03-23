@@ -25,8 +25,11 @@ import
   ../../switch
 
 when defined(libp2p_gossipsub_1_4):
-  {.error: "-d:libp2p_gossipsub_1_4 has became obsolete! Use GossipSub Preamble extensions.".}
-  
+  {.
+    error:
+      "-d:libp2p_gossipsub_1_4 has became obsolete! Use GossipSub Preamble extensions."
+  .}
+
 export results
 
 import
