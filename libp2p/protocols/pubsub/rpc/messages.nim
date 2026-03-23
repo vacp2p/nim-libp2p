@@ -190,6 +190,9 @@ func shortLog*(pme: PartialMessageExtensionRPC): auto =
     partsMetadata: pme.partsMetadata.shortLog,
   )
 
+func shortLog*(rpc: PingPongExtensionRPC): auto =
+  (ping: rpc.ping.shortLog, pong: rpc.pong.shortLog)
+
 func shortLog*(rpc: PreambleExtensionRPC): auto =
   (
     preamble: mapIt(rpc.preamble, it.shortLog),
@@ -204,6 +207,7 @@ func shortLog*(m: RPCMsg): auto =
     partialMessageExtension:
       m.partialMessageExtension.valueOr(PartialMessageExtensionRPC()).shortLog,
     testExtension: m.testExtension.shortLogOpt,
+    pingpongExtension: m.pingpongExtension.valueOr(PingPongExtensionRPC()).shortLog,
     preambleExtension: m.preambleExtension.valueOr(PreambleExtensionRPC()).shortLog,
   )
 
@@ -331,8 +335,8 @@ static:
   expectedFields(
     RPCMsg,
     @[
-      "subscriptions", "messages", "control", "partialMessageExtension",
-      "testExtension", "pingpongExtension", "preambleExtension",
+      "subscriptions", "messages", "control", "testExtension",
+      "partialMessageExtension", "pingpongExtension", "preambleExtension",
     ],
   )
 proc byteSize*(rpc: RPCMsg): int =
