@@ -844,11 +844,7 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
     let adBuf = ad.encode().get()
 
     var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: 1_000,
-      tMod: 1_100,
-      tWaitFor: 50,
-      signature: @[],
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
     )
     # Signed by a different registrar key, so verification must fail
     check ticket.sign(otherDisco.switch.peerInfo.privateKey).isOk()
