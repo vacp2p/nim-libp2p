@@ -83,7 +83,7 @@ method onRemovePeer*(ext: PreambleExtension, peerId: PeerId) {.gcsafe, raises: [
 
   ext.peerState.del(peerId)
 
-proc medianValue(vals: seq[float]): float =
+func medianValue(vals: seq[float]): float =
   if vals.len == 0:
     return 0
 
@@ -93,7 +93,7 @@ proc medianValue(vals: seq[float]): float =
   else:
     vals[mid]
 
-proc medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
+func medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
   peers
   .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
   .sorted()
@@ -121,7 +121,7 @@ proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Prea
       continue
 
     if ext.ongoingReceives.hasKey(preamble.messageID):
-      #TODO: add to conflicts_watch if length is different
+      # TODO: add to conflicts_watch if length is different
       continue
 
     peerState.heIsSendings[preamble.messageID] = startTime
@@ -206,12 +206,13 @@ func filterOutMessagesBelowThreshold(msg: RPCMsg): RPCMsg =
 
 proc preambleBroadcast*(ext: PreambleExtension, msg: RPCMsg, peers: seq[PeerId]) =
   let msgFiltered = filterOutMessagesBelowThreshold(msg)
-  if msgFiltered.preambleExtension.get().preamble.len == 0: # no preambles, skip sending
+  if msgFiltered.preambleExtension.get().preamble.len == 0:
     return
 
   let broadcastToPeers = peers.filterIt(it in ext.supportingPeers)
   if broadcastToPeers.len == 0:
     return
+
   ext.config.broadcastRPC(msgFiltered, broadcastToPeers)
 
 proc preambleBroadcastIfNotReceiving*(
@@ -248,9 +249,10 @@ proc preambleMsgReceived*(
   except KeyError:
     discard
 
-proc selectFirstPeerFromSupporting(
-    ext: PreambleExtension, possiblePeers: seq[PeerId]
+func selectPeerAtRandom(
+    ext: PreambleExtension, possiblePeers: var seq[PeerId]
 ): Opt[PeerId] =
+  ext.rng.shuffle(possiblePeers)
   for peerId in possiblePeers:
     if peerId in ext.supportingPeers:
       return Opt.some(peerId)
@@ -264,10 +266,7 @@ proc preambleExpirationTick*(ext: PreambleExtension) =
       break
 
     var possiblePeers = expired.possiblePeersToQuery()
-    ext.rng.shuffle(possiblePeers)
-
-    let chosenPeer = ext.selectFirstPeerFromSupporting(possiblePeers)
-    if chosenPeer.isNone:
+    let chosenPeer = ext.selectPeerAtRandom(possiblePeers).valueOr:
       trace "no peer available to send IWANT for an expiredOngoingReceive",
         messageID = expired.messageId
       continue
@@ -275,10 +274,10 @@ proc preambleExpirationTick*(ext: PreambleExtension) =
     let startsAt = Moment.now()
     ext.config.broadcastRPC(
       RPCMsg(control: Opt.some(ControlMessage.withIWant(expired.messageId))),
-      @[chosenPeer.get()],
+      @[chosenPeer],
     )
 
-    let peerState = ext.peerState.getOrDefault(chosenPeer.get())
+    let peerState = ext.peerState.getOrDefault(chosenPeer)
     let bytesPerSecond = peerState.bandwidthTracking.download.value()
     let transmissionTimeMs =
       calculateReceiveTimeMs(expired.messageLength.int64, bytesPerSecond.int64)
@@ -286,7 +285,7 @@ proc preambleExpirationTick*(ext: PreambleExtension) =
 
     expired.startsAt = startsAt
     expired.expiresAt = expires
-    expired.sender = chosenPeer.get()
+    expired.sender = chosenPeer
     ext.ongoingIWantReceives.insert(expired)
 
   while true:
