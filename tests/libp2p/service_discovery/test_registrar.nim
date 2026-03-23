@@ -794,9 +794,7 @@ suite "Kademlia Discovery Registrar - Register Message Validation":
 suite "Kademlia Discovery Registrar - Retry Ticket Processing":
   test "processRetryTicket returns original wait time when no ticket is present":
     let disco = createMockDiscovery()
-    let ad = createTestAdvertisement(
-      addrs = @[createTestMultiAddress("10.0.0.1")]
-    )
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
     let regMsg = kadprotobuf.RegisterMessage(
