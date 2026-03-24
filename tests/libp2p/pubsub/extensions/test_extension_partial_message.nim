@@ -199,6 +199,33 @@ suite "GossipSub Extensions :: Partial Message Extension":
       cr.incomingRPC.len == 1 # should call onIncomingRPC
       cr.incomingRPC[0] == PeerRPC(peerId: peerId, rpc: pmRPC)
 
+  test "handleRPC: adds penalty when groupId or topicId is not set":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    # handle partial message without groupId
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        groupID: @[], # intentionally empty
+        topicID: topic,
+      ),
+    )
+    # the peer should be penalized
+    check cr.peerPenalty[peerId] == 0.1
+
+    # handle partial message without topicId
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        groupID: @[1.byte], # intentionally empty
+        topicID: "", # intentionally empty
+      ),
+    )
+    # the peer should be penalized (again)
+    check cr.peerPenalty[peerId] == 0.2
+
   test "publish partial message: to all in topic advertizing parts":
     # the usecase when application is publishing partial message to all peers subscribed on topic.
     # and since no peer has asked for any part in particular, only parts metadata are being sent.
