@@ -14,16 +14,17 @@ export
   TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts,
   PingPongExtensionConfig, PreambleExtensionConfig
 
-type OnMisbehaveProc* = proc(peer: PeerId) {.gcsafe, raises: [].}
+type UpdatePeerBehaviorPenaltyProc* =
+  proc(peerId: PeerId, delta: float64) {.gcsafe, raises: [].}
 
-proc noopMisbehave*(peer: PeerId) {.gcsafe, raises: [].} =
+proc noopBehaviorPenaltyProc*(_: PeerId, _: float64) {.gcsafe, raises: [].} =
   discard
 
 type ExtensionsState* = ref object
   sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions.
   peerExtensions: Table[PeerId, PeerExtensions]
     # tells what peer capabilities are (what extensions are supported by them).
-  onMisbehave: OnMisbehaveProc
+  updatePeerBehaviorPenalty: UpdatePeerBehaviorPenaltyProc
     # callback when peer does not follow extensions protocol. 
     # default implementation is set by GossipSub.createExtensionsState.
   nodeExtensions: ControlExtensions # tells what node's capabilities are.
@@ -36,7 +37,7 @@ type ExtensionsState* = ref object
 
 proc new*(
     T: typedesc[ExtensionsState],
-    onMisbehave: OnMisbehaveProc = noopMisbehave,
+    updatePeerBehaviorPenalty: UpdatePeerBehaviorPenaltyProc = noopBehaviorPenaltyProc,
     testExtensionConfig: Opt[TestExtensionConfig] = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig: Opt[PartialMessageExtensionConfig] =
       Opt.none(PartialMessageExtensionConfig),
@@ -81,7 +82,7 @@ proc new*(
   extensions.add(externalExtensions)
 
   state = T(
-    onMisbehave: onMisbehave,
+    updatePeerBehaviorPenalty: updatePeerBehaviorPenalty,
     sentExtensions: initHashSet[PeerId](),
     nodeExtensions: nodeExtensions,
     extensions: extensions,
@@ -163,8 +164,8 @@ proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   if rpc.control.isSome() and rpc.control.get().extensions.isSome():
     if state.peerExtensions.hasKey(peerId):
       # peer is sending control message again but this node has already received extensions.
-      # this is protocol error, therfore nodes reports misbehavior.
-      state.onMisbehave(peerId)
+      # this is protocol error, therefore nodes reports misbehavior.
+      state.updatePeerBehaviorPenalty(peerId, 0.1)
     else:
       # peer is sending extensions control message for the first time
       let ctrlExtensions = rpc.control.get().extensions.get()
