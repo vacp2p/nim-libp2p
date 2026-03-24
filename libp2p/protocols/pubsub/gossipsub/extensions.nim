@@ -15,9 +15,9 @@ export
   PingPongExtensionConfig, PreambleExtensionConfig
 
 type UpdatePeerBehaviorPenaltyProc* =
-  proc(peer: PeerId, delta: float64) {.gcsafe, raises: [].}
+  proc(peerId: PeerId, delta: float64) {.gcsafe, raises: [].}
 
-proc noopBehaviorPenaltyProc*(peer: PeerId, delta: float64) {.gcsafe, raises: [].} =
+proc noopBehaviorPenaltyProc*(_: PeerId, _: float64) {.gcsafe, raises: [].} =
   discard
 
 type ExtensionsState* = ref object
@@ -164,7 +164,7 @@ proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   if rpc.control.isSome() and rpc.control.get().extensions.isSome():
     if state.peerExtensions.hasKey(peerId):
       # peer is sending control message again but this node has already received extensions.
-      # this is protocol error, therfore nodes reports misbehavior.
+      # this is protocol error, therefore nodes reports misbehavior.
       state.updatePeerBehaviorPenalty(peerId, 0.1)
     else:
       # peer is sending extensions control message for the first time
