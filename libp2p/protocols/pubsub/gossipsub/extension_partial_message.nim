@@ -228,6 +228,7 @@ proc handlePartialRPC(
 ) =
   if rpc.groupID.len == 0:
     debug "received RPC with unset groupId", groupId = rpc.groupID
+    # TODO add penalty
     return
 
   let validateRes = ext.config.validateRPC(rpc)

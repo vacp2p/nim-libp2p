@@ -24,6 +24,7 @@ type ExtensionsState* = ref object
   sentExtensions: HashSet[PeerId] # tells to which peers has node sent ControlExtensions.
   peerExtensions: Table[PeerId, PeerExtensions]
     # tells what peer capabilities are (what extensions are supported by them).
+  receivedNonExtCtrlMsg: Table[PeerId, bool]
   updatePeerBehaviorPenalty: UpdatePeerBehaviorPenaltyProc
     # callback when peer does not follow extensions protocol. 
     # default implementation is set by GossipSub.createExtensionsState.
@@ -159,10 +160,14 @@ proc removePeer*(state: ExtensionsState, peerId: PeerId) =
   if state.peerExtensions.hasKey(peerId):
     state.peerExtensions.del(peerId)
   state.sentExtensions.excl(peerId)
+  state.receivedNonExtCtrlMsg.del(peerId)
 
 proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
   if rpc.control.isSome() and rpc.control.get().extensions.isSome():
-    if state.peerExtensions.hasKey(peerId):
+    if state.receivedNonExtCtrlMsg.hasKey(peerId):
+      # peer is sending control message that was not the first message transmitted on the stream.
+      state.updatePeerBehaviorPenalty(peerId, 0.1)
+    elif state.peerExtensions.hasKey(peerId):
       # peer is sending control message again but this node has already received extensions.
       # this is protocol error, therefore nodes reports misbehavior.
       state.updatePeerBehaviorPenalty(peerId, 0.1)
@@ -174,6 +179,8 @@ proc handleRPC*(state: ExtensionsState, peerId: PeerId, rpc: RPCMsg) =
       # when node has sent it's extensions then extensions have negotiated
       if peerId in state.sentExtensions:
         state.onNegotiated(peerId)
+  else:
+    state.receivedNonExtCtrlMsg[peerId] = true
 
   # onHandleRPC event is always called
   state.onHandleRPC(peerId, rpc)
