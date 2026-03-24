@@ -961,9 +961,9 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     # use noop state when no extensions are used
     return ExtensionsState.new()
 
-  proc onMissbehaveExtensions(id: PeerId) {.gcsafe, raises: [].} =
+  proc updatePeerBehaviorPenalty(id: PeerId, delta: float64) {.gcsafe, raises: [].} =
     g.peers.withValue(id, peer):
-      peer[].behaviourPenalty += 0.1
+      peer[].behaviourPenalty += delta
 
   # when extension config is not set then that extension is disabled.
   # config params (callbacks) are set with default gossipsub behavior only if 
@@ -1044,7 +1044,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.parameters.preambleExtensionConfig = Opt.some(cfg)
 
   return ExtensionsState.new(
-    onMissbehaveExtensions, g.parameters.testExtensionConfig,
+    updatePeerBehaviorPenalty, g.parameters.testExtensionConfig,
     g.parameters.partialMessageExtensionConfig, g.parameters.pingpongExtensionConfig,
     g.parameters.preambleExtensionConfig,
   )

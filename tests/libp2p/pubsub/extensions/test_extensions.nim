@@ -14,11 +14,11 @@ import ./extension_recording
 proc makeRPC(extensions: ControlExtensions = ControlExtensions()): RPCMsg =
   RPCMsg(control: Opt.some(ControlMessage(extensions: Opt.some(extensions))))
 
-proc createMisbehaveProc*(): (ref seq[PeerId], OnMisbehaveProc) =
+proc createBehaviorPenaltyProc*(): (ref seq[PeerId], UpdatePeerBehaviorPenaltyProc) =
   let peers = new seq[PeerId]
   peers[] = @[]
 
-  let cb: OnMisbehaveProc = proc(peerId: PeerId) {.closure, gcsafe.} =
+  let cb: UpdatePeerBehaviorPenaltyProc = proc(peerId: PeerId, delta: float64) {.closure, gcsafe.} =
     peers[].add(peerId)
 
   (peers, cb)
@@ -56,7 +56,7 @@ suite "GossipSub Extensions :: State":
     check state.peerRequestsPartial(peerId, "logos") == false
 
   test "state reports misbehaving when ControlExtensions is sent more then once":
-    var (reportedPeers, onMisbehave) = createMisbehaveProc()
+    var (reportedPeers, onMisbehave) = createBehaviorPenaltyProc()
     var state = ExtensionsState.new(onMisbehave)
 
     # peer sends ControlExtensions for the first time
@@ -68,7 +68,7 @@ suite "GossipSub Extensions :: State":
       check reportedPeers[] == repeat[PeerId](peerId, i)
 
   test "state reports misbehaving when ControlExtensions is sent more then once - many peers reported":
-    var (reportedPeers, onMisbehave) = createMisbehaveProc()
+    var (reportedPeers, onMisbehave) = createBehaviorPenaltyProc()
     var state = ExtensionsState.new(onMisbehave)
 
     var peers = newSeq[PeerId]()
@@ -81,7 +81,7 @@ suite "GossipSub Extensions :: State":
       check reportedPeers[] == peers
 
   test "peer is removed":
-    var (reportedPeers, onMisbehave) = createMisbehaveProc()
+    var (reportedPeers, onMisbehave) = createBehaviorPenaltyProc()
     var state = ExtensionsState.new(onMisbehave)
 
     for i in 0 ..< 5:
