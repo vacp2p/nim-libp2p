@@ -24,6 +24,7 @@ type CallbackRecorder = ref object
   publishToPeers: seq[PeerId]
   sentRPC: seq[PeerRPC] # peerId - to whom PRC was sent to
   incomingRPC: seq[PeerRPC] # peerId - who sent RPC
+  peerPenalty: Table[PeerId, float64]
 
 proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
   proc sendRPC(peerId: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].} =
@@ -37,6 +38,10 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
 
   proc isSupported(peer: PeerId): bool {.gcsafe, raises: [].} =
     return true
+
+  proc updatePeerBehaviorPenalty(peerId: PeerId, delta: float) {.gcsafe, raises: [].} =
+    let p = c.peerPenalty.getOrDefault(peerId)
+    c.peerPenalty[peerId] = p + delta
 
   proc validateRPC(
       rpc: PartialMessageExtensionRPC
@@ -53,6 +58,7 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
     sendRPC: sendRPC,
     publishToPeers: publishToPeers,
     isSupported: isSupported,
+    updatePeerBehaviorPenalty: updatePeerBehaviorPenalty,
     nodeTopicOpts: nodeTopicOpts,
     unionPartsMetadata: my_partial_message.unionPartsMetadata,
     validateRPC: validateRPC,
@@ -192,6 +198,33 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check:
       cr.incomingRPC.len == 1 # should call onIncomingRPC
       cr.incomingRPC[0] == PeerRPC(peerId: peerId, rpc: pmRPC)
+
+  test "handleRPC: adds penalty when groupId or topicId is not set":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    # handle partial message without groupId
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        groupID: @[], # intentionally empty
+        topicID: topic,
+      ),
+    )
+    # the peer should be penalized
+    check cr.peerPenalty[peerId] == 0.1
+
+    # handle partial message without topicId
+    ext.handlePartialMessage(
+      peerId,
+      PartialMessageExtensionRPC(
+        groupID: @[1.byte], # intentionally empty
+        topicID: "", # intentionally empty
+      ),
+    )
+    # the peer should be penalized (again)
+    check cr.peerPenalty[peerId] == 0.2
 
   test "publish partial message: to all in topic advertizing parts":
     # the usecase when application is publishing partial message to all peers subscribed on topic.

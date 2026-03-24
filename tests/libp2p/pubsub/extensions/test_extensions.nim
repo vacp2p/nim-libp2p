@@ -82,6 +82,18 @@ suite "GossipSub Extensions :: State":
 
       check reportedPeers[] == peers
 
+  test "state reports misbehaving when ControlExtensions is not first message on the stream":
+    var (reportedPeers, behaviorPenaltyCb) = createBehaviorPenaltyProc()
+    var state = ExtensionsState.new(behaviorPenaltyCb)
+
+    # peer sends RPCMsg without ControlExtensions
+    state.handleRPC(peerId, RPCMsg())
+    # peer sends RPCMsg with ControlExtensions (second msg on the stream)
+    state.handleRPC(peerId, makeRPC())
+
+    # misbehavior should be reported
+    check reportedPeers[] == @[peerId]
+
   test "peer is removed":
     var (reportedPeers, behaviorPenaltyCb) = createBehaviorPenaltyProc()
     var state = ExtensionsState.new(behaviorPenaltyCb)

@@ -33,6 +33,9 @@ type
     isSupported*: proc(peer: PeerId): bool {.gcsafe, raises: [].}
       # implements logic for checking if peer supports this extension ("partial message").
       # default implementation is set by ExtensionsState.new.
+    updatePeerBehaviorPenalty*: UpdatePeerBehaviorPenaltyProc
+      # callback to updated peer behavior penalty when peer is not follow extensions protocol. 
+      # default implementation is set by GossipSub.createExtensionsState (via ExtensionsState).
 
     # configuration set by application (user)
     unionPartsMetadata*:
@@ -91,6 +94,7 @@ proc doAssert(config: PartialMessageExtensionConfig) =
   doAssert(config.sendRPC != nil, msg("sendRPC"))
   doAssert(config.publishToPeers != nil, msg("publishToPeers"))
   doAssert(config.isSupported != nil, msg("isSupported"))
+  doAssert(config.updatePeerBehaviorPenalty != nil, msg("updatePeerBehaviorPenalty"))
   doAssert(config.nodeTopicOpts != nil, msg("nodeTopicOpts"))
   doAssert(config.unionPartsMetadata != nil, msg("unionPartsMetadata"))
   doAssert(config.validateRPC != nil, msg("validateRPC"))
@@ -226,8 +230,9 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  if rpc.groupID.len == 0:
-    debug "received RPC with unset groupId", groupId = rpc.groupID
+  if rpc.groupID.len == 0 or rpc.topicID.len == 0:
+    debug "received RPC with unset groupId or topicId"
+    ext.config.updatePeerBehaviorPenalty(peerId, 0.1)
     return
 
   let validateRes = ext.config.validateRPC(rpc)

@@ -5,6 +5,11 @@ import ../../../[peerid]
 import ../rpc/messages
 
 type
+  UpdatePeerBehaviorPenaltyProc* =
+    proc(peerId: PeerId, delta: float64) {.gcsafe, raises: [].}
+    # type for callbacks to updated peer behavior penalty when peer is not follow extensions protocol. 
+    # default implementation is set by GossipSub.createExtensionsState.
+
   PeerExtensions* = object # holds all capabilities that are supported with extensions.
     testExtension*: bool
     partialMessageExtension*: bool
