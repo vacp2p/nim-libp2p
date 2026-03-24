@@ -5,8 +5,6 @@
 
 import chronos, std/[sequtils], chronicles
 import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
-when defined(libp2p_gossipsub_1_4):
-  import ../../../../libp2p/protocols/pubsub/gossipsub/preamblestore
 import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
@@ -374,45 +372,3 @@ suite "GossipSub Component - Control Messages":
     # Then IDONTWANT is sent to B on publish
     checkUntilTimeout:
       nodes[1].mesh.getOrDefault(topic).anyIt(it.iDontWants.anyIt(it.len == 1))
-
-  when defined(libp2p_gossipsub_1_4):
-    asyncTest "emit IMReceiving while handling preamble control msg":
-      let
-        numberOfNodes = 2
-        messageID = @[1.byte, 2, 3, 4]
-        nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
-        n0 = nodes[0]
-        n1 = nodes[1]
-
-      startAndDeferStop(nodes)
-
-      # And the nodes are connected
-      await connectStar(nodes)
-
-      # And both subscribe to the topic
-      subscribeAllNodes(nodes, topic, voidTopicHandler)
-      waitSubscribeStar(nodes, topic)
-
-      let preambles =
-        @[
-          ControlPreamble(
-            topicID: topic,
-            messageID: messageID,
-            messageLength: preambleMessageSizeThreshold + 1,
-          )
-        ]
-
-      let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_14])
-      check:
-        p1.preambleBudget == PreamblePeerBudget
-
-      n0.handlePreamble(p1, preambles)
-
-      check:
-        p1.preambleBudget == PreamblePeerBudget - 1 # Preamble budget should decrease
-        p1.heIsSendings.hasKey(messageID)
-        n0.ongoingReceives.hasKey(messageID)
-
-      let p2 = n1.getOrCreatePeer(n0.peerInfo.peerId, @[GossipSubCodec_14])
-      checkUntilTimeout:
-        p2.heIsReceivings.hasKey(messageID)

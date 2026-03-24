@@ -29,7 +29,7 @@ proc `<`(a, b: PreambleInfo): bool =
 
 proc init*(
     T: typedesc[PreambleInfo],
-    preamble: ControlPreamble,
+    preamble: Preamble,
     sender: PeerId,
     startsAt: Moment,
     expiresAt: Moment,

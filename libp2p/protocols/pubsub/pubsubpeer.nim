@@ -15,8 +15,7 @@ import
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
   ../../utility,
-  ../../utils/sequninit,
-  ./bandwidth
+  ../../utils/sequninit
 
 export peerid, connection, deques
 
@@ -123,10 +122,6 @@ type
     peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-
-    when defined(libp2p_gossipsub_1_4):
-      bandwidthTracking*: BandwidthTracking
-
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     iDontWants*: Deque[HashSet[SaltedId]]
@@ -138,12 +133,6 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
-
-    when defined(libp2p_gossipsub_1_4):
-      preambleBudget*: int
-      heIsReceivings*: Table[MessageId, uint32]
-      heIsSendings*: Table[MessageId, Moment]
-
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
       # The max number of elements allowed in the non-priority queue.
@@ -625,11 +614,6 @@ proc new*(
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     customConnCallbacks: customConnCallbacks,
   )
-
-  when defined(libp2p_gossipsub_1_4):
-    result.bandwidthTracking =
-      BandwidthTracking(download: ExponentialMovingAverage.init())
-
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()

@@ -139,7 +139,6 @@ These flags are used in CI and tests:
 | Flag | Purpose |
 |------|---------|
 | `-d:libp2p_autotls_support` | Enable AutoTLS support |
-| `-d:libp2p_gossipsub_1_4` | Enable GossipSub v1.4 |
 | `-d:libp2p_mix_experimental_exit_is_dest` | MIX protocol: exit node is destination |
 | `-d:libp2p_expensive_metrics` | Per-peer cardinality metrics |
 | `-d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,...` | Known agent metrics |
@@ -151,7 +150,7 @@ These flags are used in CI and tests:
 | `-d:libp2p_contentids_exts=<path>` | ContentIds extensions file |
 
 The test runner (`libp2p.nimble`) always compiles with:
-`-d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest -d:libp2p_gossipsub_1_4`
+`-d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest`
 
 ---
 

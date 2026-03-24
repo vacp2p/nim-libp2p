@@ -5,7 +5,8 @@
 
 import chronos, algorithm, stew/byteutils, sequtils
 import
-  ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub, gossipsub/extensions, gossipsub/extension_preamble, rpc/message]
 import ../../../tools/[lifecycle, unittest]
 import ../extensions/my_partial_message
 import ../utils
@@ -169,3 +170,45 @@ suite "GossipSub Component - Extensions":
     # nodes[1] should echo the ping back as a pong
     checkUntilTimeout:
       receivedPong == pingBytes
+
+  asyncTest "Preamble Extension":
+    const topic = "preamble-topic"
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          preambleExtensionConfig = Opt.some(PreambleExtensionConfig()),
+          sendIDontWantOnPublish = true,
+        )
+        .toGossipSub()
+      n0 = nodes[0]
+      n1 = nodes[1]
+
+    # Capture IMReceiving messages received by n1 (sent by n0 after processing the preamble)
+    var receivedImReceiving: seq[IMReceiving]
+    n1.addObserver(
+      PubSubObserver(
+        onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
+          msgs.preambleExtension.withValue(pe):
+            for ir in pe.imreceiving:
+              receivedImReceiving.add(ir)
+      )
+    )
+
+    startAndDeferStop(nodes)
+
+    await connect(nodes[0], nodes[1])
+
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    # publishing large message should publish preamble (n0 will receive preamble as well).
+    let msgLength = preambleMessageSizeThreshold + 4 # some large message length
+    discard await n1.publish(topic, newSeq[byte](msgLength))
+
+    # node n1 should receive IMReceiving right after it broadcasted preamble.
+    checkUntilTimeout:
+      receivedImReceiving.len == 1
+      receivedImReceiving[0].messageLength == msgLength.uint32

@@ -63,6 +63,7 @@ type
     # Experimental extensions fields:
     testExtension*: Opt[bool]
     pingpongExtension*: Opt[bool]
+    preambleExtension*: Opt[bool]
 
   ControlMessage* = object
     ihave*: seq[ControlIHave]
@@ -71,9 +72,6 @@ type
     prune*: seq[ControlPrune]
     idontwant*: seq[ControlIWant]
     extensions*: Opt[ControlExtensions]
-    when defined(libp2p_gossipsub_1_4):
-      preamble*: seq[ControlPreamble]
-      imreceiving*: seq[ControlIMReceiving]
 
   ControlIHave* = object
     topicID*: string
@@ -90,15 +88,6 @@ type
     peers*: seq[PeerInfoMsg]
     backoff*: uint64
 
-  ControlPreamble* = object
-    topicID*: string
-    messageID*: MessageId
-    messageLength*: uint32
-
-  ControlIMReceiving* = object
-    messageID*: MessageId
-    messageLength*: uint32
-
   TestExtensionRPC* = object
 
   PartialMessageExtensionRPC* = object
@@ -111,6 +100,19 @@ type
     ping*: seq[byte]
     pong*: seq[byte]
 
+  Preamble* = object
+    topicID*: string
+    messageID*: MessageId
+    messageLength*: uint32
+
+  IMReceiving* = object
+    messageID*: MessageId
+    messageLength*: uint32
+
+  PreambleExtensionRPC* = object
+    preamble*: seq[Preamble]
+    imreceiving*: seq[IMReceiving]
+
   RPCMsg* = object
     subscriptions*: seq[SubOpts]
     messages*: seq[Message]
@@ -118,6 +120,7 @@ type
     partialMessageExtension*: Opt[PartialMessageExtensionRPC]
     testExtension*: Opt[TestExtensionRPC]
     pingpongExtension*: Opt[PingPongExtensionRPC]
+    preambleExtension*: Opt[PreambleExtensionRPC]
 
 func shortLog*(s: ControlIHave): auto =
   (topic: s.topicID.shortLog, messageIDs: mapIt(s.messageIDs, it.shortLog))
@@ -131,10 +134,10 @@ func shortLog*(s: ControlGraft): auto =
 func shortLog*(s: ControlPrune): auto =
   (topic: s.topicID.shortLog)
 
-func shortLog*(s: ControlPreamble): auto =
+func shortLog*(s: Preamble): auto =
   (topic: s.topicID.shortLog, messageID: s.messageID.shortLog)
 
-func shortLog*(s: ControlIMReceiving): auto =
+func shortLog*(s: IMReceiving): auto =
   (messageID: s.messageID.shortLog)
 
 func shortLogOpt[T](s: Opt[T]): string =
@@ -149,6 +152,7 @@ func shortLog*(so: Opt[ControlExtensions]): auto =
       partialMessageExtension: "<unset>",
       testExtension: "<unset>",
       pingpongExtension: "<unset>",
+      preambleExtension: "<unset>",
     )
   else:
     let s = so.get()
@@ -156,27 +160,17 @@ func shortLog*(so: Opt[ControlExtensions]): auto =
       partialMessageExtension: shortLogOpt(s.partialMessageExtension),
       testExtension: shortLogOpt(s.testExtension),
       pingpongExtension: shortLogOpt(s.pingpongExtension),
+      preambleExtension: shortLogOpt(s.preambleExtension),
     )
 
 func shortLog*(c: ControlMessage): auto =
-  when defined(libp2p_gossipsub_1_4):
-    (
-      ihave: mapIt(c.ihave, it.shortLog),
-      iwant: mapIt(c.iwant, it.shortLog),
-      graft: mapIt(c.graft, it.shortLog),
-      prune: mapIt(c.prune, it.shortLog),
-      extensions: shortLog(c.extensions),
-      preamble: mapIt(c.preamble, it.shortLog),
-      imreceiving: mapIt(c.imreceiving, it.shortLog),
-    )
-  else:
-    (
-      ihave: mapIt(c.ihave, it.shortLog),
-      iwant: mapIt(c.iwant, it.shortLog),
-      graft: mapIt(c.graft, it.shortLog),
-      prune: mapIt(c.prune, it.shortLog),
-      extensions: shortLog(c.extensions),
-    )
+  (
+    ihave: mapIt(c.ihave, it.shortLog),
+    iwant: mapIt(c.iwant, it.shortLog),
+    graft: mapIt(c.graft, it.shortLog),
+    prune: mapIt(c.prune, it.shortLog),
+    extensions: shortLog(c.extensions),
+  )
 
 func shortLog*(msg: Message): auto =
   (
@@ -196,6 +190,15 @@ func shortLog*(pme: PartialMessageExtensionRPC): auto =
     partsMetadata: pme.partsMetadata.shortLog,
   )
 
+func shortLog*(rpc: PingPongExtensionRPC): auto =
+  (ping: rpc.ping.shortLog, pong: rpc.pong.shortLog)
+
+func shortLog*(rpc: PreambleExtensionRPC): auto =
+  (
+    preamble: mapIt(rpc.preamble, it.shortLog),
+    imreceiving: mapIt(rpc.imreceiving, it.shortLog),
+  )
+
 func shortLog*(m: RPCMsg): auto =
   (
     subscriptions: m.subscriptions,
@@ -204,6 +207,8 @@ func shortLog*(m: RPCMsg): auto =
     partialMessageExtension:
       m.partialMessageExtension.valueOr(PartialMessageExtensionRPC()).shortLog,
     testExtension: m.testExtension.shortLogOpt,
+    pingpongExtension: m.pingpongExtension.valueOr(PingPongExtensionRPC()).shortLog,
+    preambleExtension: m.preambleExtension.valueOr(PreambleExtensionRPC()).shortLog,
   )
 
 static:
@@ -261,30 +266,34 @@ proc byteSize(controlPrune: ControlPrune): int =
     # 8 bytes for uint64
 
 static:
-  expectedFields(ControlPreamble, @["topicID", "messageID", "messageLength"])
-proc byteSize(controlPreamble: ControlPreamble): int =
+  expectedFields(Preamble, @["topicID", "messageID", "messageLength"])
+proc byteSize(controlPreamble: Preamble): int =
   controlPreamble.topicID.len + controlPreamble.messageID.len + 4 # 4 bytes for uint32
 
-proc byteSize*(preambles: seq[ControlPreamble]): int =
+proc byteSize*(preambles: seq[Preamble]): int =
   preambles.foldl(a + b.byteSize, 0)
 
 static:
-  expectedFields(ControlIMReceiving, @["messageID", "messageLength"])
-proc byteSize(controlIMreceiving: ControlIMReceiving): int =
-  controlIMreceiving.messageID.len + 4 # 4 bytes for uint32
+  expectedFields(IMReceiving, @["messageID", "messageLength"])
+proc byteSize(m: IMReceiving): int =
+  m.messageID.len + 4 # 4 bytes for uint32
 
-proc byteSize*(imreceivings: seq[ControlIMReceiving]): int =
+proc byteSize*(imreceivings: seq[IMReceiving]): int =
   imreceivings.foldl(a + b.byteSize, 0)
 
 static:
   expectedFields(
     ControlExtensions,
-    @["partialMessageExtension", "testExtension", "pingpongExtension"],
+    @[
+      "partialMessageExtension", "testExtension", "pingpongExtension",
+      "preambleExtension",
+    ],
   )
 proc byteSize(controlExtensions: ControlExtensions): int =
-  controlExtensions.partialMessageExtension.byteSize() + #
-  controlExtensions.testExtension.byteSize() + #
-  controlExtensions.pingpongExtension.byteSize()
+  controlExtensions.partialMessageExtension.byteSize() +
+    controlExtensions.testExtension.byteSize() +
+    controlExtensions.pingpongExtension.byteSize() +
+    controlExtensions.preambleExtension.byteSize()
 
 proc byteSize(rpc: PingPongExtensionRPC): int =
   rpc.ping.len + rpc.pong.len
@@ -308,47 +317,73 @@ static:
 proc byteSize(pme: PartialMessageExtensionRPC): int =
   pme.topicID.len + pme.groupID.len + pme.partialMessage.len + pme.partsMetadata.len
 
-when defined(libp2p_gossipsub_1_4):
-  static:
-    expectedFields(
-      ControlMessage,
-      @[
-        "ihave", "iwant", "graft", "prune", "idontwant", "extensions", "preamble",
-        "imreceiving",
-      ],
-    )
-  proc byteSize(control: ControlMessage): int =
-    control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
-      control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
-      control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions) +
-      control.preamble.foldl(a + b.byteSize, 0) +
-      control.imreceiving.foldl(a + b.byteSize, 0)
+static:
+  expectedFields(
+    ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "extensions"]
+  )
+proc byteSize(control: ControlMessage): int =
+  control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
+    control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
+    control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions)
 
-else:
-  static:
-    expectedFields(
-      ControlMessage, @["ihave", "iwant", "graft", "prune", "idontwant", "extensions"]
-    )
-  proc byteSize(control: ControlMessage): int =
-    control.ihave.foldl(a + b.byteSize, 0) + control.iwant.foldl(a + b.byteSize, 0) +
-      control.graft.foldl(a + b.byteSize, 0) + control.prune.foldl(a + b.byteSize, 0) +
-      control.idontwant.foldl(a + b.byteSize, 0) + byteSize(control.extensions)
+static:
+  expectedFields(PreambleExtensionRPC, @["preamble", "imreceiving"])
+proc byteSize(v: PreambleExtensionRPC): int =
+  v.preamble.foldl(a + b.byteSize, 0) + v.imreceiving.foldl(a + b.byteSize, 0)
 
 static:
   expectedFields(
     RPCMsg,
     @[
       "subscriptions", "messages", "control", "partialMessageExtension",
-      "testExtension", "pingpongExtension",
+      "testExtension", "pingpongExtension", "preambleExtension",
     ],
   )
 proc byteSize*(rpc: RPCMsg): int =
   result = rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages)
-  rpc.control.withValue(ctrl):
-    result += ctrl.byteSize
-  rpc.partialMessageExtension.withValue(pme):
-    result += pme.byteSize
-  rpc.testExtension.withValue(te):
-    result += te.byteSize
-  rpc.pingpongExtension.withValue(ppe):
-    result += ppe.byteSize
+  rpc.control.withValue(v):
+    result += v.byteSize
+  rpc.partialMessageExtension.withValue(v):
+    result += v.byteSize
+  rpc.testExtension.withValue(v):
+    result += v.byteSize
+  rpc.pingpongExtension.withValue(v):
+    result += v.byteSize
+  rpc.preambleExtension.withValue(v):
+    result += v.byteSize
+
+proc withPreamble*(_: typedesc[RPCMsg], preamble: seq[Preamble]): RPCMsg =
+  RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(preamble: preamble)))
+
+proc withPreamble*(
+    _: typedesc[RPCMsg], msgs: seq[Message], msgIds: seq[MessageId]
+): RPCMsg =
+  var preambles: seq[Preamble]
+  for i, m in msgs:
+    preambles.add(
+      Preamble(topicID: m.topic, messageID: msgIds[i], messageLength: m.data.len.uint32)
+    )
+  RPCMsg.withPreamble(preambles)
+
+proc withPreamble*(_: typedesc[RPCMsg], msg: Message, msgId: MessageId): RPCMsg =
+  RPCMsg.withPreamble(@[msg], @[msgId])
+
+proc withIMReceiving*(_: typedesc[RPCMsg], imreceiving: seq[IMReceiving]): RPCMsg =
+  RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(imreceiving: imreceiving)))
+
+proc withIMReceiving*(_: typedesc[RPCMsg], preamble: Preamble): RPCMsg =
+  RPCMsg(
+    preambleExtension: Opt.some(
+      PreambleExtensionRPC(
+        imreceiving:
+          @[
+            IMReceiving(
+              messageID: preamble.messageID, messageLength: preamble.messageLength
+            )
+          ]
+      )
+    )
+  )
+
+proc withIWant*(_: typedesc[ControlMessage], msgId: MessageId): ControlMessage =
+  ControlMessage(iwant: @[ControlIWant(messageIDs: @[msgId])])

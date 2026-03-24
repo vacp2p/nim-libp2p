@@ -159,10 +159,9 @@ type
     ## when it is published if it's a large message. 
     skipIDontWant*: bool
 
-    when defined(libp2p_gossipsub_1_4):
-      ## Determines whether a Preamble message will be sent for the current message
-      ## when it is published if it's a large message
-      skipPreamble*: bool
+    ## Determines whether a Preamble message will be sent for the current message
+    ## when it is published if it's a large message
+    skipPreamble*: bool
 
   TopicData* = ref object
     handlers: seq[TopicHandler]
