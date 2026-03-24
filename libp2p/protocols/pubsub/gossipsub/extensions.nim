@@ -14,7 +14,8 @@ export
   TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts,
   PingPongExtensionConfig, PreambleExtensionConfig
 
-type UpdatePeerBehaviorPenaltyProc* = proc(peer: PeerId, delta: float64) {.gcsafe, raises: [].}
+type UpdatePeerBehaviorPenaltyProc* =
+  proc(peer: PeerId, delta: float64) {.gcsafe, raises: [].}
 
 proc noopBehaviorPenaltyProc*(peer: PeerId, delta: float64) {.gcsafe, raises: [].} =
   discard

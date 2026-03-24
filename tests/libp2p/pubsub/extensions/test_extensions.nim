@@ -18,7 +18,9 @@ proc createBehaviorPenaltyProc*(): (ref seq[PeerId], UpdatePeerBehaviorPenaltyPr
   let peers = new seq[PeerId]
   peers[] = @[]
 
-  let cb: UpdatePeerBehaviorPenaltyProc = proc(peerId: PeerId, delta: float64) {.closure, gcsafe.} =
+  let cb: UpdatePeerBehaviorPenaltyProc = proc(
+      peerId: PeerId, delta: float64
+  ) {.closure, gcsafe.} =
     peers[].add(peerId)
 
   (peers, cb)
