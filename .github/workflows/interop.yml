@@ -37,7 +37,7 @@ jobs:
           test-results-suffix: transport-interop
           extra-versions: ${{ github.workspace }}/interop/transport/version.json
           worker-count: 4
-          # known-errors: "^(c-v0\\.0\\.1 x nim-libp2p-transport-head \\(quic-v1\\)|eth-p2p-z-v0\\.0\\.1 x nim-libp2p-transport-head \\(quic-v1\\))$"
+          known-errors: "^(c-v0\\.0\\.1 x nim-libp2p-transport-head \\(quic-v1\\)|eth-p2p-z-v0\\.0\\.1 x nim-libp2p-transport-head \\(quic-v1\\))$"
 
   # run-hole-punching-interop:
   #   name: Run hole punching interoperability tests
