@@ -13,6 +13,7 @@ import
     crypto/crypto,
     signed_envelope,
   ]
+import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
 import ../../../libp2p/protocols/service_discovery/[types, registrar, iptree]
 import ../../tools/unittest
 import ./utils
@@ -754,3 +755,159 @@ suite "Kademlia Discovery Registrar - Configuration Variations":
     # With occupancyExp = 1, occupancy = 1.0 / (1.0 - 0.5) = 2.0
     # w should be proportional to this
     check w >= 0
+
+suite "Kademlia Discovery Registrar - Register Message Validation":
+  test "validateRegisterMessage rejects empty advertisement":
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: @[],
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    check validateRegisterMessage(regMsg).isNone()
+
+  test "validateRegisterMessage rejects malformed advertisement bytes":
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: @[1'u8, 2, 3, 4],
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    check validateRegisterMessage(regMsg).isNone()
+
+  test "validateRegisterMessage accepts decodable advertisement":
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    let decoded = validateRegisterMessage(regMsg)
+
+    check decoded.isSome()
+    check decoded.get().data.peerId == ad.data.peerId
+    check decoded.get().data.seqNo == ad.data.seqNo
+
+suite "Kademlia Discovery Registrar - Retry Ticket Processing":
+  test "processRetryTicket returns original wait time when no ticket is present":
+    let disco = createMockDiscovery()
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    let tWait = 300.0
+    let now: uint64 = 1_150
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    check abs(tRemaining - tWait) < 0.001
+
+  test "processRetryTicket returns original wait time for mismatched ticket advertisement":
+    let disco = createMockDiscovery()
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    let otherAd = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.2")])
+    let otherAdBuf = otherAd.encode().get()
+
+    var ticket = Ticket(
+      advertisement: otherAdBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+
+    let tWait = 300.0
+    let now: uint64 = 1_150
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    check abs(tRemaining - tWait) < 0.001
+
+  test "processRetryTicket returns original wait time for invalid ticket signature":
+    let disco = createMockDiscovery()
+    let otherDisco = createMockDiscovery()
+
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    var ticket = Ticket(
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+    )
+    # Signed by a different registrar key, so verification must fail
+    check ticket.sign(otherDisco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+
+    let tWait = 300.0
+    let now: uint64 = 1_150
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    check abs(tRemaining - tWait) < 0.001
+
+  test "processRetryTicket returns original wait time when retry is outside registration window":
+    let disco = createMockDiscovery()
+
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    var ticket = Ticket(
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+
+    let tWait = 300.0
+    # valid window is [1150, 1151] with default delta = 1 second
+    let now: uint64 = 1_152
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    check abs(tRemaining - tWait) < 0.001
+
+  test "processRetryTicket subtracts accumulated wait for valid retry in window":
+    let disco = createMockDiscovery()
+
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    var ticket = Ticket(
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+
+    let tWait = 300.0
+    let now: uint64 = 1_150
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    # waited for 150 seconds since tInit
+    check abs(tRemaining - 150.0) < 0.001
