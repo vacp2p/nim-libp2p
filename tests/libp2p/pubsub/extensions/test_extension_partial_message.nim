@@ -24,6 +24,7 @@ type CallbackRecorder = ref object
   publishToPeers: seq[PeerId]
   sentRPC: seq[PeerRPC] # peerId - to whom PRC was sent to
   incomingRPC: seq[PeerRPC] # peerId - who sent RPC
+  peerPenalty: Table[PeerId, float64]
 
 proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
   proc sendRPC(peerId: PeerId, rpc: PartialMessageExtensionRPC) {.gcsafe, raises: [].} =
@@ -37,6 +38,10 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
 
   proc isSupported(peer: PeerId): bool {.gcsafe, raises: [].} =
     return true
+
+  proc updatePeerBehaviorPenalty(peerId: PeerId, delta: float) {.gcsafe, raises: [].} =
+    let p = c.peerPenalty.getOrDefault(peerId)
+    c.peerPenalty[peerId] = p + delta
 
   proc validateRPC(
       rpc: PartialMessageExtensionRPC
@@ -53,6 +58,7 @@ proc config(c: CallbackRecorder): PartialMessageExtensionConfig =
     sendRPC: sendRPC,
     publishToPeers: publishToPeers,
     isSupported: isSupported,
+    updatePeerBehaviorPenalty: updatePeerBehaviorPenalty,
     nodeTopicOpts: nodeTopicOpts,
     unionPartsMetadata: my_partial_message.unionPartsMetadata,
     validateRPC: validateRPC,

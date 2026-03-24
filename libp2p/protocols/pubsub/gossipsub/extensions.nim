@@ -14,9 +14,6 @@ export
   TestExtensionConfig, PartialMessageExtensionConfig, TopicOpts,
   PingPongExtensionConfig, PreambleExtensionConfig
 
-type UpdatePeerBehaviorPenaltyProc* =
-  proc(peerId: PeerId, delta: float64) {.gcsafe, raises: [].}
-
 proc noopBehaviorPenaltyProc*(_: PeerId, _: float64) {.gcsafe, raises: [].} =
   discard
 
@@ -26,8 +23,6 @@ type ExtensionsState* = ref object
     # tells what peer capabilities are (what extensions are supported by them).
   receivedNonExtCtrlMsg: Table[PeerId, bool]
   updatePeerBehaviorPenalty: UpdatePeerBehaviorPenaltyProc
-    # callback when peer does not follow extensions protocol. 
-    # default implementation is set by GossipSub.createExtensionsState.
   nodeExtensions: ControlExtensions # tells what node's capabilities are.
   extensions: seq[Extension]
     # list of all extensions. state will delegate events to all elements of this list.
@@ -63,10 +58,11 @@ proc new*(
     nodeExtensions.testExtension = Opt.some(true)
 
   partialMessageExtensionConfig.withValue(c):
-    var cfg = c # var is needed to set isSupported
+    var cfg = c
     cfg.isSupported = proc(peerId: PeerId): bool {.gcsafe, raises: [].} =
       let peerExt = state.peerExtensions.getOrDefault(peerId)
       return state.partialMessageExtension.get().isSupported(peerExt)
+    cfg.updatePeerBehaviorPenalty = updatePeerBehaviorPenalty
     partialMessageExtension = Opt.some(PartialMessageExtension.new(cfg))
     extensions.add(partialMessageExtension.get())
     nodeExtensions.partialMessageExtension = Opt.some(true)
