@@ -1,26 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import std/[os, strutils, sequtils], chronos, redis, serialization, json_serialization
+import std/[os, strutils, sequtils], chronos, redis
 import ../../libp2p/[builders, protocols/ping, transports/wstransport]
-
-type ResultJson = object
-  handshakePlusOneRTTMillis: float
-  pingRTTMilllis: float
 
 let testTimeout =
   try:
-    seconds(parseInt(getEnv("test_timeout_seconds")))
+    seconds(parseInt(getEnv("TEST_TIMEOUT_SECS")))
   except CatchableError:
     3.minutes
 
 proc main() {.async.} =
   let
-    transport = getEnv("transport")
-    muxer = getEnv("muxer")
-    secureChannel = getEnv("security")
-    isDialer = getEnv("is_dialer") == "true"
-    envIp = getEnv("ip", "0.0.0.0")
+    transport = getEnv("TRANSPORT")
+    muxer = getEnv("MUXER")
+    secureChannel = getEnv("SECURE_CHANNEL")
+    isDialer = getEnv("IS_DIALER") == "true"
+    testKey = getEnv("TEST_KEY")
+    envIp = getEnv("LISTENER_IP", "0.0.0.0")
     ip =
       # nim-libp2p doesn't do snazzy ip expansion
       if envIp == "0.0.0.0":
@@ -32,7 +29,7 @@ proc main() {.async.} =
           ($addresses[0][0].host).split(":")[0]
       else:
         envIp
-    redisAddr = getEnv("redis_addr", "redis:6379").split(":")
+    redisAddr = getEnv("REDIS_ADDR", "redis:6379").split(":")
 
     # using synchronous redis because async redis is based on
     # asyncdispatch instead of chronos
@@ -76,12 +73,16 @@ proc main() {.async.} =
     await switch.stop()
 
   if not isDialer:
-    discard redisClient.rPush("listenerAddr", $switch.peerInfo.fullAddrs.tryGet()[0])
+    discard redisClient.rPush(
+      testKey & "_listener_multiaddr", $switch.peerInfo.fullAddrs.tryGet()[0]
+    )
     await sleepAsync(100.hours) # will get cancelled
   else:
     let listenerAddr =
       try:
-        redisClient.bLPop(@["listenerAddr"], testTimeout.seconds.int)[1]
+        redisClient.bLPop(@[testKey & "_listener_multiaddr"], testTimeout.seconds.int)[
+          1
+        ]
       except Exception as e:
         raise newException(CatchableError, "Exception calling bLPop: " & e.msg, e)
     let
@@ -93,12 +94,10 @@ proc main() {.async.} =
       totalDelay = Moment.now() - dialingStart
     await stream.close()
 
-    echo Json.encode(
-      ResultJson(
-        handshakePlusOneRTTMillis: float(totalDelay.milliseconds),
-        pingRTTMilllis: float(pingDelay.milliseconds),
-      )
-    )
+    echo "latency:"
+    echo "  handshake_plus_one_rtt: " & $float(totalDelay.milliseconds)
+    echo "  ping_rtt: " & $float(pingDelay.milliseconds)
+    echo "  unit: ms"
 
 try:
   proc mainAsync(): Future[string] {.async.} =
