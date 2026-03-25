@@ -372,17 +372,8 @@ proc withIMReceiving*(_: typedesc[RPCMsg], imreceiving: seq[IMReceiving]): RPCMs
   RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(imreceiving: imreceiving)))
 
 proc withIMReceiving*(_: typedesc[RPCMsg], preamble: Preamble): RPCMsg =
-  RPCMsg(
-    preambleExtension: Opt.some(
-      PreambleExtensionRPC(
-        imreceiving:
-          @[
-            IMReceiving(
-              messageID: preamble.messageID, messageLength: preamble.messageLength
-            )
-          ]
-      )
-    )
+  RPCMsg.withIMReceiving(
+    @[IMReceiving(messageID: preamble.messageID, messageLength: preamble.messageLength)]
   )
 
 proc withIWant*(_: typedesc[ControlMessage], msgIds: seq[MessageId]): ControlMessage =
