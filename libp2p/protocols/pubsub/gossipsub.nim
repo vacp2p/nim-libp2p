@@ -244,7 +244,7 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
     g.send(
       peer,
       RPCMsg.withControl(
-        ControlMessage(extensions: Opt.some(g.extensionsState.makeControlExtensions()))
+        ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
       ),
       true, # use high priority as message must be the first message on the stream
     )

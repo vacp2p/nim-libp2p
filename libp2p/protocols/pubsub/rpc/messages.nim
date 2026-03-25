@@ -352,30 +352,6 @@ proc byteSize*(rpc: RPCMsg): int =
   rpc.preambleExtension.withValue(v):
     result += v.byteSize
 
-proc withPreamble*(_: typedesc[RPCMsg], preamble: seq[Preamble]): RPCMsg =
-  RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(preamble: preamble)))
-
-proc withPreamble*(
-    _: typedesc[RPCMsg], msgs: seq[Message], msgIds: seq[MessageId]
-): RPCMsg =
-  var preambles: seq[Preamble]
-  for i, m in msgs:
-    preambles.add(
-      Preamble(topicID: m.topic, messageID: msgIds[i], messageLength: m.data.len.uint32)
-    )
-  RPCMsg.withPreamble(preambles)
-
-proc withPreamble*(_: typedesc[RPCMsg], msg: Message, msgId: MessageId): RPCMsg =
-  RPCMsg.withPreamble(@[msg], @[msgId])
-
-proc withIMReceiving*(_: typedesc[RPCMsg], imreceiving: seq[IMReceiving]): RPCMsg =
-  RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(imreceiving: imreceiving)))
-
-proc withIMReceiving*(_: typedesc[RPCMsg], preamble: Preamble): RPCMsg =
-  RPCMsg.withIMReceiving(
-    @[IMReceiving(messageID: preamble.messageID, messageLength: preamble.messageLength)]
-  )
-
 proc withIWant*(_: typedesc[ControlMessage], msgIds: seq[MessageId]): ControlMessage =
   ControlMessage(iwant: @[ControlIWant(messageIDs: msgIds)])
 
@@ -408,6 +384,11 @@ proc withPrune*(
     prune: @[ControlPrune(topicID: topicID, peers: peers, backoff: backoff)]
   )
 
+proc withExtensions*(
+    _: typedesc[ControlMessage], ext: ControlExtensions
+): ControlMessage =
+  ControlMessage(extensions: Opt.some(ext))
+
 proc withControl*(_: typedesc[RPCMsg], control: ControlMessage): RPCMsg =
   RPCMsg(control: Opt.some(control))
 
@@ -425,3 +406,27 @@ proc withPing*(_: typedesc[RPCMsg], ping: seq[byte]): RPCMsg =
 
 proc withPong*(_: typedesc[RPCMsg], pong: seq[byte]): RPCMsg =
   RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: pong)))
+
+proc withPreamble*(_: typedesc[RPCMsg], preamble: seq[Preamble]): RPCMsg =
+  RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(preamble: preamble)))
+
+proc withPreamble*(
+    _: typedesc[RPCMsg], msgs: seq[Message], msgIds: seq[MessageId]
+): RPCMsg =
+  var preambles: seq[Preamble]
+  for i, m in msgs:
+    preambles.add(
+      Preamble(topicID: m.topic, messageID: msgIds[i], messageLength: m.data.len.uint32)
+    )
+  RPCMsg.withPreamble(preambles)
+
+proc withPreamble*(_: typedesc[RPCMsg], msg: Message, msgId: MessageId): RPCMsg =
+  RPCMsg.withPreamble(@[msg], @[msgId])
+
+proc withIMReceiving*(_: typedesc[RPCMsg], imreceiving: seq[IMReceiving]): RPCMsg =
+  RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(imreceiving: imreceiving)))
+
+proc withIMReceiving*(_: typedesc[RPCMsg], preamble: Preamble): RPCMsg =
+  RPCMsg.withIMReceiving(
+    @[IMReceiving(messageID: preamble.messageID, messageLength: preamble.messageLength)]
+  )
