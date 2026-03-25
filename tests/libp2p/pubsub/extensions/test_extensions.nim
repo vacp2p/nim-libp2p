@@ -12,7 +12,7 @@ import ../../../tools/[unittest, crypto]
 import ./extension_recording
 
 proc makeRPC(extensions: ControlExtensions = ControlExtensions()): RPCMsg =
-  RPCMsg(control: Opt.some(ControlMessage(extensions: Opt.some(extensions))))
+  RPCMsg.withControl(ControlMessage(extensions: Opt.some(extensions)))
 
 proc createBehaviorPenaltyProc*(): (ref seq[PeerId], UpdatePeerBehaviorPenaltyProc) =
   let peers = new seq[PeerId]

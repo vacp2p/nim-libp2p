@@ -278,8 +278,7 @@ proc preambleExpirationTick*(ext: PreambleExtension) =
 
     let startsAt = Moment.now()
     ext.config.broadcastRPC(
-      RPCMsg(control: Opt.some(ControlMessage.withIWant(expired.messageId))),
-      @[chosenPeer],
+      RPCMsg.withControl(ControlMessage.withIWant(expired.messageId)), @[chosenPeer]
     )
 
     let peerState = ext.peerState.getOrDefault(chosenPeer)
