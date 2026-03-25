@@ -586,22 +586,12 @@ proc rebalanceMesh*(g: GossipSub, topic: string, metrics: ptr MeshMetrics = nil)
 
   # Send changes to peers after table updates to avoid stale state
   if grafts.len > 0:
-    let graft =
-      RPCMsg(control: Opt.some(ControlMessage(graft: @[ControlGraft(topicID: topic)])))
+    let graft = RPCMsg.withControl(ControlMessage.withGraft(topic))
     g.broadcast(grafts, graft, isHighPriority = true)
   if prunes.len > 0:
-    let prune = RPCMsg(
-      control: Opt.some(
-        ControlMessage(
-          prune:
-            @[
-              ControlPrune(
-                topicID: topic,
-                peers: g.peerExchangeList(topic),
-                backoff: g.parameters.pruneBackoff.seconds.uint64,
-              )
-            ]
-        )
+    let prune = RPCMsg.withControl(
+      ControlMessage.withPrune(
+        topic, g.parameters.pruneBackoff.seconds.uint64, g.peerExchangeList(topic)
       )
     )
     g.broadcast(prunes, prune, isHighPriority = true)
@@ -730,18 +720,9 @@ proc onHeartbeat(g: GossipSub) =
         g.mesh.removePeer(t, peer)
         prunes &= peer
     if prunes.len > 0:
-      let prune = RPCMsg(
-        control: Opt.some(
-          ControlMessage(
-            prune:
-              @[
-                ControlPrune(
-                  topicID: t,
-                  peers: g.peerExchangeList(t),
-                  backoff: g.parameters.pruneBackoff.seconds.uint64,
-                )
-              ]
-          )
+      let prune = RPCMsg.withControl(
+        ControlMessage.withPrune(
+          t, g.parameters.pruneBackoff.seconds.uint64, g.peerExchangeList(t)
         )
       )
       g.broadcast(prunes, prune, isHighPriority = true)
@@ -767,7 +748,7 @@ proc onHeartbeat(g: GossipSub) =
       if not g.extensionsState.peerRequestsPartial(peer.peerId, ihave.topicID):
         # send IHAVE only if peer has not requested partial for topic.
         # these peers will receive gossip of partial metadata via extension.
-        g.send(peer, RPCMsg(control: Opt.some(control)), isHighPriority = true)
+        g.send(peer, RPCMsg.withControl(control), isHighPriority = true)
 
   g.mcache.shift() # shift the cache
 

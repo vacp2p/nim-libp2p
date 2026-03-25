@@ -243,12 +243,8 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
     g.extensionsState.addPeer(peer.peerId)
     g.send(
       peer,
-      RPCMsg(
-        control: Opt.some(
-          ControlMessage(
-            extensions: Opt.some(g.extensionsState.makeControlExtensions())
-          )
-        )
+      RPCMsg.withControl(
+        ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
       ),
       true, # use high priority as message must be the first message on the stream
     )
@@ -413,7 +409,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
     trace "sending control message", payload = shortLog(respControl), peer
-    g.send(peer, RPCMsg(control: Opt.some(respControl)), isHighPriority = true)
+    g.send(peer, RPCMsg.withControl(respControl), isHighPriority = true)
 
   if messages.len > 0:
     for i, smsg in messages:
@@ -427,7 +423,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
-    g.send(peer, RPCMsg(messages: messages), isHighPriority = false)
+    g.send(peer, RPCMsg.withMessages(messages), isHighPriority = false)
 
 proc sendIDontWant(
     g: GossipSub,
@@ -456,10 +452,7 @@ proc sendIDontWant(
 
   g.broadcast(
     peers,
-    RPCMsg(
-      control:
-        Opt.some(ControlMessage(idontwant: @[ControlIWant(messageIDs: @[msgId])]))
-    ),
+    RPCMsg.withControl(ControlMessage.withIDontWant(msgId)),
     isHighPriority = true,
   )
 
@@ -547,7 +540,7 @@ proc validateAndRelay(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    g.broadcast(toSendPeers, RPCMsg.withMessages(msg), isHighPriority = false)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     libp2p_pubsub_messages_rebroadcasted.inc(
@@ -728,18 +721,9 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
 
     # Remove peers from the mesh since we're no longer both interested
     # in the topic
-    let msg = RPCMsg(
-      control: Opt.some(
-        ControlMessage(
-          prune:
-            @[
-              ControlPrune(
-                topicID: topic,
-                peers: g.peerExchangeList(topic),
-                backoff: g.parameters.unsubscribeBackoff.seconds.uint64,
-              )
-            ]
-        )
+    let msg = RPCMsg.withControl(
+      ControlMessage.withPrune(
+        topic, g.parameters.unsubscribeBackoff.seconds.uint64, g.peerExchangeList(topic)
       )
     )
     g.broadcast(mpeers, msg, isHighPriority = true)
@@ -903,7 +887,7 @@ method publish*(
 
   g.broadcast(
     peers,
-    RPCMsg(messages: @[msg]),
+    RPCMsg.withMessages(msg),
     isHighPriority = true,
     useCustomConn = pubParams.useCustomConn,
   )
@@ -1012,11 +996,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.sendPong.isNil:
       cfg.sendPong = proc(peerId: PeerId, pong: seq[byte]) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(
-            peer[],
-            RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: pong))),
-            true,
-          )
+          g.send(peer[], RPCMsg.withPong(pong), true)
 
     g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
