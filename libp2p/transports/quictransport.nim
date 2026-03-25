@@ -83,13 +83,6 @@ method readOnce*(
     except StreamError as e:
       raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
 
-  if readLen == 0:
-    stream.isEof = true
-    return 0
-
-  stream.activity = true
-  libp2p_network_bytes.inc(readLen.int64, labelValues = ["in"])
-  return readLen
 
 method write*(
     stream: QuicStream, bytes: seq[byte]
@@ -192,7 +185,7 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   proc handleStream(stream: QuicStream) {.async: (raises: []).} =
     ## call the muxer stream handler for this channel
     ##
-    await m.streamHandler(stream)
+    m.streamHandler(stream)
     trace "finished handling stream"
     doAssert(stream.closed, "connection not closed by handler!")
 
