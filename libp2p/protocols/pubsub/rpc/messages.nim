@@ -352,6 +352,61 @@ proc byteSize*(rpc: RPCMsg): int =
   rpc.preambleExtension.withValue(v):
     result += v.byteSize
 
+proc withIWant*(_: typedesc[ControlMessage], msgIds: seq[MessageId]): ControlMessage =
+  ControlMessage(iwant: @[ControlIWant(messageIDs: msgIds)])
+
+proc withIWant*(_: typedesc[ControlMessage], msgId: MessageId): ControlMessage =
+  ControlMessage.withIWant(@[msgId])
+
+proc withIDontWant*(
+    _: typedesc[ControlMessage], msgIds: seq[MessageId]
+): ControlMessage =
+  ControlMessage(idontwant: @[ControlIWant(messageIDs: msgIds)])
+
+proc withIDontWant*(_: typedesc[ControlMessage], msgId: MessageId): ControlMessage =
+  ControlMessage.withIDontWant(@[msgId])
+
+proc withIHave*(
+    _: typedesc[ControlMessage], topicID: string, messageIDs: seq[MessageId]
+): ControlMessage =
+  ControlMessage(ihave: @[ControlIHave(topicID: topicID, messageIDs: messageIDs)])
+
+proc withGraft*(_: typedesc[ControlMessage], topicID: string): ControlMessage =
+  ControlMessage(graft: @[ControlGraft(topicID: topicID)])
+
+proc withPrune*(
+    _: typedesc[ControlMessage],
+    topicID: string,
+    backoff: uint64,
+    peers: seq[PeerInfoMsg],
+): ControlMessage =
+  ControlMessage(
+    prune: @[ControlPrune(topicID: topicID, peers: peers, backoff: backoff)]
+  )
+
+proc withExtensions*(
+    _: typedesc[ControlMessage], ext: ControlExtensions
+): ControlMessage =
+  ControlMessage(extensions: Opt.some(ext))
+
+proc withControl*(_: typedesc[RPCMsg], control: ControlMessage): RPCMsg =
+  RPCMsg(control: Opt.some(control))
+
+proc withMessages*(_: typedesc[RPCMsg], messages: seq[Message]): RPCMsg =
+  RPCMsg(messages: messages)
+
+proc withMessages*(_: typedesc[RPCMsg], msg: Message): RPCMsg =
+  RPCMsg.withMessages(@[msg])
+
+proc withSubscriptions*(_: typedesc[RPCMsg], subscriptions: seq[SubOpts]): RPCMsg =
+  RPCMsg(subscriptions: subscriptions)
+
+proc withPing*(_: typedesc[RPCMsg], ping: seq[byte]): RPCMsg =
+  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: ping)))
+
+proc withPong*(_: typedesc[RPCMsg], pong: seq[byte]): RPCMsg =
+  RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(pong: pong)))
+
 proc withPreamble*(_: typedesc[RPCMsg], preamble: seq[Preamble]): RPCMsg =
   RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(preamble: preamble)))
 
@@ -372,18 +427,6 @@ proc withIMReceiving*(_: typedesc[RPCMsg], imreceiving: seq[IMReceiving]): RPCMs
   RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(imreceiving: imreceiving)))
 
 proc withIMReceiving*(_: typedesc[RPCMsg], preamble: Preamble): RPCMsg =
-  RPCMsg(
-    preambleExtension: Opt.some(
-      PreambleExtensionRPC(
-        imreceiving:
-          @[
-            IMReceiving(
-              messageID: preamble.messageID, messageLength: preamble.messageLength
-            )
-          ]
-      )
-    )
+  RPCMsg.withIMReceiving(
+    @[IMReceiving(messageID: preamble.messageID, messageLength: preamble.messageLength)]
   )
-
-proc withIWant*(_: typedesc[ControlMessage], msgId: MessageId): ControlMessage =
-  ControlMessage(iwant: @[ControlIWant(messageIDs: @[msgId])])

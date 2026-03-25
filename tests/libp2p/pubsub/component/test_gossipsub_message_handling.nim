@@ -89,13 +89,7 @@ suite "GossipSub Component - Message Handling":
 
     gossip1.broadcast(
       gossip1.mesh[topic],
-      RPCMsg(
-        control: Opt.some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: topic, messageIDs: iwantMessageIds)]
-          )
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIHave(topic, iwantMessageIds)),
       isHighPriority = false,
     )
 
@@ -115,13 +109,7 @@ suite "GossipSub Component - Message Handling":
 
     gossip1.broadcast(
       gossip1.mesh[topic],
-      RPCMsg(
-        control: Opt.some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
-          )
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       isHighPriority = false,
     )
 
@@ -144,13 +132,7 @@ suite "GossipSub Component - Message Handling":
 
     gossip1.broadcast(
       gossip1.mesh[topic],
-      RPCMsg(
-        control: Opt.some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
-          )
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       isHighPriority = false,
     )
 
@@ -171,13 +153,7 @@ suite "GossipSub Component - Message Handling":
 
     gossip1.broadcast(
       gossip1.mesh[topic],
-      RPCMsg(
-        control: Opt.some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
-          )
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       isHighPriority = false,
     )
 
