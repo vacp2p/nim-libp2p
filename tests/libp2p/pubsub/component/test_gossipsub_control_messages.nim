@@ -116,7 +116,7 @@ suite "GossipSub Component - Control Messages":
   asyncTest "PRUNE messages correctly removes peers from mesh":
     let
       backoff = 1
-      pruneMessage = ControlMessage.withPrune(topic, uint64(backoff))
+      pruneMessage = ControlMessage.withPrune(topic, uint64(backoff), @[])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
         .toGossipSub()
@@ -162,7 +162,7 @@ suite "GossipSub Component - Control Messages":
 
   asyncTest "Received PRUNE for non-subscribed topic":
     let
-      pruneMessage = ControlMessage.withPrune(topic, 1)
+      pruneMessage = ControlMessage.withPrune(topic, 1, @[])
       numberOfNodes = 2
       nodes = generateNodes(numberOfNodes, gossip = true, verifySignature = false)
         .toGossipSub()

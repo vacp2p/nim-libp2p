@@ -411,7 +411,7 @@ proc withPrune*(
     _: typedesc[ControlMessage],
     topicID: string,
     backoff: uint64,
-    peers: seq[PeerInfoMsg] = @[],
+    peers: seq[PeerInfoMsg],
 ): ControlMessage =
   ControlMessage(
     prune: @[ControlPrune(topicID: topicID, peers: peers, backoff: backoff)]
