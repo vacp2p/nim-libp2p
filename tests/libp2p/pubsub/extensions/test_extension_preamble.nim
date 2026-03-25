@@ -65,12 +65,7 @@ proc receiveIMReceiving(
   ext.onHandleRPC(peerId, RPCMsg.withIMReceiving(imreceivings))
 
 proc receiveIDontWant(ext: PreambleExtension, peerId: PeerId, msgIds: seq[MessageId]) =
-  ext.onHandleRPC(
-    peerId,
-    RPCMsg(
-      control: Opt.some(ControlMessage(idontwant: @[ControlIWant(messageIDs: msgIds)]))
-    ),
-  )
+  ext.onHandleRPC(peerId, RPCMsg.withControl(ControlMessage.withIDontWant(msgIds)))
 
 suite "GossipSub Extensions :: Preamble Extension":
   let peerId = PeerId.random(rng).get()
