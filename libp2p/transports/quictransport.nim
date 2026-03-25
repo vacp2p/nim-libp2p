@@ -406,6 +406,7 @@ method accept*(
   doAssert self.listeners.len > 0, "call start() before calling accept()"
 
   if self.acceptFuts.len == 0:
+    # initially start accept from all listeners
     self.acceptFuts = self.listeners.mapIt(it.accept())
 
   let finished =
@@ -419,6 +420,9 @@ method accept*(
           fut.cancelSoon()
       raise exc
 
+  # becasue some listener has accepted we need to run 
+  # accept manually in the place for this listner again 
+  # so that it keeps accepting for future method calls
   let index = self.acceptFuts.find(finished)
   self.acceptFuts[index] = self.listeners[index].accept()
 
