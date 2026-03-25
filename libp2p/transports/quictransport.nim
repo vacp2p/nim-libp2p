@@ -224,8 +224,11 @@ type QuicUpgrade = ref object of Upgrade
 type CertGenerator =
   proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].}
 
+type QuicAcceptType = typeof(default(Listener).accept())
+
 type QuicTransport* = ref object of Transport
-  listener: Listener
+  listeners: seq[Listener]
+  acceptFuts: seq[QuicAcceptType]
   client: Opt[QuicClient]
   privateKey: PrivateKey
   connections: HashSet[P2PConnection]
@@ -307,14 +310,17 @@ proc toMultiAddress(ta: TransportAddress): MultiAddress {.raises: [MaError].} =
 method start*(
     self: QuicTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
-  doAssert self.listener.isNil, "start() already called"
-  # TODO(#1663): handle multiple addr
+  doAssert self.listeners.len == 0, "start() already called"
 
+  var listenMAs: seq[MultiAddress]
+  var initialized = false
   try:
     let server = QuicServer.new(self.makeConfig())
-    self.listener = server.listen(initTAddress(addrs[0]).tryGet)
-    let listenMA = @[toMultiAddress(self.listener.localAddress())]
-    await procCall Transport(self).start(listenMA)
+    for maAddr in addrs:
+      let listener = server.listen(initTAddress(maAddr).tryGet)
+      self.listeners.add(listener)
+      listenMAs.add(toMultiAddress(listener.localAddress()))
+    initialized = true
   except QuicConfigError as exc:
     raiseAssert "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
@@ -328,17 +334,25 @@ method start*(
     raise (ref QuicTransportError)(
       msg: "transport error in quic start: " & exc.msg, parent: exc
     )
+  finally:
+    if not initialized:
+      for listener in self.listeners:
+        await noCancel listener.stop()
+      self.listeners = @[]
+
+  await procCall Transport(self).start(listenMAs)
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
 
-  if not transport.listener.isNil:
+  for listener in transport.listeners:
     try:
-      await transport.listener.stop()
+      await listener.stop()
     except CatchableError as exc:
       trace "Error shutting down Quic transport", description = exc.msg
-    transport.listener = nil
+  transport.listeners = @[]
+  transport.acceptFuts = @[]
 
   transport.client.withValue(client):
     await noCancel client.stop()
@@ -389,11 +403,28 @@ method accept*(
     # stop accept only when transport is stopped (not when error occurs)
     raise newException(QuicTransportAcceptStopped, "Quic transport stopped")
 
-  doAssert not self.listener.isNil, "call start() before calling accept()"
+  doAssert self.listeners.len > 0, "call start() before calling accept()"
+
+  if self.acceptFuts.len == 0:
+    self.acceptFuts = self.listeners.mapIt(it.accept())
+
+  let finished =
+    try:
+      await one(self.acceptFuts)
+    except ValueError:
+      raiseAssert "acceptFuts should never be empty"
+    except CancelledError as exc:
+      for fut in self.acceptFuts:
+        if not fut.finished():
+          fut.cancelSoon()
+      raise exc
+
+  let index = self.acceptFuts.find(finished)
+  self.acceptFuts[index] = self.listeners[index].accept()
 
   try:
-    let connection = await self.listener.accept()
-    return self.wrapConnection(connection, Direction.In)
+    let conn = await finished
+    return self.wrapConnection(conn, Direction.In)
   except QuicError as exc:
     debug "Quic Error", description = exc.msg
   except common.TransportError as exc:
