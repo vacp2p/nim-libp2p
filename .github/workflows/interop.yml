@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   run-transport-interop:
-    name: Run Transport interoperability tests
+    name: Run transport interoperability tests
     runs-on: ubuntu-22.04
     steps:
       - name: Free Disk Space
