@@ -246,7 +246,7 @@ proc findPeer*(
 
   if kad.switch.peerInfo.peerId == target:
     # Looking for yourself.
-    return ok(kad.switch.peerInfo)
+    return ok(PeerInfo(peerId: target, addrs: kad.switch.peerInfo.addrs))
 
   if kad.switch.isConnected(target):
     # Return known info about already connected peer
