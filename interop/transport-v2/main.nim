@@ -1,17 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import std/[os, strutils, sequtils], chronos, redis, yaml
+import std/[os, strutils, sequtils], chronos, redis
 import ../../libp2p/[builders, protocols/ping, transports/wstransport]
-
-type
-  LatencyResult = object
-    handshake_plus_one_rtt: float
-    ping_rtt: float
-    unit: string
-
-  TestOutput = object
-    latency: LatencyResult
 
 let testTimeout =
   try:
@@ -103,13 +94,11 @@ proc main() {.async.} =
       totalDelay = Moment.now() - dialingStart
     await stream.close()
 
-    echo TestOutput(
-      latency: LatencyResult(
-        handshake_plus_one_rtt: float(totalDelay.milliseconds),
-        ping_rtt: float(pingDelay.milliseconds),
-        unit: "ms",
-      )
-    ).to(string)
+    # YAML format
+    echo "latency:"
+    echo "  handshake_plus_one_rtt: " & $float(totalDelay.milliseconds)
+    echo "  ping_rtt: " & $float(pingDelay.milliseconds)
+    echo "  unit: ms"
 
 try:
   proc mainAsync(): Future[string] {.async.} =
