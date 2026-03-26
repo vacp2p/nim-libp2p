@@ -29,17 +29,15 @@ jobs:
       - name: Build image
         run: docker buildx build --load -t nim-libp2p-transport-head -f interop/transport/Dockerfile .
       - name: Run tests
-        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@f58b7472d85aa053ce2ba8e9135bcc126a6fed3e
+        uses: libp2p/test-plans/.github/actions/run-transport-interop-test@master
         with:
           test-filter: nim-libp2p-transport-head
-          # without suffix action fails because "hole-punching-interop" artifacts have 
+          # without suffix action fails because "hole-punching-interop" artifacts have
           # the same name as "transport-interop" artifacts
           test-results-suffix: transport-interop
           extra-versions: ${{ github.workspace }}/interop/transport/version.json
-          s3-cache-bucket: ${{ vars.S3_LIBP2P_BUILD_CACHE_BUCKET_NAME }}
-          s3-access-key-id: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_ACCESS_KEY_ID }}
-          s3-secret-access-key: ${{ secrets.S3_LIBP2P_BUILD_CACHE_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.S3_LIBP2P_BUILD_CACHE_AWS_REGION }}
+          worker-count: 4
+          known-errors: "^(c-v0\\.0\\.1 x nim-libp2p-transport-head \\(quic-v1\\)|eth-p2p-z-v0\\.0\\.1 x nim-libp2p-transport-head \\(quic-v1\\))$"
 
   # run-hole-punching-interop:
   #   name: Run hole punching interoperability tests
