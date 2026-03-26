@@ -42,7 +42,7 @@ proc bootstrap*(
 ) {.async: (raises: [CancelledError]).} =
   await kad.refreshTable(kad.rtable, forceRefresh)
 
-  trace "Bootstrap complete"
+  debug "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "Refreshing buckets (bootstrapping)",

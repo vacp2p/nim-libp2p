@@ -48,7 +48,8 @@ proc maintainRegistrarCache(
     disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
 proc maintainTables(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh service routing tables", disco.config.bucketRefreshTime:
+  heartbeat "refresh service routing tables",
+    disco.config.bucketRefreshTime, sleepFirst = true:
     await disco.serviceRoutingTables.refreshAllTables(disco)
 
 proc new*(
@@ -131,19 +132,17 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-disco twice"
     return
 
+  await procCall start(KadDHT(disco))
+
   disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
   disco.registrarCacheLoop = disco.maintainRegistrarCache()
   disco.serviceTableLoop = disco.maintainTables()
-
-  await procCall start(KadDHT(disco))
 
   info "Kademlia Discovery started"
 
 method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
   if not disco.started:
     return
-
-  await procCall stop(KadDHT(disco))
 
   if not disco.selfSignedLoop.isNil:
     disco.selfSignedLoop.cancelSoon()
@@ -160,5 +159,7 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
   if not disco.advertiseLoop.isNil:
     disco.advertiseLoop.cancelSoon()
     disco.advertiseLoop = nil
+
+  await procCall stop(KadDHT(disco))
 
   disco.started = false
