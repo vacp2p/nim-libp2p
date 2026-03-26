@@ -411,7 +411,8 @@ method accept*(
 
   let finished =
     try:
-      await one(self.acceptFuts)
+      let acceptFutsCopy = self.acceptFuts
+      await one(acceptFutsCopy)
     except ValueError:
       raiseAssert "acceptFuts should never be empty"
     except CancelledError as exc:
@@ -420,11 +421,14 @@ method accept*(
           fut.cancelSoon()
       raise exc
 
+  if not self.running or self.listeners.len == 0: # Stopped while waiting
+    raise newTransportClosedError()
+
   # becasue some listener has accepted we need to run 
   # accept manually in the place for this listner again 
   # so that it keeps accepting for future method calls
-  let index = self.acceptFuts.find(finished)
-  self.acceptFuts[index] = self.listeners[index].accept()
+  let index = acceptFutsCopy.find(finished)
+  acceptFutsCopy[index] = self.listeners[index].accept()
 
   try:
     let conn = await finished
