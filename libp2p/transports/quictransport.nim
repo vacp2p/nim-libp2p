@@ -427,8 +427,8 @@ method accept*(
   # becasue some listener has accepted we need to run 
   # accept manually in the place for this listner again 
   # so that it keeps accepting for future method calls
-  let index = acceptFutsCopy.find(finished)
-  acceptFutsCopy[index] = self.listeners[index].accept()
+  let index = self.acceptFuts.find(finished)
+  self.acceptFuts[index] = self.listeners[index].accept()
 
   try:
     let conn = await finished
