@@ -22,6 +22,7 @@ type KademliaDiscovery* = ref object of KadDHT
   registrarCacheLoop*: Future[void]
   services*: HashSet[ServiceInfo]
   discoConf*: KademliaDiscoveryConfig
+  xprPublishing*: bool
 
 export ServiceInfo
 
@@ -61,14 +62,7 @@ method select*(
 
   return ok(bestIdx)
 
-proc record*(
-    disco: KademliaDiscovery
-): Future[Result[SignedExtendedPeerRecord, string]] {.async: (raises: []).} =
-  let updateRes = catch:
-    await disco.switch.peerInfo.update()
-  if updateRes.isErr:
-    return err("Failed to update peer info: " & updateRes.error.msg)
-
+proc record*(disco: KademliaDiscovery): Result[SignedExtendedPeerRecord, string] =
   let
     peerInfo: PeerInfo = disco.switch.peerInfo
     services: seq[ServiceInfo] = disco.services.toSeq()

@@ -19,7 +19,7 @@ logScope:
 const ServiceDiscoveryCodec = "/logos/service-discovery/1.0.0"
 
 proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: []).} =
-  let extPeerRecord = (await disco.record()).valueOr:
+  let extPeerRecord = disco.record().valueOr:
     error "Failed to create signed extended peer record", error
     return
 
@@ -28,6 +28,8 @@ proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: [])
     return
 
   let key = disco.switch.peerInfo.peerId.toKey()
+
+  debug "Publishing Signed XPR", xpr = $extPeerRecord
 
   let putRes = catch:
     await disco.putValue(key, encodedSR)
@@ -62,6 +64,7 @@ proc new*(
     codec: string = ServiceDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
     discoConf: KademliaDiscoveryConfig = KademliaDiscoveryConfig.new(),
+    xprPublishing: bool = true,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
@@ -80,6 +83,7 @@ proc new*(
     serviceRoutingTables: ServiceRoutingTableManager.new(),
     services: toHashSet(services),
     discoConf: discoConf,
+    xprPublishing: xprPublishing,
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -134,7 +138,9 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
 
   await procCall start(KadDHT(disco))
 
-  disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
+  if disco.xprPublishing:
+    disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
+
   disco.registrarCacheLoop = disco.maintainRegistrarCache()
   disco.serviceTableLoop = disco.maintainTables()
 

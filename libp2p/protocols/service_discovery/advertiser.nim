@@ -112,7 +112,7 @@ proc startAdvertising*(
     error "no service routing table found", serviceId
     return
 
-  let record = (await disco.record()).valueOr:
+  let record = disco.record().valueOr:
     error "failed create extended peer record", error
     return
 
