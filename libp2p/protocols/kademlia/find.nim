@@ -67,12 +67,13 @@ proc lookupPeersLog*(state: LookupState): seq[LookupPeerLog] {.raises: [].} =
     if result == 0: result = cmp(a.pid, b.pid)
   )
 
-func keyShortLog*(k: Key): PeerId {.raises: [].} =
+func keyShortLog*(k: Key): string {.raises: [].} =
   ## Prefer PeerId if `k` happens to be a valid PeerId byte form; otherwise hex.
-  let pidRes = PeerId.init(k)         # Result[PeerId, cstring]
+  let pidRes = PeerId.init(k)
   if pidRes.isOk():
-    return pidRes.get()
-
+    pidRes.get().shortLog()
+  else:
+    "key_not_valid"
 
 type DispatchProc* = proc(kad: KadDHT, peer: PeerId, target: Key): Future[Opt[Message]] {.
   async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
