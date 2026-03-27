@@ -392,7 +392,8 @@ proc requestPeer[E](
   defer:
     await conn.close()
 
-  var d = Discover(ns: pbSome(ns.get("")), limit: pbSome(limit))
+  let disns = if ns.isSome(): pbSome(ns.get()) else: pbNone(default(string))
+  var d = Discover(ns: disns, limit: pbSome(limit))
   d.cookie =
     if ns.isSome():
       try:
@@ -413,6 +414,9 @@ proc requestPeer[E](
       return @[]
   if msgRcv.msgType.get() != MsgTypeDiscoverResponse:
     debug "Unexpected discover response", msgType = msgRcv.msgType
+    return @[]
+  if msgRcv.discoverResponse.isNone():
+    debug "Discover response is empty"
     return @[]
   let resp = msgRcv.discoverResponse.get()
   if resp.status.get() != ResponseOk:

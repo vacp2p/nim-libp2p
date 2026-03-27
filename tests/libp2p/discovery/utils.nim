@@ -115,12 +115,20 @@ proc prepareRegisterMessage*(
 ): Message =
   Message(
     msgType: pbSome(MsgTypeRegister),
-    register: pbSome(Register(ns: pbSome(namespace), signedPeerRecord: pbSome(spr), ttl: pbSome(ttl.seconds.uint64))),
+    register: pbSome(
+      Register(
+        ns: pbSome(namespace),
+        signedPeerRecord: pbSome(spr),
+        ttl: pbSome(ttl.seconds.uint64),
+      )
+    ),
   )
 
 proc prepareDiscoverMessage*(
     ns = "", limit = 0'u64, cookie = default(seq[byte])
 ): Message =
   Message(
-    msgType: pbSome(MsgTypeDiscover), discover: pbSome(Discover(ns: pbSome(ns), limit: pbSome(limit), cookie: pbSome(cookie)))
+    msgType: pbSome(MsgTypeDiscover),
+    discover:
+      pbSome(Discover(ns: pbSome(ns), limit: pbSome(limit), cookie: pbSome(cookie))),
   )
