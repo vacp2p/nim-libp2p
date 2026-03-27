@@ -114,15 +114,15 @@ proc new*(
       let
         buf = await conn.readLp(4096)
         msg = Protobuf.decode(buf, Message)
-      case msg.msgType
+      case msg.msgType.get()
       of MsgTypeRegister:
-        await rdv.register(conn, msg.register, pr)
+        await rdv.register(conn, msg.register.get(), pr)
       of MsgTypeRegisterResponse:
         trace "Got an unexpected Register Response", response = msg.registerResponse
       of MsgTypeUnregister:
-        rdv.unregister(conn, msg.unregister)
+        rdv.unregister(conn, msg.unregister.get())
       of MsgTypeDiscover:
-        await rdv.discover(conn, msg.discover)
+        await rdv.discover(conn, msg.discover.get())
       of MsgTypeDiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
       else:
@@ -613,11 +613,11 @@ suite "RendezVous":
     # expiration within [timeBefore + 2hours, timeAfter + 2hours]
     check:
       # Peer Node side
-      peerNodes[0].registered.s[0].data.ttl == MinimumDuration.seconds.uint64
+      peerNodes[0].registered.s[0].data.ttl.get() == MinimumDuration.seconds.uint64
       peerNodes[0].registered.s[0].expiration >= timeBefore + MinimumDuration
       peerNodes[0].registered.s[0].expiration <= timeAfter + MinimumDuration
       # Rendezvous Node side
-      rendezvousNode.registered.s[0].data.ttl == MinimumDuration.seconds.uint64
+      rendezvousNode.registered.s[0].data.ttl.get() == MinimumDuration.seconds.uint64
       rendezvousNode.registered.s[0].expiration >= timeBefore + MinimumDuration
       rendezvousNode.registered.s[0].expiration <= timeAfter + MinimumDuration
 
@@ -637,11 +637,11 @@ suite "RendezVous":
     # expiration within [timeBefore + ttl, timeAfter + ttl]
     check:
       # Peer Node side
-      peerNodes[0].registered.s[0].data.ttl == ttl.seconds.uint64
+      peerNodes[0].registered.s[0].data.ttl.get() == ttl.seconds.uint64
       peerNodes[0].registered.s[0].expiration >= timeBefore + ttl
       peerNodes[0].registered.s[0].expiration <= timeAfter + ttl
       # Rendezvous Node side
-      rendezvousNode.registered.s[0].data.ttl == ttl.seconds.uint64
+      rendezvousNode.registered.s[0].data.ttl.get() == ttl.seconds.uint64
       rendezvousNode.registered.s[0].expiration >= timeBefore + ttl
       rendezvousNode.registered.s[0].expiration <= timeAfter + ttl
 

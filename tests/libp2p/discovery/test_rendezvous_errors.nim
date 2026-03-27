@@ -109,11 +109,11 @@ suite "RendezVous Errors":
         responseBuf = await sendRdvMessage(peerNode, rendezvousNode, messageBuf)
         responseMessage = Protobuf.decode(responseBuf, Message)
         actualStatus =
-          if responseMessage.msgType == MsgTypeRegisterResponse:
-            responseMessage.registerResponse.status
+          if responseMessage.msgType.get() == MsgTypeRegisterResponse:
+            responseMessage.registerResponse.get().status.get()
           else:
-            check responseMessage.msgType == MsgTypeDiscoverResponse
-            responseMessage.discoverResponse.status
+            check responseMessage.msgType.get() == MsgTypeDiscoverResponse
+            responseMessage.discoverResponse.get().status.get()
 
       check actualStatus == expectedStatus
 
@@ -138,4 +138,4 @@ suite "RendezVous Errors":
 
     let responseBuf = await sendRdvMessage(peerNodes[0], rendezvousNode, messageBuf)
     let responseMessage = Protobuf.decode(responseBuf, Message)
-    check responseMessage.registerResponse.status == ResponseNotAuthorized
+    check responseMessage.registerResponse.get().status.get() == ResponseNotAuthorized
