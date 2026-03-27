@@ -67,16 +67,22 @@ suite "DelayStrategy":
 
     check delays.len > NumSamples div 2
 
-  test "ExponentialDelayStrategy truncates at negligible probability threshold":
+  test "ExponentialDelayStrategy resamples values above the practical maximum":
     let
       meanDelayMs: uint16 = 100
-      negligibleProb = DefaultNegligibleProb
+      negligibleProb = 0.01
       strategy = ExponentialDelayStrategy.new(meanDelayMs, rng(), negligibleProb)
       # maxDelay = -mean * ln(negligibleProb)
       maxDelayMs = uint16(-float64(meanDelayMs) * ln(negligibleProb))
+    var maxDelayHits = 0
 
-    for _ in 0 ..< 10000:
-      check strategy.generateForIntermediate(meanDelayMs) <= maxDelayMs
+    for _ in 0 ..< 20000:
+      let delay = strategy.generateForIntermediate(meanDelayMs)
+      check delay <= maxDelayMs
+      if delay == maxDelayMs:
+        inc maxDelayHits
+
+    check maxDelayHits < 50
 
   test "ExponentialDelayStrategy respects custom negligibleProb":
     let
@@ -87,3 +93,20 @@ suite "DelayStrategy":
 
     for _ in 0 ..< 10000:
       check strategy.generateForIntermediate(meanDelayMs) <= maxDelayMs
+
+  test "ExponentialDelayStrategy resamples values below the configured minimum":
+    let
+      meanDelayMs: uint16 = 100
+      minimumDelayMs: uint16 = 100
+      strategy = ExponentialDelayStrategy.new(
+        meanDelayMs, rng(), minimumDelayMs = minimumDelayMs
+      )
+    var minimumDelayHits = 0
+
+    for _ in 0 ..< 10000:
+      let delay = strategy.generateForIntermediate(meanDelayMs)
+      check delay >= minimumDelayMs
+      if delay == minimumDelayMs:
+        inc minimumDelayHits
+
+    check minimumDelayHits < 500
