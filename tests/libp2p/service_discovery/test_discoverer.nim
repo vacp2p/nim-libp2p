@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH
+{.used.}
+
+import std/options
+import chronos, results
+import ../../../libp2p/protocols/kademlia_discovery/[types]
+import ../../../libp2p/protocols/service_discovery/[discoverer, serviceroutingtables]
+import ../../tools/unittest
+import ./utils
+
+suite "Discoverer - lookup":
+  teardown:
+    checkTrackers()
+
+  test "creates service routing table on first call":
+    let disco = createMockDiscovery()
+    let serviceId = makeServiceId()
+
+    check not disco.serviceRoutingTables.hasService(serviceId)
+
+    let res = waitFor disco.lookup(serviceId)
+
+    check res.isOk()
+    check disco.serviceRoutingTables.hasService(serviceId)
+
+  test "empty routing table returns ok with empty peers":
+    let disco = createMockDiscovery()
+    let serviceId = makeServiceId()
+
+    let res = waitFor disco.lookup(serviceId)
+
+    check res.isOk()
+    check res.get().len == 0
+
+  test "calling lookup twice for same service is idempotent":
+    # Second call must not error and the table must still exist
+    let disco = createMockDiscovery()
+    let serviceId = makeServiceId()
+
+    let res1 = waitFor disco.lookup(serviceId)
+    let res2 = waitFor disco.lookup(serviceId)
+
+    check res1.isOk()
+    check res2.isOk()
+    check disco.serviceRoutingTables.hasService(serviceId)
+
+  test "distinct service IDs get independent routing tables":
+    let disco = createMockDiscovery()
+    let sid1 = makeServiceId(1)
+    let sid2 = makeServiceId(2)
+
+    discard waitFor disco.lookup(sid1)
+    discard waitFor disco.lookup(sid2)
+
+    check disco.serviceRoutingTables.hasService(sid1)
+    check disco.serviceRoutingTables.hasService(sid2)
+    # Tables are independent — count reflects both
+    check disco.serviceRoutingTables.count() == 2
+
+  test "kRegister cap: result length never exceeds kRegister":
+    let kRegister = 5
+    let disco = createMockDiscovery(
+      discoConf = KademliaDiscoveryConfig.new(kRegister = kRegister, bucketsCount = 16)
+    )
+    let serviceId = makeServiceId()
+
+    var peers = newSeq[typeof(makePeerId())](kRegister + 2)
+    for i in 0 ..< peers.len:
+      peers[i] = makePeerId()
+
+    populateSearchTable(disco, serviceId, peers)
+
+    let res = waitFor disco.lookup(serviceId)
+
+    check res.isOk()
+    check res.get().len <= kRegister

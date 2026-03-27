@@ -18,8 +18,9 @@ runnableExamples:
 {.push raises: [].}
 
 import
-  std/[tables, sets, options, macros],
+  std/[tables, sets, options, macros, net],
   chronos,
+  chronicles,
   ./crypto/crypto,
   ./crypto/curve25519,
   ./protocols/identify,
@@ -32,6 +33,9 @@ import
   ./multistream,
   ./muxers/muxer,
   utility
+
+logScope:
+  topics = "peer store"
 
 type
   #################
@@ -145,6 +149,21 @@ proc del*(peerStore: PeerStore, peerId: PeerId) {.public.} =
   for _, book in peerStore.books:
     book.deletor(peerId)
 
+proc logFuckedAddr*(info: IdentifyInfo) {.raises: [].} =
+  for a in info.addrs:
+    let ip = a[0].valueOr:
+      continue
+
+    if not IP4.match(ip):
+      continue
+
+    let ip4 = ip.protoAddress().valueOr:
+      continue
+
+    if ip4 == AnyAddress.address_v4:
+      warn "0.0.0.0 address detected, who did this?"
+      writeStackTrace()
+
 proc updatePeerInfo*(
     peerStore: PeerStore,
     info: IdentifyInfo,
@@ -152,6 +171,7 @@ proc updatePeerInfo*(
     direction: Opt[Direction] = Opt.none(Direction),
 ) =
   if len(info.addrs) > 0:
+    logFuckedAddr(info)
     peerStore[AddressBook][info.peerId] = info.addrs
 
   peerStore[LastSeenBook][info.peerId] = observedAddr

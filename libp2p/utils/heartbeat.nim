@@ -1,11 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
 import chronos, chronicles
 
 export chronicles
+
+template runAfter*(waitTime: Duration, body: untyped): untyped =
+  asyncSpawn (
+    proc() {.async.} =
+      await sleepAsync(waitTime)
+      body
+  )()
 
 template heartbeat*(
     name: string, interval: Duration, sleepFirst: bool, body: untyped
