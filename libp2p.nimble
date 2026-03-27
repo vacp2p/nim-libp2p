@@ -11,7 +11,7 @@ requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.5",
   "chronicles >= 0.11.0", "chronos >= 4.0.4", "metrics", "secp256k1", "stew >= 0.4.2",
   "websock >= 0.2.1", "unittest2", "results", "serialization",
-  "https://github.com/status-im/nim-protobuf-serialization#4d74e157cdf1bdcd0ffd41519ebde740c4b80447",
+  "https://github.com/status-im/nim-protobuf-serialization#ec6c90af74437d45755085ec8d75fe4f269ab18b",
   "https://github.com/vacp2p/nim-lsquic#86b8efc703d06a493fa984b76e4ffb6ddde99c41",
   "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
 
