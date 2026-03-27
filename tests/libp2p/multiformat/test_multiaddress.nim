@@ -381,6 +381,48 @@ suite "MultiAddress test suite":
     check not tcp.matchPartial(ma)
     check IP4.matchPartial(ma)
 
+  test "getField returns ok(true) for valid multiaddress":
+    var pb = initProtoBuffer()
+    let ma = MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()
+    pb.write(1, ma)
+    pb.finish()
+
+    var decoded: MultiAddress
+    check:
+      pb.getField(1, decoded).get() == true
+      decoded == ma
+
+  test "getField returns ok(false) for missing field":
+    var pb = initProtoBuffer()
+    pb.write(2, "placeholder")
+    pb.finish()
+
+    var decoded: MultiAddress
+    check:
+      pb.getField(1, decoded).get() == false
+      decoded == MultiAddress()
+
+  test "getField returns ok(false) for empty multiaddress":
+    var pb = initProtoBuffer()
+    pb.write(1, newSeq[byte]())
+    pb.finish()
+
+    var decoded: MultiAddress
+    check:
+      pb.getField(1, decoded).get() == false
+      decoded == MultiAddress()
+
+  test "getField returns err for invalid multiaddress":
+    var pb = initProtoBuffer()
+    pb.write(1, "invalid")
+    pb.finish()
+
+    var decoded: MultiAddress
+    let error = pb.getField(1, decoded).error()
+    check:
+      error == ProtoError.IncorrectBlob
+      decoded == MultiAddress()
+
   test "getRepeatedField does not fail when all addresses are valid":
     var pb = initProtoBuffer()
     let mas = SuccessVectors.mapIt(MultiAddress.init(it).get())

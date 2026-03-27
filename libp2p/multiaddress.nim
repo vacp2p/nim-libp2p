@@ -1102,7 +1102,7 @@ proc getField*(
 ): ProtoResult[bool] {.inline.} =
   var buffer: seq[byte]
   let res = ?pb.getField(field, buffer)
-  if not (res):
+  if not (res) or buffer.len == 0:
     ok(false)
   else:
     value = MultiAddress.init(buffer).valueOr:
