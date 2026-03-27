@@ -26,38 +26,38 @@ type
   MessageType* = uint32
   ResponseStatus* = uint32
 
-  Cookie* {.proto3.} = object
-    offset* {.fieldNumber: 1, pint.}: uint64
-    ns* {.fieldNumber: 2.}: string
+  Cookie* {.proto2.} = object
+    offset* {.fieldNumber: 1, pint.}: PBOption[0'u64]
+    ns* {.fieldNumber: 2.}: PBOption[default(string)]
 
-  Register* {.proto3.} = object
-    ns* {.fieldNumber: 1.}: string
-    signedPeerRecord* {.fieldNumber: 2.}: seq[byte]
-    ttl* {.fieldNumber: 3, pint.}: uint64 # in seconds
+  Register* {.proto2.} = object
+    ns* {.fieldNumber: 1.}: PBOption[default(string)]
+    signedPeerRecord* {.fieldNumber: 2.}: PBOption[default(seq[byte])]
+    ttl* {.fieldNumber: 3, pint.}: PBOption[0'u64] # in seconds
 
-  RegisterResponse* {.proto3.} = object
-    status* {.fieldNumber: 1, pint.}: ResponseStatus
-    text* {.fieldNumber: 2.}: string
-    ttl* {.fieldNumber: 3, pint.}: uint64 # in seconds
+  RegisterResponse* {.proto2.} = object
+    status* {.fieldNumber: 1, pint.}: PBOption[0'u32]
+    text* {.fieldNumber: 2.}: PBOption[default(string)]
+    ttl* {.fieldNumber: 3, pint.}: PBOption[0'u64] # in seconds
 
-  Unregister* {.proto3.} = object
-    ns* {.fieldNumber: 1.}: string
+  Unregister* {.proto2.} = object
+    ns* {.fieldNumber: 1.}: PBOption[default(string)]
 
-  Discover* {.proto3.} = object
-    ns* {.fieldNumber: 1.}: string
-    limit* {.fieldNumber: 2, pint.}: uint64
-    cookie* {.fieldNumber: 3.}: seq[byte]
+  Discover* {.proto2.} = object
+    ns* {.fieldNumber: 1.}: PBOption[default(string)]
+    limit* {.fieldNumber: 2, pint.}: PBOption[0'u64]
+    cookie* {.fieldNumber: 3.}: PBOption[default(seq[byte])]
 
-  DiscoverResponse* {.proto3.} = object
+  DiscoverResponse* {.proto2.} = object
     registrations* {.fieldNumber: 1.}: seq[Register]
-    cookie* {.fieldNumber: 2.}: seq[byte]
-    status* {.fieldNumber: 3, pint.}: ResponseStatus
-    text* {.fieldNumber: 4.}: string
+    cookie* {.fieldNumber: 2.}: PBOption[default(seq[byte])]
+    status* {.fieldNumber: 3, pint.}: PBOption[0'u32]
+    text* {.fieldNumber: 4.}: PBOption[default(string)]
 
-  Message* {.proto3.} = object
-    msgType* {.fieldNumber: 1, pint.}: MessageType
-    register* {.fieldNumber: 2.}: Register
-    registerResponse* {.fieldNumber: 3.}: RegisterResponse
-    unregister* {.fieldNumber: 4.}: Unregister
-    discover* {.fieldNumber: 5.}: Discover
-    discoverResponse* {.fieldNumber: 6.}: DiscoverResponse
+  Message* {.proto2.} = object
+    msgType* {.fieldNumber: 1, pint.}: PBOption[0'u32]
+    register* {.fieldNumber: 2.}: PBOption[default(Register)]
+    registerResponse* {.fieldNumber: 3.}: PBOption[default(RegisterResponse)]
+    unregister* {.fieldNumber: 4.}: PBOption[default(Unregister)]
+    discover* {.fieldNumber: 5.}: PBOption[default(Discover)]
+    discoverResponse* {.fieldNumber: 6.}: PBOption[default(DiscoverResponse)]
