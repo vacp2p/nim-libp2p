@@ -13,7 +13,7 @@ requires "nim >= 2.0.0",
   "websock >= 0.2.1", "unittest2", "results", "serialization",
   "https://github.com/status-im/nim-protobuf-serialization#ec6c90af74437d45755085ec8d75fe4f269ab18b",
   "https://github.com/vacp2p/nim-lsquic#86b8efc703d06a493fa984b76e4ffb6ddde99c41",
-  "https://github.com/vacp2p/nim-jwt.git#18f8378de52b241f321c1f9ea905456e89b95c6f"
+  "https://github.com/nitely/nim-jwt.git#4b947469dbf951dca271c5fa9b0d4c6b803d874e"
 
 import hashes, os, sequtils, strutils
 
