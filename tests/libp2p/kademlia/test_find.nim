@@ -194,6 +194,22 @@ suite "KadDHT Find":
     let res2 = await kads[1].findPeer(randomPeerId())
     check res2.isErr()
 
+  asyncTest "Find peer returns dialable addresses for self":
+    let kad = setupKad()
+    let wildcard = MultiAddress.init("/ip4/0.0.0.0/tcp/12345").tryGet()
+    let dialable = MultiAddress.init("/ip4/127.0.0.1/tcp/12345").tryGet()
+
+    kad.switch.peerInfo.listenAddrs = @[wildcard]
+    kad.switch.peerInfo.addrs = @[dialable]
+
+    let res = await kad.findPeer(kad.switch.peerInfo.peerId)
+
+    check:
+      res.isOk()
+      res.get().peerId == kad.switch.peerInfo.peerId
+      res.get().addrs == @[dialable]
+      res.get().listenAddrs.len == 0
+
   asyncTest "Find node via refresh stale buckets":
     # Setup: kads[0] <-> kads[1] <-> kads[2] (kads[0] doesn't initially know kads[2])
     let kads = setupKadSwitches(3)
