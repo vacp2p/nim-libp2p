@@ -26,6 +26,10 @@ when defined(libp2p_mix_experimental_exit_is_dest):
   {.warning: "experimental support for mix exit == destination is enabled!".}
 
 const MixProtocolID* = "/mix/1.0.0"
+const DefaultSpamProtectionDelayFloorMs* = 100'u16
+  ## Default lower bound applied to exponential delays when per-hop spam
+  ## protection is enabled. This keeps proof generation from collapsing the
+  ## lower tail into a predictable timing floor on typical hardware.
 
 type
   SURBIdentifierGroup = ref object
@@ -362,12 +366,10 @@ method handleMixMessages*(
         Opt.some(fromPeerId),
         Opt.some(nodeInfo.peerId)
 
-    # Per-hop spam protection: Generate fresh proof for next hop and append
-    # Run proof generation in parallel with delay to optimize latency.
-    # Note: The effective delay becomes max(configuredDelay, proofGenTime).
-    # If proof generation takes longer than the configured delay, the delay
-    # will be constant at proofGenTime. Implementers should ensure configured
-    # delays are >= expected proof generation time for variable delays to work.
+    # Per-hop spam protection: generate the fresh proof while the packet is
+    # being held. Exponential delays with spam protection enabled use a lower
+    # sampling floor so this overlap does not collapse short samples into a
+    # fixed processing-time spike.
     let proofGenStartTime = Moment.now()
     let delayFut = sleepAsync(milliseconds(actualDelayMs.int))
 
@@ -383,10 +385,10 @@ method handleMixMessages*(
     if mixProto.spamProtection.isSome():
       let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
       if proofGenTimeMs > actualDelayMs.int64:
-        warn "Proof generation time exceeds configured delay",
+        warn "Proof generation time exceeds sampled delay floor",
           proofGenTimeMs,
           delayMs = actualDelayMs,
-          hint = "Consider increasing delay to maintain variable timing"
+          hint = "Increase the minimum delay floor or reduce proof generation time"
 
     let outgoingPacket = proofGenFut.value().valueOr:
       error "Failed to generate spam protection proof for next hop", err = error
@@ -416,6 +418,12 @@ proc proofSize(sp: Opt[SpamProtection]): int =
   if sp.isNone:
     return 0
   return sp.get().proofSize
+
+proc configureDelayFloor(mixProto: MixProtocol) {.inline.} =
+  if mixProto.delayStrategy of ExponentialDelayStrategy:
+    let expDelayStrategy = ExponentialDelayStrategy(mixProto.delayStrategy)
+    if mixProto.spamProtection.isSome() and expDelayStrategy.minimumDelayMs() == 0:
+      expDelayStrategy.setMinimumDelayMs(DefaultSpamProtectionDelayFloorMs)
 
 proc handleMixNodeConnection(
     mixProto: MixProtocol, conn: Connection
@@ -818,7 +826,7 @@ proc init*(
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: DelayStrategy,
-) =
+) {.raises: [].} =
   ## Initialize a MixProtocol instance.
   ##
   ## Mix node public keys should be populated via the nodePool after
@@ -831,6 +839,7 @@ proc init*(
 
   mixProto.spamProtection = spamProtection
   mixProto.delayStrategy = delayStrategy
+  mixProto.configureDelayFloor()
 
   let onReplyDialer = proc(
       surb: SURB, message: seq[byte]
@@ -856,7 +865,7 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
-): T =
+): T {.raises: [].} =
   ## Create a new MixProtocol instance.
   ##
   ## Mix node public keys should be populated via the nodePool after

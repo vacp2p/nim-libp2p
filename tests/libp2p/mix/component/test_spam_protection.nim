@@ -5,10 +5,18 @@
 
 import chronos, results, stew/byteutils
 import
-  ../../../../libp2p/
-    [protocols/mix, protocols/ping, peerid, multiaddress, switch, builders, crypto/secp]
+  ../../../../libp2p/[
+    protocols/mix,
+    protocols/mix/delay_strategy,
+    protocols/ping,
+    peerid,
+    multiaddress,
+    switch,
+    builders,
+    crypto/secp,
+  ]
 
-import ../../../tools/[lifecycle, unittest]
+import ../../../tools/[lifecycle, unittest, crypto]
 import ../utils
 
 suite "Mix Protocol - Spam Protection":
@@ -89,3 +97,15 @@ suite "Mix Protocol - Spam Protection":
 
     expect AsyncTimeoutError:
       discard await nrProto.receivedMessages.get().wait(2.seconds)
+
+  asyncTest "spam protection enables a default exponential delay floor":
+    let delayStrategy = ExponentialDelayStrategy.new(100, rng(), minimumDelayMs = 0)
+
+    let nodes = await setupMixNodes(
+      4,
+      spamProtectionRateLimit = Opt.some(10),
+      delayStrategy = Opt.some(DelayStrategy(delayStrategy)),
+    )
+    startAndDeferStop(nodes)
+
+    check delayStrategy.minimumDelayMs() == 100'u16

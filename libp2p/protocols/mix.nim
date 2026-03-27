@@ -31,6 +31,9 @@ export verifyProof
 
 export NoSamplingDelayStrategy
 export ExponentialDelayStrategy
+export DefaultMinimumDelayMs
+export minimumDelayMs
+export setMinimumDelayMs
 
 export mix_node
 
