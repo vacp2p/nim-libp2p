@@ -88,14 +88,14 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_ref: ${{ matrix.nim.ref }}
 
-      - name: Restore deps from cache
-        id: deps-cache
-        uses: actions/cache@v3
-        with:
-          path: nimbledeps
-          # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
-          # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
-          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+#      - name: Restore deps from cache
+#        id: deps-cache
+#        uses: actions/cache@v3
+#        with:
+#          path: nimbledeps
+#          # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
+#          # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
+#          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
@@ -143,16 +143,16 @@ jobs:
           "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install deps
-        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+#        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
+          nimble list --installed --version
 
       - name: Run tests
         id: run-tests
         run: |
           nim --version
           nimble --version
-          nimble list --installed --version
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             clang --version
           else
