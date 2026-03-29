@@ -108,6 +108,10 @@ proc startAdvertising*(
 ) {.async: (raises: [CancelledError]).} =
   ## Execute a registration action and schedule the next one based on response.
 
+  if disco.clientMode:
+    error "client mode nodes cannot start advertising"
+    return
+
   if not disco.serviceRoutingTables.hasService(serviceId):
     error "no service routing table found", serviceId
     return
@@ -155,6 +159,10 @@ proc startAdvertising*(
 
 proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   ## Include this service in the set of services this node provides.
+
+  if disco.clientMode:
+    error "client mode nodes cannot advertise services"
+    return
 
   let serviceId = service.id.hashServiceId()
 

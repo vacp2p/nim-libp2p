@@ -23,6 +23,7 @@ type KademliaDiscovery* = ref object of KadDHT
   services*: HashSet[ServiceInfo]
   discoConf*: KademliaDiscoveryConfig
   xprPublishing*: bool
+  clientMode*: bool
 
 export ServiceInfo
 
