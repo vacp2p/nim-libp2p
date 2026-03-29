@@ -146,13 +146,13 @@ jobs:
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
-          nimble list --installed --version
 
       - name: Run tests
         id: run-tests
         run: |
           nim --version
           nimble --version
+          nimble list --installed --version
           if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             clang --version
           else
