@@ -203,7 +203,7 @@ jobs:
           # the model to stay close to established conventions and avoid
           # hallucinating patterns not present in the evidence.
           response = ai_client.chat.completions.create(
-              model="claude-3-7-sonnet",
+              model="claude-3-7-sonnet-20250219",
               messages=[
                   {
                       "role": "system",
