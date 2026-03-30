@@ -14,7 +14,7 @@ requires "nim >= 2.0.0",
   "https://github.com/status-im/nim-websock#42c37b4172519566db016810eccfce8a02cc1cdf",
   "https://github.com/vacp2p/nim-lsquic#86b8efc703d06a493fa984b76e4ffb6ddde99c41",
   "https://github.com/vacp2p/nim-jwt.git#057ec95eb5af0eea9c49bfe9025b3312c95dc5f2",
-  "https://github.com/status-im/nim-protobuf-serialization#4d74e157cdf1bdcd0ffd41519ebde740c4b80447"
+  "https://github.com/status-im/nim-protobuf-serialization#ec6c90af74437d45755085ec8d75fe4f269ab18b"
 
 import hashes, os, sequtils, strutils
 
