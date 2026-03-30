@@ -114,16 +114,16 @@ runs:
         echo "MAKE_CMD=${MAKE_CMD}" >> $GITHUB_ENV
         echo '${{ github.workspace }}/nim/bin' >> $GITHUB_PATH
 
-#    - name: Restore Nim from cache
-#      id: nim-cache
-#      uses: actions/cache@v4
-#      with:
-#        path: '${{ github.workspace }}/nim'
-#        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_ref }}-cache-${{ env.cache_nonce }}
+    - name: Restore Nim from cache
+      id: nim-cache
+      uses: actions/cache@v4
+      with:
+        path: '${{ github.workspace }}/nim'
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_ref }}-cache-${{ env.cache_nonce }}-${{ env.NIMBLE_COMMIT }}
 
     - name: Build Nim and Nimble
       shell: ${{ inputs.shell }}
-#      if: ${{ steps.nim-cache.outputs.cache-hit != 'true' }}
+      if: ${{ steps.nim-cache.outputs.cache-hit != 'true' }}
       run: |
         # We don't want partial matches of the cache restored
         rm -rf nim
