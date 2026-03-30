@@ -26,7 +26,7 @@ jobs:
           python-version: "3.x"
 
       - name: Install Python dependencies
-        run: pip install openai PyGithub
+        run: pip install openai PyGithub  # openai SDK works for Claude via the GitHub Models OpenAI-compatible endpoint
 
       - name: Fetch merged PRs and generate instructions update
         id: generate
@@ -44,12 +44,12 @@ jobs:
           from openai import OpenAI
 
           # ── tuneable limits ──────────────────────────────────────────────────
-          MAX_PR_BODY_CHARS      = 1000   # per-PR description truncation
-          MAX_PATCH_CHARS        = 1500   # per-file patch truncation
-          MAX_PR_PAYLOAD_CHARS   = 12000  # total PR payload sent to the model
-          MAX_REPO_PAYLOAD_CHARS = 10000  # total repo-state payload sent to the model
-          MAX_REPO_FILE_CHARS    = 2000   # per-file snippet from the repo
-          MAX_INSTRUCTIONS_CHARS = 4000   # characters of current instructions included
+          MAX_PR_BODY_CHARS      = 2000   # per-PR description truncation
+          MAX_PATCH_CHARS        = 3000   # per-file patch truncation
+          MAX_PR_PAYLOAD_CHARS   = 25000  # total PR payload sent to the model
+          MAX_REPO_PAYLOAD_CHARS = 25000  # total repo-state payload sent to the model
+          MAX_REPO_FILE_CHARS    = 5000   # per-file snippet from the repo
+          MAX_INSTRUCTIONS_CHARS = 50000  # characters of current instructions included (full file)
           # ─────────────────────────────────────────────────────────────────────
 
           github_token = os.environ["GITHUB_TOKEN"]
@@ -167,7 +167,7 @@ jobs:
           1. **Current repository source code** — reflects the actual conventions in use today.
           2. **Merged pull requests from the last 7 days** — reflects recent intentional changes.
 
-          ## Current copilot-instructions.md (first {MAX_INSTRUCTIONS_CHARS} characters)
+          ## Current copilot-instructions.md
           {current_instructions[:MAX_INSTRUCTIONS_CHARS]}
 
           ## Current repository source code (representative snippets)
@@ -195,11 +195,15 @@ jobs:
               api_key=ai_model_token,
           )
 
+          # Use Claude 3.7 Sonnet via the GitHub Models OpenAI-compatible endpoint.
+          # Claude offers better instruction-following for technical documentation tasks
+          # and a 200K-token context window (vs 128K for gpt-4o), allowing the full
+          # instructions file and richer code snippets to fit in a single call.
           # temperature=0.1 for deterministic, conservative output — we want
           # the model to stay close to established conventions and avoid
           # hallucinating patterns not present in the evidence.
           response = ai_client.chat.completions.create(
-              model="gpt-4o",
+              model="claude-3-7-sonnet",
               messages=[
                   {
                       "role": "system",
