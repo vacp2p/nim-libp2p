@@ -592,7 +592,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             let newStream =
               m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
             if m.channels.len > m.maxChannCount:
-              warn "too many channels created by remote peer",
+              debug "too many channels created by remote peer",
                 peerId = m.connection.peerId, allowedMax = m.maxChannCount
               await newStream.reset()
               continue

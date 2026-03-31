@@ -20,6 +20,7 @@ nim-libp2p/
 │   ├── standard_switch.nim     # Default switch implementation
 │   ├── builders.nim            # Builder pattern for switches
 │   ├── peerid.nim / peerinfo.nim / peerstore.nim
+│   ├── peeridauth/                 # Peer ID HTTP authentication (client/server)
 │   ├── multiaddress.nim / multistream.nim
 │   ├── crypto/                 # Cryptographic primitives
 │   ├── muxers/                 # Stream multiplexers (mplex, yamux)
@@ -405,6 +406,11 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `service.nim` — AutoTLS service (enabled with `-d:libp2p_autotls_support`)
 - `acme/` — ACME client and API for certificate issuance
 
+### Peer ID Authentication (`peeridauth/`)
+- HTTP-based Peer ID authentication protocol (client and server)
+- `client.nim` — HTTP client for authenticating with remote peers
+- `mockclient.nim` — Mock client for testing
+
 ---
 
 ## Test Conventions
@@ -412,6 +418,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Tests are in `tests/libp2p/` mirroring source structure
 - Test files named `test_*.nim`
 - Main runner: `tests/test_all.nim`
+- Uses the `importTests` macro (from `tests/imports.nim`) to recursively discover and import all `test_*.nim` files; supports path filtering via `-d:path=<substring>`
 - Use `unittest2` framework
 - Tests can be compiled and run directly: `nim c -r tests/libp2p/test_switch.nim`
 - Path filtering: `-d:path=<substring>` selects test files whose path contains the substring
@@ -421,7 +428,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 ### Test Stubs and Utilities
 - `tests/stubs/` — Mock objects
 - `tests/stublogger.nim` — Logger stub for tests
-- `tests/imports.nim` — Common test imports
+- `tests/imports.nim` — Common test imports; defines `importTests` macro for recursive test discovery
 
 ---
 
@@ -463,6 +470,7 @@ nimble examples      # Build and run C examples
 | `linters.yml` | nph formatting checks |
 | `pr_lint.yml` | PR title/description linting |
 | `auto_assign_pr.yml` | Automatically assigns reviewers to PRs |
+| `update_copilot_instructions.yml` | Weekly automated update of copilot-instructions.md |
 | `examples.yml` | Example compilation/execution |
 | `interop.yml` | Cross-implementation interoperability |
 | `performance.yml` | Performance benchmarks |
