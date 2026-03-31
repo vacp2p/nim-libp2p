@@ -15,13 +15,12 @@ logScope:
   topics = "service-disco advertiser"
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(running: initHashSet[ptr AdvertiseTask]())
+  T(running: initHashSet[AdvertiseTask]())
 
 proc clear*(a: Advertiser) =
-  for p in a.running:
-    let f = cast[Future[void]](p)
-    if not f.finished:
-      f.cancel()
+  for t in a.running:
+    if not t.fut.finished:
+      t.fut.cancel()
   a.running.clear()
 
 proc sendRegister*(
@@ -105,6 +104,7 @@ proc startAdvertising*(
     registrar: PeerId,
     bucketIdx: int,
     ticket: Opt[Ticket],
+    add: Opt[seq[byte]],
 ) {.async: (raises: [CancelledError]).} =
   ## Execute a registration action and schedule the next one based on response.
 
@@ -116,21 +116,27 @@ proc startAdvertising*(
     error "no service routing table found", serviceId
     return
 
-  let record = disco.record().valueOr:
-    error "failed create extended peer record", error
-    return
+  let addBuff =
+    if add.isNone:
+      let record = disco.record().valueOr:
+        error "failed create extended peer record", error
+        return
+
+      let addBytes: seq[byte] = record.encode().valueOr:
+        error "failed to encode ad", error
+        return
+
+      addBytes
+    else:
+      add.get()
 
   cd_advertiser_actions_executed.inc()
-
-  let adBuf: seq[byte] = record.encode().valueOr:
-    error "failed to encode ad", error
-    return
 
   var currentTicket = ticket
 
   while true:
     let (status, newTicketOpt, closerPeers) = (
-      await disco.sendRegister(registrar, serviceId, adBuf, currentTicket)
+      await disco.sendRegister(registrar, serviceId, addBuff, currentTicket)
     ).valueOr:
       error "failed to register ad", error
       return
@@ -157,7 +163,11 @@ proc startAdvertising*(
       # Don't reschedule - this registrar rejected us
       break
 
-proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
+proc addProvidedService*(
+    disco: KademliaDiscovery,
+    service: ServiceInfo,
+    add: Opt[seq[byte]] = Opt.none(seq[byte]),
+) =
   ## Include this service in the set of services this node provides.
 
   if disco.clientMode:
@@ -196,9 +206,8 @@ proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
         continue
 
       let fut =
-        disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket))
-      let task = AdvertiseTask(fut: fut, serviceId: serviceId)
-      disco.advertiser.running.incl cast[ptr AdvertiseTask](addr task)
+        disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket), add)
+      disco.advertiser.running.incl AdvertiseTask(fut: fut, serviceId: serviceId)
 
   disco.services.incl(service)
 
@@ -206,12 +215,14 @@ proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   let serviceId = service.id.hashServiceId()
 
   # cancel and remove futures for this service
-  for p in disco.advertiser.running:
-    let t = cast[ptr AdvertiseTask](p)
+  var toRemove: seq[AdvertiseTask] = @[]
+  for t in disco.advertiser.running:
     if t.serviceId == serviceId:
       if not t.fut.finished:
         t.fut.cancel()
-      disco.advertiser.running.excl p
+      toRemove.add(t)
+  for t in toRemove:
+    disco.advertiser.running.excl t
 
   # remove service from tables
   disco.serviceRoutingTables.removeService(serviceId, Provided)
