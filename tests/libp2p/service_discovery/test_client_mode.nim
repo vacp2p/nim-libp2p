@@ -6,7 +6,9 @@ import std/sets
 import chronos, results
 import ../../../libp2p/protocols/kad_disco
 import ../../../libp2p/protocols/kademlia_discovery/types
-import ../../../libp2p/protocols/service_discovery/[discoverer, advertiser, serviceroutingtables]
+import
+  ../../../libp2p/protocols/service_discovery/
+    [discoverer, advertiser, serviceroutingtables]
 import ../../tools/unittest
 import ./utils
 
