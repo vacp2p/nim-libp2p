@@ -41,6 +41,7 @@ jobs:
               ("Daily Nimbus", "daily_nimbus.yml"),
               ("Daily amd64", "daily_amd64.yml"),
               ("Daily i386", "daily_i386.yml"),
+              ("Daily without feature flags", "daily_tests_no_flags.yml"),
           ]
 
           LABEL_NAME = "daily-ci-failure"
