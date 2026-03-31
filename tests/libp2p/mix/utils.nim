@@ -46,9 +46,17 @@ proc setupMixNode[T: MixProtocol](
       )
     else:
       Opt.none(SpamProtection)
+  let actualDelayStrategy = delayStrategy.valueOr:
+    if spamProtectionRateLimit.isSome():
+      DelayStrategy(SpamProtectionDelayStrategy.new(DefaultMeanDelayMs, rng()))
+    else:
+      DelayStrategy(NoSamplingDelayStrategy.new(rng()))
 
   let proto = T.new(
-    mixNodeInfo, switch, spamProtection = spamProtection, delayStrategy = delayStrategy
+    mixNodeInfo,
+    switch,
+    spamProtection = spamProtection,
+    delayStrategy = Opt.some(actualDelayStrategy),
   )
 
   if destReadBehavior.isSome():

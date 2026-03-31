@@ -362,12 +362,10 @@ method handleMixMessages*(
         Opt.some(fromPeerId),
         Opt.some(nodeInfo.peerId)
 
-    # Per-hop spam protection: Generate fresh proof for next hop and append
-    # Run proof generation in parallel with delay to optimize latency.
-    # Note: The effective delay becomes max(configuredDelay, proofGenTime).
-    # If proof generation takes longer than the configured delay, the delay
-    # will be constant at proofGenTime. Implementers should ensure configured
-    # delays are >= expected proof generation time for variable delays to work.
+    # Per-hop spam protection: generate the fresh proof while the packet is
+    # being held. When using SpamProtectionDelayStrategy (or similar) with
+    # exponential delays, a lower sampling floor can be applied so this overlap
+    # does not collapse short samples into a fixed processing-time spike.
     let proofGenStartTime = Moment.now()
     let delayFut = sleepAsync(milliseconds(actualDelayMs.int))
 
@@ -383,10 +381,10 @@ method handleMixMessages*(
     if mixProto.spamProtection.isSome():
       let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
       if proofGenTimeMs > actualDelayMs.int64:
-        warn "Proof generation time exceeds configured delay",
+        warn "Proof generation time exceeds sampled delay",
           proofGenTimeMs,
-          delayMs = actualDelayMs,
-          hint = "Consider increasing delay to maintain variable timing"
+          sampledDelayMs = actualDelayMs,
+          hint = "Increase the minimum delay floor or reduce proof generation time"
 
     let outgoingPacket = proofGenFut.value().valueOr:
       error "Failed to generate spam protection proof for next hop", err = error
@@ -818,11 +816,15 @@ proc init*(
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: DelayStrategy,
-) =
+) {.raises: [].} =
   ## Initialize a MixProtocol instance.
   ##
   ## Mix node public keys should be populated via the nodePool after
   ## initialization using `mixProto.nodePool.add(mixPubInfo)`.
+  ##
+  ## When `spamProtection` is enabled, callers should prefer
+  ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
+  ## generation and short exponential delays.
   mixProto.mixNodeInfo = mixNodeInfo
   mixProto.switch = switch
   mixProto.nodePool = MixNodePool.new(switch.peerStore)
@@ -856,11 +858,15 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
-): T =
+): T {.raises: [].} =
   ## Create a new MixProtocol instance.
   ##
   ## Mix node public keys should be populated via the nodePool after
   ## creation using `mixProto.nodePool.add(mixPubInfo)`.
+  ##
+  ## When `spamProtection` is enabled, callers should prefer
+  ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
+  ## generation and short exponential delays.
   let actualDelayStrategy = delayStrategy.valueOr:
     NoSamplingDelayStrategy.new(rng)
   let mixProto = new(T)
