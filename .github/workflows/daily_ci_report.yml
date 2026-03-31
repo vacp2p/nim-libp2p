@@ -109,34 +109,39 @@ jobs:
           week_id = f"{year}-W{week:02d}"
           issue_title = f"[Daily CI] Failures - Week {week_id}"
 
-          # ── 4. Find an existing open issue for this week ──────────────────────
+          # ── 4. Find an existing issue (open or closed) for this week ────────
+          # Searching both states prevents creating duplicate issues when
+          # someone manually closes the weekly tracking issue mid-week.
           existing_issue = None
-          page = 1
-          while True:
-              r = requests.get(
-                  f"{BASE}/issues",
-                  headers=HEADERS,
-                  params={
-                      "state": "open",
-                      "labels": LABEL_NAME,
-                      "per_page": 50,
-                      "page": page,
-                  },
-              )
-              r.raise_for_status()
-              issues = r.json()
-              if not issues:
+          for state in ("open", "closed"):
+              if existing_issue:
                   break
-              for issue in issues:
-                  # Exclude pull requests (GitHub returns them in /issues)
-                  if issue.get("pull_request"):
-                      continue
-                  if issue["title"] == issue_title:
-                      existing_issue = issue
+              page = 1
+              while True:
+                  r = requests.get(
+                      f"{BASE}/issues",
+                      headers=HEADERS,
+                      params={
+                          "state": state,
+                          "labels": LABEL_NAME,
+                          "per_page": 50,
+                          "page": page,
+                      },
+                  )
+                  r.raise_for_status()
+                  issues = r.json()
+                  if not issues:
                       break
-              if existing_issue or len(issues) < 50:
-                  break
-              page += 1
+                  for issue in issues:
+                      # Exclude pull requests (GitHub returns them in /issues)
+                      if issue.get("pull_request"):
+                          continue
+                      if issue["title"] == issue_title:
+                          existing_issue = issue
+                          break
+                  if existing_issue or len(issues) < 50:
+                      break
+                  page += 1
 
           # ── 5. Build the failure report content ───────────────────────────────
           date_str = now.strftime("%Y-%m-%d")
@@ -147,6 +152,15 @@ jobs:
 
           # ── 6. Comment on existing issue or create a new one ─────────────────
           if existing_issue:
+              # Reopen the issue if it was closed, then add a comment
+              if existing_issue["state"] == "closed":
+                  r = requests.patch(
+                      f"{BASE}/issues/{existing_issue['number']}",
+                      headers=HEADERS,
+                      json={"state": "open"},
+                  )
+                  r.raise_for_status()
+                  print(f"Reopened issue #{existing_issue['number']}")
               r = requests.post(
                   f"{BASE}/issues/{existing_issue['number']}/comments",
                   headers=HEADERS,
