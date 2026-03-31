@@ -105,6 +105,7 @@ proc startAdvertising*(
     registrar: PeerId,
     bucketIdx: int,
     ticket: Opt[Ticket],
+    add: Opt[seq[byte]],
 ) {.async: (raises: [CancelledError]).} =
   ## Execute a registration action and schedule the next one based on response.
 
@@ -112,21 +113,27 @@ proc startAdvertising*(
     error "no service routing table found", serviceId
     return
 
-  let record = disco.record().valueOr:
-    error "failed create extended peer record", error
-    return
+  let addBuff =
+    if add.isNone:
+      let record = disco.record().valueOr:
+        error "failed create extended peer record", error
+        return
+
+      let addBytes: seq[byte] = record.encode().valueOr:
+        error "failed to encode ad", error
+        return
+
+      addBytes
+    else:
+      add.get()
 
   cd_advertiser_actions_executed.inc()
-
-  let adBuf: seq[byte] = record.encode().valueOr:
-    error "failed to encode ad", error
-    return
 
   var currentTicket = ticket
 
   while true:
     let (status, newTicketOpt, closerPeers) = (
-      await disco.sendRegister(registrar, serviceId, adBuf, currentTicket)
+      await disco.sendRegister(registrar, serviceId, addBuff, currentTicket)
     ).valueOr:
       error "failed to register ad", error
       return
@@ -153,7 +160,11 @@ proc startAdvertising*(
       # Don't reschedule - this registrar rejected us
       break
 
-proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
+proc addProvidedService*(
+    disco: KademliaDiscovery,
+    service: ServiceInfo,
+    add: Opt[seq[byte]] = Opt.none(seq[byte]),
+) =
   ## Include this service in the set of services this node provides.
 
   let serviceId = service.id.hashServiceId()
@@ -188,7 +199,7 @@ proc addProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
         continue
 
       let fut =
-        disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket))
+        disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket), add)
       let task = AdvertiseTask(fut: fut, serviceId: serviceId)
       disco.advertiser.running.incl cast[ptr AdvertiseTask](addr task)
 
