@@ -12,6 +12,7 @@ import
     routing_record,
     crypto/crypto,
     signed_envelope,
+    stream/bufferstream,
   ]
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
 import ../../../libp2p/protocols/service_discovery/[types, registrar, iptree]
@@ -921,3 +922,217 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
 
     # waited for 150 seconds since tInit
     check abs(tRemaining - 150.0) < 0.001
+
+suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
+  asyncTest "new peer ad is added to cache":
+    let disco = createTestDisco()
+    let serviceId = makeServiceId()
+    let ad = createTestAdvertisement(serviceId = serviceId)
+    let now = makeNow()
+    let conn = BufferStream.new()
+    defer:
+      await conn.close()
+
+    await disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
+
+    check disco.registrar.cache.getOrDefault(serviceId).len == 1
+    check disco.registrar.cache[serviceId][0].data.peerId == ad.data.peerId
+
+  asyncTest "same peer same seqNo is treated as duplicate and not added again":
+    let disco = createTestDisco()
+    let serviceId = makeServiceId()
+    let ad = createTestAdvertisement(serviceId = serviceId)
+    let now = makeNow()
+    let conn = BufferStream.new()
+    defer:
+      await conn.close()
+
+    await disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
+    await disco.acceptAdvertisement(serviceId, ad, now + 1, @[], conn)
+
+    check disco.registrar.cache[serviceId].len == 1
+
+  asyncTest "same peer higher seqNo replaces existing ad":
+    let disco = createTestDisco()
+    let serviceId = makeServiceId()
+    let peerId = makePeerId()
+    let privateKey = PrivateKey.random(rng[]).get()
+
+    let oldAd = SignedExtendedPeerRecord.init(
+      privateKey,
+      ExtendedPeerRecord(
+        peerId: peerId,
+        seqNo: 1,
+        addresses: @[],
+        services: @[],
+      ),
+    ).get()
+
+    let newAd = SignedExtendedPeerRecord.init(
+      privateKey,
+      ExtendedPeerRecord(
+        peerId: peerId,
+        seqNo: 2,
+        addresses: @[],
+        services: @[],
+      ),
+    ).get()
+
+    let now = makeNow()
+    let conn = BufferStream.new()
+    defer:
+      await conn.close()
+
+    await disco.acceptAdvertisement(serviceId, oldAd, now, @[], conn)
+    check disco.registrar.cache[serviceId][0].data.seqNo == 1
+
+    await disco.acceptAdvertisement(serviceId, newAd, now + 1, @[], conn)
+
+    check disco.registrar.cache[serviceId].len == 1
+    check disco.registrar.cache[serviceId][0].data.seqNo == 2
+
+  asyncTest "same peer lower seqNo is silently dropped":
+    let disco = createTestDisco()
+    let serviceId = makeServiceId()
+    let peerId = makePeerId()
+    let privateKey = PrivateKey.random(rng[]).get()
+
+    let newerAd = SignedExtendedPeerRecord.init(
+      privateKey,
+      ExtendedPeerRecord(
+        peerId: peerId,
+        seqNo: 10,
+        addresses: @[],
+        services: @[],
+      ),
+    ).get()
+
+    let olderAd = SignedExtendedPeerRecord.init(
+      privateKey,
+      ExtendedPeerRecord(
+        peerId: peerId,
+        seqNo: 5,
+        addresses: @[],
+        services: @[],
+      ),
+    ).get()
+
+    let now = makeNow()
+    let conn = BufferStream.new()
+    defer:
+      await conn.close()
+
+    await disco.acceptAdvertisement(serviceId, newerAd, now, @[], conn)
+    await disco.acceptAdvertisement(serviceId, olderAd, now + 1, @[], conn)
+
+    check disco.registrar.cache[serviceId].len == 1
+    check disco.registrar.cache[serviceId][0].data.seqNo == 10
+
+  asyncTest "different peers each store their own ad":
+    let disco = createTestDisco()
+    let serviceId = makeServiceId()
+    let ad1 = createTestAdvertisement(serviceId = serviceId)
+    let ad2 = createTestAdvertisement(serviceId = serviceId)
+    let now = makeNow()
+    let conn = BufferStream.new()
+    defer:
+      await conn.close()
+
+    await disco.acceptAdvertisement(serviceId, ad1, now, @[], conn)
+    await disco.acceptAdvertisement(serviceId, ad2, now, @[], conn)
+
+    check disco.registrar.cache[serviceId].len == 2
+
+  asyncTest "seqNo replacement updates IP tree correctly":
+    let disco = createTestDisco()
+    let serviceId = makeServiceId()
+    let peerId = makePeerId()
+    let privateKey = PrivateKey.random(rng[]).get()
+    let ip1 = "10.0.0.1"
+    let ip2 = "10.0.0.2"
+
+    let oldAd = SignedExtendedPeerRecord.init(
+      privateKey,
+      ExtendedPeerRecord(
+        peerId: peerId,
+        seqNo: 1,
+        addresses: @[AddressInfo(address: createTestMultiAddress(ip1))],
+        services: @[],
+      ),
+    ).get()
+
+    let newAd = SignedExtendedPeerRecord.init(
+      privateKey,
+      ExtendedPeerRecord(
+        peerId: peerId,
+        seqNo: 2,
+        addresses: @[AddressInfo(address: createTestMultiAddress(ip2))],
+        services: @[],
+      ),
+    ).get()
+
+    let now = makeNow()
+    let conn = BufferStream.new()
+    defer:
+      await conn.close()
+
+    await disco.acceptAdvertisement(serviceId, oldAd, now, @[], conn)
+    let counterAfterFirst = disco.registrar.ipTree.root.counter
+    check counterAfterFirst > 0
+
+    await disco.acceptAdvertisement(serviceId, newAd, now + 1, @[], conn)
+
+    check disco.registrar.cache[serviceId].len == 1
+    check disco.registrar.cache[serviceId][0].data.seqNo == 2
+    check disco.registrar.ipTree.root.counter == counterAfterFirst
+
+suite "Kademlia Discovery Registrar - waitingTime never negative":
+  test "waitingTime returns non-negative with stale high lower bound":
+    let registrar = createTestRegistrar()
+    let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
+    let ad = createTestAdvertisement(serviceId = serviceId)
+
+    # Set a very large bound with an old timestamp — elapsed will exceed it
+    registrar.boundService[serviceId] = 100.0
+    registrar.timestampService[serviceId] = 0 # epoch
+
+    let now = getTime().toUnix().uint64 # large elapsed time swamps the bound
+
+    let w = registrar.waitingTime(discoConf, ad, 1000, serviceId, now)
+
+    check w >= 0.0
+
+  test "waitingTime returns non-negative with stale high IP lower bound":
+    let registrar = createTestRegistrar()
+    let discoConf = KademliaDiscoveryConfig.new()
+    let serviceId = makeServiceId()
+    let ip = "10.0.0.1"
+    let ad = createTestAdvertisement(
+      serviceId = serviceId, addrs = @[createTestMultiAddress(ip)]
+    )
+
+    registrar.boundIp[ip] = 50.0
+    registrar.timestampIp[ip] = 0
+
+    let now = getTime().toUnix().uint64
+
+    let w = registrar.waitingTime(discoConf, ad, 1000, serviceId, now)
+
+    check w >= 0.0
+
+suite "Kademlia Discovery Registrar - concurrent same-peer registration":
+  asyncTest "concurrent acceptAdvertisement calls for same ad are idempotent":
+    let disco = createTestDisco()
+    let serviceId = makeServiceId()
+    let ad = createTestAdvertisement(serviceId = serviceId)
+    let now = makeNow()
+    let conn = BufferStream.new()
+    defer:
+      await conn.close()
+
+    let f1 = disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
+    let f2 = disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
+    await allFutures(f1, f2)
+
+    check disco.registrar.cache[serviceId].len == 1
