@@ -31,6 +31,7 @@ export verifyProof
 
 export NoSamplingDelayStrategy
 export ExponentialDelayStrategy
+export SpamProtectionDelayStrategy
 
 export mix_node
 
