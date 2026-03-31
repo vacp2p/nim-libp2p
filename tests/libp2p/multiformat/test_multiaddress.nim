@@ -402,14 +402,15 @@ suite "MultiAddress test suite":
       pb.getField(1, decoded).get() == false
       decoded == MultiAddress()
 
-  test "getField returns ok(false) for empty multiaddress":
+  test "getField returns err for empty multiaddress":
     var pb = initProtoBuffer()
     pb.write(1, newSeq[byte]())
     pb.finish()
 
     var decoded: MultiAddress
+    let error = pb.getField(1, decoded).error()
     check:
-      pb.getField(1, decoded).get() == false
+      error == ProtoError.IncorrectBlob
       decoded == MultiAddress()
 
   test "getField returns err for invalid multiaddress":
