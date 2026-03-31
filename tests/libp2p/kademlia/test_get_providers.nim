@@ -266,7 +266,9 @@ suite "KadDHT - Get Providers":
 
   asyncTest "Get providers aggregates providers from multiple peers":
     # Topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3] <-> kads[4]
-    let kads = setupKadSwitches(5)
+    # Use a long republishProvidedKeysInterval so the background republish heartbeat
+    # doesn't fire during the test and race with getProviders dials.
+    let kads = setupKadSwitches(5, republishProvidedKeysInterval = chronos.hours(1))
     startAndDeferStop(kads)
 
     await connectChain(kads)
