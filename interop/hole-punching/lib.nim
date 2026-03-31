@@ -15,21 +15,26 @@ import
 logScope:
   topics = "hp interop peer"
 
-type TestConfig* = object
+type Config* = object
   isDialer*: bool
-  dialerIp*: string
-  listenerIp*: string
+  bindIp*: string
   redisAddr*: string
   testKey*: string
   transport*: string
   secureChannel*: string
   muxer*: string
 
-proc readTestConfig*(): TestConfig =
-  let config = TestConfig(
-    isDialer: getEnv("IS_DIALER") == "true",
-    dialerIp: getEnv("DIALER_IP", "0.0.0.0"),
-    listenerIp: getEnv("LISTENER_IP", "0.0.0.0"),
+proc readConfig*(): Config =
+  let isDialer = getEnv("IS_DIALER") == "true"
+  let bindIp =
+    if isDialer:
+      getEnv("DIALER_IP", "0.0.0.0")
+    else:
+      getEnv("LISTENER_IP", "0.0.0.0")
+
+  let config = Config(
+    isDialer: isDialer,
+    bindIp: bindIp,
     redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
     testKey: getEnv("TEST_KEY"),
     transport: getEnv("TRANSPORT", "tcp"),
@@ -90,7 +95,7 @@ proc createSwitch*(
   s.mount(Ping.new(rng = rng))
   return s
 
-proc setupRedis*(config: TestConfig): Redis =
+proc setupRedis*(config: Config): Redis =
   let redisAddr = config.redisAddr.split(":")
   let redisHost = redisAddr[0]
   let redisPort = Port(parseInt(redisAddr[1]))
@@ -106,17 +111,17 @@ proc isDirectlyConnected*(switch: Switch, peerId: PeerId): bool =
 
 template pollUntil*(
     condition: untyped,
-    maxRetries: int = 600,
-    delayMs: int = 100,
+    timeout: Duration = 30.seconds,
+    delay: Duration = 200.milliseconds,
     errorMsg: string = "Timeout waiting for condition",
 ) =
-  for attempt in 0 ..< maxRetries:
+  let deadline = Moment.now() + timeout
+  while true:
     if condition:
       break
-    if attempt < maxRetries - 1:
-      await sleepAsync(delayMs.milliseconds)
-  if not condition:
-    raise newException(CatchableError, errorMsg)
+    if Moment.now() >= deadline:
+      raise newException(CatchableError, errorMsg)
+    await sleepAsync(delay)
 
 proc pollGet*(client: Redis, key: string): Future[string] {.async.} =
   var val: string
@@ -124,7 +129,9 @@ proc pollGet*(client: Redis, key: string): Future[string] {.async.} =
     val = client.get(key)
     val != redisNil and val.len > 0
 
-  pollUntil(hasValue(), 60, 500, "Timeout waiting for Redis key: " & key)
+  pollUntil(
+    hasValue(), 30.seconds, 500.milliseconds, "Timeout waiting for Redis key: " & key
+  )
   return val
 
 proc toMs*(duration: Duration): float =

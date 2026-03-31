@@ -22,8 +22,7 @@ logScope:
 
 proc main() {.async.} =
   # Read test configuration
-  let testConfig = readTestConfig()
-  let bindIp = if testConfig.isDialer: testConfig.dialerIp else: testConfig.listenerIp
+  let config = readConfig()
 
   # Setup relay
   let relayClient = RelayClient.new()
@@ -39,12 +38,11 @@ proc main() {.async.} =
 
   # Setup switches
   let switch = createSwitch(
-    bindIp, testConfig.transport, testConfig.secureChannel, testConfig.muxer,
-    relayClient, hpservice,
+    config.bindIp, config.transport, config.secureChannel, config.muxer, relayClient,
+    hpservice,
   )
-  let auxSwitch = createSwitch(
-    bindIp, testConfig.transport, testConfig.secureChannel, testConfig.muxer
-  )
+  let auxSwitch =
+    createSwitch(config.bindIp, config.transport, config.secureChannel, config.muxer)
 
   await allFutures(switch.start(), auxSwitch.start())
   defer:
@@ -62,8 +60,8 @@ proc main() {.async.} =
   info "AutoNAT reports NotReachable"
 
   # Get relay multiaddr from Redis (set by Rust relay)
-  let redisClient = setupRedis(testConfig)
-  let relayAddr = await redisClient.pollGet(&"{testConfig.testKey}_relay_multiaddr")
+  let redisClient = setupRedis(config)
+  let relayAddr = await redisClient.pollGet(&"{config.testKey}_relay_multiaddr")
   info "Got relay address", relayAddr
 
   # Connect to relay (triggers AutoRelay reservation)
@@ -82,10 +80,10 @@ proc main() {.async.} =
   )
   info "Got relay circuit address"
 
-  if testConfig.isDialer:
+  if config.isDialer:
     # Get listener peer ID from Redis
     let listenerPeerIdStr =
-      await redisClient.pollGet(&"{testConfig.testKey}_listener_peer_id")
+      await redisClient.pollGet(&"{config.testKey}_listener_peer_id")
     let listenerId = PeerId.init(listenerPeerIdStr).tryGet()
     info "Got listener peer ID", listenerId
 
@@ -126,7 +124,7 @@ proc main() {.async.} =
   else:
     # Listener: publish peer ID to Redis and wait
     let listenerPeerId = $switch.peerInfo.peerId
-    redisClient.setk(&"{testConfig.testKey}_listener_peer_id", listenerPeerId)
+    redisClient.setk(&"{config.testKey}_listener_peer_id", listenerPeerId)
     info "Published listener peer ID to Redis", listenerPeerId
 
     # Wait to be killed (docker-compose will stop us after dialer exits)
@@ -134,6 +132,8 @@ proc main() {.async.} =
 
 try:
   proc mainAsync(): Future[string] {.async.} =
+    # mainAsync wraps main and returns some value, as otherwise
+    # 'waitFor(fut)' has no type (or is ambiguous)
     await main()
     return "done"
 
