@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, sets]
+import std/[tables, sequtils, sets, hashes]
 import chronos, stew/endians2
 import ../../[peerid, multihash, multiaddress, extended_peer_record]
 import ../kademlia/types
@@ -57,12 +57,12 @@ type
       ticket: Opt[Ticket],
     ]
 
-  AdvertiseTask* = object
+  AdvertiseTask* = ref object
     fut*: Future[void]
     serviceId*: ServiceId
 
   Advertiser* = ref object
-    running*: HashSet[ptr AdvertiseTask]
+    running*: HashSet[AdvertiseTask]
 
   KademliaDiscoveryConfig* = object
     kRegister*: int
@@ -101,6 +101,9 @@ proc new*(
     registerationWindow: registerationWindow,
     bucketsCount: bucketsCount,
   )
+
+proc hash*(t: AdvertiseTask): Hash =
+  hash(cast[pointer](t))
 
 proc actionCmp*(a, b: PendingAction): int =
   if a.scheduledTime < b.scheduledTime:

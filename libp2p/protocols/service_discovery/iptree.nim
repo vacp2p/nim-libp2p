@@ -91,7 +91,7 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
 
   if ip.family != IpAddressFamily.IPv4:
     error "Cannot score Ipv6 addr"
-    return 1.0
+    return 0.0
 
   if ipTree.root.counter == 0:
     return 0.0

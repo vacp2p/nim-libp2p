@@ -121,7 +121,7 @@ proc waitingTime*(
       if ipLowerBound > w:
         w = ipLowerBound
 
-  return w
+  return max(0.0, w)
 
 proc updateLowerBounds*(
     registrar: Registrar,
@@ -286,22 +286,31 @@ proc acceptAdvertisement*(
 
   var ads = disco.registrar.cache.getOrDefault(serviceId)
 
-  # Check for duplicate - verify both serviceId and peerId match
-  # This prevents overwriting ads from different peers with same peerId
+  var replaced = false
   var isDuplicate = false
-  for existingAd in ads:
-    if existingAd.data.peerId == ad.data.peerId:
-      isDuplicate = true
-      # Update timestamp for the existing ad
-      let existingKey = existingAd.toAdvertisementKey()
-      disco.registrar.cacheTimestamps[existingKey] = now
+  for i in 0 ..< ads.len:
+    if ads[i].data.peerId == ad.data.peerId:
+      if ads[i].data.seqNo == ad.data.seqNo:
+        isDuplicate = true
+        disco.registrar.cacheTimestamps[ads[i].toAdvertisementKey()] = now
+      elif ad.data.seqNo > ads[i].data.seqNo:
+        disco.registrar.ipTree.removeAd(ads[i])
+        disco.registrar.cacheTimestamps.del(ads[i].toAdvertisementKey())
+        ads[i] = ad
+        disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
+        disco.registrar.ipTree.insertAd(ad)
+        replaced = true
+      else:
+        isDuplicate = true
       break
 
-  if not isDuplicate:
+  if not isDuplicate and not replaced:
     ads.add(ad)
     let adKey = ad.toAdvertisementKey()
     disco.registrar.cacheTimestamps[adKey] = now
     disco.registrar.ipTree.insertAd(ad)
+
+  if not isDuplicate:
     disco.registrar.updateRegistrarMetrics()
 
   disco.registrar.cache[serviceId] = ads

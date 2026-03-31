@@ -15,13 +15,12 @@ logScope:
   topics = "service-disco advertiser"
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(running: initHashSet[ptr AdvertiseTask]())
+  T(running: initHashSet[AdvertiseTask]())
 
 proc clear*(a: Advertiser) =
-  for p in a.running:
-    let f = cast[Future[void]](p)
-    if not f.finished:
-      f.cancel()
+  for t in a.running:
+    if not t.fut.finished:
+      t.fut.cancel()
   a.running.clear()
 
 proc sendRegister*(
@@ -200,8 +199,7 @@ proc addProvidedService*(
 
       let fut =
         disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket), add)
-      let task = AdvertiseTask(fut: fut, serviceId: serviceId)
-      disco.advertiser.running.incl cast[ptr AdvertiseTask](addr task)
+      disco.advertiser.running.incl AdvertiseTask(fut: fut, serviceId: serviceId)
 
   disco.services.incl(service)
 
@@ -209,12 +207,14 @@ proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   let serviceId = service.id.hashServiceId()
 
   # cancel and remove futures for this service
-  for p in disco.advertiser.running:
-    let t = cast[ptr AdvertiseTask](p)
+  var toRemove: seq[AdvertiseTask] = @[]
+  for t in disco.advertiser.running:
     if t.serviceId == serviceId:
       if not t.fut.finished:
         t.fut.cancel()
-      disco.advertiser.running.excl p
+      toRemove.add(t)
+  for t in toRemove:
+    disco.advertiser.running.excl t
 
   # remove service from tables
   disco.serviceRoutingTables.removeService(serviceId, Provided)
