@@ -38,6 +38,26 @@ suite "mix_message_tests":
       emptyMessage == string.fromBytes(dMixMsg.message)
       codec == dMixMsg.codec
 
+  test "deserialize with empty data returns error":
+    let res = MixMessage.deserialize(@[])
+    check:
+      res.isErr()
+      res.error == "deserialization failed: data is empty"
+
+  test "deserialize with invalid codec length returns error":
+    # LEB128 continuation bit set — incomplete varint
+    let res = MixMessage.deserialize(@[0b10000000'u8, 0b00000000'u8])
+    check:
+      res.isErr()
+      res.error == "deserialization failed: invalid codec length"
+
+  test "deserialize with insufficient data returns error":
+    # Varint says codec is 5 bytes, but only 1 byte follows
+    let res = MixMessage.deserialize(@[0b00000101'u8, 0b00000000'u8])
+    check:
+      res.isErr()
+      res.error == "deserialization failed: not enough data"
+
   test "getMaxMessageSizeForCodec returns correct size":
     let codec = "/test/1.0.0"
 

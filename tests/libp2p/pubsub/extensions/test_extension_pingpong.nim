@@ -23,15 +23,13 @@ proc config(c: CallbackRecorder, peerBudgetBytes: int = 6400): PingPongExtension
   return PingPongExtensionConfig(sendPong: sendPong, peerBudgetBytes: peerBudgetBytes)
 
 proc handlePingPong(ext: PingPongExtension, peerId: PeerId, ping: seq[byte]) =
-  ext.onHandleRPC(
-    peerId, RPCMsg(pingpongExtension: Opt.some(PingPongExtensionRPC(ping: ping)))
-  )
+  ext.onHandleRPC(peerId, RPCMsg.withPing(ping))
 
 suite "GossipSub Extensions :: PingPong Extension":
   let peerId = PeerId.random(rng).get()
 
   test "isSupported":
-    let ext = PingPongExtension.new(CallbackRecorder().config())
+    let ext = PingPongExtension.new()
     check:
       ext.isSupported(PeerExtensions()) == false
       ext.isSupported(PeerExtensions(pingpongExtension: true)) == true

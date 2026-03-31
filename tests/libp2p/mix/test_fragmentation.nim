@@ -103,3 +103,12 @@ suite "Fragmentation":
     let (paddingLength, _, _) = chunks[0].get()
 
     check paddingLength == 0
+
+  test "removePadding with invalid padding length returns error":
+    let chunk = MessageChunk.init(
+      paddingLength = uint16(DataSize + 1), data = newSeq[byte](DataSize), seqNo = 0'u32
+    )
+    let res = removePadding(chunk)
+    check:
+      res.isErr()
+      res.error == "Invalid padding length"

@@ -89,9 +89,40 @@ suite "Quic transport":
     await runClient()
 
   asyncTest "should allow multiple local addresses":
-    # TODO(#1663): handle multiple addr
-    # See test example in commonTransportTest
-    return
+    let addr1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get()
+    let addr2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get()
+
+    let key = PrivateKey.random(ECDSA, rng[]).tryGet()
+    let server = QuicTransport.new(Upgrade(), key)
+    await server.start(@[addr1, addr2])
+    defer:
+      await server.stop()
+
+    check:
+      server.addrs.len == 2
+      server.addrs[0] != server.addrs[1]
+      extractPort(server.addrs[0]) > 0
+      extractPort(server.addrs[1]) > 0
+
+    # Dial to both addresses and verify connections are accepted
+    let client1 = await createQuicTransport()
+    let client2 = await createQuicTransport()
+    defer:
+      await allFutures(client1.stop(), client2.stop())
+
+    let acceptFut1 = server.accept()
+    let conn1 = await client1.dial("", server.addrs[0])
+    let serverConn1 = await acceptFut1
+
+    let acceptFut2 = server.accept()
+    let conn2 = await client2.dial("", server.addrs[1])
+    let serverConn2 = await acceptFut2
+
+    check:
+      not conn1.closed()
+      not conn2.closed()
+      not serverConn1.closed()
+      not serverConn2.closed()
 
   asyncTest "server not accepting":
     let server = await createQuicTransport(isServer = true)

@@ -928,68 +928,70 @@ suite "Switch":
     when defined(windows):
       # this randomly locks the Windows CI job
       skip()
-      return
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
-      try:
-        let msg = string.fromBytes(await conn.readLp(1024))
-        check "Hello!" == msg
-        await conn.writeLp("Hello!")
-      except LPStreamError:
-        raiseAssert "Unexpected LPStreamError in multiple local addresses test handler"
-      finally:
-        await conn.close()
+    else:
+      proc handle(
+          conn: Connection, proto: string
+      ) {.async: (raises: [CancelledError]).} =
+        try:
+          let msg = string.fromBytes(await conn.readLp(1024))
+          check "Hello!" == msg
+          await conn.writeLp("Hello!")
+        except LPStreamError:
+          raiseAssert "Unexpected LPStreamError in multiple local addresses test handler"
+        finally:
+          await conn.close()
 
-    let testProto = new TestProto
-    testProto.codec = TestCodec
-    testProto.handler = handle
+      let testProto = new TestProto
+      testProto.codec = TestCodec
+      testProto.handler = handle
 
-    let addrs =
-      @[
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-        MultiAddress.init("/ip6/::1/tcp/0").tryGet(),
-      ]
+      let addrs =
+        @[
+          MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
+          MultiAddress.init("/ip6/::1/tcp/0").tryGet(),
+        ]
 
-    let switch1 = newStandardSwitch(
-      addrs = addrs, transportFlags = {ServerFlags.ReuseAddr, ServerFlags.ReusePort}
-    )
+      let switch1 = newStandardSwitch(
+        addrs = addrs, transportFlags = {ServerFlags.ReuseAddr, ServerFlags.ReusePort}
+      )
 
-    switch1.mount(testProto)
+      switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
-    let switch3 =
-      newStandardSwitch(addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
+      let switch2 = newStandardSwitch()
+      let switch3 =
+        newStandardSwitch(addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
 
-    await allFuturesRaising(switch1.start(), switch2.start(), switch3.start())
+      await allFuturesRaising(switch1.start(), switch2.start(), switch3.start())
 
-    check IP4.matchPartial(switch1.peerInfo.addrs[0])
-    check IP6.matchPartial(switch1.peerInfo.addrs[1])
+      check IP4.matchPartial(switch1.peerInfo.addrs[0])
+      check IP6.matchPartial(switch1.peerInfo.addrs[1])
 
-    let conn = await switch2.dial(
-      switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[0]], TestCodec
-    )
+      let conn = await switch2.dial(
+        switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[0]], TestCodec
+      )
 
-    check switch1.isConnected(switch2.peerInfo.peerId)
-    check switch2.isConnected(switch1.peerInfo.peerId)
+      check switch1.isConnected(switch2.peerInfo.peerId)
+      check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    check "Hello!" == string.fromBytes(await conn.readLp(1024))
-    await conn.close()
+      await conn.writeLp("Hello!")
+      check "Hello!" == string.fromBytes(await conn.readLp(1024))
+      await conn.close()
 
-    let connv6 = await switch3.dial(
-      switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[1]], TestCodec
-    )
+      let connv6 = await switch3.dial(
+        switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[1]], TestCodec
+      )
 
-    check switch1.isConnected(switch3.peerInfo.peerId)
-    check switch3.isConnected(switch1.peerInfo.peerId)
+      check switch1.isConnected(switch3.peerInfo.peerId)
+      check switch3.isConnected(switch1.peerInfo.peerId)
 
-    await connv6.writeLp("Hello!")
-    check "Hello!" == string.fromBytes(await connv6.readLp(1024))
-    await connv6.close()
+      await connv6.writeLp("Hello!")
+      check "Hello!" == string.fromBytes(await connv6.readLp(1024))
+      await connv6.close()
 
-    await allFuturesRaising(switch1.stop(), switch2.stop(), switch3.stop())
+      await allFuturesRaising(switch1.stop(), switch2.stop(), switch3.stop())
 
-    check not switch1.isConnected(switch2.peerInfo.peerId)
-    check not switch2.isConnected(switch1.peerInfo.peerId)
+      check not switch1.isConnected(switch2.peerInfo.peerId)
+      check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e dial dns4 address":
     let resolver = MockResolver.new()
