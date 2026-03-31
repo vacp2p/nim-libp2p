@@ -18,6 +18,7 @@ jobs:
     name: Run coverage and upload to codecov
     runs-on: ubuntu-22.04
     env:
+      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
       CICOV: YES
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}
+          key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
