@@ -140,8 +140,8 @@ method handle*(m: Mplex) {.async: (raises: []).} =
           tmp
         else:
           if m.channels[false].len > m.maxChannCount - 1:
-            warn "too many channels created by remote peer",
-              allowedMax = MaxChannelCount, m
+            debug "too many channels created by remote peer",
+              allowedMax = m.maxChannCount, m
             raise newTooManyChannels()
 
           let name = string.fromBytes(data)
