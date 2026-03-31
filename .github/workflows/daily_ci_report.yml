@@ -1,0 +1,188 @@
+name: Daily CI Failure Report
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check-and-report:
+    name: Check daily CI and report failures
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check daily CI status and open/update issue on failure
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          python3 << 'PYEOF'
+          import os
+          import sys
+          import requests
+          from datetime import datetime, timezone, timedelta
+
+          TOKEN = os.environ["GITHUB_TOKEN"]
+          REPO = os.environ["REPO"]
+          DEFAULT_BRANCH = os.environ.get("DEFAULT_BRANCH") or "master"
+
+          HEADERS = {
+              "Authorization": f"Bearer {TOKEN}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          BASE = f"https://api.github.com/repos/{REPO}"
+
+          # Daily workflows to monitor
+          WORKFLOWS = [
+              ("Daily Nimbus", "daily_nimbus.yml"),
+              ("Daily amd64", "daily_amd64.yml"),
+              ("Daily i386", "daily_i386.yml"),
+          ]
+
+          LABEL_NAME = "daily-ci-failure"
+          LABEL_COLOR = "d93f0b"
+          LABEL_DESC = "Tracks daily CI job failures"
+
+          now = datetime.now(timezone.utc)
+          # Allow up to 26 hours so we always catch the 6:30 UTC scheduled run
+          cutoff = now - timedelta(hours=26)
+
+          # ── 1. Find workflows that failed in their most recent run ────────────
+          failed = []
+          for wf_name, wf_file in WORKFLOWS:
+              url = f"{BASE}/actions/workflows/{wf_file}/runs"
+              params = {
+                  "status": "completed",
+                  "branch": DEFAULT_BRANCH,
+                  "per_page": 1,
+              }
+              r = requests.get(url, headers=HEADERS, params=params)
+              r.raise_for_status()
+              runs = r.json().get("workflow_runs", [])
+
+              if not runs:
+                  print(f"{wf_name}: no completed runs found, skipping")
+                  continue
+
+              run = runs[0]
+              created_at = datetime.fromisoformat(run["created_at"].replace("Z", "+00:00"))
+              if created_at < cutoff:
+                  print(
+                      f"{wf_name}: most recent completed run ({run['created_at']}) "
+                      f"is older than 26 h, skipping"
+                  )
+                  continue
+
+              if run["conclusion"] == "failure":
+                  print(f"{wf_name}: FAILED — {run['html_url']}")
+                  failed.append(
+                      {"name": wf_name, "url": run["html_url"], "run_id": run["id"]}
+                  )
+              else:
+                  print(f"{wf_name}: {run['conclusion']}")
+
+          if not failed:
+              print("All monitored daily workflows passed (or no recent runs). Nothing to report.")
+              sys.exit(0)
+
+          # ── 2. Ensure the tracking label exists ───────────────────────────────
+          r = requests.get(f"{BASE}/labels/{LABEL_NAME}", headers=HEADERS)
+          if r.status_code == 404:
+              payload = {
+                  "name": LABEL_NAME,
+                  "color": LABEL_COLOR,
+                  "description": LABEL_DESC,
+              }
+              r = requests.post(f"{BASE}/labels", headers=HEADERS, json=payload)
+              r.raise_for_status()
+              print(f"Created label '{LABEL_NAME}'")
+          else:
+              r.raise_for_status()
+              print(f"Label '{LABEL_NAME}' already exists")
+
+          # ── 3. Compute ISO week identifier ────────────────────────────────────
+          year, week, _ = now.isocalendar()
+          week_id = f"{year}-W{week:02d}"
+          issue_title = f"[Daily CI] Failures - Week {week_id}"
+
+          # ── 4. Find an existing issue (open or closed) for this week ────────
+          # Searching both states prevents creating duplicate issues when
+          # someone manually closes the weekly tracking issue mid-week.
+          existing_issue = None
+          for state in ("open", "closed"):
+              if existing_issue:
+                  break
+              page = 1
+              while True:
+                  r = requests.get(
+                      f"{BASE}/issues",
+                      headers=HEADERS,
+                      params={
+                          "state": state,
+                          "labels": LABEL_NAME,
+                          "per_page": 50,
+                          "page": page,
+                      },
+                  )
+                  r.raise_for_status()
+                  issues = r.json()
+                  if not issues:
+                      break
+                  for issue in issues:
+                      # Exclude pull requests (GitHub returns them in /issues)
+                      if issue.get("pull_request"):
+                          continue
+                      if issue["title"] == issue_title:
+                          existing_issue = issue
+                          break
+                  if existing_issue or len(issues) < 50:
+                      break
+                  page += 1
+
+          # ── 5. Build the failure report content ───────────────────────────────
+          date_str = now.strftime("%Y-%m-%d")
+          lines = [f"### Daily CI failures detected on {date_str}\n"]
+          for f in failed:
+              lines.append(f"- **{f['name']}** failed → [View run]({f['url']})")
+          content = "\n".join(lines)
+
+          # ── 6. Comment on existing issue or create a new one ─────────────────
+          if existing_issue:
+              # Reopen the issue if it was closed, then add a comment
+              if existing_issue["state"] == "closed":
+                  r = requests.patch(
+                      f"{BASE}/issues/{existing_issue['number']}",
+                      headers=HEADERS,
+                      json={"state": "open"},
+                  )
+                  r.raise_for_status()
+                  print(f"Reopened issue #{existing_issue['number']}")
+              r = requests.post(
+                  f"{BASE}/issues/{existing_issue['number']}/comments",
+                  headers=HEADERS,
+                  json={"body": content},
+              )
+              r.raise_for_status()
+              print(
+                  f"Added comment to issue #{existing_issue['number']}: "
+                  f"{existing_issue['html_url']}"
+              )
+          else:
+              body = (
+                  f"This issue tracks daily CI failures for week **{week_id}**.\n\n"
+                  f"A new issue will be opened at the start of each week.\n\n"
+                  f"---\n\n{content}"
+              )
+              r = requests.post(
+                  f"{BASE}/issues",
+                  headers=HEADERS,
+                  json={"title": issue_title, "body": body, "labels": [LABEL_NAME]},
+              )
+              r.raise_for_status()
+              new_issue = r.json()
+              print(f"Created issue #{new_issue['number']}: {new_issue['html_url']}")
+          PYEOF
