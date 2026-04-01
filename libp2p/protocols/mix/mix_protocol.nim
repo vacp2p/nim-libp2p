@@ -367,7 +367,7 @@ method handleMixMessages*(
     # exponential delays, a lower sampling floor can be applied so this overlap
     # does not collapse short samples into a fixed processing-time spike.
     let proofGenStartTime = Moment.now()
-    let delayFut = sleepAsync(milliseconds(actualDelayMs.int))
+    let delayFut = sleepAsync(milliseconds(20))
 
     let proofGenFut = (
       proc(): Future[Result[seq[byte], string]] {.async.} =
