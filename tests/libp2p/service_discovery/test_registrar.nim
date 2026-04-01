@@ -916,9 +916,9 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
 
 proc makeTestConn(): TestBufferStream =
   TestBufferStream.new(
-    proc(data: seq[byte]): Future[void] {.
-        async: (raises: [CancelledError, LPStreamError])
-    .} =
+    proc(
+        data: seq[byte]
+    ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
       discard
   )
 
@@ -990,25 +990,19 @@ suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
     let peerId = makePeerId()
     let privateKey = PrivateKey.random(rng[]).get()
 
-    let newerAd = SignedExtendedPeerRecord.init(
-      privateKey,
-      ExtendedPeerRecord(
-        peerId: peerId,
-        seqNo: 10,
-        addresses: @[],
-        services: @[],
-      ),
-    ).get()
+    let newerAd = SignedExtendedPeerRecord
+      .init(
+        privateKey,
+        ExtendedPeerRecord(peerId: peerId, seqNo: 10, addresses: @[], services: @[]),
+      )
+      .get()
 
-    let olderAd = SignedExtendedPeerRecord.init(
-      privateKey,
-      ExtendedPeerRecord(
-        peerId: peerId,
-        seqNo: 5,
-        addresses: @[],
-        services: @[],
-      ),
-    ).get()
+    let olderAd = SignedExtendedPeerRecord
+      .init(
+        privateKey,
+        ExtendedPeerRecord(peerId: peerId, seqNo: 5, addresses: @[], services: @[]),
+      )
+      .get()
 
     let now = makeNow()
     let conn = makeTestConn()
