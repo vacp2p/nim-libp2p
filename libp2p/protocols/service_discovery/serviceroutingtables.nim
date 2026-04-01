@@ -21,6 +21,7 @@ type
   ServiceRoutingTableManager* = ref object
     tables*: Table[ServiceId, RoutingTable]
     serviceStatus*: Table[ServiceId, ServiceStatus]
+    lock*: AsyncLock
 
 proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [].} =
   cd_service_tables_count.set(manager.tables.len.float64)

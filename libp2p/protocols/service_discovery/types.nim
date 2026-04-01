@@ -47,6 +47,7 @@ type
     timestampService*: Table[ServiceId, uint64] # timestamp(service_id_hash)
     boundIp*: Table[string, float64] # bound(IP)
     timestampIp*: Table[string, uint64] # timestamp(IP)
+    lock*: AsyncLock
 
   PendingAction* =
     tuple[
