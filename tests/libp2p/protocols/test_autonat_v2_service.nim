@@ -58,9 +58,17 @@ proc stopAll(switches: seq[Switch]) {.async.} =
 
 proc startAndConnect(switch: Switch, switches: seq[Switch]) {.async.} =
   await switch.start()
+
+  # Start all peers in parallel
+  await allFuturesRaising(switches.mapIt(it.start()))
+
+  await sleepAsync(200.millis)
+
+  # Connect sequentially (safer)
   for peer in switches:
-    await peer.start()
     await switch.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
+
+  await sleepAsync(300.millis)
 
 proc newService(
     reachability: NetworkReachability,
