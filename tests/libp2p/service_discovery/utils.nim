@@ -59,8 +59,7 @@ proc createTestMultiAddress*(ip: string): MultiAddress =
   MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
 
 proc createTestAdvertisement*(
-    serviceId: ServiceId = makeServiceId(),
-    addrs: seq[MultiAddress] = @[],
+    serviceId: ServiceId = makeServiceId(), addrs: seq[MultiAddress] = @[]
 ): Advertisement =
   let privateKey = PrivateKey.random(rng[]).get()
   let peerId = PeerId.init(privateKey).get()
