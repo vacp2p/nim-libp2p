@@ -263,6 +263,7 @@ suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       peer.iDontWants.len == historyLength
 
+    await sleepAsync(500.milliseconds)
     # Before publishing messages, wait for begining of Node1 heartbeat interval
     # to futher increase chances of all publications to be received within same heartbeat. 
     await nodes[1].waitForNextHeartbeat()
