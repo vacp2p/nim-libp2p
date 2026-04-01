@@ -1050,25 +1050,29 @@ suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
     let ip1 = "10.0.0.1"
     let ip2 = "10.0.0.2"
 
-    let oldAd = SignedExtendedPeerRecord.init(
-      privateKey,
-      ExtendedPeerRecord(
-        peerId: peerId,
-        seqNo: 1,
-        addresses: @[AddressInfo(address: createTestMultiAddress(ip1))],
-        services: @[],
-      ),
-    ).get()
+    let oldAd = SignedExtendedPeerRecord
+      .init(
+        privateKey,
+        ExtendedPeerRecord(
+          peerId: peerId,
+          seqNo: 1,
+          addresses: @[AddressInfo(address: createTestMultiAddress(ip1))],
+          services: @[],
+        ),
+      )
+      .get()
 
-    let newAd = SignedExtendedPeerRecord.init(
-      privateKey,
-      ExtendedPeerRecord(
-        peerId: peerId,
-        seqNo: 2,
-        addresses: @[AddressInfo(address: createTestMultiAddress(ip2))],
-        services: @[],
-      ),
-    ).get()
+    let newAd = SignedExtendedPeerRecord
+      .init(
+        privateKey,
+        ExtendedPeerRecord(
+          peerId: peerId,
+          seqNo: 2,
+          addresses: @[AddressInfo(address: createTestMultiAddress(ip2))],
+          services: @[],
+        ),
+      )
+      .get()
 
     let now = makeNow()
     let conn = makeTestConn()
