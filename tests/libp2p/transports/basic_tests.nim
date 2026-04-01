@@ -89,10 +89,12 @@ template basicTransportTest*(
       check await transport.onStop.wait().withTimeout(1.seconds)
 
     asyncTest "multiaddress validation - accept valid addresses":
-      let transport = transportProvider()
-
       for validAddress in validAddresses:
-        check transport.handles(MultiAddress.init(validAddress).tryGet())
+        let ma = MultiAddress.init(validAddress).tryGet()
+        let transport = transportProvider()
+        check transport.handles(ma)
+        await transport.start(@[ma])
+        await transport.stop()
 
     asyncTest "multiaddress validation - reject invalid addresses":
       let transport = transportProvider()

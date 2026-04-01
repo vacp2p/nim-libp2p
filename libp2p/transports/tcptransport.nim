@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## TCP transport implementation
 
@@ -126,7 +126,9 @@ method start*(
         continue
 
       let
-        ta = initTAddress(ma).expect("valid address per handles check above")
+        ta = initTAddress(ma).valueOr:
+          trace "Non-wire address detected, skipping!", address = ma
+          continue
         server =
           try:
             createStreamServer(ta, flags = self.flags)
