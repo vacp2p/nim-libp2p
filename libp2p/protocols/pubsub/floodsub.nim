@@ -32,8 +32,7 @@ type FloodSub* {.public.} = ref object of PubSub
     # We use a salted id because the messages in this cache have not yet
     # been validated meaning that an attacker has greater control over the
     # hash key and therefore could poison the table
-  seenSalt: array[32, byte]
-    # The salt is random data used as salt
+  seenSalt: array[32, byte] # random data used as salt
 
 proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
   var hash: sha256
