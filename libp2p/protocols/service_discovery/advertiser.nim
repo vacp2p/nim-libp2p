@@ -152,7 +152,7 @@ proc startAdvertising*(
 
       await sleepAsync(
         chronos.seconds(
-          int(min(disco.discoConf.advertExpiry, newTicket.tWaitFor.float64))
+          int(min(disco.discoConf.advertExpiry.uint32, newTicket.tWaitFor))
         )
       )
     of protobuf.RegistrationStatus.Rejected:

@@ -101,9 +101,9 @@ suite "Kademlia Discovery Registrar - Waiting Time Calculation":
     let serviceId = makeServiceId()
 
     # Populate tree with IPs from same subnet
-    registrar.ipTree.insertIp(parseIpAddress("192.168.1.10"))
-    registrar.ipTree.insertIp(parseIpAddress("192.168.1.20"))
-    registrar.ipTree.insertIp(parseIpAddress("192.168.1.30"))
+    discard registrar.ipTree.insertIp(parseIpAddress("192.168.1.10"))
+    discard registrar.ipTree.insertIp(parseIpAddress("192.168.1.20"))
+    discard registrar.ipTree.insertIp(parseIpAddress("192.168.1.30"))
 
     # Ad with multiple addresses - some similar, some not
     let ad = createTestAdvertisement(
@@ -422,7 +422,7 @@ suite "Kademlia Discovery Registrar - Cache Pruning":
     # Add to cache and IP tree
     registrar.cache[serviceId] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000 # Expired
-    registrar.ipTree.insertIp(parseIpAddress(ip))
+    discard registrar.ipTree.insertIp(parseIpAddress(ip))
 
     check registrar.ipTree.root.counter == 1
 
@@ -533,7 +533,7 @@ suite "Kademlia Discovery Registrar - State Management":
     check registrar.ipTree.root.counter == 0
 
     # Add to IP tree
-    registrar.ipTree.insertIp(parseIpAddress(ip))
+    discard registrar.ipTree.insertIp(parseIpAddress(ip))
 
     check registrar.ipTree.root.counter == 1
 
@@ -575,7 +575,7 @@ suite "Kademlia Discovery Registrar - Edge Cases":
     let serviceId = makeServiceId()
 
     # Populate tree with IPv4
-    registrar.ipTree.insertIp(parseIpAddress("192.168.1.1"))
+    discard registrar.ipTree.insertIp(parseIpAddress("192.168.1.1"))
 
     let ipv4Addr = createTestMultiAddress("192.168.1.50")
     let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
