@@ -60,10 +60,10 @@ proc createTestMultiAddress*(ip: string): MultiAddress =
 
 proc createTestAdvertisement*(
     serviceId: ServiceId = makeServiceId(),
-    peerId: PeerId = makePeerId(),
     addrs: seq[MultiAddress] = @[],
 ): Advertisement =
   let privateKey = PrivateKey.random(rng[]).get()
+  let peerId = PeerId.init(privateKey).get()
   let extRecord = ExtendedPeerRecord(
     peerId: peerId,
     seqNo: getTime().toUnix().uint64,
@@ -156,11 +156,14 @@ proc createMockDiscovery*(
   kad
 
 proc populateAdvTable*(disco: KademliaDiscovery, serviceId: ServiceId) =
-  disco.serviceRoutingTables.addService(
+  discard disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
-    Provided,
+    Interest,
   )
   let advTable = disco.serviceRoutingTables.getTable(serviceId).get()
+
+  if advTable.buckets.len == 0:
+    advTable.buckets.add(Bucket())
 
   # Populate with more peers than kRegister
   for i in 0 ..< disco.discoConf.kRegister + 2:

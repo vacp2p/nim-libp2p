@@ -45,13 +45,14 @@ suite "Advertiser - addProvidedService":
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
-    disco.populateRoutingTable(disco.discoConf.kRegister + 2)
+    # populateAdvTable creates service as Interest with peers only in bucket[0]
+    # (empty main routing table so no peers spread across other buckets)
     disco.populateAdvTable(serviceId)
 
     disco.addProvidedService(service)
 
-    # At most kRegister actions per bucket across all buckets
-    check disco.advertiser.running.len() <= disco.discoConf.kRegister
+    # bucket[0] has kRegister+2 peers; we should schedule exactly kRegister tasks
+    check disco.advertiser.running.len() == disco.discoConf.kRegister
 
   test "adding same service twice is idempotent":
     let disco = createMockDiscovery()

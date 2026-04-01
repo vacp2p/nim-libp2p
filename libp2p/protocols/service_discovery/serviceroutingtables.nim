@@ -40,15 +40,16 @@ proc addService*(
     replication: int,
     bucketsCount: int,
     status: ServiceStatus,
-) {.raises: [].} =
-  ## Create a new routing table for the service
+): bool {.raises: [].} =
+  ## Create a new routing table for the service.
+  ## Returns true if the service is newly registered or its status was upgraded.
 
   if serviceId in manager.serviceStatus:
     if status == manager.serviceStatus.getOrDefault(serviceId):
-      return
+      return false
 
     manager.serviceStatus[serviceId] = Both
-    return
+    return true
 
   var serviceTable = RoutingTable.new(
     serviceId,
@@ -63,6 +64,7 @@ proc addService*(
   manager.tables[serviceId] = serviceTable
   manager.serviceStatus[serviceId] = status
   manager.updateServiceTablesMetrics()
+  return true
 
 proc removeService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, status: ServiceStatus

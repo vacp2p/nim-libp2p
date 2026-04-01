@@ -168,12 +168,16 @@ proc addProvidedService*(
 
   let serviceId = service.id.hashServiceId()
 
-  disco.serviceRoutingTables.addService(
+  let isNew = disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Provided,
   )
 
+  disco.services.incl(service)
   cd_advertiser_services_added.inc()
+
+  if not isNew:
+    return
 
   let advTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
     error "service not found", serviceId
@@ -200,8 +204,6 @@ proc addProvidedService*(
       let fut =
         disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket), add)
       disco.advertiser.running.incl AdvertiseTask(fut: fut, serviceId: serviceId)
-
-  disco.services.incl(service)
 
 proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   let serviceId = service.id.hashServiceId()

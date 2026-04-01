@@ -276,7 +276,7 @@ proc acceptAdvertisement*(
 ) {.async: (raises: []).} =
   ## Accept and store advertisement, send Confirmed response
 
-  disco.serviceRoutingTables.addService(
+  discard disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Interest,
   )
