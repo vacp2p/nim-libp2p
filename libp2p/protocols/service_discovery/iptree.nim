@@ -11,12 +11,11 @@ logScope:
 proc new*(T: typedesc[IpTree]): T =
   T(root: IpTreeNode(counter: 0))
 
-proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
+proc insertIp*(ipTree: IpTree, ip: IpAddress): Result[void, string] {.raises: [].} =
   ## Adds an IPv4 address to the IP tree by incrementing counters along the 32-bit path.
   ## Only supports IPv4 (as per the RFC specification which defines a 32-level tree).
   if ip.family != IpAddressFamily.IPv4:
-    error "Cannot add Ipv6 to tree"
-    return
+    return err("insertIp: IPv6 not supported")
 
   var v = ipTree.root
   let bytes = ip.address_v4
@@ -33,17 +32,17 @@ proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
         if v.right.isNil:
           v.right = IpTreeNode(counter: 0)
         v = v.right
+  ok()
 
-proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
+proc removeIp*(ipTree: IpTree, ip: IpAddress): Result[void, string] {.raises: [].} =
   if ip.family != IpAddressFamily.IPv4:
-    error "Cannot remove Ipv6 from tree"
-    return
+    return err("removeIp: IPv6 not supported")
 
   var v = ipTree.root
   let bytes = ip.address_v4
 
   if v.counter == 0:
-    return
+    return ok()
 
   var path: array[32, IpTreeNode]
   var pathLen = 0
@@ -52,7 +51,7 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
     let b = bytes[i]
     for bit in countdown(7, 0):
       if v.isNil or v.counter == 0:
-        return
+        return ok()
 
       path[pathLen] = v
       inc pathLen
@@ -60,13 +59,14 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
       let goLeft = ((b and (1'u8 shl bit)) == 0)
       let nxt = (if goLeft: v.left else: v.right)
       if nxt.isNil:
-        return
+        return ok()
       v = nxt
 
   for j in 0 ..< pathLen:
     let n = path[j]
     if n.counter > 0:
       dec n.counter
+  ok()
 
 proc insertAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for addressInfo in ad.data.addresses:
@@ -74,7 +74,7 @@ proc insertAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
     let ip = multiAddr.getIp().valueOr:
       continue
 
-    ipTree.insertIp(ip)
+    discard ipTree.insertIp(ip)
 
 proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for addressInfo in ad.data.addresses:
@@ -82,7 +82,7 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
     let ip = multiAddr.getIp().valueOr:
       continue
 
-    ipTree.removeIp(ip)
+    discard ipTree.removeIp(ip)
 
 proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
   ## Calculates the IP similarity score (0.0 to 1.0) for the given IPv4 address

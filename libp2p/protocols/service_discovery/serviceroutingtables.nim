@@ -21,6 +21,7 @@ type
   ServiceRoutingTableManager* = ref object
     tables*: Table[ServiceId, RoutingTable]
     serviceStatus*: Table[ServiceId, ServiceStatus]
+    lock*: AsyncLock
 
 proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [].} =
   cd_service_tables_count.set(manager.tables.len.float64)
@@ -31,7 +32,11 @@ proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [
   cd_service_table_peers.set(totalPeers.float64)
 
 proc new*(T: typedesc[ServiceRoutingTableManager]): T =
-  T(tables: initTable[ServiceId, RoutingTable]())
+  T(
+    tables: initTable[ServiceId, RoutingTable](),
+    serviceStatus: initTable[ServiceId, ServiceStatus](),
+    lock: newAsyncLock(),
+  )
 
 proc addService*(
     manager: ServiceRoutingTableManager,
@@ -40,77 +45,71 @@ proc addService*(
     replication: int,
     bucketsCount: int,
     status: ServiceStatus,
-): bool {.raises: [].} =
-  ## Create a new routing table for the service.
-  ## Returns true if the service is newly registered or its status was upgraded.
+): Future[bool] {.async.} =
+  await manager.lock.withLock:
+    if serviceId in manager.serviceStatus:
+      if status == manager.serviceStatus.getOrDefault(serviceId):
+        return false
 
-  if serviceId in manager.serviceStatus:
-    if status == manager.serviceStatus.getOrDefault(serviceId):
-      return false
+      manager.serviceStatus[serviceId] = Both
+      return true
 
-    manager.serviceStatus[serviceId] = Both
+    var serviceTable = RoutingTable.new(
+      serviceId,
+      config =
+        RoutingTableConfig.new(replication = replication, maxBuckets = bucketsCount),
+    )
+
+    for bucket in mainRoutingTable.buckets:
+      for peer in bucket.peers:
+        discard serviceTable.insert(peer.nodeId)
+
+    manager.tables[serviceId] = serviceTable
+    manager.serviceStatus[serviceId] = status
+    manager.updateServiceTablesMetrics()
     return true
-
-  var serviceTable = RoutingTable.new(
-    serviceId,
-    config =
-      RoutingTableConfig.new(replication = replication, maxBuckets = bucketsCount),
-  )
-
-  for bucket in mainRoutingTable.buckets:
-    for peer in bucket.peers:
-      discard serviceTable.insert(peer.nodeId)
-
-  manager.tables[serviceId] = serviceTable
-  manager.serviceStatus[serviceId] = status
-  manager.updateServiceTablesMetrics()
-  return true
 
 proc removeService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, status: ServiceStatus
-) {.raises: [].} =
-  ## Remove routing table for a service
+) {.async.} =
+  await manager.lock.withLock:
+    if serviceId notin manager.serviceStatus:
+      return
 
-  if serviceId notin manager.serviceStatus:
-    return
+    if manager.serviceStatus.getOrDefault(serviceId) == status:
+      manager.tables.del(serviceId)
+      manager.serviceStatus.del(serviceId)
+      manager.updateServiceTablesMetrics()
+      return
 
-  if manager.serviceStatus.getOrDefault(serviceId) == status:
-    manager.tables.del(serviceId)
-    manager.serviceStatus.del(serviceId)
-    manager.updateServiceTablesMetrics()
-    return
-
-  if manager.serviceStatus.getOrDefault(serviceId) == Both:
-    if status == Interest:
-      manager.serviceStatus[serviceId] = Provided
-    elif status == Provided:
-      manager.serviceStatus[serviceId] = Interest
+    if manager.serviceStatus.getOrDefault(serviceId) == Both:
+      if status == Interest:
+        manager.serviceStatus[serviceId] = Provided
+      elif status == Provided:
+        manager.serviceStatus[serviceId] = Interest
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
-): Opt[RoutingTable] {.raises: [].} =
-  ## Get routing table for a service (immutable view)
+): Future[Opt[RoutingTable]] {.async.} =
+  await manager.lock.withLock:
+    let res = catch:
+      manager.tables[serviceId]
+    let table = res.valueOr:
+      return Opt.none(RoutingTable)
 
-  let res = catch:
-    manager.tables[serviceId]
-  let table = res.valueOr:
-    return Opt.none(RoutingTable)
-
-  return Opt.some(table)
+    return Opt.some(table)
 
 proc insertPeer*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, peerKey: Key
-) {.raises: [].} =
-  ## Insert a peer into the service routing table
+) {.async.} =
+  await manager.lock.withLock:
+    let res = catch:
+      manager.tables[serviceId]
+    var table = res.valueOr:
+      return
 
-  let res = catch:
-    manager.tables[serviceId]
-  var table = res.valueOr:
-    return
-
-  discard table.insert(peerKey)
-  cd_service_table_insertions.inc()
-  return
+    discard table.insert(peerKey)
+    cd_service_table_insertions.inc()
 
 proc hasService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
@@ -119,28 +118,28 @@ proc hasService*(
 
   serviceId in manager.tables
 
-proc refreshAllTables*(
-    manager: ServiceRoutingTableManager, kad: KadDHT
-) {.async: (raises: []).} =
-  ## Refresh all service routing tables using KadDHT's refreshTable
+proc refreshAllTables*(manager: ServiceRoutingTableManager, kad: KadDHT) {.async.} =
+  var tablesCopy: seq[RoutingTable]
 
-  for serviceTable in manager.tables.values:
+  await manager.lock.withLock:
+    tablesCopy = manager.tables.values.toSeq()
+
+  for serviceTable in tablesCopy:
     let refreshRes = catch:
       await kad.refreshTable(serviceTable)
     if refreshRes.isErr:
       error "failed to refresh service routing table", error = refreshRes.error.msg
 
-proc count*(manager: ServiceRoutingTableManager): int {.raises: [].} =
-  ## Get number of service routing tables
+proc count*(manager: ServiceRoutingTableManager): Future[int] {.async.} =
+  await manager.lock.withLock:
+    return manager.tables.len
 
-  manager.tables.len
+proc serviceIds*(
+    manager: ServiceRoutingTableManager
+): Future[seq[ServiceId]] {.async.} =
+  await manager.lock.withLock:
+    return manager.tables.keys.toSeq()
 
-proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] {.raises: [].} =
-  ## Get all service IDs
-
-  manager.tables.keys.toSeq()
-
-proc clear*(manager: ServiceRoutingTableManager) {.raises: [].} =
-  ## Clear all service routing tables
-
-  manager.tables.clear()
+proc clear*(manager: ServiceRoutingTableManager) {.async.} =
+  await manager.lock.withLock:
+    manager.tables.clear()
