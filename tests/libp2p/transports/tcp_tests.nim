@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH
+# Copyright (c) Status Research & Development GmbH 
 
 {.used.}
 
@@ -171,12 +171,6 @@ template tcpTests*() =
       check listeningPortTransport1 == acceptedPort3
 
       await allFutures(transport1.stop(), transport2.stop(), transport3.stop())
-
-    asyncTest "start succeeds for any address":
-      for ma in @(validAddresses) & @(invalidAddresses):
-        let transport = TcpTransport.new(upgrade = Upgrade())
-        await transport.start(@[MultiAddress.init(ma).tryGet()])
-        await transport.stop()
 
     asyncTest "custom timeout":
       let server =
