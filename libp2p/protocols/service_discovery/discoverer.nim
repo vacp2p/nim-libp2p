@@ -90,7 +90,7 @@ proc lookup*(
 
   cd_lookup_requests.inc()
 
-  disco.serviceRoutingTables.addService(
+  discard disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Interest,
   )
@@ -134,7 +134,7 @@ proc addServiceInterest*(disco: KademliaDiscovery, service: ServiceInfo) =
 
   let serviceId = service.id.hashServiceId()
 
-  disco.serviceRoutingTables.addService(
+  discard disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Interest,
   )

@@ -12,8 +12,9 @@ import
     routing_record,
     crypto/crypto,
     signed_envelope,
-    stream/bufferstream,
   ]
+import ../../../libp2p/stream/lpstream
+import ../../tools/bufferstream as testbufferstream
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
 import ../../../libp2p/protocols/service_discovery/[types, registrar, iptree]
 import ../../tools/unittest
@@ -923,13 +924,21 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
     # waited for 150 seconds since tInit
     check abs(tRemaining - 150.0) < 0.001
 
+proc makeTestConn(): TestBufferStream =
+  TestBufferStream.new(
+    proc(data: seq[byte]): Future[void] {.
+        async: (raises: [CancelledError, LPStreamError])
+    .} =
+      discard
+  )
+
 suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
   asyncTest "new peer ad is added to cache":
     let disco = createTestDisco()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
     let now = makeNow()
-    let conn = BufferStream.new()
+    let conn = makeTestConn()
     defer:
       await conn.close()
 
@@ -943,7 +952,7 @@ suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
     let now = makeNow()
-    let conn = BufferStream.new()
+    let conn = makeTestConn()
     defer:
       await conn.close()
 
@@ -979,7 +988,7 @@ suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
     ).get()
 
     let now = makeNow()
-    let conn = BufferStream.new()
+    let conn = makeTestConn()
     defer:
       await conn.close()
 
@@ -1018,7 +1027,7 @@ suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
     ).get()
 
     let now = makeNow()
-    let conn = BufferStream.new()
+    let conn = makeTestConn()
     defer:
       await conn.close()
 
@@ -1034,7 +1043,7 @@ suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
     let ad1 = createTestAdvertisement(serviceId = serviceId)
     let ad2 = createTestAdvertisement(serviceId = serviceId)
     let now = makeNow()
-    let conn = BufferStream.new()
+    let conn = makeTestConn()
     defer:
       await conn.close()
 
@@ -1072,7 +1081,7 @@ suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
     ).get()
 
     let now = makeNow()
-    let conn = BufferStream.new()
+    let conn = makeTestConn()
     defer:
       await conn.close()
 
@@ -1127,7 +1136,7 @@ suite "Kademlia Discovery Registrar - concurrent same-peer registration":
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
     let now = makeNow()
-    let conn = BufferStream.new()
+    let conn = makeTestConn()
     defer:
       await conn.close()
 
