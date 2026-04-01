@@ -330,6 +330,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 #### RNG
 - Do not use `newRng()`. In the nim-libp2p test files, do not use `newRng()`. Instead use `rng` template from `tests/tools/crypto.nim`
 - Ignore `nim-libp2p/tests/tools/crypto.nim` (that's the definition file)
+- Do not use `newRng()` as a default value for arguments in object constructors or initializers, because the entropy seed could be exhausted.
 
 ### API Stability
 - Procedures marked with `.public.` pragma are backward-compatible within MAJOR versions
