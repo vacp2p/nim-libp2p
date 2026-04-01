@@ -25,18 +25,6 @@ logScope:
 
 const FloodSubCodec* = "/floodsub/1.0.0"
 
-proc makeSeenSalt(): sha256 =
-  var hash: sha256
-  hash.init()
-  var tmp: array[32, byte]
-  hmacDrbgGenerate(newRng()[], tmp)
-  hash.update(tmp)
-  return hash
-
-var seenSalt = makeSeenSalt()
-  # The salt in this case is a partially updated SHA256 context pre-seeded
-  # with some random data
-
 type FloodSub* {.public.} = ref object of PubSub
   floodsub*: PeerTable # topic to remote peer map
   seen*: TimedCache[SaltedId]
@@ -44,11 +32,15 @@ type FloodSub* {.public.} = ref object of PubSub
     # We use a salted id because the messages in this cache have not yet
     # been validated meaning that an attacker has greater control over the
     # hash key and therefore could poison the table
+  seenSalt: array[32, byte]
+    # The salt is random data used as salt
 
 proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
-  var tmp = seenSalt
-  tmp.update(msgId)
-  SaltedId(data: tmp.finish())
+  var hash: sha256
+  hash.init()
+  hash.update(f.seenSalt)
+  hash.update(msgId)
+  SaltedId(data: hash.finish())
 
 proc hasSeen*(f: FloodSub, saltedId: SaltedId): bool =
   saltedId in f.seen
@@ -246,5 +238,6 @@ method publish*(
 method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[SaltedId].init(2.minutes)
+  hmacDrbgGenerate(f.rng[], f.seenSalt)
 
   f.init()
