@@ -957,25 +957,19 @@ suite "Kademlia Discovery Registrar - acceptAdvertisement seqNo handling":
     let peerId = makePeerId()
     let privateKey = PrivateKey.random(rng[]).get()
 
-    let oldAd = SignedExtendedPeerRecord.init(
-      privateKey,
-      ExtendedPeerRecord(
-        peerId: peerId,
-        seqNo: 1,
-        addresses: @[],
-        services: @[],
-      ),
-    ).get()
+    let oldAd = SignedExtendedPeerRecord
+      .init(
+        privateKey,
+        ExtendedPeerRecord(peerId: peerId, seqNo: 1, addresses: @[], services: @[]),
+      )
+      .get()
 
-    let newAd = SignedExtendedPeerRecord.init(
-      privateKey,
-      ExtendedPeerRecord(
-        peerId: peerId,
-        seqNo: 2,
-        addresses: @[],
-        services: @[],
-      ),
-    ).get()
+    let newAd = SignedExtendedPeerRecord
+      .init(
+        privateKey,
+        ExtendedPeerRecord(peerId: peerId, seqNo: 2, addresses: @[], services: @[]),
+      )
+      .get()
 
     let now = makeNow()
     let conn = makeTestConn()
