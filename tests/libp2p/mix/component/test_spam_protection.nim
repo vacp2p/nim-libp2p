@@ -4,9 +4,7 @@
 {.used.}
 
 import chronos, results, stew/byteutils
-import
-  ../../../../libp2p/
-    [protocols/mix, protocols/ping, peerid, multiaddress, switch, builders, crypto/secp]
+import ../../../../libp2p/[protocols/mix, protocols/ping, protocols/protocol]
 
 import ../../../tools/[lifecycle, unittest]
 import ../utils
