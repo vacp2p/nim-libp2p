@@ -183,12 +183,10 @@ suite "GossipSub Component - Extensions":
           sendIDontWantOnPublish = true,
         )
         .toGossipSub()
-      n0 = nodes[0]
-      n1 = nodes[1]
 
-    # Capture IMReceiving messages received by n1 (sent by n0 after processing the preamble)
+    # Capture IMReceiving messages received by nodes[1] (sent by nodes[0] after processing the preamble)
     var receivedImReceiving: seq[IMReceiving]
-    n1.addObserver(
+    nodes[1].addObserver(
       PubSubObserver(
         onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
           msgs.preambleExtension.withValue(pe):
@@ -204,11 +202,11 @@ suite "GossipSub Component - Extensions":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
-    # publishing large message should publish preamble (n0 will receive preamble as well).
+    # publishing large message should publish preamble (nodes[0] will receive preamble as well).
     let msgLength = preambleMessageSizeThreshold + 4 # some large message length
-    discard await n1.publish(topic, newSeq[byte](msgLength))
+    discard await nodes[1].publish(topic, newSeq[byte](msgLength))
 
-    # node n1 should receive IMReceiving right after it broadcasted preamble.
+    # node nodes[1] should receive IMReceiving right after it broadcasted preamble.
     checkUntilTimeout:
       receivedImReceiving.len == 1
       receivedImReceiving[0].messageLength == msgLength.uint32
