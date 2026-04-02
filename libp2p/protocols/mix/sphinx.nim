@@ -160,7 +160,7 @@ proc createSURB*(
     delay: openArray[Delay],
     hops: openArray[Hop],
     id: SURBIdentifier,
-    rng: ref HmacDrbgContext = newRng(),
+    rng: ref HmacDrbgContext,
 ): Result[SURB, string] =
   if id == default(SURBIdentifier):
     return err("id should be initialized")

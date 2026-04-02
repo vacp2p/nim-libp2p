@@ -492,7 +492,7 @@ method buildSurb*(
 
     delays.add(hopDelay)
 
-  return createSURB(publicKeys, delays, hops, id)
+  return createSURB(publicKeys, delays, hops, id, mixProto.rng)
 
 proc buildSurbs(
     mixProto: MixProtocol,
