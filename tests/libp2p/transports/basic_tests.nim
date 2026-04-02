@@ -99,6 +99,7 @@ template basicTransportTest*(
         await transport.start(@[MultiAddress.init(ma).tryGet()])
         await transport.stop()
 
+    # TODO: See issue nim-libp2p#2230
     asyncTest "start fails for valid non-wire addresses":
       for addrs in validNonWireAddresses:
         let transport = transportProvider()
@@ -114,6 +115,7 @@ template basicTransportTest*(
           expect LPError:
             await transport.start(@[ma])
 
+    # TODO: See issue nim-libp2p#2230
     asyncTest "start behaviour for invalid addresses":
       for addrs in invalidAddresses:
         let transport = transportProvider()
