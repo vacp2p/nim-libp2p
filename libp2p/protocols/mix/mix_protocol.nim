@@ -822,7 +822,7 @@ proc init(
   ## When `spamProtection` is enabled, callers should prefer
   ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
   ## generation and short exponential delays.
-  
+
   var rng = switch.rng
   if rng.isNil:
     rng = newRng()
@@ -846,7 +846,7 @@ proc init(
     await mixProto.reply(surb, message)
 
   mixProto.exitLayer = ExitLayer.init(switch, onReplyDialer, mixProto.destReadBehavior)
-    
+
   mixProto.codecs = @[MixProtocolID]
   mixProto.handler = proc(
       conn: Connection, proto: string
@@ -873,7 +873,5 @@ proc new*(
   ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
   ## generation and short exponential delays.
   let mixProto = new(T)
-  mixProto.init(
-    mixNodeInfo, switch, tagManager, spamProtection, delayStrategy
-  )
+  mixProto.init(mixNodeInfo, switch, tagManager, spamProtection, delayStrategy)
   mixProto
