@@ -8,7 +8,7 @@
 {.push raises: [].}
 
 import std/[tables, sequtils, sets, oids]
-
+import bearssl/rand
 import chronos, chronicles, metrics
 
 import
