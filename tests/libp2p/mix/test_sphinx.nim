@@ -30,7 +30,7 @@ proc createDummyData(): (
     privateKeys = @[privateKey1, privateKey2, privateKey3]
     publicKeys = @[publicKey1, publicKey2, publicKey3]
 
-    delay: seq[Delay] = @[0, 0, 0]
+    delay: seq[Delay] = @[NoDelay, NoDelay, NoDelay]
 
     hops =
       @[
