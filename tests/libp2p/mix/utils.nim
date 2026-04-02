@@ -48,7 +48,7 @@ proc setupMixNode[T: MixProtocol](
       Opt.none(SpamProtection)
   let actualDelayStrategy = delayStrategy.valueOr:
     if spamProtectionRateLimit.isSome():
-      DelayStrategy(SpamProtectionDelayStrategy.new(DefaultMeanDelayMs, rng()))
+      DelayStrategy(SpamProtectionDelayStrategy.new(DefaultMeanDelay, rng()))
     else:
       DelayStrategy(NoSamplingDelayStrategy.new(rng()))
 
@@ -188,12 +188,12 @@ proc new*(T: typedesc[EchoProtocol]): EchoProtocol =
 ###
 
 type FixedDelayStrategy* = ref object of DelayStrategy
-  delayMs*: uint16
+  delay*: Duration
 
-method generateForEntry*(self: FixedDelayStrategy): uint16 =
-  self.delayMs
+method generateForEntry*(self: FixedDelayStrategy): Duration =
+  self.delay
 
 method generateForIntermediate*(
-    self: FixedDelayStrategy, encodedDelayMs: uint16
-): uint16 =
-  self.delayMs
+    self: FixedDelayStrategy, encodedDelay: Duration
+): Duration =
+  self.delay

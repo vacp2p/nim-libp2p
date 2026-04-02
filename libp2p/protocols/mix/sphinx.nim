@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import results, sequtils, stew/endians2
+import results, sequtils
+import chronos
 import ./[crypto, curve25519, serialization, tag_manager]
 import ../../crypto/crypto
 import ../../utils/sequninit
@@ -91,7 +92,7 @@ proc computeFillerStrings(s: seq[seq[byte]]): Result[seq[byte], string] =
 proc computeBetaGamma(
     s: seq[seq[byte]],
     hops: openArray[Hop],
-    delay: openArray[seq[byte]],
+    delay: openArray[Duration],
     destHop: Hop,
     id: SURBIdentifier,
 ): Result[tuple[beta: seq[byte], gamma: seq[byte]], string] =
@@ -117,14 +118,18 @@ proc computeBetaGamma(
     # Compute Beta and Gamma
     if i == sLen - 1:
       let destBytes = destHop.serialize()
-      let destPadding = destBytes & delay[i] & @id & newSeq[byte](PaddingLength)
+      let delayBytes = dealyToBytes(delay[i])
+      let destPadding = destBytes & delayBytes & @id & newSeq[byte](PaddingLength)
 
       let aes = aes_ctr(beta_aes_key, beta_iv, destPadding)
 
       beta = aes & filler
     else:
       let routingInfo = RoutingInfo.init(
-        hops[i + 1], delay[i], gamma, beta[0 .. (((r * (t + 1)) - t) * k) - 1]
+        hops[i + 1],
+        delay[i],
+        gamma,
+        beta[0 .. (((r * (t + 1)) - t) * k) - 1],
       )
 
       let serializedRoutingInfo = routingInfo.serialize()
@@ -156,7 +161,7 @@ proc computeDelta(s: seq[seq[byte]], msg: Message): Result[seq[byte], string] =
 
 proc createSURB*(
     publicKeys: openArray[FieldElement],
-    delay: openArray[seq[byte]],
+    delay: openArray[Duration],
     hops: openArray[Hop],
     id: SURBIdentifier,
     rng: ref HmacDrbgContext = newRng(),
@@ -221,7 +226,7 @@ proc processReply*(
 proc wrapInSphinxPacket*(
     msg: Message,
     publicKeys: openArray[FieldElement],
-    delay: openArray[seq[byte]],
+    delay: openArray[Duration],
     hop: openArray[Hop],
     destHop: Hop,
 ): Result[SphinxPacket, string] =
@@ -251,7 +256,7 @@ type ProcessedSphinxPacket* = object
     messageChunk*: seq[byte]
   of ProcessingStatus.Intermediate:
     nextHop*: Hop
-    delayMs*: int
+    delay*: Duration
     serializedSphinxPacket*: seq[byte]
   of ProcessingStatus.Reply:
     id*: SURBIdentifier
@@ -402,7 +407,7 @@ proc processSphinxPacket*(
       ProcessedSphinxPacket(
         status: Intermediate,
         nextHop: address,
-        delayMs: uint16.fromBytesBE(delay).int,
+        delay: delay,
         serializedSphinxPacket: sphinxPkt.serialize(),
       )
     )

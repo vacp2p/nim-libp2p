@@ -3,7 +3,7 @@
 
 {.used.}
 
-import random, results, chronicles, bearssl/rand
+import random, results, chronicles, bearssl/rand, chronos
 import ../../../libp2p/crypto/crypto
 import ../../../libp2p/protocols/mix/[curve25519, serialization, sphinx, tag_manager]
 import ../../tools/[unittest, crypto]
@@ -19,7 +19,7 @@ proc addPadding(message: openArray[byte], size: int): seq[byte] =
 
 # Helper function to create dummy data
 proc createDummyData(): (
-  Message, seq[FieldElement], seq[FieldElement], seq[seq[byte]], seq[Hop], Hop
+  Message, seq[FieldElement], seq[FieldElement], seq[Duration], seq[Hop], Hop
 ) =
   let (privateKey1, publicKey1) = generateKeyPair().expect("generate keypair error")
   let (privateKey2, publicKey2) = generateKeyPair().expect("generate keypair error")
@@ -29,7 +29,7 @@ proc createDummyData(): (
     privateKeys = @[privateKey1, privateKey2, privateKey3]
     publicKeys = @[publicKey1, publicKey2, publicKey3]
 
-    delay = @[newSeq[byte](DelaySize), newSeq[byte](DelaySize), newSeq[byte](DelaySize)]
+    delay = @[0.milliseconds, 0.milliseconds, 0.milliseconds]
 
     hops =
       @[

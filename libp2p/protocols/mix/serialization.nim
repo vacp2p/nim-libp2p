@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import results
+import results, chronos, stew/endians2
 import std/sequtils
 import ../../utility
 
@@ -112,36 +112,45 @@ proc deserialize*(T: typedesc[Hop], data: openArray[byte]): Result[T, string] =
     )
   )
 
+proc dealyFromBytes*(data: openArray[byte]): Duration {.inline.} =
+  return milliseconds(uint16.fromBytesBE(data).int)
+
+proc dealyToBytes*(delay: Duration): seq[byte] {.inline.} =
+  return delay.milliseconds.uint16.toBytesBE().toSeq()
+
 type RoutingInfo* = object
   Addr: Hop
-  Delay: seq[byte]
+  Delay: Duration
   Gamma: seq[byte]
   Beta: seq[byte]
 
 proc init*(
     T: typedesc[RoutingInfo],
     address: Hop,
-    delay: seq[byte],
+    delay: Duration,
     gamma: seq[byte],
     beta: seq[byte],
 ): T =
   return T(Addr: address, Delay: delay, Gamma: gamma, Beta: beta)
 
-proc getRoutingInfo*(info: RoutingInfo): (Hop, seq[byte], seq[byte], seq[byte]) =
+proc getRoutingInfo*(info: RoutingInfo): (Hop, Duration, seq[byte], seq[byte]) =
   (info.Addr, info.Delay, info.Gamma, info.Beta)
 
 proc serialize*(info: RoutingInfo): seq[byte] =
-  doAssert info.Delay.len() == DelaySize,
-    "Delay must be exactly " & $DelaySize & " bytes"
   doAssert info.Gamma.len() == GammaSize,
     "Gamma must be exactly " & $GammaSize & " bytes"
+
   let expectedBetaLen = ((r * (t + 1)) - t) * k
   doAssert info.Beta.len() == expectedBetaLen,
     "Beta must be exactly " & $expectedBetaLen & " bytes"
 
+  let delayBytes = dealyToBytes(info.Delay)
+  doAssert delayBytes.len() == DelaySize,
+    "Delay must be exactly " & $DelaySize & " bytes"
+
   let addrBytes = info.Addr.serialize()
 
-  return addrBytes & info.Delay & info.Gamma & info.Beta
+  return addrBytes & delayBytes & info.Gamma & info.Beta
 
 proc readBytes(
     data: openArray[byte], offset: var int, readSize: Opt[int] = Opt.none(int)
@@ -168,12 +177,12 @@ proc deserialize*(T: typedesc[RoutingInfo], data: openArray[byte]): Result[T, st
     return err("Deserialize hop error: " & error)
 
   var offset: int = AddrSize
+  let delayBytes = ?data.readBytes(offset, Opt.some(DelaySize))
+  let gamaBytes = ?data.readBytes(offset, Opt.some(GammaSize))
+  let betaBytes = ?data.readBytes(offset, Opt.some(BetaSize))
   return ok(
     RoutingInfo(
-      Addr: hop,
-      Delay: ?data.readBytes(offset, Opt.some(DelaySize)),
-      Gamma: ?data.readBytes(offset, Opt.some(GammaSize)),
-      Beta: ?data.readBytes(offset, Opt.some(BetaSize)),
+      Addr: hop, Delay: dealyFromBytes(delayBytes), Gamma: gamaBytes, Beta: betaBytes
     )
   )
 
