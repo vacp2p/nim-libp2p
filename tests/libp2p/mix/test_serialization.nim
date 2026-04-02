@@ -45,7 +45,7 @@ suite "serialization_tests":
   test "serialize_and_deserialize_routing_info":
     let routingInfo = RoutingInfo.init(
       Hop.init(newSeq[byte](AddrSize)),
-      newSeq[byte](DelaySize),
+      0,
       newSeq[byte](GammaSize),
       newSeq[byte](((r * (t + 1)) - t) * k),
     )
