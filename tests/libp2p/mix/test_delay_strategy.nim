@@ -19,35 +19,35 @@ const
   ## into the boundary bucket after float -> uint16 conversion.
 
 proc sampleUpperBoundStats(
-    strategy: DelayStrategy, encodedDelayMs, maximumDelayMs: uint16, sampleCount: int
+    strategy: DelayStrategy, encodedDelay, maximumDelay: Delay, sampleCount: int
 ): tuple[maximumDelayHits: int, sawDelayBelowMaximum: bool] =
   var
     maximumDelayHits = 0
     sawDelayBelowMaximum = false
 
   for _ in 0 ..< sampleCount:
-    let delay = strategy.generateForIntermediate(encodedDelayMs)
-    check delay <= maximumDelayMs
-    if delay == maximumDelayMs:
+    let delay = strategy.generateForIntermediate(encodedDelay)
+    check delay <= maximumDelay
+    if delay == maximumDelay:
       inc maximumDelayHits
-    elif delay < maximumDelayMs:
+    elif delay < maximumDelay:
       sawDelayBelowMaximum = true
 
   (maximumDelayHits, sawDelayBelowMaximum)
 
 proc sampleLowerBoundStats(
-    strategy: DelayStrategy, encodedDelayMs, minimumDelayMs: uint16, sampleCount: int
+    strategy: DelayStrategy, encodedDelay, minimumDelay: Delay, sampleCount: int
 ): tuple[minimumDelayHits: int, sawDelayAboveMinimum: bool] =
   var
     minimumDelayHits = 0
     sawDelayAboveMinimum = false
 
   for _ in 0 ..< sampleCount:
-    let delay = strategy.generateForIntermediate(encodedDelayMs)
-    check delay >= minimumDelayMs
-    if delay == minimumDelayMs:
+    let delay = strategy.generateForIntermediate(encodedDelay)
+    check delay >= minimumDelay
+    if delay == minimumDelay:
       inc minimumDelayHits
-    elif delay > minimumDelayMs:
+    elif delay > minimumDelay:
       sawDelayAboveMinimum = true
 
   (minimumDelayHits, sawDelayAboveMinimum)
@@ -81,64 +81,63 @@ suite "DelayStrategy":
   test "ExponentialDelayStrategy generateForIntermediate samples from exponential distribution":
     let
       strategy = ExponentialDelayStrategy.new(100, rng())
-      meanDelayMs: uint16 = 100
+      meanDelay: Delay = 100
       numSamples = 1000
     var sum: float64 = 0
 
     for _ in 0 ..< numSamples:
-      let delay = strategy.generateForIntermediate(meanDelayMs)
+      let delay = strategy.generateForIntermediate(meanDelay)
       sum += float64(delay)
 
     let empiricalMean = sum / float64(numSamples)
     # Allow 20% tolerance for statistical variation
     check:
-      empiricalMean > float64(meanDelayMs) * (1 - Tolerance)
-      empiricalMean < float64(meanDelayMs) * (1 + Tolerance)
+      empiricalMean > float64(meanDelay) * (1 - Tolerance)
+      empiricalMean < float64(meanDelay) * (1 + Tolerance)
 
   test "ExponentialDelayStrategy produces variable delays":
     let
       strategy = ExponentialDelayStrategy.new(100, rng())
-      meanDelayMs: uint16 = 100
+      meanDelay: Delay = 100
 
-    var delays = initHashSet[uint16]()
+    var delays = initHashSet[Delay]()
     for _ in 0 ..< NumSamples:
-      let delay = strategy.generateForIntermediate(meanDelayMs)
+      let delay = strategy.generateForIntermediate(meanDelay)
       delays.incl(delay)
 
     check delays.len > NumSamples div 2
 
   test "ExponentialDelayStrategy never samples above the practical maximum":
     let
-      meanDelayMs: uint16 = 100
+      meanDelay: Delay = 100
       negligibleProb = 0.01
-      strategy = ExponentialDelayStrategy.new(meanDelayMs, rng(), negligibleProb)
+      strategy = ExponentialDelayStrategy.new(meanDelay, rng(), negligibleProb)
       # maxDelay = -mean * ln(negligibleProb)
-      maxDelayMs = uint16(-float64(meanDelayMs) * ln(negligibleProb))
+      maxDelay = Delay(-float64(meanDelay) * ln(negligibleProb))
       (maxDelayHits, sawDelayBelowMaximum) =
-        sampleUpperBoundStats(strategy, meanDelayMs, maxDelayMs, BoundarySamples)
+        sampleUpperBoundStats(strategy, meanDelay, maxDelay, BoundarySamples)
 
     check sawDelayBelowMaximum
     check maxDelayHits * 100 < BoundarySamples * MaxBoundaryHitRatePct
 
   test "ExponentialDelayStrategy respects custom negligibleProb":
     let
-      meanDelayMs: uint16 = 100
+      meanDelay: Delay = 100
       negligibleProb = 0.01 # aggressive truncation: max ≈ mean * 4.6
-      strategy = ExponentialDelayStrategy.new(meanDelayMs, rng(), negligibleProb)
-      maxDelayMs = uint16(-float64(meanDelayMs) * ln(negligibleProb))
+      strategy = ExponentialDelayStrategy.new(meanDelay, rng(), negligibleProb)
+      maxDelay = Delay(-float64(meanDelay) * ln(negligibleProb))
 
     for _ in 0 ..< 10000:
-      check strategy.generateForIntermediate(meanDelayMs) <= maxDelayMs
+      check strategy.generateForIntermediate(meanDelay) <= maxDelay
 
   test "ExponentialDelayStrategy never samples below the configured minimum":
     let
-      meanDelayMs: uint16 = 100
-      minimumDelayMs: uint16 = 100
-      strategy = ExponentialDelayStrategy.new(
-        meanDelayMs, rng(), minimumDelayMs = minimumDelayMs
-      )
+      meanDelay: Delay = 100
+      minimumDelay: Delay = 100
+      strategy =
+        ExponentialDelayStrategy.new(meanDelay, rng(), minimumDelay = minimumDelay)
       (minimumDelayHits, sawDelayAboveMinimum) =
-        sampleLowerBoundStats(strategy, meanDelayMs, minimumDelayMs, BoundarySamples)
+        sampleLowerBoundStats(strategy, meanDelay, minimumDelay, BoundarySamples)
 
     check minimumDelayHits > 0
     check sawDelayAboveMinimum
@@ -146,24 +145,21 @@ suite "DelayStrategy":
 
   test "ExponentialDelayStrategy falls back to minimum when floor exceeds practical maximum":
     let
-      meanDelayMs: uint16 = 100
+      meanDelay: Delay = 100
       negligibleProb = 0.01
-      minimumDelayMs: uint16 = 500
+      minimumDelay: Delay = 500
       strategy = ExponentialDelayStrategy.new(
-        meanDelayMs,
-        rng(),
-        negligibleProb = negligibleProb,
-        minimumDelayMs = minimumDelayMs,
+        meanDelay, rng(), negligibleProb = negligibleProb, minimumDelay = minimumDelay
       )
 
-    check strategy.generateForIntermediate(meanDelayMs) == minimumDelayMs
+    check strategy.generateForIntermediate(meanDelay) == minimumDelay
 
   test "SpamProtectionDelayStrategy applies the default delay floor":
     let
-      meanDelayMs: uint16 = 100
-      strategy = SpamProtectionDelayStrategy.new(meanDelayMs, rng())
+      meanDelay: Delay = 100
+      strategy = SpamProtectionDelayStrategy.new(meanDelay, rng())
       (minimumDelayHits, sawDelayAboveMinimum) = sampleLowerBoundStats(
-        strategy, meanDelayMs, DefaultSpamProtectionDelayFloorMs, BoundarySamples
+        strategy, meanDelay, DefaultSpamProtectionDelayFloor, BoundarySamples
       )
 
     check minimumDelayHits > 0
@@ -172,13 +168,12 @@ suite "DelayStrategy":
 
   test "SpamProtectionDelayStrategy allows overriding the default delay floor":
     let
-      meanDelayMs: uint16 = 100
-      minimumDelayMs: uint16 = 250
-      strategy = SpamProtectionDelayStrategy.new(
-        meanDelayMs, rng(), minimumDelayMs = minimumDelayMs
-      )
+      meanDelay: Delay = 100
+      minimumDelay: Delay = 250
+      strategy =
+        SpamProtectionDelayStrategy.new(meanDelay, rng(), minimumDelay = minimumDelay)
       (minimumDelayHits, sawDelayAboveMinimum) =
-        sampleLowerBoundStats(strategy, meanDelayMs, minimumDelayMs, BoundarySamples)
+        sampleLowerBoundStats(strategy, meanDelay, minimumDelay, BoundarySamples)
 
     check minimumDelayHits > 0
     check sawDelayAboveMinimum

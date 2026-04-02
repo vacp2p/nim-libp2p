@@ -191,8 +191,8 @@ suite "Mix Protocol - Message Delivery":
     check response == testPayload
 
   asyncTest "intermediate nodes apply delay":
-    let delayMs: uint16 = 300
-    let delayStrategy: DelayStrategy = FixedDelayStrategy(delayMs: delayMs)
+    let delay: Delay = 300
+    let delayStrategy: DelayStrategy = FixedDelayStrategy(delay: delay)
     let nodes = await setupMixNodes(10, delayStrategy = Opt.some(delayStrategy))
     startAndDeferStop(nodes)
 
@@ -216,7 +216,7 @@ suite "Mix Protocol - Message Delivery":
     # Path == 3, 2 intermediate hops apply delay, exit node does not.
     check:
       receivedMsg.data == data
-      elapsed >= milliseconds(int64(delayMs) * 2)
+      elapsed >= (delay * 2).toDuration
 
   asyncTest "concurrent messages with SURB replies":
     let echoProto = EchoProtocol.new()
