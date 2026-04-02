@@ -187,6 +187,12 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `cancel()` procedure of `Future` type is deprecated, code should ether call `cancelSoon()` for non blocking call or `cancelAndWait()` for blocking call till future is canceled.
 - Give suggestions if  `cancelSoon()` or `cancelAndWait()` should be called.
 
+### Avoid `sleepAsync`
+- `sleepAsync` should be avoided when is used to fix race condition, or to wait on condition, becasue it is always source of flakyness.
+- Remaind developer that:
+  - if `sleepAsync` is used in tests, then `checkUntilTimeout` might be use to wait for condition
+  - if it is necessery to use `sleepAsync`, comment with reasoning why it was used must be added next to it
+
 ### Error Handling
 - Use the **results** library: `Result[T, E]`, `?`, `valueOr`, `isOk`, `isErr`
 - Custom error types are in `libp2p/errors.nim` (derive from `LPError`)
