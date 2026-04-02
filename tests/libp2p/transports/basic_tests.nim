@@ -18,7 +18,8 @@ import ./utils
 template basicTransportTest*(
     provider: TransportProvider,
     address: string,
-    validAddresses: seq[string],
+    validWireAddresses: seq[string],
+    validNonWireAddresses: seq[string],
     invalidAddresses: seq[string],
 ) =
   block:
@@ -88,10 +89,28 @@ template basicTransportTest*(
       await transport.stop()
       check await transport.onStop.wait().withTimeout(1.seconds)
 
+    asyncTest "start succeeds for valid wire addresses":
+      for ma in validWireAddresses:
+        let transport = transportProvider()
+        await transport.start(@[MultiAddress.init(ma).tryGet()])
+        await transport.stop()
+
+    asyncTest "start fails for valid non-wire addresses":
+      for addrs in validNonWireAddresses:
+        let transport = transportProvider()
+        let ma = MultiAddress.init(addrs).tryGet()
+
+        if isTcpTransport(ma):
+          expect ResultDefect:
+            await transport.start(@[ma])
+        else:
+          expect LPError:
+            await transport.start(@[ma])
+
     asyncTest "multiaddress validation - accept valid addresses":
       let transport = transportProvider()
 
-      for validAddress in validAddresses:
+      for validAddress in validWireAddresses & validNonWireAddresses:
         check transport.handles(MultiAddress.init(validAddress).tryGet())
 
     asyncTest "multiaddress validation - reject invalid addresses":
