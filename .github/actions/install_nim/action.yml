@@ -127,7 +127,18 @@ runs:
       run: |
         # We don't want partial matches of the cache restored
         rm -rf nim
+        tmpdir="$(mktemp -d)"
+        cleanup() {
+          rm -rf "$tmpdir"
+        }
+        trap cleanup EXIT
+
+        cd "$tmpdir"
+        # Build Nim outside the repository so nim-libp2p's config.nims does not
+        # leak warning-as-error settings into the external compiler bootstrap.
         curl -O -L -s -S https://raw.githubusercontent.com/status-im/nimbus-build-system/master/scripts/build_nim.sh
         env MAKE="${MAKE_CMD} -j${ncpu}" ARCH_OVERRIDE=${PLATFORM} NIM_COMMIT=${{ inputs.nim_ref }} \
           QUICK_AND_DIRTY_COMPILER=1 QUICK_AND_DIRTY_NIMBLE=1 CC=gcc \
           bash build_nim.sh nim csources dist/nimble NimBinaries
+
+        mv "$tmpdir/nim" "${{ github.workspace }}/nim"
