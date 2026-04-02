@@ -54,6 +54,16 @@ const DefaultSpamProtectionDelayFloor*: Duration = milliseconds(100)
   ## Recommended default lower bound when per-hop spam protection is enabled.
   ## Use `SpamProtectionDelayStrategy` to apply this floor explicitly.
 
+proc doAssertDelay*(delay: Duration) {.raises: [].} =
+  ## Asserts that a delay value is valid for use in the Mix protocol.
+  ## A valid delay must be non-negative and encodable in the 2-byte on-wire
+  ## delay field (<=65535ms).
+  doAssert(delay.milliseconds >= 0, "delay must be non-negative")
+  doAssert(
+    delay.milliseconds <= high(uint16).int,
+    "delay must be encodable in 2 bytes (<=65535ms)",
+  )
+
 type ExponentialDelayStrategy* = ref object of DelayStrategy
   ## Recommended strategy: encodes mean delay, samples from exponential distribution.
   ## Samples are drawn directly from the exponential distribution conditioned on
@@ -79,6 +89,8 @@ proc new*(
   doAssert(
     negligibleProb > 0.0 and negligibleProb < 1.0, "negligibleProb must be in (0, 1)"
   )
+  doAssertDelay(meanDelay)
+  doAssertDelay(minimumDelay)
   T(
     meanDelay: meanDelay,
     rng: rng,
@@ -97,6 +109,8 @@ proc new*(
   doAssert(
     negligibleProb > 0.0 and negligibleProb < 1.0, "negligibleProb must be in (0, 1)"
   )
+  doAssertDelay(meanDelay)
+  doAssertDelay(minimumDelay)
   T(
     meanDelay: meanDelay,
     rng: rng,
