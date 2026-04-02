@@ -60,7 +60,7 @@ proc startAndConnect(switch: Switch, switches: seq[Switch]) {.async.} =
   await switch.start()
 
   # Start all peers in parallel
-  await allFuturesRaising(switches.mapIt(it.start()))
+  await switches.startAll()
 
   await sleepAsync(200.millis)
 
