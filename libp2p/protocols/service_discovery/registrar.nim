@@ -21,10 +21,7 @@ logScope:
   topics = "service-disco registrar"
 
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
-  var totalAds = 0
-  for ads in registrar.cache.values:
-    totalAds += ads.len
-  cd_registrar_cache_ads.set(totalAds.float64)
+  cd_registrar_cache_ads.set(registrar.cacheTimestamps.len.float64)
   cd_registrar_cache_services.set(registrar.cache.len.float64)
   cd_iptree_unique_ips.set(registrar.ipTree.root.counter.float64)
 
