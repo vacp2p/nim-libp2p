@@ -118,7 +118,7 @@ proc computeBetaGamma(
     # Compute Beta and Gamma
     if i == sLen - 1:
       let destBytes = destHop.serialize()
-      let delayBytes = dealyToBytes(delay[i])
+      let delayBytes = delayToBytes(delay[i])
       let destPadding = destBytes & delayBytes & @id & newSeq[byte](PaddingLength)
 
       let aes = aes_ctr(beta_aes_key, beta_iv, destPadding)

@@ -112,11 +112,19 @@ proc deserialize*(T: typedesc[Hop], data: openArray[byte]): Result[T, string] =
     )
   )
 
-proc dealyFromBytes*(data: openArray[byte]): Duration {.inline.} =
+proc delayFromBytes*(data: openArray[byte]): Duration {.inline.} =
   return milliseconds(uint16.fromBytesBE(data).int)
 
-proc dealyToBytes*(delay: Duration): seq[byte] {.inline.} =
-  return delay.milliseconds.uint16.toBytesBE().toSeq()
+proc delayToBytes*(delay: Duration): seq[byte] {.inline.} =
+  let ms = delay.milliseconds
+  let clampedMs =
+    if ms < 0:
+      0
+    elif ms > high(uint16).int:
+      high(uint16).int
+    else:
+      ms
+  return clampedMs.uint16.toBytesBE().toSeq()
 
 type RoutingInfo* = object
   Addr: Hop
@@ -144,10 +152,7 @@ proc serialize*(info: RoutingInfo): seq[byte] =
   doAssert info.Beta.len() == expectedBetaLen,
     "Beta must be exactly " & $expectedBetaLen & " bytes"
 
-  let delayBytes = dealyToBytes(info.Delay)
-  doAssert delayBytes.len() == DelaySize,
-    "Delay must be exactly " & $DelaySize & " bytes"
-
+  let delayBytes = delayToBytes(info.Delay)
   let addrBytes = info.Addr.serialize()
 
   return addrBytes & delayBytes & info.Gamma & info.Beta
@@ -178,11 +183,11 @@ proc deserialize*(T: typedesc[RoutingInfo], data: openArray[byte]): Result[T, st
 
   var offset: int = AddrSize
   let delayBytes = ?data.readBytes(offset, Opt.some(DelaySize))
-  let gamaBytes = ?data.readBytes(offset, Opt.some(GammaSize))
+  let gammaBytes = ?data.readBytes(offset, Opt.some(GammaSize))
   let betaBytes = ?data.readBytes(offset, Opt.some(BetaSize))
   return ok(
     RoutingInfo(
-      Addr: hop, Delay: dealyFromBytes(delayBytes), Gamma: gamaBytes, Beta: betaBytes
+      Addr: hop, Delay: delayFromBytes(delayBytes), Gamma: gammaBytes, Beta: betaBytes
     )
   )
 
