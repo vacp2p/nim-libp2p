@@ -45,8 +45,9 @@ proc addService*(
     replication: int,
     bucketsCount: int,
     status: ServiceStatus,
-): Future[bool] {.async.} =
-  await manager.lock.withLock:
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  await manager.lock.acquire()
+  try:
     if serviceId in manager.serviceStatus:
       if status == manager.serviceStatus.getOrDefault(serviceId):
         return false
@@ -68,11 +69,17 @@ proc addService*(
     manager.serviceStatus[serviceId] = status
     manager.updateServiceTablesMetrics()
     return true
+  finally:
+    try:
+      manager.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
 proc removeService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, status: ServiceStatus
-) {.async.} =
-  await manager.lock.withLock:
+) {.async: (raises: [CancelledError]).} =
+  await manager.lock.acquire()
+  try:
     if serviceId notin manager.serviceStatus:
       return
 
@@ -87,22 +94,34 @@ proc removeService*(
         manager.serviceStatus[serviceId] = Provided
       elif status == Provided:
         manager.serviceStatus[serviceId] = Interest
+  finally:
+    try:
+      manager.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
-): Future[Opt[RoutingTable]] {.async.} =
-  await manager.lock.withLock:
+): Future[Opt[RoutingTable]] {.async: (raises: [CancelledError]).} =
+  await manager.lock.acquire()
+  try:
     let res = catch:
       manager.tables[serviceId]
     let table = res.valueOr:
       return Opt.none(RoutingTable)
 
     return Opt.some(table)
+  finally:
+    try:
+      manager.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
 proc insertPeer*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, peerKey: Key
-) {.async.} =
-  await manager.lock.withLock:
+) {.async: (raises: [CancelledError]).} =
+  await manager.lock.acquire()
+  try:
     let res = catch:
       manager.tables[serviceId]
     var table = res.valueOr:
@@ -110,6 +129,11 @@ proc insertPeer*(
 
     discard table.insert(peerKey)
     cd_service_table_insertions.inc()
+  finally:
+    try:
+      manager.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
 proc hasService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
@@ -118,11 +142,19 @@ proc hasService*(
 
   serviceId in manager.tables
 
-proc refreshAllTables*(manager: ServiceRoutingTableManager, kad: KadDHT) {.async.} =
+proc refreshAllTables*(
+    manager: ServiceRoutingTableManager, kad: KadDHT
+) {.async: (raises: [CancelledError]).} =
   var tablesCopy: seq[RoutingTable]
 
-  await manager.lock.withLock:
+  await manager.lock.acquire()
+  try:
     tablesCopy = manager.tables.values.toSeq()
+  finally:
+    try:
+      manager.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
   for serviceTable in tablesCopy:
     let refreshRes = catch:
@@ -130,16 +162,36 @@ proc refreshAllTables*(manager: ServiceRoutingTableManager, kad: KadDHT) {.async
     if refreshRes.isErr:
       error "failed to refresh service routing table", error = refreshRes.error.msg
 
-proc count*(manager: ServiceRoutingTableManager): Future[int] {.async.} =
-  await manager.lock.withLock:
+proc count*(
+    manager: ServiceRoutingTableManager
+): Future[int] {.async: (raises: [CancelledError]).} =
+  await manager.lock.acquire()
+  try:
     return manager.tables.len
+  finally:
+    try:
+      manager.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
 proc serviceIds*(
     manager: ServiceRoutingTableManager
-): Future[seq[ServiceId]] {.async.} =
-  await manager.lock.withLock:
+): Future[seq[ServiceId]] {.async: (raises: [CancelledError]).} =
+  await manager.lock.acquire()
+  try:
     return manager.tables.keys.toSeq()
+  finally:
+    try:
+      manager.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
-proc clear*(manager: ServiceRoutingTableManager) {.async.} =
-  await manager.lock.withLock:
+proc clear*(manager: ServiceRoutingTableManager) {.async: (raises: [CancelledError]).} =
+  await manager.lock.acquire()
+  try:
     manager.tables.clear()
+  finally:
+    try:
+      manager.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg

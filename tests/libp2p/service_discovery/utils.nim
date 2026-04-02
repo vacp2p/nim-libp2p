@@ -154,12 +154,16 @@ proc createMockDiscovery*(
 
   kad
 
-proc populateAdvTable*(disco: KademliaDiscovery, serviceId: ServiceId) =
-  discard disco.serviceRoutingTables.addService(
+proc populateAdvTable*(
+    disco: KademliaDiscovery, serviceId: ServiceId
+) {.async: (raises: [CancelledError]).} =
+  discard await disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Interest,
   )
-  let advTable = disco.serviceRoutingTables.getTable(serviceId).get()
+  let advTableOpt = await disco.serviceRoutingTables.getTable(serviceId)
+  let advTable = advTableOpt.valueOr:
+    return
 
   if advTable.buckets.len == 0:
     advTable.buckets.add(Bucket())
@@ -173,13 +177,13 @@ proc populateAdvTable*(disco: KademliaDiscovery, serviceId: ServiceId) =
 # Helper to directly populate a SearchTable for testing
 proc populateSearchTable*(
     kad: KademliaDiscovery, serviceId: ServiceId, peers: seq[PeerId]
-) =
+) {.async: (raises: [CancelledError]).} =
   ## Directly populate a SearchTable for testing without going through addServiceInterest
   if not kad.serviceRoutingTables.hasService(serviceId):
     return
   for peer in peers:
     let key = peer.toKey()
-    kad.serviceRoutingTables.insertPeer(serviceId, key)
+    await kad.serviceRoutingTables.insertPeer(serviceId, key)
 
 proc setupKad*(
     validator: EntryValidator,

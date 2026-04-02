@@ -16,7 +16,9 @@ logScope:
 
 proc sendGetAds(
     disco: KademliaDiscovery, peerId: PeerId, serviceId: ServiceId
-): Future[Result[(seq[Advertisement], seq[PeerId]), string]] {.async: (raises: []).} =
+): Future[Result[(seq[Advertisement], seq[PeerId]), string]] {.
+    async: (raises: [CancelledError])
+.} =
   ## Send GET_ADS request to a peer
 
   var validAds: seq[Advertisement] = @[]
@@ -85,17 +87,18 @@ proc sendGetAds(
 
 proc lookup*(
     disco: KademliaDiscovery, serviceId: ServiceId
-): Future[Result[seq[Advertisement], string]] {.async: (raises: []).} =
+): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
   ## Look up providers for a specific service id
 
   cd_lookup_requests.inc()
 
-  discard disco.serviceRoutingTables.addService(
+  discard await disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Interest,
   )
 
-  let searchTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
+  let searchTableOpt = await disco.serviceRoutingTables.getTable(serviceId)
+  let searchTable = searchTableOpt.valueOr:
     return err("service table not found for service id: " & $serviceId)
 
   var found = newSeqOfCap[Advertisement](disco.discoConf.fLookup)
@@ -118,7 +121,7 @@ proc lookup*(
           continue
 
         for nodeId in closerPeers:
-          disco.serviceRoutingTables.insertPeer(serviceId, nodeId.toKey())
+          await disco.serviceRoutingTables.insertPeer(serviceId, nodeId.toKey())
 
         for ad in ads:
           found.add(ad)
@@ -129,19 +132,23 @@ proc lookup*(
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)
 
-proc addServiceInterest*(disco: KademliaDiscovery, service: ServiceInfo) =
+proc addServiceInterest*(
+    disco: KademliaDiscovery, service: ServiceInfo
+) {.async: (raises: [CancelledError]).} =
   ## Add this service to this node's set of interests.
 
   let serviceId = service.id.hashServiceId()
 
-  discard disco.serviceRoutingTables.addService(
+  discard await disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Interest,
   )
 
-proc removeServiceInterest*(disco: KademliaDiscovery, service: ServiceInfo) =
+proc removeServiceInterest*(
+    disco: KademliaDiscovery, service: ServiceInfo
+) {.async: (raises: [CancelledError]).} =
   ## Remove this service from this node's set of interests.
 
   let serviceId = service.id.hashServiceId()
 
-  disco.serviceRoutingTables.removeService(serviceId, Interest)
+  await disco.serviceRoutingTables.removeService(serviceId, Interest)
