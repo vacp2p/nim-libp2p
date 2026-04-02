@@ -334,7 +334,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `discard` should not be used for empty body statements in tests: if used in try-except block when error is expected it is better to use `expect` instead. For callbacks, they should either raise an error because they should not be called, or, if it is indeed a noop callback, it should be written once then reused always.
 
 #### RNG
-- Do not use `newRng()`. In the nim-libp2p test files, do not use `newRng()`. Instead use `rng` template from `tests/tools/crypto.nim`
+- Do not use `newRng()` as a default value for arguments in object constructors or initializers, because the entropy seed could be exhausted. Random arguments must always be passed down.
+- Do not use `newRng()` in the nim-libp2p test files. Instead use `rng` template from `tests/tools/crypto.nim`.
 - Ignore `nim-libp2p/tests/tools/crypto.nim` (that's the definition file)
 
 ### API Stability
