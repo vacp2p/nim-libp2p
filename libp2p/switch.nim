@@ -56,6 +56,7 @@ type
     nameResolver*: NameResolver
     started: bool
     services*: seq[Service]
+    rng*: ref HmacDrbgContext
 
   UpgradeError* = object of LPError
 
@@ -411,6 +412,7 @@ proc newSwitch*(
     peerStore: PeerStore,
     nameResolver: NameResolver = nil,
     services = newSeq[Service](),
+    rng: ref HmacDrbgContext = nil,
 ): Switch {.raises: [LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")
@@ -425,6 +427,7 @@ proc newSwitch*(
       Dialer.new(peerInfo.peerId, connManager, peerStore, transports, nameResolver),
     nameResolver: nameResolver,
     services: services,
+    rng: rng,
   )
 
   switch.connManager.peerStore = peerStore
