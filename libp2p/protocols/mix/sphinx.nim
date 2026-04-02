@@ -162,6 +162,9 @@ proc createSURB*(
     id: SURBIdentifier,
     rng: ref HmacDrbgContext,
 ): Result[SURB, string] =
+  if rng.isNil:
+    return err("rng must not be nil")
+
   if id == default(SURBIdentifier):
     return err("id should be initialized")
 

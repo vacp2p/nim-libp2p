@@ -806,7 +806,7 @@ method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: [], raw: tru
   mixProto.tagManager.stopSoon()
   newFutureCompleted[void]()
 
-proc init(
+proc init*(
     mixProto: MixProtocol,
     mixNodeInfo: MixNodeInfo,
     switch: Switch,
@@ -826,6 +826,7 @@ proc init(
   var rng = switch.rng
   if rng.isNil:
     rng = newRng()
+  doAssert(not rng.isNil, "MixProtocol could not create random")
 
   let actualDelayStrategy = delayStrategy.valueOr:
     NoSamplingDelayStrategy.new(rng)
