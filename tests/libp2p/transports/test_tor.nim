@@ -63,7 +63,7 @@ suite "Tor transport":
         "/ip4/127.0.0.1/tcp/1234/quic-v1", # QUIC not supported
         "/ip4/127.0.0.1/tcp/1234/wss", # WSS not supported
       ]
-
+  
   setup:
     stub = TorServerStub.new()
     stub.registerAddr("127.0.0.1:8080", "/ip4/127.0.0.1/tcp/8080")

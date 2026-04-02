@@ -53,14 +53,14 @@ suite "TCP transport":
     tcpTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
     invalidAddresses,
   )
-  # connectionTransportTest(tcpTransProvider, addressIP4)
-  # connectionTransportTest(tcpTransProvider, addressIP6)
-  # streamTransportTest(
-  #   tcpTransProvider,
-  #   MultiAddress.init(addressIP4).get(),
-  #   Opt.some(MultiAddress.init(addressIP6).get()),
-  #   streamProvider,
-  # )
+  connectionTransportTest(tcpTransProvider, addressIP4)
+  connectionTransportTest(tcpTransProvider, addressIP6)
+  streamTransportTest(
+    tcpTransProvider,
+    MultiAddress.init(addressIP4).get(),
+    Opt.some(MultiAddress.init(addressIP6).get()),
+    streamProvider,
+  )
 
-  # # tcp specific tests
-  # tcpTests()
+  # tcp specific tests
+  tcpTests()
