@@ -86,7 +86,7 @@ proc sendGetAds(
 proc lookup*(
     disco: KademliaDiscovery, serviceId: ServiceId
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: []).} =
-  ## Look up providers for a spcific service id
+  ## Look up providers for a specific service id
 
   cd_lookup_requests.inc()
 
