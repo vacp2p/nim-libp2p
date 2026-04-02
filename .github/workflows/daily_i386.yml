@@ -35,18 +35,3 @@ jobs:
       configuration: "[
           {'os': 'linux', 'cpu': 'i386', 'cc': 'gcc', 'builder': 'ubuntu-22.04', 'shell': 'bash'},
         ]"
-  notify-on-failure:
-    name: Notify Discord on Failure
-    needs: [test_i386_latest, test_i386_pinned]
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Discord notification
-        uses: ./.github/actions/discord_notify
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
