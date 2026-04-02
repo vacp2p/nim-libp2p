@@ -126,10 +126,7 @@ proc computeBetaGamma(
       beta = aes & filler
     else:
       let routingInfo = RoutingInfo.init(
-        hops[i + 1],
-        delay[i],
-        gamma,
-        beta[0 .. (((r * (t + 1)) - t) * k) - 1],
+        hops[i + 1], delay[i], gamma, beta[0 .. (((r * (t + 1)) - t) * k) - 1]
       )
 
       let serializedRoutingInfo = routingInfo.serialize()
