@@ -206,7 +206,7 @@ suite "GossipSub Component - Extensions":
     let msgLength = preambleMessageSizeThreshold + 4 # some large message length
     discard await nodes[1].publish(topic, newSeq[byte](msgLength))
 
-    # node nodes[1] should receive IMReceiving right after it broadcasted preamble.
+    # nodes[1] should receive IMReceiving right after it broadcasted preamble.
     checkUntilTimeout:
       receivedImReceiving.len == 1
       receivedImReceiving[0].messageLength == msgLength.uint32
