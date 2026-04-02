@@ -806,7 +806,7 @@ method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: [], raw: tru
   mixProto.tagManager.stopSoon()
   newFutureCompleted[void]()
 
-proc init(
+proc init*(
     mixProto: MixProtocol,
     mixNodeInfo: MixNodeInfo,
     switch: Switch,
