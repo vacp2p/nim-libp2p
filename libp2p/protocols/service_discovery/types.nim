@@ -47,6 +47,7 @@ type
     timestampService*: Table[ServiceId, uint64] # timestamp(service_id_hash)
     boundIp*: Table[string, float64] # bound(IP)
     timestampIp*: Table[string, uint64] # timestamp(IP)
+    usedNonces*: Table[seq[byte], uint64] # nonce -> expiresAt (replay prevention)
     lock*: AsyncLock
 
   PendingAction* =
@@ -153,12 +154,15 @@ proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
 
 proc sign*(ticket: var Ticket, privateKey: PrivateKey): Result[void, CryptoError] =
   ## Sign the ticket with the given private key.
-  ## Signature is over: encoded_ad || t_init || t_mod || t_wait_for
-  var sigInput = newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4)
+  ## Signature is over: encoded_ad || t_init || t_mod || t_wait_for || expires_at || nonce
+  var sigInput =
+    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
   sigInput.add(ticket.advertisement)
   sigInput.add(toBytesBE(ticket.tInit.uint64).toSeq)
   sigInput.add(toBytesBE(ticket.tMod.uint64).toSeq)
   sigInput.add(toBytesBE(ticket.tWaitFor.uint32).toSeq)
+  sigInput.add(toBytesBE(ticket.expiresAt.uint64).toSeq)
+  sigInput.add(ticket.nonce)
 
   let sig = ?privateKey.sign(sigInput)
   ticket.signature = sig.getBytes()
@@ -166,11 +170,14 @@ proc sign*(ticket: var Ticket, privateKey: PrivateKey): Result[void, CryptoError
 
 proc verify*(ticket: Ticket, publicKey: PublicKey): bool =
   ## Verify the ticket signature with the given public key.
-  var sigInput = newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4)
+  var sigInput =
+    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
   sigInput.add(ticket.advertisement)
   sigInput.add(toBytesBE(ticket.tInit.uint64).toSeq)
   sigInput.add(toBytesBE(ticket.tMod.uint64).toSeq)
   sigInput.add(toBytesBE(ticket.tWaitFor.uint32).toSeq)
+  sigInput.add(toBytesBE(ticket.expiresAt.uint64).toSeq)
+  sigInput.add(ticket.nonce)
 
   var sig: Signature
   if not sig.init(ticket.signature):

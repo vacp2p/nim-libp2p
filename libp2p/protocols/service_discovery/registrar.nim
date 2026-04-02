@@ -37,6 +37,7 @@ proc new*(T: typedesc[Registrar]): T =
     timestampService: initTable[ServiceId, uint64](),
     boundIp: initTable[string, float64](),
     timestampIp: initTable[string, uint64](),
+    usedNonces: initTable[seq[byte], uint64](),
   )
 
 proc pruneExpiredAds*(
@@ -83,6 +84,13 @@ proc pruneExpiredAds*(
     for ip in expiredIps:
       registrar.boundIp.del(ip)
       registrar.timestampIp.del(ip)
+
+    var expiredNonces: seq[seq[byte]] = @[]
+    for nonce, exp in registrar.usedNonces:
+      if now > exp:
+        expiredNonces.add(nonce)
+    for nonce in expiredNonces:
+      registrar.usedNonces.del(nonce)
 
 proc waitingTime*(
     registrar: Registrar,
@@ -258,6 +266,9 @@ proc processRetryTicket*(
   if not ticketMsg.verify(registrarPubKey):
     return t_wait
 
+  if now > ticketMsg.expiresAt:
+    return t_wait
+
   let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
   let delta = disco.discoConf.registrationWindow.seconds.uint64
   let windowEnd = windowStart + delta
@@ -376,6 +387,13 @@ proc waitOrRejectAdvertisement*(
 
   ticket.tWaitFor = min(disco.discoConf.advertExpiry.uint32, t_remaining.uint32)
   ticket.tMod = getTime().toUnix().uint64
+
+  var nonce: array[16, byte]
+  hmacDrbgGenerate(disco.rng[], nonce)
+  ticket.nonce = @nonce
+  ticket.expiresAt =
+    ticket.tMod + ticket.tWaitFor.uint64 +
+    disco.discoConf.registerationWindow.seconds.uint64
 
   ticket.sign(disco.switch.peerInfo.privateKey).isOkOr:
     error "failed to sign ticket", error
@@ -499,6 +517,13 @@ proc handleRegister*(
       disco.registrar.boundIp.del(ip)
       disco.registrar.timestampIp.del(ip)
 
+    var expiredNonces: seq[seq[byte]] = @[]
+    for nonce, exp in disco.registrar.usedNonces:
+      if now > exp:
+        expiredNonces.add(nonce)
+    for nonce in expiredNonces:
+      disco.registrar.usedNonces.del(nonce)
+
     # compute waiting time (inline, no await)
     let c = disco.registrar.cacheTimestamps.len.uint64
     let c_s = disco.registrar.cache.getOrDefault(serviceId, @[]).len
@@ -530,10 +555,26 @@ proc handleRegister*(
       disco.registrar.boundService[serviceId] = t_wait + now.float64
       disco.registrar.timestampService[serviceId] = now
 
+    # replay check — must happen inside the lock so check+record is atomic
+    var isReplay = false
+    if regMsg.ticket.isSome:
+      let nonce = regMsg.ticket.get().nonce
+      if nonce.len > 0 and nonce in disco.registrar.usedNonces:
+        isReplay = true
+
     # retry logic (pure, no shared mutation)
-    t_remaining = disco.processRetryTicket(regMsg, ad, t_wait, now)
+    if not isReplay:
+      t_remaining = disco.processRetryTicket(regMsg, ad, t_wait, now)
+    else:
+      t_remaining = t_wait
 
     acceptNow = t_remaining <= 0
+
+    # record nonce atomically with the accept decision
+    if acceptNow and regMsg.ticket.isSome:
+      let nonce = regMsg.ticket.get().nonce
+      if nonce.len > 0:
+        disco.registrar.usedNonces[nonce] = regMsg.ticket.get().expiresAt
   # --- END LOCK ---
 
   if acceptNow:
