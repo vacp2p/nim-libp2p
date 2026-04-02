@@ -743,13 +743,13 @@ proc anonymizeLocalProtocolSend*(
       nextHopAddr = multiAddr
       nextHopPeerId = peerId
 
-    let hopDealy =
+    let hopDelay =
       if hop.len != PathLength - 1:
         mixProto.delayStrategy.generateForEntry()
       else:
         NoDelay # No delay for exit node
 
-    delays.add(hopDealy)
+    delays.add(hopDelay)
 
     hop.add(Hop.init(multiAddrBytes))
 
