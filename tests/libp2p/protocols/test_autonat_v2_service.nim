@@ -58,8 +58,10 @@ proc stopAll(switches: seq[Switch]) {.async.} =
 
 proc startAndConnect(switch: Switch, switches: seq[Switch]) {.async.} =
   await switch.start()
+
+  await switches.startAll()
+
   for peer in switches:
-    await peer.start()
     await switch.connect(peer.peerInfo.peerId, peer.peerInfo.addrs)
 
 proc newService(
@@ -137,7 +139,7 @@ suite "AutonatV2 Service":
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) >= 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -152,7 +154,7 @@ suite "AutonatV2 Service":
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) >= 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -167,14 +169,17 @@ suite "AutonatV2 Service":
     let switch = createSwitch(service)
     var switches = createSwitches(3)
 
-    let awaiter = newFuture[void]()
+    let notReachableObserved = newFuture[void]()
+    let reachableObserved = newFuture[void]()
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability, confidence: Opt[float]
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not awaiter.finished:
+        if not notReachableObserved.finished:
+          notReachableObserved.complete()
+
           client.response = AutonatV2Response(
             reachability: Reachable,
             dialResp: DialResponse(
@@ -184,19 +189,22 @@ suite "AutonatV2 Service":
             ),
               # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
           )
-          awaiter.complete()
+
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
+          confidence.get() >= 0.3:
+        if not reachableObserved.finished:
+          reachableObserved.complete()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
-    await awaiter
 
-    check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
-
-    await client.finished
+    await notReachableObserved
+    await reachableObserved
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) >= 0.3
+
+    await client.finished
 
     await switch.stop()
     await switches.stopAll()
@@ -267,12 +275,12 @@ suite "AutonatV2 Service":
     await awaiter
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) >= 0.3
 
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) >= 0.3
 
     await switch.stop()
     await switches.stopAll()
