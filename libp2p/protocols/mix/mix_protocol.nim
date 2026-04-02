@@ -828,9 +828,6 @@ proc init*(
     rng = newRng()
   doAssert(not rng.isNil, "MixProtocol could not create random")
 
-  let actualDelayStrategy = delayStrategy.valueOr:
-    NoSamplingDelayStrategy.new(rng)
-
   mixProto.mixNodeInfo = mixNodeInfo
   mixProto.switch = switch
   mixProto.rng = rng
@@ -839,7 +836,8 @@ proc init*(
   mixProto.destReadBehavior = newTable[string, DestReadBehavior]()
 
   mixProto.spamProtection = spamProtection
-  mixProto.delayStrategy = actualDelayStrategy
+  mixProto.delayStrategy = delayStrategy.valueOr:
+    NoSamplingDelayStrategy.new(rng)
 
   let onReplyDialer = proc(
       surb: SURB, message: seq[byte]
