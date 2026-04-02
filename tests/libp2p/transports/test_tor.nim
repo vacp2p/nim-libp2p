@@ -42,16 +42,19 @@ suite "Tor transport":
       "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80"
     address2 =
       "/ip4/127.0.0.1/tcp/8081/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcae:81"
-    validAddresses =
+    validWireAddresses =
+      @[
+        # Addresses for listening (TcpOnion3)
+        "/ip4/127.0.0.1/tcp/0/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+        "/ip6/::1/tcp/0/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
+      ]
+    validNonWireAddresses =
       @[
         # Addresses for dialing
         "/ip4/127.0.0.1/tcp/1234", # TCP
         "/ip6/::1/tcp/1234", # TCP over IPv6
         "/dns/example.com/tcp/1234", # TCP with DNS
         "/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80", # Onion3
-        # Addresses for listening (TcpOnion3)
-        "/ip4/127.0.0.1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
-        "/ip6/::1/tcp/8080/onion3/a2mncbqsbullu7thgm4e6zxda2xccmcgzmaq44oayhdtm6rav5vovcad:80",
       ]
     invalidAddresses =
       @[
@@ -81,7 +84,10 @@ suite "Tor transport":
     waitFor stub.stop()
     checkTrackers()
 
-  basicTransportTest(torTransProvider, address, validAddresses, invalidAddresses)
+  basicTransportTest(
+    torTransProvider, address, validWireAddresses, validNonWireAddresses,
+    invalidAddresses,
+  )
   connectionTransportTest(torTransProvider, address, address2)
   streamTransportTest(
     torTransProvider,
