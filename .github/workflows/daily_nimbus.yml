@@ -23,17 +23,3 @@ jobs:
           make -j"$(nproc)"
           make -j"$(nproc)" nimbus_beacon_node
 
-  notify-on-failure:
-    name: Notify Discord on Failure
-    needs: compile_nimbus
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Discord notification
-        uses: ./.github/actions/discord_notify
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-
