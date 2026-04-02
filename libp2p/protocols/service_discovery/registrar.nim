@@ -259,7 +259,7 @@ proc processRetryTicket*(
     return t_wait
 
   let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
-  let delta = disco.discoConf.registerationWindow.seconds.uint64
+  let delta = disco.discoConf.registrationWindow.seconds.uint64
   let windowEnd = windowStart + delta
 
   if now >= windowStart and now <= windowEnd:

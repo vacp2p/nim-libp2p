@@ -74,7 +74,7 @@ type
     advertCacheCap*: float64
     occupancyExp*: float64
     safetyParam*: float64
-    registerationWindow*: chronos.Duration
+    registrationWindow*: chronos.Duration
     bucketsCount*: int
 
 proc new*(
@@ -87,7 +87,7 @@ proc new*(
     advertCacheCap = Default_C,
     occupancyExp = Default_P_occ,
     safetyParam = Default_G,
-    registerationWindow = Default_Delta,
+    registrationWindow = Default_Delta,
     bucketsCount = Default_M_buckets,
 ): T {.raises: [].} =
   KademliaDiscoveryConfig(
@@ -99,7 +99,7 @@ proc new*(
     advertCacheCap: advertCacheCap,
     occupancyExp: occupancyExp,
     safetyParam: safetyParam,
-    registerationWindow: registerationWindow,
+    registrationWindow: registrationWindow,
     bucketsCount: bucketsCount,
   )
 
