@@ -22,6 +22,7 @@ proc clear*(a: Advertiser) =
     if not t.fut.finished:
       t.fut.cancel()
   a.running.clear()
+  cd_advertiser_pending_actions.set(0)
 
 proc sendRegister*(
     disco: KademliaDiscovery,
@@ -204,6 +205,7 @@ proc addProvidedService*(
       let fut =
         disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket), add)
       disco.advertiser.running.incl AdvertiseTask(fut: fut, serviceId: serviceId)
+      cd_advertiser_pending_actions.inc()
 
 proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
   let serviceId = service.id.hashServiceId()
@@ -217,6 +219,7 @@ proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
       toRemove.add(t)
   for t in toRemove:
     disco.advertiser.running.excl t
+  cd_advertiser_pending_actions.set(disco.advertiser.running.len.float64)
 
   # remove service from tables
   disco.serviceRoutingTables.removeService(serviceId, Provided)
