@@ -56,9 +56,9 @@ suite "Discoverer - lookup":
     check disco.serviceRoutingTables.hasService(sid1)
     check disco.serviceRoutingTables.hasService(sid2)
     # Tables are independent — count reflects both
-    check disco.serviceRoutingTables.count() == 2
+    check waitFor(disco.serviceRoutingTables.count()) == 2
 
-  test "kRegister cap: result length never exceeds kRegister":
+  asyncTest "kRegister cap: result length never exceeds kRegister":
     let kRegister = 5
     let disco = createMockDiscovery(
       discoConf = KademliaDiscoveryConfig.new(kRegister = kRegister, bucketsCount = 16)
@@ -69,9 +69,9 @@ suite "Discoverer - lookup":
     for i in 0 ..< peers.len:
       peers[i] = makePeerId()
 
-    populateSearchTable(disco, serviceId, peers)
+    await populateSearchTable(disco, serviceId, peers)
 
-    let res = waitFor disco.lookup(serviceId)
+    let res = await disco.lookup(serviceId)
 
     check res.isOk()
     check res.get().len <= kRegister

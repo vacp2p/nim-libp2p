@@ -37,12 +37,15 @@ proc new*(T: typedesc[Registrar]): T =
     timestampService: initTable[ServiceId, uint64](),
     boundIp: initTable[string, float64](),
     timestampIp: initTable[string, uint64](),
+    usedNonces: initTable[seq[byte], uint64](),
+    lock: newAsyncLock(),
   )
 
 proc pruneExpiredAds*(
     registrar: Registrar, advertExpiry: uint64
-) {.async: (raises: []).} =
-  await registrar.lock.withLock:
+) {.async: (raises: [CancelledError]).} =
+  await registrar.lock.acquire()
+  try:
     let now = getTime().toUnix().uint64
     var toDelete: seq[tuple[serviceId: ServiceId, ad: Advertisement]] = @[]
 
@@ -54,7 +57,8 @@ proc pruneExpiredAds*(
         let adTime = registrar.cacheTimestamps.getOrDefault(adKey, 0)
 
         if now - adTime > advertExpiry:
-          registrar.ipTree.removeAd(ad)
+          registrar.ipTree.removeAd(ad).isOkOr:
+            debug "failed to remove ad from IP tree during prune", error
           toDelete.add((serviceId, ad))
           ads.delete(i)
         else:
@@ -67,6 +71,34 @@ proc pruneExpiredAds*(
       cd_registrar_ads_expired.inc(toDelete.len.float64)
       registrar.updateRegistrarMetrics()
 
+    var expiredServices: seq[ServiceId] = @[]
+    for sid, ts in registrar.timestampService:
+      if now - ts > advertExpiry:
+        expiredServices.add(sid)
+    for sid in expiredServices:
+      registrar.boundService.del(sid)
+      registrar.timestampService.del(sid)
+
+    var expiredIps: seq[string] = @[]
+    for ip, ts in registrar.timestampIp:
+      if now - ts > advertExpiry:
+        expiredIps.add(ip)
+    for ip in expiredIps:
+      registrar.boundIp.del(ip)
+      registrar.timestampIp.del(ip)
+
+    var expiredNonces: seq[seq[byte]] = @[]
+    for nonce, exp in registrar.usedNonces:
+      if now > exp:
+        expiredNonces.add(nonce)
+    for nonce in expiredNonces:
+      registrar.usedNonces.del(nonce)
+  finally:
+    try:
+      registrar.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
+
 proc waitingTime*(
     registrar: Registrar,
     discoConf: KademliaDiscoveryConfig,
@@ -74,8 +106,9 @@ proc waitingTime*(
     advertCacheCap: uint64,
     serviceId: ServiceId,
     now: uint64,
-): Future[float64] {.async.} =
-  await registrar.lock.withLock:
+): Future[float64] {.async: (raises: [CancelledError]).} =
+  await registrar.lock.acquire()
+  try:
     let c = registrar.cacheTimestamps.len.uint64
     let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
 
@@ -111,6 +144,11 @@ proc waitingTime*(
           w = ipLowerBound
 
     return max(0.0, w)
+  finally:
+    try:
+      registrar.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
 proc updateLowerBounds*(
     registrar: Registrar,
@@ -118,8 +156,9 @@ proc updateLowerBounds*(
     ad: Advertisement,
     w: float64,
     now: uint64,
-) {.async: (raises: []).} =
-  await registrar.lock.withLock:
+) {.async: (raises: [CancelledError]).} =
+  await registrar.lock.acquire()
+  try:
     let elapsedService = now - registrar.timestampService.getOrDefault(serviceId, 0)
     let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
 
@@ -138,17 +177,23 @@ proc updateLowerBounds*(
       if w > (boundIpVal - elapsedIp):
         registrar.boundIp[ipKey] = w + float64(now)
         registrar.timestampIp[ipKey] = now
+  finally:
+    try:
+      registrar.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
 proc getRegistrarCloserPeers*(
     disco: KademliaDiscovery, serviceId: ServiceId, count: int
-): seq[Peer] {.raises: [].} =
+): Future[seq[Peer]] {.async: (raises: [CancelledError]).} =
   ## Get closer peers from registrar table for a service.
   ## Falls back to main DHT if table is empty or not found.
 
   var closerPeerKeys: seq[Key] = @[]
   block thisBlock:
     if disco.serviceRoutingTables.hasService(serviceId):
-      let regTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
+      let regTableOpt = await disco.serviceRoutingTables.getTable(serviceId)
+      let regTable = regTableOpt.valueOr:
         break thisBlock
 
       for bucket in regTable.buckets:
@@ -178,7 +223,7 @@ proc sendRegisterResponse*(
     status: kademlia_protobuf.RegistrationStatus,
     closerPeers: seq[Peer],
     ticket: Opt[Ticket] = Opt.none(Ticket),
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   ## Sender for REGISTER message responses
 
   let msg = Message(
@@ -198,7 +243,7 @@ proc sendRegisterResponse*(
 
 proc sendRegisterReject*(
     conn: Connection, closerPeers: seq[Peer] = @[]
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   await conn.sendRegisterResponse(
     kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
   )
@@ -241,8 +286,11 @@ proc processRetryTicket*(
   if not ticketMsg.verify(registrarPubKey):
     return t_wait
 
+  if now > ticketMsg.expiresAt:
+    return t_wait
+
   let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
-  let delta = disco.discoConf.registerationWindow.seconds.uint64
+  let delta = disco.discoConf.registrationWindow.seconds.uint64
   let windowEnd = windowStart + delta
 
   if now >= windowStart and now <= windowEnd:
@@ -260,7 +308,7 @@ proc acceptAdvertisement*(
     now: uint64,
     closerPeers: seq[Peer],
     conn: Connection,
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   # These may also need locking internally (see note below)
   discard await disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
@@ -272,7 +320,8 @@ proc acceptAdvertisement*(
 
   var shouldUpdateMetrics = false
 
-  await disco.registrar.lock.withLock:
+  await disco.registrar.lock.acquire()
+  try:
     var ads = disco.registrar.cache.getOrDefault(serviceId)
 
     var replaced = false
@@ -284,13 +333,15 @@ proc acceptAdvertisement*(
           isDuplicate = true
           disco.registrar.cacheTimestamps[ads[i].toAdvertisementKey()] = now
         elif ad.data.seqNo > ads[i].data.seqNo:
-          disco.registrar.ipTree.removeAd(ads[i])
+          disco.registrar.ipTree.removeAd(ads[i]).isOkOr:
+            debug "failed to remove ad from IP tree", error
           disco.registrar.cacheTimestamps.del(ads[i].toAdvertisementKey())
 
           ads[i] = ad
 
           disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-          disco.registrar.ipTree.insertAd(ad)
+          disco.registrar.ipTree.insertAd(ad).isOkOr:
+            debug "failed to insert ad into IP tree", error
 
           replaced = true
           shouldUpdateMetrics = true
@@ -299,16 +350,51 @@ proc acceptAdvertisement*(
         break
 
     if not isDuplicate and not replaced:
+      if disco.registrar.cacheTimestamps.len.uint64 >=
+          disco.discoConf.advertCacheCap.uint64:
+        var oldestKey: AdvertisementKey
+        var oldestTime = high(uint64)
+        for k, t in disco.registrar.cacheTimestamps:
+          if t < oldestTime:
+            oldestTime = t
+            oldestKey = k
+        var evictSid: ServiceId
+        var evictIdx = -1
+        for sid, sads in disco.registrar.cache:
+          for i in 0 ..< sads.len:
+            if sads[i].toAdvertisementKey() == oldestKey:
+              evictSid = sid
+              evictIdx = i
+              break
+          if evictIdx >= 0:
+            break
+        if evictIdx >= 0:
+          var evictAds = disco.registrar.cache.getOrDefault(evictSid)
+          disco.registrar.ipTree.removeAd(evictAds[evictIdx]).isOkOr:
+            debug "failed to remove evicted ad from IP tree", error
+          disco.registrar.cacheTimestamps.del(oldestKey)
+          evictAds.delete(evictIdx)
+          disco.registrar.cache[evictSid] = evictAds
+          if evictSid == serviceId:
+            ads = evictAds
+        shouldUpdateMetrics = true
+
       ads.add(ad)
       let adKey = ad.toAdvertisementKey()
       disco.registrar.cacheTimestamps[adKey] = now
-      disco.registrar.ipTree.insertAd(ad)
+      disco.registrar.ipTree.insertAd(ad).isOkOr:
+        debug "failed to insert ad into IP tree", error
       shouldUpdateMetrics = true
 
     disco.registrar.cache[serviceId] = ads
 
     if shouldUpdateMetrics:
       disco.registrar.updateRegistrarMetrics()
+  finally:
+    try:
+      disco.registrar.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
 
   await conn.sendRegisterResponse(
     kademlia_protobuf.RegistrationStatus.Confirmed, closerPeers
@@ -320,13 +406,20 @@ proc waitOrRejectAdvertisement*(
     t_remaining: float64,
     ticket: Ticket,
     disco: KademliaDiscovery,
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   ## Send Wait response with ticket or Rejected response
 
   var ticket = ticket
 
   ticket.tWaitFor = min(disco.discoConf.advertExpiry.uint32, t_remaining.uint32)
   ticket.tMod = getTime().toUnix().uint64
+
+  var nonce: array[16, byte]
+  hmacDrbgGenerate(disco.rng[], nonce)
+  ticket.nonce = @nonce
+  ticket.expiresAt =
+    ticket.tMod + ticket.tWaitFor.uint64 +
+    disco.discoConf.registrationWindow.seconds.uint64
 
   ticket.sign(disco.switch.peerInfo.privateKey).isOkOr:
     error "failed to sign ticket", error
@@ -339,14 +432,14 @@ proc waitOrRejectAdvertisement*(
 
 proc handleGetAds*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   ## Handle GET_ADS request
 
   cd_messages_received.inc(labelValues = [$MessageType.getAds])
 
   let serviceId = msg.key
 
-  disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
+  await disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
   var ads: seq[Advertisement]
   for ad in disco.registrar.cache.getOrDefault(serviceId, @[]):
@@ -365,7 +458,7 @@ proc handleGetAds*(
   adBufs.setLen(fReturn)
 
   let closerPeers =
-    disco.getRegistrarCloserPeers(serviceId, disco.discoConf.bucketsCount)
+    await disco.getRegistrarCloserPeers(serviceId, disco.discoConf.bucketsCount)
 
   let msg = Message(
     msgType: MessageType.getAds,
@@ -382,13 +475,13 @@ proc handleGetAds*(
 
 proc handleRegister*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
-) {.async: (raises: []).} =
+) {.async: (raises: [CancelledError]).} =
   cd_messages_received.inc(labelValues = [$MessageType.register])
 
   let serviceId = msg.key
 
   let closerPeers =
-    disco.getRegistrarCloserPeers(serviceId, disco.discoConf.bucketsCount)
+    await disco.getRegistrarCloserPeers(serviceId, disco.discoConf.bucketsCount)
 
   let regMsg = msg.register.valueOr:
     cd_register_requests.inc(labelValues = [$kademlia_protobuf.Rejected])
@@ -407,7 +500,8 @@ proc handleRegister*(
   var acceptNow: bool
 
   # --- ATOMIC DECISION BLOCK ---
-  await disco.registrar.lock.withLock:
+  await disco.registrar.lock.acquire()
+  try:
     # inline prune (no await!)
     let expiry = disco.discoConf.advertExpiry.uint64
     var toDelete: seq[tuple[serviceId: ServiceId, ad: Advertisement]] = @[]
@@ -420,7 +514,8 @@ proc handleRegister*(
         let ts = disco.registrar.cacheTimestamps.getOrDefault(key, 0)
 
         if now - ts > expiry:
-          disco.registrar.ipTree.removeAd(ad2)
+          disco.registrar.ipTree.removeAd(ad2).isOkOr:
+            debug "failed to remove ad from IP tree during prune", error
           toDelete.add((sid, ad2))
           ads.delete(i)
         else:
@@ -432,6 +527,29 @@ proc handleRegister*(
     if toDelete.len > 0:
       cd_registrar_ads_expired.inc(toDelete.len.float64)
       disco.registrar.updateRegistrarMetrics()
+
+    var expiredServices: seq[ServiceId] = @[]
+    for sid, ts in disco.registrar.timestampService:
+      if now - ts > expiry:
+        expiredServices.add(sid)
+    for sid in expiredServices:
+      disco.registrar.boundService.del(sid)
+      disco.registrar.timestampService.del(sid)
+
+    var expiredIps: seq[string] = @[]
+    for ip, ts in disco.registrar.timestampIp:
+      if now - ts > expiry:
+        expiredIps.add(ip)
+    for ip in expiredIps:
+      disco.registrar.boundIp.del(ip)
+      disco.registrar.timestampIp.del(ip)
+
+    var expiredNonces: seq[seq[byte]] = @[]
+    for nonce, exp in disco.registrar.usedNonces:
+      if now > exp:
+        expiredNonces.add(nonce)
+    for nonce in expiredNonces:
+      disco.registrar.usedNonces.del(nonce)
 
     # compute waiting time (inline, no await)
     let c = disco.registrar.cacheTimestamps.len.uint64
@@ -464,10 +582,31 @@ proc handleRegister*(
       disco.registrar.boundService[serviceId] = t_wait + now.float64
       disco.registrar.timestampService[serviceId] = now
 
+    # replay check — must happen inside the lock so check+record is atomic
+    var isReplay = false
+    if regMsg.ticket.isSome:
+      let nonce = regMsg.ticket.get().nonce
+      if nonce.len > 0 and nonce in disco.registrar.usedNonces:
+        isReplay = true
+
     # retry logic (pure, no shared mutation)
-    t_remaining = disco.processRetryTicket(regMsg, ad, t_wait, now)
+    if not isReplay:
+      t_remaining = disco.processRetryTicket(regMsg, ad, t_wait, now)
+    else:
+      t_remaining = t_wait
 
     acceptNow = t_remaining <= 0
+
+    # record nonce atomically with the accept decision
+    if acceptNow and regMsg.ticket.isSome:
+      let nonce = regMsg.ticket.get().nonce
+      if nonce.len > 0:
+        disco.registrar.usedNonces[nonce] = regMsg.ticket.get().expiresAt
+  finally:
+    try:
+      disco.registrar.lock.release()
+    except AsyncLockError as exc:
+      raiseAssert exc.msg
   # --- END LOCK ---
 
   if acceptNow:

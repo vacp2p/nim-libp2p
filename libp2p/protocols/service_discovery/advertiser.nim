@@ -22,6 +22,7 @@ proc clear*(a: Advertiser) =
     if not t.fut.finished:
       t.fut.cancel()
   a.running.clear()
+  cd_advertiser_pending_actions.set(0)
 
 proc sendRegister*(
     disco: KademliaDiscovery,
@@ -142,7 +143,7 @@ proc startAdvertising*(
       return
 
     for peerId in closerPeers:
-      disco.serviceRoutingTables.insertPeer(serviceId, peerId.toKey())
+      await disco.serviceRoutingTables.insertPeer(serviceId, peerId.toKey())
 
     case status
     of protobuf.RegistrationStatus.Confirmed:
@@ -167,7 +168,7 @@ proc addProvidedService*(
     disco: KademliaDiscovery,
     service: ServiceInfo,
     add: Opt[seq[byte]] = Opt.none(seq[byte]),
-) =
+) {.async: (raises: [CancelledError]).} =
   ## Include this service in the set of services this node provides.
 
   if disco.clientMode:
@@ -176,7 +177,7 @@ proc addProvidedService*(
 
   let serviceId = service.id.hashServiceId()
 
-  let isNew = disco.serviceRoutingTables.addService(
+  let isNew = await disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Provided,
   )
@@ -187,7 +188,8 @@ proc addProvidedService*(
   if not isNew:
     return
 
-  let advTable = disco.serviceRoutingTables.getTable(serviceId).valueOr:
+  let advTableOpt = await disco.serviceRoutingTables.getTable(serviceId)
+  let advTable = advTableOpt.valueOr:
     error "service not found", serviceId
     return
 
@@ -212,8 +214,11 @@ proc addProvidedService*(
       let fut =
         disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket), add)
       disco.advertiser.running.incl AdvertiseTask(fut: fut, serviceId: serviceId)
+      cd_advertiser_pending_actions.inc()
 
-proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
+proc removeProvidedService*(
+    disco: KademliaDiscovery, service: ServiceInfo
+) {.async: (raises: [CancelledError]).} =
   let serviceId = service.id.hashServiceId()
 
   # cancel and remove futures for this service
@@ -225,8 +230,9 @@ proc removeProvidedService*(disco: KademliaDiscovery, service: ServiceInfo) =
       toRemove.add(t)
   for t in toRemove:
     disco.advertiser.running.excl t
+  cd_advertiser_pending_actions.set(disco.advertiser.running.len.float64)
 
   # remove service from tables
-  disco.serviceRoutingTables.removeService(serviceId, Provided)
+  await disco.serviceRoutingTables.removeService(serviceId, Provided)
   disco.services.excl(service)
   cd_advertiser_services_removed.inc()

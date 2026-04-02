@@ -47,7 +47,7 @@ proc maintainRegistrarCache(
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "prune expired advertisements",
     chronos.seconds(int(disco.discoConf.advertExpiry)):
-    disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
+    await disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
 proc maintainTables(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh service routing tables",

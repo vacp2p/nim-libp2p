@@ -50,6 +50,8 @@ type
     tMod*: uint64 # field 3 - Last modification timestamp (Unix time in seconds)
     tWaitFor*: uint32 # field 4 - Remaining wait time in seconds
     signature*: seq[byte] # field 5 - Ed25519 signature
+    nonce*: seq[byte] # field 6 - Random bytes for replay prevention
+    expiresAt*: uint64 # field 7 - Absolute expiry timestamp (Unix time in seconds)
 
   # Register message for Service Discovery
   # Field 21 in the main Message
@@ -102,6 +104,10 @@ proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
   pb.write(4, ticket.tWaitFor)
   if ticket.signature.len > 0:
     pb.write(5, ticket.signature)
+  if ticket.nonce.len > 0:
+    pb.write(6, ticket.nonce)
+  if ticket.expiresAt > 0:
+    pb.write(7, ticket.expiresAt)
   pb.finish()
   return pb
 
@@ -192,16 +198,23 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
 
 proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
   ## Decode Ticket from protobuf format
-  var ticket =
-    Ticket(advertisement: @[], tInit: 0, tMod: 0, tWaitFor: 0, signature: @[])
+  var ticket = Ticket(
+    advertisement: @[],
+    tInit: 0,
+    tMod: 0,
+    tWaitFor: 0,
+    signature: @[],
+    nonce: @[],
+    expiresAt: 0,
+  )
 
   discard ?pb.getField(1, ticket.advertisement)
-
   discard ?pb.getField(2, ticket.tInit)
   discard ?pb.getField(3, ticket.tMod)
   discard ?pb.getField(4, ticket.tWaitFor)
-
   discard ?pb.getField(5, ticket.signature)
+  discard ?pb.getField(6, ticket.nonce)
+  discard ?pb.getField(7, ticket.expiresAt)
 
   return ok(ticket)
 

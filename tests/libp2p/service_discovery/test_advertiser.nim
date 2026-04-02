@@ -20,66 +20,66 @@ suite "Advertiser - addProvidedService":
   teardown:
     checkTrackers()
 
-  test "creates routing table entry for the service":
+  asyncTest "creates routing table entry for the service":
     let disco = createMockDiscovery()
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(service)
+    await disco.addProvidedService(service)
 
     check disco.serviceRoutingTables.hasService(serviceId)
 
-  test "with empty routing table: creates table but schedules no actions":
+  asyncTest "with empty routing table: creates table but schedules no actions":
     # Source skips scheduling when bucket.peers.len() == 0
     let disco = createMockDiscovery()
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
-    disco.addProvidedService(service) # no peers in routing table
+    await disco.addProvidedService(service) # no peers in routing table
 
     check disco.serviceRoutingTables.hasService(serviceId)
 
-  test "schedules up to kRegister actions per populated bucket":
+  asyncTest "schedules up to kRegister actions per populated bucket":
     let disco = createMockDiscovery()
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
     # populateAdvTable creates service as Interest with peers only in bucket[0]
     # (empty main routing table so no peers spread across other buckets)
-    disco.populateAdvTable(serviceId)
+    await disco.populateAdvTable(serviceId)
 
-    disco.addProvidedService(service)
+    await disco.addProvidedService(service)
 
     # bucket[0] has kRegister+2 peers; we should schedule exactly kRegister tasks
     check disco.advertiser.running.len() == disco.discoConf.kRegister
 
-  test "adding same service twice is idempotent":
+  asyncTest "adding same service twice is idempotent":
     let disco = createMockDiscovery()
     let service = makeServiceInfo()
     let serviceId = service.id.hashServiceId()
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(service)
+    await disco.addProvidedService(service)
     let queueLenAfterFirst = disco.advertiser.running.len()
 
-    disco.addProvidedService(service)
+    await disco.addProvidedService(service)
 
     # Routing table still exists exactly once
     check disco.serviceRoutingTables.hasService(serviceId)
     # Queue should not grow — second call is a no-op for the routing table
     check disco.advertiser.running.len() == queueLenAfterFirst
 
-  test "multiple distinct services each get their own routing table":
+  asyncTest "multiple distinct services each get their own routing table":
     let disco = createMockDiscovery()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
     let s3 = makeServiceInfo("svc-3")
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(s1)
-    disco.addProvidedService(s2)
-    disco.addProvidedService(s3)
+    await disco.addProvidedService(s1)
+    await disco.addProvidedService(s2)
+    await disco.addProvidedService(s3)
 
     check disco.serviceRoutingTables.hasService(s1.id.hashServiceId())
     check disco.serviceRoutingTables.hasService(s2.id.hashServiceId())
@@ -89,7 +89,7 @@ suite "Advertiser - removeProvidedService":
   teardown:
     checkTrackers()
 
-  test "removes routing table and clears its pending actions":
+  asyncTest "removes routing table and clears its pending actions":
     let disco = createMockDiscovery()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
@@ -98,33 +98,33 @@ suite "Advertiser - removeProvidedService":
     let now = Moment.now()
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(s1)
-    disco.addProvidedService(s2)
+    await disco.addProvidedService(s1)
+    await disco.addProvidedService(s2)
 
-    disco.removeProvidedService(s1)
+    await disco.removeProvidedService(s1)
 
     check:
       not disco.serviceRoutingTables.hasService(sid1)
       disco.serviceRoutingTables.hasService(sid2)
       disco.advertiser.running.len() == 1
 
-  test "removing non-existent service is a no-op":
+  asyncTest "removing non-existent service is a no-op":
     let disco = createMockDiscovery()
     let service = makeServiceInfo()
 
-    disco.removeProvidedService(service) # must not crash or error
+    await disco.removeProvidedService(service) # must not crash or error
     check not disco.serviceRoutingTables.hasService(service.id.hashServiceId())
 
-  test "removing one service leaves others intact":
+  asyncTest "removing one service leaves others intact":
     let disco = createMockDiscovery()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
     disco.populateRoutingTable(1)
-    disco.addProvidedService(s1)
-    disco.addProvidedService(s2)
+    await disco.addProvidedService(s1)
+    await disco.addProvidedService(s2)
 
-    disco.removeProvidedService(s1)
+    await disco.removeProvidedService(s1)
 
     check not disco.serviceRoutingTables.hasService(s1.id.hashServiceId())
     check disco.serviceRoutingTables.hasService(s2.id.hashServiceId())

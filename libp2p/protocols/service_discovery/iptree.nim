@@ -68,21 +68,25 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress): Result[void, string] {.raises: []
       dec n.counter
   ok()
 
-proc insertAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
+proc insertAd*(ipTree: IpTree, ad: Advertisement): Result[void, string] {.raises: [].} =
   for addressInfo in ad.data.addresses:
     let multiAddr = addressInfo.address
     let ip = multiAddr.getIp().valueOr:
       continue
+    if ip.family != IpAddressFamily.IPv4:
+      continue
+    ?ipTree.insertIp(ip)
+  ok()
 
-    discard ipTree.insertIp(ip)
-
-proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
+proc removeAd*(ipTree: IpTree, ad: Advertisement): Result[void, string] {.raises: [].} =
   for addressInfo in ad.data.addresses:
     let multiAddr = addressInfo.address
     let ip = multiAddr.getIp().valueOr:
       continue
-
-    discard ipTree.removeIp(ip)
+    if ip.family != IpAddressFamily.IPv4:
+      continue
+    ?ipTree.removeIp(ip)
+  ok()
 
 proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
   ## Calculates the IP similarity score (0.0 to 1.0) for the given IPv4 address
