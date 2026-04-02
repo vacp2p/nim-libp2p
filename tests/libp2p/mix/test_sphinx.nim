@@ -322,6 +322,13 @@ suite "Sphinx Tests":
       res.isErr()
       res.error == "id should be initialized"
 
+  test "create surb with nil rng returns error":
+    let (_, _, publicKeys, delay, hops, _) = createDummyData()
+    let res = createSURB(publicKeys, delay, hops, randomI(), nil)
+    check:
+      res.isErr()
+      res.error == "rng must not be nil"
+
   test "surb sphinx process invalid mac":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
