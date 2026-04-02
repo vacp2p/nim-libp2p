@@ -111,13 +111,18 @@ proc sampleOpenUnitInterval(self: DelayStrategy): float64 {.inline, raises: [].}
 
 proc practicalMaxDelay(
     meanDelay: Duration, negligibleProb: float64
-): float64 {.inline.} =
-  min(-float64(meanDelay.milliseconds) * ln(negligibleProb), float64(high(uint16)))
+): Duration {.inline.} =
+  let maxDelay = min(
+    -float64(meanDelay.milliseconds) * ln(negligibleProb), float64(high(uint16))
+  ).uint64
+  return maxDelay.int.milliseconds
 
 proc sampleTruncatedExponentialDelay(
-    self: DelayStrategy, meanDelay: Duration, minDelayMs, maxDelayMs: float64
+    self: DelayStrategy, meanDelay: Duration, minDelay, maxDelay: Duration
 ): Duration {.inline, raises: [].} =
   let
+    minDelayMs = minDelay.milliseconds.float64
+    maxDelayMs = maxDelay.milliseconds.float64
     meanMs = float64(meanDelay.milliseconds)
     minBound = exp(-minDelayMs / meanMs)
     maxBound = exp(-maxDelayMs / meanMs)
@@ -141,11 +146,8 @@ method generateForIntermediate*(
   if encodedDelay == NoDelay:
     return encodedDelay
 
-  let
-    minDelayMs = float64(self.minimumDelay.milliseconds)
-    maxDelayMs = practicalMaxDelay(encodedDelay, self.negligibleProb)
-
-  if minDelayMs >= maxDelayMs:
+  let maxDelay = practicalMaxDelay(encodedDelay, self.negligibleProb)
+  if self.minimumDelay >= maxDelay:
     return self.minimumDelay
 
-  self.sampleTruncatedExponentialDelay(encodedDelay, minDelayMs, maxDelayMs)
+  self.sampleTruncatedExponentialDelay(encodedDelay, self.minimumDelay, maxDelay)
