@@ -880,8 +880,14 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
+    # windowStart = tMod + tWaitFor = 1150, windowEnd = 1151, expiresAt = 1151
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: 1_000,
+      tMod: 1_100,
+      tWaitFor: 50,
+      expiresAt: 1_151,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -892,12 +898,136 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
     )
 
     let tWait = 300.0
-    # valid window is [1150, 1151] with default delta = 1 second
+    # valid window is [1150, 1151] with default delta = 1 second; now is after window
     let now: uint64 = 1_152
 
     let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
 
     check abs(tRemaining - tWait) < 0.001
+
+  test "processRetryTicket returns original wait time when ticket is expired":
+    let disco = createMockDiscovery()
+
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    # expiresAt is in the past relative to now
+    var ticket = Ticket(
+      advertisement: adBuf,
+      tInit: 1_000,
+      tMod: 1_100,
+      tWaitFor: 50,
+      expiresAt: 1_149,
+      signature: @[],
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+
+    let tWait = 300.0
+    let now: uint64 = 1_150
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    check abs(tRemaining - tWait) < 0.001
+
+  test "processRetryTicket returns original wait time when retry is too early":
+    let disco = createMockDiscovery()
+
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    # windowStart = tMod + tWaitFor = 1150, expiresAt = 1151
+    var ticket = Ticket(
+      advertisement: adBuf,
+      tInit: 1_000,
+      tMod: 1_100,
+      tWaitFor: 50,
+      expiresAt: 1_151,
+      signature: @[],
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+
+    let tWait = 300.0
+    # now is before windowStart
+    let now: uint64 = 1_149
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    check abs(tRemaining - tWait) < 0.001
+
+  test "processRetryTicket subtracts accumulated wait at windowEnd boundary":
+    let disco = createMockDiscovery()
+
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    # windowStart = 1150, windowEnd = expiresAt = 1151
+    var ticket = Ticket(
+      advertisement: adBuf,
+      tInit: 1_000,
+      tMod: 1_100,
+      tWaitFor: 50,
+      expiresAt: 1_151,
+      signature: @[],
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+
+    let tWait = 300.0
+    # now == windowEnd, still inside window
+    let now: uint64 = 1_151
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    # waited for 151 seconds since tInit
+    check abs(tRemaining - 149.0) < 0.001
+
+  test "processRetryTicket returns non-positive remaining when accumulated wait exceeds tWait":
+    let disco = createMockDiscovery()
+
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    # windowStart = tMod + tWaitFor = 1_100 + 50 = 1_150, expiresAt = 1_151
+    var ticket = Ticket(
+      advertisement: adBuf,
+      tInit: 1_000,
+      tMod: 1_100,
+      tWaitFor: 50,
+      expiresAt: 1_151,
+      signature: @[],
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+
+    # tWait is smaller than totalWaitSoFar (now - tInit = 150)
+    let tWait = 100.0
+    let now: uint64 = 1_150
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+    check tRemaining < 0.0
 
   test "processRetryTicket subtracts accumulated wait for valid retry in window":
     let disco = createMockDiscovery()
@@ -906,7 +1036,12 @@ suite "Kademlia Discovery Registrar - Retry Ticket Processing":
     let adBuf = ad.encode().get()
 
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: 1_000,
+      tMod: 1_100,
+      tWaitFor: 50,
+      expiresAt: 1_151,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 

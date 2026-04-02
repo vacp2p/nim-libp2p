@@ -4,6 +4,7 @@
 import results
 import std/sequtils
 import ../../utility
+import ./delay
 
 const
   k* = 16 # Security parameter
@@ -13,7 +14,6 @@ const
   BetaSize* = ((r * (t + 1)) + 1) * k # bytes
   GammaSize* = 16 # Output of HMAC-SHA-256, truncated to 16 bytes
   HeaderSize* = AlphaSize + BetaSize + GammaSize # Total header size
-  DelaySize* = 2 # Delay size
   AddrSize* = (t * k) - DelaySize # Address size
   PacketSize* = 4608 # Total packet size (from spec)
   MessageSize* = PacketSize - HeaderSize - k # Size of the message itself
@@ -114,25 +114,23 @@ proc deserialize*(T: typedesc[Hop], data: openArray[byte]): Result[T, string] =
 
 type RoutingInfo* = object
   Addr: Hop
-  Delay: seq[byte]
+  Delay: Delay
   Gamma: seq[byte]
   Beta: seq[byte]
 
 proc init*(
     T: typedesc[RoutingInfo],
     address: Hop,
-    delay: seq[byte],
+    delay: Delay,
     gamma: seq[byte],
     beta: seq[byte],
 ): T =
   return T(Addr: address, Delay: delay, Gamma: gamma, Beta: beta)
 
-proc getRoutingInfo*(info: RoutingInfo): (Hop, seq[byte], seq[byte], seq[byte]) =
+proc getRoutingInfo*(info: RoutingInfo): (Hop, Delay, seq[byte], seq[byte]) =
   (info.Addr, info.Delay, info.Gamma, info.Beta)
 
 proc serialize*(info: RoutingInfo): seq[byte] =
-  doAssert info.Delay.len() == DelaySize,
-    "Delay must be exactly " & $DelaySize & " bytes"
   doAssert info.Gamma.len() == GammaSize,
     "Gamma must be exactly " & $GammaSize & " bytes"
   let expectedBetaLen = ((r * (t + 1)) - t) * k
@@ -141,7 +139,7 @@ proc serialize*(info: RoutingInfo): seq[byte] =
 
   let addrBytes = info.Addr.serialize()
 
-  return addrBytes & info.Delay & info.Gamma & info.Beta
+  return addrBytes & info.Delay.toBytes() & info.Gamma & info.Beta
 
 proc readBytes(
     data: openArray[byte], offset: var int, readSize: Opt[int] = Opt.none(int)
@@ -171,7 +169,7 @@ proc deserialize*(T: typedesc[RoutingInfo], data: openArray[byte]): Result[T, st
   return ok(
     RoutingInfo(
       Addr: hop,
-      Delay: ?data.readBytes(offset, Opt.some(DelaySize)),
+      Delay: Delay.fromBytes(?data.readBytes(offset, Opt.some(DelaySize))),
       Gamma: ?data.readBytes(offset, Opt.some(GammaSize)),
       Beta: ?data.readBytes(offset, Opt.some(BetaSize)),
     )
