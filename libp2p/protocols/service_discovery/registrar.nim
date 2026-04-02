@@ -54,7 +54,8 @@ proc pruneExpiredAds*(
         let adTime = registrar.cacheTimestamps.getOrDefault(adKey, 0)
 
         if now - adTime > advertExpiry:
-          registrar.ipTree.removeAd(ad)
+          registrar.ipTree.removeAd(ad).isOkOr:
+            debug "failed to remove ad from IP tree during prune", error
           toDelete.add((serviceId, ad))
           ads.delete(i)
         else:
@@ -74,7 +75,7 @@ proc waitingTime*(
     advertCacheCap: uint64,
     serviceId: ServiceId,
     now: uint64,
-): Future[float64] {.async.} =
+): Future[float64] {.async: (raises: []).} =
   await registrar.lock.withLock:
     let c = registrar.cacheTimestamps.len.uint64
     let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
@@ -284,13 +285,15 @@ proc acceptAdvertisement*(
           isDuplicate = true
           disco.registrar.cacheTimestamps[ads[i].toAdvertisementKey()] = now
         elif ad.data.seqNo > ads[i].data.seqNo:
-          disco.registrar.ipTree.removeAd(ads[i])
+          disco.registrar.ipTree.removeAd(ads[i]).isOkOr:
+            debug "failed to remove ad from IP tree", error
           disco.registrar.cacheTimestamps.del(ads[i].toAdvertisementKey())
 
           ads[i] = ad
 
           disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-          disco.registrar.ipTree.insertAd(ad)
+          disco.registrar.ipTree.insertAd(ad).isOkOr:
+            debug "failed to insert ad into IP tree", error
 
           replaced = true
           shouldUpdateMetrics = true
@@ -302,7 +305,8 @@ proc acceptAdvertisement*(
       ads.add(ad)
       let adKey = ad.toAdvertisementKey()
       disco.registrar.cacheTimestamps[adKey] = now
-      disco.registrar.ipTree.insertAd(ad)
+      disco.registrar.ipTree.insertAd(ad).isOkOr:
+        debug "failed to insert ad into IP tree", error
       shouldUpdateMetrics = true
 
     disco.registrar.cache[serviceId] = ads
@@ -420,7 +424,8 @@ proc handleRegister*(
         let ts = disco.registrar.cacheTimestamps.getOrDefault(key, 0)
 
         if now - ts > expiry:
-          disco.registrar.ipTree.removeAd(ad2)
+          disco.registrar.ipTree.removeAd(ad2).isOkOr:
+            debug "failed to remove ad from IP tree during prune", error
           toDelete.add((sid, ad2))
           ads.delete(i)
         else:
