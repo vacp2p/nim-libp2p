@@ -68,6 +68,22 @@ proc pruneExpiredAds*(
       cd_registrar_ads_expired.inc(toDelete.len.float64)
       registrar.updateRegistrarMetrics()
 
+    var expiredServices: seq[ServiceId] = @[]
+    for sid, ts in registrar.timestampService:
+      if now - ts > advertExpiry:
+        expiredServices.add(sid)
+    for sid in expiredServices:
+      registrar.boundService.del(sid)
+      registrar.timestampService.del(sid)
+
+    var expiredIps: seq[string] = @[]
+    for ip, ts in registrar.timestampIp:
+      if now - ts > advertExpiry:
+        expiredIps.add(ip)
+    for ip in expiredIps:
+      registrar.boundIp.del(ip)
+      registrar.timestampIp.del(ip)
+
 proc waitingTime*(
     registrar: Registrar,
     discoConf: KademliaDiscoveryConfig,
@@ -302,6 +318,35 @@ proc acceptAdvertisement*(
         break
 
     if not isDuplicate and not replaced:
+      if disco.registrar.cacheTimestamps.len.uint64 >=
+          disco.discoConf.advertCacheCap.uint64:
+        var oldestKey: AdvertisementKey
+        var oldestTime = high(uint64)
+        for k, t in disco.registrar.cacheTimestamps:
+          if t < oldestTime:
+            oldestTime = t
+            oldestKey = k
+        var evictSid: ServiceId
+        var evictIdx = -1
+        for sid, sads in disco.registrar.cache:
+          for i in 0 ..< sads.len:
+            if sads[i].toAdvertisementKey() == oldestKey:
+              evictSid = sid
+              evictIdx = i
+              break
+          if evictIdx >= 0:
+            break
+        if evictIdx >= 0:
+          var evictAds = disco.registrar.cache[evictSid]
+          disco.registrar.ipTree.removeAd(evictAds[evictIdx]).isOkOr:
+            debug "failed to remove evicted ad from IP tree", error
+          disco.registrar.cacheTimestamps.del(oldestKey)
+          evictAds.delete(evictIdx)
+          disco.registrar.cache[evictSid] = evictAds
+          if evictSid == serviceId:
+            ads = evictAds
+        shouldUpdateMetrics = true
+
       ads.add(ad)
       let adKey = ad.toAdvertisementKey()
       disco.registrar.cacheTimestamps[adKey] = now
@@ -437,6 +482,22 @@ proc handleRegister*(
     if toDelete.len > 0:
       cd_registrar_ads_expired.inc(toDelete.len.float64)
       disco.registrar.updateRegistrarMetrics()
+
+    var expiredServices: seq[ServiceId] = @[]
+    for sid, ts in disco.registrar.timestampService:
+      if now - ts > expiry:
+        expiredServices.add(sid)
+    for sid in expiredServices:
+      disco.registrar.boundService.del(sid)
+      disco.registrar.timestampService.del(sid)
+
+    var expiredIps: seq[string] = @[]
+    for ip, ts in disco.registrar.timestampIp:
+      if now - ts > expiry:
+        expiredIps.add(ip)
+    for ip in expiredIps:
+      disco.registrar.boundIp.del(ip)
+      disco.registrar.timestampIp.del(ip)
 
     # compute waiting time (inline, no await)
     let c = disco.registrar.cacheTimestamps.len.uint64
