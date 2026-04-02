@@ -2,7 +2,7 @@ name: Daily i386
 
 on:
   schedule:
-    - cron: "30 6 * * *"
+    - cron: "31 6 * * *"
   workflow_dispatch:
 
 concurrency:
