@@ -5,7 +5,6 @@
 
 import std/math
 import bearssl/rand
-import ../../crypto/crypto
 import ./delay
 export delay
 

@@ -14,7 +14,6 @@ const
   BetaSize* = ((r * (t + 1)) + 1) * k # bytes
   GammaSize* = 16 # Output of HMAC-SHA-256, truncated to 16 bytes
   HeaderSize* = AlphaSize + BetaSize + GammaSize # Total header size
-  DelaySize* = 2 # Delay size
   AddrSize* = (t * k) - DelaySize # Address size
   PacketSize* = 4608 # Total packet size (from spec)
   MessageSize* = PacketSize - HeaderSize - k # Size of the message itself
