@@ -41,18 +41,3 @@ jobs:
           {'os': 'windows', 'cpu': 'amd64', 'cc': 'clang', 'builder': 'windows-2022', 'shell': 'bash'},
           {'os': 'windows', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'windows-2022', 'shell': 'msys2 {0}'},
         ]"
-  notify-on-failure:
-    name: Notify Discord on Failure
-    needs: [test_amd64_latest, test_amd64_pinned]
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Discord notification
-        uses: ./.github/actions/discord_notify
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
