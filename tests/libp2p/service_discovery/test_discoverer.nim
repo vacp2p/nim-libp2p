@@ -13,13 +13,13 @@ suite "Discoverer - lookup":
   teardown:
     checkTrackers()
 
-  test "creates service routing table on first call":
+  asyncTest "creates service routing table on first call":
     let disco = createMockDiscovery()
     let serviceId = makeServiceId()
 
     check not disco.serviceRoutingTables.hasService(serviceId)
 
-    let res = waitFor disco.lookup(serviceId)
+    let res = await disco.lookup(serviceId)
 
     check res.isOk()
     check disco.serviceRoutingTables.hasService(serviceId)
@@ -28,35 +28,35 @@ suite "Discoverer - lookup":
     let disco = createMockDiscovery()
     let serviceId = makeServiceId()
 
-    let res = waitFor disco.lookup(serviceId)
+    let res = await disco.lookup(serviceId)
 
     check res.isOk()
     check res.get().len == 0
 
-  test "calling lookup twice for same service is idempotent":
+  asyncTest "calling lookup twice for same service is idempotent":
     # Second call must not error and the table must still exist
     let disco = createMockDiscovery()
     let serviceId = makeServiceId()
 
-    let res1 = waitFor disco.lookup(serviceId)
-    let res2 = waitFor disco.lookup(serviceId)
+    let res1 = await disco.lookup(serviceId)
+    let res2 = await disco.lookup(serviceId)
 
     check res1.isOk()
     check res2.isOk()
     check disco.serviceRoutingTables.hasService(serviceId)
 
-  test "distinct service IDs get independent routing tables":
+  asyncTest "distinct service IDs get independent routing tables":
     let disco = createMockDiscovery()
     let sid1 = makeServiceId(1)
     let sid2 = makeServiceId(2)
 
-    discard waitFor disco.lookup(sid1)
-    discard waitFor disco.lookup(sid2)
+    discard await disco.lookup(sid1)
+    discard await disco.lookup(sid2)
 
     check disco.serviceRoutingTables.hasService(sid1)
     check disco.serviceRoutingTables.hasService(sid2)
     # Tables are independent — count reflects both
-    check waitFor(disco.serviceRoutingTables.count()) == 2
+    check await disco.serviceRoutingTables.count() == 2
 
   asyncTest "kRegister cap: result length never exceeds kRegister":
     let kRegister = 5
@@ -74,4 +74,4 @@ suite "Discoverer - lookup":
     let res = await disco.lookup(serviceId)
 
     check res.isOk()
-    check res.get().len <= kRegister
+    check res.get().len() <= kRegister

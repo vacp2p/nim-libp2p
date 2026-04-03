@@ -169,16 +169,14 @@ proc addProvidedService*(
 
   let serviceId = service.id.hashServiceId()
 
-  let isNew = await disco.serviceRoutingTables.addService(
+  if not await disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Provided,
-  )
+  ):
+    return
 
   disco.services.incl(service)
   cd_advertiser_services_added.inc()
-
-  if not isNew:
-    return
 
   let advTableOpt = await disco.serviceRoutingTables.getTable(serviceId)
   let advTable = advTableOpt.valueOr:
@@ -193,12 +191,7 @@ proc addProvidedService*(
     var peers = bucket.peers
     disco.rng.shuffle(peers)
 
-    let numToRegister = min(disco.discoConf.kRegister, peers.len)
-    debug "numtoregister",
-      numToRegister = numToRegister,
-      kRegister = disco.discoConf.kRegister,
-      peersLen = peers.len
-    for i in 0 ..< numToRegister:
+    for i in 0 ..< min(disco.discoConf.kRegister, peers.len):
       let registrar = peers[i].nodeId.toPeerId().valueOr:
         error "cannot convert key to peer id", error
         continue
