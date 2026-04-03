@@ -290,7 +290,6 @@ proc finish*(pb: var ProtoBuffer) =
     pb.buffer[0 ..< 4] = toBytesLE(uint32(size))
     pb.offset = 4
   else:
-    doAssert(len(pb.buffer) > 0)
     pb.offset = 0
 
 proc getHeader(data: var ProtoBuffer, header: var ProtoHeader): ProtoResult[void] =
