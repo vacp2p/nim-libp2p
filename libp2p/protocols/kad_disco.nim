@@ -60,7 +60,7 @@ proc new*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
-    client: bool = false,
+    clientMode: bool = false,
     codec: string = ServiceDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
     discoConf: KademliaDiscoveryConfig = KademliaDiscoveryConfig.new(),
@@ -84,13 +84,14 @@ proc new*(
     services: toHashSet(services),
     discoConf: discoConf,
     xprPublishing: xprPublishing,
+    clientMode: clientMode,
   )
 
   # Fill up buckets with initial bootstrap nodes
   kad.updatePeers(bootstrapNodes)
 
   kad.codec = codec
-  if client:
+  if clientMode:
     return kad
 
   kad.handler = proc(
@@ -136,6 +137,11 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-disco twice"
     return
 
+  if disco.clientMode:
+    disco.started = true
+    info "Kademlia Discovery started in client mode"
+    return
+
   await procCall start(KadDHT(disco))
 
   if disco.xprPublishing:
@@ -149,6 +155,9 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
 method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
   if not disco.started:
     return
+
+  if not disco.clientMode:
+    await procCall stop(KadDHT(disco))
 
   if not disco.selfSignedLoop.isNil:
     disco.selfSignedLoop.cancelSoon()

@@ -778,7 +778,17 @@ suite "Kademlia Discovery Registrar - Register Message Validation":
     check validateRegisterMessage(regMsg).isNone()
 
   test "validateRegisterMessage accepts decodable advertisement":
-    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    let privateKey = PrivateKey.random(rng[]).get()
+    let peerId = PeerId.init(privateKey).get()
+
+    let extRecord = ExtendedPeerRecord(
+      peerId: peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: @[AddressInfo(address: createTestMultiAddress("10.0.0.1"))],
+      services: @[],
+    )
+
+    let ad = SignedExtendedPeerRecord.init(privateKey, extRecord).get()
     let adBuf = ad.encode().get()
 
     let regMsg = kadprotobuf.RegisterMessage(
