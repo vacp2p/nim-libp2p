@@ -98,13 +98,8 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
 
 proc dispatchAddProvider(
     switch: Switch, peer: PeerId, key: Key, codec: string
-) {.async: (raises: [CancelledError, LPStreamError]).} =
-  let conn =
-    try:
-      await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
-    except DialFailedError as e:
-      error "AddProvider could not dial peer", description = e.msg
-      return
+) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
+  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
   defer:
     await conn.close()
 
@@ -186,13 +181,12 @@ method handleAddProvider*(
 
 proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key
-): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
+): Future[Opt[Message]] {.
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]),
+    gcsafe
+.} =
   let conn =
-    try:
-      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-    except DialFailedError as e:
-      error "GetProviders could not dial peer", description = e.msg
-      return Opt.none(Message)
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
   defer:
     await conn.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
@@ -213,8 +207,7 @@ proc dispatchGetProviders*(
   )
 
   let reply = Message.decode(replyBuf).valueOr:
-    error "GetProviders reply decode fail", error = error, conn = conn
-    return Opt.none(Message)
+    raise newException(ValueError, "GetProviders reply decode fail")
 
   if reply.closerPeers.len > 0:
     kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getProviders])
