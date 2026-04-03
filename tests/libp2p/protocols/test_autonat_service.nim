@@ -71,7 +71,7 @@ suite "Autonat Service":
     await autonatClientStub.finished
 
     check autonatService.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) >= 0.3
+    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
@@ -112,7 +112,7 @@ suite "Autonat Service":
     await awaiter
 
     check autonatService.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_reachability_confidence.value(["Reachable"]) >= 0.3
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
     check switch1.peerInfo.addrs ==
       switch1.peerInfo.addrs.mapIt(switch1.peerStore.guessDialableAddr(it))
@@ -161,12 +161,12 @@ suite "Autonat Service":
     await awaiter
 
     check autonatService.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) >= 0.3
+    check libp2p_autonat_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await autonatClientStub.finished
 
     check autonatService.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_reachability_confidence.value(["Reachable"]) >= 0.3
+    check libp2p_autonat_reachability_confidence.value(["Reachable"]) == 0.3
 
     await allFuturesRaising(
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()

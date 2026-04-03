@@ -137,7 +137,7 @@ suite "AutonatV2 Service":
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) >= 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -152,7 +152,7 @@ suite "AutonatV2 Service":
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) >= 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -200,7 +200,7 @@ suite "AutonatV2 Service":
     await reachableObserved
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) >= 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
 
     await client.finished
 
@@ -273,12 +273,12 @@ suite "AutonatV2 Service":
     await awaiter
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) >= 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) >= 0.3
+    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
 
     await switch.stop()
     await switches.stopAll()
