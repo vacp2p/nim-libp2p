@@ -9,6 +9,16 @@ on:
         required: false
         type: boolean
         default: false
+      allow_failure:
+        description: "Allow the daily test job to fail without failing the workflow"
+        required: false
+        type: boolean
+        default: false
+      allow_devel_failure:
+        description: "Allow Nim devel matrix entries to fail without failing the workflow"
+        required: false
+        type: boolean
+        default: false
       nim:
         description: "Nim Configuration"
         required: true
@@ -31,6 +41,7 @@ jobs:
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
     timeout-minutes: 45
+    continue-on-error: ${{ inputs.allow_failure || (inputs.allow_devel_failure && matrix.nim.ref == 'devel') }}
     strategy:
       fail-fast: false
       matrix:

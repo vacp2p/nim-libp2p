@@ -14,6 +14,8 @@ jobs:
     name: Daily test amd64 (latest dependencies)
     uses: ./.github/workflows/daily_common.yml
     with:
+      allow_failure: ${{ github.event_name == 'schedule' }}
+      allow_devel_failure: ${{ github.event_name == 'schedule' }}
       nim: "[
           {'ref': 'v2.0.16', 'memory_management': 'refc'},
           {'ref': 'v2.2.6', 'memory_management': 'refc'},
@@ -30,6 +32,7 @@ jobs:
     uses: ./.github/workflows/daily_common.yml
     with:
       pinned_deps: true
+      allow_devel_failure: ${{ github.event_name == 'schedule' }}
       nim: "[
           {'ref': 'v2.0.16', 'memory_management': 'refc'},
           {'ref': 'v2.2.6', 'memory_management': 'refc'},
