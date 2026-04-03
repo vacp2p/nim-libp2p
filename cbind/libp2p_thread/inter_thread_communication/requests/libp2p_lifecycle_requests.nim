@@ -205,11 +205,7 @@ proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
 proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
   var mix = Opt.none(MixProtocol)
   if config.mountMix != 0 and libp2p.mixNodeInfo.isSome:
-    var mixProto = new(MixProtocol)
-    var delayStrategy = NoSamplingDelayStrategy.new(newRng())
-    mixProto.init(
-      libp2p.mixNodeInfo.get(), libp2p.switch, delayStrategy = delayStrategy
-    )
+    var mixProto = MixProtocol.new(libp2p.mixNodeInfo.get(), libp2p.switch)
     libp2p.switch.mount(mixProto)
     mix = Opt.some(mixProto)
   libp2p.mix = mix
