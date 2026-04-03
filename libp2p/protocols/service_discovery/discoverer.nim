@@ -110,8 +110,7 @@ proc lookup*(
 
       disco.rng.shuffle(bucket.peers)
 
-      let numToQuery = min(disco.discoConf.kLookup, bucket.peers.len)
-      for i in 0 ..< numToQuery:
+      for i in 0 ..< min(disco.discoConf.kLookup, bucket.peers.len):
         let peerId = bucket.peers[i].nodeId.toPeerId().valueOr:
           error "cannot convert key to peer id", error
           continue

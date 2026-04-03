@@ -193,10 +193,13 @@ proc getRegistrarCloserPeers*(
       let regTable = regTableOpt.valueOr:
         break thisBlock
 
+      var seen = initHashSet[Key]()
       for bucket in regTable.buckets:
         let closerPeer = bucket.randomPeerInBucket(disco.rng).valueOr:
           continue
-        closerPeerKeys.add(closerPeer)
+        if closerPeer notin seen:
+          seen.incl(closerPeer)
+          closerPeerKeys.add(closerPeer)
 
   if closerPeerKeys.len == 0:
     closerPeerKeys = disco.rtable.findClosest(serviceId, count)
@@ -264,39 +267,36 @@ proc processRetryTicket*(
     ad: Advertisement,
     t_wait: float64,
     now: uint64,
-): float64 {.raises: [].} =
-  ## Process retry ticket if provided
-  ## Returns remaining wait time (or t_wait if no valid ticket)
+): Opt[float64] {.raises: [].} =
+  ## Process retry ticket if provided.
+  ## Returns Opt.none to signal the request MUST be rejected.
+  ## Returns Opt.some(t_remaining) to continue; accept if t_remaining <= 0.
 
   let ticketMsg = regMsg.ticket.valueOr:
-    return t_wait
+    return Opt.some(t_wait)
 
-  # Compare ticket.ad bytes directly with regMsg.advertisement bytes
   if ticketMsg.advertisement != regMsg.advertisement:
-    return t_wait
+    return Opt.none(float64)
 
-  # Verify ticket signature with registrar's key
   let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().valueOr:
     error "Failed to get registrar public key", error
-    return t_wait
+    return Opt.none(float64)
 
   if not ticketMsg.verify(registrarPubKey):
-    return t_wait
+    return Opt.none(float64)
 
   if now > ticketMsg.expiresAt:
-    return t_wait
+    return Opt.none(float64)
 
   let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
   let delta = disco.discoConf.registrationWindow.seconds.uint64
   let windowEnd = windowStart + delta
 
   if now >= windowStart and now <= windowEnd:
-    # Valid retry, calculate remaining time using accumulated wait
-    # from original t_init
     let totalWaitSoFar = now - ticketMsg.tInit
-    return t_wait - totalWaitSoFar.float64
+    return Opt.some(t_wait - totalWaitSoFar.float64)
 
-  return t_wait
+  return Opt.none(float64)
 
 proc acceptAdvertisement*(
     disco: KademliaDiscovery,
@@ -495,6 +495,7 @@ proc handleRegister*(
   var t_wait: float64
   var t_remaining: float64
   var acceptNow: bool
+  var shouldReject: bool
 
   # --- ATOMIC DECISION BLOCK ---
   await disco.registrar.lock.acquire()
@@ -588,11 +589,15 @@ proc handleRegister*(
 
     # retry logic (pure, no shared mutation)
     if not isReplay:
-      t_remaining = disco.processRetryTicket(regMsg, ad, t_wait, now)
+      let retryOpt = disco.processRetryTicket(regMsg, ad, t_wait, now)
+      if retryOpt.isNone:
+        shouldReject = true
+      else:
+        t_remaining = retryOpt.get()
     else:
       t_remaining = t_wait
 
-    acceptNow = t_remaining <= 0
+    acceptNow = not shouldReject and t_remaining <= 0
 
     # record nonce atomically with the accept decision
     if acceptNow and regMsg.ticket.isSome:
@@ -605,6 +610,11 @@ proc handleRegister*(
     except AsyncLockError as exc:
       raiseAssert exc.msg
   # --- END LOCK ---
+
+  if shouldReject:
+    cd_register_requests.inc(labelValues = [$kademlia_protobuf.Rejected])
+    await conn.sendRegisterReject(closerPeers)
+    return
 
   if acceptNow:
     cd_register_requests.inc(labelValues = [$kademlia_protobuf.Confirmed])
