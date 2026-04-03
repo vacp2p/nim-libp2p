@@ -30,7 +30,7 @@ proc refreshTable*(
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
-    # skip if refresh conditions not met (forceRefresh OR stale bucket) 
+    # skip if refresh conditions not met (forceRefresh OR stale bucket)
     if not (forceRefresh or bucket.isStale()):
       continue
 
@@ -55,7 +55,7 @@ proc new*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
-    client: bool = false,
+    clientMode: bool = false,
     codec: string = KadCodec,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
@@ -75,7 +75,7 @@ proc new*(
   kad.updatePeers(bootstrapNodes)
 
   kad.codec = codec
-  if client:
+  if clientMode:
     return kad
 
   kad.handler = proc(

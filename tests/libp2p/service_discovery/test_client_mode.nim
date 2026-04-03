@@ -24,7 +24,7 @@ suite "Client mode":
     let disco = KademliaDiscovery.new(
       switch,
       bootstrapNodes = @[(bootstrapPeer, @[bootstrapAddr])],
-      client = true,
+      clientMode = true,
       discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16),
     )
 
@@ -39,7 +39,7 @@ suite "Client mode":
     let disco = KademliaDiscovery.new(
       switch,
       bootstrapNodes = @[(bootstrapPeer, @[bootstrapAddr])],
-      client = true,
+      clientMode = true,
       discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16),
     )
 
@@ -66,7 +66,7 @@ suite "Client mode":
     let disco = KademliaDiscovery.new(
       switch,
       bootstrapNodes = @[],
-      client = true,
+      clientMode = true,
       discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16),
     )
 

@@ -60,7 +60,7 @@ proc new*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
-    client: bool = false,
+    clientMode: bool = false,
     codec: string = ServiceDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
     discoConf: KademliaDiscoveryConfig = KademliaDiscoveryConfig.new(),
@@ -84,14 +84,14 @@ proc new*(
     services: toHashSet(services),
     discoConf: discoConf,
     xprPublishing: xprPublishing,
-    clientMode: client,
+    clientMode: clientMode,
   )
 
   # Fill up buckets with initial bootstrap nodes
   kad.updatePeers(bootstrapNodes)
 
   kad.codec = codec
-  if client:
+  if clientMode:
     return kad
 
   kad.handler = proc(
