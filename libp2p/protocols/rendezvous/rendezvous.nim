@@ -16,7 +16,6 @@ import
   ../../utils/heartbeat,
   ../../utils/future,
   ../../stream/connection,
-  ../../utils/semaphore,
   ../../utils/offsettedseq
 
 export chronicles, offsettedseq

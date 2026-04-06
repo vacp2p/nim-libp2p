@@ -8,6 +8,10 @@ import
   ../../../libp2p/[
     stream/connection,
     transports/transport,
+    transports/tcptransport,
+    transports/tortransport,
+    transports/wstransport,
+    transports/quictransport,
     upgrademngrs/upgrade,
     multiaddress,
     multicodec,
@@ -18,7 +22,8 @@ import ./utils
 template basicTransportTest*(
     provider: TransportProvider,
     address: string,
-    validAddresses: seq[string],
+    validWireAddresses: seq[string],
+    validNonWireAddresses: seq[string],
     invalidAddresses: seq[string],
 ) =
   block:
@@ -88,10 +93,61 @@ template basicTransportTest*(
       await transport.stop()
       check await transport.onStop.wait().withTimeout(1.seconds)
 
+    asyncTest "start succeeds for valid wire addresses":
+      for ma in validWireAddresses:
+        let transport = transportProvider()
+        await transport.start(@[MultiAddress.init(ma).tryGet()])
+        await transport.stop()
+
+    # TODO: See issue nim-libp2p#2230
+    asyncTest "start fails for valid non-wire addresses":
+      for addrs in validNonWireAddresses:
+        let transport = transportProvider()
+        let ma = MultiAddress.init(addrs).tryGet()
+
+        if transport of TcpTransport:
+          expect ResultDefect:
+            await transport.start(@[ma])
+        elif transport of TorTransport:
+          expect TransportStartError:
+            await transport.start(@[ma])
+        else:
+          expect LPError:
+            await transport.start(@[ma])
+
+    # TODO: See issue nim-libp2p#2230
+    asyncTest "start behaviour for invalid addresses":
+      for addrs in invalidAddresses:
+        let transport = transportProvider()
+        let ma = MultiAddress.init(addrs).tryGet()
+
+        if transport of TcpTransport:
+          await transport.start(@[ma])
+          await transport.stop()
+        elif transport of TorTransport:
+          expect TransportStartError:
+            await transport.start(@[ma])
+        elif transport of QuicTransport:
+          if UDP.match(ma):
+            # matches "/ip4/127.0.0.1/udp/1234", UDP without quic-v1
+            await transport.start(@[ma])
+            await transport.stop()
+          else:
+            expect LPError:
+              await transport.start(@[ma])
+        elif transport of WsTransport:
+          if TCP.match(ma):
+            # matches "/ip4/127.0.0.1/tcp/1234", Missing /ws or /wss
+            await transport.start(@[ma])
+            await transport.stop()
+          else:
+            expect LPError:
+              await transport.start(@[ma])
+
     asyncTest "multiaddress validation - accept valid addresses":
       let transport = transportProvider()
 
-      for validAddress in validAddresses:
+      for validAddress in validWireAddresses & validNonWireAddresses:
         check transport.handles(MultiAddress.init(validAddress).tryGet())
 
     asyncTest "multiaddress validation - reject invalid addresses":
