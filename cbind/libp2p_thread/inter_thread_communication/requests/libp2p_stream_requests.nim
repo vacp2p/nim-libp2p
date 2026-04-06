@@ -226,12 +226,7 @@ proc processMixSetNodeInfo*(
   )
 
   if libp2p[].mix.isNone:
-    var mixProto = new(MixProtocol)
-    var delayStrategy = NoSamplingDelayStrategy.new(newRng())
-    mixProto.init(
-      libp2p[].mixNodeInfo.get(), libp2p[].switch, delayStrategy = delayStrategy
-    )
-
+    var mixProto = MixProtocol.new(libp2p[].mixNodeInfo.get(), libp2p[].switch)
     try:
       await mixProto.start()
       libp2p[].switch.mount(mixProto)

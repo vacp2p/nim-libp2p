@@ -492,7 +492,7 @@ method buildSurb*(
 
     delays.add(hopDelay)
 
-  return createSURB(publicKeys, delays, hops, id)
+  return createSURB(publicKeys, delays, hops, id, mixProto.rng)
 
 proc buildSurbs(
     mixProto: MixProtocol,
@@ -811,9 +811,8 @@ proc init*(
     mixNodeInfo: MixNodeInfo,
     switch: Switch,
     tagManager: TagManager = TagManager.new(),
-    rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
-    delayStrategy: DelayStrategy,
+    delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ) {.raises: [].} =
   ## Initialize a MixProtocol instance.
   ##
@@ -823,14 +822,22 @@ proc init*(
   ## When `spamProtection` is enabled, callers should prefer
   ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
   ## generation and short exponential delays.
+
+  var rng = switch.rng
+  if rng.isNil:
+    rng = newRng()
+  doAssert(not rng.isNil, "MixProtocol could not create random")
+
   mixProto.mixNodeInfo = mixNodeInfo
   mixProto.switch = switch
+  mixProto.rng = rng
   mixProto.nodePool = MixNodePool.new(switch.peerStore)
   mixProto.tagManager = tagManager
   mixProto.destReadBehavior = newTable[string, DestReadBehavior]()
 
   mixProto.spamProtection = spamProtection
-  mixProto.delayStrategy = delayStrategy
+  mixProto.delayStrategy = delayStrategy.valueOr:
+    NoSamplingDelayStrategy.new(rng)
 
   let onReplyDialer = proc(
       surb: SURB, message: seq[byte]
@@ -838,8 +845,8 @@ proc init*(
     await mixProto.reply(surb, message)
 
   mixProto.exitLayer = ExitLayer.init(switch, onReplyDialer, mixProto.destReadBehavior)
+
   mixProto.codecs = @[MixProtocolID]
-  mixProto.rng = rng
   mixProto.handler = proc(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
@@ -853,7 +860,6 @@ proc new*(
     mixNodeInfo: MixNodeInfo,
     switch: Switch,
     tagManager: TagManager = TagManager.new(),
-    rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ): T {.raises: [].} =
@@ -865,10 +871,6 @@ proc new*(
   ## When `spamProtection` is enabled, callers should prefer
   ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
   ## generation and short exponential delays.
-  let actualDelayStrategy = delayStrategy.valueOr:
-    NoSamplingDelayStrategy.new(rng)
   let mixProto = new(T)
-  mixProto.init(
-    mixNodeInfo, switch, tagManager, rng, spamProtection, actualDelayStrategy
-  )
+  mixProto.init(mixNodeInfo, switch, tagManager, spamProtection, delayStrategy)
   mixProto
