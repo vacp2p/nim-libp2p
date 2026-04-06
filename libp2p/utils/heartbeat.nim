@@ -9,14 +9,14 @@ export chronicles
 
 template runAfter*(waitTime: Duration, body: untyped): untyped =
   asyncSpawn (
-    proc() {.async.} =
-      await sleepAsync(waitTime)
+    proc() {.async: (raises: [CancelledError]).} =
       try:
+        await sleepAsync(waitTime)
         body
-      except CancelledError:
-        raise
+      except CancelledError as e:
+        raise e
       except CatchableError as e:
-        error "runAfter task failed", waitTime = waitTime, errName = e.name, errMsg = e.msg
+        error "runAfter task failed", msg = e.msg
   )()
 
 template heartbeat*(
