@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -17,7 +17,7 @@ import ../../stubs/autonatclientstub
 import ../../tools/[unittest, futures, crypto]
 
 proc createSwitch(
-    autonatSvc: Service = nil,
+    autonatSvc: Opt[AutonatService] = Opt.none(AutonatService),
     withAutonat = true,
     maxConnsPerPeer = 1,
     maxConns = 100,
@@ -35,9 +35,7 @@ proc createSwitch(
 
   if withAutonat:
     builder = builder.withAutonat()
-
-  if autonatSvc != nil:
-    builder = builder.withServices(@[autonatSvc])
+    builder.autonatService = autonatSvc
 
   if nameResolver != nil:
     builder = builder.withNameResolver(nameResolver)
@@ -54,7 +52,7 @@ suite "Autonat Service":
 
     let autonatService = AutonatService.new(autonatClientStub, rng)
 
-    let switch1 = createSwitch(autonatService)
+    let switch1 = createSwitch(Opt.some(autonatService))
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -83,7 +81,7 @@ suite "Autonat Service":
     let autonatService =
       AutonatService.new(AutonatClient.new(), rng, Opt.some(1.seconds))
 
-    let switch1 = createSwitch(autonatService)
+    let switch1 = createSwitch(Opt.some(autonatService))
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -131,7 +129,7 @@ suite "Autonat Service":
 
     let autonatService = AutonatService.new(autonatClientStub, rng, Opt.some(1.seconds))
 
-    let switch1 = createSwitch(autonatService)
+    let switch1 = createSwitch(Opt.some(autonatService))
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -179,7 +177,7 @@ suite "Autonat Service":
       AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 2
     )
 
-    let switch1 = createSwitch(autonatService)
+    let switch1 = createSwitch(Opt.some(autonatService))
     let switch2 = createSwitch(withAutonat = false)
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -223,7 +221,7 @@ suite "Autonat Service":
     let autonatService =
       AutonatService.new(autonatClientStub, rng, Opt.some(1.seconds), maxQueueSize = 3)
 
-    let switch1 = createSwitch(autonatService)
+    let switch1 = createSwitch(Opt.some(autonatService))
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -285,7 +283,7 @@ suite "Autonat Service":
       AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 1
     )
 
-    let switch1 = createSwitch(autonatService, maxConnsPerPeer = 0)
+    let switch1 = createSwitch(Opt.some(autonatService), maxConnsPerPeer = 0)
 
     let switch2 =
       createSwitch(maxConnsPerPeer = 0, nameResolver = MockResolver.default())
@@ -330,10 +328,13 @@ suite "Autonat Service":
     let autonatService2 = AutonatService.new(
       AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
+    let autonatService3 = AutonatService.new(
+      AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
+    )
 
-    let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 0)
-    let switch2 = createSwitch(autonatService2, maxConnsPerPeer = 0)
-    let switch3 = createSwitch(autonatService2, maxConnsPerPeer = 0)
+    let switch1 = createSwitch(Opt.some(autonatService1), maxConnsPerPeer = 0)
+    let switch2 = createSwitch(Opt.some(autonatService2), maxConnsPerPeer = 0)
+    let switch3 = createSwitch(Opt.some(autonatService3), maxConnsPerPeer = 0)
 
     let awaiter1 = newFuture[void]()
     let awaiter2 = newFuture[void]()
@@ -356,9 +357,11 @@ suite "Autonat Service":
 
     check autonatService1.networkReachability == NetworkReachability.Unknown
     check autonatService2.networkReachability == NetworkReachability.Unknown
+    check autonatService3.networkReachability == NetworkReachability.Unknown
 
     autonatService1.statusAndConfidenceHandler(statusAndConfidenceHandler1)
     autonatService2.statusAndConfidenceHandler(statusAndConfidenceHandler2)
+    autonatService3.statusAndConfidenceHandler(statusAndConfidenceHandler2)
 
     await switch1.start()
     await switch2.start()
@@ -385,8 +388,8 @@ suite "Autonat Service":
       AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
 
-    let switch1 = createSwitch(autonatService1, maxConnsPerPeer = 0)
-    let switch2 = createSwitch(autonatService2, maxConnsPerPeer = 0)
+    let switch1 = createSwitch(Opt.some(autonatService1), maxConnsPerPeer = 0)
+    let switch2 = createSwitch(Opt.some(autonatService2), maxConnsPerPeer = 0)
 
     let awaiter1 = newFuture[void]()
 
@@ -431,7 +434,7 @@ suite "Autonat Service":
       AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 1
     )
 
-    let switch1 = createSwitch(autonatService, maxConns = 4)
+    let switch1 = createSwitch(Opt.some(autonatService), maxConns = 4)
     let switch2 = createSwitch()
     let switch3 = createSwitch()
     let switch4 = createSwitch()
@@ -480,7 +483,7 @@ suite "Autonat Service":
   asyncTest "Peer must not ask an incoming peer":
     let autonatService = AutonatService.new(AutonatClient.new(), rng)
 
-    let switch1 = createSwitch(autonatService)
+    let switch1 = createSwitch(Opt.some(autonatService))
     let switch2 = createSwitch()
 
     proc statusAndConfidenceHandler(
