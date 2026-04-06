@@ -209,6 +209,10 @@ window.addEventListener("DOMContentLoaded", main2);
 <li><a class="reference" href="#clear%2CEdSignature" title="clear(sig: var EdSignature)">clear(sig: var EdSignature)</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">fromSeed
+  <li><a class="reference" href="#fromSeed%2Ctypedesc%5BEdPrivateKey%5D%2CopenArray%5Bbyte%5D" title="fromSeed(t: typedesc[EdPrivateKey]; seed: openArray[byte]): EdPrivateKey">fromSeed(t: typedesc[EdPrivateKey]; seed: openArray[byte]): EdPrivateKey</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">getBytes
   <li><a class="reference" href="#getBytes%2CEdPrivateKey" title="getBytes(key: EdPrivateKey): seq[byte]">getBytes(key: EdPrivateKey): seq[byte]</a></li>
 <li><a class="reference" href="#getBytes%2CEdPublicKey" title="getBytes(key: EdPublicKey): seq[byte]">getBytes(key: EdPublicKey): seq[byte]</a></li>
@@ -387,8 +391,8 @@ Size in octets (bytes) of serialized ED25519 signature.
 <dd>
 
 Return string representation of ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2274" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2274" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2295" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2295" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -397,8 +401,8 @@ Return string representation of ED25519 <tt class="docutils literal"><span class
 <dd>
 
 Return string representation of ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2278" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2278" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2299" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2299" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -407,8 +411,8 @@ Return string representation of ED25519 <tt class="docutils literal"><span class
 <dd>
 
 Return string representation of ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2282" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2282" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2303" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2303" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -420,8 +424,8 @@ Return string representation of ED25519 <tt class="docutils literal"><span class
 <dd>
 
 Compare ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt> objects for equality.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2262" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2262" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2283" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2283" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -430,8 +434,8 @@ Compare ED25519 <tt class="docutils literal"><span class="pre"><span class="Iden
 <dd>
 
 Compare ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> objects for equality.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2266" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2266" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2287" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2287" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -440,8 +444,8 @@ Compare ED25519 <tt class="docutils literal"><span class="pre"><span class="Iden
 <dd>
 
 Compare ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> objects for equality.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2270" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2270" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2291" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2291" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -467,8 +471,8 @@ Compare ED25519 <tt class="docutils literal"><span class="pre"><span class="Iden
 <dd>
 
 Wipe and clear memory of ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2397" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2397" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2418" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2418" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -477,8 +481,8 @@ Wipe and clear memory of ED25519 <tt class="docutils literal"><span class="pre">
 <dd>
 
 Wipe and clear memory of ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2401" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2401" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2422" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2422" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -487,8 +491,8 @@ Wipe and clear memory of ED25519 <tt class="docutils literal"><span class="pre">
 <dd>
 
 Wipe and clear memory of ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">key</span> <span class="Identifier">pair</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2409" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2409" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2430" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2430" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -497,8 +501,22 @@ Wipe and clear memory of ED25519 <tt class="docutils literal"><span class="pre">
 <dd>
 
 Wipe and clear memory of ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2405" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2405" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2426" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2426" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="fromSeed-procs-all">
+  <div id="fromSeed,typedesc[EdPrivateKey],openArray[byte]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#fromSeed%2Ctypedesc%5BEdPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">fromSeed</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ed25519.html#EdPrivateKey"><span class="Identifier">EdPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">seed</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ed25519.html#EdPrivateKey"><span class="Identifier">EdPrivateKey</span></a> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Create ED25519 private key from a 32-byte seed. This mirrors Go's ed25519.NewKeyFromSeed(seed).
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2200" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2200" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -510,8 +528,8 @@ Wipe and clear memory of ED25519 <tt class="docutils literal"><span class="pre">
 <dd>
 
 Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt> and return it.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2253" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2253" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2274" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2274" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -520,8 +538,8 @@ Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Id
 <dd>
 
 Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> and return it.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2256" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2256" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2277" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2277" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -530,8 +548,8 @@ Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Id
 <dd>
 
 Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> and return it.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2259" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2259" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2280" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2280" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -544,8 +562,8 @@ Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Id
 <dd>
 
 Calculate and return ED25519 public key from private key <tt class="docutils literal"><span class="pre">key</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2219" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2219" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2240" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2240" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -560,8 +578,8 @@ Calculate and return ED25519 public key from private key <tt class="docutils lit
 <p>Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt> <tt class="docutils literal"><span class="pre">key</span></tt> from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2286" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2286" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2307" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2307" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -573,8 +591,8 @@ Calculate and return ED25519 public key from private key <tt class="docutils lit
 <p>Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt> <tt class="docutils literal"><span class="pre">key</span></tt> from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2316" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2316" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2337" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2337" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -586,8 +604,8 @@ Calculate and return ED25519 public key from private key <tt class="docutils lit
 <p>Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> <tt class="docutils literal"><span class="pre">key</span></tt> from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2296" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2296" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2317" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2317" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -599,8 +617,8 @@ Calculate and return ED25519 public key from private key <tt class="docutils lit
 <p>Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> <tt class="docutils literal"><span class="pre">key</span></tt> from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2323" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2323" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2344" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2344" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -612,8 +630,8 @@ Calculate and return ED25519 public key from private key <tt class="docutils lit
 <p>Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> <tt class="docutils literal"><span class="pre">sig</span></tt> from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2306" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2306" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2327" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2327" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -625,8 +643,8 @@ Calculate and return ED25519 public key from private key <tt class="docutils lit
 <p>Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> <tt class="docutils literal"><span class="pre">sig</span></tt> from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2330" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2330" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2351" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2351" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -636,8 +654,8 @@ Calculate and return ED25519 public key from private key <tt class="docutils lit
 <dd>
 
 Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt> from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2337" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2337" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2358" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2358" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -647,8 +665,8 @@ Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="I
 <dd>
 
 Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt> from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2370" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2370" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2391" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2391" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -658,8 +676,8 @@ Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="I
 <dd>
 
 Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2348" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2348" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2369" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2369" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -669,8 +687,8 @@ Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="I
 <dd>
 
 Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2379" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2379" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2400" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2400" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -680,8 +698,8 @@ Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="I
 <dd>
 
 Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2359" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2359" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2380" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2380" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -691,8 +709,8 @@ Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="I
 <dd>
 
 Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2388" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2388" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2409" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2409" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -705,8 +723,8 @@ Initialize ED25519 <tt class="docutils literal"><span class="pre"><span class="I
 <dd>
 
 Generate new random ED25519 private and public keypair using OS specific CSPRNG.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2200" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2200" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2221" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2221" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -730,8 +748,8 @@ Generate new random ED25519 private key using the given random number generator
 <dd>
 
 Create ED25519 signature of data <tt class="docutils literal"><span class="pre">message</span></tt> using private key <tt class="docutils literal"><span class="pre">key</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2414" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2414" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2435" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2435" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -746,8 +764,8 @@ Create ED25519 signature of data <tt class="docutils literal"><span class="pre">
 <p>Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt> <tt class="docutils literal"><span class="pre">key</span></tt> to raw binary form and store it to <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns number of bytes (octets) needed to store ED25519 private key.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2223" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2223" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2244" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2244" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -759,8 +777,8 @@ Create ED25519 signature of data <tt class="docutils literal"><span class="pre">
 <p>Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> <tt class="docutils literal"><span class="pre">key</span></tt> to raw binary form and store it to <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns number of bytes (octets) needed to store ED25519 public key.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2233" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2233" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2254" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2254" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -772,8 +790,8 @@ Create ED25519 signature of data <tt class="docutils literal"><span class="pre">
 <p>Serialize ED25519 <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> <tt class="docutils literal"><span class="pre">sig</span></tt> to raw binary form and store it to <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Procedure returns number of bytes (octets) needed to store ED25519 signature.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2243" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2243" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2264" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2264" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -788,8 +806,8 @@ Create ED25519 signature of data <tt class="docutils literal"><span class="pre">
 <p>Verify ED25519 signature <tt class="docutils literal"><span class="pre">sig</span></tt> using public key <tt class="docutils literal"><span class="pre">key</span></tt> and data <tt class="docutils literal"><span class="pre">message</span></tt>.</p>
 <p>Return <tt class="docutils literal"><span class="pre">true</span></tt> if message verification succeeded, <tt class="docutils literal"><span class="pre">false</span></tt> if verification failed.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2453" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2453" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/ed25519/ed25519.nim#L2474" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/ed25519/ed25519.nim#L2474" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -805,7 +823,7 @@ Create ED25519 signature of data <tt class="docutils literal"><span class="pre">
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-06 16:23:27 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-06 16:59:34 UTC</small>
       </div>
     </div>
   </div>
