@@ -12,18 +12,18 @@ suite "Memory transport":
   teardown:
     checkTrackers()
 
-  asyncTest "memory multiaddress":
+  asyncTestConcurrent "memory multiaddress":
     let ma = MultiAddress.init("/memory/addr-1").get()
     check $ma == "/memory/addr-1"
 
-  asyncTest "can handle local address":
+  asyncTestConcurrent "can handle local address":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
     let transport: MemoryTransport = MemoryTransport.new()
     await transport.start(ma)
     check transport.handles(transport.addrs[0])
     await transport.stop()
 
-  asyncTest "send receive":
+  asyncTestConcurrent "send receive":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
     let server = MemoryTransport.new()
     await server.start(ma)
@@ -53,7 +53,7 @@ suite "Memory transport":
     asyncSpawn serverAcceptHandler()
     await runClient()
 
-  asyncTest "server already started":
+  asyncTestConcurrent "server already started":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
     let server = MemoryTransport.new()
     await server.start(ma)
@@ -77,7 +77,7 @@ suite "Memory transport":
     await server.stop()
     await server2.stop()
 
-  asyncTest "server stopping - should drop accept":
+  asyncTestConcurrent "server stopping - should drop accept":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
     let server = MemoryTransport.new()
     await server.start(ma)
@@ -90,7 +90,7 @@ suite "Memory transport":
     asyncSpawn serverAcceptHandler()
     await server.stop()
 
-  asyncTest "server conn close propagated to client":
+  asyncTestConcurrent "server conn close propagated to client":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
     let server = MemoryTransport.new()
     await server.start(ma)
@@ -119,7 +119,7 @@ suite "Memory transport":
     asyncSpawn serverAcceptHandler()
     await runClient()
 
-  asyncTest "client conn close propagated to server":
+  asyncTestConcurrent "client conn close propagated to server":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
     let server = MemoryTransport.new()
     await server.start(ma)

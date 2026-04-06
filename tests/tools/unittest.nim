@@ -7,6 +7,39 @@ import ./trackers
 export checkTrackers # TODO: maybe consider importing it on demand?
 export unittest2 except suite
 
+const concurrentTestBatchSize* = 4 # todo
+
+type ConcurrentTestBody* = proc(): Future[void] {.closure, gcsafe.}
+
+var gConcurrentQueue {.global.}: seq[tuple[name: string, body: ConcurrentTestBody]]
+
+proc runConcurrentBatch*(
+    batch: seq[tuple[name: string, body: ConcurrentTestBody]]
+) {.async.} =
+  var futures = newSeq[Future[void]](batch.len)
+  for i, entry in batch:
+    try:
+      futures[i] = entry.body()
+    except Exception:
+      discard # todo 
+  await allFutures(futures)
+  for i, f in futures:
+    if f.failed:
+      checkpoint("Concurrent test '" & batch[i].name & "' failed: " & f.error.msg)
+      fail()
+
+template flushConcurrentTests*() =
+  if gConcurrentQueue.len > 0:
+    let batch = gConcurrentQueue
+    gConcurrentQueue = @[]
+    var batchNames = ""
+    for i, entry in batch:
+      if i > 0:
+        batchNames.add(", ")
+      batchNames.add(entry.name)
+    test "concurrent: [" & batchNames & "]":
+      waitFor runConcurrentBatch(batch)
+
 ## suite wraps unittest2.suite in a proc to avoid issue with too many global variables
 ## See https://github.com/nim-lang/Nim/issues/8500
 template suite*(name: string, body: untyped): untyped =
@@ -14,6 +47,7 @@ template suite*(name: string, body: untyped): untyped =
     proc testSuite() =
       unittest2.suite name:
         body
+        flushConcurrentTests()
 
     testSuite()
 
@@ -36,6 +70,7 @@ template asyncSetup*(body: untyped): untyped =
     )
 
 template asyncTest*(name: string, body: untyped): untyped =
+  flushConcurrentTests()
   test name:
     waitFor(
       (
@@ -43,6 +78,13 @@ template asyncTest*(name: string, body: untyped): untyped =
           body
       )()
     )
+
+template asyncTestConcurrent*(name: string, body: untyped): untyped =
+  let testBody: ConcurrentTestBody = proc(): Future[void] {.async, closure.} =
+    body
+  gConcurrentQueue.add((name, testBody))
+  if gConcurrentQueue.len >= concurrentTestBatchSize:
+    flushConcurrentTests()
 
 proc buildAndExpr(n: NimNode): NimNode =
   # Helper proc to recursively build a combined boolean expression

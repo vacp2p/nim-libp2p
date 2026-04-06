@@ -14,7 +14,7 @@ suite "GossipSub Component - Control Messages":
   teardown:
     checkTrackers()
 
-  asyncTest "GRAFT messages correctly add peers to mesh":
+  asyncTestConcurrent "GRAFT messages correctly add peers to mesh":
     let
       graftMessage = ControlMessage.withGraft(topic)
       numberOfNodes = 2
@@ -74,7 +74,7 @@ suite "GossipSub Component - Control Messages":
       n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
       n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
-  asyncTest "Received GRAFT for non-subscribed topic":
+  asyncTestConcurrent "Received GRAFT for non-subscribed topic":
     let
       graftMessage = ControlMessage.withGraft(topic)
       numberOfNodes = 2
@@ -113,7 +113,7 @@ suite "GossipSub Component - Control Messages":
       not n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
-  asyncTest "PRUNE messages correctly removes peers from mesh":
+  asyncTestConcurrent "PRUNE messages correctly removes peers from mesh":
     let
       backoff = 1
       pruneMessage = ControlMessage.withPrune(topic, uint64(backoff), @[])
@@ -160,7 +160,7 @@ suite "GossipSub Component - Control Messages":
       not n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
-  asyncTest "Received PRUNE for non-subscribed topic":
+  asyncTestConcurrent "Received PRUNE for non-subscribed topic":
     let
       pruneMessage = ControlMessage.withPrune(topic, 1, @[])
       numberOfNodes = 2
@@ -199,7 +199,7 @@ suite "GossipSub Component - Control Messages":
       not n0.mesh.hasPeerId(topic, n1.peerInfo.peerId)
       not n1.mesh.hasPeerId(topic, n0.peerInfo.peerId)
 
-  asyncTest "IHAVE messages correctly advertise message ID to peers":
+  asyncTestConcurrent "IHAVE messages correctly advertise message ID to peers":
     let
       messageID = @[0'u8, 1, 2, 3]
       ihaveMessage = ControlMessage.withIHave(topic, @[messageID])
@@ -236,7 +236,7 @@ suite "GossipSub Component - Control Messages":
       receivedIHaves[].len == 1 and
         receivedIHaves[0] == ControlIHave(topicID: topic, messageIDs: @[messageID])
 
-  asyncTest "IWANT messages correctly request messages by their IDs":
+  asyncTestConcurrent "IWANT messages correctly request messages by their IDs":
     let
       messageID = @[0'u8, 1, 2, 3]
       iwantMessage = ControlMessage.withIWant(@[messageID])
@@ -273,7 +273,7 @@ suite "GossipSub Component - Control Messages":
       receivedIWants[].len == 1 and
         receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
-  asyncTest "IHAVE for message not held by peer triggers IWANT response to sender":
+  asyncTestConcurrent "IHAVE for message not held by peer triggers IWANT response to sender":
     let
       messageID = @[0'u8, 1, 2, 3]
       ihaveMessage = ControlMessage.withIHave(topic, @[messageID])
@@ -306,7 +306,7 @@ suite "GossipSub Component - Control Messages":
       receivedIWants[].len == 1 and
         receivedIWants[0] == ControlIWant(messageIDs: @[messageID])
 
-  asyncTest "IDONTWANT":
+  asyncTestConcurrent "IDONTWANT":
     let nodes = generateNodes(3, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
@@ -346,7 +346,7 @@ suite "GossipSub Component - Control Messages":
     check:
       toSeq(nodes[0].mesh.getOrDefault(topic)).allIt(it.iDontWants.allIt(it.len == 0))
 
-  asyncTest "IDONTWANT is broadcasted on publish":
+  asyncTestConcurrent "IDONTWANT is broadcasted on publish":
     let nodes =
       generateNodes(2, gossip = true, sendIDontWantOnPublish = true).toGossipSub()
 

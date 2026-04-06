@@ -19,7 +19,7 @@ suite "GossipSub":
   teardown:
     checkTrackers()
 
-  asyncTest "onNewPeer - sets peer stats and budgets and disconnects if bad score":
+  asyncTestConcurrent "onNewPeer - sets peer stats and budgets and disconnects if bad score":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -58,7 +58,7 @@ suite "GossipSub":
     checkUntilTimeout:
       not gossipSub.switch.isConnected(peer.peerId)
 
-  asyncTest "onPubSubPeerEvent - StreamClosed removes peer from mesh and fanout":
+  asyncTestConcurrent "onPubSubPeerEvent - StreamClosed removes peer from mesh and fanout":
     # Given a GossipSub instance with one peer in both mesh and fanout
     let
       (gossipSub, conns, peers) =
@@ -80,7 +80,7 @@ suite "GossipSub":
       not gossipSub.mesh.hasPeerId(topic, peer.peerId)
       not gossipSub.fanout.hasPeerId(topic, peer.peerId)
 
-  asyncTest "onPubSubPeerEvent - DisconnectionRequested disconnects peer":
+  asyncTestConcurrent "onPubSubPeerEvent - DisconnectionRequested disconnects peer":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(
@@ -109,7 +109,7 @@ suite "GossipSub":
       not gossipSub.fanout.hasPeerId(topic, peer.peerId)
       not gossipSub.gossipsub.hasPeerId(topic, peer.peerId)
 
-  asyncTest "unsubscribePeer - handles nil peer gracefully":
+  asyncTestConcurrent "unsubscribePeer - handles nil peer gracefully":
     # Given a GossipSub instance
     let (gossipSub, conns, _) = setupGossipSubWithPeers(0, topic)
     defer:
@@ -125,7 +125,7 @@ suite "GossipSub":
     check:
       true
 
-  asyncTest "unsubscribePeer - removes peer from mesh, gossipsub, fanout and subscribedDirectPeers":
+  asyncTestConcurrent "unsubscribePeer - removes peer from mesh, gossipsub, fanout and subscribedDirectPeers":
     # Given a GossipSub instance with one peer in mesh
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(
@@ -156,7 +156,7 @@ suite "GossipSub":
       not gossipSub.fanout.hasPeerId(topic, peerId)
       not gossipSub.subscribedDirectPeers.hasPeerId(topic, peerId)
 
-  asyncTest "unsubscribePeer - resets firstMessageDeliveries in peerStats":
+  asyncTestConcurrent "unsubscribePeer - resets firstMessageDeliveries in peerStats":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -180,7 +180,7 @@ suite "GossipSub":
       check:
         stats[].topicInfos[topic].firstMessageDeliveries == 0.0
 
-  asyncTest "unsubscribePeer - removes peer from peersInIP":
+  asyncTestConcurrent "unsubscribePeer - removes peer from peersInIP":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -206,7 +206,7 @@ suite "GossipSub":
     check:
       testAddress notin gossipSub.peersInIP
 
-  asyncTest "handleSubscribe via rpcHandler - subscribe and unsubscribe with direct peer":
+  asyncTestConcurrent "handleSubscribe via rpcHandler - subscribe and unsubscribe with direct peer":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -245,7 +245,7 @@ suite "GossipSub":
       not gossipSub.fanout.hasPeer(topic, peer)
       not gossipSub.subscribedDirectPeers.hasPeer(topic, peer)
 
-  asyncTest "handleSubscribe via rpcHandler - subscribe unknown peer":
+  asyncTestConcurrent "handleSubscribe via rpcHandler - subscribe unknown peer":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -266,7 +266,7 @@ suite "GossipSub":
     check:
       not gossipSub.gossipsub.hasPeer(topic, peer)
 
-  asyncTest "subscribe and unsubscribeAll":
+  asyncTestConcurrent "subscribe and unsubscribeAll":
     let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
@@ -288,7 +288,7 @@ suite "GossipSub":
       topic notin gossipSub.mesh # not in mesh
       topic in gossipSub.gossipsub # but still in gossipsub table (for fanning out)
 
-  asyncTest "rpcHandler - drop messages of topics without subscription":
+  asyncTestConcurrent "rpcHandler - drop messages of topics without subscription":
     var (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -305,7 +305,7 @@ suite "GossipSub":
 
     check gossipSub.mcache.msgs.len == 0
 
-  asyncTest "rpcHandler - subscription limits":
+  asyncTestConcurrent "rpcHandler - subscription limits":
     let gossipSub =
       TestGossipSub.init(newStandardSwitch(transport = TransportType.QUIC))
     gossipSub.topicsHigh = 10
@@ -328,7 +328,7 @@ suite "GossipSub":
 
     await conn.close()
 
-  asyncTest "rpcHandler - invalid message bytes":
+  asyncTestConcurrent "rpcHandler - invalid message bytes":
     let gossipSub =
       TestGossipSub.init(newStandardSwitch(transport = TransportType.QUIC))
 
@@ -338,7 +338,7 @@ suite "GossipSub":
     expect PeerMessageDecodeError:
       await gossipSub.rpcHandler(peer, @[byte 1, 2, 3])
 
-  asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded":
+  asyncTestConcurrent "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -374,7 +374,7 @@ suite "GossipSub":
     check:
       currentRateLimitHits("unknown") == rateLimitHits + 1
 
-  asyncTest "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
+  asyncTestConcurrent "rpcHandler - peer is disconnected and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -403,7 +403,7 @@ suite "GossipSub":
     check:
       currentRateLimitHits("unknown") == rateLimitHits + 1
 
-  asyncTest "rpcHandler - peer is punished and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
+  asyncTestConcurrent "rpcHandler - peer is punished and rate limit is hit when overhead rate limit is exceeded when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -437,7 +437,7 @@ suite "GossipSub":
       currentRateLimitHits("unknown") == rateLimitHits + 1
       peer.behaviourPenalty == 0.1
 
-  asyncTest "rpcHandler - peer is punished when decodeRpcMsg fails":
+  asyncTestConcurrent "rpcHandler - peer is punished when decodeRpcMsg fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -457,7 +457,7 @@ suite "GossipSub":
     check:
       peer.behaviourPenalty == 0.1
 
-  asyncTest "rpcHandler - message already seen - valid message dropped when ID already in seenMsgs":
+  asyncTestConcurrent "rpcHandler - message already seen - valid message dropped when ID already in seenMsgs":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -485,7 +485,7 @@ suite "GossipSub":
     check:
       gossipSub.mcache.msgs.len == 0
 
-  asyncTest "rpcHandler - peer is punished when message contains invalid sequence number":
+  asyncTestConcurrent "rpcHandler - peer is punished when message contains invalid sequence number":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -507,7 +507,7 @@ suite "GossipSub":
     check:
       gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 1.0
 
-  asyncTest "rpcHandler - peer is punished when message id generation fails":
+  asyncTestConcurrent "rpcHandler - peer is punished when message id generation fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -533,7 +533,7 @@ suite "GossipSub":
     check:
       gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 1.0
 
-  asyncTest "rpcHandler - peer is punished when signature verification fails":
+  asyncTestConcurrent "rpcHandler - peer is punished when signature verification fails":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -554,7 +554,7 @@ suite "GossipSub":
     check:
       gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 1.0
 
-  asyncTest "rpcHandler - peer is punished when message validation is rejected":
+  asyncTestConcurrent "rpcHandler - peer is punished when message validation is rejected":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -584,7 +584,7 @@ suite "GossipSub":
     check:
       gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 1.0
 
-  asyncTest "rpcHandler - message validation ignore drops message":
+  asyncTestConcurrent "rpcHandler - message validation ignore drops message":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -618,7 +618,7 @@ suite "GossipSub":
     check:
       gossipSub.getPeerTopicInfo(peer.peerId, topic).invalidMessageDeliveries == 0.0
 
-  asyncTest "rpcHandler - message validation accept and successful relay":
+  asyncTestConcurrent "rpcHandler - message validation accept and successful relay":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) =
@@ -653,7 +653,7 @@ suite "GossipSub":
     check:
       gossipSub.getPeerTopicInfo(peer.peerId, topic).firstMessageDeliveries == 1.0
 
-  asyncTest "onTopicSubscription - subscribe removes topic from fanout and rebalances mesh":
+  asyncTestConcurrent "onTopicSubscription - subscribe removes topic from fanout and rebalances mesh":
     # Given a GossipSub instance with peers in gossipsub and fanout
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(5, topic, populateGossipsub = true, populateFanout = true)
@@ -674,7 +674,7 @@ suite "GossipSub":
       # And mesh should be populated with peers (rebalanced)
       gossipSub.mesh[topic].len == peers.len
 
-  asyncTest "onTopicSubscription - unsubscribe removes topic from mesh":
+  asyncTestConcurrent "onTopicSubscription - unsubscribe removes topic from mesh":
     # Given a GossipSub instance with peers in mesh
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(3, topic, populateGossipsub = true, populateMesh = true)

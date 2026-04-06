@@ -13,7 +13,7 @@ suite "KadDHT Switch Builder":
   teardown:
     checkTrackers()
 
-  asyncTest "Build switch with withKademlia":
+  asyncTestConcurrent "Build switch with withKademlia":
     var switch1 = SwitchBuilder
       .new()
       .withRng(rng)
@@ -42,7 +42,7 @@ suite "KadDHT Switch Builder":
     check:
       switch1.ms.handlers[1].protos[0] == "/ipfs/kad/1.0.0"
 
-  asyncTest "Use Kad as a client only":
+  asyncTestConcurrent "Use Kad as a client only":
     var switch1 = SwitchBuilder
       .new()
       .withRng(rng)

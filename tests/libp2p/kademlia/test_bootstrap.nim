@@ -12,7 +12,7 @@ suite "KadDHT Bootstrap":
   teardown:
     checkTrackers()
 
-  asyncTest "bootstrap calls findNode on self first and skips empty buckets":
+  asyncTestConcurrent "bootstrap calls findNode on self first and skips empty buckets":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
@@ -26,7 +26,7 @@ suite "KadDHT Bootstrap":
       kad.findNodeCalls.len == 1
       kad.findNodeCalls[0] == kad.rtable.selfId
 
-  asyncTest "bootstrap skips fresh buckets":
+  asyncTestConcurrent "bootstrap skips fresh buckets":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
@@ -40,7 +40,7 @@ suite "KadDHT Bootstrap":
     # Only self lookup - fresh buckets are skipped
     check kad.findNodeCalls.len == 1
 
-  asyncTest "bootstrap refreshes stale buckets":
+  asyncTestConcurrent "bootstrap refreshes stale buckets":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
@@ -60,7 +60,7 @@ suite "KadDHT Bootstrap":
     # Self lookup + one lookup per stale bucket
     check kad.findNodeCalls.len == bucketIndices.len + 1
 
-  asyncTest "bootstrap with mixed fresh and stale buckets refreshes only stale":
+  asyncTestConcurrent "bootstrap with mixed fresh and stale buckets refreshes only stale":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
@@ -87,7 +87,7 @@ suite "KadDHT Bootstrap":
       kad.findNodeCalls.len == 2
       kad.findNodeCalls[0] == kad.rtable.selfId # first call always self lookup
 
-  asyncTest "bootstrap with forceRefresh=true refreshes all non-empty buckets":
+  asyncTestConcurrent "bootstrap with forceRefresh=true refreshes all non-empty buckets":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
@@ -106,7 +106,7 @@ suite "KadDHT Bootstrap Component":
   teardown:
     checkTrackers()
 
-  asyncTest "bootstrap discovers new peers through network":
+  asyncTestConcurrent "bootstrap discovers new peers through network":
     # 1 hub + 9 nodes bootstrapping from hub
     let hubKad = setupKad()
     startAndDeferStop(@[hubKad])
@@ -123,7 +123,7 @@ suite "KadDHT Bootstrap Component":
         if i != j:
           check kad.hasKey(otherKad.rtable.selfId)
 
-  asyncTest "bootstrap with unreachable peer completes gracefully":
+  asyncTestConcurrent "bootstrap with unreachable peer completes gracefully":
     # Fake bootstrap peer with valid address format
     let fakePeerId = randomPeerId()
     let fakeAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/59999").get()]

@@ -102,7 +102,7 @@ suite "WebSocket transport":
     streamProvider,
   )
 
-  asyncTest "Hostname verification":
+  asyncTestConcurrent "Hostname verification":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
 
     # Generate cert with known keypair so we can derive the PeerId (used as CN in cert)
@@ -140,7 +140,7 @@ suite "WebSocket transport":
     expect TransportDialError:
       discard await transport1.dial("ws.wronghostname", transport1.addrs[0])
 
-  asyncTest "handles tls/ws":
+  asyncTestConcurrent "handles tls/ws":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
     let transport1 = wsSecureTransProvider()
     const correctPattern = mapAnd(TCP, mapEq("tls"), mapEq("ws"))
@@ -162,7 +162,7 @@ when defined(libp2p_autotls_support):
   import ../../../libp2p/autotls/mockservice
 
   suite "WebSocket transport with autotls":
-    asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
+    asyncTestConcurrent "autotls certificate is used when manual tlscertificate is not spcified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
       let key = KeyPair.random(PKScheme.RSA, rng[]).get()
@@ -189,7 +189,7 @@ when defined(libp2p_autotls_support):
       let autotlsCert = await autotls.getCertWhenReady()
       check wstransport.tlsCertificate == autotlsCert.cert
 
-    asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
+    asyncTestConcurrent "manually set tlscertificate is preferred over autotls when both are specified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
       let key = KeyPair.random(PKScheme.RSA, rng[]).get()
@@ -216,7 +216,7 @@ when defined(libp2p_autotls_support):
       check wstransport.tlsCertificate == manualCert
       check wstransport.tlsPrivateKey == manualKey
 
-    asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
+    asyncTestConcurrent "wstransport is not secure when both manual tlscertificate and autotls are not specified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
       let wstransport = WsTransport.new(
         Upgrade(),

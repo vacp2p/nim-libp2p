@@ -24,7 +24,7 @@ suite "FloodSub Component":
   teardown:
     checkTrackers()
 
-  asyncTest "FloodSub basic publish/subscribe A -> B":
+  asyncTestConcurrent "FloodSub basic publish/subscribe A -> B":
     let (handlerFut, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2).toFloodSub()
@@ -46,7 +46,7 @@ suite "FloodSub Component":
         agentA == "nim-libp2p"
         agentB == "nim-libp2p"
 
-  asyncTest "FloodSub basic publish/subscribe B -> A":
+  asyncTestConcurrent "FloodSub basic publish/subscribe B -> A":
     let (handlerFut, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2).toFloodSub()
@@ -60,7 +60,7 @@ suite "FloodSub Component":
     check (await nodes[1].publish(topic, "Hello!".toBytes())) > 0
     check (await handlerFut.wait(5.seconds)) == true
 
-  asyncTest "FloodSub validation should succeed":
+  asyncTestConcurrent "FloodSub validation should succeed":
     let (handlerFut, handler) = createCompleteHandler()
 
     let nodes = generateNodes(2).toFloodSub()
@@ -84,7 +84,7 @@ suite "FloodSub Component":
     check (await nodes[0].publish(topic, "Hello!".toBytes())) > 0
     check (await handlerFut) == true
 
-  asyncTest "FloodSub validation should fail":
+  asyncTestConcurrent "FloodSub validation should fail":
     proc handler(topic: string, data: seq[byte]) {.async.} =
       raiseAssert "Handler should not be called when validation fails"
 
@@ -107,7 +107,7 @@ suite "FloodSub Component":
 
     discard await nodes[0].publish(topic, "Hello!".toBytes())
 
-  asyncTest "FloodSub validation one fails and one succeeds":
+  asyncTestConcurrent "FloodSub validation one fails and one succeeds":
     const
       topicFoo = "foo"
       topicBar = "bar"
@@ -139,7 +139,7 @@ suite "FloodSub Component":
     check (await nodes[0].publish(topicFoo, "Hello!".toBytes())) > 0
     check (await nodes[0].publish(topicBar, "Hello!".toBytes())) > 0
 
-  asyncTest "FloodSub multiple peers, no self trigger":
+  asyncTestConcurrent "FloodSub multiple peers, no self trigger":
     const numberOfNodes = 10
 
     var futs = newSeq[(Future[void], TopicHandler, ref int)](numberOfNodes)
@@ -175,7 +175,7 @@ suite "FloodSub Component":
 
     await allFuturesRaising(futs.mapIt(it[0]))
 
-  asyncTest "FloodSub multiple peers, with self trigger":
+  asyncTestConcurrent "FloodSub multiple peers, with self trigger":
     const numberOfNodes = 10
 
     var futs = newSeq[(Future[void], TopicHandler, ref int)](numberOfNodes)
@@ -220,7 +220,7 @@ suite "FloodSub Component":
         n.floodsub[topic].len == numberOfNodes - 1 # we keep the peers in table
         n.topics.len == 0 # remove the topic tho
 
-  asyncTest "FloodSub message size validation":
+  asyncTestConcurrent "FloodSub message size validation":
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
       check data.len < 50
@@ -256,7 +256,7 @@ suite "FloodSub Component":
     check:
       messageReceived == 2
 
-  asyncTest "FloodSub message size validation 2":
+  asyncTestConcurrent "FloodSub message size validation 2":
     var messageReceived = 0
     proc handler(topic: string, data: seq[byte]) {.async.} =
       inc(messageReceived)

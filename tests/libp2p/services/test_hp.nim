@@ -42,7 +42,7 @@ suite "Hole Punching":
   teardown:
     checkTrackers()
 
-  asyncTest "Direct connection must work when peer address is public":
+  asyncTestConcurrent "Direct connection must work when peer address is public":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable
     let autonatService = AutonatService.new(autonatClientStub, rng, maxQueueSize = 1)
@@ -102,7 +102,7 @@ suite "Hole Punching":
       peerSwitch.stop(),
     )
 
-  asyncTest "Direct connection must work when peer address is public and dns is used":
+  asyncTestConcurrent "Direct connection must work when peer address is public and dns is used":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable
     let autonatService = AutonatService.new(autonatClientStub, rng, maxQueueSize = 1)
@@ -261,10 +261,10 @@ suite "Hole Punching":
       switchAux4.stop(),
     )
 
-  asyncTest "Hole punching when peers addresses are private":
+  asyncTestConcurrent "Hole punching when peers addresses are private":
     await holePunchingTest(nil, nil, NotReachable)
 
-  asyncTest "Hole punching when peers addresses are private and there is an error in the initiator side":
+  asyncTestConcurrent "Hole punching when peers addresses are private and there is an error in the initiator side":
     proc connectStub(
         self: SwitchStub,
         peerId: PeerId,

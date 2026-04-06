@@ -83,7 +83,7 @@ suite "Noise":
   teardown:
     checkTrackers()
 
-  asyncTest "e2e: handle write + noise":
+  asyncTestConcurrent "e2e: handle write + noise":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
@@ -122,7 +122,7 @@ suite "Noise":
 
     check string.fromBytes(msg) == "Hello!"
 
-  asyncTest "e2e: handle write + noise (wrong prologue)":
+  asyncTestConcurrent "e2e: handle write + noise (wrong prologue)":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
@@ -157,7 +157,7 @@ suite "Noise":
     await transport1.stop()
     await transport2.stop()
 
-  asyncTest "e2e: handle read + noise":
+  asyncTestConcurrent "e2e: handle read + noise":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
@@ -193,7 +193,7 @@ suite "Noise":
     await transport1.stop()
     await transport2.stop()
 
-  asyncTest "e2e: handle read + noise fragmented":
+  asyncTestConcurrent "e2e: handle read + noise fragmented":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
@@ -236,7 +236,7 @@ suite "Noise":
     await transport1.stop()
     await listenFut
 
-  asyncTest "e2e use switch dial proto string":
+  asyncTestConcurrent "e2e use switch dial proto string":
     let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     let ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 
@@ -261,7 +261,7 @@ suite "Noise":
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
-  asyncTest "e2e test wrong secure negotiation":
+  asyncTestConcurrent "e2e test wrong secure negotiation":
     let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
     let ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
 

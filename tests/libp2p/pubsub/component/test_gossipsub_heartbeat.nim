@@ -14,7 +14,7 @@ suite "GossipSub Component - Heartbeat":
   teardown:
     checkTrackers()
 
-  asyncTest "Mesh is rebalanced during heartbeat - pruning peers":
+  asyncTestConcurrent "Mesh is rebalanced during heartbeat - pruning peers":
     const numberOfNodes = 10
     let
       nodes = generateNodes(
@@ -51,7 +51,7 @@ suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       node0.mesh[topic].len >= newDLow and node0.mesh[topic].len <= newDHigh
 
-  asyncTest "Mesh is rebalanced during heartbeat - grafting new peers":
+  asyncTestConcurrent "Mesh is rebalanced during heartbeat - grafting new peers":
     const
       numberOfNodes = 10
       dLow = 3
@@ -94,7 +94,7 @@ suite "GossipSub Component - Heartbeat":
       node0.mesh[topic].len >= dLow and node0.mesh[topic].len <= dHigh
       node0.mesh[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
-  asyncTest "Mesh is rebalanced during heartbeat - opportunistic grafting":
+  asyncTestConcurrent "Mesh is rebalanced during heartbeat - opportunistic grafting":
     const numberOfNodes = 10
     let
       nodes = generateNodes(
@@ -154,7 +154,7 @@ suite "GossipSub Component - Heartbeat":
         actualGrafts.len == MaxOpportunisticGraftPeers
         actualGrafts.allIt(it in expectedGrafts)
 
-  asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
+  asyncTestConcurrent "Fanout maintenance during heartbeat - expired peers are dropped":
     const
       numberOfNodes = 10
       heartbeatInterval = 200.milliseconds
@@ -189,7 +189,7 @@ suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       not node0.fanout.hasKey(topic)
 
-  asyncTest "Fanout maintenance during heartbeat - fanout peers are replenished":
+  asyncTestConcurrent "Fanout maintenance during heartbeat - fanout peers are replenished":
     const
       numberOfNodes = 10
       heartbeatInterval = 200.milliseconds
@@ -228,7 +228,7 @@ suite "GossipSub Component - Heartbeat":
       node0.fanout[topic].len == expectedLen
       node0.fanout[topic].toSeq().allIt(it.peerId notin peersToDisconnect)
 
-  asyncTest "iDontWants history - last element is pruned during heartbeat":
+  asyncTestConcurrent "iDontWants history - last element is pruned during heartbeat":
     # When Node0 publish larger messages, it will also publish IDontWants, because 
     # message is larger and sendIDontWantOnPublish is set to true.
     # Then Node1 receives messages and IDontWants control messages.
@@ -287,7 +287,7 @@ suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       peer.iDontWants.allIt(it.len == 0)
 
-  asyncTest "sentIHaves history - last element is pruned during heartbeat":
+  asyncTestConcurrent "sentIHaves history - last element is pruned during heartbeat":
     # 3 Nodes, Node 0 <==> Node 1 and Node 0 <==> Node 2
     # due to DValues: 1 peer in mesh and 1 peer only in gossip of Node 0
     const

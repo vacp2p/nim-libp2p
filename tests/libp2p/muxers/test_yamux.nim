@@ -47,7 +47,7 @@ suite "Yamux":
       )
 
   suite "Simple Reading/Writing yamux messages":
-    asyncTest "Roundtrip of small messages":
+    asyncTestConcurrent "Roundtrip of small messages":
       mSetup()
 
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
@@ -66,7 +66,7 @@ suite "Yamux":
       check (await streamA.readLp(100)) == fromHex("5678")
       await streamA.close()
 
-    asyncTest "Continuing read after close":
+    asyncTestConcurrent "Continuing read after close":
       mSetup()
       let
         readerBlocker = newBlockerFut()
@@ -95,7 +95,7 @@ suite "Yamux":
         numberOfRead == 10
 
   suite "Window exhaustion":
-    asyncTest "Basic exhaustion blocking":
+    asyncTestConcurrent "Basic exhaustion blocking":
       mSetup()
       let readerBlocker = newBlockerFut()
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
@@ -123,7 +123,7 @@ suite "Yamux":
 
       await streamA.close()
 
-    asyncTest "Exhaustion doesn't block other channels":
+    asyncTestConcurrent "Exhaustion doesn't block other channels":
       mSetup()
       let readerBlocker = newBlockerFut()
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
@@ -166,7 +166,7 @@ suite "Yamux":
       await streamA.close()
       await streamB.close()
 
-    asyncTest "Can set custom window size":
+    asyncTestConcurrent "Can set custom window size":
       mSetup()
 
       let writerBlocker = newBlockerFut()
@@ -198,7 +198,7 @@ suite "Yamux":
       # 1 for initial exhaustion + (160 / 20) = 9
       check numberOfRead == 1 + (extraBytes / newWindow).int
 
-    asyncTest "Saturate until reset":
+    asyncTestConcurrent "Saturate until reset":
       mSetup()
       let writerBlocker = newBlockerFut()
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
@@ -225,7 +225,7 @@ suite "Yamux":
       writerBlocker.complete()
       await streamA.close()
 
-    asyncTest "Increase window size":
+    asyncTestConcurrent "Increase window size":
       mSetup(512000)
       let readerBlocker = newBlockerFut()
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
@@ -253,7 +253,7 @@ suite "Yamux":
 
       await streamA.close()
 
-    asyncTest "Reduce window size":
+    asyncTestConcurrent "Reduce window size":
       mSetup(64000)
       let readerBlocker1 = newBlockerFut()
       let readerBlocker2 = newBlockerFut()
@@ -293,7 +293,7 @@ suite "Yamux":
       await streamA.close()
 
   suite "Timeout testing":
-    asyncTest "Check if InTimeout close both streams correctly":
+    asyncTestConcurrent "Check if InTimeout close both streams correctly":
       mSetup(inTo = 1.seconds)
       let blocker = newBlockerFut()
       let connBlocker = newBlockerFut()
@@ -319,7 +319,7 @@ suite "Yamux":
       check streamA.isClosed
       await connBlocker
 
-    asyncTest "Check if OutTimeout close both streams correctly":
+    asyncTestConcurrent "Check if OutTimeout close both streams correctly":
       mSetup(outTo = 1.seconds)
       let blocker = newBlockerFut()
       let connBlocker = newBlockerFut()
@@ -346,7 +346,7 @@ suite "Yamux":
       await connBlocker
 
   suite "Exception testing":
-    asyncTest "Local & Remote close":
+    asyncTestConcurrent "Local & Remote close":
       mSetup()
 
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
@@ -372,7 +372,7 @@ suite "Yamux":
       await streamA.writeLp(fromHex("5678"))
       await streamA.close()
 
-    asyncTest "Local & Remote reset":
+    asyncTestConcurrent "Local & Remote reset":
       mSetup()
       let blocker = newBlockerFut()
 
@@ -399,7 +399,7 @@ suite "Yamux":
       blocker.complete()
       await streamA.close()
 
-    asyncTest "Peer must be able to read from stream after closing it for writing":
+    asyncTestConcurrent "Peer must be able to read from stream after closing it for writing":
       mSetup()
 
       yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
@@ -421,7 +421,7 @@ suite "Yamux":
       check (await streamA.readLp(100)) == fromHex("5678")
 
   suite "Frame handling and stream initiation":
-    asyncTest "Ping Syn responds Ping Ack":
+    asyncTestConcurrent "Ping Syn responds Ping Ack":
       mSetup(startHandlera = false)
 
       let payload: uint32 = 0x12345678'u32
@@ -433,7 +433,7 @@ suite "Yamux":
         header.flags == {Ack}
         header.length == payload
 
-    asyncTest "Go Away Status responds with Go Away":
+    asyncTestConcurrent "Go Away Status responds with Go Away":
       mSetup(startHandlera = false)
 
       await conna.write(YamuxHeader.goAway(GoAwayStatus.ProtocolError))
@@ -448,7 +448,7 @@ suite "Yamux":
       YamuxHeader.data(streamId = 1'u32, length = 0, {Syn}),
       YamuxHeader.windowUpdate(streamId = 5'u32, delta = 0, {Syn}),
     ]:
-      asyncTest "Syn opens stream and sends Ack - " & $testCase:
+      asyncTestConcurrent "Syn opens stream and sends Ack - " & $testCase:
         mSetup(startHandlera = false)
 
         yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
@@ -483,7 +483,7 @@ suite "Yamux":
       # Reserved parity on WindowUpdate+Syn (even id against responder)
       YamuxHeader.windowUpdate(streamId = 4'u32, delta = 0, {Syn}),
     ]:
-      asyncTest "Reject invalid/unknown header - " & $badHeader:
+      asyncTestConcurrent "Reject invalid/unknown header - " & $badHeader:
         mSetup(startHandlera = false)
 
         await conna.write(badHeader)
@@ -495,7 +495,7 @@ suite "Yamux":
           header.length == GoAwayStatus.ProtocolError.uint32
           not yamuxb.channels.hasKey(badHeader.streamId)
 
-    asyncTest "Flush unknown-stream Data up to budget then ProtocolError when exceeded":
+    asyncTestConcurrent "Flush unknown-stream Data up to budget then ProtocolError when exceeded":
       # Cover the flush path: streamId not in channels, no Syn, with a pre-seeded
       # flush budget in yamuxb.flushed. First frame should be flushed (no GoAway),
       # second frame exceeding the remaining budget should trigger ProtocolError.

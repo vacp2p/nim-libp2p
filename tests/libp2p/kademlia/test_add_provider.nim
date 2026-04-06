@@ -19,7 +19,7 @@ suite "KadDHT - Add Provider":
   teardown:
     checkTrackers()
 
-  asyncTest "Add provider":
+  asyncTestConcurrent "Add provider":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -37,7 +37,7 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords.len == 1
       kads[0].providerManager.providerRecords[0].provider.id == kads[1].rtable.selfId
 
-  asyncTest "Provider expired":
+  asyncTestConcurrent "Provider expired":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -61,7 +61,7 @@ suite "KadDHT - Add Provider":
     checkUntilTimeout:
       kads[0].providerManager.providerRecords.len == 0
 
-  asyncTest "Adding providers again refreshes expiration time":
+  asyncTestConcurrent "Adding providers again refreshes expiration time":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -92,7 +92,7 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords[0].expiresAt > originalExpiresAt1
       kads[0].providerManager.providerRecords[1].expiresAt > originalExpiresAt2
 
-  asyncTest "Start/stop providing":
+  asyncTestConcurrent "Start/stop providing":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -126,7 +126,7 @@ suite "KadDHT - Add Provider":
       kads[1].providerManager.knownKeys.len == 0
       kads[0].providerManager.providedKeys.len == 0
 
-  asyncTest "Provider limits":
+  asyncTestConcurrent "Provider limits":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -178,7 +178,7 @@ suite "KadDHT - Add Provider":
       kads[1].providerManager.knownKeys.hasKey(cid3.toKey())
       kads[1].providerManager.providerRecords.isAtMaxCapacity()
 
-  asyncTest "Add provider accepts matching PeerID and rejects mismatched PeerID":
+  asyncTestConcurrent "Add provider accepts matching PeerID and rejects mismatched PeerID":
     # Setup sender and imposter KadDHT instances
     let kads = setupKadSwitches(2)
 
@@ -220,7 +220,7 @@ suite "KadDHT - Add Provider":
       receiverKad.providerManager.providerRecords[0].provider.id ==
         senderKad.switch.peerInfo.peerId.getBytes()
 
-  asyncTest "Add provider rejects invalid multihash key":
+  asyncTestConcurrent "Add provider rejects invalid multihash key":
     let kads = setupKadSwitches(1)
 
     let senderKad = kads[0]
@@ -248,7 +248,7 @@ suite "KadDHT - Add Provider":
     await sleepAsync(200.milliseconds)
     check receiverKad.providerManager.providerRecords.len == 0
 
-  asyncTest "Add provider with CID key extracts multihash":
+  asyncTestConcurrent "Add provider with CID key extracts multihash":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -289,7 +289,7 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providerRecords[0].key == expectedKey
       kads[0].providerManager.providerRecords[0].expiresAt > originalExpiresAt
 
-  asyncTest "Multiple providers for same CID":
+  asyncTestConcurrent "Multiple providers for same CID":
     let kads = setupKadSwitches(3)
     startAndDeferStop(kads)
 
@@ -319,7 +319,7 @@ suite "KadDHT - Add Provider":
       kads[1].rtable.selfId in providers.mapIt(it.id)
       kads[2].rtable.selfId in providers.mapIt(it.id)
 
-  asyncTest "Provider address storage policy - addresses may be omitted":
+  asyncTestConcurrent "Provider address storage policy - addresses may be omitted":
     let kads = setupKadSwitches(1)
     let senderKad = kads[0]
     var receiverKad = setupMockKad()
@@ -355,7 +355,7 @@ suite "KadDHT - Add Provider":
         senderKad.switch.peerInfo.peerId.getBytes()
       receiverKad.providerManager.providerRecords[0].provider.addrs.len == 0
 
-  asyncTest "Add provider includes local multiaddresses":
+  asyncTestConcurrent "Add provider includes local multiaddresses":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -382,7 +382,7 @@ suite "KadDHT - Add Provider":
       storedProvider.id == kads[1].rtable.selfId
       storedProvider.addrs == kads[1].switch.peerInfo.addrs
 
-  asyncTest "Add provider completes when some peers fail":
+  asyncTestConcurrent "Add provider completes when some peers fail":
     let kads = setupKadSwitches(3)
     startAndDeferStop(kads)
 

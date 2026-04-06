@@ -44,7 +44,7 @@ suite "WildcardAddressResolverService":
   teardown:
     checkTrackers()
 
-  asyncTest "WildcardAddressResolverService must resolve wildcard addresses and stop doing so when stopped":
+  asyncTestConcurrent "WildcardAddressResolverService must resolve wildcard addresses and stop doing so when stopped":
     let svc: Service =
       WildcardAddressResolverService.new(networkInterfaceProvider = getAddressesMock)
     let switch = createSwitch(

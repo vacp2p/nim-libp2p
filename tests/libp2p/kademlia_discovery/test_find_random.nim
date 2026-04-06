@@ -19,7 +19,7 @@ suite "Kademlia discovery - FindRandom":
   teardown:
     checkTrackers()
 
-  asyncTest "Simple find random node":
+  asyncTestConcurrent "Simple find random node":
     let kads = setupKads(5, ExtEntryValidator(), ExtEntrySelector())
     startAndDeferStop(kads)
 

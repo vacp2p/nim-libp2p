@@ -14,7 +14,7 @@ suite "GossipSub Component - Gossip Protocol":
   teardown:
     checkTrackers()
 
-  asyncTest "messages sent to peers not in the mesh are propagated via gossip":
+  asyncTestConcurrent "messages sent to peers not in the mesh are propagated via gossip":
     let
       numberOfNodes = 5
       dValues = DValues(
@@ -43,7 +43,7 @@ suite "GossipSub Component - Gossip Protocol":
     checkUntilTimeout:
       messages[].mapIt(it[].len).anyIt(it > 0)
 
-  asyncTest "adaptive gossip dissemination, dLazy and gossipFactor to 0":
+  asyncTestConcurrent "adaptive gossip dissemination, dLazy and gossipFactor to 0":
     let
       numberOfNodes = 20
       dValues = DValues(
@@ -83,7 +83,7 @@ suite "GossipSub Component - Gossip Protocol":
       check:
         filterIt(receivedIHaves, it > 0).len == 0
 
-  asyncTest "adaptive gossip dissemination, with gossipFactor priority":
+  asyncTestConcurrent "adaptive gossip dissemination, with gossipFactor priority":
     let
       numberOfNodes = 20
       dValues = DValues(
@@ -124,7 +124,7 @@ suite "GossipSub Component - Gossip Protocol":
       check:
         filterIt(receivedIHaves, it > 0).len >= 8
 
-  asyncTest "adaptive gossip dissemination, with dLazy priority":
+  asyncTestConcurrent "adaptive gossip dissemination, with dLazy priority":
     let
       numberOfNodes = 20
       dValues = DValues(
@@ -165,7 +165,7 @@ suite "GossipSub Component - Gossip Protocol":
       check:
         filterIt(receivedIHaves, it > 0).len >= dValues.dLazy.get()
 
-  asyncTest "iDontWant messages are broadcast immediately after receiving the first message instance":
+  asyncTestConcurrent "iDontWant messages are broadcast immediately after receiving the first message instance":
     let
       numberOfNodes = 3
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
@@ -192,7 +192,7 @@ suite "GossipSub Component - Gossip Protocol":
       messages[].mapIt(it[].len)[1] == 0
       messages[].mapIt(it[].len)[0] == 0
 
-  asyncTest "GossipSub peer exchange":
+  asyncTestConcurrent "GossipSub peer exchange":
     # A, B & C are subscribed to something
     # B unsubcribe from it, it should send
     # PX to A & C

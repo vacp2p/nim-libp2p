@@ -15,7 +15,7 @@ suite "Dcutr":
   teardown:
     checkTrackers()
 
-  asyncTest "Connect msg Encode / Decode":
+  asyncTestConcurrent "Connect msg Encode / Decode":
     let addrs =
       @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
@@ -28,7 +28,7 @@ suite "Dcutr":
 
     check connectMsg == connectMsgDecoded
 
-  asyncTest "Sync msg Encode / Decode":
+  asyncTestConcurrent "Sync msg Encode / Decode":
     let addrs =
       @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
@@ -41,7 +41,7 @@ suite "Dcutr":
 
     check syncMsg == syncMsgDecoded
 
-  asyncTest "DCUtR establishes a new connection":
+  asyncTestConcurrent "DCUtR establishes a new connection":
     let behindNATSwitch = newStandardSwitch()
     let publicSwitch = newStandardSwitch()
 
@@ -97,7 +97,7 @@ suite "Dcutr":
 
     await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
-  asyncTest "Client connect timeout":
+  asyncTestConcurrent "Client connect timeout":
     proc connectTimeoutProc(
         self: SwitchStub,
         peerId: PeerId,
@@ -119,7 +119,7 @@ suite "Dcutr":
       except DcutrError as err:
         check err.parent of AsyncTimeoutError
 
-  asyncTest "All client connect attempts fail":
+  asyncTestConcurrent "All client connect attempts fail":
     proc connectErrorProc(
         self: SwitchStub,
         peerId: PeerId,
@@ -176,7 +176,7 @@ suite "Dcutr":
 
     await allFutures(behindNATSwitch.stop(), publicSwitch.stop())
 
-  asyncTest "DCUtR server timeout when establishing a new connection":
+  asyncTestConcurrent "DCUtR server timeout when establishing a new connection":
     proc connectProc(
         self: SwitchStub,
         peerId: PeerId,
@@ -189,7 +189,7 @@ suite "Dcutr":
 
     await ductrServerTest(connectProc)
 
-  asyncTest "DCUtR server error when establishing a new connection":
+  asyncTestConcurrent "DCUtR server error when establishing a new connection":
     proc connectProc(
         self: SwitchStub,
         peerId: PeerId,

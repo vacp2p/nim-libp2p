@@ -8,7 +8,7 @@ import ../../../libp2p/utils/future
 import ../../tools/[unittest]
 
 suite "Future":
-  asyncTest "anyCompleted must complete with first completed future":
+  asyncTestConcurrent "anyCompleted must complete with first completed future":
     proc fut1() {.async.} =
       await sleepAsync(50.milliseconds)
 
@@ -25,11 +25,11 @@ suite "Future":
 
     check f == f1
 
-  asyncTest "anyCompleted must fail with empty list":
+  asyncTestConcurrent "anyCompleted must fail with empty list":
     expect AllFuturesFailedError:
       discard await anyCompleted(newSeq[Future[void]]())
 
-  asyncTest "anyCompleted must fail if all futures fail":
+  asyncTestConcurrent "anyCompleted must fail if all futures fail":
     proc fut1() {.async.} =
       raise newException(CatchableError, "fut1")
 
@@ -46,7 +46,7 @@ suite "Future":
     expect AllFuturesFailedError:
       discard await anyCompleted(@[f1, f2, f3])
 
-  asyncTest "anyCompleted with timeout":
+  asyncTestConcurrent "anyCompleted with timeout":
     proc fut1() {.async.} =
       await sleepAsync(50.milliseconds)
 

@@ -25,7 +25,7 @@ const
 
 template tcpListenerIPTests(suiteName: string, listenMA: MultiAddress) =
   block:
-    asyncTest suiteName & ":listener: handle write":
+    asyncTestConcurrent suiteName & ":listener: handle write":
       let server = TcpTransport.new(upgrade = Upgrade())
       await server.start(@[listenMA])
 
@@ -44,7 +44,7 @@ template tcpListenerIPTests(suiteName: string, listenMA: MultiAddress) =
       await conn.closeWait()
       await server.stop()
 
-    asyncTest suiteName & ":listener: handle read":
+    asyncTestConcurrent suiteName & ":listener: handle read":
       let server = TcpTransport.new(upgrade = Upgrade())
       await server.start(@[listenMA])
 
@@ -67,7 +67,7 @@ template tcpListenerIPTests(suiteName: string, listenMA: MultiAddress) =
 
 template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
   block:
-    asyncTest suiteName & ":dialer: handle write":
+    asyncTestConcurrent suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
       proc serverHandler(
           server: StreamServer, transp: StreamTransport
@@ -100,7 +100,7 @@ template tcpDialerIPTest(suiteName: string, listenTA: TransportAddress) =
       server.close()
       await server.join()
 
-    asyncTest suiteName & ":dialer: handle write":
+    asyncTestConcurrent suiteName & ":dialer: handle write":
       let handlerFut = newFuture[void]()
       proc serverHandler(
           server: StreamServer, transp: StreamTransport
@@ -140,13 +140,13 @@ template tcpTests*() =
   block:
     let listenMA = MultiAddress.init(zeroMAStrIP4).tryGet()
 
-    asyncTest "starting with duplicate but zero ports addresses must NOT fail":
+    asyncTestConcurrent "starting with duplicate but zero ports addresses must NOT fail":
       let transport = TcpTransport.new(upgrade = Upgrade())
 
       await transport.start(@[listenMA, listenMA])
       await transport.stop()
 
-    asyncTest "bind to listening port when not reachable":
+    asyncTestConcurrent "bind to listening port when not reachable":
       let transport1 = TcpTransport.new(upgrade = Upgrade())
       await transport1.start(@[listenMA])
 
@@ -172,7 +172,7 @@ template tcpTests*() =
 
       await allFutures(transport1.stop(), transport2.stop(), transport3.stop())
 
-    asyncTest "custom timeout":
+    asyncTestConcurrent "custom timeout":
       let server =
         TcpTransport.new(upgrade = Upgrade(), connectionsTimeout = 1.milliseconds)
       await server.start(@[listenMA])

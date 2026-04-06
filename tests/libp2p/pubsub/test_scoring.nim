@@ -16,7 +16,7 @@ suite "GossipSub Scoring":
   teardown:
     checkTrackers()
 
-  asyncTest "Disconnect bad peers":
+  asyncTestConcurrent "Disconnect bad peers":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(30, topic, populateGossipsub = true)
     defer:
@@ -40,7 +40,7 @@ suite "GossipSub Scoring":
       # also ensure we cleanup properly the peersInIP table
       gossipSub.peersInIP.len == 0
 
-  asyncTest "Time in mesh scoring (P1)":
+  asyncTestConcurrent "Time in mesh scoring (P1)":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(3, topic, populateMesh = true)
     defer:
@@ -86,7 +86,7 @@ suite "GossipSub Scoring":
       # Peer 2: not in mesh, score should be 0
       round(peers[2].score, 1) == 0.0
 
-  asyncTest "First message deliveries scoring (P2)":
+  asyncTestConcurrent "First message deliveries scoring (P2)":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -120,7 +120,7 @@ suite "GossipSub Scoring":
       check:
         round(stats[].topicInfos[topic].firstMessageDeliveries, 1) == 2.0 # 4.0 * 0.5
 
-  asyncTest "Mesh message deliveries scoring (P3)":
+  asyncTestConcurrent "Mesh message deliveries scoring (P3)":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(3, topic, populateMesh = true)
     defer:
@@ -169,7 +169,7 @@ suite "GossipSub Scoring":
       # Peer 2: not active yet, no penalty
       round(peers[2].score, 1) == 0.0
 
-  asyncTest "Mesh failure penalty scoring (P3b)":
+  asyncTestConcurrent "Mesh failure penalty scoring (P3b)":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -197,7 +197,7 @@ suite "GossipSub Scoring":
       check:
         round(stats[].topicInfos[topic].meshFailurePenalty, 1) == 1.0 # 2.0 * 0.5
 
-  asyncTest "Invalid message deliveries scoring (P4)":
+  asyncTestConcurrent "Invalid message deliveries scoring (P4)":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -227,7 +227,7 @@ suite "GossipSub Scoring":
       check:
         round(stats[].topicInfos[topic].invalidMessageDeliveries, 1) == 1.0 # 2.0 * 0.5
 
-  asyncTest "App-specific scoring":
+  asyncTestConcurrent "App-specific scoring":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -246,7 +246,7 @@ suite "GossipSub Scoring":
       round(peers[1].score, 1) == -3.0 # -6.0 * 0.5
       round(peers[2].score, 1) == 0.0 # 0.0 * 0.5
 
-  asyncTest "Behaviour penalty scoring":
+  asyncTestConcurrent "Behaviour penalty scoring":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -273,7 +273,7 @@ suite "GossipSub Scoring":
       round(peers[1].behaviourPenalty, 1) == 1.0 # 2.0 * 0.5
       round(peers[2].behaviourPenalty, 1) == 0.0
 
-  asyncTest "Colocation factor scoring":
+  asyncTestConcurrent "Colocation factor scoring":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(5, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -307,7 +307,7 @@ suite "GossipSub Scoring":
       round(peers[3].score, 1) == 0.0
       round(peers[4].score, 1) == 0.0
 
-  asyncTest "Score decay to zero":
+  asyncTestConcurrent "Score decay to zero":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -341,7 +341,7 @@ suite "GossipSub Scoring":
         round(info.meshFailurePenalty, 1) == 0.0
         round(info.invalidMessageDeliveries, 1) == 0.0
 
-  asyncTest "Peer stats expiration and eviction":
+  asyncTestConcurrent "Peer stats expiration and eviction":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -371,7 +371,7 @@ suite "GossipSub Scoring":
       expiredPeerId notin gossipSub.peerStats
       peers[0].peerId in gossipSub.peerStats
 
-  asyncTest "Combined scoring":
+  asyncTestConcurrent "Combined scoring":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(1, topic, populateMesh = true)
     defer:
@@ -447,7 +447,7 @@ suite "GossipSub Scoring":
     check:
       round(peer.score, 1) == -10.0
 
-  asyncTest "Zero topic weight skips scoring":
+  asyncTestConcurrent "Zero topic weight skips scoring":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)

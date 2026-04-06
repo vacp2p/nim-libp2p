@@ -11,7 +11,7 @@ suite "BufferStream":
   teardown:
     checkTrackers()
 
-  asyncTest "push data to buffer":
+  asyncTestConcurrent "push data to buffer":
     let buff = BufferStream.new()
     check buff.len == 0
     var data = "12345"
@@ -19,7 +19,7 @@ suite "BufferStream":
     check buff.len == 5
     await buff.close()
 
-  asyncTest "push and wait":
+  asyncTestConcurrent "push and wait":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -37,7 +37,7 @@ suite "BufferStream":
     check buff.len == 4
     await buff.close()
 
-  asyncTest "read with size":
+  asyncTestConcurrent "read with size":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -47,7 +47,7 @@ suite "BufferStream":
     check ['1', '2', '3'] == string.fromBytes(data)
     await buff.close()
 
-  asyncTest "readExactly":
+  asyncTestConcurrent "readExactly":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -58,7 +58,7 @@ suite "BufferStream":
     check string.fromBytes(data) == ['1', '2']
     await buff.close()
 
-  asyncTest "readExactly raises":
+  asyncTestConcurrent "readExactly raises":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -70,7 +70,7 @@ suite "BufferStream":
     expect LPStreamIncompleteError:
       await readFut
 
-  asyncTest "readOnce":
+  asyncTestConcurrent "readOnce":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -83,7 +83,7 @@ suite "BufferStream":
     check string.fromBytes(data) == ['1', '2', '3']
     await buff.close()
 
-  asyncTest "reads should happen in order":
+  asyncTestConcurrent "reads should happen in order":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -125,7 +125,7 @@ suite "BufferStream":
     await buff.close()
     await writerFut2
 
-  asyncTest "small reads":
+  asyncTestConcurrent "small reads":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -153,7 +153,7 @@ suite "BufferStream":
     check str == str2
     await buff.close()
 
-  asyncTest "read all data after eof":
+  asyncTestConcurrent "read all data after eof":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -178,7 +178,7 @@ suite "BufferStream":
 
     await buff.close() # all data should still be read after close
 
-  asyncTest "read more data after eof":
+  asyncTestConcurrent "read more data after eof":
     let buff = BufferStream.new()
     check buff.len == 0
 
@@ -205,7 +205,7 @@ suite "BufferStream":
 
     await buff.close() # all data should still be read after close
 
-  asyncTest "shouldn't get stuck on close":
+  asyncTestConcurrent "shouldn't get stuck on close":
     var stream = BufferStream.new()
     var
       fut = stream.pushData(toBytes("hello"))
@@ -219,7 +219,7 @@ suite "BufferStream":
 
     await stream.close()
 
-  asyncTest "no push after close":
+  asyncTestConcurrent "no push after close":
     var stream = BufferStream.new()
     await stream.pushData("123".toBytes())
     var data: array[3, byte]
@@ -229,7 +229,7 @@ suite "BufferStream":
     expect LPStreamEOFError:
       await stream.pushData("123".toBytes())
 
-  asyncTest "no concurrent pushes":
+  asyncTestConcurrent "no concurrent pushes":
     var stream = BufferStream.new()
     await stream.pushData("123".toBytes())
     let push = stream.pushData("123".toBytes())

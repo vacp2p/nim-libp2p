@@ -16,7 +16,7 @@ suite "GossipSub Component - Signature Flags":
   teardown:
     checkTrackers()
 
-  asyncTest "Default - messages are signed when sign=true and contain fromPeer and seqno when anonymize=false":
+  asyncTestConcurrent "Default - messages are signed when sign=true and contain fromPeer and seqno when anonymize=false":
     let nodes = generateNodes(
         2, gossip = true, sign = true, verifySignature = true, anonymize = false
       )
@@ -44,7 +44,7 @@ suite "GossipSub Component - Signature Flags":
       receivedMessage.signature.len > 0
       receivedMessage.key.len > 0
 
-  asyncTest "Sign flag - messages are not signed when sign=false":
+  asyncTestConcurrent "Sign flag - messages are not signed when sign=false":
     let nodes = generateNodes(
         2, gossip = true, sign = false, verifySignature = false, anonymize = false
       )
@@ -70,7 +70,7 @@ suite "GossipSub Component - Signature Flags":
       receivedMessage.signature.len == 0
       receivedMessage.key.len == 0
 
-  asyncTest "Anonymize flag - messages are anonymous when anonymize=true":
+  asyncTestConcurrent "Anonymize flag - messages are anonymous when anonymize=true":
     let nodes = generateNodes(
         2, gossip = true, sign = true, verifySignature = true, anonymize = true
       )
@@ -180,7 +180,7 @@ suite "GossipSub Component - Signature Flags":
       title = "Compatibility matrix: " & $scenario
       # Create a copy to avoid lent iterator capture issue
       localScenario = scenario
-    asyncTest title:
+    asyncTestConcurrent title:
       let
         sender = generateNodes(
           1,

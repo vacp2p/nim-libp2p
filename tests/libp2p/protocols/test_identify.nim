@@ -279,7 +279,7 @@ suite "Identify":
         switch1.peerStore[ProtoBook][oldPeerId] != switch2.peerInfo.protocols
         switch1.peerStore[AddressBook][oldPeerId] != switch2.peerInfo.addrs
 
-  asyncTest "identify exposes QUIC transport addresses":
+  asyncTestConcurrent "identify exposes QUIC transport addresses":
     let
       quicAddress = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()

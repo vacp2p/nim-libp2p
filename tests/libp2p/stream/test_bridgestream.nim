@@ -8,7 +8,7 @@ import ../../../libp2p/stream/bridgestream
 import ../../tools/[unittest]
 
 suite "BridgeStream":
-  asyncTest "send-receive":
+  asyncTestConcurrent "send-receive":
     let (c1, c2) = bridgedConnections()
     var msg: array[8, byte]
 
@@ -25,7 +25,7 @@ suite "BridgeStream":
     await c1.close()
     await c2.close()
 
-  asyncTest "closing":
+  asyncTestConcurrent "closing":
     # closing c1, should also close c2
     var (c1, c2) = bridgedConnections()
     await c1.close()

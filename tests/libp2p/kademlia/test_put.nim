@@ -12,7 +12,7 @@ suite "KadDHT Put":
   teardown:
     checkTrackers()
 
-  asyncTest "PUT_VALUE stores record at both sender and target peer":
+  asyncTestConcurrent "PUT_VALUE stores record at both sender and target peer":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -32,7 +32,7 @@ suite "KadDHT Put":
       kads[0].containsData(key, value)
       kads[1].containsData(key, value)
 
-  asyncTest "PUT_VALUE requires validation on both sender and receiver":
+  asyncTestConcurrent "PUT_VALUE requires validation on both sender and receiver":
     let kads = setupKadSwitches(2, validator = RestrictiveValidator())
     startAndDeferStop(kads)
 
@@ -59,7 +59,7 @@ suite "KadDHT Put":
       kads[0].containsData(key, value)
       kads[1].containsData(key, value)
 
-  asyncTest "PUT_VALUE sets timeReceived in RFC3339 format":
+  asyncTestConcurrent "PUT_VALUE sets timeReceived in RFC3339 format":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -78,7 +78,7 @@ suite "KadDHT Put":
     let elapsed = now - parsed
     check elapsed < times.initDuration(seconds = 2)
 
-  asyncTest "PUT_VALUE uses selector to choose best value":
+  asyncTestConcurrent "PUT_VALUE uses selector to choose best value":
     let kads = setupKadSwitches(2, selector = OthersSelector())
     startAndDeferStop(kads)
 
@@ -104,7 +104,7 @@ suite "KadDHT Put":
     discard await kads[0].putValue(key, emptyVal)
     check kads[1].containsData(key, emptyVal)
 
-  asyncTest "PUT_VALUE rejects mismatched Message.key and Record.key":
+  asyncTestConcurrent "PUT_VALUE rejects mismatched Message.key and Record.key":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -134,7 +134,7 @@ suite "KadDHT Put":
       kads[0].containsNoData(msgKey)
       kads[0].containsNoData(recordKey)
 
-  asyncTest "PUT_VALUE with no record / no value - malformed message handling":
+  asyncTestConcurrent "PUT_VALUE with no record / no value - malformed message handling":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -166,7 +166,7 @@ suite "KadDHT Put":
     # No data should be stored
     check kads[0].containsNoData(key)
 
-  asyncTest "PUT_VALUE response echoes request":
+  asyncTestConcurrent "PUT_VALUE response echoes request":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -196,7 +196,7 @@ suite "KadDHT Put":
     # Response should be identical to the request
     check response == request
 
-  asyncTest "PUT_VALUE stores binary data with null and high bytes":
+  asyncTestConcurrent "PUT_VALUE stores binary data with null and high bytes":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
