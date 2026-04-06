@@ -225,6 +225,8 @@ proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
     var status: RegistrationStatus
     if checkedEnumAssign(status, statusVal):
       regMsg.status = Opt.some(status)
+    else:
+      return err(ProtoError.BadWireType)
 
   var ticketBuf: seq[byte]
   if ?pb.getField(3, ticketBuf):

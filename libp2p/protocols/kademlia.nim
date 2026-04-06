@@ -109,10 +109,10 @@ proc new*(
         await kad.handlePing(conn, msg)
       of MessageType.register:
         trace "Unsupported message REGISTER"
-        return
+        continue
       of MessageType.getAds:
         trace "Unsupported message GET_ADS"
-        return
+        continue
 
   return kad
 

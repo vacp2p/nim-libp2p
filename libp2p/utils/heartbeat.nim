@@ -11,7 +11,12 @@ template runAfter*(waitTime: Duration, body: untyped): untyped =
   asyncSpawn (
     proc() {.async.} =
       await sleepAsync(waitTime)
-      body
+      try:
+        body
+      except CancelledError:
+        raise
+      except CatchableError as e:
+        error "runAfter task failed", waitTime = waitTime, errName = e.name, errMsg = e.msg
   )()
 
 template heartbeat*(

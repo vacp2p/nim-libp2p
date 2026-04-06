@@ -1198,14 +1198,18 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
           return Opt.none(IpAddress)
       else:
         # Skip this fixed-length field
-        var data = newSeqUninit[byte](proto.size)
-        if vb.data.readArray(data) != proto.size:
+        if not vb.data.isEnough(proto.size):
           return Opt.none(IpAddress)
+        vb.data.offset += proto.size
     elif proto.kind in {MAKind.Length, Path}:
       # Skip variable-length field
-      var data = newSeqUninit[byte](0)
-      if vb.data.readSeq(data) == -1:
+      var length: uint64
+      if vb.data.readVarint(length) == -1:
         return Opt.none(IpAddress)
-    # Marker - nothing to skip
 
-  Opt.none(IpAddress)
+      let skipLen = int(length)
+      if not vb.data.isEnough(skipLen):
+        return Opt.none(IpAddress)
+
+      vb.data.offset = vb.data.offset + skipLen
+    # Marker - nothing to skip
