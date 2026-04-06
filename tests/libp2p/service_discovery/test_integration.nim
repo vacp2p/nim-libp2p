@@ -7,6 +7,7 @@ import chronos, results
 import ../../../libp2p/[peerid, crypto/crypto, multiaddress, extended_peer_record]
 import ../../../libp2p/protocols/kad_disco
 import ../../../libp2p/protocols/kademlia_discovery/types as kd_types
+import ../../../libp2p/protocols/kademlia/types as kad_types
 import ../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../libp2p/protocols/service_discovery/[types, registrar, advertiser]
 import ../../tools/[unittest, lifecycle]

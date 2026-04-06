@@ -23,7 +23,7 @@ proc new*(T: typedesc[Advertiser]): T =
 proc clear*(a: Advertiser) =
   for t in a.running:
     if not t.fut.finished:
-      t.fut.cancel()
+      t.fut.cancelSoon()
   a.running.clear()
   cd_advertiser_pending_actions.set(0)
 
@@ -218,7 +218,7 @@ proc removeProvidedService*(
   for t in disco.advertiser.running:
     if t.serviceId == serviceId:
       if not t.fut.finished:
-        t.fut.cancel()
+        await t.fut.cancelAndWait()
       toRemove.add(t)
   for t in toRemove:
     disco.advertiser.running.excl t
