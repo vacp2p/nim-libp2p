@@ -433,6 +433,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     nameResolver = b.nameResolver,
     peerStore = peerStore,
     services = b.services,
+    rng = b.rng,
   )
 
   switch.mount(identify)
