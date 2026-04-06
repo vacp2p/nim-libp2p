@@ -47,17 +47,17 @@ template streamTransportTest*(
     addressIP6: Opt[MultiAddress],
     streamProvider: StreamProvider,
 ) =
-  asyncTestConcurrent "transport::ipv4":
+  asyncTest "transport::ipv4":
     runTransportTest(transportProvider, streamProvider, addressIP4)
 
-  asyncTestConcurrent "transport::ipv6":
+  asyncTest "transport::ipv6":
     if addressIP6.isNone:
       skip() # ipv6 not supported
       return
 
     runTransportTest(transportProvider, streamProvider, addressIP6.get())
 
-  asyncTestConcurrent "read/write Lp":
+  asyncTest "read/write Lp":
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         check (await stream.readLp(100)) == fromHex("1234")
@@ -76,7 +76,7 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTestConcurrent "EOF handling - first readOnce at EOF + repeated reads":
+  asyncTest "EOF handling - first readOnce at EOF + repeated reads":
     var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
@@ -113,7 +113,7 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTestConcurrent "server writes after EOF":
+  asyncTest "server writes after EOF":
     var clientHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
@@ -152,7 +152,7 @@ template streamTransportTest*(
     await serverTask
     await server.stop()
 
-  asyncTestConcurrent "incomplete read":
+  asyncTest "incomplete read":
     var serverHandlerDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
@@ -181,7 +181,7 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTestConcurrent "client closeWrite - server can still write":
+  asyncTest "client closeWrite - server can still write":
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Client reads server data
@@ -219,7 +219,7 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTestConcurrent "multiple empty writes before closeWrite":
+  asyncTest "multiple empty writes before closeWrite":
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Even with multiple empty writes, reading should eventually get EOF
@@ -243,7 +243,7 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTestConcurrent "closeWrite immediately after newStream":
+  asyncTest "closeWrite immediately after newStream":
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Should get EOF immediately
@@ -264,7 +264,7 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTestConcurrent "closing session should close all streams":
+  asyncTest "closing session should close all streams":
     const numStreams = 20
     const numIncomplete = 10
     const numComplete = numStreams - numIncomplete
@@ -316,7 +316,7 @@ template streamTransportTest*(
     await serverTask
     await server.stop()
 
-  asyncTestConcurrent "stream caching with multiple partial reads":
+  asyncTest "stream caching with multiple partial reads":
     const messageSize = 2048
     const chunkSize = 256
     let message = newData(messageSize)
@@ -342,7 +342,7 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTestConcurrent "stream with multiple parallel writes":
+  asyncTest "stream with multiple parallel writes":
     const messageSize = 2 * 1024 * 1024
     const chunkSize = 256 * 1024
     const parallelWrites = 10
@@ -388,7 +388,7 @@ template streamTransportTest*(
       clientStreamHandler,
     )
 
-  asyncTestConcurrent "connection with multiple parallel streams":
+  asyncTest "connection with multiple parallel streams":
     const chunkSize = 64
     const chunkCount = 32
     const messageSize = chunkSize * chunkCount
@@ -473,7 +473,7 @@ template streamTransportTest*(
     check countTransitions(serverReadOrder) >= (numStreams * chunkCount) div 2
     echo serverReadOrder
 
-  asyncTestConcurrent "server with multiple parallel connections":
+  asyncTest "server with multiple parallel connections":
     const chunkSize = 64
     const chunkCount = 32
     const messageSize = chunkSize * chunkCount

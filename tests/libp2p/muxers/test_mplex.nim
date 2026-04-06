@@ -31,7 +31,7 @@ suite "Mplex":
     checkTrackers()
 
   suite "channel encoding":
-    asyncTestConcurrent "encode header with channel id 0":
+    asyncTest "encode header with channel id 0":
       proc encHandler(
           msg: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -41,7 +41,7 @@ suite "Mplex":
       await conn.writeMsg(0, MessageType.New, ("stream 1").toBytes)
       await conn.close()
 
-    asyncTestConcurrent "encode header with channel id other than 0":
+    asyncTest "encode header with channel id other than 0":
       proc encHandler(
           msg: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -51,7 +51,7 @@ suite "Mplex":
       await conn.writeMsg(17, MessageType.New, ("stream 1").toBytes)
       await conn.close()
 
-    asyncTestConcurrent "encode header and body with channel id 0":
+    asyncTest "encode header and body with channel id 0":
       proc encHandler(
           msg: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -61,7 +61,7 @@ suite "Mplex":
       await conn.writeMsg(0, MessageType.MsgOut, ("stream 1").toBytes)
       await conn.close()
 
-    asyncTestConcurrent "encode header and body with channel id other than 0":
+    asyncTest "encode header and body with channel id other than 0":
       proc encHandler(
           msg: seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -71,7 +71,7 @@ suite "Mplex":
       await conn.writeMsg(17, MessageType.MsgOut, ("stream 1").toBytes)
       await conn.close()
 
-    asyncTestConcurrent "decode header with channel id 0":
+    asyncTest "decode header with channel id 0":
       let stream = BufferStream.new()
       let conn = stream
       await stream.pushData(fromHex("000873747265616d2031"))
@@ -81,7 +81,7 @@ suite "Mplex":
       check msg.msgType == MessageType.New
       await conn.close()
 
-    asyncTestConcurrent "decode header and body with channel id 0":
+    asyncTest "decode header and body with channel id 0":
       let stream = BufferStream.new()
       let conn = stream
       await stream.pushData(fromHex("021668656C6C6F2066726F6D206368616E6E656C20302121"))
@@ -92,7 +92,7 @@ suite "Mplex":
       check string.fromBytes(msg.data) == "hello from channel 0!!"
       await conn.close()
 
-    asyncTestConcurrent "decode header and body with channel id other than 0":
+    asyncTest "decode header and body with channel id other than 0":
       let stream = BufferStream.new()
       let conn = stream
       await stream.pushData(
@@ -106,7 +106,7 @@ suite "Mplex":
       await conn.close()
 
   suite "channel half-closed":
-    asyncTestConcurrent "(local close) - should close for write":
+    asyncTest "(local close) - should close for write":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -118,7 +118,7 @@ suite "Mplex":
       await chann.reset()
       await conn.close()
 
-    asyncTestConcurrent "(local close) - should allow reads until remote closes":
+    asyncTest "(local close) - should allow reads until remote closes":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -142,7 +142,7 @@ suite "Mplex":
       await conn.close()
       await closeFut
 
-    asyncTestConcurrent "(remote close) - channel should close for reading by remote":
+    asyncTest "(remote close) - channel should close for reading by remote":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -161,7 +161,7 @@ suite "Mplex":
       await chann.close()
       await conn.close()
 
-    asyncTestConcurrent "(remote close) - channel should allow writing on remote close":
+    asyncTest "(remote close) - channel should allow writing on remote close":
       let
         testData = "Hello!".toBytes
         conn = TestBufferStream.new(noopWriteHandler)
@@ -174,7 +174,7 @@ suite "Mplex":
         await chann.reset() # there's nobody reading the EOF!
         await conn.close()
 
-    asyncTestConcurrent "should not allow pushing data to channel when remote end closed":
+    asyncTest "should not allow pushing data to channel when remote end closed":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -191,7 +191,7 @@ suite "Mplex":
       await conn.close()
 
   suite "channel reset":
-    asyncTestConcurrent "channel should fail reading":
+    asyncTest "channel should fail reading":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -203,7 +203,7 @@ suite "Mplex":
 
       await conn.close()
 
-    asyncTestConcurrent "reset should complete read":
+    asyncTest "reset should complete read":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -217,7 +217,7 @@ suite "Mplex":
 
       await conn.close()
 
-    asyncTestConcurrent "reset should complete pushData":
+    asyncTest "reset should complete pushData":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -235,7 +235,7 @@ suite "Mplex":
       check await allFutures(push).withTimeout(100.millis)
       await conn.close()
 
-    asyncTestConcurrent "reset should complete both read and push":
+    asyncTest "reset should complete both read and push":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -246,7 +246,7 @@ suite "Mplex":
       check await allFutures(futs).withTimeout(100.millis)
       await conn.close()
 
-    asyncTestConcurrent "reset should complete both read and pushes":
+    asyncTest "reset should complete both read and pushes":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -270,7 +270,7 @@ suite "Mplex":
       check await allFutures(read, pushes()).withTimeout(100.millis)
       await conn.close()
 
-    asyncTestConcurrent "reset should complete both read and push with cancel":
+    asyncTest "reset should complete both read and push with cancel":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -283,7 +283,7 @@ suite "Mplex":
       check await allFutures(rfut, xfut).withTimeout(100.millis)
       await conn.close()
 
-    asyncTestConcurrent "should complete both read and push after reset":
+    asyncTest "should complete both read and push after reset":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -300,7 +300,7 @@ suite "Mplex":
       check await allFutures(rfut, rfut2, wfut, wfut2).withTimeout(100.millis)
       await conn.close()
 
-    asyncTestConcurrent "reset should complete ongoing push without reader":
+    asyncTest "reset should complete ongoing push without reader":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -311,7 +311,7 @@ suite "Mplex":
       check await allFutures(push1).withTimeout(100.millis)
       await conn.close()
 
-    asyncTestConcurrent "reset should complete ongoing read without a push":
+    asyncTest "reset should complete ongoing read without a push":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -322,7 +322,7 @@ suite "Mplex":
       check await allFutures(rfut).withTimeout(100.millis)
       await conn.close()
 
-    asyncTestConcurrent "reset should allow all reads and pushes to complete":
+    asyncTest "reset should allow all reads and pushes to complete":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -350,7 +350,7 @@ suite "Mplex":
 
       await conn.close()
 
-    asyncTestConcurrent "channel should fail writing":
+    asyncTest "channel should fail writing":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
@@ -361,7 +361,7 @@ suite "Mplex":
 
       await conn.close()
 
-    asyncTestConcurrent "channel should reset on timeout":
+    asyncTest "channel should reset on timeout":
       let
         conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true, timeout = 100.millis)
@@ -370,7 +370,7 @@ suite "Mplex":
       await conn.close()
 
   suite "mplex e2e":
-    asyncTestConcurrent "read/write receiver":
+    asyncTest "read/write receiver":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -408,7 +408,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
-    asyncTestConcurrent "read/write receiver lazy":
+    asyncTest "read/write receiver lazy":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -447,7 +447,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
-    asyncTestConcurrent "write fragmented":
+    asyncTest "write fragmented":
       let
         ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
         listenJob = newFuture[void]()
@@ -501,7 +501,7 @@ suite "Mplex":
 
       await listenFut
 
-    asyncTestConcurrent "read/write initiator":
+    asyncTest "read/write initiator":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -538,7 +538,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
-    asyncTestConcurrent "multiple streams":
+    asyncTest "multiple streams":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
@@ -586,7 +586,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
-    asyncTestConcurrent "multiple read/write streams":
+    asyncTest "multiple read/write streams":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -637,7 +637,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await listenFut
 
-    asyncTestConcurrent "channel closes listener with EOF":
+    asyncTest "channel closes listener with EOF":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
       let transport1 = TcpTransport.new(upgrade = Upgrade())
@@ -684,7 +684,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
-    asyncTestConcurrent "channel closes dialer with EOF":
+    asyncTest "channel closes dialer with EOF":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
@@ -740,7 +740,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
-    asyncTestConcurrent "dialing mplex closes both ends":
+    asyncTest "dialing mplex closes both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
@@ -778,7 +778,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
-    asyncTestConcurrent "listening mplex closes both ends":
+    asyncTest "listening mplex closes both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
@@ -820,7 +820,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
-    asyncTestConcurrent "canceling mplex handler closes both ends":
+    asyncTest "canceling mplex handler closes both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
@@ -862,7 +862,7 @@ suite "Mplex":
       await mplexDialFut
       await allFuturesRaising(transport1.stop(), transport2.stop())
 
-    asyncTestConcurrent "closing dialing connection should close both ends":
+    asyncTest "closing dialing connection should close both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
@@ -903,7 +903,7 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
-    asyncTestConcurrent "canceling listening connection should close both ends":
+    asyncTest "canceling listening connection should close both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())
 
@@ -946,7 +946,7 @@ suite "Mplex":
       await acceptFut
 
     suite "jitter":
-      asyncTestConcurrent "channel should be able to handle erratic read/writes":
+      asyncTest "channel should be able to handle erratic read/writes":
         let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
@@ -1017,7 +1017,7 @@ suite "Mplex":
         await allFuturesRaising(transport1.stop(), transport2.stop())
         await listenFut
 
-      asyncTestConcurrent "channel should handle 1 byte read/write":
+      asyncTest "channel should handle 1 byte read/write":
         let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
         let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())

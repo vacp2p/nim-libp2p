@@ -22,7 +22,7 @@ suite "Mix Protocol - Message Delivery":
   asyncTeardown:
     checkTrackers()
 
-  asyncTestConcurrent "expect reply, exit != destination":
+  asyncTest "expect reply, exit != destination":
     let nodes = await setupMixNodes(
       10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
     )
@@ -45,7 +45,7 @@ suite "Mix Protocol - Message Delivery":
 
     check response != 0.seconds
 
-  asyncTestConcurrent "expect no reply, exit != destination":
+  asyncTest "expect no reply, exit != destination":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 
@@ -72,7 +72,7 @@ suite "Mix Protocol - Message Delivery":
       receivedMsg.connPeerId != destination
       receivedMsg.connPeerId in nodes.mapIt(it.switch.peerInfo.peerId)
 
-  asyncTestConcurrent "multiple sequential messages on same connection":
+  asyncTest "multiple sequential messages on same connection":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 
@@ -98,7 +98,7 @@ suite "Mix Protocol - Message Delivery":
 
     check received.sorted == messages
 
-  asyncTestConcurrent "path nodes are random - exit node varies across messages":
+  asyncTest "path nodes are random - exit node varies across messages":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 
@@ -132,7 +132,7 @@ suite "Mix Protocol - Message Delivery":
       destination notin exitNodes
 
   when defined(libp2p_mix_experimental_exit_is_dest):
-    asyncTestConcurrent "expect reply, exit == destination":
+    asyncTest "expect reply, exit == destination":
       let nodes = await setupMixNodes(
         10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
       )
@@ -156,7 +156,7 @@ suite "Mix Protocol - Message Delivery":
 
       check response != 0.seconds
 
-  asyncTestConcurrent "length-prefixed protocol - verify readLp fix":
+  asyncTest "length-prefixed protocol - verify readLp fix":
     ## This test verifies the fix for the length prefix bug where responses
     ## from protocols using readLp() were losing their length prefix when
     ## flowing back through the mix network.
@@ -190,7 +190,7 @@ suite "Mix Protocol - Message Delivery":
 
     check response == testPayload
 
-  asyncTestConcurrent "intermediate nodes apply delay":
+  asyncTest "intermediate nodes apply delay":
     let delay: Delay = 300
     let delayStrategy: DelayStrategy = FixedDelayStrategy(delay: delay)
     let nodes = await setupMixNodes(10, delayStrategy = Opt.some(delayStrategy))
@@ -218,7 +218,7 @@ suite "Mix Protocol - Message Delivery":
       receivedMsg.data == data
       elapsed >= (delay * 2).toDuration
 
-  asyncTestConcurrent "concurrent messages with SURB replies":
+  asyncTest "concurrent messages with SURB replies":
     let echoProto = EchoProtocol.new()
 
     let nodes = await setupMixNodes(

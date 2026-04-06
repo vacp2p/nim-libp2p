@@ -48,7 +48,7 @@ suite "Autonat Service":
   teardown:
     checkTrackers()
 
-  asyncTestConcurrent "Peer must be not reachable":
+  asyncTest "Peer must be not reachable":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 3)
     autonatClientStub.answer = NotReachable
 
@@ -79,7 +79,7 @@ suite "Autonat Service":
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
-  asyncTestConcurrent "Peer must be reachable":
+  asyncTest "Peer must be reachable":
     let autonatService =
       AutonatService.new(AutonatClient.new(), rng, Opt.some(1.seconds))
 
@@ -125,7 +125,7 @@ suite "Autonat Service":
 
     check switch1.peerInfo.addrs == switch1.peerInfo.addrs
 
-  asyncTestConcurrent "Peer must be not reachable and then reachable":
+  asyncTest "Peer must be not reachable and then reachable":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 6)
     autonatClientStub.answer = NotReachable
 
@@ -174,7 +174,7 @@ suite "Autonat Service":
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
-  asyncTestConcurrent "Peer must be reachable when one connected peer has autonat disabled":
+  asyncTest "Peer must be reachable when one connected peer has autonat disabled":
     let autonatService = AutonatService.new(
       AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 2
     )
@@ -216,7 +216,7 @@ suite "Autonat Service":
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
-  asyncTestConcurrent "Unknown answers must be ignored":
+  asyncTest "Unknown answers must be ignored":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 6)
     autonatClientStub.answer = NotReachable
 
@@ -266,7 +266,7 @@ suite "Autonat Service":
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
-  asyncTestConcurrent "Calling setup and stop twice must work":
+  asyncTest "Calling setup and stop twice must work":
     let switch = createSwitch()
     let autonatService = AutonatService.new(
       AutonatClientStub.new(expectedDials = 0), rng, Opt.some(1.seconds)
@@ -280,7 +280,7 @@ suite "Autonat Service":
 
     await allFuturesRaising(switch.stop())
 
-  asyncTestConcurrent "Must bypass maxConnectionsPerPeer limit":
+  asyncTest "Must bypass maxConnectionsPerPeer limit":
     let autonatService = AutonatService.new(
       AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 1
     )
@@ -323,7 +323,7 @@ suite "Autonat Service":
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
-  asyncTestConcurrent "Must work when peers ask each other at the same time with max 1 conn per peer":
+  asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
     let autonatService1 = AutonatService.new(
       AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
@@ -377,7 +377,7 @@ suite "Autonat Service":
 
     await allFuturesRaising(switch1.stop(), switch2.stop(), switch3.stop())
 
-  asyncTestConcurrent "Must work for one peer when two peers ask each other at the same time with max 1 conn per peer":
+  asyncTest "Must work for one peer when two peers ask each other at the same time with max 1 conn per peer":
     let autonatService1 = AutonatService.new(
       AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
@@ -426,7 +426,7 @@ suite "Autonat Service":
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
-  asyncTestConcurrent "Must work with low maxConnections":
+  asyncTest "Must work with low maxConnections":
     let autonatService = AutonatService.new(
       AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 1
     )
@@ -477,7 +477,7 @@ suite "Autonat Service":
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop(), switch5.stop()
     )
 
-  asyncTestConcurrent "Peer must not ask an incoming peer":
+  asyncTest "Peer must not ask an incoming peer":
     let autonatService = AutonatService.new(AutonatClient.new(), rng)
 
     let switch1 = createSwitch(autonatService)

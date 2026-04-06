@@ -28,7 +28,7 @@ suite "Mix Protocol - Node Failures":
   asyncTeardown:
     checkTrackers()
 
-  asyncTestConcurrent "multiple SURBs - reply received when one path unavailable":
+  asyncTest "multiple SURBs - reply received when one path unavailable":
     ## 2 SURBs with separate paths.
     ## Stop a node from SURB[0]'s path after forward delivery.
     ## Reply must arrive via SURB[1].
@@ -98,7 +98,7 @@ suite "Mix Protocol - Node Failures":
       response == responseData
       mock.receivedPacketCount == 1
 
-  asyncTestConcurrent "multiple SURBs - both replies received, only one delivered":
+  asyncTest "multiple SURBs - both replies received, only one delivered":
     ## 2 SURBs, all paths healthy. Exit sends reply via ALL SURBs.
     ## Both replies arrive at the sender's mix layer,
     ## but only one is delivered to the application.
@@ -135,7 +135,7 @@ suite "Mix Protocol - Node Failures":
     checkUntilTimeout:
       mock.receivedPacketCount == 2
 
-  asyncTestConcurrent "sender receives empty response when destination is unreachable":
+  asyncTest "sender receives empty response when destination is unreachable":
     ## Exit node gets DialFailedError, sends empty reply via SURB,
     ## sender receives an empty response from readLp().
     let nodes = await setupMixNodes(
@@ -164,7 +164,7 @@ suite "Mix Protocol - Node Failures":
     let response = await conn.readLp(1024).wait(10.seconds)
     check response.len == 0
 
-  asyncTestConcurrent "forward path node down - hop 2 or exit":
+  asyncTest "forward path node down - hop 2 or exit":
     ## With 4 mix nodes the sender (node 0) has a pool of exactly 3 nodes.
     ## After sending, we identify the first hop, then stop one of the other two nodes.
 
@@ -201,7 +201,7 @@ suite "Mix Protocol - Node Failures":
     expect AsyncTimeoutError:
       discard await nrProto.receivedMessages.get().wait(5.seconds)
 
-  asyncTestConcurrent "skip and remove nodes with invalid multiaddress from pool":
+  asyncTest "skip and remove nodes with invalid multiaddress from pool":
     # This test validates that nodes with invalid multiaddrs are:
     # 1. Skipped during path construction
     # 2. Removed from peerStore MixPubKeyBook
