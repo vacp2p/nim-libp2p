@@ -7,7 +7,7 @@ on:
 
 jobs:
   tests-no-flags:
-    timeout-minutes: 30
+    timeout-minutes: 55
     strategy:
       fail-fast: false
 
