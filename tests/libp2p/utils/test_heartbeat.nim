@@ -14,7 +14,7 @@ suite "Heartbeat":
       runAfter 500.milliseconds:
         i.inc()
 
-    let hb = t()
+    t()
     check i == 0
     await sleepAsync(700.milliseconds)
     check i == 1
