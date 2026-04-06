@@ -107,27 +107,27 @@ suite "Perf protocol":
   teardown:
     checkTrackers()
 
-  asyncTest "quic":
+  asyncTestConcurrent "quic":
     let server = createSwitch(isServer = true, useQuic = true)
     let client = createSwitch(useQuic = true)
     await runTest(server, client)
 
-  asyncTest "tcp::yamux":
+  asyncTestConcurrent "tcp::yamux":
     let server = createSwitch(isServer = true, useYamux = true)
     let client = createSwitch(useYamux = true)
     await runTest(server, client)
 
-  asyncTest "tcp::mplex":
+  asyncTestConcurrent "tcp::mplex":
     let server = createSwitch(isServer = true, useMplex = true)
     let client = createSwitch(useMplex = true)
     await runTest(server, client)
 
-  asyncTest "perf with exception::yamux":
+  asyncTestConcurrent "perf with exception::yamux":
     let server = createSwitch(isServer = true, useYamux = true)
     let client = createSwitch(useYamux = true)
     await runTestWithException(server, client)
 
-  asyncTest "perf with exception::mplex":
+  asyncTestConcurrent "perf with exception::mplex":
     let server = createSwitch(isServer = true, useMplex = true)
     let client = createSwitch(useMplex = true)
     await runTestWithException(server, client)

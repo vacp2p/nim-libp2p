@@ -11,7 +11,7 @@ when not defined(macosx):
   import ../../tools/[unittest]
 
   suite "Heartbeat":
-    asyncTest "simple heartbeat":
+    asyncTestConcurrent "simple heartbeat":
       var i = 0
       proc t() {.async.} =
         heartbeat "shouldn't see this", 50.milliseconds:
@@ -23,7 +23,7 @@ when not defined(macosx):
       check:
         i in 9 .. 12
 
-    asyncTest "change heartbeat period on the fly":
+    asyncTestConcurrent "change heartbeat period on the fly":
       var i = 0
       proc t() {.async.} =
         var period = 30.milliseconds
@@ -42,7 +42,7 @@ when not defined(macosx):
       check:
         i in 8 .. 11
 
-    asyncTest "catch up on slow heartbeat":
+    asyncTestConcurrent "catch up on slow heartbeat":
       var i = 0
       proc t() {.async.} =
         heartbeat "this is normal", 30.milliseconds:
@@ -59,7 +59,7 @@ when not defined(macosx):
       check:
         i in 14 .. 17
 
-    asyncTest "heartbeat sleep first":
+    asyncTestConcurrent "heartbeat sleep first":
       var i = 0
       proc t() {.async.} =
         heartbeat "shouldn't see this", 500.milliseconds, true:

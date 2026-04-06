@@ -7,14 +7,14 @@ import ./trackers
 export checkTrackers # TODO: maybe consider importing it on demand?
 export unittest2 except suite
 
-const parallelTestBatchSize* = 10 # todo
+const concurrentTestBatchSize* = 4 # todo
 
-type ParallelTestBody* = proc(): Future[void] {.closure, gcsafe.}
+type ConcurrentTestBody* = proc(): Future[void] {.closure, gcsafe.}
 
-var gParallelQueue {.global.}: seq[tuple[name: string, body: ParallelTestBody]]
+var gConcurrentQueue {.global.}: seq[tuple[name: string, body: ConcurrentTestBody]]
 
-proc runParallelBatch*(
-    batch: seq[tuple[name: string, body: ParallelTestBody]]
+proc runConcurrentBatch*(
+    batch: seq[tuple[name: string, body: ConcurrentTestBody]]
 ) {.async.} =
   var futures = newSeq[Future[void]](batch.len)
   for i, entry in batch:
@@ -25,20 +25,20 @@ proc runParallelBatch*(
   await allFutures(futures)
   for i, f in futures:
     if f.failed:
-      checkpoint("Parallel test '" & batch[i].name & "' failed: " & f.error.msg)
+      checkpoint("Concurrent test '" & batch[i].name & "' failed: " & f.error.msg)
       fail()
 
-template flushParallelTests*() =
-  if gParallelQueue.len > 0:
-    let batch = gParallelQueue
-    gParallelQueue = @[]
+template flushConcurrentTests*() =
+  if gConcurrentQueue.len > 0:
+    let batch = gConcurrentQueue
+    gConcurrentQueue = @[]
     var batchNames = ""
     for i, entry in batch:
       if i > 0:
         batchNames.add(", ")
       batchNames.add(entry.name)
-    test "parallel: [" & batchNames & "]":
-      waitFor runParallelBatch(batch)
+    test "concurrent: [" & batchNames & "]":
+      waitFor runConcurrentBatch(batch)
 
 ## suite wraps unittest2.suite in a proc to avoid issue with too many global variables
 ## See https://github.com/nim-lang/Nim/issues/8500
@@ -47,7 +47,7 @@ template suite*(name: string, body: untyped): untyped =
     proc testSuite() =
       unittest2.suite name:
         body
-        flushParallelTests()
+        flushConcurrentTests()
 
     testSuite()
 
@@ -70,7 +70,7 @@ template asyncSetup*(body: untyped): untyped =
     )
 
 template asyncTest*(name: string, body: untyped): untyped =
-  flushParallelTests()
+  flushConcurrentTests()
   test name:
     waitFor(
       (
@@ -79,12 +79,12 @@ template asyncTest*(name: string, body: untyped): untyped =
       )()
     )
 
-template asyncTestParallel*(name: string, body: untyped): untyped =
-  let testBody: ParallelTestBody = proc(): Future[void] {.async, closure.} =
+template asyncTestConcurrent*(name: string, body: untyped): untyped =
+  let testBody: ConcurrentTestBody = proc(): Future[void] {.async, closure.} =
     body
-  gParallelQueue.add((name, testBody))
-  if gParallelQueue.len >= parallelTestBatchSize:
-    flushParallelTests()
+  gConcurrentQueue.add((name, testBody))
+  if gConcurrentQueue.len >= concurrentTestBatchSize:
+    flushConcurrentTests()
 
 proc buildAndExpr(n: NimNode): NimNode =
   # Helper proc to recursively build a combined boolean expression

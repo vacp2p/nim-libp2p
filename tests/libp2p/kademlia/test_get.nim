@@ -13,7 +13,7 @@ suite "KadDHT Get":
   teardown:
     checkTrackers()
 
-  asyncTest "Get from peer":
+  asyncTestConcurrent "Get from peer":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -36,7 +36,7 @@ suite "KadDHT Get":
       kads[0].containsData(key, value)
       kads[1].containsData(key, value)
 
-  asyncTest "Get value that is locally present":
+  asyncTestConcurrent "Get value that is locally present":
     let kads = setupKadSwitches(1)
     startAndDeferStop(kads)
 
@@ -50,7 +50,7 @@ suite "KadDHT Get":
       kads[0].containsData(key, value)
       (await kads[0].getValue(key, quorumOverride = Opt.some(1))).get().value == value
 
-  asyncTest "Divergent getVal responses from peers":
+  asyncTestConcurrent "Divergent getVal responses from peers":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     startAndDeferStop(kads)
 
@@ -84,7 +84,7 @@ suite "KadDHT Get":
       kads[3].containsData(key, bestValue)
       kads[4].containsData(key, bestValue)
 
-  asyncTest "Could not achieve quorum":
+  asyncTestConcurrent "Could not achieve quorum":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     startAndDeferStop(kads)
 
@@ -107,7 +107,7 @@ suite "KadDHT Get":
     check record.isErr()
     check record.error() == "Not enough valid records to achieve quorum, needed 5 got 1"
 
-  asyncTest "Update peers with empty values":
+  asyncTestConcurrent "Update peers with empty values":
     let kads = setupKadSwitches(5, DefaultEntryValidator(), DefaultEntrySelector())
     startAndDeferStop(kads)
 
@@ -138,7 +138,7 @@ suite "KadDHT Get":
       kads[3].containsData(key, value)
       kads[4].containsData(key, value)
 
-  asyncTest "Get updates routing table with closerPeers (no record)":
+  asyncTestConcurrent "Get updates routing table with closerPeers (no record)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = setupKadSwitches(
       3,
@@ -166,7 +166,7 @@ suite "KadDHT Get":
       record.isErr()
       kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
 
-  asyncTest "Get updates routing table with closerPeers (with record)":
+  asyncTestConcurrent "Get updates routing table with closerPeers (with record)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = setupKadSwitches(
       3,
@@ -198,7 +198,7 @@ suite "KadDHT Get":
       record.get().value == value
       kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
 
-  asyncTest "Quorum handling is ignored if quorum is 0 or 1":
+  asyncTestConcurrent "Quorum handling is ignored if quorum is 0 or 1":
     let kads = setupKadSwitches(
       3,
       PermissiveValidator(),
@@ -229,7 +229,7 @@ suite "KadDHT Get":
       (await kads[0].getValue(key, quorumOverride = Opt.some(1))).get().value ==
         valueLocal
 
-  asyncTest "Get value rejects record where Record.key does not match requested key":
+  asyncTestConcurrent "Get value rejects record where Record.key does not match requested key":
     let kad = setupKad()
 
     let
@@ -267,7 +267,7 @@ suite "KadDHT Get":
       kad.containsNoData(key)
       kad.containsNoData(wrongKey)
 
-  asyncTest "Get value rejects response without record":
+  asyncTestConcurrent "Get value rejects response without record":
     let kad = setupKad()
 
     let
@@ -296,7 +296,7 @@ suite "KadDHT Get":
       record.isErr()
       kad.containsNoData(key)
 
-  asyncTest "Get value rejects record without value":
+  asyncTestConcurrent "Get value rejects record without value":
     let kad = setupKad()
 
     let
@@ -331,7 +331,7 @@ suite "KadDHT Get":
       record.isErr()
       kad.containsNoData(key)
 
-  asyncTest "Get value succeeds with some peers returning mismatched keys":
+  asyncTestConcurrent "Get value succeeds with some peers returning mismatched keys":
     let kads = setupKadSwitches(3)
 
     let
@@ -371,7 +371,7 @@ suite "KadDHT Get":
       record.get().value == value
       mockKad.containsData(key, value) # mock node was updated
 
-  asyncTest "Get value rejects records that fail validation":
+  asyncTestConcurrent "Get value rejects records that fail validation":
     # Use RestrictiveValidator which rejects all records
     let kads = setupKadSwitches(2, RestrictiveValidator(), CandSelector())
     startAndDeferStop(kads)
@@ -396,7 +396,7 @@ suite "KadDHT Get":
       record.isErr()
       kads[0].containsNoData(key)
 
-  asyncTest "Get value succeeds when some peers are offline":
+  asyncTestConcurrent "Get value succeeds when some peers are offline":
     let kads = setupKadSwitches(4)
     startAndDeferStop(kads)
 
@@ -420,7 +420,7 @@ suite "KadDHT Get":
       record.isOk()
       record.get().value == value
 
-  asyncTest "Get value fails when too many peers are offline":
+  asyncTestConcurrent "Get value fails when too many peers are offline":
     let kads = setupKadSwitches(4)
     startAndDeferStop(kads)
 
@@ -445,7 +445,7 @@ suite "KadDHT Get":
     check:
       record.isErr()
 
-  asyncTest "Get value retrieves binary data with null and high bytes":
+  asyncTestConcurrent "Get value retrieves binary data with null and high bytes":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 

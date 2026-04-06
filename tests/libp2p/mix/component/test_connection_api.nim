@@ -13,7 +13,7 @@ suite "Mix Protocol - Connection API":
   asyncTeardown:
     checkTrackers()
 
-  asyncTest "send fails when pool has not enough nodes":
+  asyncTestConcurrent "send fails when pool has not enough nodes":
     let nodes = await setupMixNodes(3) # each node's pool = 2 peers (< PathLength)
     startAndDeferStop(nodes)
 
@@ -30,7 +30,7 @@ suite "Mix Protocol - Connection API":
     expect LPStreamError:
       await conn.writeLp(@[1.byte, 2, 3])
 
-  asyncTest "toConnection rejects expectReply without destReadBehavior":
+  asyncTestConcurrent "toConnection rejects expectReply without destReadBehavior":
     let nodes = await setupMixNodes(10) # no destReadBehavior registered
     startAndDeferStop(nodes)
 
@@ -50,7 +50,7 @@ suite "Mix Protocol - Connection API":
       conn.isErr
       conn.error == "no destination read behavior for codec"
 
-  asyncTest "read from write-only connection raises error":
+  asyncTestConcurrent "read from write-only connection raises error":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 
@@ -70,7 +70,7 @@ suite "Mix Protocol - Connection API":
     expect LPStreamError:
       discard await conn.readLp(1024)
 
-  asyncTest "write rejects oversized messages":
+  asyncTestConcurrent "write rejects oversized messages":
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 

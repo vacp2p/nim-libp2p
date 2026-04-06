@@ -55,7 +55,7 @@ suite "Autonat":
   teardown:
     checkTrackers()
 
-  asyncTest "dialMe returns public address":
+  asyncTestConcurrent "dialMe returns public address":
     let
       src = newStandardSwitch()
       dst = createAutonatSwitch()
@@ -68,7 +68,7 @@ suite "Autonat":
     check ma in src.peerInfo.addrs
     await allFutures(src.stop(), dst.stop())
 
-  asyncTest "dialMe handles dial error msg":
+  asyncTestConcurrent "dialMe handles dial error msg":
     let
       src = newStandardSwitch()
       dst = makeAutonatServicePrivate()
@@ -82,7 +82,7 @@ suite "Autonat":
         await AutonatClient.new().dialMe(src, dst.peerInfo.peerId, dst.peerInfo.addrs)
     await allFutures(src.stop(), dst.stop())
 
-  asyncTest "Timeout is triggered in autonat handle":
+  asyncTestConcurrent "Timeout is triggered in autonat handle":
     let
       src = newStandardSwitch()
       dst = newStandardSwitch()
@@ -113,7 +113,7 @@ suite "Autonat":
       response.ma.isNone()
     await allFutures(doesNothingListener.stop(), src.stop(), dst.stop())
 
-  asyncTest "dialMe dials dns and returns public address":
+  asyncTestConcurrent "dialMe dials dns and returns public address":
     let
       src = newStandardSwitch()
       dst = createAutonatSwitch(nameResolver = MockResolver.default())

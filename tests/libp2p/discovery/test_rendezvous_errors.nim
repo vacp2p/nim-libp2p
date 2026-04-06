@@ -20,7 +20,7 @@ suite "RendezVous Errors":
   teardown:
     checkTrackers()
 
-  asyncTest "Various local error":
+  asyncTestConcurrent "Various local error":
     let rdv = RendezVous.new(
       minDuration = MinimumAcceptedDuration, maxDuration = MaximumDuration
     )
@@ -98,7 +98,7 @@ suite "RendezVous Errors":
   for test in testCases:
     let (testName, getMessage, expectedStatus) = test
 
-    asyncTest &"Node returns ERROR_CODE for invalid message - {testName}":
+    asyncTestConcurrent &"Node returns ERROR_CODE for invalid message - {testName}":
       let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
       startAndDeferStop(peerNodes & rendezvousNode)
 
@@ -119,7 +119,7 @@ suite "RendezVous Errors":
 
       check actualStatus == expectedStatus
 
-  asyncTest "Node returns NotAuthorized when Register exceeding peer limit":
+  asyncTestConcurrent "Node returns NotAuthorized when Register exceeding peer limit":
     let (rendezvousNode, peerNodes) = setupRendezvousNodeWithPeerNodes(1)
     startAndDeferStop(peerNodes & rendezvousNode)
 

@@ -11,7 +11,7 @@ suite "ObservedAddrManager":
   teardown:
     checkTrackers()
 
-  asyncTest "Calculate the most oberserved IP correctly":
+  asyncTestConcurrent "Calculate the most oberserved IP correctly":
     let observedAddrManager = ObservedAddrManager.new(minCount = 3)
 
     # Calculate the most oberserved IP4 correctly
@@ -57,7 +57,7 @@ suite "ObservedAddrManager":
       observedAddrManager.getMostObservedProtosAndPorts() ==
         @[mostObservedIP4AndPort, mostObservedIP6AndPort]
 
-  asyncTest "replace first proto value by most observed when there is only one protocol":
+  asyncTestConcurrent "replace first proto value by most observed when there is only one protocol":
     let observedAddrManager = ObservedAddrManager.new(minCount = 3)
     let mostObservedIP4AndPort = MultiAddress.init("/ip4/1.2.3.4/tcp/1").get()
 

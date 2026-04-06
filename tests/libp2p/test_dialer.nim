@@ -11,7 +11,7 @@ suite "Dialer":
   teardown:
     checkTrackers()
 
-  asyncTest "Connect forces a new connection":
+  asyncTestConcurrent "Connect forces a new connection":
     let
       src = newStandardSwitch()
       dst = newStandardSwitch()
@@ -29,7 +29,7 @@ suite "Dialer":
 
     await allFutures(src.stop(), dst.stop())
 
-  asyncTest "Max connections reached":
+  asyncTestConcurrent "Max connections reached":
     var switches: seq[Switch]
 
     let dst = newStandardSwitch(maxConnections = 2)

@@ -21,7 +21,7 @@ suite "Yamux Header Tests":
   teardown:
     checkTrackers()
 
-  asyncTest "Data header":
+  asyncTestConcurrent "Data header":
     const
       streamId = 1
       length = 100
@@ -42,7 +42,7 @@ suite "Yamux Header Tests":
       headerDecoded.streamId == streamId
       headerDecoded.length == length
 
-  asyncTest "Window update":
+  asyncTestConcurrent "Window update":
     const
       streamId = 5
       delta = 1000
@@ -65,7 +65,7 @@ suite "Yamux Header Tests":
       windowDecoded.streamId == streamId
       windowDecoded.length == delta
 
-  asyncTest "Ping":
+  asyncTestConcurrent "Ping":
     let pingHeader = YamuxHeader.ping(MsgFlags.Syn, 0x12345678'u32)
     let pingEncoded = pingHeader.encode()
 
@@ -82,7 +82,7 @@ suite "Yamux Header Tests":
       pingDecoded.streamId == 0
       pingDecoded.length == 0x12345678'u32
 
-  asyncTest "Go away":
+  asyncTestConcurrent "Go away":
     let goAwayHeader = YamuxHeader.goAway(GoAwayStatus.ProtocolError)
     let goAwayEncoded = goAwayHeader.encode()
 
@@ -99,7 +99,7 @@ suite "Yamux Header Tests":
       goAwayDecoded.streamId == 0
       goAwayDecoded.length == 1'u32
 
-  asyncTest "Error codes":
+  asyncTestConcurrent "Error codes":
     let encodedNormal = YamuxHeader.goAway(GoAwayStatus.NormalTermination).encode()
     let encodedProtocol = YamuxHeader.goAway(GoAwayStatus.ProtocolError).encode()
     let encodedInternal = YamuxHeader.goAway(GoAwayStatus.InternalError).encode()
@@ -119,7 +119,7 @@ suite "Yamux Header Tests":
       decodedInternal.msgType == MsgType.GoAway
       decodedInternal.length == 2'u32
 
-  asyncTest "Flags":
+  asyncTestConcurrent "Flags":
     const
       streamId = 1
       length = 100
@@ -151,7 +151,7 @@ suite "Yamux Header Tests":
       let decoded = await readBytes(encoded)
       check decoded.flags == flags
 
-  asyncTest "Boundary conditions":
+  asyncTestConcurrent "Boundary conditions":
     # Test maximum values
     const maxFlags = {Syn, Ack, Fin, Rst}
     let maxHeader =
@@ -186,7 +186,7 @@ suite "Yamux Header Tests":
       minDecoded.streamId == 0
       minDecoded.length == 0'u32
 
-  asyncTest "Incomplete header should raise LPStreamIncompleteError":
+  asyncTestConcurrent "Incomplete header should raise LPStreamIncompleteError":
     let buff = BufferStream.new()
 
     let valid = YamuxHeader.data(streamId = 7, length = 0, {}).encode()
@@ -201,7 +201,7 @@ suite "Yamux Header Tests":
     expect LPStreamIncompleteError:
       discard await headerFut
 
-  asyncTest "Non-zero version byte is preserved":
+  asyncTestConcurrent "Non-zero version byte is preserved":
     let valid = YamuxHeader.data(streamId = 1, length = 100, {Syn}).encode()
     var mutated = valid
     mutated[0] = 1'u8
@@ -210,7 +210,7 @@ suite "Yamux Header Tests":
     check:
       decoded.version == 1
 
-  asyncTest "Invalid msgType should raise YamuxError":
+  asyncTestConcurrent "Invalid msgType should raise YamuxError":
     let valid = YamuxHeader.data(streamId = 1, length = 0, {}).encode()
     var mutated = valid
     mutated[1] = 0xFF'u8
@@ -218,7 +218,7 @@ suite "Yamux Header Tests":
     expect YamuxError:
       discard await readBytes(mutated)
 
-  asyncTest "Invalid flags should raise YamuxError":
+  asyncTestConcurrent "Invalid flags should raise YamuxError":
     let valid = YamuxHeader.data(streamId = 1, length = 0, {}).encode()
     var mutated = valid
     # Set flags to 16 which is outside the allowed 0..15 range
@@ -228,7 +228,7 @@ suite "Yamux Header Tests":
     expect YamuxError:
       discard await readBytes(mutated)
 
-  asyncTest "Invalid flags (high byte non-zero) should raise YamuxError":
+  asyncTestConcurrent "Invalid flags (high byte non-zero) should raise YamuxError":
     let valid = YamuxHeader.data(streamId = 1, length = 0, {}).encode()
     var mutated = valid
     # Set high flags byte to 1, which is outside the allowed 0..15 range
@@ -238,7 +238,7 @@ suite "Yamux Header Tests":
     expect YamuxError:
       discard await readBytes(mutated)
 
-  asyncTest "Partial push (6+6 bytes) completes without closing":
+  asyncTestConcurrent "Partial push (6+6 bytes) completes without closing":
     const
       streamId = 9
       length = 42
@@ -269,7 +269,7 @@ suite "Yamux Header Tests":
       decoded.streamId == streamId
       decoded.length == length
 
-  asyncTest "Two headers back-to-back decode sequentially":
+  asyncTestConcurrent "Two headers back-to-back decode sequentially":
     let h1 = YamuxHeader.data(streamId = 2, length = 10, {Ack})
     let h2 = YamuxHeader.ping(MsgFlags.Syn, 0xABCDEF01'u32)
     let b1 = h1.encode()
@@ -294,7 +294,7 @@ suite "Yamux Header Tests":
       d2.length == 0xABCDEF01'u32
       d2.flags == {Syn}
 
-  asyncTest "StreamId 0x01020304 encodes big-endian":
+  asyncTestConcurrent "StreamId 0x01020304 encodes big-endian":
     const streamId = 0x01020304'u32
     let header = YamuxHeader.data(streamId = streamId, length = 0, {})
     let enc = header.encode()
@@ -303,7 +303,7 @@ suite "Yamux Header Tests":
     let dec = await readBytes(enc)
     check dec.streamId == streamId
 
-  asyncTest "GoAway unknown status code is preserved":
+  asyncTestConcurrent "GoAway unknown status code is preserved":
     let valid = YamuxHeader.goAway(GoAwayStatus.NormalTermination).encode()
     var mutated = valid
     # Set the GoAway code (last byte) to 255, which is not a known GoAwayStatus

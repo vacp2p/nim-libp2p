@@ -200,13 +200,13 @@ suite "Multistream select":
   teardown:
     checkTrackers()
 
-  asyncTest "test select custom proto":
+  asyncTestConcurrent "test select custom proto":
     let ms = MultistreamSelect.new()
     let conn = newTestSelectStream()
     check (await ms.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
     await conn.close()
 
-  asyncTest "test handle custom proto":
+  asyncTestConcurrent "test handle custom proto":
     let ms = MultistreamSelect.new()
     let conn = newTestSelectStream()
 
@@ -221,7 +221,7 @@ suite "Multistream select":
     ms.addHandler("/test/proto/1.0.0", protocol)
     await ms.handle(conn)
 
-  asyncTest "test handle `ls`":
+  asyncTestConcurrent "test handle `ls`":
     let ms = MultistreamSelect.new()
 
     var conn: Connection = nil
@@ -243,7 +243,7 @@ suite "Multistream select":
     await ms.handle(conn)
     await done.wait(5.seconds)
 
-  asyncTest "test handle `na`":
+  asyncTestConcurrent "test handle `na`":
     let ms = MultistreamSelect.new()
 
     var conn: Connection = nil
@@ -261,7 +261,7 @@ suite "Multistream select":
 
     await ms.handle(conn)
 
-  asyncTest "e2e - handle":
+  asyncTestConcurrent "e2e - handle":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
@@ -305,7 +305,7 @@ suite "Multistream select":
 
     await handlerWait.wait(30.seconds)
 
-  asyncTest "e2e - streams limit":
+  asyncTestConcurrent "e2e - streams limit":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
     let blocker = newWaitGroup(1)
 
@@ -382,7 +382,7 @@ suite "Multistream select":
 
     await handlerWait.cancelAndWait()
 
-  asyncTest "e2e - ls":
+  asyncTestConcurrent "e2e - ls":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     let msListen = MultistreamSelect.new()
@@ -421,7 +421,7 @@ suite "Multistream select":
     await transport1.stop()
     await listenFut.wait(5.seconds)
 
-  asyncTest "e2e - select one from a list with unsupported protos":
+  asyncTestConcurrent "e2e - select one from a list with unsupported protos":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
@@ -463,7 +463,7 @@ suite "Multistream select":
     await transport2.stop()
     await transport1.stop()
 
-  asyncTest "e2e - select one with both valid":
+  asyncTestConcurrent "e2e - select one with both valid":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol

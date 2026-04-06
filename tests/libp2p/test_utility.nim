@@ -78,7 +78,7 @@ suite "Utility":
       result:
         uint = safeConvert[int](11.uint))
 
-  asyncTest "collectCompleted collects all futures that have finished":
+  asyncTestConcurrent "collectCompleted collects all futures that have finished":
     proc futFinishes(): Future[int] {.async: (raises: [CancelledError]).} =
       await sleepAsync(1.millis)
       return 1

@@ -51,7 +51,7 @@ suite "Quic transport":
     streamProvider,
   )
 
-  asyncTest "transport e2e - invalid cert - server":
+  asyncTestConcurrent "transport e2e - invalid cert - server":
     let server = await createQuicTransport(isServer = true, withInvalidCert = true)
     asyncSpawn createServerAcceptConn(server)()
     defer:
@@ -65,7 +65,7 @@ suite "Quic transport":
 
     await runClient()
 
-  asyncTest "transport e2e - invalid cert - client":
+  asyncTestConcurrent "transport e2e - invalid cert - client":
     let server = await createQuicTransport(isServer = true)
     asyncSpawn createServerAcceptConn(server)()
     defer:
@@ -88,7 +88,7 @@ suite "Quic transport":
 
     await runClient()
 
-  asyncTest "should allow multiple local addresses":
+  asyncTestConcurrent "should allow multiple local addresses":
     let addr1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get()
     let addr2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get()
 
@@ -124,7 +124,7 @@ suite "Quic transport":
       not serverConn1.closed()
       not serverConn2.closed()
 
-  asyncTest "server not accepting":
+  asyncTestConcurrent "server not accepting":
     let server = await createQuicTransport(isServer = true)
     # intentionally not calling createServerAcceptConn as server should not accept
     defer:
@@ -141,7 +141,7 @@ suite "Quic transport":
 
     await runClient()
 
-  asyncTest "peer ID extraction from certificate":
+  asyncTestConcurrent "peer ID extraction from certificate":
     # Create server with known private key
     let serverPrivateKey = PrivateKey.random(ECDSA, rng[]).tryGet()
     let expectedPeerId = PeerId.init(serverPrivateKey).tryGet()
@@ -166,7 +166,7 @@ suite "Quic transport":
     await client.stop()
     await server.stop()
 
-  asyncTest "accept on stopped transport":
+  asyncTestConcurrent "accept on stopped transport":
     let server = await createQuicTransport(isServer = true)
     await server.stop()
 

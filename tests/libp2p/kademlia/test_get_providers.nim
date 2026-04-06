@@ -13,7 +13,7 @@ suite "KadDHT - Get Providers":
   teardown:
     checkTrackers()
 
-  asyncTest "Get providers uses iterative lookup":
+  asyncTestConcurrent "Get providers uses iterative lookup":
     let kads = setupKadSwitches(
       4,
       cleanupProvidersInterval = 1.seconds(),
@@ -55,7 +55,7 @@ suite "KadDHT - Get Providers":
     # Query for unknown key is handled
     check (await kads[0].getProviders(@[1.byte, 1, 1, 1])).len == 0
 
-  asyncTest "Get providers updates routing table with closerPeers when no providers are returned":
+  asyncTestConcurrent "Get providers updates routing table with closerPeers when no providers are returned":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = setupKadSwitches(
       3,
@@ -83,7 +83,7 @@ suite "KadDHT - Get Providers":
       providers.len() == 0
       kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
 
-  asyncTest "Get providers updates routing table with closerPeers (with providers)":
+  asyncTestConcurrent "Get providers updates routing table with closerPeers (with providers)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = setupKadSwitches(
       3,
@@ -114,7 +114,7 @@ suite "KadDHT - Get Providers":
       providers.len() == 1
       kads[2].hasKey(kads[1].rtable.selfId) # discovered via closerPeers
 
-  asyncTest "Get providers uses multihash for CID convergence":
+  asyncTestConcurrent "Get providers uses multihash for CID convergence":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -143,7 +143,7 @@ suite "KadDHT - Get Providers":
       providers.len() == 1
       providers.containsPeer(kads[1])
 
-  asyncTest "Get providers includes self when querying node is a provider":
+  asyncTestConcurrent "Get providers includes self when querying node is a provider":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 
@@ -164,7 +164,7 @@ suite "KadDHT - Get Providers":
       providers.containsPeer(kads[0])
       providers.containsPeer(kads[1])
 
-  asyncTest "Get providers deduplicates provider entries from multiple nodes":
+  asyncTestConcurrent "Get providers deduplicates provider entries from multiple nodes":
     # Topology: kads[0] <-> kads[1], kads[0] <-> kads[2], kads[3] provider
     let kads = setupKadSwitches(4)
     startAndDeferStop(kads)
@@ -189,7 +189,7 @@ suite "KadDHT - Get Providers":
       providers.len() == 1
       providers.containsPeer(kads[3])
 
-  asyncTest "Get providers filters out invalid provider IDs":
+  asyncTestConcurrent "Get providers filters out invalid provider IDs":
     let kads = setupKadSwitches(3)
     startAndDeferStop(kads)
 
@@ -213,7 +213,7 @@ suite "KadDHT - Get Providers":
       providers.len() == 1
       providers.containsPeer(kads[2])
 
-  asyncTest "Get providers terminates early when sufficient providers found":
+  asyncTestConcurrent "Get providers terminates early when sufficient providers found":
     # Use small replication value
     let kads = setupKadSwitches(8, replication = 2)
     startAndDeferStop(kads)
@@ -245,7 +245,7 @@ suite "KadDHT - Get Providers":
     check:
       (await kads[0].getProviders(key)).len() == 5
 
-  asyncTest "Get providers returns at most k closest peers":
+  asyncTestConcurrent "Get providers returns at most k closest peers":
     # Use small replication value (k=3)
     let kads = setupKadSwitches(7, replication = 3)
     startAndDeferStop(kads)
@@ -264,7 +264,7 @@ suite "KadDHT - Get Providers":
     check:
       response.get().closerPeers.len() == 3
 
-  asyncTest "Get providers aggregates providers from multiple peers":
+  asyncTestConcurrent "Get providers aggregates providers from multiple peers":
     # Topology: kads[0] <-> kads[1] <-> kads[2] <-> kads[3] <-> kads[4]
     # Use a long republishProvidedKeysInterval so the background republish heartbeat
     # doesn't fire during the test and race with getProviders dials.

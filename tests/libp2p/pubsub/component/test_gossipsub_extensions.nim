@@ -20,7 +20,7 @@ suite "GossipSub Component - Extensions":
   teardown:
     checkTrackers()
 
-  asyncTest "Test Extension":
+  asyncTestConcurrent "Test Extension":
     var negotiatedPeers: seq[PeerId]
     proc onNegotiated(peer: PeerId) {.gcsafe, raises: [].} =
       negotiatedPeers.add(peer)
@@ -46,7 +46,7 @@ suite "GossipSub Component - Extensions":
       check:
         negotiatedPeersSorted == nodesPeerIdSorted
 
-  asyncTest "Partial Message Extension":
+  asyncTestConcurrent "Partial Message Extension":
     const topic = "logos-partial"
     const groupId = "group-id-1".toBytes
 
@@ -133,7 +133,7 @@ suite "GossipSub Component - Extensions":
           partsMetadata: MyPartsMetadata.have(toSeq(pmData.data.keys)),
         )
 
-  asyncTest "PingPong Extension":
+  asyncTestConcurrent "PingPong Extension":
     let
       numberOfNodes = 2
       nodes = generateNodes(
@@ -171,7 +171,7 @@ suite "GossipSub Component - Extensions":
     checkUntilTimeout:
       receivedPong == pingBytes
 
-  asyncTest "Preamble Extension":
+  asyncTestConcurrent "Preamble Extension":
     const topic = "preamble-topic"
 
     let

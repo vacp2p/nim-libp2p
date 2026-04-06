@@ -21,7 +21,7 @@ suite "Mix Protocol - Security":
   asyncTeardown:
     checkTrackers()
 
-  asyncTest "no response sent back on failure":
+  asyncTestConcurrent "no response sent back on failure":
     let nodes = await setupMixNodes(2)
     startAndDeferStop(nodes)
 
@@ -42,7 +42,7 @@ suite "Mix Protocol - Security":
       var buf = newSeq[byte](1)
       await conn.readExactly(addr buf[0], 1).wait(1.seconds)
 
-  asyncTest "replay protection - duplicate packet is silently dropped":
+  asyncTestConcurrent "replay protection - duplicate packet is silently dropped":
     ## Use mock to capture real Sphinx packet, then replay it.
     ## The second one must be silently dropped.
     ## With 4 nodes and node 1 as a sender, mock is guaranteed to be in the path.

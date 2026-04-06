@@ -24,7 +24,7 @@ suite "GossipSub Component - Custom Connection Support":
   teardown:
     checkTrackers()
 
-  asyncTest "publish with useCustomConn triggers custom connection and peer selection":
+  asyncTestConcurrent "publish with useCustomConn triggers custom connection and peer selection":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     var
@@ -64,7 +64,7 @@ suite "GossipSub Component - Custom Connection Support":
       peerSelectionCalled
       dummyConn.data.len > 0
 
-  asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
+  asyncTestConcurrent "publish with useCustomConn triggers assertion if custom callbacks not set":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)

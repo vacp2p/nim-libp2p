@@ -17,7 +17,7 @@ suite "GossipSub Behavior":
   teardown:
     checkTrackers()
 
-  asyncTest "grafted - updates peer stats":
+  asyncTestConcurrent "grafted - updates peer stats":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -42,7 +42,7 @@ suite "GossipSub Behavior":
       topicInfo.graftTime <= Moment.now()
       not topicInfo.meshMessageDeliveriesActive
 
-  asyncTest "pruned - updates peer stats, applies penalty, and sets backoff":
+  asyncTestConcurrent "pruned - updates peer stats, applies penalty, and sets backoff":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
@@ -79,7 +79,7 @@ suite "GossipSub Behavior":
       # And backoff should be set
       peer.peerId in gossipSub.backingOff[topic]
 
-  asyncTest "handleBackingOff - removes expired backoff entries":
+  asyncTestConcurrent "handleBackingOff - removes expired backoff entries":
     # Given a GossipSub instance with some peers
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(2, topic)
@@ -109,7 +109,7 @@ suite "GossipSub Behavior":
       peer1.peerId notin gossipSub.backingOff[topic]
       peer2.peerId in gossipSub.backingOff[topic]
 
-  asyncTest "peerExchangeList - returns empty list when PX disabled":
+  asyncTestConcurrent "peerExchangeList - returns empty list when PX disabled":
     # Given a GossipSub instance with peers
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(3, topic, populateGossipsub = true)
@@ -129,7 +129,7 @@ suite "GossipSub Behavior":
     # Then empty list should be returned
     check peerList.len == 0
 
-  asyncTest "peerExchangeList - returns filtered peers with SPR data":
+  asyncTestConcurrent "peerExchangeList - returns filtered peers with SPR data":
     # Given a GossipSub instance with multiple peers
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(4, topic, populateGossipsub = true)
@@ -178,7 +178,7 @@ suite "GossipSub Behavior":
       peer1Info.signedPeerRecord.len == 0
       peer2Info.signedPeerRecord == mockRecord2.envelope.encode().get()
 
-  asyncTest "handleIHave - peers with no budget should not request messages":
+  asyncTestConcurrent "handleIHave - peers with no budget should not request messages":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -200,7 +200,7 @@ suite "GossipSub Behavior":
     check:
       iwants.messageIDs.len == 0
 
-  asyncTest "handleIHave - peers with budget should request messages":
+  asyncTestConcurrent "handleIHave - peers with budget should request messages":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -224,7 +224,7 @@ suite "GossipSub Behavior":
     check:
       iwants.messageIDs.len == 1
 
-  asyncTest "handleIHave - do not handle IHave if peer score is below GossipThreshold threshold":
+  asyncTestConcurrent "handleIHave - do not handle IHave if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -247,7 +247,7 @@ suite "GossipSub Behavior":
     check:
       iWant.messageIDs.len == 0
 
-  asyncTest "handleIHave - do not handle IHave when message already in cache":
+  asyncTestConcurrent "handleIHave - do not handle IHave when message already in cache":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -270,7 +270,7 @@ suite "GossipSub Behavior":
     check:
       iWant.messageIDs.len == 0
 
-  asyncTest "handleIWant - message is handled when in cache and with sent IHave":
+  asyncTestConcurrent "handleIWant - message is handled when in cache and with sent IHave":
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
       peer = peers[0]
@@ -294,7 +294,7 @@ suite "GossipSub Behavior":
       messages.len == 1
       gossipSub.mcache.msgs.len == 1
 
-  asyncTest "handleIWant - do not handle IWant if peer score is below GossipThreshold threshold":
+  asyncTestConcurrent "handleIWant - do not handle IWant if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -319,7 +319,7 @@ suite "GossipSub Behavior":
     check:
       messages.len == 0
 
-  asyncTest "handleIWant - message not handled without sent IHave":
+  asyncTestConcurrent "handleIWant - message not handled without sent IHave":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -343,7 +343,7 @@ suite "GossipSub Behavior":
     check:
       messages.len == 0
 
-  asyncTest "handleIWant - message not handled when not in cache":
+  asyncTestConcurrent "handleIWant - message not handled when not in cache":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -367,7 +367,7 @@ suite "GossipSub Behavior":
     check:
       messages.len == 0
 
-  asyncTest "handleIWant - stops processing after 21 invalid requests":
+  asyncTestConcurrent "handleIWant - stops processing after 21 invalid requests":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -401,7 +401,7 @@ suite "GossipSub Behavior":
     check:
       messages.len == 0
 
-  asyncTest "handleIDontWant - Max IDONTWANT messages per heartbeat per peer":
+  asyncTestConcurrent "handleIDontWant - Max IDONTWANT messages per heartbeat per peer":
     # Given GossipSub node with 1 peer
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
@@ -426,7 +426,7 @@ suite "GossipSub Behavior":
     check:
       peer.iDontWants[0].len == IDontWantMaxCount
 
-  asyncTest "handlePrune - peer is pruned and backoff is set":
+  asyncTestConcurrent "handlePrune - peer is pruned and backoff is set":
     # Given a GossipSub instance with one peer in mesh
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
@@ -467,7 +467,7 @@ suite "GossipSub Behavior":
     check:
       timeDifference < 1.seconds.nanoseconds
 
-  asyncTest "handlePrune - do not trigger PeerExchange on Prune if peer score is below GossipThreshold threshold":
+  asyncTestConcurrent "handlePrune - do not trigger PeerExchange on Prune if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -500,7 +500,7 @@ suite "GossipSub Behavior":
     check:
       routingRecordsFut.finished() == false
 
-  asyncTest "handleGraft - peer joins mesh for subscribed topic":
+  asyncTestConcurrent "handleGraft - peer joins mesh for subscribed topic":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) =
@@ -524,7 +524,7 @@ suite "GossipSub Behavior":
       peer notin gossipSub.fanout.getOrDefault(topic)
       pruneResult.len == 0
 
-  asyncTest "handleGraft - do not graft if peer already in mesh":
+  asyncTestConcurrent "handleGraft - do not graft if peer already in mesh":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic, populateMesh = true)
@@ -545,7 +545,7 @@ suite "GossipSub Behavior":
       peer in gossipSub.mesh[topic]
       pruneResult.len == 0
 
-  asyncTest "handleGraft - reject peer when mesh at dHigh threshold":
+  asyncTestConcurrent "handleGraft - reject peer when mesh at dHigh threshold":
     # Given a GossipSub instance with mesh at dHigh threshold
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
@@ -572,7 +572,7 @@ suite "GossipSub Behavior":
       gossipSub.mesh[topic].len == gossipSub.parameters.dHigh
       prunes.len == 1
 
-  asyncTest "handleGraft - accept outbound peer when mesh at dHigh but below dOut threshold":
+  asyncTestConcurrent "handleGraft - accept outbound peer when mesh at dHigh but below dOut threshold":
     # Given a GossipSub instance with mesh at dHigh threshold but lacking outbound peers
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
@@ -607,7 +607,7 @@ suite "GossipSub Behavior":
       gossipSub.mesh[topic].len == gossipSub.parameters.dHigh + 1
       prunes.len == 0
 
-  asyncTest "handleGraft - reject outbound peer when mesh at dHigh and dOut threshold met":
+  asyncTestConcurrent "handleGraft - reject outbound peer when mesh at dHigh and dOut threshold met":
     # Given a GossipSub instance with mesh at dHigh and dOut thresholds
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(6, topic, populateMesh = true)
@@ -642,7 +642,7 @@ suite "GossipSub Behavior":
       peer notin gossipSub.mesh[topic]
       prunes.len == 1
 
-  asyncTest "handleGraft - do not graft when peer score below PublishThreshold threshold":
+  asyncTestConcurrent "handleGraft - do not graft when peer score below PublishThreshold threshold":
     const publishThreshold = -100.0
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -665,7 +665,7 @@ suite "GossipSub Behavior":
       gossipSub.mesh[topic].len == 0
       prunes.len == 0
 
-  asyncTest "handleGraft - penalizes direct peer attempting to graft":
+  asyncTestConcurrent "handleGraft - penalizes direct peer attempting to graft":
     # Given a GossipSub instance with one direct peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -690,7 +690,7 @@ suite "GossipSub Behavior":
       peer.behaviourPenalty == 0.1
       prunes.len == 1
 
-  asyncTest "handleGraft - penalizes peer for grafting during backoff period":
+  asyncTestConcurrent "handleGraft - penalizes peer for grafting during backoff period":
     # Given a GossipSub instance with one peer
     let
       (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
@@ -716,7 +716,7 @@ suite "GossipSub Behavior":
       peer.behaviourPenalty == 0.1
       prunes.len == 1
 
-  asyncTest "replenishFanout - Degree Lo":
+  asyncTestConcurrent "replenishFanout - Degree Lo":
     let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
@@ -726,7 +726,7 @@ suite "GossipSub Behavior":
     gossipSub.replenishFanout(topic)
     check gossipSub.fanout[topic].len == gossipSub.parameters.d
 
-  asyncTest "dropFanoutPeers - drop expired fanout topics":
+  asyncTestConcurrent "dropFanoutPeers - drop expired fanout topics":
     let (gossipSub, conns, _) =
       setupGossipSubWithPeers(6, topic, populateGossipsub = true, populateFanout = true)
     defer:
@@ -740,7 +740,7 @@ suite "GossipSub Behavior":
     gossipSub.dropFanoutPeers()
     check topic notin gossipSub.fanout
 
-  asyncTest "dropFanoutPeers - leave unexpired fanout topics":
+  asyncTestConcurrent "dropFanoutPeers - leave unexpired fanout topics":
     const
       topic1 = "foobar1"
       topic2 = "foobar2"
@@ -761,7 +761,7 @@ suite "GossipSub Behavior":
     check topic1 notin gossipSub.fanout
     check topic2 in gossipSub.fanout
 
-  asyncTest "getGossipPeers - should gather up to degree D non intersecting peers":
+  asyncTestConcurrent "getGossipPeers - should gather up to degree D non intersecting peers":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(45, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -799,7 +799,7 @@ suite "GossipSub Behavior":
       check not gossipSub.fanout.hasPeerId(topic, p.peerId)
       check not gossipSub.mesh.hasPeerId(topic, p.peerId)
 
-  asyncTest "getGossipPeers - should not crash on missing topics in mesh":
+  asyncTestConcurrent "getGossipPeers - should not crash on missing topics in mesh":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -823,7 +823,7 @@ suite "GossipSub Behavior":
     let gossipPeers = gossipSub.getGossipPeers()
     check gossipPeers.len == gossipSub.parameters.d
 
-  asyncTest "getGossipPeers - should not crash on missing topics in fanout":
+  asyncTestConcurrent "getGossipPeers - should not crash on missing topics in fanout":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -848,7 +848,7 @@ suite "GossipSub Behavior":
     let gossipPeers = gossipSub.getGossipPeers()
     check gossipPeers.len == gossipSub.parameters.d
 
-  asyncTest "getGossipPeers - should not crash on missing topics in gossip":
+  asyncTestConcurrent "getGossipPeers - should not crash on missing topics in gossip":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(30, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -873,7 +873,7 @@ suite "GossipSub Behavior":
     let gossipPeers = gossipSub.getGossipPeers()
     check gossipPeers.len == 0
 
-  asyncTest "getGossipPeers - do not select peer for IHave broadcast if peer score is below GossipThreshold threshold":
+  asyncTestConcurrent "getGossipPeers - do not select peer for IHave broadcast if peer score is below GossipThreshold threshold":
     const gossipThreshold = -100.0
     let
       (gossipSub, conns, peers) =
@@ -897,7 +897,7 @@ suite "GossipSub Behavior":
     check:
       gossipPeers.len == 0
 
-  asyncTest "rebalanceMesh - Degree Lo":
+  asyncTestConcurrent "rebalanceMesh - Degree Lo":
     let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
@@ -907,7 +907,7 @@ suite "GossipSub Behavior":
     gossipSub.rebalanceMesh(topic)
     check gossipSub.mesh[topic].len == gossipSub.parameters.d
 
-  asyncTest "rebalanceMesh - bad peers":
+  asyncTestConcurrent "rebalanceMesh - bad peers":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
@@ -925,7 +925,7 @@ suite "GossipSub Behavior":
     for peer in gossipSub.mesh[topic]:
       check peer.score >= 0.0
 
-  asyncTest "rebalanceMesh - Degree Hi":
+  asyncTestConcurrent "rebalanceMesh - Degree Hi":
     let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
@@ -936,7 +936,7 @@ suite "GossipSub Behavior":
     check gossipSub.mesh[topic].len ==
       gossipSub.parameters.d + gossipSub.parameters.dScore
 
-  asyncTest "rebalanceMesh - fail due to backoff":
+  asyncTestConcurrent "rebalanceMesh - fail due to backoff":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
@@ -955,7 +955,7 @@ suite "GossipSub Behavior":
     # expect 0 since they are all backing off
     check gossipSub.mesh[topic].len == 0
 
-  asyncTest "rebalanceMesh - fail due to backoff - remote":
+  asyncTestConcurrent "rebalanceMesh - fail due to backoff - remote":
     let (gossipSub, conns, peers) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
@@ -980,7 +980,7 @@ suite "GossipSub Behavior":
     # expect topic cleaned up since they are all pruned
     check topic notin gossipSub.mesh
 
-  asyncTest "rebalanceMesh - Degree Hi - audit scenario":
+  asyncTestConcurrent "rebalanceMesh - Degree Hi - audit scenario":
     const
       numInPeers = 6
       numOutPeers = 7
@@ -1021,7 +1021,7 @@ suite "GossipSub Behavior":
     # ensure we give priority and keep at least dOut outbound peers
     check outbound >= gossipSub.parameters.dOut
 
-  asyncTest "rebalanceMesh - Degree Hi - dScore controls number of peers to retain by score when pruning":
+  asyncTestConcurrent "rebalanceMesh - Degree Hi - dScore controls number of peers to retain by score when pruning":
     # Given GossipSub node starting with 13 peers in mesh
     const totalPeers = 13
     let (gossipSub, conns, _) = setupGossipSubWithPeers(

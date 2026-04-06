@@ -29,7 +29,7 @@ template basicTransportTest*(
   block:
     let transportProvider = provider
 
-    asyncTest "can handle local address":
+    asyncTestConcurrent "can handle local address":
       let ma = @[MultiAddress.init(address).tryGet()]
 
       let transport = transportProvider()
@@ -39,7 +39,7 @@ template basicTransportTest*(
 
       check transport.handles(transport.addrs[0])
 
-    asyncTest "handle dial cancellation":
+    asyncTestConcurrent "handle dial cancellation":
       let ma = @[MultiAddress.init(address).tryGet()]
 
       let server = transportProvider()
@@ -53,7 +53,7 @@ template basicTransportTest*(
 
       check connFut.cancelled
 
-    asyncTest "handle accept cancellation":
+    asyncTestConcurrent "handle accept cancellation":
       let ma = @[MultiAddress.init(address).tryGet()]
 
       let server = transportProvider()
@@ -66,7 +66,7 @@ template basicTransportTest*(
 
       check acceptFut.cancelled
 
-    asyncTest "stopping transport kills connections":
+    asyncTestConcurrent "stopping transport kills connections":
       let ma = @[MultiAddress.init(address).tryGet()]
 
       let server = transportProvider()
@@ -83,7 +83,7 @@ template basicTransportTest*(
         clientConn.closed()
         serverConn.closed()
 
-    asyncTest "transport start/stop events":
+    asyncTestConcurrent "transport start/stop events":
       let ma = @[MultiAddress.init(address).tryGet()]
       let transport = transportProvider()
 
@@ -93,14 +93,14 @@ template basicTransportTest*(
       await transport.stop()
       check await transport.onStop.wait().withTimeout(1.seconds)
 
-    asyncTest "start succeeds for valid wire addresses":
+    asyncTestConcurrent "start succeeds for valid wire addresses":
       for ma in validWireAddresses:
         let transport = transportProvider()
         await transport.start(@[MultiAddress.init(ma).tryGet()])
         await transport.stop()
 
     # TODO: See issue nim-libp2p#2230
-    asyncTest "start fails for valid non-wire addresses":
+    asyncTestConcurrent "start fails for valid non-wire addresses":
       for addrs in validNonWireAddresses:
         let transport = transportProvider()
         let ma = MultiAddress.init(addrs).tryGet()
@@ -116,7 +116,7 @@ template basicTransportTest*(
             await transport.start(@[ma])
 
     # TODO: See issue nim-libp2p#2230
-    asyncTest "start behaviour for invalid addresses":
+    asyncTestConcurrent "start behaviour for invalid addresses":
       for addrs in invalidAddresses:
         let transport = transportProvider()
         let ma = MultiAddress.init(addrs).tryGet()
@@ -144,19 +144,19 @@ template basicTransportTest*(
             expect LPError:
               await transport.start(@[ma])
 
-    asyncTest "multiaddress validation - accept valid addresses":
+    asyncTestConcurrent "multiaddress validation - accept valid addresses":
       let transport = transportProvider()
 
       for validAddress in validWireAddresses & validNonWireAddresses:
         check transport.handles(MultiAddress.init(validAddress).tryGet())
 
-    asyncTest "multiaddress validation - reject invalid addresses":
+    asyncTestConcurrent "multiaddress validation - reject invalid addresses":
       let transport = transportProvider()
 
       for invalidAddress in invalidAddresses:
         check not transport.handles(MultiAddress.init(invalidAddress).tryGet())
 
-    asyncTest "address normalization - port assignment":
+    asyncTestConcurrent "address normalization - port assignment":
       # Start with port 0 and verify it gets assigned a real port
       let ma = MultiAddress.init(address).tryGet()
 
@@ -177,7 +177,7 @@ template basicTransportTest*(
         # Ensure IP address is the same
         transport.addrs[0][multiCodec("ip4")].get() == ma[multiCodec("ip4")].get()
 
-    asyncTest "cannot bind second listener to same port":
+    asyncTestConcurrent "cannot bind second listener to same port":
       let ma = MultiAddress.init(address).tryGet()
 
       if isTcpTransport(ma):
@@ -195,7 +195,7 @@ template basicTransportTest*(
       expect LPError:
         await server2.start(@[server.addrs[0]])
 
-    asyncTest "dial with malformed multiaddresses":
+    asyncTestConcurrent "dial with malformed multiaddresses":
       let ma = MultiAddress.init(address).tryGet()
 
       let client = transportProvider() # not started
@@ -210,7 +210,7 @@ template basicTransportTest*(
       expect LPError:
         discard await client.dial("", invalid)
 
-    asyncTest "observedAddr and localAddr are populated on connections":
+    asyncTestConcurrent "observedAddr and localAddr are populated on connections":
       let ma = MultiAddress.init(address).tryGet()
 
       if isTorTransport(ma):

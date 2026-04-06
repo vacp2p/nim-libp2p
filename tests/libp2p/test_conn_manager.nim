@@ -23,7 +23,7 @@ suite "Connection Manager":
   teardown:
     checkTrackers()
 
-  asyncTest "add and retrieve a muxer":
+  asyncTestConcurrent "add and retrieve a muxer":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
     let mux = getMuxer(peerId)
@@ -37,7 +37,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "get all connections":
+  asyncTestConcurrent "get all connections":
     let connMngr = ConnManager.new()
 
     let peers = @[PeerId.random.tryGet(), PeerId.random.tryGet()]
@@ -51,7 +51,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "shouldn't allow a closed connection":
+  asyncTestConcurrent "shouldn't allow a closed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
     let mux = getMuxer(peerId)
@@ -62,7 +62,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "shouldn't allow an EOFed connection":
+  asyncTestConcurrent "shouldn't allow an EOFed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
     let mux = getMuxer(peerId)
@@ -74,7 +74,7 @@ suite "Connection Manager":
     await mux.close()
     await connMngr.close()
 
-  asyncTest "shouldn't allow a muxer with no connection":
+  asyncTestConcurrent "shouldn't allow a muxer with no connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
     let muxer = getMuxer(peerId)
@@ -88,7 +88,7 @@ suite "Connection Manager":
     await muxer.close()
     await connMngr.close()
 
-  asyncTest "get conn with direction":
+  asyncTestConcurrent "get conn with direction":
     # This would work with 1 as well cause of a bug in connmanager that will get fixed soon
     let connMngr = ConnManager.new(maxConnsPerPeer = 2)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
@@ -111,7 +111,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "get muxed stream for peer":
+  asyncTestConcurrent "get muxed stream for peer":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
 
@@ -131,7 +131,7 @@ suite "Connection Manager":
     await connection.close()
     await stream.close()
 
-  asyncTest "get stream from directed connection":
+  asyncTestConcurrent "get stream from directed connection":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
 
@@ -152,7 +152,7 @@ suite "Connection Manager":
     await stream1.close()
     await connection.close()
 
-  asyncTest "should raise on too many connections":
+  asyncTestConcurrent "should raise on too many connections":
     let connMngr = ConnManager.new(maxConnsPerPeer = 0)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
 
@@ -167,7 +167,7 @@ suite "Connection Manager":
 
     await allFuturesRaising(muxs.mapIt(it.close()))
 
-  asyncTest "expect connection from peer":
+  asyncTestConcurrent "expect connection from peer":
     # FIXME This should be 1 instead of 0, it will get fixed soon
     let connMngr = ConnManager.new(maxConnsPerPeer = 0)
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
@@ -204,7 +204,7 @@ suite "Connection Manager":
 
     await allFuturesRaising(muxs.mapIt(it.close()))
 
-  asyncTest "cleanup on connection close":
+  asyncTestConcurrent "cleanup on connection close":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
     let muxer = getMuxer(peerId)
@@ -220,7 +220,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "waitForPeerReady unblocks when muxer is stored":
+  asyncTestConcurrent "waitForPeerReady unblocks when muxer is stored":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
 
@@ -230,7 +230,7 @@ suite "Connection Manager":
     check await readyWaiter
     await connMngr.close()
 
-  asyncTest "waitForPeerReady timeout does not break concurrent waiters":
+  asyncTestConcurrent "waitForPeerReady timeout does not break concurrent waiters":
     let connMngr = ConnManager.new()
     let peerId = PeerId.random(rng).expect("peer should have been created")
 
@@ -243,7 +243,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "waitForPeerReady cleanup after disconnect":
+  asyncTestConcurrent "waitForPeerReady cleanup after disconnect":
     let connMngr = ConnManager.new()
     let peerId = PeerId.random(rng).expect("peer should have been created")
     let muxer = getMuxer(peerId)
@@ -257,7 +257,7 @@ suite "Connection Manager":
     check (await connMngr.waitForPeerReady(peerId, 10.millis)) == false
     await connMngr.close()
 
-  asyncTest "drop connections for peer":
+  asyncTestConcurrent "drop connections for peer":
     let connMngr = ConnManager.new()
     let peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).tryGet()).tryGet()
 
@@ -281,7 +281,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track total incoming connection limits":
+  asyncTestConcurrent "track total incoming connection limits":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0 ..< 3:
@@ -292,7 +292,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track total outgoing connection limits":
+  asyncTestConcurrent "track total outgoing connection limits":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0 ..< 3:
@@ -304,7 +304,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track both incoming and outgoing total connections limits - fail on incoming":
+  asyncTestConcurrent "track both incoming and outgoing total connections limits - fail on incoming":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0 ..< 3:
@@ -315,7 +315,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track both incoming and outgoing total connections limits - fail on outgoing":
+  asyncTestConcurrent "track both incoming and outgoing total connections limits - fail on outgoing":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     for i in 0 ..< 3:
@@ -327,7 +327,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track max incoming connection limits":
+  asyncTestConcurrent "track max incoming connection limits":
     let connMngr = ConnManager.new(maxIn = 3, maxOut = 1)
 
     for i in 0 ..< 3:
@@ -337,7 +337,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track max outgoing connection limits":
+  asyncTestConcurrent "track max outgoing connection limits":
     let connMngr = ConnManager.new(maxOut = 3, maxIn = 1)
 
     for i in 0 ..< 3:
@@ -349,7 +349,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track incoming max connections limits - fail on incoming":
+  asyncTestConcurrent "track incoming max connections limits - fail on incoming":
     let connMngr = ConnManager.new(maxOut = 3, maxIn = 1)
 
     for i in 0 ..< 3:
@@ -362,7 +362,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "track incoming max connections limits - fail on outgoing":
+  asyncTestConcurrent "track incoming max connections limits - fail on outgoing":
     let connMngr = ConnManager.new(maxIn = 3, maxOut = 1)
 
     for i in 0 ..< 3:
@@ -376,7 +376,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "allow force dial":
+  asyncTestConcurrent "allow force dial":
     let connMngr = ConnManager.new(maxConnections = 2)
 
     for i in 0 ..< 3:
@@ -388,7 +388,7 @@ suite "Connection Manager":
 
     await connMngr.close()
 
-  asyncTest "release slot on connection end":
+  asyncTestConcurrent "release slot on connection end":
     let connMngr = ConnManager.new(maxConnections = 3)
 
     var muxs: seq[Muxer]

@@ -188,7 +188,7 @@ suite "Name resolving":
     teardown:
       checkTrackers()
 
-    asyncTest "test manual dns ip resolve":
+    asyncTestConcurrent "test manual dns ip resolve":
       ## DNS mock server
       proc clientMark1(
           transp: DatagramTransport, raddr: TransportAddress
@@ -243,7 +243,7 @@ suite "Name resolving":
 
       await server.closeWait()
 
-    asyncTest "test unresponsive dns server":
+    asyncTestConcurrent "test unresponsive dns server":
       var unresponsiveTentatives = 0
       ## DNS mock server
       proc clientMark1(
@@ -292,12 +292,12 @@ suite "Name resolving":
       await server.closeWait()
       await unresponsiveServer.closeWait()
 
-    asyncTest "inexisting domain resolving":
+    asyncTestConcurrent "inexisting domain resolving":
       let dnsresolver = DnsResolver.new(guessOsNameServers())
       let invalid = await dnsresolver.resolveIp("thisdomain.doesnot.exist", 0.Port)
       check invalid.len == 0
 
-    asyncTest "wrong domain resolving":
+    asyncTestConcurrent "wrong domain resolving":
       let dnsresolver = DnsResolver.new(guessOsNameServers())
       let invalid = await dnsresolver.resolveIp("", 0.Port)
       check invalid.len == 0

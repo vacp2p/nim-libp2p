@@ -14,7 +14,7 @@ suite "GossipSub Component - Mesh Management":
   teardown:
     checkTrackers()
 
-  asyncTest "Nodes graft peers according to DValues - numberOfNodes < dHigh":
+  asyncTestConcurrent "Nodes graft peers according to DValues - numberOfNodes < dHigh":
     let
       numberOfNodes = 5
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
@@ -32,7 +32,7 @@ suite "GossipSub Component - Mesh Management":
         node.mesh.getOrDefault(topic).len == expectedNumberOfPeers
         node.fanout.len == 0
 
-  asyncTest "Nodes graft peers according to DValues - numberOfNodes > dHigh":
+  asyncTestConcurrent "Nodes graft peers according to DValues - numberOfNodes > dHigh":
     let
       numberOfNodes = 8
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
@@ -56,7 +56,7 @@ suite "GossipSub Component - Mesh Management":
           node.mesh.getOrDefault(topic).len <= dHigh
         )
 
-  asyncTest "GossipSub should add remote peer topic subscriptions":
+  asyncTestConcurrent "GossipSub should add remote peer topic subscriptions":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
@@ -69,7 +69,7 @@ suite "GossipSub Component - Mesh Management":
       topic in nodes[0].gossipsub
       nodes[0].gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
-  asyncTest "GossipSub should add remote peer topic subscriptions if both peers are subscribed":
+  asyncTestConcurrent "GossipSub should add remote peer topic subscriptions if both peers are subscribed":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
@@ -92,7 +92,7 @@ suite "GossipSub Component - Mesh Management":
       nodes[1].gossipsub.hasPeerId(topic, nodes[0].peerInfo.peerId) or
         nodes[1].mesh.hasPeerId(topic, nodes[0].peerInfo.peerId)
 
-  asyncTest "GossipSub invalid topic subscription":
+  asyncTestConcurrent "GossipSub invalid topic subscription":
     var handlerFut = newFuture[bool]()
     proc handler(handlerTopic: string, data: seq[byte]) {.async.} =
       check handlerTopic == topic
@@ -122,7 +122,7 @@ suite "GossipSub Component - Mesh Management":
 
     await invalidDetected.wait(10.seconds)
 
-  asyncTest "GossipSub test directPeers":
+  asyncTestConcurrent "GossipSub test directPeers":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
     startAndDeferStop(nodes)
 
@@ -146,7 +146,7 @@ suite "GossipSub Component - Mesh Management":
 
     await invalidDetected.wait(10.seconds)
 
-  asyncTest "mesh and gossipsub updated when topic subscribed and unsubscribed":
+  asyncTestConcurrent "mesh and gossipsub updated when topic subscribed and unsubscribed":
     let
       numberOfNodes = 5
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()
@@ -177,7 +177,7 @@ suite "GossipSub Component - Mesh Management":
         topic notin node.mesh
         topic notin node.gossipsub
 
-  asyncTest "handle subscribe and unsubscribe for multiple topics":
+  asyncTestConcurrent "handle subscribe and unsubscribe for multiple topics":
     let
       numberOfNodes = 3
       topics = @["foobar1", "foobar2", "foobar3"]
@@ -209,7 +209,7 @@ suite "GossipSub Component - Mesh Management":
         nodes.allIt(topic notin it.gossipsub)
         nodes.allIt(topic notin it.mesh)
 
-  asyncTest "Unsubscribe backoff":
+  asyncTestConcurrent "Unsubscribe backoff":
     const
       numberOfNodes = 3
       unsubscribeBackoff = 1.seconds # 1s is the minimum
@@ -240,7 +240,7 @@ suite "GossipSub Component - Mesh Management":
     checkUntilTimeout:
       (nodes[0].mesh.hasKey(topic) and nodes[0].mesh[topic].len == numberOfNodes - 1)
 
-  asyncTest "Prune backoff":
+  asyncTestConcurrent "Prune backoff":
     const
       numberOfNodes = 9
       pruneBackoff = 1.seconds # 1s is the minimum
@@ -294,7 +294,7 @@ suite "GossipSub Component - Mesh Management":
     checkUntilTimeout:
       node0.mesh.getOrDefault(topic).len == dValues.get.d.get
 
-  asyncTest "Outbound peers are marked correctly":
+  asyncTestConcurrent "Outbound peers are marked correctly":
     let
       numberOfNodes = 4
       nodes = generateNodes(numberOfNodes, gossip = true).toGossipSub()

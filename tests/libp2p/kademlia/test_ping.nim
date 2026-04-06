@@ -12,7 +12,7 @@ suite "KadDHT Ping":
   teardown:
     checkTrackers()
 
-  asyncTest "Simple ping":
+  asyncTestConcurrent "Simple ping":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
 

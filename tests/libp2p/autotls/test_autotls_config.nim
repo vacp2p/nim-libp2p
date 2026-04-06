@@ -14,7 +14,7 @@ when defined(libp2p_autotls_support):
     asyncTeardown:
       checkTrackers()
 
-    asyncTest "AutotlsConfig constructor with default values":
+    asyncTestConcurrent "AutotlsConfig constructor with default values":
       let config = AutotlsConfig.new()
 
       check:
@@ -30,7 +30,7 @@ when defined(libp2p_autotls_support):
         config.finalizeRetries == 10
         config.finalizeRetryTime == 1.seconds
 
-    asyncTest "AutotlsConfig constructor with custom values":
+    asyncTestConcurrent "AutotlsConfig constructor with custom values":
       let customBrokerURL = "custom-broker.example.com"
       let customDnsServerURL = "custom-dns.example.com"
       let customDnsRetries = 5
@@ -61,7 +61,7 @@ when defined(libp2p_autotls_support):
         config.finalizeRetries == customFinalizeRetries
         config.finalizeRetryTime == customFinalizeRetryTime
 
-    asyncTest "AutotlsService uses custom broker URL in registration":
+    asyncTestConcurrent "AutotlsService uses custom broker URL in registration":
       let customBrokerURL = "test-broker.example.com"
       let config = AutotlsConfig.new(brokerURL = customBrokerURL)
       let service = AutotlsService.new(config = config)
@@ -69,7 +69,7 @@ when defined(libp2p_autotls_support):
       # Verify the config was stored correctly
       check service.config.brokerURL == customBrokerURL
 
-    asyncTest "Backward compatibility with existing AutotlsConfig usage":
+    asyncTestConcurrent "Backward compatibility with existing AutotlsConfig usage":
       # Test that existing code using AutotlsConfig.new() without new parameters still works
       let config1 = AutotlsConfig.new()
       let config2 = AutotlsConfig.new(

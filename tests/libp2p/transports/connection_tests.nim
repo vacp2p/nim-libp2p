@@ -18,7 +18,7 @@ template connectionTransportTest*(
     const message =
       "Transparent, immutable records, as we will see, are critical to good governance"
 
-    asyncTest "handle write":
+    asyncTestConcurrent "handle write":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
       proc serverHandler(server: Transport) {.async.} =
@@ -48,7 +48,7 @@ template connectionTransportTest*(
       await serverFut
       await server.stop()
 
-    asyncTest "handle read":
+    asyncTestConcurrent "handle read":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
       proc serverHandler(server: Transport) {.async.} =
@@ -78,7 +78,7 @@ template connectionTransportTest*(
       await serverFut
       await server.stop()
 
-    asyncTest "should allow multiple local addresses":
+    asyncTestConcurrent "should allow multiple local addresses":
       let addrs =
         @[
           MultiAddress.init(ma1).tryGet(),
@@ -128,7 +128,7 @@ template connectionTransportTest*(
       await serverFut.cancelAndWait()
       await server.stop()
 
-    asyncTest "read or write on closed connection":
+    asyncTestConcurrent "read or write on closed connection":
       let ma = @[MultiAddress.init(ma1).tryGet()]
 
       proc serverHandler(server: Transport) {.async.} =
