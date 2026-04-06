@@ -123,7 +123,7 @@ jobs:
           if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
-          nimble test
+          nimble test -- -d:chronicles_log_level=DEBUG
 
       - name: Run integration tests
         if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}
