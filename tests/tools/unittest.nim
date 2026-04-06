@@ -7,6 +7,39 @@ import ./trackers
 export checkTrackers # TODO: maybe consider importing it on demand?
 export unittest2 except suite
 
+const parallelTestBatchSize* = 10 # todo
+
+type ParallelTestBody* = proc(): Future[void] {.closure, gcsafe.}
+
+var gParallelQueue {.global.}: seq[tuple[name: string, body: ParallelTestBody]]
+
+proc runParallelBatch*(
+    batch: seq[tuple[name: string, body: ParallelTestBody]]
+) {.async.} =
+  var futures = newSeq[Future[void]](batch.len)
+  for i, entry in batch:
+    try:
+      futures[i] = entry.body()
+    except Exception:
+      discard # todo 
+  await allFutures(futures)
+  for i, f in futures:
+    if f.failed:
+      checkpoint("Parallel test '" & batch[i].name & "' failed: " & f.error.msg)
+      fail()
+
+template flushParallelTests*() =
+  if gParallelQueue.len > 0:
+    let batch = gParallelQueue
+    gParallelQueue = @[]
+    var batchNames = ""
+    for i, entry in batch:
+      if i > 0:
+        batchNames.add(", ")
+      batchNames.add(entry.name)
+    test "parallel: [" & batchNames & "]":
+      waitFor runParallelBatch(batch)
+
 ## suite wraps unittest2.suite in a proc to avoid issue with too many global variables
 ## See https://github.com/nim-lang/Nim/issues/8500
 template suite*(name: string, body: untyped): untyped =
@@ -14,6 +47,7 @@ template suite*(name: string, body: untyped): untyped =
     proc testSuite() =
       unittest2.suite name:
         body
+        flushParallelTests()
 
     testSuite()
 
@@ -36,6 +70,7 @@ template asyncSetup*(body: untyped): untyped =
     )
 
 template asyncTest*(name: string, body: untyped): untyped =
+  flushParallelTests()
   test name:
     waitFor(
       (
@@ -43,6 +78,13 @@ template asyncTest*(name: string, body: untyped): untyped =
           body
       )()
     )
+
+template asyncTestParallel*(name: string, body: untyped): untyped =
+  let testBody: ParallelTestBody = proc(): Future[void] {.async, closure.} =
+    body
+  gParallelQueue.add((name, testBody))
+  if gParallelQueue.len >= parallelTestBatchSize:
+    flushParallelTests()
 
 proc buildAndExpr(n: NimNode): NimNode =
   # Helper proc to recursively build a combined boolean expression
