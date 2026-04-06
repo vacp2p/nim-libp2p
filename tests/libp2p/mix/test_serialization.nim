@@ -4,7 +4,7 @@
 {.used.}
 
 import results, std/sequtils
-import ../../../libp2p/protocols/mix/serialization
+import ../../../libp2p/protocols/mix/[serialization, delay]
 import ../../tools/[unittest]
 
 proc makeSurb(seed: byte): SURB =
@@ -45,7 +45,7 @@ suite "serialization_tests":
   test "serialize_and_deserialize_routing_info":
     let routingInfo = RoutingInfo.init(
       Hop.init(newSeq[byte](AddrSize)),
-      newSeq[byte](DelaySize),
+      NoDelay,
       newSeq[byte](GammaSize),
       newSeq[byte](((r * (t + 1)) - t) * k),
     )

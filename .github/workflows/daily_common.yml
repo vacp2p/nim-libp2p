@@ -13,15 +13,10 @@ on:
         description: "Nim Configuration"
         required: true
         type: string # Following this format: [{"ref": ..., "memory_management": ...}, ...]
-      cpu:
-        description: "CPU"
+      configuration:
+        description: "Platform/compiler matrix"
         required: true
-        type: string
-      exclude:
-        description: "Exclude matrix configurations"
-        required: false
-        type: string
-        default: "[]"
+        type: string # Following this format: [{"os": ..., "cpu": ..., "cc": ..., "builder": ..., "shell": ...}, ...]
 
 jobs:
   delete_cache:
@@ -33,46 +28,76 @@ jobs:
 
   test:
     needs: delete_cache
+    env:
+      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
     timeout-minutes: 55
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - os: linux
-            builder: ubuntu-22.04
-            shell: bash
-          - os: macos
-            builder: macos-15
-            shell: bash
-          - os: windows
-            builder: windows-2022
-            shell: msys2 {0}
+        config: ${{ fromJSON(inputs.configuration) }}
         nim: ${{ fromJSON(inputs.nim) }}
-        cpu: ${{ fromJSON(inputs.cpu) }}
-        exclude: ${{ fromJSON(inputs.exclude) }}
 
     defaults:
       run:
-        shell: ${{ matrix.platform.shell }}
+        shell: ${{ matrix.config.shell }}
 
-    name: "${{ matrix.platform.os }}-${{ matrix.cpu }} (Nim ${{ matrix.nim.ref }})"
-    runs-on: ${{ matrix.platform.builder }}
+    name: "${{ matrix.config.os }} (nim ${{ matrix.nim.ref }} / ${{ matrix.config.cc }})"
+    runs-on: ${{ matrix.config.builder }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
-          os: ${{ matrix.platform.os }}
-          shell: ${{ matrix.platform.shell }}
+          os: ${{ matrix.config.os }}
+          shell: ${{ matrix.config.shell }}
           nim_ref: ${{ matrix.nim.ref }}
-          cpu: ${{ matrix.cpu }}
+          cpu: ${{ matrix.config.cpu }}
 
-      - name: Install runtime deps (windows)
-        if: ${{ matrix.platform.os == 'windows'}}
+      - name: Restore llvm-mingw (Windows) from cache
+        if: runner.os == 'Windows' && matrix.config.cc == 'clang'
+        id: windows-mingw-cache
+        uses: actions/cache@v4
+        with:
+          path: external/mingw-${{ matrix.config.cpu }}
+          key: 'mingw-llvm-17-${{ matrix.config.cpu }}'
+
+      - name: Install llvm-mingw dependency (Windows)
+        if: >
+          steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
+          runner.os == 'Windows' &&
+          matrix.config.cc == 'clang'
         run: |
-          pacman -S --noconfirm base-devel gcc nasm
+          mkdir -p external
+          MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
+          MINGW_URL="$MINGW_BASE/llvm-mingw-20230905-ucrt-x86_64.zip"
+          curl -L "$MINGW_URL" -o "external/mingw-${{ matrix.config.cpu }}.zip"
+          7z x -y "external/mingw-${{ matrix.config.cpu }}.zip" -oexternal/mingw-${{ matrix.config.cpu }}/
+          mv external/mingw-${{ matrix.config.cpu }}/**/* ./external/mingw-${{ matrix.config.cpu }}
+
+      - name: Use gcc 14
+        if: ${{ matrix.config.os == 'linux-gcc-14'}}
+        run: |
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+
+      - name: Path to cached dependencies (Windows)
+        if: >
+          runner.os == 'Windows' &&
+          matrix.config.cc == 'clang'
+        run: |
+          echo '${{ github.workspace }}'"/external/mingw-${{ matrix.config.cpu }}/bin" >> $GITHUB_PATH
+          echo "." >> $GITHUB_PATH
+
+      - name: Install nasm (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm --no-progress -y
+          "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install dependencies (pinned)
         if: ${{ inputs.pinned_deps }}
@@ -88,12 +113,20 @@ jobs:
         run: |
           nim --version
           nimble --version
+          if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
+            clang --version
+          else
+            gcc --version
+          fi
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
+          if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
+            export NIMFLAGS="${NIMFLAGS} --cc:clang"
+          fi
           nimble test
 
       - name: Run integration tests
-        if: ${{ matrix.platform.os == 'linux' && matrix.cpu == 'amd64' }}
+        if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}
         run: |
           nim --version
           nimble --version

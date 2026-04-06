@@ -5,6 +5,10 @@ on:
     - cron: "30 6 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test_amd64_latest:
     name: Daily test amd64 (latest dependencies)
@@ -15,7 +19,12 @@ jobs:
           {'ref': 'v2.2.6', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
-      cpu: "['amd64']"
+      configuration: "[
+          {'os': 'linux', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'ubuntu-22.04', 'shell': 'bash'},
+          {'os': 'linux-gcc-14', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'ubuntu-24.04', 'shell': 'bash'},
+          {'os': 'windows', 'cpu': 'amd64', 'cc': 'clang', 'builder': 'windows-2022', 'shell': 'bash'},
+          {'os': 'windows', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'windows-2022', 'shell': 'msys2 {0}'},
+        ]"
   test_amd64_pinned:
     name: Daily test amd64 (pinned dependencies)
     uses: ./.github/workflows/daily_common.yml
@@ -26,17 +35,9 @@ jobs:
           {'ref': 'v2.2.6', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
-      cpu: "['amd64']"
-  notify-on-failure:
-    name: Notify Discord on Failure
-    needs: [test_amd64_latest, test_amd64_pinned]
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Discord notification
-        uses: ./.github/actions/discord_notify
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      configuration: "[
+          {'os': 'linux', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'ubuntu-22.04', 'shell': 'bash'},
+          {'os': 'linux-gcc-14', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'ubuntu-24.04', 'shell': 'bash'},
+          {'os': 'windows', 'cpu': 'amd64', 'cc': 'clang', 'builder': 'windows-2022', 'shell': 'bash'},
+          {'os': 'windows', 'cpu': 'amd64', 'cc': 'gcc', 'builder': 'windows-2022', 'shell': 'msys2 {0}'},
+        ]"

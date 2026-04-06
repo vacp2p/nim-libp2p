@@ -27,11 +27,8 @@ proc streamProvider(conn: Connection, handle: bool = true): Muxer {.raises: [].}
 const
   addressIP4 = "/ip4/127.0.0.1/udp/0/quic-v1"
   addressIP6 = "/ip6/::1/udp/1234/quic-v1"
-  validAddresses =
-    @[
-      "/ip4/127.0.0.1/udp/1234/quic-v1", "/ip6/::1/udp/1234/quic-v1",
-      "/dns/example.com/udp/1234/quic-v1",
-    ]
+  validWireAddresses = @["/ip4/127.0.0.1/udp/1234/quic-v1", "/ip6/::1/udp/1234/quic-v1"]
+  validNonWireAddresses = @["/dns/example.com/udp/1234/quic-v1"]
   invalidAddresses =
     @[
       "/ip4/127.0.0.1/udp/1234", # UDP without quic-v1
@@ -43,7 +40,10 @@ suite "Quic transport":
   teardown:
     checkTrackers()
 
-  basicTransportTest(quicTransProvider, addressIP4, validAddresses, invalidAddresses)
+  basicTransportTest(
+    quicTransProvider, addressIP4, validWireAddresses, validNonWireAddresses,
+    invalidAddresses,
+  )
   streamTransportTest(
     quicTransProvider,
     MultiAddress.init(addressIP4).get(),
