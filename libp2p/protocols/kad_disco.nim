@@ -137,6 +137,8 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-disco twice"
     return
 
+  # Client mode is supported for discoverer-only operation.
+  # It does not start full Kad-DHT server/maintenance behavior.
   if disco.clientMode:
     disco.started = true
     info "Kademlia Discovery started in client mode"

@@ -14,6 +14,9 @@ import ./[types, serviceroutingtables, service_discovery_metrics]
 logScope:
   topics = "service-disco advertiser"
 
+template requireServerMode(disco: KademliaDiscovery, op: string) =
+  doAssert(not disco.clientMode, op & " is not supported in client mode")
+
 proc new*(T: typedesc[Advertiser]): T =
   T(running: initHashSet[AdvertiseTask]())
 
@@ -109,9 +112,7 @@ proc startAdvertising*(
 ) {.async: (raises: [CancelledError]).} =
   ## Execute a registration action and schedule the next one based on response.
 
-  if disco.clientMode:
-    error "client mode nodes cannot start advertising"
-    return
+  requireServerMode(disco, "startAdvertising")
 
   if not disco.serviceRoutingTables.hasService(serviceId):
     error "no service routing table found", serviceId
@@ -171,9 +172,7 @@ proc addProvidedService*(
 ) {.async: (raises: [CancelledError]).} =
   ## Include this service in the set of services this node provides.
 
-  if disco.clientMode:
-    error "client mode nodes cannot advertise services"
-    return
+  requireServerMode(disco, "addProvidedService")
 
   let serviceId = service.id.hashServiceId()
 
