@@ -95,8 +95,6 @@ suite "Advertiser - removeProvidedService":
     let s2 = makeServiceInfo("svc-2")
     let sid1 = s1.id.hashServiceId()
     let sid2 = s2.id.hashServiceId()
-    let now = Moment.now()
-
     disco.populateRoutingTable(1)
     await disco.addProvidedService(s1)
     await disco.addProvidedService(s2)
