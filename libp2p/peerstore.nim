@@ -20,6 +20,7 @@ runnableExamples:
 import
   std/[tables, sets, macros],
   chronos,
+  chronicles,
   ./crypto/crypto,
   ./crypto/curve25519,
   ./protocols/identify,
@@ -32,6 +33,9 @@ import
   ./multistream,
   ./muxers/muxer,
   utility
+
+logScope:
+  topics = "peer store"
 
 type
   #################

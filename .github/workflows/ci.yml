@@ -180,3 +180,4 @@ jobs:
           list-suites: 'failed'
           list-tests: 'failed'
           fail-on-error: 'false'
+          fail-on-empty: 'false'
