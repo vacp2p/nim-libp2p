@@ -196,11 +196,13 @@ proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): seq[T] =
     result[i] = x[indices[i]]
 
 proc pickOne*[T](rng: ref HmacDrbgContext, x: openArray[T]): Opt[T] =
-  let picked = rng.pick(x, 1)
-  if picked.len == 0:
-    Opt.none(T)
-  else:
-    Opt.some(picked[0])
+  if x.len == 0:
+    return Opt.none(T)
+
+  var bytes: array[2, byte]
+  hmacDrbgGenerate(rng[], bytes)
+  let index = (bytes[0].int or bytes[1].int shl 8) mod x.len
+  Opt.some(x[index])
 
 proc random*(
     T: typedesc[PrivateKey],

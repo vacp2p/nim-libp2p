@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, options]
+import std/times
 import results, chronos, chronicles
 import ../../../libp2p/[peerid, crypto/crypto, switch, builders, extended_peer_record]
 import ../../../libp2p/protocols/kad_disco

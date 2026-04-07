@@ -128,6 +128,7 @@ proc insertPeer*(
       return
 
     discard table.insert(peerKey)
+    manager.tables[serviceId] = table
     cd_service_table_insertions.inc()
   finally:
     try:

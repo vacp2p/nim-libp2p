@@ -17,7 +17,8 @@ logScope:
 
 const ServiceDiscoveryCodec = "/logos/service-discovery/1.0.0"
 
-proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: []).} =
+proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
+  await disco.switch.peerInfo.update()
   let extPeerRecord = disco.record().valueOr:
     error "Failed to create signed extended peer record", error
     return
@@ -30,10 +31,9 @@ proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: [])
 
   debug "Publishing Signed XPR", xpr = $extPeerRecord
 
-  let putRes = catch:
-    await disco.putValue(key, encodedSR)
+  let putRes = await disco.putValue(key, encodedSR)
   if putRes.isErr:
-    error "Failed to put signed peer record", err = putRes.error.msg
+    error "Failed to put signed peer record", err = putRes.error
 
 proc maintainSelfSignedPeerRecord(
     disco: KademliaDiscovery
@@ -145,6 +145,9 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
     disco.advertiseLoop.cancelSoon()
     disco.advertiseLoop = nil
 
+  if not disco.registrarCacheLoop.isNil:
+    disco.registrarCacheLoop.cancelSoon()
+    disco.registrarCacheLoop = nil
   await procCall stop(KadDHT(disco))
 
   disco.started = false
