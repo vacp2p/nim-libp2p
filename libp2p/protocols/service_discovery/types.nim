@@ -104,7 +104,10 @@ proc new*(
     bucketsCount: bucketsCount,
   )
 
-proc hash*(t: AdvertiseTask): Hash =
+proc `==`*(a, b: AdvertiseTask): bool {.raises: [].} =
+  cast[pointer](a) == cast[pointer](b)
+
+proc hash*(t: AdvertiseTask): Hash {.raises: [].} =
   hash(cast[pointer](t))
 
 proc actionCmp*(a, b: PendingAction): int =
