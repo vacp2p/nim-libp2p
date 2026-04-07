@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/options
 import ../../protobuf/minprotobuf
 import ../../varint
 import ../../utility
@@ -96,7 +95,6 @@ proc encode*(peer: Peer): ProtoBuffer {.raises: [].} =
   return pb
 
 proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
-  ## Encode Ticket to protobuf format
   var pb = initProtoBuffer()
   pb.write(1, ticket.advertisement)
   pb.write(2, ticket.tInit)
@@ -112,7 +110,6 @@ proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
   return pb
 
 proc encode*(regMsg: RegisterMessage): ProtoBuffer {.raises: [], gcsafe.} =
-  ## Encode RegisterMessage to protobuf format
   var pb = initProtoBuffer()
   pb.write(1, regMsg.advertisement)
 
@@ -126,7 +123,6 @@ proc encode*(regMsg: RegisterMessage): ProtoBuffer {.raises: [], gcsafe.} =
   return pb
 
 proc encode*(getAdsMsg: GetAdsMessage): ProtoBuffer {.raises: [], gcsafe.} =
-  ## Encode GetAdsMessage to protobuf format
   var pb = initProtoBuffer()
   for ad in getAdsMsg.advertisements:
     pb.write(1, ad)
@@ -165,6 +161,12 @@ proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gc
 proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.} =
   pb.write(field, value.encode())
 
+proc decodeEnum[T: enum](val: uint32): ProtoResult[T] =
+  var e: T
+  if not checkedEnumAssign(e, val):
+    return err(ProtoError.BadWireType)
+  ok(e)
+
 proc getOptionField[T: ProtoScalar | string | seq[byte]](
     pb: ProtoBuffer, field: int, output: var Opt[T]
 ): ProtoResult[void] =
@@ -189,15 +191,11 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
 
   var connVal: uint32
   if ?pb.getField(3, connVal):
-    var connType: ConnectionType
-    if not checkedEnumAssign(connType, connVal):
-      return err(ProtoError.BadWireType)
-    p.connection = connType
+    p.connection = ?decodeEnum[ConnectionType](connVal)
 
   return ok(p)
 
 proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
-  ## Decode Ticket from protobuf format
   var ticket = Ticket(
     advertisement: @[],
     tInit: 0,
@@ -219,7 +217,6 @@ proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
   return ok(ticket)
 
 proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
-  ## Decode RegisterMessage from protobuf format
   var regMsg = RegisterMessage(
     advertisement: @[], status: Opt.none(RegistrationStatus), ticket: Opt.none(Ticket)
   )
@@ -228,9 +225,7 @@ proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
 
   var statusVal: uint32
   if ?pb.getField(2, statusVal):
-    var status: RegistrationStatus
-    if checkedEnumAssign(status, statusVal):
-      regMsg.status = Opt.some(status)
+    regMsg.status = Opt.some(?decodeEnum[RegistrationStatus](statusVal))
 
   var ticketBuf: seq[byte]
   if ?pb.getField(3, ticketBuf):
@@ -240,7 +235,6 @@ proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
   return ok(regMsg)
 
 proc decode*(T: type GetAdsMessage, pb: ProtoBuffer): ProtoResult[T] =
-  ## Decode GetAdsMessage from protobuf format
   var getAdsMsg = GetAdsMessage(advertisements: @[])
 
   discard ?pb.getRepeatedField(1, getAdsMsg.advertisements)
@@ -256,18 +250,13 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
 
   var msgTypeVal: uint32
   ?pb.getRequiredField(1, msgTypeVal)
-
-  var msgType: MessageType
-  if not checkedEnumAssign(msgType, msgTypeVal):
-    return err(ProtoError.BadWireType)
-
-  m.msgType = msgType
+  m.msgType = ?decodeEnum[MessageType](msgTypeVal)
 
   discard ?pb.getField(2, m.key)
 
   if ?pb.getField(3, recPb):
     # Could be either a Record for standard KadDHT messages
-    if msgType in {MessageType.putValue, MessageType.getValue}:
+    if m.msgType in {MessageType.putValue, MessageType.getValue}:
       m.record = Opt.some(?Record.decode(initProtoBuffer(recPb)))
 
   discard ?pb.getRepeatedField(8, closerPbs)

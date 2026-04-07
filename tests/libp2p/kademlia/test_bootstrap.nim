@@ -102,6 +102,39 @@ suite "KadDHT Bootstrap":
     # Self lookup + one lookup per non-empty bucket
     check kad.findNodeCalls.len == nonEmptyBucketCount + 1
 
+  asyncTest "refreshTable operates on the given routing table, not kad.rtable":
+    let kad = setupMockKad()
+    startAndDeferStop(@[kad])
+
+    # Populate kad's own table — these buckets should NOT be refreshed
+    kad.populateRoutingTable(10)
+    for i in kad.nonEmptyBuckets():
+      makeBucketStale(kad.rtable.buckets[i])
+
+    # Build a separate routing table with a different selfId and stale peers
+    let otherId = randomPeerId().toKey()
+    var otherTable = RoutingTable.new(otherId)
+    for _ in 0 ..< 5:
+      discard otherTable.insert(randomPeerId())
+    for i in 0 ..< otherTable.buckets.len:
+      if otherTable.buckets[i].peers.len > 0:
+        makeBucketStale(otherTable.buckets[i])
+
+    let otherNonEmpty = block:
+      var idxs: seq[int]
+      for i, b in otherTable.buckets:
+        if b.peers.len > 0:
+          idxs.add(i)
+      idxs
+
+    kad.findNodeCalls = @[]
+    await kad.refreshTable(otherTable, forceRefresh = true)
+
+    # First call is selfId of otherTable, remaining are for otherTable's buckets
+    check:
+      kad.findNodeCalls.len == otherNonEmpty.len + 1
+      kad.findNodeCalls[0] == otherId
+
 suite "KadDHT Bootstrap Component":
   teardown:
     checkTrackers()
