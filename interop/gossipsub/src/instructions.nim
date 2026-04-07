@@ -37,7 +37,7 @@ type
 
 # Forward declaration
 proc parseInstruction*(
-    j: JsonNode
+  j: JsonNode
 ): ScriptInstruction {.raises: [KeyError, ValueError].}
 
 proc parseInitGossipSub(j: JsonNode): ScriptInstruction =
