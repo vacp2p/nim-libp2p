@@ -2,8 +2,8 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/sets
 import chronos, results
+import std/sets
 import ../../../libp2p/protocols/kad_disco
 import ../../../libp2p/protocols/kademlia_discovery/types
 import
@@ -24,7 +24,7 @@ suite "Client mode":
     let disco = KademliaDiscovery.new(
       switch,
       bootstrapNodes = @[(bootstrapPeer, @[bootstrapAddr])],
-      clientMode = true,
+      client = true,
       discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16),
     )
 
@@ -39,7 +39,7 @@ suite "Client mode":
     let disco = KademliaDiscovery.new(
       switch,
       bootstrapNodes = @[(bootstrapPeer, @[bootstrapAddr])],
-      clientMode = true,
+      client = true,
       discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16),
     )
 
@@ -51,7 +51,9 @@ suite "Client mode":
     check res.isOk()
     check disco.serviceRoutingTables.hasService(serviceId)
 
-    let table = disco.serviceRoutingTables.getTable(serviceId).get()
+    let tableOpt = waitFor disco.serviceRoutingTables.getTable(serviceId)
+    check tableOpt.isSome()
+    let table = tableOpt.get()
     var inserted = 0
     for bucket in table.buckets:
       inserted += bucket.peers.len
@@ -66,11 +68,33 @@ suite "Client mode":
     let disco = KademliaDiscovery.new(
       switch,
       bootstrapNodes = @[],
-      clientMode = true,
+      client = true,
       discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16),
     )
 
-    disco.addProvidedService(service)
+    check not disco.serviceRoutingTables.hasService(serviceId)
+    check len(disco.advertiser.running) == 0
+
+    expect AssertionDefect:
+      waitFor disco.addProvidedService(service)
 
     check not disco.serviceRoutingTables.hasService(serviceId)
-    check disco.advertiser.running.card == 0
+    check len(disco.advertiser.running) == 0
+
+  test "client mode does not allow removing provided services":
+    let switch = createSwitch()
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+
+    let disco = KademliaDiscovery.new(
+      switch,
+      bootstrapNodes = @[],
+      client = true,
+      discoConf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16),
+    )
+
+    expect AssertionDefect:
+      waitFor disco.removeProvidedService(service)
+
+    check not disco.serviceRoutingTables.hasService(serviceId)
+    check len(disco.advertiser.running) == 0
