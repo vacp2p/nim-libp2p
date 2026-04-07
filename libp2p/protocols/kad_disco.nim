@@ -9,9 +9,8 @@ import ./kademlia
 import ./kademlia_discovery/types as kad_types
 import ./kademlia_discovery/randomfind
 import ./service_discovery/types as cap_types
-import ./service_discovery/[registrar, advertiser, discoverer, serviceroutingtables]
 
-export kad_types, randomfind, cap_types, registrar, advertiser, discoverer
+export kad_types, randomfind, cap_types
 
 logScope:
   topics = "kad-disco"
@@ -42,18 +41,6 @@ proc maintainSelfSignedPeerRecord(
   heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
     await disco.refreshSelfSignedPeerRecord()
 
-proc maintainRegistrarCache(
-    disco: KademliaDiscovery
-) {.async: (raises: [CancelledError]).} =
-  heartbeat "prune expired advertisements",
-    chronos.seconds(int(disco.discoConf.advertExpiry)):
-    await disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
-
-proc maintainTables(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh service routing tables",
-    disco.config.bucketRefreshTime, sleepFirst = true:
-    await disco.serviceRoutingTables.refreshAllTables(disco)
-
 proc new*(
     T: typedesc[KademliaDiscovery],
     switch: Switch,
@@ -78,9 +65,6 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
-    registrar: Registrar.new(),
-    advertiser: Advertiser.new(),
-    serviceRoutingTables: ServiceRoutingTableManager.new(),
     services: toHashSet(services),
     discoConf: discoConf,
     xprPublishing: xprPublishing,
@@ -125,9 +109,11 @@ proc new*(
       of MessageType.ping:
         await kad.handlePing(conn, msg)
       of MessageType.getAds:
-        await kad.handleGetAds(conn, msg)
+        trace "Unimplemented"
+        return
       of MessageType.register:
-        await kad.handleRegister(conn, msg)
+        trace "Unimplemented"
+        return
 
   return kad
 
@@ -141,9 +127,6 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
   if disco.xprPublishing:
     disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
 
-  disco.registrarCacheLoop = disco.maintainRegistrarCache()
-  disco.serviceTableLoop = disco.maintainTables()
-
   info "Kademlia Discovery started"
 
 method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
@@ -153,10 +136,6 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
   if not disco.selfSignedLoop.isNil:
     disco.selfSignedLoop.cancelSoon()
     disco.selfSignedLoop = nil
-
-  if not disco.registrarCacheLoop.isNil:
-    disco.registrarCacheLoop.cancelSoon()
-    disco.registrarCacheLoop = nil
 
   if not disco.serviceTableLoop.isNil:
     disco.serviceTableLoop.cancelSoon()

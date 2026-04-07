@@ -178,4 +178,7 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: var HmacDrbgContext)
   return raw
 
 proc randomPeerInBucket*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
-  rng.pickOne(bucket.peers).map(proc(e: NodeEntry): Key = e.nodeId)
+  rng.pickOne(bucket.peers).map(
+    proc(e: NodeEntry): Key =
+      e.nodeId
+  )
