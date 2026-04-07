@@ -269,7 +269,7 @@ suite "Sphinx Tests":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
-      createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
+      createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
     let packetBytes = useSURB(surb, message).serialize()
 
     check packetBytes.len == PacketSize
@@ -312,21 +312,28 @@ suite "Sphinx Tests":
 
   test "create surb empty public keys":
     let (_, _, _, delay, _, _) = createDummyData()
-    check createSURB(@[], delay, @[], randomI()).isErr()
+    check createSURB(@[], delay, @[], randomI(), rng()).isErr()
 
   test "create surb with zero id returns error":
     let (_, _, publicKeys, delay, hops, _) = createDummyData()
     let zeroId = default(SURBIdentifier)
-    let res = createSURB(publicKeys, delay, hops, zeroId)
+    let res = createSURB(publicKeys, delay, hops, zeroId, rng())
     check:
       res.isErr()
       res.error == "id should be initialized"
+
+  test "create surb with nil rng returns error":
+    let (_, _, publicKeys, delay, hops, _) = createDummyData()
+    let res = createSURB(publicKeys, delay, hops, randomI(), nil)
+    check:
+      res.isErr()
+      res.error == "rng must not be nil"
 
   test "surb sphinx process invalid mac":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
-      createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
+      createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
 
     let packetBytes = useSURB(surb, message).serialize()
 
@@ -349,7 +356,7 @@ suite "Sphinx Tests":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
-      createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
+      createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
 
     let packetBytes = useSURB(surb, message).serialize()
 
@@ -378,8 +385,9 @@ suite "Sphinx Tests":
         message[i] = byte(rand(256))
       let paddedMessage = addPadding(message, MessageSize)
 
-      let surb =
-        createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
+      let surb = createSURB(publicKeys, delay, hops, randomI(), rng()).expect(
+          "Create SURB error"
+        )
 
       let packetBytes = useSURB(surb, Message(paddedMessage)).serialize()
 

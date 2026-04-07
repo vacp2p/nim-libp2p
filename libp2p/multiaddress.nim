@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## This module implements MultiAddress.
 
@@ -1164,3 +1164,52 @@ proc areAddrsConsistent*(a, b: MultiAddress): bool =
       else:
         return false
   true
+
+proc getIp*(ma: MultiAddress): Opt[IpAddress] =
+  ## Extract IpAddress from MultiAddress.
+  ## Returns Opt.none if no IP4/IP6 component found.
+  var header: uint64
+  var vb = ma
+
+  while not vb.data.isEmpty():
+    if vb.data.readVarint(header) == -1:
+      return Opt.none(IpAddress)
+
+    let proto = CodeAddresses.getOrDefault(MultiCodec(header))
+    if proto.kind == None:
+      return Opt.none(IpAddress)
+
+    if proto.kind == Fixed:
+      if proto.mcodec == multiCodec("ip4"):
+        var addrV4: array[4, byte]
+        if vb.data.readArray(addrV4) == 4:
+          var ip = IpAddress(family: IpAddressFamily.IPv4)
+          ip.address_v4 = addrV4
+          return Opt.some(ip)
+        else:
+          return Opt.none(IpAddress)
+      elif proto.mcodec == multiCodec("ip6"):
+        var addrV6: array[16, byte]
+        if vb.data.readArray(addrV6) == 16:
+          var ip = IpAddress(family: IpAddressFamily.IPv6)
+          ip.address_v6 = addrV6
+          return Opt.some(ip)
+        else:
+          return Opt.none(IpAddress)
+      else:
+        # Skip this fixed-length field
+        if not vb.data.isEnough(proto.size):
+          return Opt.none(IpAddress)
+        vb.data.offset += proto.size
+    elif proto.kind in {MAKind.Length, Path}:
+      # Skip variable-length field
+      var length: uint64
+      if vb.data.readVarint(length) == -1:
+        return Opt.none(IpAddress)
+
+      let skipLen = int(length)
+      if not vb.data.isEnough(skipLen):
+        return Opt.none(IpAddress)
+
+      vb.data.offset = vb.data.offset + skipLen
+    # Marker - nothing to skip

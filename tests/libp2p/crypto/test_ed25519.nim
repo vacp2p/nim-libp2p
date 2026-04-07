@@ -178,3 +178,37 @@ suite "Ed25519 test suite":
       let error = csig.data.high
       csig.data[error] = not (csig.data[error])
       check csig.verify(message, pubkey) == false
+
+  test "fromSeed is deterministic":
+    let seed = fromHex(stripSpaces(SecretKeys[0])[0 ..< 64])
+    let key1 = EdPrivateKey.fromSeed(seed)
+    let key2 = EdPrivateKey.fromSeed(seed)
+    let expected = EdPrivateKey.init(stripSpaces(SecretKeys[0])).expect("key/sig")
+    check key1 == key2
+    check key1 == expected
+
+  test "fromSeed with zero seed produces valid key":
+    var seed: array[32, byte]
+    let key = EdPrivateKey.fromSeed(seed)
+    let expected = EdPrivateKey
+      .init(
+        "00000000000000000000000000000000000000000000000000000000000000003b6a27bcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29"
+      )
+      .expect("key/sig")
+    check key == expected
+
+  test "fromSeed produces same key as random() with same seed":
+    # Generate a random key, extract its seed, recreate with fromSeed
+    let randomKey = EdPrivateKey.random(rng[])
+    var seed: array[32, byte]
+    copyMem(addr seed[0], unsafeAddr randomKey.data[0], 32)
+    let recreated = EdPrivateKey.fromSeed(seed)
+    check randomKey == recreated
+
+  test "different seeds produce different keys":
+    var seed1, seed2: array[32, byte]
+    seed1[0] = 1
+    seed2[0] = 2
+    let key1 = EdPrivateKey.fromSeed(seed1)
+    let key2 = EdPrivateKey.fromSeed(seed2)
+    check key1 != key2
