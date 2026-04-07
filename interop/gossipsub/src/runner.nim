@@ -22,36 +22,6 @@ type ScriptRunner* = ref object
   resolveAddr*: proc(nodeId: int): Future[MultiAddress] {.gcsafe.}
   startTime: Moment
 
-proc createNode*(
-    nodeId: int,
-    listenAddr: MultiAddress,
-    gossipSubParams: GossipSubParams = GossipSubParams.init(),
-): GossipSub =
-  let privKey = nodePrivKey(nodeId)
-
-  let switch = SwitchBuilder
-    .new()
-    .withRng(newRng())
-    .withAddresses(@[listenAddr])
-    .withPrivateKey(privKey)
-    .withTcpTransport()
-    .withYamux()
-    .withNoise()
-    .build()
-
-  let gossipsub = GossipSub.init(
-    switch = switch,
-    msgIdProvider = interopMsgIdProvider,
-    anonymize = true,
-    verifySignature = false,
-    sign = false,
-    maxMessageSize = 10 * 1024 * 1024,
-    parameters = gossipSubParams,
-  )
-
-  switch.mount(gossipsub)
-  gossipsub
-
 # Forward declaration
 proc executeInstruction*(runner: ScriptRunner, instruction: ScriptInstruction) {.async.}
 

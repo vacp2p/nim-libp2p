@@ -38,7 +38,7 @@ type
 # Forward declaration
 proc parseInstruction*(
   j: JsonNode
-): ScriptInstruction {.raises: [KeyError, ValueError].}
+): ScriptInstruction {.raises: [KeyError, ValueError], gcsafe.}
 
 proc parseInitGossipSub(j: JsonNode): ScriptInstruction =
   ScriptInstruction(
@@ -58,7 +58,7 @@ proc parseConnect(j: JsonNode): ScriptInstruction =
 
 proc parseIfNodeIDEquals(
     j: JsonNode
-): ScriptInstruction {.raises: [KeyError, ValueError].} =
+): ScriptInstruction {.raises: [KeyError, ValueError], gcsafe.} =
   let innerInstr = new ScriptInstruction
   innerInstr[] = parseInstruction(j["instruction"])
   ScriptInstruction(
@@ -96,7 +96,7 @@ proc parseSetTopicValidationDelay(j: JsonNode): ScriptInstruction =
 
 proc parseInstruction*(
     j: JsonNode
-): ScriptInstruction {.raises: [KeyError, ValueError].} =
+): ScriptInstruction {.raises: [KeyError, ValueError], gcsafe.} =
   ## Parse a single JSON instruction into a ScriptInstruction.
   let instrType = j["type"].getStr()
   case instrType
@@ -119,7 +119,7 @@ proc parseInstruction*(
 
 proc parseScript*(
     j: JsonNode
-): seq[ScriptInstruction] {.raises: [KeyError, ValueError].} =
+): seq[ScriptInstruction] {.raises: [KeyError, ValueError], gcsafe.} =
   ## Parse the full experiment params JSON, extracting the script array.
   var instructions: seq[ScriptInstruction]
   for item in j["script"]:
@@ -128,6 +128,6 @@ proc parseScript*(
 
 proc loadParams*(
     path: string
-): seq[ScriptInstruction] {.raises: [IOError, OSError, KeyError, ValueError].} =
+): seq[ScriptInstruction] {.raises: [IOError, OSError, KeyError, ValueError], gcsafe.} =
   ## Load and parse params.json from file.
   parseScript(parseJson(readFile(path)))

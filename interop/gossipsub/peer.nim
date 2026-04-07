@@ -21,7 +21,7 @@
 import chronos, parseopt, std/[nativesockets, streams, strutils]
 import ../../libp2p/[multiaddress, protocols/pubsub/gossipsub, switch]
 import ./src/[runner, instructions, lib]
-
+ 
 proc main() {.async.} =
   var paramsPath = ""
   var nodeIdOpt = -1

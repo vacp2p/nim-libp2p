@@ -4,14 +4,17 @@
 import chronos, json, nativesockets, stew/[endians2, byteutils], strutils
 import
   ../../../libp2p/[
+    builders,
     crypto/crypto,
     crypto/ed25519/ed25519,
+    multiaddress,
     peerid,
     protocols/pubsub/gossipsub,
     protocols/pubsub/rpc/message,
     protocols/pubsub/rpc/messages,
+    switch
   ]
-
+ 
 # Peer Id
 
 proc getNodeId*(): int =
@@ -36,7 +39,7 @@ proc nodePeerId*(id: int): PeerId =
 proc extractMsgId*(data: openArray[byte]): uint64 =
   ## Extract message ID from the first 8 bytes of message data (big-endian u64).
   fromBytesBE(uint64, data.toOpenArray(0, 7))
-
+ 
 proc interopMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ## Message ID provider for interop tests.
   ## Reads first 8 bytes of message data as big-endian uint64,
@@ -45,6 +48,38 @@ proc interopMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
     return err(ValidationResult.Reject)
   let id = extractMsgId(m.data)
   ok(($id).toBytes())
+
+# Node
+
+proc createNode*(
+    nodeId: int,
+    listenAddr: MultiAddress,
+    gossipSubParams: GossipSubParams = GossipSubParams.init(),
+): GossipSub =
+  let privKey = nodePrivKey(nodeId)
+
+  let switch = SwitchBuilder
+    .new()
+    .withRng(newRng())
+    .withAddresses(@[listenAddr])
+    .withPrivateKey(privKey)
+    .withTcpTransport()
+    .withYamux()
+    .withNoise()
+    .build()
+
+  let gossipsub = GossipSub.init(
+    switch = switch,
+    msgIdProvider = interopMsgIdProvider,
+    anonymize = true,
+    verifySignature = false,
+    sign = false,
+    maxMessageSize = 10 * 1024 * 1024,
+    parameters = gossipSubParams,
+  )
+
+  switch.mount(gossipsub)
+  gossipsub
 
 # Params
 
