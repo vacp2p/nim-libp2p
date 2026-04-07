@@ -143,7 +143,13 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: var HmacDrbgContext): Key =
+const allBytes = block:
+  var a: array[256, byte]
+  for i in 0 .. 255:
+    a[i] = byte(i)
+  a
+
+proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext): Key =
   var raw = selfId
 
   # zero out higher bits
@@ -157,23 +163,15 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: var HmacDrbgContext)
   let tgtBitInByte = 7 - (bucketIndex mod 8)
   raw[tgtByte] = raw[tgtByte] xor (1'u8 shl tgtBitInByte)
 
-  # randomize all less significant bits
-  let totalBits = raw.len * 8
-  let lsbStart = bucketIndex + 1
-  let lsbBytes = (totalBits - lsbStart + 7) div 8
-  var randomBuf = newSeqUninit[byte](lsbBytes)
-  rng.hmacDrbgGenerate(randomBuf)
+  # randomize lower bits of the boundary byte
+  let lsbMask = (1'u8 shl tgtBitInByte) - 1
+  if lsbMask != 0:
+    raw[tgtByte] =
+      (raw[tgtByte] and not lsbMask) or (rng.pickOne(allBytes).get() and lsbMask)
 
-  for i in lsbStart ..< totalBits:
-    let byteIdx = i div 8
-    let bitInByte = 7 - (i mod 8)
-    let lsbByte = (i - lsbStart) div 8
-    let lsbBit = 7 - ((i - lsbStart) mod 8)
-    let randBit = (randomBuf[lsbByte] shr lsbBit) and 1
-    if randBit == 1:
-      raw[byteIdx] = raw[byteIdx] or (1'u8 shl bitInByte)
-    else:
-      raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
+  # randomize remaining bytes
+  for j in (tgtByte + 1) ..< raw.len:
+    raw[j] = rng.pickOne(allBytes).get()
 
   return raw
 

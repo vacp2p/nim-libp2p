@@ -34,7 +34,7 @@ proc refreshTable*(
     if not (forceRefresh or bucket.isStale()):
       continue
 
-    let randomKey = randomKeyInBucket(rtable.selfId, i, kad.rng[])
+    let randomKey = randomKeyInBucket(rtable.selfId, i, kad.rng)
     discard await kad.findNode(randomKey)
 
 proc bootstrap*(
