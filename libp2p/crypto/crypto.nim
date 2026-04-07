@@ -180,6 +180,28 @@ proc shuffle*[T](rng: ref HmacDrbgContext, x: var openArray[T]) =
       y = rand mod i
     swap(x[i], x[y])
 
+proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): seq[T] =
+  if x.len == 0 or n == 0:
+    return @[]
+  var indices = newSeq[int](x.len)
+  for i in 0 ..< x.len:
+    indices[i] = i
+  let count = min(n, x.len)
+  result = newSeq[T](count)
+  var bytes: array[2, byte]
+  for i in 0 ..< count:
+    hmacDrbgGenerate(rng[], bytes)
+    let j = i + (bytes[0].int or bytes[1].int shl 8) mod (x.len - i)
+    swap(indices[i], indices[j])
+    result[i] = x[indices[i]]
+
+proc pickOne*[T](rng: ref HmacDrbgContext, x: openArray[T]): Opt[T] =
+  let picked = rng.pick(x, 1)
+  if picked.len == 0:
+    Opt.none(T)
+  else:
+    Opt.some(picked[0])
+
 proc random*(
     T: typedesc[PrivateKey],
     scheme: PKScheme,

@@ -3,6 +3,7 @@
 {.used.}
 
 from std/strutils import toUpper
+import std/sequtils
 import bearssl/hash, nimcrypto/utils
 import ../../../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 import ../../tools/[unittest, crypto]
@@ -631,3 +632,51 @@ suite "Key interface test suite":
     hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
     rng.shuffle(cards)
     check cards == ["King", "Ten", "Ace", "Queen", "Jack"]
+
+  test "pickOne returns none for empty sequence":
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
+    let x: seq[int] = @[]
+    check rng.pickOne(x).isNone()
+
+  test "pickOne returns the only element of a singleton":
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
+    check rng.pickOne(@[42]).get() == 42
+
+  test "pickOne returns an element from the sequence":
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
+    let xs = @[1, 2, 3, 4, 5]
+    let picked = rng.pickOne(xs).get()
+    check picked in xs
+
+  test "pick returns empty for empty sequence":
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
+    let x: seq[int] = @[]
+    check rng.pick(x, 3).len == 0
+
+  test "pick returns empty when n is zero":
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
+    check rng.pick(@[1, 2, 3], 0).len == 0
+
+  test "pick returns n distinct elements from the sequence":
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
+    let xs = @[1, 2, 3, 4, 5]
+    let picked = rng.pick(xs, 3)
+    check picked.len == 3
+    for x in picked:
+      check x in xs
+    check picked == picked.deduplicate()
+
+  test "pick returns all elements when n >= len":
+    var rng = (ref HmacDrbgContext)()
+    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
+    let xs = @[1, 2, 3]
+    let picked = rng.pick(xs, 10)
+    check picked.len == xs.len
+    for x in xs:
+      check x in picked
