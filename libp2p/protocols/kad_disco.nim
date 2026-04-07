@@ -60,7 +60,7 @@ proc new*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
-    clientMode: bool = false,
+    client: bool = false,
     codec: string = ServiceDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
     discoConf: KademliaDiscoveryConfig = KademliaDiscoveryConfig.new(),
@@ -84,15 +84,18 @@ proc new*(
     services: toHashSet(services),
     discoConf: discoConf,
     xprPublishing: xprPublishing,
-    clientMode: clientMode,
   )
 
   # Fill up buckets with initial bootstrap nodes
   kad.updatePeers(bootstrapNodes)
 
   kad.codec = codec
-  if clientMode:
+  if client:
     return kad
+  ## only after that, you assign kad.handler = proc(...)
+  ## So for a client-mode KademliaDiscovery, handler is never set.
+  ## That means disco.handler.isNil becomes a reliable service-layer signal
+  ## for “this instance was created in client mode”
 
   kad.handler = proc(
       conn: Connection, proto: string
@@ -137,13 +140,6 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-disco twice"
     return
 
-  # Client mode is supported for discoverer-only operation.
-  # It does not start full Kad-DHT server/maintenance behavior.
-  if disco.clientMode:
-    disco.started = true
-    info "Kademlia Discovery started in client mode"
-    return
-
   await procCall start(KadDHT(disco))
 
   if disco.xprPublishing:
@@ -157,9 +153,6 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
 method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
   if not disco.started:
     return
-
-  if not disco.clientMode:
-    await procCall stop(KadDHT(disco))
 
   if not disco.selfSignedLoop.isNil:
     disco.selfSignedLoop.cancelSoon()

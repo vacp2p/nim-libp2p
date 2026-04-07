@@ -55,7 +55,7 @@ proc new*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
-    clientMode: bool = false,
+    client: bool = false,
     codec: string = KadCodec,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
@@ -75,8 +75,12 @@ proc new*(
   kad.updatePeers(bootstrapNodes)
 
   kad.codec = codec
-  if clientMode:
+  if client:
     return kad
+  ## only after that, you assign kad.handler = proc(...)
+  ## So for a client-mode KademliaDiscovery, handler is never set.
+  ## That means disco.handler.isNil becomes a reliable service-layer signal
+  ## for “this instance was created in client mode”
 
   kad.handler = proc(
       conn: Connection, proto: string
