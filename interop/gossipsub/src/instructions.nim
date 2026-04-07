@@ -35,7 +35,9 @@ type
       validationTopicID*: string
       delaySeconds*: float64
 
-proc parseInstruction*(j: JsonNode): ScriptInstruction {.raises: [KeyError, ValueError].} =
+proc parseInstruction*(
+    j: JsonNode
+): ScriptInstruction {.raises: [KeyError, ValueError].} =
   ## Parse a single JSON instruction into a ScriptInstruction.
   let instrType = j["type"].getStr()
   case instrType
@@ -46,8 +48,7 @@ proc parseInstruction*(j: JsonNode): ScriptInstruction {.raises: [KeyError, Valu
         if j.hasKey("gossipSubParams"):
           j["gossipSubParams"]
         else:
-          newJObject()
-      ,
+          newJObject(),
     )
   of "connect":
     var targets: seq[int]
@@ -61,9 +62,8 @@ proc parseInstruction*(j: JsonNode): ScriptInstruction {.raises: [KeyError, Valu
       kind: IfNodeIDEquals, nodeID: j["nodeID"].getInt(), inner: innerInstr
     )
   of "waitUntil":
-    result = ScriptInstruction(
-      kind: WaitUntil, elapsedSeconds: j["elapsedSeconds"].getFloat()
-    )
+    result =
+      ScriptInstruction(kind: WaitUntil, elapsedSeconds: j["elapsedSeconds"].getFloat())
   of "subscribeToTopic":
     result = ScriptInstruction(
       kind: SubscribeToTopic,
@@ -72,8 +72,7 @@ proc parseInstruction*(j: JsonNode): ScriptInstruction {.raises: [KeyError, Valu
         if j.hasKey("partial"):
           j["partial"].getBool()
         else:
-          false
-      ,
+          false,
     )
   of "publish":
     result = ScriptInstruction(
@@ -91,7 +90,9 @@ proc parseInstruction*(j: JsonNode): ScriptInstruction {.raises: [KeyError, Valu
   else:
     raise newException(ValueError, "Unknown instruction type: " & instrType)
 
-proc parseScript*(j: JsonNode): seq[ScriptInstruction] {.raises: [KeyError, ValueError].} =
+proc parseScript*(
+    j: JsonNode
+): seq[ScriptInstruction] {.raises: [KeyError, ValueError].} =
   ## Parse the full experiment params JSON, extracting the script array.
   for item in j["script"]:
     result.add(parseInstruction(item))
