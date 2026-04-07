@@ -80,6 +80,7 @@ template setupKadSwitch*(
       providerExpirationInterval = chronos.seconds(1),
       republishProvidedKeysInterval = chronos.milliseconds(50),
     ),
+    rng = rng(),
   )
 
   switch.mount(kad)
@@ -104,6 +105,7 @@ proc createMockDiscovery*(
       providerExpirationInterval = chronos.seconds(1),
       republishProvidedKeysInterval = chronos.milliseconds(50),
     ),
+    rng = rng(),
     discoConf = discoConf,
   )
 
@@ -130,7 +132,7 @@ proc setupKad*(
     providerExpirationInterval = chronos.seconds(1),
     republishProvidedKeysInterval = chronos.milliseconds(50),
   )
-  let kad = KademliaDiscovery.new(switch, bootstrapNodes, config)
+  let kad = KademliaDiscovery.new(switch, bootstrapNodes, config, rng = rng())
   switch.mount(kad)
   kad
 

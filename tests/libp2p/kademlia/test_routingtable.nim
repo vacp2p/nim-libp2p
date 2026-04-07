@@ -138,23 +138,23 @@ suite "KadDHT Routing Table":
       idx == TargetBucket
       rid != selfId
 
-  test "randomPeerInBucket returns none for empty bucket":
+  test "randomPeer returns none for empty bucket":
     var bucket: Bucket
-    check randomPeerInBucket(bucket, rng).isNone()
+    check randomPeer(bucket, rng).isNone()
 
-  test "randomPeerInBucket returns the only peer in a single-peer bucket":
+  test "randomPeer returns the only peer in a single-peer bucket":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
     let key = randomKeyInBucket(selfId, TargetBucket, rng)
     discard rt.insert(key)
 
-    let picked = randomPeerInBucket(rt.buckets[TargetBucket], rng)
+    let picked = randomPeer(rt.buckets[TargetBucket], rng)
     check:
       picked.isSome()
       picked.get() == key
 
-  test "randomPeerInBucket returns a peer from the bucket":
+  test "randomPeer returns a peer from the bucket":
     let selfId = testKey(0)
     let config = RoutingTableConfig.new(hasher = Opt.some(noOpHasher))
     var rt = RoutingTable.new(selfId, config)
@@ -164,7 +164,7 @@ suite "KadDHT Routing Table":
       keys.add(k)
       discard rt.insert(k)
 
-    let picked = randomPeerInBucket(rt.buckets[TargetBucket], rng)
+    let picked = randomPeer(rt.buckets[TargetBucket], rng)
     check:
       picked.isSome()
       keys.contains(picked.get())

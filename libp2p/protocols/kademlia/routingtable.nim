@@ -143,12 +143,6 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-const allBytes = block:
-  var a: array[256, byte]
-  for i in 0 .. 255:
-    a[i] = byte(i)
-  a
-
 proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext): Key =
   var raw = selfId
 
@@ -166,16 +160,17 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext)
   # randomize lower bits of the boundary byte
   let lsbMask = (1'u8 shl tgtBitInByte) - 1
   if lsbMask != 0:
-    raw[tgtByte] =
-      (raw[tgtByte] and not lsbMask) or (rng.pickOne(allBytes).get() and lsbMask)
+    var rb: array[1, byte]
+    hmacDrbgGenerate(rng[], rb)
+    raw[tgtByte] = (raw[tgtByte] and not lsbMask) or (rb[0] and lsbMask)
 
   # randomize remaining bytes
-  for j in (tgtByte + 1) ..< raw.len:
-    raw[j] = rng.pickOne(allBytes).get()
+  if tgtByte + 1 < raw.len:
+    hmacDrbgGenerate(rng[], raw.toOpenArray(tgtByte + 1, raw.len - 1))
 
   return raw
 
-proc randomPeerInBucket*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
+proc randomPeer*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
   rng.pickOne(bucket.peers).map(
     proc(e: NodeEntry): Key =
       e.nodeId

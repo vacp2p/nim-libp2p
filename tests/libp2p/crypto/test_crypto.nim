@@ -3,7 +3,7 @@
 {.used.}
 
 from std/strutils import toUpper
-import std/sequtils
+import std/[sequtils, algorithm]
 import bearssl/hash, nimcrypto/utils
 import ../../../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 import ../../tools/[unittest, crypto]
@@ -634,49 +634,58 @@ suite "Key interface test suite":
     check cards == ["King", "Ten", "Ace", "Queen", "Jack"]
 
   test "pickOne returns none for empty sequence":
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
     let x: seq[int] = @[]
     check rng.pickOne(x).isNone()
 
   test "pickOne returns the only element of a singleton":
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
     check rng.pickOne(@[42]).get() == 42
 
   test "pickOne returns an element from the sequence":
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
-    let xs = @[1, 2, 3, 4, 5]
+    let xs = @[11, 22, 33, 44, 55]
     let picked = rng.pickOne(xs).get()
     check picked in xs
 
-  test "pick returns empty for empty sequence":
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
-    let x: seq[int] = @[]
-    check rng.pick(x, 3).len == 0
+  test "pick returns none for empty sequence":
+    check rng.pick(newSeq[int](), 3).isNone()
 
   test "pick returns empty when n is zero":
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
-    check rng.pick(@[1, 2, 3], 0).len == 0
+    check rng.pick(@[1, 2, 3], 0).get().len == 0
 
   test "pick returns n distinct elements from the sequence":
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
     let xs = @[1, 2, 3, 4, 5]
-    let picked = rng.pick(xs, 3)
+    let picked = rng.pick(xs, 3).get()
     check picked.len == 3
     for x in picked:
       check x in xs
     check picked == picked.deduplicate()
 
   test "pick returns all elements when n >= len":
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
     let xs = @[1, 2, 3]
-    let picked = rng.pick(xs, 10)
+    let picked = rng.pick(xs, 10).get()
     check picked.len == xs.len
-    for x in xs:
-      check x in picked
+    check picked.sorted() == xs.sorted()
+
+  test "pick returns some for non-empty sequence with n > 0":
+    check rng.pick(@[1, 2, 3], 2).isSome()
+
+  test "pick result contains no duplicates":
+    let xs = @[1, 2, 3, 4, 5, 6, 7, 8]
+    let picked = rng.pick(xs, 5).get()
+    check picked == picked.deduplicate()
+
+  test "pick result is a subset of the input":
+    let xs = @[10, 20, 30, 40, 50]
+    let picked = rng.pick(xs, 4).get()
+    for x in picked:
+      check x in xs
+
+  test "pick n=1 returns a single element":
+    let xs = @[7, 8, 9]
+    let picked = rng.pick(xs, 1).get()
+    check picked.len == 1
+    check picked[0] in xs
+
+  test "pickOne result is always in the sequence":
+    let xs = @[100, 200, 300, 400, 500]
+    for _ in 0 ..< 20:
+      check rng.pickOne(xs).get() in xs

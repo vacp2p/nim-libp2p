@@ -65,9 +65,7 @@ method select*(
   return ok(bestIdx)
 
 proc record*(disco: KademliaDiscovery): Result[SignedExtendedPeerRecord, string] =
-  let
-    peerInfo: PeerInfo = disco.switch.peerInfo
-    services: seq[ServiceInfo] = disco.services.toSeq()
+  let peerInfo: PeerInfo = disco.switch.peerInfo
 
   let extPeerRecord = SignedExtendedPeerRecord.init(
     peerInfo.privateKey,
@@ -75,7 +73,7 @@ proc record*(disco: KademliaDiscovery): Result[SignedExtendedPeerRecord, string]
       peerId: peerInfo.peerId,
       seqNo: getTime().toUnix().uint64,
       addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-      services: services,
+      services: disco.services.toSeq(),
     ),
   ).valueOr:
     return err("Failed to create signed peer record: " & $error)

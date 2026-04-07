@@ -180,29 +180,33 @@ proc shuffle*[T](rng: ref HmacDrbgContext, x: var openArray[T]) =
       y = rand mod i
     swap(x[i], x[y])
 
-proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): seq[T] =
-  if x.len == 0 or n == 0:
-    return @[]
+proc randBelow(rng: ref HmacDrbgContext, max: int): int =
+  ## Returns a uniformly random integer in the range [0, max).
+  var bytes: array[2, byte]
+  hmacDrbgGenerate(rng[], bytes)
+  (bytes[0].int or bytes[1].int shl 8) mod max
+
+proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): Opt[seq[T]] =
+  if x.len == 0:
+    return Opt.none(seq[T])
+  if n == 0:
+    return Opt.some(newSeq[T]())
   var indices = newSeq[int](x.len)
   for i in 0 ..< x.len:
     indices[i] = i
   let count = min(n, x.len)
-  result = newSeq[T](count)
-  var bytes: array[2, byte]
+  var output = newSeq[T](count)
   for i in 0 ..< count:
-    hmacDrbgGenerate(rng[], bytes)
-    let j = i + (bytes[0].int or bytes[1].int shl 8) mod (x.len - i)
+    let j = i + rng.randBelow(x.len - i)
     swap(indices[i], indices[j])
-    result[i] = x[indices[i]]
+    output[i] = x[indices[i]]
+  Opt.some(output)
 
 proc pickOne*[T](rng: ref HmacDrbgContext, x: openArray[T]): Opt[T] =
   if x.len == 0:
     return Opt.none(T)
 
-  var bytes: array[2, byte]
-  hmacDrbgGenerate(rng[], bytes)
-  let index = (bytes[0].int or bytes[1].int shl 8) mod x.len
-  Opt.some(x[index])
+  Opt.some(x[rng.randBelow(x.len)])
 
 proc random*(
     T: typedesc[PrivateKey],

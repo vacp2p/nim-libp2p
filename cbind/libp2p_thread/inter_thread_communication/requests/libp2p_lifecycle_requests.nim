@@ -191,6 +191,7 @@ proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
         libp2p.switch,
         bootstrapNodes = bootstrapNodes,
         config = kadCfg,
+        rng = libp2p.switch.rng,
         codec = ExtendedKademliaDiscoveryCodec,
       )
       libp2p.switch.mount(k)

@@ -17,7 +17,9 @@ logScope:
 
 const ServiceDiscoveryCodec = "/logos/service-discovery/1.0.0"
 
-proc refreshSelfSignedPeerRecord(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
+proc refreshSelfSignedPeerRecord(
+    disco: KademliaDiscovery
+) {.async: (raises: [CancelledError]).} =
   await disco.switch.peerInfo.update()
   let extPeerRecord = disco.record().valueOr:
     error "Failed to create signed extended peer record", error
@@ -46,7 +48,7 @@ proc new*(
     switch: Switch,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
-    rng: ref HmacDrbgContext = newRng(),
+    rng: ref HmacDrbgContext,
     client: bool = false,
     codec: string = ServiceDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
