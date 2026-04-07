@@ -14,6 +14,7 @@ import
     protocols/pubsub/rpc/messages,
     switch,
   ]
+import ../../../tests/tools/crypto
 
 # Peer Id
 
@@ -60,7 +61,7 @@ proc createNode*(
 
   let switch = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng())
     .withAddresses(@[listenAddr])
     .withPrivateKey(privKey)
     .withTcpTransport()

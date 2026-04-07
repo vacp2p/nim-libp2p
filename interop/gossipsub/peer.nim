@@ -82,17 +82,16 @@ proc main() {.async.} =
     nodeId: nodeId,
     node: node,
     logStream: logStream,
-    resolveAddr: proc(id: int): Future[MultiAddress] {.async.} =
+    resolveAddr: proc(id: int): MultiAddress =
+      let peerId = nodePeerId(id)
       if localMode:
-        let peerId = nodePeerId(id)
-        return MultiAddress.init("/ip4/127.0.0.1/tcp/9000/p2p/" & $peerId).tryGet()
+        MultiAddress.init("/ip4/127.0.0.1/tcp/9000/p2p/" & $peerId).tryGet()
       else:
         # In Shadow, resolve hostname via simulated DNS
         let hostname = "node" & $id
         let addrs = getHostByName(hostname)
         let ip = addrs.addrList[0]
-        let peerId = nodePeerId(id)
-        return MultiAddress.init("/ip4/" & $ip & "/tcp/9000/p2p/" & $peerId).tryGet(),
+        MultiAddress.init("/ip4/" & $ip & "/tcp/9000/p2p/" & $peerId).tryGet(),
   )
 
   await runner.runScript(instructions)

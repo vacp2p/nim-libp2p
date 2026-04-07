@@ -23,7 +23,7 @@ type
       nodeID*: int
       inner*: ref ScriptInstruction
     of WaitUntil:
-      elapsedSeconds*: float64
+      elapsedSeconds*: int
     of SubscribeToTopic:
       topicID*: string
       partial*: bool
@@ -66,7 +66,7 @@ proc parseIfNodeIDEquals(
   )
 
 proc parseWaitUntil(j: JsonNode): ScriptInstruction =
-  ScriptInstruction(kind: WaitUntil, elapsedSeconds: j["elapsedSeconds"].getFloat())
+  ScriptInstruction(kind: WaitUntil, elapsedSeconds: j["elapsedSeconds"].getInt())
 
 proc parseSubscribeToTopic(j: JsonNode): ScriptInstruction =
   ScriptInstruction(

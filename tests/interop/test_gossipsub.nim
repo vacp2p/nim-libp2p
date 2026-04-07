@@ -6,13 +6,10 @@
 import chronos, json, stew/byteutils, streams
 import
   ../../libp2p/[
-    crypto/crypto,
-    crypto/ed25519/ed25519,
     multiaddress,
     peerid,
     protocols/pubsub/gossipsub,
     protocols/pubsub/rpc/message,
-    protocols/pubsub/rpc/messages,
     switch,
   ]
 import ../tools/[unittest]
@@ -78,7 +75,7 @@ suite "GossipSub Interop":
     let instr = parseInstruction(j)
     check:
       instr.kind == WaitUntil
-      instr.elapsedSeconds == 30.0
+      instr.elapsedSeconds == 30
 
   test "parse subscribeToTopic instruction":
     let j = parseJson("""{"type": "subscribeToTopic", "topicID": "foobar"}""")
@@ -199,7 +196,7 @@ suite "GossipSub Interop - Script runner":
         ScriptInstruction(kind: InitGossipSub, gossipSubParams: newJObject()),
         ScriptInstruction(kind: Connect, connectTo: @[1]),
         ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false),
-        ScriptInstruction(kind: WaitUntil, elapsedSeconds: 2.0),
+        ScriptInstruction(kind: WaitUntil, elapsedSeconds: 2),
         ScriptInstruction(
           kind: Publish,
           publishMessageID: 99,
@@ -213,7 +210,7 @@ suite "GossipSub Interop - Script runner":
       nodeId: 0,
       node: node0,
       logStream: stream,
-      resolveAddr: proc(id: int): Future[MultiAddress] {.async, gcsafe.} =
+      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
         return targetAddr,
     )
 
@@ -244,7 +241,7 @@ suite "GossipSub Interop - Script runner":
       nodeId: 0,
       node: node0,
       logStream: stream,
-      resolveAddr: proc(id: int): Future[MultiAddress] {.async, gcsafe.} =
+      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
         return targetAddr,
     )
 
@@ -260,7 +257,7 @@ suite "GossipSub Interop - Script runner":
       nodeId: 0,
       node: node0,
       logStream: stream,
-      resolveAddr: proc(id: int): Future[MultiAddress] {.async, gcsafe.} =
+      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
         return targetAddr,
     )
 

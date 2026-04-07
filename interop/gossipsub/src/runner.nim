@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, stew/endians2, std/streams
+import chronos, chronicles, stew/endians2, std/streams
 import
   ../../../libp2p/[
-    builders,
-    crypto/crypto,
     multiaddress,
     peerid,
     protocols/pubsub/gossipsub,
@@ -19,7 +17,7 @@ type ScriptRunner* = ref object
   nodeId*: int
   node*: GossipSub
   logStream*: Stream
-  resolveAddr*: proc(nodeId: int): Future[MultiAddress] {.gcsafe.}
+  resolveAddr*: proc(nodeId: int): MultiAddress {.gcsafe.}
   startTime: Moment
 
 # Forward declaration
@@ -29,10 +27,10 @@ proc executeConnect(runner: ScriptRunner, connectTo: seq[int]) {.async.} =
   for targetId in connectTo:
     let targetPid = nodePeerId(targetId)
     try:
-      let targetAddr = await runner.resolveAddr(targetId)
+      let targetAddr = runner.resolveAddr(targetId)
       await runner.node.switch.connect(targetPid, @[targetAddr])
     except Exception as e:
-      logJSON(runner.logStream, "Connect failed", {"target": $targetId, "error": e.msg})
+      warn "Connect failed", target = targetId, error = e.msg
 
 proc executeIfNodeIDEquals(
     runner: ScriptRunner, nodeID: int, inner: ScriptInstruction
@@ -40,8 +38,8 @@ proc executeIfNodeIDEquals(
   if nodeID == runner.nodeId:
     await runner.executeInstruction(inner)
 
-proc executeWaitUntil(runner: ScriptRunner, elapsedSeconds: float64) {.async.} =
-  let target = runner.startTime + seconds(int64(elapsedSeconds))
+proc executeWaitUntil(runner: ScriptRunner, elapsedSeconds: int) {.async.} =
+  let target = runner.startTime + seconds(elapsedSeconds)
   let now = Moment.now()
   if target > now:
     await sleepAsync(target - now)
@@ -68,11 +66,7 @@ proc executePublish(
   try:
     discard await runner.node.publish(publishTopicID, data)
   except CatchableError as e:
-    logJSON(
-      runner.logStream,
-      "Publish failed",
-      {"messageID": $publishMessageID, "error": e.msg},
-    )
+    warn "Publish failed", messageID = publishMessageID, error = e.msg
 
 proc executeSetTopicValidationDelay(
     runner: ScriptRunner, validationTopicID: string, delaySeconds: float64
