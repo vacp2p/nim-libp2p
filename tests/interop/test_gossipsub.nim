@@ -17,7 +17,7 @@ import
   ]
 import ../tools/[unittest]
 import ../../interop/gossipsub/src/[lib, instructions, runner]
- 
+
 suite "GossipSub Interop":
   const expectedPeerIds = [
     # Node 0

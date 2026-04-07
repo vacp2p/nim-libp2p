@@ -12,9 +12,9 @@ import
     protocols/pubsub/gossipsub,
     protocols/pubsub/rpc/message,
     protocols/pubsub/rpc/messages,
-    switch
+    switch,
   ]
- 
+
 # Peer Id
 
 proc getNodeId*(): int =
@@ -39,7 +39,7 @@ proc nodePeerId*(id: int): PeerId =
 proc extractMsgId*(data: openArray[byte]): uint64 =
   ## Extract message ID from the first 8 bytes of message data (big-endian u64).
   fromBytesBE(uint64, data.toOpenArray(0, 7))
- 
+
 proc interopMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ## Message ID provider for interop tests.
   ## Reads first 8 bytes of message data as big-endian uint64,
