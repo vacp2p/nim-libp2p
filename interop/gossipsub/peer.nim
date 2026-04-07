@@ -50,8 +50,9 @@ proc main() {.async.} =
 
   doAssert paramsPath.len > 0, "Must provide --params <path>"
 
+  let localMode = nodeIdOpt >= 0
   let nodeId =
-    if nodeIdOpt >= 0:
+    if localMode:
       nodeIdOpt
     else:
       getNodeId()
@@ -77,7 +78,6 @@ proc main() {.async.} =
 
   let logStream = newFileStream(stdout)
 
-  let localMode = nodeIdOpt >= 0
   let runner = ScriptRunner(
     nodeId: nodeId,
     node: node,
