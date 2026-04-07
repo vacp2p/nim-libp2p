@@ -12,6 +12,9 @@ import
   ]
 import ./[instructions, lib, logger]
 
+logScope:
+  topics = "gossipsub-interop"
+
 type ScriptRunner* = ref object
   nodeId*: int
   node*: GossipSub
@@ -53,8 +56,10 @@ proc executeSubscribeToTopic(runner: ScriptRunner, topicId: string) {.async.} =
       let msgId = extractMsgId(data)
       try:
         logReceivedMessage(logStream, $msgId, topic)
-      except IOError, OSError:
-        discard
+      except IOError as e:
+        debug "Failed to log received message", error = e.msg
+      except OSError as e:
+        debug "Failed to log received message", error = e.msg
 
   runner.node.subscribe(topicId, handler)
 
@@ -85,15 +90,15 @@ proc executeSetTopicValidationDelay(
         topic: string, message: messages.Message
     ): Future[ValidationResult] {.gcsafe, raises: [].} =
       let validationFut =
-        Future[ValidationResult].Raising([]).init("executeSetTopicValidationDelay.validator")
-      proc waitAndAccept() {.async.} =
+        Future[ValidationResult].Raising([]).init("topicValidator")
+      proc delayedAccept() {.async.} =
         try:
           await sleepAsync(delay)
           validationFut.complete(ValidationResult.Accept)
         except CancelledError:
           validationFut.complete(ValidationResult.Ignore)
 
-      asyncSpawn waitAndAccept()
+      asyncSpawn delayedAccept()
       validationFut,
   )
 
@@ -127,8 +132,10 @@ proc runScript*(runner: ScriptRunner, instructions: seq[ScriptInstruction]) {.as
   let pid = PeerId.init(nodePrivKey(runner.nodeId)).expect("valid peer id")
   try:
     logPeerId(runner.logStream, pid, runner.nodeId)
-  except IOError, OSError:
-    discard
+  except IOError as e:
+    debug "Failed to log peer ID", error = e.msg
+  except OSError as e:
+    debug "Failed to log peer ID", error = e.msg
 
   for instr in instructions:
     await runner.executeInstruction(instr)
