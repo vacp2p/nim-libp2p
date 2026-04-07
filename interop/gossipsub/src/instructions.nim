@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import json
+import chronos, json
+import
+  ../../../libp2p/protocols/pubsub/gossipsub
 
 type
   InstructionKind* = enum
@@ -16,7 +18,7 @@ type
   ScriptInstruction* = object
     case kind*: InstructionKind
     of InitGossipSub:
-      gossipSubParams*: JsonNode
+      gossipSubParams*: GossipSubParams
     of Connect:
       connectTo*: seq[int]
     of IfNodeIDEquals:
@@ -35,20 +37,55 @@ type
       validationTopicID*: string
       delaySeconds*: float64
 
+# GossipSubParams parsing helpers
+
+proc nsToDuration(ns: float64): Duration =
+  int64(ns).nanoseconds()
+
+proc getDuration(node: JsonNode, default: Duration): Duration =
+  if node == nil or node.kind == JNull:
+    return default
+  nsToDuration(node.getFloat())
+
+proc toGossipSubParams*(j: JsonNode): GossipSubParams =
+  ## Convert JSON to GossipSubParams
+  var params = GossipSubParams.init()
+
+  params.d = j.getOrDefault("D").getInt(params.d)
+  params.dLow = j.getOrDefault("Dlo").getInt(params.dLow)
+  params.dHigh = j.getOrDefault("Dhi").getInt(params.dHigh)
+  params.dScore = j.getOrDefault("Dscore").getInt(params.dScore)
+  params.dOut = j.getOrDefault("Dout").getInt(params.dOut)
+  params.dLazy = j.getOrDefault("Dlazy").getInt(params.dLazy)
+
+  params.historyLength = j.getOrDefault("HistoryLength").getInt(params.historyLength)
+  params.historyGossip = j.getOrDefault("HistoryGossip").getInt(params.historyGossip)
+  params.gossipFactor = j.getOrDefault("GossipFactor").getFloat(params.gossipFactor)
+
+  params.heartbeatInterval =
+    j.getOrDefault("HeartbeatInterval").getDuration(params.heartbeatInterval)
+  params.fanoutTTL = j.getOrDefault("FanoutTTL").getDuration(params.fanoutTTL)
+  params.pruneBackoff = j.getOrDefault("PruneBackoff").getDuration(params.pruneBackoff)
+  params.unsubscribeBackoff =
+    j.getOrDefault("UnsubscribeBackoff").getDuration(params.unsubscribeBackoff)
+  params.seenTTL = j.getOrDefault("SeenTTL").getDuration(params.seenTTL)
+
+  params.floodPublish = j.getOrDefault("FloodPublish").getBool(params.floodPublish)
+
+  params
+
 # Forward declaration
 proc parseInstruction*(
   j: JsonNode
 ): ScriptInstruction {.raises: [KeyError, ValueError], gcsafe.}
 
 proc parseInitGossipSub(j: JsonNode): ScriptInstruction =
-  ScriptInstruction(
-    kind: InitGossipSub,
-    gossipSubParams:
-      if j.hasKey("gossipSubParams"):
-        j["gossipSubParams"]
-      else:
-        newJObject(),
-  )
+  let paramsJson =
+    if j.hasKey("gossipSubParams"):
+      j["gossipSubParams"]
+    else:
+      newJObject()
+  ScriptInstruction(kind: InitGossipSub, gossipSubParams: toGossipSubParams(paramsJson))
 
 proc parseConnect(j: JsonNode): ScriptInstruction =
   var targets: seq[int]

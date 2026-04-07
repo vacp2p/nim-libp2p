@@ -7,7 +7,6 @@ import
     multiaddress,
     peerid,
     protocols/pubsub/gossipsub,
-    protocols/pubsub/pubsub,
     protocols/pubsub/rpc/messages,
     switch,
   ]
@@ -29,7 +28,9 @@ proc executeConnect(runner: ScriptRunner, connectTo: seq[int]) {.async.} =
     try:
       let targetAddr = runner.resolveAddr(targetId)
       await runner.node.switch.connect(targetPid, @[targetAddr])
-    except Exception as e:
+    except CancelledError:
+      raise
+    except CatchableError as e:
       warn "Connect failed", target = targetId, error = e.msg
 
 proc executeIfNodeIDEquals(
@@ -47,10 +48,13 @@ proc executeWaitUntil(runner: ScriptRunner, elapsedSeconds: int) {.async.} =
 proc executeSubscribeToTopic(runner: ScriptRunner, topicId: string) {.async.} =
   let logStream = runner.logStream
 
-  proc handler(topic: string, data: seq[byte]) {.async.} =
+  proc handler(topic: string, data: seq[byte]) {.async, raises: [].} =
     if data.len >= 8:
       let msgId = extractMsgId(data)
-      logReceivedMessage(logStream, $msgId, topic)
+      try:
+        logReceivedMessage(logStream, $msgId, topic)
+      except IOError, OSError:
+        discard
 
   runner.node.subscribe(topicId, handler)
 
@@ -60,23 +64,37 @@ proc executePublish(
     messageSizeBytes: int,
     publishMessageID: int,
 ) {.async.} =
+  doAssert messageSizeBytes >= 8, "messageSizeBytes must be at least 8"
   var data = newSeq[byte](messageSizeBytes)
   let msgIdU64 = uint64(publishMessageID)
   data[0 ..< 8] = toBytesBE(msgIdU64)
   try:
     discard await runner.node.publish(publishTopicID, data)
+  except CancelledError:
+    raise
   except CatchableError as e:
     warn "Publish failed", messageID = publishMessageID, error = e.msg
 
 proc executeSetTopicValidationDelay(
     runner: ScriptRunner, validationTopicID: string, delaySeconds: float64
 ) {.async.} =
-  let delay = milliseconds(int64(delaySeconds * 1000.0))
+  let delay = nanoseconds(int64(delaySeconds * 1_000_000_000.0))
   runner.node.addValidator(
     @[validationTopicID],
-    proc(topic: string, message: messages.Message): Future[ValidationResult] {.async.} =
-      await sleepAsync(delay)
-      return ValidationResult.Accept,
+    proc(
+        topic: string, message: messages.Message
+    ): Future[ValidationResult] {.gcsafe, raises: [].} =
+      let validationFut =
+        Future[ValidationResult].Raising([]).init("executeSetTopicValidationDelay.validator")
+      proc waitAndAccept() {.async.} =
+        try:
+          await sleepAsync(delay)
+          validationFut.complete(ValidationResult.Accept)
+        except CancelledError:
+          validationFut.complete(ValidationResult.Ignore)
+
+      asyncSpawn waitAndAccept()
+      validationFut,
   )
 
 proc executeInstruction*(
@@ -107,7 +125,10 @@ proc runScript*(runner: ScriptRunner, instructions: seq[ScriptInstruction]) {.as
   ## Execute a sequence of script instructions.
   runner.startTime = Moment.now()
   let pid = PeerId.init(nodePrivKey(runner.nodeId)).expect("valid peer id")
-  logPeerId(runner.logStream, pid, runner.nodeId)
+  try:
+    logPeerId(runner.logStream, pid, runner.nodeId)
+  except IOError, OSError:
+    discard
 
   for instr in instructions:
     await runner.executeInstruction(instr)

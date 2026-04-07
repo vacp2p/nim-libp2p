@@ -62,11 +62,11 @@ proc main() {.async.} =
   var params = GossipSubParams.init()
   for instr in instructions:
     if instr.kind == InitGossipSub:
-      params = toGossipSubParams(instr.gossipSubParams)
+      params = instr.gossipSubParams
       break
     elif instr.kind == IfNodeIDEquals and instr.nodeID == nodeId:
       if instr.inner.kind == InitGossipSub:
-        params = toGossipSubParams(instr.inner.gossipSubParams)
+        params = instr.inner.gossipSubParams
         break
 
   let listenAddr = MultiAddress.init("/ip4/0.0.0.0/tcp/9000").tryGet()

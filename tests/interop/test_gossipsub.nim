@@ -50,7 +50,7 @@ suite "GossipSub Interop":
     let instr = parseInstruction(j)
     check:
       instr.kind == InitGossipSub
-      instr.gossipSubParams["D"].getInt() == 6
+      instr.gossipSubParams.d == 6
 
   test "parse connect instruction":
     let j = parseJson("""{"type": "connect", "connectTo": [1, 2, 3]}""")
@@ -178,22 +178,22 @@ suite "GossipSub Interop - Script runner":
       await teardownNodes()
 
     const topic = "foobar"
-    var receivedMsgId: string
+    let receivedMsgIdFut = Future[string].Raising([]).init("test.receivedMsgId")
     let targetAddr = node1.getAddr()
 
     # Node 1: subscribe to receive messages
     node1.subscribe(
       topic,
-      proc(topic: string, data: seq[byte]) {.async.} =
-        if data.len >= 8:
-          receivedMsgId = $extractMsgId(data)
+      proc(topic: string, data: seq[byte]) {.async, raises: [].} =
+        if data.len >= 8 and not receivedMsgIdFut.finished():
+          receivedMsgIdFut.complete($extractMsgId(data))
       ,
     )
 
     # Build a script for node 0
     let script =
       @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: newJObject()),
+        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
         ScriptInstruction(kind: Connect, connectTo: @[1]),
         ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false),
         ScriptInstruction(kind: WaitUntil, elapsedSeconds: 2),
@@ -216,8 +216,7 @@ suite "GossipSub Interop - Script runner":
 
     await runner.runScript(script)
 
-    checkUntilTimeout:
-      receivedMsgId == "99"
+    check (await receivedMsgIdFut.wait(10.seconds)) == "99"
 
   asyncTest "ifNodeIDEquals filters correctly":
     await setupNodes()
@@ -231,7 +230,7 @@ suite "GossipSub Interop - Script runner":
 
     let script =
       @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: newJObject()),
+        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
         # This should be skipped (node 5 != node 0)
         ScriptInstruction(kind: IfNodeIDEquals, nodeID: 5, inner: inner),
       ]
