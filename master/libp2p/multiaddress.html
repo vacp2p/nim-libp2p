@@ -676,6 +676,10 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#getField%2CProtoBuffer%2Cint%2CMultiAddress" title="getField(pb: ProtoBuffer; field: int; value: var MultiAddress): ProtoResult[bool]">getField(pb: ProtoBuffer; field: int; value: var MultiAddress): ProtoResult[bool]</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">getIp
+  <li><a class="reference" href="#getIp%2CMultiAddress" title="getIp(ma: MultiAddress): Opt[IpAddress]">getIp(ma: MultiAddress): Opt[IpAddress]</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">getPart
   <li><a class="reference" href="#getPart%2CMultiAddress%2CMultiCodec" title="getPart(ma: MultiAddress; codec: MultiCodec): MaResult[MultiAddress]">getPart(ma: MultiAddress; codec: MultiCodec): MaResult[MultiAddress]</a></li>
 
@@ -2111,6 +2115,19 @@ Get MultiBase encoded representation of <tt class="docutils literal"><span class
 </div>
 
 </div>
+<div id="getIp-procs-all">
+  <div id="getIp,MultiAddress" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#getIp%2CMultiAddress"><span class="Identifier">getIp</span></a><span class="Other">(</span><span class="Identifier">ma</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">IpAddress</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+Extract IpAddress from MultiAddress. Returns Opt.none if no IP4/IP6 component found.
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/multiaddress.nim#L1168" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/multiaddress.nim#L1168" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
 <div id="getPart-procs-all">
   <div id="getPart,MultiAddress,MultiCodec" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#getPart%2CMultiAddress%2CMultiCodec"><span class="Identifier">getPart</span></a><span class="Other">(</span><span class="Identifier">ma</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">;</span> <span class="Identifier">codec</span><span class="Other">:</span> <a href="multicodec.html#MultiCodec"><span class="Identifier">MultiCodec</span></a><span class="Other">)</span><span class="Other">:</span> <a href="multiaddress.html#MaResult"><span class="Identifier">MaResult</span></a><span class="Other">[</span><a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span> {.
@@ -2539,7 +2556,7 @@ Iterates over all addresses inside of MultiAddress <tt class="docutils literal">
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-06 16:59:36 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-07 10:16:09 UTC</small>
       </div>
     </div>
   </div>
