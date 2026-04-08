@@ -85,10 +85,11 @@ proc main() {.async.} =
     resolveAddr: proc(id: int): MultiAddress {.gcsafe, raises: [CatchableError].} =
       let peerId = nodePeerId(id)
       let ip =
-        if localMode: "127.0.0.1"
-        else: getHostByName("node" & $id).addrList[0] # Shadow simulated DNS
-      MultiAddress.init("/ip4/" & ip & "/tcp/9000/p2p/" & $peerId).tryGet()
-    ,
+        if localMode:
+          "127.0.0.1"
+        else:
+          getHostByName("node" & $id).addrList[0] # Shadow simulated DNS
+      MultiAddress.init("/ip4/" & ip & "/tcp/9000/p2p/" & $peerId).tryGet(),
   )
 
   await runner.runScript(instructions)
