@@ -483,9 +483,9 @@ proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError
   ##
   trace "Dropping peer", peerId
 
-  c.muxed.withValue(peerId, muxers):
-    for muxer in muxers[]:
-      await closeMuxer(muxer)
+  let muxers = c.muxed.getOrDefault(peerId)
+  for muxer in muxers:
+    await closeMuxer(muxer)
 
   trace "Peer dropped", peerId
 
