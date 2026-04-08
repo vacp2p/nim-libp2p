@@ -31,7 +31,8 @@ proc refreshSelfSignedPeerRecord(
 
   let key = disco.switch.peerInfo.peerId.toKey()
 
-  debug "Publishing Signed XPR", xpr = $extPeerRecord
+  debug "Publishing Signed XPR",
+    peerId = disco.switch.peerInfo.peerId, serviceCount = disco.services.len
 
   let putRes = await disco.putValue(key, encodedSR)
   if putRes.isErr:
@@ -97,6 +98,9 @@ proc new*(
         debug "Failed to decode message", err = error
         return
 
+      kad_messages_received.inc(labelValues = [$msg.msgType])
+      kad_message_bytes_received.inc(buf.len.int64, labelValues = [$msg.msgType])
+
       case msg.msgType
       of MessageType.findNode:
         await kad.handleFindNode(conn, msg)
@@ -151,5 +155,3 @@ method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
     disco.registrarCacheLoop.cancelSoon()
     disco.registrarCacheLoop = nil
   await procCall stop(KadDHT(disco))
-
-  disco.started = false

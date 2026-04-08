@@ -61,11 +61,9 @@ proc addService*(
     status: ServiceStatus,
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   withLock(manager):
-    if serviceId in manager.serviceStatus:
-      let currentStatus = manager.serviceStatus.getOrDefault(serviceId)
-      if status == currentStatus:
+    manager.serviceStatus.withValue(serviceId, currentStatus):
+      if status == currentStatus[]:
         return false
-
       manager.serviceStatus[serviceId] = Both
       return true
 
@@ -99,8 +97,7 @@ proc removeService*(
       return
 
     if currentStatus == Both:
-      manager.serviceStatus[serviceId] =
-        if status == Interest: Provided else: Interest
+      manager.serviceStatus[serviceId] = if status == Interest: Provided else: Interest
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
@@ -117,23 +114,20 @@ proc insertPeer*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, peerKey: Key
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   withLock(manager):
-    let res = catch:
-      manager.tables[serviceId]
-    var table = res.valueOr:
+    manager.tables.withValue(serviceId, table):
+      let inserted = table[].insert(peerKey)
+      if inserted:
+        cd_service_table_insertions.inc()
+        manager.updateServiceTablesMetrics()
+      return inserted
+    do:
       return false
-
-    let inserted = table.insert(peerKey)
-    manager.tables[serviceId] = table
-    if inserted:
-      cd_service_table_insertions.inc()
-    return inserted
 
 proc hasService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
-): bool {.raises: [].} =
-  ## Check if routing table exists for a service
-
-  serviceId in manager.tables
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  withLock(manager):
+    return serviceId in manager.tables
 
 proc refreshAllTables*(
     manager: ServiceRoutingTableManager, kad: KadDHT
@@ -164,3 +158,4 @@ proc serviceIds*(
 proc clear*(manager: ServiceRoutingTableManager) {.async: (raises: [CancelledError]).} =
   withLock(manager):
     manager.tables.clear()
+    manager.serviceStatus.clear()

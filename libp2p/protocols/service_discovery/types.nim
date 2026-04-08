@@ -111,12 +111,7 @@ proc hash*(t: AdvertiseTask): Hash {.raises: [].} =
   hash(cast[pointer](t))
 
 proc actionCmp*(a, b: PendingAction): int =
-  if a.scheduledTime < b.scheduledTime:
-    -1
-  elif a.scheduledTime > b.scheduledTime:
-    1
-  else:
-    0
+  cmp(a.scheduledTime, b.scheduledTime)
 
 # Helper procs for working with Advertisement (SignedExtendedPeerRecord)
 
@@ -155,32 +150,26 @@ proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
   ## Create a cache key from an advertisement
   (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
 
+proc signingInput(ticket: Ticket): seq[byte] =
+  result =
+    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
+  result.add(ticket.advertisement)
+  result.add(toBytesBE(ticket.tInit.uint64).toSeq)
+  result.add(toBytesBE(ticket.tMod.uint64).toSeq)
+  result.add(toBytesBE(ticket.tWaitFor.uint32).toSeq)
+  result.add(toBytesBE(ticket.expiresAt.uint64).toSeq)
+  result.add(ticket.nonce)
+
 proc sign*(ticket: var Ticket, privateKey: PrivateKey): Result[void, CryptoError] =
   ## Sign the ticket with the given private key.
   ## Signature is over: encoded_ad || t_init || t_mod || t_wait_for || expires_at || nonce
-  var sigInput =
-    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
-  sigInput.add(ticket.advertisement)
-  sigInput.add(toBytesBE(ticket.tInit.uint64).toSeq)
-  sigInput.add(toBytesBE(ticket.tMod.uint64).toSeq)
-  sigInput.add(toBytesBE(ticket.tWaitFor.uint32).toSeq)
-  sigInput.add(toBytesBE(ticket.expiresAt.uint64).toSeq)
-  sigInput.add(ticket.nonce)
-
-  let sig = ?privateKey.sign(sigInput)
+  let sig = ?privateKey.sign(ticket.signingInput())
   ticket.signature = sig.getBytes()
   ok()
 
 proc verify*(ticket: Ticket, publicKey: PublicKey): bool =
   ## Verify the ticket signature with the given public key.
-  var sigInput =
-    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
-  sigInput.add(ticket.advertisement)
-  sigInput.add(toBytesBE(ticket.tInit.uint64).toSeq)
-  sigInput.add(toBytesBE(ticket.tMod.uint64).toSeq)
-  sigInput.add(toBytesBE(ticket.tWaitFor.uint32).toSeq)
-  sigInput.add(toBytesBE(ticket.expiresAt.uint64).toSeq)
-  sigInput.add(ticket.nonce)
+  let sigInput = ticket.signingInput()
 
   var sig: Signature
   if not sig.init(ticket.signature):

@@ -12,7 +12,7 @@ import ../kademlia/types
 import ../service_discovery/types
 import ../service_discovery/serviceroutingtables
 
-const ExtendedKademliaDiscoveryCodec* = "/logos/kad/1.0.0"
+const ExtendedKademliaDiscoveryCodec* = "/logos/service-discovery/1.0.0"
 
 type KademliaDiscovery* = ref object of KadDHT
   registrar*: Registrar

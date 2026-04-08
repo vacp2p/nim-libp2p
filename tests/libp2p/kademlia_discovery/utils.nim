@@ -8,9 +8,9 @@ import ../../../libp2p/[peerid, crypto/crypto, switch, builders, extended_peer_r
 import ../../../libp2p/protocols/kad_disco
 import ../../../libp2p/protocols/kademlia/[types, protobuf, routingtable]
 import ../kademlia/utils
-import ../../tools/crypto
+import ../../tools/crypto as testcrypto
 
-export kad_disco, types, crypto
+export kad_disco, types, testcrypto
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
