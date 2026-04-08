@@ -220,7 +220,7 @@ proc send*(
     p: PubSub,
     peer: PubSubPeer,
     msg: RPCMsg,
-    isHighPriority: bool,
+    priority: MessagePriority,
     useCustomConn: bool = false,
 ) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
@@ -229,18 +229,18 @@ proc send*(
   ## - `p`: The `PubSub` instance.
   ## - `peer`: An instance of `PubSubPeer` representing the peer to whom the message should be sent.
   ## - `msg`: The `RPCMsg` instance that contains the message to be sent.
-  ## - `isHighPriority`: A boolean indicating whether the message should be treated as high priority.
-  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
-  ## priority messages have been sent.
+  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
+  ##   High priority messages are sent immediately, medium and low priority messages are queued
+  ##   and sent only after all high priority messages have been sent.
 
   trace "sending pubsub message to peer", peer, payload = shortLog(msg)
-  peer.send(msg, p.anonymize, isHighPriority, useCustomConn)
+  peer.send(msg, p.anonymize, priority, useCustomConn)
 
 proc broadcast*(
     p: PubSub,
     sendPeers: auto, # Iteratble[PubSubPeer]
     msg: RPCMsg,
-    isHighPriority: bool,
+    priority: MessagePriority,
     useCustomConn: bool = false,
 ) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
@@ -249,9 +249,9 @@ proc broadcast*(
   ## - `p`: The `PubSub` instance.
   ## - `sendPeers`: An iterable of `PubSubPeer` instances representing the peers to whom the message should be sent.
   ## - `msg`: The `RPCMsg` instance that contains the message to be broadcast.
-  ## - `isHighPriority`: A boolean indicating whether the message should be treated as high priority.
-  ## High priority messages are sent immediately, while low priority messages are queued and sent only after all high
-  ## priority messages have been sent.
+  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
+  ##   High priority messages are sent immediately, medium and low priority messages are queued
+  ##   and sent only after all high priority messages have been sent.
 
   let npeers = sendPeers.len.int64
   for sub in msg.subscriptions:
@@ -289,12 +289,12 @@ proc broadcast*(
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
-      p.send(peer, msg, isHighPriority, useCustomConn)
+      p.send(peer, msg, priority, useCustomConn)
   else:
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      asyncSpawn peer.sendEncoded(encoded, isHighPriority, useCustomConn)
+      asyncSpawn peer.sendEncoded(encoded, priority, useCustomConn)
 
 proc sendSubs*(
     p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool
@@ -310,7 +310,7 @@ proc sendSubs*(
         subOpt.supportsSendingPartial = Opt.some(topicData[].supportsSendingPartial)
     subscriptions.add(subOpt)
 
-  p.send(peer, RPCMsg.withSubscriptions(subscriptions), isHighPriority = true)
+  p.send(peer, RPCMsg.withSubscriptions(subscriptions), priority = MessagePriority.High)
 
   for topic in subTopics:
     if subscribe:

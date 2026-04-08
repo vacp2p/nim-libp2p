@@ -574,9 +574,9 @@ proc send*(
   ## - `p`: The `PubSubPeer` instance to which the message is to be sent.
   ## - `msg`: The `RPCMsg` instance representing the message to be sent.
   ## - `anonymize`: A boolean flag indicating whether the message should be sent with anonymization.
-  ## - `isHighPriority`: A boolean flag indicating whether the message should be treated as high priority.
-  ## High priority messages are sent immediately, while lower priority messages are queued and sent only after all high
-  ## priority messages have been sent.
+  ## - `priority`: The message priority level (`High`, `Medium`, or `Low`).
+  ##   High priority messages are sent immediately, medium and low priority messages are queued
+  ##   and sent only after all high priority messages have been sent.
   # When sending messages, we take care to re-encode them with the right
   # anonymization flag to ensure that we're not penalized for sending invalid
   # or malicious data on the wire - in particular, re-encoding protects against
