@@ -294,12 +294,12 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     trace "Triggering disconnect events", mux
     let peerId = mux.connection.peerId
 
-    var allPeerMuxersRemoved: bool = false
+    var allPeerMuxersRemoved: bool = true
     c.muxed.withValue(peerId, muxers):
       let idx = muxers[].find(mux)
       if idx >= 0:
         muxers[].del(idx)
-        allPeerMuxersRemoved = muxers[].len == 0
+      allPeerMuxersRemoved = muxers[].len == 0
 
     if allPeerMuxersRemoved:
       c.clearPeerReadyState(peerId)
