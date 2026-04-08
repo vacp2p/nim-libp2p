@@ -294,19 +294,21 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     trace "Triggering disconnect events", mux
     let peerId = mux.connection.peerId
 
+    var allPeerMuxersRemoved: bool = false
     c.muxed.withValue(peerId, muxers):
       let idx = muxers[].find(mux)
       if idx >= 0:
         muxers[].del(idx)
+        allPeerMuxersRemoved = muxers[].len == 0
 
-      if muxers[].len == 0:
-        c.clearPeerReadyState(peerId)
-        c.muxed.del(peerId)
-        libp2p_peers.set(c.muxed.len.int64)
-        await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
+    if allPeerMuxersRemoved:
+      c.clearPeerReadyState(peerId)
+      c.muxed.del(peerId)
+      libp2p_peers.set(c.muxed.len.int64)
+      await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
 
-        if not c.peerStore.isNil:
-          c.peerStore.cleanup(peerId)
+      if not c.peerStore.isNil:
+        c.peerStore.cleanup(peerId)
 
     await c.triggerConnEvent(peerId, ConnEvent(kind: ConnEventKind.Disconnected))
   except CatchableError as exc:
