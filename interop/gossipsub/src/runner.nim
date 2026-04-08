@@ -19,7 +19,7 @@ type ScriptRunner* = ref object
   nodeId*: int
   node*: GossipSub
   logStream*: Stream
-  resolveAddr*: proc(nodeId: int): MultiAddress {.gcsafe, raises: [].}
+  resolveAddr*: proc(nodeId: int): MultiAddress {.gcsafe, raises: [CatchableError].}
   startTime: Moment
 
 # Forward declaration
@@ -43,7 +43,10 @@ proc executeIfNodeIDEquals(
     await runner.executeInstruction(inner)
 
 proc executeWaitUntil(runner: ScriptRunner, elapsedSeconds: int) {.async.} =
-  await sleepAsync(elapsedSeconds.seconds())
+  let targetTime = runner.startTime + elapsedSeconds.seconds()
+  let now = Moment.now()
+  if now < targetTime:
+    await sleepAsync(targetTime - now)
 
 proc executeSubscribeToTopic(runner: ScriptRunner, topicId: string) {.async.} =
   let logStream = runner.logStream
