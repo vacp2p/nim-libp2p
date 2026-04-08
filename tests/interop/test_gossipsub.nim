@@ -75,7 +75,7 @@ suite "GossipSub Interop":
     let instr = parseInstruction(j)
     check:
       instr.kind == WaitUntil
-      instr.elapsedSeconds == 30
+      instr.elapsed == 30.seconds
 
   test "parse subscribeToTopic instruction":
     let j = parseJson("""{"type": "subscribeToTopic", "topicID": "foobar"}""")
@@ -196,7 +196,7 @@ suite "GossipSub Interop - Script runner":
         ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
         ScriptInstruction(kind: Connect, connectTo: @[1]),
         ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false),
-        ScriptInstruction(kind: WaitUntil, elapsedSeconds: 2),
+        ScriptInstruction(kind: WaitUntil, elapsed: 2.seconds),
         ScriptInstruction(
           kind: Publish,
           publishMessageID: 99,
@@ -204,7 +204,9 @@ suite "GossipSub Interop - Script runner":
           publishTopicID: topic,
         ),
         ScriptInstruction(
-          kind: SetTopicValidationDelay, validationTopicID: topic, delaySeconds: 0.3
+          kind: SetTopicValidationDelay,
+          validationTopicID: topic,
+          delay: 300.milliseconds,
         ),
       ]
 

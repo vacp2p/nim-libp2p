@@ -42,8 +42,8 @@ proc executeIfNodeIDEquals(
   if nodeID == runner.nodeId:
     await runner.executeInstruction(inner)
 
-proc executeWaitUntil(runner: ScriptRunner, elapsedSeconds: int) {.async.} =
-  let targetTime = runner.startTime + elapsedSeconds.seconds()
+proc executeWaitUntil(runner: ScriptRunner, elapsed: Duration) {.async.} =
+  let targetTime = runner.startTime + elapsed
   let now = Moment.now()
   if now < targetTime:
     await sleepAsync(targetTime - now)
@@ -76,9 +76,8 @@ proc executePublish(
     warn "Publish failed", messageID = publishMessageID, error = e.msg
 
 proc executeSetTopicValidationDelay(
-    runner: ScriptRunner, validationTopicID: string, delaySeconds: float64
+    runner: ScriptRunner, validationTopicID: string, delay: Duration
 ) {.async.} =
-  let delay = (delaySeconds * 1_000.0).int64().milliseconds()
   runner.node.addValidator(
     @[validationTopicID],
     proc(
@@ -107,7 +106,7 @@ proc executeInstruction*(
   of IfNodeIDEquals:
     await runner.executeIfNodeIDEquals(instruction.nodeID, instruction.inner[])
   of WaitUntil:
-    await runner.executeWaitUntil(instruction.elapsedSeconds)
+    await runner.executeWaitUntil(instruction.elapsed)
   of SubscribeToTopic:
     await runner.executeSubscribeToTopic(instruction.topicID)
   of Publish:
@@ -117,14 +116,14 @@ proc executeInstruction*(
     )
   of SetTopicValidationDelay:
     await runner.executeSetTopicValidationDelay(
-      instruction.validationTopicID, instruction.delaySeconds
+      instruction.validationTopicID, instruction.delay
     )
 
 proc runScript*(runner: ScriptRunner, instructions: seq[ScriptInstruction]) {.async.} =
   ## Execute a sequence of script instructions.
   runner.startTime = Moment.now()
-  let pid = PeerId.init(nodePrivKey(runner.nodeId)).expect("valid peer id")
-  logPeerId(runner.logStream, pid, runner.nodeId)
+  let peerId = PeerId.init(nodePrivKey(runner.nodeId)).expect("valid peer id")
+  logPeerId(runner.logStream, peerId, runner.nodeId)
 
   for instr in instructions:
     await runner.executeInstruction(instr)

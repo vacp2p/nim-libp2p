@@ -48,7 +48,8 @@ proc main() {.async.} =
     of cmdShortOption:
       discard
 
-  doAssert paramsPath.len > 0, "Must provide --params <path>"
+  if paramsPath.len == 0:
+    quit("Must provide --params <path>", QuitFailure)
 
   let localMode = nodeIdOpt >= 0
   let nodeId =

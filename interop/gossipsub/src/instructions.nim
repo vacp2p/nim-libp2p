@@ -24,7 +24,7 @@ type
       nodeID*: int
       inner*: ref ScriptInstruction
     of WaitUntil:
-      elapsedSeconds*: int
+      elapsed*: Duration
     of SubscribeToTopic:
       topicID*: string
       partial*: bool
@@ -34,7 +34,7 @@ type
       publishTopicID*: string
     of SetTopicValidationDelay:
       validationTopicID*: string
-      delaySeconds*: float64
+      delay*: Duration
 
 # GossipSubParams parsing helpers
 
@@ -44,7 +44,7 @@ proc nsToDuration(ns: float64): Duration =
 proc getDuration(node: JsonNode, default: Duration): Duration =
   if node == nil or node.kind == JNull:
     return default
-  nsToDuration(node.getFloat())
+  node.getFloat().nsToDuration()
 
 proc toGossipSubParams*(j: JsonNode): GossipSubParams =
   ## Convert JSON to GossipSubParams
@@ -102,7 +102,7 @@ proc parseIfNodeIDEquals(
   )
 
 proc parseWaitUntil(j: JsonNode): ScriptInstruction =
-  ScriptInstruction(kind: WaitUntil, elapsedSeconds: j["elapsedSeconds"].getInt())
+  ScriptInstruction(kind: WaitUntil, elapsed: j["elapsedSeconds"].getInt().seconds())
 
 proc parseSubscribeToTopic(j: JsonNode): ScriptInstruction =
   ScriptInstruction(
@@ -124,10 +124,12 @@ proc parsePublish(j: JsonNode): ScriptInstruction =
   )
 
 proc parseSetTopicValidationDelay(j: JsonNode): ScriptInstruction =
+  let delaySeconds = j["delaySeconds"].getFloat()
   ScriptInstruction(
     kind: SetTopicValidationDelay,
     validationTopicID: j["topicID"].getStr(),
-    delaySeconds: j["delaySeconds"].getFloat(),
+    # Convert to milliseconds to preserve fractional seconds
+    delay: (delaySeconds * 1_000.0).int64().milliseconds(),
   )
 
 proc parseInstruction*(

@@ -11,7 +11,6 @@ import
     peerid,
     protocols/pubsub/gossipsub,
     protocols/pubsub/rpc/message,
-    protocols/pubsub/rpc/messages,
     switch,
   ]
 import ../../../tests/tools/crypto
@@ -68,6 +67,7 @@ proc createNode*(
     .build()
 
   let gossipsub = GossipSub.init(
+    rng = rng(),
     switch = switch,
     msgIdProvider = interopMsgIdProvider,
     anonymize = true,
