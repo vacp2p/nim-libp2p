@@ -112,7 +112,7 @@ suite "GossipSub Interop":
     let instr = parseInstruction(j)
     check:
       instr.kind == SetTopicValidationDelay
-      instr.validationTopicID == "test"
+      instr.validationTopicID == "foobar"
       instr.delay == 300.milliseconds
 
   test "parse full script":
