@@ -378,13 +378,17 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64, labelValues = [$p.peerId]
     )
 
-proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
+proc sendMsgContinue(
+    conn: Connection, msgFut: Future[void]
+) {.async: (raises: [CancelledError]).} =
   # Continuation for a pending `sendMsg` future from below
   try:
     await msgFut
     trace "sent pubsub message to remote", conn
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
-    trace "Unexpected exception in sendMsgContinue", conn, description = exc.msg
+    trace "sending encoded msg to peer failed", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
     await conn.close() # This will clean up the send connection
@@ -474,11 +478,11 @@ proc sendEncoded*(
 
   if msg.len <= 0:
     debug "empty message, skipping", p, payload = shortLog(msg)
-    Future[void].completed()
+    newFutureCompleted[void]()
   elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub",
       maxSize = p.maxMessageSize, msgSize = msg.len
-    Future[void].completed()
+    newFutureCompleted[void]()
   elif priority == MessagePriority.High or emptyQueues:
     # High priority: always send immediately.
     # Empty queues: any priority sends immediately for lower latency.

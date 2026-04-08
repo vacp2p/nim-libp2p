@@ -346,7 +346,7 @@ suite "GossipSub Component - Control Messages":
     nodes[2].broadcast(
       nodes[2].mesh[topic],
       RPCMsg.withControl(ControlMessage.withIDontWant(newSeq[byte](10))),
-      priority = MessagePriority.Low,
+      priority = MessagePriority.High,
     )
 
     # Then B doesn't relay the message to C.

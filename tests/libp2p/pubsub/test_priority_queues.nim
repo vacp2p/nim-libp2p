@@ -7,12 +7,7 @@ import chronos
 import ../../../libp2p/protocols/pubsub/pubsubpeer
 import ../../../libp2p/protocols/pubsub/gossipsub/types
 import ../../../libp2p/peerid
-import ../../../libp2p/crypto/crypto
 import ../../tools/unittest
-
-proc randomPeerId(): PeerId =
-  let rng = newRng()
-  PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
 
 proc dummyGetConn(): Future[Connection] {.
     async: (raises: [CancelledError, GetConnDialError])
@@ -105,7 +100,7 @@ proc createTestPeer(
     maxHigh: int = 2, maxMedium: int = 2, maxLow: int = 2, onEvent: OnEvent = nil
 ): PubSubPeer =
   PubSubPeer.new(
-    randomPeerId(),
+    PeerId.random().expect("random peer id"),
     dummyGetConn,
     onEvent,
     GossipSubCodec_12,
@@ -172,9 +167,7 @@ suite "Priority queue behavior":
     conn.releaseFirstWrite()
 
     checkUntilTimeout:
-      conn.writes.len == 3
-
-    await sleepAsync(10.milliseconds)
+      conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1]]
 
     check:
       conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1]]
@@ -209,9 +202,7 @@ suite "Priority queue behavior":
     conn.releaseFirstWrite()
 
     checkUntilTimeout:
-      conn.writes.len == 3
-
-    await sleepAsync(10.milliseconds)
+      conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1]]
 
     check:
       conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1]]
@@ -225,7 +216,7 @@ suite "Priority queue behavior":
       mediumPeer.stopSendNonHighPriorityTask()
       lowPeer.stopSendNonHighPriorityTask()
 
-    # This is require so it  we can test the send path
+    # This is required so we can test the send path
     mediumPeer.sendConn = createPendingConnection()
     lowPeer.sendConn = createPendingConnection()
 
