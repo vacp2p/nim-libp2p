@@ -20,7 +20,7 @@
 
 import chronos, parseopt, std/[nativesockets, streams, strutils]
 import ../../libp2p/[multiaddress, protocols/pubsub/gossipsub, switch]
-import ./src/[runner, instructions, lib]
+import ./src/[runner, instructions, node]
 
 proc main() {.async.} =
   var paramsPath = ""
@@ -82,16 +82,21 @@ proc main() {.async.} =
     nodeId: nodeId,
     node: node,
     logStream: logStream,
-    resolveAddr: proc(id: int): MultiAddress =
+    resolveAddr: proc(id: int): MultiAddress {.gcsafe, raises: [].} =
       let peerId = nodePeerId(id)
-      if localMode:
-        MultiAddress.init("/ip4/127.0.0.1/tcp/9000/p2p/" & $peerId).tryGet()
-      else:
-        # In Shadow, resolve hostname via simulated DNS
-        let hostname = "node" & $id
-        let addrs = getHostByName(hostname)
-        let ip = addrs.addrList[0]
-        MultiAddress.init("/ip4/" & $ip & "/tcp/9000/p2p/" & $peerId).tryGet(),
+      try:
+        if localMode:
+          MultiAddress.init("/ip4/127.0.0.1/tcp/9000/p2p/" & $peerId).tryGet()
+        else:
+          # In Shadow, resolve hostname via simulated DNS
+          let hostname = "node" & $id
+          let addrs = getHostByName(hostname)
+          let ip = addrs.addrList[0]
+          MultiAddress.init("/ip4/" & $ip & "/tcp/9000/p2p/" & $peerId).tryGet()
+      except CatchableError as e:
+        raise newException(
+          Defect, "Failed to resolve address for node " & $id & ": " & e.msg
+        ),
   )
 
   await runner.runScript(instructions)

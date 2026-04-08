@@ -2,8 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import chronos, json
-import
-  ../../../libp2p/protocols/pubsub/gossipsub
+import ../../../libp2p/protocols/pubsub/gossipsub
 
 type
   InstructionKind* = enum
@@ -167,4 +166,4 @@ proc loadParams*(
     path: string
 ): seq[ScriptInstruction] {.raises: [IOError, OSError, KeyError, ValueError], gcsafe.} =
   ## Load and parse params.json from file.
-  parseScript(parseJson(readFile(path)))
+  readFile(path).parseJson().parseScript()
