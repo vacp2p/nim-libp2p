@@ -3,7 +3,7 @@
 
 import std/[tables, sequtils, sets, hashes]
 import chronos, stew/endians2
-import ../../[peerid, multihash, multiaddress, extended_peer_record]
+import ../../[peerid, multiaddress, extended_peer_record]
 import ../kademlia/types
 import ../kademlia/protobuf
 import nimcrypto/sha2
