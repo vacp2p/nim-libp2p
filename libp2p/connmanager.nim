@@ -370,15 +370,13 @@ proc storeMuxer*(
     peerId = muxer.connection.peerId
     dir = muxer.connection.dir
 
-  # we use getOrDefault in the if below instead of [] to avoid the KeyError
   if c.connCount(peerId) > c.maxConnsPerPeer:
     let key = (peerId, dir)
     let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Too many connections for peer",
-        conns = c.muxed.getOrDefault(peerId).len, peerId, dir
+      debug "Too many connections for peer", conns = c.connCount(peerId), peerId, dir
 
       raise newTooManyConnectionsError()
 
