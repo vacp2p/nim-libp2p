@@ -92,10 +92,6 @@ proc new*(
   kad.codec = codec
   if client:
     return kad
-  ## only after that, you assign kad.handler = proc(...)
-  ## So for a client-mode KademliaDiscovery, handler is never set.
-  ## That means disco.handler.isNil becomes a reliable service-layer signal
-  ## for “this instance was created in client mode”
 
   kad.handler = proc(
       conn: Connection, proto: string
