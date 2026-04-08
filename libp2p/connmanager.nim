@@ -331,11 +331,11 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
 proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer =
   ## Select a connection for the provided peer and direction
   ##
-  let muxers = c.muxed.getOrDefault(peerId)
-  for _, m in muxers:
-    if m.connection.dir == dir:
-      return m
-  nil
+  c.muxed.withValue(peerId, muxers):
+    for _, m in muxers[]:
+      if m.connection.dir == dir:
+        return m
+  return nil
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
   ## Select a connection for the provided giving priority
