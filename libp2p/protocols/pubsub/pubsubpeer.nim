@@ -407,7 +407,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
-): Future[void] {.async: (raises: []).} =
+): Future[void] {.async: (raises: [CancelledError]).} =
   type ConnectionType = enum
     ctCustom
     ctSend
@@ -432,16 +432,15 @@ proc sendMsg(
       conntype = $connType, conn = conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
     if not f.completed():
-      sendMsgContinue(conn, f)
+      await sendMsgContinue(conn, f)
     else:
       if f.failed():
         trace "sending encoded msg to peer failed", description = f.error.msg
       else:
         trace "sent pubsub message to remote", conn
-      f
   else:
     trace "sending encoded msg to peer via slow path"
-    sendMsgSlow(p, msg)
+    await sendMsgSlow(p, msg)
 
 proc sendEncoded*(
     p: PubSubPeer,
