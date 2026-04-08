@@ -193,6 +193,41 @@ suite "Sphinx Tests":
       exitResult.isErr()
       exitResult.error() == "delta_prime should be all zeros"
 
+  test "Delta integrity test":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    var packetBytes = sp.serialize()
+
+    # Tamper a byte in the encrypted message region of Delta, past the leading
+    # k-byte zero prefix that processSphinxPacket checks at the exit hop.
+    let tamperedOffset = HeaderSize + k + 7
+    packetBytes[tamperedOffset] = packetBytes[tamperedOffset] xor 0x01
+
+    let tamperedPacket =
+      SphinxPacket.deserialize(packetBytes).expect("deserialize error")
+
+    let processedSP1 =
+      processSphinxPacket(tamperedPacket, privateKeys[0], tm).expect("processing error")
+    check processedSP1.status == Intermediate
+
+    let packet2 = SphinxPacket.deserialize(processedSP1.serializedSphinxPacket).expect(
+        "deserialize error"
+      )
+    let processedSP2 =
+      processSphinxPacket(packet2, privateKeys[1], tm).expect("processing error")
+    check processedSP2.status == Intermediate
+
+    let packet3 = SphinxPacket.deserialize(processedSP2.serializedSphinxPacket).expect(
+        "deserialize error"
+      )
+    let exitResult = processSphinxPacket(packet3, privateKeys[2], tm)
+
+    check:
+      exitResult.isErr()
+      exitResult.error() == "delta_prime should be all zeros"
+
   test "sphinx process duplicate tag":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
 
