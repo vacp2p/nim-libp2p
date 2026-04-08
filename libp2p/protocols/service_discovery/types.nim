@@ -110,24 +110,24 @@ proc `==`*(a, b: AdvertiseTask): bool {.raises: [].} =
 proc hash*(t: AdvertiseTask): Hash {.raises: [].} =
   hash(cast[pointer](t))
 
-proc actionCmp*(a, b: PendingAction): int =
+proc cmp*(a, b: PendingAction): int =
   cmp(a.scheduledTime, b.scheduledTime)
 
 # Helper procs for working with Advertisement (SignedExtendedPeerRecord)
 
-proc getPeerId*(ad: Advertisement): PeerId =
+proc getPeerId*(ad: Advertisement): PeerId {.inline.} =
   ## Get peer ID from advertisement
   ad.data.peerId
 
-proc getAddresses*(ad: Advertisement): seq[MultiAddress] =
+proc getAddresses*(ad: Advertisement): seq[MultiAddress] {.inline.} =
   ## Get addresses from advertisement
   ad.data.addresses.mapIt(it.address)
 
-proc getServices*(ad: Advertisement): seq[ServiceInfo] =
+proc getServices*(ad: Advertisement): seq[ServiceInfo] {.inline.} =
   ## Get services from advertisement
   ad.data.services
 
-proc getSeqNo*(ad: Advertisement): uint64 =
+proc getSeqNo*(ad: Advertisement): uint64 {.inline.} =
   ## Get sequence number from advertisement
   ad.data.seqNo
 
@@ -169,9 +169,8 @@ proc sign*(ticket: var Ticket, privateKey: PrivateKey): Result[void, CryptoError
 
 proc verify*(ticket: Ticket, publicKey: PublicKey): bool =
   ## Verify the ticket signature with the given public key.
-  let sigInput = ticket.signingInput()
-
   var sig: Signature
   if not sig.init(ticket.signature):
     return false
-  sig.verify(sigInput, publicKey)
+
+  sig.verify(ticket.signingInput(), publicKey)

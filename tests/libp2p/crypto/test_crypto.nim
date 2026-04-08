@@ -652,7 +652,7 @@ suite "Key interface test suite":
     check rng.pick(@[1, 2, 3], 0).get().len == 0
 
   test "pick returns n distinct elements from the sequence":
-    let xs = @[1, 2, 3, 4, 5]
+    let xs = @[11, 22, 33, 44, 55]
     let picked = rng.pick(xs, 3).get()
     check picked.len == 3
     for x in picked:
@@ -660,27 +660,27 @@ suite "Key interface test suite":
     check picked == picked.deduplicate()
 
   test "pick returns all elements when n >= len":
-    let xs = @[1, 2, 3]
+    let xs = @[11, 22, 33]
     let picked = rng.pick(xs, 10).get()
     check picked.len == xs.len
     check picked.sorted() == xs.sorted()
 
   test "pick returns some for non-empty sequence with n > 0":
-    check rng.pick(@[1, 2, 3], 2).isSome()
+    check rng.pick(@[11, 22, 33], 2).isSome()
 
   test "pick result contains no duplicates":
-    let xs = @[1, 2, 3, 4, 5, 6, 7, 8]
+    let xs = @[11, 22, 33, 44, 55, 66, 77, 88]
     let picked = rng.pick(xs, 5).get()
     check picked == picked.deduplicate()
 
   test "pick result is a subset of the input":
-    let xs = @[10, 20, 30, 40, 50]
+    let xs = @[11, 22, 33, 44, 55]
     let picked = rng.pick(xs, 4).get()
     for x in picked:
       check x in xs
 
   test "pick n=1 returns a single element":
-    let xs = @[7, 8, 9]
+    let xs = @[11, 22, 33]
     let picked = rng.pick(xs, 1).get()
     check picked.len == 1
     check picked[0] in xs

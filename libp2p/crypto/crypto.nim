@@ -182,9 +182,21 @@ proc shuffle*[T](rng: ref HmacDrbgContext, x: var openArray[T]) =
 
 proc randBelow(rng: ref HmacDrbgContext, max: int): int =
   ## Returns a uniformly random integer in the range [0, max).
-  var bytes: array[2, byte]
-  hmacDrbgGenerate(rng[], bytes)
-  (bytes[0].int or bytes[1].int shl 8) mod max
+  ## Uses 32-bit rejection sampling to eliminate modulo bias and to
+  ## support max values larger than 65536.
+  doAssert max > 0
+  let umax = max.uint32
+  # threshold = 2^32 mod max. In uint32 arithmetic: (0 - umax) mod umax.
+  # Values in [0, threshold) are rejected to eliminate modulo bias.
+  let threshold = (0'u32 - umax) mod umax
+  while true:
+    var bytes: array[4, byte]
+    hmacDrbgGenerate(rng[], bytes)
+    let r =
+      bytes[0].uint32 or (bytes[1].uint32 shl 8) or (bytes[2].uint32 shl 16) or
+      (bytes[3].uint32 shl 24)
+    if r >= threshold:
+      return (r mod umax).int
 
 proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): Opt[seq[T]] =
   if x.len == 0:

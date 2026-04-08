@@ -21,6 +21,10 @@ proc refreshTable*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
+  # `var rt` is a local mutable alias required to call `insert(var RoutingTable)`.
+  # Because RoutingTable is a ref, rt and rtable share the same heap object —
+  # mutations are visible to the caller without needing a var parameter
+  # (which async closures cannot capture).
   var rt = rtable
   for peer in await kad.findNode(rt.selfId):
     discard rt.insert(peer.toKey())
