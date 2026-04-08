@@ -98,7 +98,9 @@ proc init*(
     bandwidthEstimatebps = 100_000_000, # 100 Mbps or 12.5 MBps
     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
     disconnectPeerAboveRateLimit = false,
-    maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
+    maxHighPriorityQueueLen = DefaultMaxHighPriorityQueueLen,
+    maxMediumPriorityQueueLen = DefaultMaxMediumPriorityQueueLen,
+    maxLowPriorityQueueLen = DefaultMaxLowPriorityQueueLen,
     sendIDontWantOnPublish = false,
     testExtensionConfig = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig = Opt.none(PartialMessageExtensionConfig),
@@ -139,7 +141,9 @@ proc init*(
     bandwidthEstimatebps: bandwidthEstimatebps,
     overheadRateLimit: overheadRateLimit,
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
-    maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
+    maxHighPriorityQueueLen: maxHighPriorityQueueLen,
+    maxMediumPriorityQueueLen: maxMediumPriorityQueueLen,
+    maxLowPriorityQueueLen: maxLowPriorityQueueLen,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
     testExtensionConfig: testExtensionConfig,
     partialMessageExtensionConfig: partialMessageExtensionConfig,
@@ -175,8 +179,12 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: behaviourPenaltyWeight parameter error, Must be negative")
   elif parameters.behaviourPenaltyDecay < 0 or parameters.behaviourPenaltyDecay >= 1:
     err("gossipsub: behaviourPenaltyDecay parameter error, Must be between 0 and 1")
-  elif parameters.maxNumElementsInNonPriorityQueue <= 0:
-    err("gossipsub: maxNumElementsInNonPriorityQueue parameter error, Must be > 0")
+  elif parameters.maxHighPriorityQueueLen <= 0:
+    err("gossipsub: maxHighPriorityQueueLen parameter error, Must be > 0")
+  elif parameters.maxMediumPriorityQueueLen <= 0:
+    err("gossipsub: maxMediumPriorityQueueLen parameter error, Must be > 0")
+  elif parameters.maxLowPriorityQueueLen <= 0:
+    err("gossipsub: maxLowPriorityQueueLen parameter error, Must be > 0")
   else:
     ok()
 
@@ -1063,6 +1071,13 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   if not g.parameters.explicit:
     g.parameters = GossipSubParams.init()
 
+  # If deprecated maxNumElementsInNonPriorityQueue was set
+  # and the new field is still at its default, copy the value over.
+  if g.parameters.maxNumElementsInNonPriorityQueue > 0 and
+      g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
+    warning "maxNumElementsInNonPriorityQueue is deprecated. Use maxNumElementsInNonPriorityQueue"
+    g.parameters.maxLowPriorityQueueLen = g.parameters.maxNumElementsInNonPriorityQueue
+
   let validationRes = g.parameters.validateParameters()
   if validationRes.isErr:
     raise newException(InitializationError, $validationRes.error)
@@ -1084,6 +1099,8 @@ method getOrCreatePeer*(
   g.parameters.overheadRateLimit.withValue(overheadRateLimit):
     peer.overheadRateLimitOpt =
       Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
-  peer.maxNumElementsInNonPriorityQueue = g.parameters.maxNumElementsInNonPriorityQueue
+  peer.maxHighPriorityQueueLen = g.parameters.maxHighPriorityQueueLen
+  peer.maxMediumPriorityQueueLen = g.parameters.maxMediumPriorityQueueLen
+  peer.maxLowPriorityQueueLen = g.parameters.maxLowPriorityQueueLen
 
   return peer

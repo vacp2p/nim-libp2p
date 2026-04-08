@@ -151,7 +151,14 @@ type
     overheadRateLimit*: Opt[tuple[bytes: int, interval: Duration]]
     disconnectPeerAboveRateLimit*: bool
 
-    # Max number of elements allowed in the non-priority queue. When this limit has been reached, the peer will be disconnected.
+    # Max number of high-priority sends. When this limit has been reached, the peer will be disconnected.
+    maxHighPriorityQueueLen*: int
+    # Max number of enqueued medium-priority messages. Excess messages are dropped.
+    maxMediumPriorityQueueLen*: int
+    # Max number of enqueued low-priority messages. Excess messages are dropped.
+    maxLowPriorityQueueLen*: int
+
+    # Deprecated: use maxLowPriorityQueueLen instead.
     maxNumElementsInNonPriorityQueue*: int
 
     # Broadcast an IDONTWANT message automatically when the message exceeds the IDONTWANT message size threshold
