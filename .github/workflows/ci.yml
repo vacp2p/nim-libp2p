@@ -42,8 +42,10 @@ jobs:
         nim:
           - ref: v2.0.16
             memory_management: refc
-          - ref: v2.2.6
+          - ref: v2.2.8
             memory_management: refc
+          - ref: v2.2.8
+            memory_management: orc
         include:
           - platform:
               os: linux
