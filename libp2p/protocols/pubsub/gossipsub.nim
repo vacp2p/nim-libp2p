@@ -968,7 +968,11 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.onNegotiated.isNil:
       cfg.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg(testExtension: Opt.some(TestExtensionRPC())), priority = MessagePriority.Low)
+          g.send(
+            peer[],
+            RPCMsg(testExtension: Opt.some(TestExtensionRPC())),
+            priority = MessagePriority.Low,
+          )
 
     g.parameters.testExtensionConfig = Opt.some(cfg)
 
@@ -980,7 +984,11 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
           peerId: PeerId, rpc: PartialMessageExtensionRPC
       ) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg(partialMessageExtension: Opt.some(rpc)), priority = MessagePriority.Low)
+          g.send(
+            peer[],
+            RPCMsg(partialMessageExtension: Opt.some(rpc)),
+            priority = MessagePriority.Low,
+          )
 
     if cfg.publishToPeers.isNil:
       cfg.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
@@ -1076,8 +1084,7 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   if g.parameters.maxNumElementsInNonPriorityQueue > 0 and
       g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
     warn "maxNumElementsInNonPriorityQueue is deprecated. Use maxNumElementsInNonPriorityQueue"
-    g.parameters.maxLowPriorityQueueLen =
-      g.parameters.maxNumElementsInNonPriorityQueue
+    g.parameters.maxLowPriorityQueueLen = g.parameters.maxNumElementsInNonPriorityQueue
 
   let validationRes = g.parameters.validateParameters()
   if validationRes.isErr:

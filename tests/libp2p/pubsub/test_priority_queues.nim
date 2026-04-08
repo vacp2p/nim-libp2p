@@ -35,7 +35,9 @@ method initStream*(s: PendingConnection) {.raises: [].} =
 method writeLp*(
     s: PendingConnection, msg: openArray[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  let fut = Future[void].Raising([CancelledError, LPStreamError]).init("PendingConnection.writeLp")
+  let fut = Future[void].Raising([CancelledError, LPStreamError]).init(
+      "PendingConnection.writeLp"
+    )
   s.pendingWrites.add(fut)
   fut
 
@@ -62,10 +64,14 @@ method writeLp*(
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   s.writes.add(@msg)
   if s.firstWriteFut.isNil:
-    s.firstWriteFut = Future[void].Raising([CancelledError, LPStreamError]).init("RecorderConnection.writeLp")
+    s.firstWriteFut = Future[void].Raising([CancelledError, LPStreamError]).init(
+        "RecorderConnection.writeLp"
+      )
     s.firstWriteFut
   else:
-    let fut = Future[void].Raising([CancelledError, LPStreamError]).init("RecorderConnection.writeLp.completed")
+    let fut = Future[void].Raising([CancelledError, LPStreamError]).init(
+        "RecorderConnection.writeLp.completed"
+      )
     fut.complete()
     fut
 
@@ -96,10 +102,7 @@ proc newDisconnectRecorder(disconnectRequested: ref bool): OnEvent =
   recordDisconnect
 
 proc createTestPeer(
-    maxHigh: int = 2,
-    maxMedium: int = 2,
-    maxLow: int = 2,
-    onEvent: OnEvent = nil,
+    maxHigh: int = 2, maxMedium: int = 2, maxLow: int = 2, onEvent: OnEvent = nil
 ): PubSubPeer =
   PubSubPeer.new(
     randomPeerId(),
@@ -119,10 +122,9 @@ suite "Priority queue behavior":
   asyncTest "Exceeding max high priority messages triggers disconnection event":
     let disconnectRequestedForTest = new bool
 
-    let peer =
-      createTestPeer(
-        maxHigh = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
-      )
+    let peer = createTestPeer(
+      maxHigh = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
+    )
     defer:
       peer.stopSendNonHighPriorityTask()
 
@@ -145,10 +147,9 @@ suite "Priority queue behavior":
   asyncTest "Exceeding max medium priority messages drops messages without disconnect":
     let disconnectRequestedForTest = new bool
 
-    let peer =
-      createTestPeer(
-        maxMedium = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
-      )
+    let peer = createTestPeer(
+      maxMedium = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
+    )
     let conn = createRecorderConnection()
     defer:
       peer.stopSendNonHighPriorityTask()
@@ -156,13 +157,7 @@ suite "Priority queue behavior":
     peer.sendConn = conn
 
     let highMsg = @[1'u8, 2, 3]
-    let mediumMsgs =
-      @[
-        @[10'u8, 0, 0],
-        @[11'u8, 0, 0],
-        @[12'u8, 0, 0],
-        @[13'u8, 0, 0],
-      ]
+    let mediumMsgs = @[@[10'u8, 0, 0], @[11'u8, 0, 0], @[12'u8, 0, 0], @[13'u8, 0, 0]]
 
     # Enqueue a pending high-priority message to disable the fast path
     discard peer.sendEncoded(highMsg, MessagePriority.High)
@@ -189,10 +184,9 @@ suite "Priority queue behavior":
   asyncTest "Exceeding max low priority messages drops messages without disconnect":
     let disconnectRequestedForTest = new bool
 
-    let peer =
-      createTestPeer(
-        maxLow = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
-      )
+    let peer = createTestPeer(
+      maxLow = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
+    )
     let conn = createRecorderConnection()
     defer:
       peer.stopSendNonHighPriorityTask()
@@ -200,13 +194,7 @@ suite "Priority queue behavior":
     peer.sendConn = conn
 
     let highMsg = @[1'u8, 2, 3]
-    let lowMsgs =
-      @[
-        @[20'u8, 0, 0],
-        @[21'u8, 0, 0],
-        @[22'u8, 0, 0],
-        @[23'u8, 0, 0],
-      ]
+    let lowMsgs = @[@[20'u8, 0, 0], @[21'u8, 0, 0], @[22'u8, 0, 0], @[23'u8, 0, 0]]
 
     # Enqueue a pending high-priority message to disable the fast path
     discard peer.sendEncoded(highMsg, MessagePriority.High)
@@ -226,9 +214,9 @@ suite "Priority queue behavior":
     await sleepAsync(10.milliseconds)
 
     check:
-       conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1]]
-       not disconnectRequestedForTest[]
-       peer.hasSendConn()
+      conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1]]
+      not disconnectRequestedForTest[]
+      peer.hasSendConn()
 
   asyncTest "Empty queues fast-path the first medium or low message":
     let mediumPeer = createTestPeer()

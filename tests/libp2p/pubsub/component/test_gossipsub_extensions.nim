@@ -5,14 +5,13 @@
 
 import chronos, algorithm, stew/byteutils, sequtils
 import
-  ../../../../libp2p/protocols/pubsub/
-    [
-      gossipsub,
-      gossipsub/extensions,
-      gossipsub/extension_preamble,
-      pubsubpeer,
-      rpc/message,
-    ]
+  ../../../../libp2p/protocols/pubsub/[
+    gossipsub,
+    gossipsub/extensions,
+    gossipsub/extension_preamble,
+    pubsubpeer,
+    rpc/message,
+  ]
 import ../../../tools/[lifecycle, unittest]
 import ../extensions/my_partial_message
 import ../utils
