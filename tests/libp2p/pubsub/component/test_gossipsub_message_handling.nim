@@ -6,7 +6,7 @@
 import chronos, std/[sequtils, enumerate], stew/byteutils, sugar, chronicles
 import
   ../../../../libp2p/protocols/pubsub/
-    [gossipsub, mcache, peertable, timedcache, rpc/message]
+    [gossipsub, mcache, peertable, pubsubpeer, timedcache, rpc/message]
 import ../../../tools/[lifecycle, topology, unittest, futures, sync]
 import ../utils
 

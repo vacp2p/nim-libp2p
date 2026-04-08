@@ -4,7 +4,7 @@
 {.used.}
 
 import chronos, std/[sequtils], chronicles
-import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable]
+import ../../../../libp2p/protocols/pubsub/[gossipsub, mcache, peertable, pubsubpeer]
 import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
