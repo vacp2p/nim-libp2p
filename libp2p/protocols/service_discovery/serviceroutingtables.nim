@@ -136,7 +136,7 @@ proc refreshAllTables*(
   withLock(manager):
     tablesCopy = manager.tables.values.toSeq()
 
-  for serviceTable in tablesCopy:
+  for serviceTable in tablesCopy.mitems:
     let refreshRes = catch:
       await kad.refreshTable(serviceTable)
     if refreshRes.isErr:

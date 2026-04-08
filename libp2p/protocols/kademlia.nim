@@ -16,7 +16,7 @@ logScope:
 const KadCodec = "/ipfs/kad/1.0.0"
 
 proc refreshTable*(
-    kad: KadDHT, rtable: RoutingTable, forceRefresh = false
+    kad: KadDHT, rtable: var RoutingTable, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
@@ -31,8 +31,8 @@ proc refreshTable*(
 
   # Snapshot bucket count. findNode() can grow buckets and mutate length.
   # If it changes mid-iteration, Nim triggers an assertion defect.
-  for i in 0 ..< rt.buckets.len:
-    let bucket = rt.buckets[i]
+  for i in 0 ..< rtable.buckets.len:
+    let bucket = rtable.buckets[i]
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
@@ -40,9 +40,9 @@ proc refreshTable*(
     if not (forceRefresh or bucket.isStale()):
       continue
 
-    let randomKey = randomKeyInBucket(rt.selfId, i, kad.rng)
+    let randomKey = randomKeyInBucket(rtable.selfId, i, kad.rng)
     for peer in await kad.findNode(randomKey):
-      discard rt.insert(peer.toKey())
+      discard rtable.insert(peer.toKey())
 
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false
