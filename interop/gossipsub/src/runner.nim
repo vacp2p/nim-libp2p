@@ -10,7 +10,7 @@ import
     protocols/pubsub/rpc/messages,
     switch,
   ]
-import ./[instructions, lib, logger]
+import ./[instructions, node, logger]
 
 logScope:
   topics = "gossipsub-interop"
@@ -19,7 +19,7 @@ type ScriptRunner* = ref object
   nodeId*: int
   node*: GossipSub
   logStream*: Stream
-  resolveAddr*: proc(nodeId: int): MultiAddress {.gcsafe.}
+  resolveAddr*: proc(nodeId: int): MultiAddress {.gcsafe, raises: [].}
   startTime: Moment
 
 # Forward declaration
@@ -31,8 +31,8 @@ proc executeConnect(runner: ScriptRunner, connectTo: seq[int]) {.async.} =
     try:
       let targetAddr = runner.resolveAddr(targetId)
       await runner.node.switch.connect(targetPid, @[targetAddr])
-    except CancelledError:
-      raise
+    except CancelledError as e:
+      raise e
     except CatchableError as e:
       warn "Connect failed", target = targetId, error = e.msg
 
@@ -51,17 +51,12 @@ proc executeWaitUntil(runner: ScriptRunner, elapsedSeconds: int) {.async.} =
 proc executeSubscribeToTopic(runner: ScriptRunner, topicId: string) {.async.} =
   let logStream = runner.logStream
 
-  proc handler(topic: string, data: seq[byte]) {.async, raises: [].} =
+  proc topicHandler(topic: string, data: seq[byte]) {.async.} =
     if data.len >= 8:
       let msgId = extractMsgId(data)
-      try:
-        logReceivedMessage(logStream, $msgId, topic)
-      except IOError as e:
-        debug "Failed to log received message", error = e.msg
-      except OSError as e:
-        debug "Failed to log received message", error = e.msg
+      logReceivedMessage(logStream, $msgId, topic)
 
-  runner.node.subscribe(topicId, handler)
+  runner.node.subscribe(topicId, topicHandler)
 
 proc executePublish(
     runner: ScriptRunner,
@@ -75,8 +70,8 @@ proc executePublish(
   data[0 ..< 8] = toBytesBE(msgIdU64)
   try:
     discard await runner.node.publish(publishTopicID, data)
-  except CancelledError:
-    raise
+  except CancelledError as e:
+    raise e
   except CatchableError as e:
     warn "Publish failed", messageID = publishMessageID, error = e.msg
 
@@ -89,8 +84,7 @@ proc executeSetTopicValidationDelay(
     proc(
         topic: string, message: messages.Message
     ): Future[ValidationResult] {.gcsafe, raises: [].} =
-      let validationFut =
-        Future[ValidationResult].Raising([]).init("topicValidator")
+      let validationFut = newFuture[ValidationResult]("topicValidator")
       proc delayedAccept() {.async.} =
         try:
           await sleepAsync(delay)
@@ -130,12 +124,7 @@ proc runScript*(runner: ScriptRunner, instructions: seq[ScriptInstruction]) {.as
   ## Execute a sequence of script instructions.
   runner.startTime = Moment.now()
   let pid = PeerId.init(nodePrivKey(runner.nodeId)).expect("valid peer id")
-  try:
-    logPeerId(runner.logStream, pid, runner.nodeId)
-  except IOError as e:
-    debug "Failed to log peer ID", error = e.msg
-  except OSError as e:
-    debug "Failed to log peer ID", error = e.msg
+  logPeerId(runner.logStream, pid, runner.nodeId)
 
   for instr in instructions:
     await runner.executeInstruction(instr)
