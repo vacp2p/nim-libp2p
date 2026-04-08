@@ -13,7 +13,7 @@ import
     switch,
   ]
 import ../tools/[unittest]
-import ../../interop/gossipsub/src/[lib, instructions, runner]
+import ../../interop/gossipsub/src/[node, instructions, runner]
 
 suite "GossipSub Interop":
   const expectedPeerIds = [
@@ -178,13 +178,13 @@ suite "GossipSub Interop - Script runner":
       await teardownNodes()
 
     const topic = "foobar"
-    let receivedMsgIdFut = Future[string].Raising([]).init("test.receivedMsgId")
+    let receivedMsgIdFut = newFuture[string]()
     let targetAddr = node1.getAddr()
 
     # Node 1: subscribe to receive messages
     node1.subscribe(
       topic,
-      proc(topic: string, data: seq[byte]) {.async, raises: [].} =
+      proc(topic: string, data: seq[byte]) {.async.} =
         if data.len >= 8 and not receivedMsgIdFut.finished():
           receivedMsgIdFut.complete($extractMsgId(data))
       ,
@@ -202,6 +202,9 @@ suite "GossipSub Interop - Script runner":
           publishMessageID: 99,
           messageSizeBytes: 512,
           publishTopicID: topic,
+        ),
+        ScriptInstruction(
+          kind: SetTopicValidationDelay, validationTopicID: topic, delaySeconds: 0.3
         ),
       ]
 

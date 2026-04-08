@@ -27,10 +27,10 @@ proc executeInstruction*(runner: ScriptRunner, instruction: ScriptInstruction) {
 
 proc executeConnect(runner: ScriptRunner, connectTo: seq[int]) {.async.} =
   for targetId in connectTo:
-    let targetPid = nodePeerId(targetId)
+    let targetPeerId = nodePeerId(targetId)
     try:
       let targetAddr = runner.resolveAddr(targetId)
-      await runner.node.switch.connect(targetPid, @[targetAddr])
+      await runner.node.switch.connect(targetPeerId, @[targetAddr])
     except CancelledError as e:
       raise e
     except CatchableError as e:
@@ -43,10 +43,7 @@ proc executeIfNodeIDEquals(
     await runner.executeInstruction(inner)
 
 proc executeWaitUntil(runner: ScriptRunner, elapsedSeconds: int) {.async.} =
-  let target = runner.startTime + seconds(elapsedSeconds)
-  let now = Moment.now()
-  if target > now:
-    await sleepAsync(target - now)
+  await sleepAsync(elapsedSeconds.seconds())
 
 proc executeSubscribeToTopic(runner: ScriptRunner, topicId: string) {.async.} =
   let logStream = runner.logStream
@@ -78,7 +75,7 @@ proc executePublish(
 proc executeSetTopicValidationDelay(
     runner: ScriptRunner, validationTopicID: string, delaySeconds: float64
 ) {.async.} =
-  let delay = nanoseconds(int64(delaySeconds * 1_000_000_000.0))
+  let delay = (delaySeconds * 1_000.0).int64().milliseconds()
   runner.node.addValidator(
     @[validationTopicID],
     proc(
