@@ -254,7 +254,7 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
       RPCMsg.withControl(
         ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
       ),
-      true, # use high priority as message must be the first message on the stream
+      priority = MessagePriority.High, # must be the first message on the stream
     )
 
   # before extensions control is sent, node needs to known if peer actually supports
@@ -344,7 +344,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
-  pubSubPeer.stopSendNonPriorityTask()
+  pubSubPeer.stopSendNonHighPriorityTask()
 
   g.extensionsState.removePeer(peer)
 
@@ -968,7 +968,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.onNegotiated.isNil:
       cfg.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg(testExtension: Opt.some(TestExtensionRPC())), false)
+          g.send(peer[], RPCMsg(testExtension: Opt.some(TestExtensionRPC())), priority = MessagePriority.Low)
 
     g.parameters.testExtensionConfig = Opt.some(cfg)
 
@@ -980,7 +980,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
           peerId: PeerId, rpc: PartialMessageExtensionRPC
       ) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg(partialMessageExtension: Opt.some(rpc)), false)
+          g.send(peer[], RPCMsg(partialMessageExtension: Opt.some(rpc)), priority = MessagePriority.Low)
 
     if cfg.publishToPeers.isNil:
       cfg.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
@@ -1004,7 +1004,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.sendPong.isNil:
       cfg.sendPong = proc(peerId: PeerId, pong: seq[byte]) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg.withPong(pong), true)
+          g.send(peer[], RPCMsg.withPong(pong), priority = MessagePriority.High)
 
     g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
