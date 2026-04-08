@@ -36,15 +36,19 @@ type
       validationTopicID*: string
       delay*: Duration
 
-# GossipSubParams parsing helpers
+proc parseDurationNano*(node: JsonNode): Duration =
+  ## Parse a JSON number (int or float) as nanoseconds into a Duration.
+  int64(node.getFloat()).nanoseconds()
 
-proc nsToDuration(ns: float64): Duration =
-  int64(ns).nanoseconds()
+proc parseDurationSec*(node: JsonNode): Duration =
+  ## Parse a JSON number (int or float) as seconds into a Duration.
+  let secs = node.getFloat()
+  int64(secs * 1_000_000_000.0).nanoseconds()
 
-proc getDuration(node: JsonNode, default: Duration): Duration =
+proc getDurationNano(node: JsonNode, default: Duration): Duration =
   if node == nil or node.kind == JNull:
     return default
-  node.getFloat().nsToDuration()
+  node.parseDurationNano()
 
 proc toGossipSubParams*(j: JsonNode): GossipSubParams =
   ## Convert JSON to GossipSubParams
@@ -62,12 +66,13 @@ proc toGossipSubParams*(j: JsonNode): GossipSubParams =
   params.gossipFactor = j.getOrDefault("GossipFactor").getFloat(params.gossipFactor)
 
   params.heartbeatInterval =
-    j.getOrDefault("HeartbeatInterval").getDuration(params.heartbeatInterval)
-  params.fanoutTTL = j.getOrDefault("FanoutTTL").getDuration(params.fanoutTTL)
-  params.pruneBackoff = j.getOrDefault("PruneBackoff").getDuration(params.pruneBackoff)
+    j.getOrDefault("HeartbeatInterval").getDurationNano(params.heartbeatInterval)
+  params.fanoutTTL = j.getOrDefault("FanoutTTL").getDurationNano(params.fanoutTTL)
+  params.pruneBackoff =
+    j.getOrDefault("PruneBackoff").getDurationNano(params.pruneBackoff)
   params.unsubscribeBackoff =
-    j.getOrDefault("UnsubscribeBackoff").getDuration(params.unsubscribeBackoff)
-  params.seenTTL = j.getOrDefault("SeenTTL").getDuration(params.seenTTL)
+    j.getOrDefault("UnsubscribeBackoff").getDurationNano(params.unsubscribeBackoff)
+  params.seenTTL = j.getOrDefault("SeenTTL").getDurationNano(params.seenTTL)
 
   params.floodPublish = j.getOrDefault("FloodPublish").getBool(params.floodPublish)
 
@@ -102,7 +107,7 @@ proc parseIfNodeIDEquals(
   )
 
 proc parseWaitUntil(j: JsonNode): ScriptInstruction =
-  ScriptInstruction(kind: WaitUntil, elapsed: j["elapsedSeconds"].getInt().seconds())
+  ScriptInstruction(kind: WaitUntil, elapsed: j["elapsedSeconds"].parseDurationSec())
 
 proc parseSubscribeToTopic(j: JsonNode): ScriptInstruction =
   ScriptInstruction(
@@ -124,12 +129,10 @@ proc parsePublish(j: JsonNode): ScriptInstruction =
   )
 
 proc parseSetTopicValidationDelay(j: JsonNode): ScriptInstruction =
-  let delaySeconds = j["delaySeconds"].getFloat()
   ScriptInstruction(
     kind: SetTopicValidationDelay,
     validationTopicID: j["topicID"].getStr(),
-    # Convert to milliseconds to preserve fractional seconds
-    delay: (delaySeconds * 1_000.0).int64().milliseconds(),
+    delay: j["delaySeconds"].parseDurationSec(),
   )
 
 proc parseInstruction*(

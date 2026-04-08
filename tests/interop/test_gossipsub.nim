@@ -105,6 +105,16 @@ suite "GossipSub Interop":
       instr.messageSizeBytes == 2048
       instr.publishTopicID == "test"
 
+  test "parse setTopicValidationDelay with float seconds":
+    let j = parseJson(
+      """{"type": "setTopicValidationDelay", "topicID": "foobar", "delaySeconds": 0.3}"""
+    )
+    let instr = parseInstruction(j)
+    check:
+      instr.kind == SetTopicValidationDelay
+      instr.validationTopicID == "test"
+      instr.delay == 300.milliseconds
+
   test "parse full script":
     let j = parseJson(
       """{"script": [
