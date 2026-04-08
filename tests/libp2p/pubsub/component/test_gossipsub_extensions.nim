@@ -164,7 +164,7 @@ suite "GossipSub Component - Extensions":
     nodes[0].send(
       nodes[0].peers[nodes[1].peerInfo.peerId],
       RPCMsg.withPing(pingBytes),
-      isHighPriority = true,
+      priority = MessagePriority.High,
     )
 
     # nodes[1] should echo the ping back as a pong

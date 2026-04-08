@@ -245,18 +245,46 @@ suite "GossipSubParams validation":
     params.behaviourPenaltyDecay = 0.5
     check params.validateParameters().isOk()
 
-  test "maxNumElementsInNonPriorityQueue fails when zero":
+  test "maxHighPriorityQueueLen fails when zero":
     const errorMessage =
-      "gossipsub: maxNumElementsInNonPriorityQueue parameter error, Must be > 0"
+      "gossipsub: maxHighPriorityQueueLen parameter error, Must be > 0"
     var params = newDefaultValidParams()
-    params.maxNumElementsInNonPriorityQueue = 0
+    params.maxHighPriorityQueueLen = 0
     let res = params.validateParameters()
     check res.isErr()
     check res.error == errorMessage
 
-  test "maxNumElementsInNonPriorityQueue succeeds when positive":
+  test "maxHighPriorityQueueLen succeeds when positive":
     var params = newDefaultValidParams()
-    params.maxNumElementsInNonPriorityQueue = 1
+    params.maxHighPriorityQueueLen = 1
+    check params.validateParameters().isOk()
+
+  test "maxMediumPriorityQueueLen fails when zero":
+    const errorMessage =
+      "gossipsub: maxMediumPriorityQueueLen parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.maxMediumPriorityQueueLen = 0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "maxMediumPriorityQueueLen succeeds when positive":
+    var params = newDefaultValidParams()
+    params.maxMediumPriorityQueueLen = 1
+    check params.validateParameters().isOk()
+
+  test "maxLowPriorityQueueLen fails when zero":
+    const errorMessage =
+      "gossipsub: maxLowPriorityQueueLen parameter error, Must be > 0"
+    var params = newDefaultValidParams()
+    params.maxLowPriorityQueueLen = 0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "maxLowPriorityQueueLen succeeds when positive":
+    var params = newDefaultValidParams()
+    params.maxLowPriorityQueueLen = 1
     check params.validateParameters().isOk()
 
 suite "TopicParams validation":

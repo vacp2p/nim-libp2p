@@ -90,7 +90,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, iwantMessageIds)),
-      isHighPriority = false,
+      priority = MessagePriority.Low,
     )
 
     checkUntilTimeout:
@@ -110,7 +110,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
-      isHighPriority = false,
+      priority = MessagePriority.Low,
     )
 
     # wait some time before asserting that messages is not received
@@ -133,7 +133,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
-      isHighPriority = false,
+      priority = MessagePriority.Low,
     )
 
     checkUntilTimeout:
@@ -154,7 +154,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
-      isHighPriority = false,
+      priority = MessagePriority.Low,
     )
 
     var smallestSet: HashSet[seq[byte]]

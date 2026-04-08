@@ -1075,8 +1075,9 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   # and the new field is still at its default, copy the value over.
   if g.parameters.maxNumElementsInNonPriorityQueue > 0 and
       g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
-    warning "maxNumElementsInNonPriorityQueue is deprecated. Use maxNumElementsInNonPriorityQueue"
-    g.parameters.maxLowPriorityQueueLen = g.parameters.maxNumElementsInNonPriorityQueue
+    warn "maxNumElementsInNonPriorityQueue is deprecated. Use maxNumElementsInNonPriorityQueue"
+    g.parameters.maxLowPriorityQueueLen =
+      g.parameters.maxNumElementsInNonPriorityQueue
 
   let validationRes = g.parameters.validateParameters()
   if validationRes.isErr:
