@@ -118,8 +118,6 @@ suite "Spam Protection - Packet Integration":
     let sphinxPacket = @[1.byte, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     let proof = @[100.byte, 101, 102, 103, 104, 105, 106, 107]
 
-    let spamProtection = newPoWSpamProtection(2)
-
     let packetWithProof = appendProofToPacket(sphinxPacket, proof).get()
 
     # Check packet structure: [sphinx][proof]

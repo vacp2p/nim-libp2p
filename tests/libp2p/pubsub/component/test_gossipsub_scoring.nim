@@ -70,7 +70,7 @@ suite "GossipSub Component - Scoring":
 
     nodes[0].broadcast(
       nodes[0].mesh[topic],
-      RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](10))]),
+      RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](10))),
       isHighPriority = true,
     )
 
@@ -82,7 +82,7 @@ suite "GossipSub Component - Scoring":
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
     nodes[0].broadcast(
       nodes[0].mesh[topic],
-      RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](12))]),
+      RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](12))),
       isHighPriority = true,
     )
 
@@ -145,18 +145,9 @@ suite "GossipSub Component - Scoring":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
-    let msg = RPCMsg(
-      control: some(
-        ControlMessage(
-          prune:
-            @[
-              ControlPrune(
-                topicID: topic,
-                peers: @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))],
-                backoff: 123'u64,
-              )
-            ]
-        )
+    let msg = RPCMsg.withControl(
+      ControlMessage.withPrune(
+        topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))]
       )
     )
     nodes[0].broadcast(nodes[0].mesh[topic], msg, isHighPriority = true)
@@ -167,18 +158,9 @@ suite "GossipSub Component - Scoring":
 
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
-    let msg2 = RPCMsg(
-      control: some(
-        ControlMessage(
-          prune:
-            @[
-              ControlPrune(
-                topicID: topic,
-                peers: @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))],
-                backoff: 123'u64,
-              )
-            ]
-        )
+    let msg2 = RPCMsg.withControl(
+      ControlMessage.withPrune(
+        topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))]
       )
     )
     nodes[0].broadcast(nodes[0].mesh[topic], msg2, isHighPriority = true)
@@ -213,7 +195,7 @@ suite "GossipSub Component - Scoring":
     nodes[0].addValidator(topic, execValidator)
     nodes[1].addValidator(topic, execValidator)
 
-    let msg = RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](40))])
+    let msg = RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](40)))
     nodes[0].broadcast(nodes[0].mesh[topic], msg, isHighPriority = true)
 
     checkUntilTimeout:
@@ -224,7 +206,7 @@ suite "GossipSub Component - Scoring":
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
     nodes[0].broadcast(
       nodes[0].mesh[topic],
-      RPCMsg(messages: @[Message(topic: topic, data: newSeq[byte](35))]),
+      RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](35))),
       isHighPriority = true,
     )
 
@@ -418,12 +400,12 @@ suite "GossipSub Component - Scoring":
     for i in 0 ..< messagesToSend:
       nodes[1].broadcast(
         nodes[1].mesh[topic],
-        RPCMsg(messages: @[Message(topic: topic, data: ("valid_" & $i).toBytes())]),
+        RPCMsg.withMessages(Message(topic: topic, data: ("valid_" & $i).toBytes())),
         isHighPriority = true,
       )
       nodes[2].broadcast(
         nodes[2].mesh[topic],
-        RPCMsg(messages: @[Message(topic: topic, data: ("invalid_" & $i).toBytes())]),
+        RPCMsg.withMessages(Message(topic: topic, data: ("invalid_" & $i).toBytes())),
         isHighPriority = true,
       )
 

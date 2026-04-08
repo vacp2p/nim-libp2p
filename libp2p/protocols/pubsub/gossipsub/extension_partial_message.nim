@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH 
 
-import tables, chronicles, results, options
+import tables, chronicles, results
 import ../../../utils/tablekey
 import ../../../[peerid]
 import ../rpc/messages
@@ -9,8 +9,6 @@ import ./[extensions_types, partial_message]
 
 logScope:
   topics = "libp2p partial message"
-
-const keyDelimiter = "::"
 
 type
   TopicOpts* = object
@@ -35,6 +33,9 @@ type
     isSupported*: proc(peer: PeerId): bool {.gcsafe, raises: [].}
       # implements logic for checking if peer supports this extension ("partial message").
       # default implementation is set by ExtensionsState.new.
+    updatePeerBehaviorPenalty*: UpdatePeerBehaviorPenaltyProc
+      # callback to updated peer behavior penalty when peer is not follow extensions protocol. 
+      # default implementation is set by GossipSub.createExtensionsState (via ExtensionsState).
 
     # configuration set by application (user)
     unionPartsMetadata*:
@@ -55,8 +56,8 @@ type
       # number of heartbeats for which metadata will be retained before eviction
 
   PeerGroupState = ref object
-    receivedPartsMetadata: Option[PartsMetadata] # parts metadata peer sent to this node
-    sentPartsMetadata: Option[PartsMetadata] # parts metadata this node sent to peer
+    receivedPartsMetadata: Opt[PartsMetadata] # parts metadata peer sent to this node
+    sentPartsMetadata: Opt[PartsMetadata] # parts metadata this node sent to peer
 
   GroupState = ref object
     peerState: Table[PeerId, PeerGroupState]
@@ -93,6 +94,7 @@ proc doAssert(config: PartialMessageExtensionConfig) =
   doAssert(config.sendRPC != nil, msg("sendRPC"))
   doAssert(config.publishToPeers != nil, msg("publishToPeers"))
   doAssert(config.isSupported != nil, msg("isSupported"))
+  doAssert(config.updatePeerBehaviorPenalty != nil, msg("updatePeerBehaviorPenalty"))
   doAssert(config.nodeTopicOpts != nil, msg("nodeTopicOpts"))
   doAssert(config.unionPartsMetadata != nil, msg("unionPartsMetadata"))
   doAssert(config.validateRPC != nil, msg("validateRPC"))
@@ -143,7 +145,7 @@ proc unionWithSentPartsMetadata(
 
   if peerState.sentPartsMetadata.isNone:
     hasChanged = true
-    peerState.sentPartsMetadata = some(newMetadata)
+    peerState.sentPartsMetadata = Opt.some(newMetadata)
   elif peerState.sentPartsMetadata.get() != newMetadata:
     let unionRes =
       ext.config.unionPartsMetadata(peerState.sentPartsMetadata.get(), newMetadata)
@@ -151,11 +153,11 @@ proc unionWithSentPartsMetadata(
       # union failed, it is safe to use the most recent parts metadata
       warn "failed to create union from the two parts metadata", msg = unionRes.error
       hasChanged = true
-      peerState.sentPartsMetadata = some(newMetadata)
+      peerState.sentPartsMetadata = Opt.some(newMetadata)
     elif unionRes.get() != peerState.sentPartsMetadata.get():
       # union has produced different metadata then what has been sent
       hasChanged = true
-      peerState.sentPartsMetadata = some(unionRes.get())
+      peerState.sentPartsMetadata = Opt.some(unionRes.get())
 
   return hasChanged
 
@@ -228,8 +230,9 @@ proc handleSubscribeRPC(ext: PartialMessageExtension, peerId: PeerId, rpc: SubOp
 proc handlePartialRPC(
     ext: PartialMessageExtension, peerId: PeerId, rpc: PartialMessageExtensionRPC
 ) =
-  if rpc.groupID.len == 0:
-    debug "received RPC with unset groupId", groupId = rpc.groupID
+  if rpc.groupID.len == 0 or rpc.topicID.len == 0:
+    debug "received RPC with unset groupId or topicId"
+    ext.config.updatePeerBehaviorPenalty(peerId, 0.1)
     return
 
   let validateRes = ext.config.validateRPC(rpc)
@@ -240,7 +243,7 @@ proc handlePartialRPC(
   if rpc.partsMetadata.len > 0:
     var groupState = ext.getGroupState(rpc.topicID, rpc.groupID)
     var peerState = groupState.getPeerState(peerId)
-    peerState.receivedPartsMetadata = some(rpc.partsMetadata)
+    peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
   ext.config.onIncomingRPC(peerId, rpc)
@@ -274,7 +277,7 @@ proc publishPartialToPeer(
     if materializeRes.isErr():
       # there might be error with last PartsMetadata so it is discarded,
       # to avoid any error with future messages.
-      peerState.receivedPartsMetadata = none(PartsMetadata)
+      peerState.receivedPartsMetadata = Opt.none(PartsMetadata)
     else:
       let data = materializeRes.get()
       if data.len > 0: # some parts have been filled
@@ -291,7 +294,7 @@ proc publishPartialToPeer(
             msg = unionRes.error
           # technically should never happen since materializeParts was successful
         else:
-          peerState.receivedPartsMetadata = some(unionRes.get())
+          peerState.receivedPartsMetadata = Opt.some(unionRes.get())
 
   # union sentPartsMetadata with new parts metadata and send if there are any changes
   if ext.unionWithSentPartsMetadata(peerState, msgPartsMetadata):

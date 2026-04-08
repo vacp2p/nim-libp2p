@@ -11,7 +11,7 @@
 {.pragma: callback, cdecl, raises: [], gcsafe.}
 {.passc: "-fPIC".}
 
-import std/[options, atomics, os, net, locks]
+import std/[atomics, os, net, locks]
 import chronicles, chronos, chronos/threadsync, taskpools/channels_spsc_single, results
 import
   ../[ffi_types, types],
@@ -250,4 +250,15 @@ proc sendRequestToLibP2PThread*(
     userData: pointer,
 ): Result[void, string] =
   ## Sends a request to the LibP2P thread for buffer callbacks
+  sendRequest(ctx, reqType, reqContent, userData, callbackKind, cast[pointer](callback))
+
+proc sendRequestToLibP2PThread*(
+    ctx: ptr LibP2PContext,
+    reqType: RequestType,
+    reqContent: pointer,
+    callback: ReservationCallback,
+    callbackKind: CallbackKind,
+    userData: pointer,
+): Result[void, string] =
+  ## Sends a request to the LibP2P thread for reservation callbacks
   sendRequest(ctx, reqType, reqContent, userData, callbackKind, cast[pointer](callback))

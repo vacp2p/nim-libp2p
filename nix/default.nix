@@ -36,7 +36,6 @@ pkgs.stdenv.mkDerivation {
       --opt:speed \
       -d:libp2p_autotls_support \
       -d:libp2p_mix_experimental_exit_is_dest \
-      -d:libp2p_gossipsub_1_4 \
       libp2p.nim
   '';
 }

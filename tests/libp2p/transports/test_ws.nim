@@ -47,16 +47,21 @@ proc streamProvider(conn: Connection, handle: bool = true): Muxer =
 const
   wsAddress = "/ip4/127.0.0.1/tcp/0/ws"
   wsSecureAddress = "/ip4/127.0.0.1/tcp/0/wss"
-  validAddresses =
+  validWireAddresses =
     @[
       # Plain WebSocket
       "/ip4/127.0.0.1/tcp/1234/ws",
       "/ip6/::1/tcp/1234/ws",
-      "/dns/example.com/tcp/1234/ws",
       # Secure WebSocket
       "/ip4/127.0.0.1/tcp/1234/wss",
       "/ip4/127.0.0.1/tcp/1234/tls/ws",
       "/ip6/::1/tcp/1234/wss",
+    ]
+  validNonWireAddresses =
+    @[
+      # Plain WebSocket 
+      "/dns/example.com/tcp/1234/ws",
+      # Secure WebSocket
       "/dns/example.com/tcp/1234/wss",
       "/dns/example.com/tcp/1234/tls/ws",
     ]
@@ -72,9 +77,13 @@ suite "WebSocket transport":
   teardown:
     checkTrackers()
 
-  basicTransportTest(wsTransProvider, wsAddress, validAddresses, invalidAddresses)
   basicTransportTest(
-    wsSecureTransProvider, wsSecureAddress, validAddresses, invalidAddresses
+    wsTransProvider, wsAddress, validWireAddresses, validNonWireAddresses,
+    invalidAddresses,
+  )
+  basicTransportTest(
+    wsSecureTransProvider, wsSecureAddress, validWireAddresses, validNonWireAddresses,
+    invalidAddresses,
   )
 
   connectionTransportTest(wsTransProvider, wsAddress)
@@ -97,7 +106,7 @@ suite "WebSocket transport":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
 
     # Generate cert with known keypair so we can derive the PeerId (used as CN in cert)
-    let testKeyPair = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+    let testKeyPair = KeyPair.random(PKScheme.RSA, rng[]).get()
     let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
     let (secureKey, secureCert) = tlsCertGenerator(Opt.some(testKeyPair))
 
@@ -156,7 +165,7 @@ when defined(libp2p_autotls_support):
     asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-      let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
       let (privkey, cert) = tlsCertGenerator(Opt.some(key))
       let autotls = MockAutotlsService.new()
       autotls.mockedKey = privkey
@@ -183,7 +192,7 @@ when defined(libp2p_autotls_support):
     asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-      let key = KeyPair.random(PKScheme.RSA, newRng()[]).get()
+      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
       let (privkey, cert) = tlsCertGenerator(Opt.some(key))
       let autotls = MockAutotlsService.new()
       autotls.mockedKey = privkey

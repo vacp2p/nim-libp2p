@@ -21,6 +21,11 @@ import
   ]
 import ../../tools/[unittest, trackers, futures, bufferstream, compare]
 
+proc noopWriteHandler(
+    data: seq[byte]
+) {.async: (raises: [CancelledError, LPStreamError]).} =
+  discard
+
 suite "Mplex":
   teardown:
     checkTrackers()
@@ -102,13 +107,8 @@ suite "Mplex":
 
   suite "channel half-closed":
     asyncTest "(local close) - should close for write":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.close()
@@ -120,10 +120,7 @@ suite "Mplex":
 
     asyncTest "(local close) - should allow reads until remote closes":
       let
-        conn = TestBufferStream.new(
-          proc(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
-            discard
-        )
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.pushData(("Hello!").toBytes)
@@ -147,10 +144,7 @@ suite "Mplex":
 
     asyncTest "(remote close) - channel should close for reading by remote":
       let
-        conn = TestBufferStream.new(
-          proc(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
-            discard
-        )
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.pushData(("Hello!").toBytes)
@@ -170,10 +164,7 @@ suite "Mplex":
     asyncTest "(remote close) - channel should allow writing on remote close":
       let
         testData = "Hello!".toBytes
-        conn = TestBufferStream.new(
-          proc(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
-            discard
-        )
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.pushEof() # closing channel
@@ -184,13 +175,8 @@ suite "Mplex":
         await conn.close()
 
     asyncTest "should not allow pushing data to channel when remote end closed":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
       await chann.pushEof()
       var buf: array[1, byte]
@@ -206,13 +192,8 @@ suite "Mplex":
 
   suite "channel reset":
     asyncTest "channel should fail reading":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.reset()
@@ -223,13 +204,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete read":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -242,13 +218,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete pushData":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       proc pushes() {.async.} = # pushes don't hang on reset
@@ -265,13 +236,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete both read and push":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -281,13 +247,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete both read and pushes":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -310,31 +271,21 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete both read and push with cancel":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
       let rfut = chann.readExactly(addr data[0], 1)
-      rfut.cancel()
+      rfut.cancelSoon()
       let xfut = chann.reset()
 
       check await allFutures(rfut, xfut).withTimeout(100.millis)
       await conn.close()
 
     asyncTest "should complete both read and push after reset":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -350,13 +301,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete ongoing push without reader":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       await chann.pushData(@[0'u8])
@@ -366,13 +312,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should complete ongoing read without a push":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -382,13 +323,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "reset should allow all reads and pushes to complete":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
 
       var data = newSeq[byte](1)
@@ -415,13 +351,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "channel should fail writing":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true)
       await chann.reset()
 
@@ -431,13 +362,8 @@ suite "Mplex":
       await conn.close()
 
     asyncTest "channel should reset on timeout":
-      proc writeHandler(
-          data: seq[byte]
-      ) {.async: (raises: [CancelledError, LPStreamError]).} =
-        discard
-
       let
-        conn = TestBufferStream.new(writeHandler)
+        conn = TestBufferStream.new(noopWriteHandler)
         chann = LPChannel.init(1, conn, true, timeout = 100.millis)
 
       check await chann.join().withTimeout(1.minutes)
@@ -927,7 +853,7 @@ suite "Mplex":
       checkUntilTimeout:
         listenStreams.len == 10 and dialStreams.len == 10
 
-      mplexHandle.cancel()
+      mplexHandle.cancelSoon()
       await allFuturesRaising((dialStreams & listenStreams).mapIt(it.join()))
 
       checkTracker(LPChannelTrackerName)

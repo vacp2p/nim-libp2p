@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[sequtils, tables, hashes, options, sets, deques]
+import std/[sequtils, tables, hashes, sets, deques]
 import results
 import chronos, chronicles, nimcrypto/sha2, metrics
 import chronos/ratelimit
@@ -15,8 +15,7 @@ import
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
   ../../utility,
-  ../../utils/sequninit,
-  ./bandwidth
+  ../../utils/sequninit
 
 export peerid, connection, deques
 
@@ -98,7 +97,7 @@ type
     sendNonPriorityTask: Future[void]
 
   CustomConnCreationProc* = proc(
-    destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
+    destAddr: Opt[MultiAddress], destPeerId: PeerId, codec: string
   ): Connection {.gcsafe, raises: [].}
 
   CustomPeerSelectionProc* = proc(
@@ -119,14 +118,10 @@ type
     codecInitializedFut*: Future[void].Raising([CancelledError])
     sendConn*: Connection # cached send connection
     connectedFut: Future[void]
-    address*: Option[MultiAddress]
+    address*: Opt[MultiAddress]
     peerId*: PeerId
     handler*: RPCHandler
     observers*: ref seq[PubSubObserver] # ref as in smart_ptr
-
-    when defined(libp2p_gossipsub_1_4):
-      bandwidthTracking*: BandwidthTracking
-
     score*: float64
     sentIHaves*: Deque[HashSet[MessageId]]
     iDontWants*: Deque[HashSet[SaltedId]]
@@ -138,17 +133,11 @@ type
     appScore*: float64 # application specific score
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
-
-    when defined(libp2p_gossipsub_1_4):
-      preambleBudget*: int
-      heIsReceivings*: Table[MessageId, uint32]
-      heIsSendings*: Table[MessageId, Moment]
-
     rpcmessagequeue: RpcMessageQueue
     maxNumElementsInNonPriorityQueue*: int
       # The max number of elements allowed in the non-priority queue.
     disconnected: bool
-    customConnCallbacks*: Option[CustomConnectionCallbacks]
+    customConnCallbacks*: Opt[CustomConnectionCallbacks]
 
   RPCHandler* = proc(peer: PubSubPeer, data: sink seq[byte]): Future[void] {.
     async: (raises: [CancelledError])
@@ -290,9 +279,9 @@ proc connectOnce(
     p.sendConn = newConn
     p.address =
       if p.sendConn.observedAddr.isSome:
-        some(p.sendConn.observedAddr.get)
+        Opt.some(p.sendConn.observedAddr.get)
       else:
-        none(MultiAddress)
+        Opt.none(MultiAddress)
 
     if p.codec == "":
       # if codec was not know, it can be retrieved from newly established connection
@@ -609,8 +598,8 @@ proc new*(
     maxMessageSize: int,
     maxNumElementsInNonPriorityQueue: int = DefaultMaxNumElementsInNonPriorityQueue,
     overheadRateLimitOpt: Opt[TokenBucket] = Opt.none(TokenBucket),
-    customConnCallbacks: Option[CustomConnectionCallbacks] =
-      none(CustomConnectionCallbacks),
+    customConnCallbacks: Opt[CustomConnectionCallbacks] =
+      Opt.none(CustomConnectionCallbacks),
 ): T =
   result = T(
     getConn: getConn,
@@ -625,11 +614,6 @@ proc new*(
     maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
     customConnCallbacks: customConnCallbacks,
   )
-
-  when defined(libp2p_gossipsub_1_4):
-    result.bandwidthTracking =
-      BandwidthTracking(download: ExponentialMovingAverage.init())
-
   result.sentIHaves.addFirst(default(HashSet[MessageId]))
   result.iDontWants.addFirst(default(HashSet[SaltedId]))
   result.startSendNonPriorityTask()

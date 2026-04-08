@@ -224,8 +224,11 @@ type QuicUpgrade = ref object of Upgrade
 type CertGenerator =
   proc(kp: KeyPair): CertificateX509 {.gcsafe, raises: [TLSCertificateError].}
 
+type QuicAcceptType = typeof(default(Listener).accept())
+
 type QuicTransport* = ref object of Transport
-  listener: Listener
+  listeners: seq[Listener]
+  acceptFuts: seq[QuicAcceptType]
   client: Opt[QuicClient]
   privateKey: PrivateKey
   connections: HashSet[P2PConnection]
@@ -300,12 +303,6 @@ proc makeConfig(self: QuicTransport): TLSConfig =
   )
   return tlsConfig
 
-proc getRng(self: QuicTransport): ref HmacDrbgContext =
-  if self.rng.isNil:
-    self.rng = newRng()
-
-  return self.rng
-
 proc toMultiAddress(ta: TransportAddress): MultiAddress {.raises: [MaError].} =
   ## Returns quic MultiAddress from TransportAddress
   MultiAddress.init(ta, IPPROTO_UDP).get() & MultiAddress.init("/quic-v1").get()
@@ -313,14 +310,17 @@ proc toMultiAddress(ta: TransportAddress): MultiAddress {.raises: [MaError].} =
 method start*(
     self: QuicTransport, addrs: seq[MultiAddress]
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
-  doAssert self.listener.isNil, "start() already called"
-  # TODO(#1663): handle multiple addr
+  doAssert self.listeners.len == 0, "start() already called"
 
+  var listenMAs: seq[MultiAddress]
+  var initialized = false
   try:
     let server = QuicServer.new(self.makeConfig())
-    self.listener = server.listen(initTAddress(addrs[0]).tryGet)
-    let listenMA = @[toMultiAddress(self.listener.localAddress())]
-    await procCall Transport(self).start(listenMA)
+    for maAddr in addrs:
+      let listener = server.listen(initTAddress(maAddr).tryGet)
+      self.listeners.add(listener)
+      listenMAs.add(toMultiAddress(listener.localAddress()))
+    initialized = true
   except QuicConfigError as exc:
     raiseAssert "invalid quic setup: " & $exc.msg
   except TLSCertificateError as exc:
@@ -334,17 +334,25 @@ method start*(
     raise (ref QuicTransportError)(
       msg: "transport error in quic start: " & exc.msg, parent: exc
     )
+  finally:
+    if not initialized:
+      for listener in self.listeners:
+        await noCancel listener.stop()
+      self.listeners = @[]
+
+  await procCall Transport(self).start(listenMAs)
 
 method stop*(transport: QuicTransport) {.async: (raises: []).} =
   let futs = transport.connections.mapIt(it.close())
   await noCancel allFutures(futs)
 
-  if not transport.listener.isNil:
+  for listener in transport.listeners:
     try:
-      await transport.listener.stop()
+      await listener.stop()
     except CatchableError as exc:
       trace "Error shutting down Quic transport", description = exc.msg
-    transport.listener = nil
+  transport.listeners = @[]
+  transport.acceptFuts = @[]
 
   transport.client.withValue(client):
     await noCancel client.stop()
@@ -354,7 +362,7 @@ method stop*(transport: QuicTransport) {.async: (raises: []).} =
 
 proc wrapConnection(
     transport: QuicTransport, connection: QuicConnection, transportDir: Direction
-): QuicSession {.raises: [TransportOsError].} =
+): QuicSession {.raises: [].} =
   var observedAddr: MultiAddress
   var localAddr: MultiAddress
   try:
@@ -395,11 +403,36 @@ method accept*(
     # stop accept only when transport is stopped (not when error occurs)
     raise newException(QuicTransportAcceptStopped, "Quic transport stopped")
 
-  doAssert not self.listener.isNil, "call start() before calling accept()"
+  doAssert self.listeners.len > 0, "call start() before calling accept()"
+
+  if self.acceptFuts.len == 0:
+    # initially start accept from all listeners
+    self.acceptFuts = self.listeners.mapIt(it.accept())
+
+  let finished =
+    try:
+      let acceptFutsCopy = self.acceptFuts
+      await one(acceptFutsCopy)
+    except ValueError:
+      raiseAssert "acceptFuts should never be empty"
+    except CancelledError as exc:
+      for fut in self.acceptFuts:
+        if not fut.finished():
+          fut.cancelSoon()
+      raise exc
+
+  if not self.running or self.listeners.len == 0: # Stopped while waiting
+    raise newTransportClosedError()
+
+  # becasue some listener has accepted we need to run 
+  # accept manually in the place for this listner again 
+  # so that it keeps accepting for future method calls
+  let index = self.acceptFuts.find(finished)
+  self.acceptFuts[index] = self.listeners[index].accept()
 
   try:
-    let connection = await self.listener.accept()
-    return self.wrapConnection(connection, Direction.In)
+    let conn = await finished
+    return self.wrapConnection(conn, Direction.In)
   except QuicError as exc:
     debug "Quic Error", description = exc.msg
   except common.TransportError as exc:
@@ -459,7 +492,7 @@ method upgrade*(
           debug "Timed out waiting for peer ready before handling stream", conn
           return
       await self.upgrader.ms.handle(conn) # handle incoming connection
-    except CancelledError as exc:
+    except CancelledError:
       return
     except CatchableError as exc:
       trace "exception in stream handler", conn, msg = exc.msg

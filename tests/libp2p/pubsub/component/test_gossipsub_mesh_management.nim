@@ -44,7 +44,6 @@ suite "GossipSub Component - Mesh Management":
     let
       expectedNumberOfPeers = numberOfNodes - 1
       dHigh = 7
-      d = 6
       dLow = 4
 
     for i in 0 ..< numberOfNodes:
@@ -58,15 +57,12 @@ suite "GossipSub Component - Mesh Management":
         )
 
   asyncTest "GossipSub should add remote peer topic subscriptions":
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
 
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
 
     checkUntilTimeout:
       topic in nodes[1].topics
@@ -74,16 +70,13 @@ suite "GossipSub Component - Mesh Management":
       nodes[0].gossipsub.hasPeerId(topic, nodes[1].peerInfo.peerId)
 
   asyncTest "GossipSub should add remote peer topic subscriptions if both peers are subscribed":
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
 
-    nodes[0].subscribe(topic, handler)
-    nodes[1].subscribe(topic, handler)
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
     check:
@@ -149,10 +142,7 @@ suite "GossipSub Component - Mesh Management":
     # DO NOT SUBSCRIBE, CONNECTION SHOULD HAPPEN
     ### await connectStar(nodes)
 
-    proc handler(topic: string, data: seq[byte]) {.async.} =
-      discard
-
-    nodes[1].subscribe(topic, handler)
+    nodes[1].subscribe(topic, voidTopicHandler)
 
     await invalidDetected.wait(10.seconds)
 
@@ -254,14 +244,14 @@ suite "GossipSub Component - Mesh Management":
     const
       numberOfNodes = 9
       pruneBackoff = 1.seconds # 1s is the minimum
-      dValues = some(
+      dValues = Opt.some(
         DValues(
-          dLow: some(6),
-          dHigh: some(8),
-          d: some(6),
-          dLazy: some(6),
-          dScore: some(4),
-          dOut: some(2),
+          dLow: Opt.some(6),
+          dHigh: Opt.some(8),
+          d: Opt.some(6),
+          dLazy: Opt.some(6),
+          dScore: Opt.some(4),
+          dOut: Opt.some(2),
         )
       )
     let
@@ -280,14 +270,14 @@ suite "GossipSub Component - Mesh Management":
     waitSubscribeHub(nodes[0], nodes[1 .. ^1], topic)
 
     # When DValues of Node0 are updated to lower than initial dValues
-    const newDValues = some(
+    const newDValues = Opt.some(
       DValues(
-        dLow: some(2),
-        dHigh: some(4),
-        d: some(3),
-        dLazy: some(3),
-        dScore: some(2),
-        dOut: some(2),
+        dLow: Opt.some(2),
+        dHigh: Opt.some(4),
+        d: Opt.some(3),
+        dLazy: Opt.some(3),
+        dScore: Opt.some(2),
+        dOut: Opt.some(2),
       )
     )
     node0.parameters.applyDValues(newDValues)

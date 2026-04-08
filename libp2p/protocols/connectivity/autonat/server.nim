@@ -12,7 +12,7 @@ import
   ../../../multiaddress,
   ../../../multicodec,
   ../../../peerid,
-  ../../../utils/[semaphore, future],
+  ../../../utils/[future],
   ../../../errors
 import types
 
@@ -25,14 +25,6 @@ type Autonat* = ref object of LPProtocol
   sem: AsyncSemaphore
   switch*: Switch
   dialTimeout: Duration
-
-proc sendDial(
-    conn: Connection, pid: PeerId, addrs: seq[MultiAddress]
-) {.async: (raises: [LPStreamError, CancelledError]).} =
-  let pb = AutonatDial(
-    peerInfo: Opt.some(AutonatPeerInfo(id: Opt.some(pid), addrs: addrs))
-  ).encode()
-  await conn.writeLp(pb.buffer)
 
 proc sendResponseError(
     conn: Connection, status: ResponseStatus, text: string = ""
@@ -145,7 +137,7 @@ proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[voi
             continue
           hostIp & maEnd
       )
-    except LPError as exc:
+    except LPError:
       continue
     if len(addrs) >= AddressLimit:
       break

@@ -195,7 +195,6 @@ suite "KadDHT - Add Provider":
 
     let
       targetKey = senderKad.rtable.selfId
-      senderPeer = senderKad.switch.peerInfo.toPeer() # Valid: matches connection
       imposterPeer = imposterKad.switch.peerInfo.toPeer() # Invalid: doesn't match sender
 
     check receiverKad.providerManager.providerRecords.len == 0

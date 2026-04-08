@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[sets, options, macros]
+import std/[sets, macros]
 import stew/byteutils
 import results, chronos, sequtils
 
@@ -68,15 +68,15 @@ proc capLen*[T](s: var seq[T], length: Natural) =
   if s.len > length:
     s.setLen(length)
 
-template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped =
-  ## This template provides a convenient way to work with `Option` types in Nim.
-  ## It allows you to execute a block of code (`body`) only when the `Option` is not empty.
+template withValue*[T](self: Opt[T], value, body: untyped): untyped =
+  ## This template provides a convenient way to work with `Opt` types in Nim.
+  ## It allows you to execute a block of code (`body`) only when the `Opt` is not empty.
   ##
-  ## `self` is the `Option` instance being checked.
+  ## `self` is the `Opt` instance being checked.
   ## `value` is the variable name to be used within the `body` for the unwrapped value.
   ## `body` is a block of code that is executed only if `self` contains a value.
   ##
-  ## The `value` within `body` is automatically unwrapped from the `Option`, making it
+  ## The `value` within `body` is automatically unwrapped from the `Opt`, making it
   ## simpler to work with without needing explicit checks or unwrapping.
   ##
   ## Example:
@@ -89,28 +89,21 @@ template withValue*[T](self: Opt[T] | Option[T], value, body: untyped): untyped 
   ## Note: This is a template, and it will be inlined at the call site, offering good performance.
   let temp = (self)
   if temp.isSome:
-    let value {.inject.} = temp.get()
+    let value {.inject, used.} = temp.get()
     body
 
 template withValue*[T, E](self: Result[T, E], value, body: untyped): untyped =
   self.toOpt().withValue(value, body)
 
-macro withValue*[T](self: Opt[T] | Option[T], value, body, elseStmt: untyped): untyped =
+macro withValue*[T](self: Opt[T], value, body, elseStmt: untyped): untyped =
   let elseBody = elseStmt[0]
   quote:
     let temp = (`self`)
     if temp.isSome:
-      let `value` {.inject.} = temp.get()
+      let `value` {.inject, used.} = temp.get()
       `body`
     else:
       `elseBody`
-
-template valueOr*[T](self: Option[T], body: untyped): untyped =
-  let temp = (self)
-  if temp.isSome:
-    temp.get()
-  else:
-    body
 
 template toOpt*[T, E](self: Result[T, E]): Opt[T] =
   let temp = (self)

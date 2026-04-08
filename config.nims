@@ -9,11 +9,13 @@ switch("warningAsError", "ImplicitDefaultValue:on")
 switch("warningAsError", "LockLevel:on")
 switch("warningAsError", "ObservableStores:on")
 switch("warningAsError", "ResultShadowed:on")
+switch("warningAsError", "UnreachableCode:on")
 switch("warningAsError", "UnreachableElse:on")
 switch("warningAsError", "UnusedImport:on")
 switch("warningAsError", "UseBase:on")
 switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
 switch("hintAsError", "DuplicateModuleImport:on")
+switch("hintAsError", "XCannotRaiseY:on")
 
 --styleCheck:
   usages

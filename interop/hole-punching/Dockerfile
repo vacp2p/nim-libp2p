@@ -1,19 +1,26 @@
 # syntax=docker/dockerfile:1.5-labs
-FROM nimlang/nim:latest as builder
+FROM nimlang/nim:2.2.6-ubuntu-regular as builder
 
-WORKDIR /workspace
+WORKDIR /app
 
 COPY .pinned libp2p.nimble nim-libp2p/
 
-RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y libssl-dev
+RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y --no-install-recommends ca-certificates binutils libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN cd nim-libp2p && nimble install_pinned && nimble install redis -y
 
 COPY . nim-libp2p/
 
-RUN cd nim-libp2p && nim c --skipParentCfg --NimblePath:./nimbledeps/pkgs2 --mm:refc -d:chronicles_log_level=DEBUG -d:chronicles_default_output_device=stderr -d:release --threads:off --skipProjCfg -o:hole-punching-tests ./interop/hole-punching/hole_punching.nim
+RUN cd nim-libp2p && \
+  nim c -d:release --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs2 \
+  -p:nim-libp2p --mm:refc --threads:on \
+  -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None \
+  -o:/app/peer ./interop/hole-punching/hole_punching.nim
 
-FROM --platform=linux/amd64 debian:bullseye-slim
-RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y dnsutils jq curl tcpdump iproute2 libssl-dev
-COPY --from=builder /workspace/nim-libp2p/hole-punching-tests /usr/bin/hole-punch-client
-ENV RUST_BACKTRACE=1
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y iproute2 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/peer /usr/bin/peer
+COPY interop/hole-punching/run-peer.sh /usr/bin/run-peer.sh
+RUN chmod +x /usr/bin/run-peer.sh
+ENTRYPOINT ["/usr/bin/run-peer.sh"]

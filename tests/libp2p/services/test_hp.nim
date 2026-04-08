@@ -13,14 +13,14 @@ import ../../../libp2p/protocols/connectivity/relay/[relay, client]
 import ../../../libp2p/protocols/connectivity/autonat/[service]
 import ../../../libp2p/nameresolving/[nameresolver, mockresolver]
 import ../../stubs/[autonatclientstub, switchstub]
-import ../../tools/[unittest, futures, resolver]
+import ../../tools/[unittest, futures, resolver, crypto]
 
 proc createSwitch(
     r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil
 ): Switch {.raises: [LPError].} =
   var builder = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng)
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
     .withTcpTransport()
     .withMplex()
@@ -38,14 +38,6 @@ proc createSwitch(
 
   return builder.build()
 
-proc buildRelayMA(switchRelay: Switch, switchClient: Switch): MultiAddress =
-  MultiAddress
-  .init(
-    $switchRelay.peerInfo.addrs[0] & "/p2p/" & $switchRelay.peerInfo.peerId &
-      "/p2p-circuit/p2p/" & $switchClient.peerInfo.peerId
-  )
-  .get()
-
 suite "Hole Punching":
   teardown:
     checkTrackers()
@@ -53,8 +45,7 @@ suite "Hole Punching":
   asyncTest "Direct connection must work when peer address is public":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable
-    let autonatService =
-      AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
+    let autonatService = AutonatService.new(autonatClientStub, rng, maxQueueSize = 1)
 
     let relayClient = RelayClient.new()
     let privatePeerRelayAddr = newFuture[seq[MultiAddress]]()
@@ -65,7 +56,7 @@ suite "Hole Punching":
       if not privatePeerRelayAddr.completed():
         privatePeerRelayAddr.complete(address)
 
-    let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, newRng())
+    let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, rng)
 
     let hpservice = HPService.new(autonatService, autoRelayService)
 
@@ -114,8 +105,7 @@ suite "Hole Punching":
   asyncTest "Direct connection must work when peer address is public and dns is used":
     let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub.answer = NotReachable
-    let autonatService =
-      AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
+    let autonatService = AutonatService.new(autonatClientStub, rng, maxQueueSize = 1)
 
     let relayClient = RelayClient.new()
     let privatePeerRelayAddr = newFuture[seq[MultiAddress]]()
@@ -126,7 +116,7 @@ suite "Hole Punching":
       if not privatePeerRelayAddr.completed():
         privatePeerRelayAddr.complete(address)
 
-    let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, newRng())
+    let autoRelayService = AutoRelayService.new(1, relayClient, checkMA, rng)
 
     let hpservice = HPService.new(autonatService, autoRelayService)
 
@@ -182,13 +172,11 @@ suite "Hole Punching":
 
     let autonatClientStub1 = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub1.answer = NotReachable
-    let autonatService1 =
-      AutonatService.new(autonatClientStub1, newRng(), maxQueueSize = 1)
+    let autonatService1 = AutonatService.new(autonatClientStub1, rng, maxQueueSize = 1)
 
     let autonatClientStub2 = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub2.answer = answer
-    let autonatService2 =
-      AutonatService.new(autonatClientStub2, newRng(), maxQueueSize = 1)
+    let autonatService2 = AutonatService.new(autonatClientStub2, rng, maxQueueSize = 1)
 
     let relayClient1 = RelayClient.new()
     let relayClient2 = RelayClient.new()
@@ -198,8 +186,8 @@ suite "Hole Punching":
       if not privatePeerRelayAddr1.completed():
         privatePeerRelayAddr1.complete(address)
 
-    let autoRelayService1 = AutoRelayService.new(1, relayClient1, checkMA, newRng())
-    let autoRelayService2 = AutoRelayService.new(1, relayClient2, nil, newRng())
+    let autoRelayService1 = AutoRelayService.new(1, relayClient1, checkMA, rng)
+    let autoRelayService2 = AutoRelayService.new(1, relayClient2, nil, rng)
 
     let hpservice1 = HPService.new(autonatService1, autoRelayService1)
     let hpservice2 = HPService.new(autonatService2, autoRelayService2)
@@ -214,8 +202,6 @@ suite "Hole Punching":
     let switchAux2 = createSwitch()
     let switchAux3 = createSwitch()
     let switchAux4 = createSwitch()
-
-    var awaiter = newFuture[void]()
 
     await allFuturesRaising(
       switchRelay.start(),

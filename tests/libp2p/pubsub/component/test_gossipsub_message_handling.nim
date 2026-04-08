@@ -59,7 +59,8 @@ proc createMessages(
     let data = newSeqWith(size, i.byte)
     sentMessages.incl(data)
 
-    let msg = Message.init(gossip1.peerInfo.peerId, data, topic, some(uint64(i + 1)))
+    let msg =
+      Message.init(gossip1.peerInfo.peerId, data, topic, Opt.some(uint64(i + 1)))
     let iwantMessageId = gossip1.msgIdProvider(msg).expect(MsgIdSuccess)
     iwantMessageIds.add(iwantMessageId)
     gossip1.mcache.put(iwantMessageId, msg)
@@ -88,13 +89,7 @@ suite "GossipSub Component - Message Handling":
 
     gossip1.broadcast(
       gossip1.mesh[topic],
-      RPCMsg(
-        control: some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: topic, messageIDs: iwantMessageIds)]
-          )
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIHave(topic, iwantMessageIds)),
       isHighPriority = false,
     )
 
@@ -109,18 +104,12 @@ suite "GossipSub Component - Message Handling":
       await teardownTest(gossip0, gossip1)
 
     let messageSize = gossip1.maxMessageSize + 10
-    let (bigIWantMessageIds, sentMessages) =
+    let (bigIWantMessageIds, _) =
       createMessages(gossip0, gossip1, topic, messageSize, messageSize)
 
     gossip1.broadcast(
       gossip1.mesh[topic],
-      RPCMsg(
-        control: some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
-          )
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       isHighPriority = false,
     )
 
@@ -143,13 +132,7 @@ suite "GossipSub Component - Message Handling":
 
     gossip1.broadcast(
       gossip1.mesh[topic],
-      RPCMsg(
-        control: some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
-          )
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       isHighPriority = false,
     )
 
@@ -170,13 +153,7 @@ suite "GossipSub Component - Message Handling":
 
     gossip1.broadcast(
       gossip1.mesh[topic],
-      RPCMsg(
-        control: some(
-          ControlMessage(
-            ihave: @[ControlIHave(topicID: topic, messageIDs: bigIWantMessageIds)]
-          )
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
       isHighPriority = false,
     )
 
@@ -443,16 +420,13 @@ suite "GossipSub Component - Message Handling":
       inc aReceived
       check aReceived < 2
 
-    proc handlerB(topic: string, data: seq[byte]) {.async.} =
-      discard
-
     proc handlerC(topic: string, data: seq[byte]) {.async.} =
       inc cReceived
       check cReceived < 2
       cRelayed.done()
 
     nodes[0].subscribe(topic, handlerA)
-    nodes[1].subscribe(topic, handlerB)
+    nodes[1].subscribe(topic, voidTopicHandler)
     nodes[2].subscribe(topic, handlerC)
     waitSubscribeStar(nodes, topic)
 

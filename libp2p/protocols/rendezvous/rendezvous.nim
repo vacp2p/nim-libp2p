@@ -14,8 +14,8 @@ import
   ../../dial,
   ../../routing_record,
   ../../utils/heartbeat,
+  ../../utils/future,
   ../../stream/connection,
-  ../../utils/semaphore,
   ../../utils/offsettedseq
 
 export chronicles, offsettedseq
@@ -352,7 +352,7 @@ proc requestLocally*[E](rdv: GenericRendezVous[E], ns: string): seq[E] =
           let res = SignedPayload[E].decode(rdv.registered[index].data.signedPeerRecord).valueOr:
             continue
           res.data
-  except exceptions.KeyError as exc:
+  except exceptions.KeyError:
     @[]
 
 proc requestPeer[E](
@@ -620,8 +620,7 @@ proc deletesRegister*[E](
 method start*[E](
     rdv: GenericRendezVous[E]
 ): Future[void] {.async: (raises: [CancelledError], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
+  let fut = newFutureCompleted[void]()
   if not rdv.registerDeletionLoop.isNil:
     warn "Starting rendezvous twice"
     return fut
@@ -632,12 +631,11 @@ method start*[E](
 method stop*[E](
     rdv: GenericRendezVous[E]
 ): Future[void] {.async: (raises: [], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
   if rdv.registerDeletionLoop.isNil:
     warn "Stopping rendezvous without starting it"
-    return fut
+    return newFutureCompleted[void]()
+
   rdv.started = false
   rdv.registerDeletionLoop.cancelSoon()
   rdv.registerDeletionLoop = nil
-  fut
+  newFutureCompleted[void]()

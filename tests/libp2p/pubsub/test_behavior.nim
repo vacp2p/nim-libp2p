@@ -3,11 +3,11 @@
 
 {.used.}
 
-import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles
+import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles, results
 import ../../../libp2p/[routing_record, crypto/crypto, multiaddress]
 import
   ../../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, rpc/message]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 suite "GossipSub Behavior":
   const
@@ -149,7 +149,6 @@ suite "GossipSub Behavior":
 
     # And some peers have signed peer records in the SPRBook
     let
-      rng = newRng()
       mockPrivKey0 = PrivateKey.random(ECDSA, rng[]).tryGet()
       mockPrivKey2 = PrivateKey.random(ECDSA, rng[]).tryGet()
       mockAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
@@ -455,7 +454,6 @@ suite "GossipSub Behavior":
     # And backoff is set correctly
     # Expected backoff calculation: prune.backoff (300s) + BackoffSlackTime (2s) = 302s
     let expectedBackoffSeconds = 302'u64
-    let currentTime = Moment.now()
     let expectedBackoffTime = Moment.fromNow(expectedBackoffSeconds.int64.seconds)
 
     # And backoff table is properly populated
@@ -719,7 +717,7 @@ suite "GossipSub Behavior":
       prunes.len == 1
 
   asyncTest "replenishFanout - Degree Lo":
-    let (gossipSub, conns, peers) =
+    let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -729,7 +727,7 @@ suite "GossipSub Behavior":
     check gossipSub.fanout[topic].len == gossipSub.parameters.d
 
   asyncTest "dropFanoutPeers - drop expired fanout topics":
-    let (gossipSub, conns, peers) =
+    let (gossipSub, conns, _) =
       setupGossipSubWithPeers(6, topic, populateGossipsub = true, populateFanout = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -746,7 +744,7 @@ suite "GossipSub Behavior":
     const
       topic1 = "foobar1"
       topic2 = "foobar2"
-    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
+    let (gossipSub, conns, _) = setupGossipSubWithPeers(
       6, @[topic1, topic2], populateGossipsub = true, populateFanout = true
     )
     defer:
@@ -787,7 +785,8 @@ suite "GossipSub Behavior":
     for i in 0 .. 5:
       let conn = conns[i]
       inc seqno
-      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg =
+        Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     check gossipSub.fanout[topic].len == 15
@@ -817,7 +816,8 @@ suite "GossipSub Behavior":
     for i in 0 .. 5:
       let conn = conns[i]
       inc seqno
-      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg =
+        Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let gossipPeers = gossipSub.getGossipPeers()
@@ -841,7 +841,8 @@ suite "GossipSub Behavior":
     for i in 0 .. 5:
       let conn = conns[i]
       inc seqno
-      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg =
+        Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let gossipPeers = gossipSub.getGossipPeers()
@@ -865,7 +866,8 @@ suite "GossipSub Behavior":
     for i in 0 .. 5:
       let conn = conns[i]
       inc seqno
-      let msg = Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, some(seqno))
+      let msg =
+        Message.init(conn.peerId, ("HELLO" & $i).toBytes(), topic, Opt.some(seqno))
       gossipSub.mcache.put(gossipSub.msgIdProvider(msg).expect(MsgIdSuccess), msg)
 
     let gossipPeers = gossipSub.getGossipPeers()
@@ -896,7 +898,7 @@ suite "GossipSub Behavior":
       gossipPeers.len == 0
 
   asyncTest "rebalanceMesh - Degree Lo":
-    let (gossipSub, conns, peers) =
+    let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -924,7 +926,7 @@ suite "GossipSub Behavior":
       check peer.score >= 0.0
 
   asyncTest "rebalanceMesh - Degree Hi":
-    let (gossipSub, conns, peers) =
+    let (gossipSub, conns, _) =
       setupGossipSubWithPeers(15, topic, populateGossipsub = true, populateMesh = true)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -1022,7 +1024,7 @@ suite "GossipSub Behavior":
   asyncTest "rebalanceMesh - Degree Hi - dScore controls number of peers to retain by score when pruning":
     # Given GossipSub node starting with 13 peers in mesh
     const totalPeers = 13
-    let (gossipSub, conns, peers) = setupGossipSubWithPeers(
+    let (gossipSub, conns, _) = setupGossipSubWithPeers(
       totalPeers, topic, populateGossipsub = true, populateMesh = true
     )
     defer:

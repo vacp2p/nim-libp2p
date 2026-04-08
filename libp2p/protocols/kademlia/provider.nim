@@ -98,8 +98,13 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
 
 proc dispatchAddProvider(
     switch: Switch, peer: PeerId, key: Key, codec: string
-) {.async: (raises: [CancelledError, DialFailedError, LPStreamError]).} =
-  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
+) {.async: (raises: [CancelledError, LPStreamError]).} =
+  let conn =
+    try:
+      await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
+    except DialFailedError as e:
+      error "AddProvider could not dial peer", description = e.msg
+      return
   defer:
     await conn.close()
 
@@ -181,11 +186,13 @@ method handleAddProvider*(
 
 proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key
-): Future[Opt[Message]] {.
-    async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
-.} =
+): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
   let conn =
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+    try:
+      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+    except DialFailedError as e:
+      error "GetProviders could not dial peer", description = e.msg
+      return Opt.none(Message)
   defer:
     await conn.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
@@ -222,7 +229,7 @@ proc dispatchGetProviders*(
 proc getProviders*(
     kad: KadDHT, key: Key
 ): Future[HashSet[Provider]] {.
-    async: (raises: [LPStreamError, DialFailedError, CancelledError]), gcsafe
+    async: (raises: [LPStreamError, CancelledError]), gcsafe
 .} =
   ## Get providers for a given `key` from the nodes closest to that `key`.
 

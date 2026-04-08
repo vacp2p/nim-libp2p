@@ -82,8 +82,11 @@ suite "GossipSub Component - Message Cache":
         gossip = true,
         historyGossip = historyGossip,
         historyLength = historyLength,
-        dValues =
-          some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
+        dValues = Opt.some(
+          DValues(
+            dLow: Opt.some(1), dHigh: Opt.some(1), d: Opt.some(1), dOut: Opt.some(0)
+          )
+        ),
       )
       .toGossipSub()
 
@@ -122,8 +125,11 @@ suite "GossipSub Component - Message Cache":
     let nodes = generateNodes(
         numberOfNodes,
         gossip = true,
-        dValues =
-          some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
+        dValues = Opt.some(
+          DValues(
+            dLow: Opt.some(1), dHigh: Opt.some(1), d: Opt.some(1), dOut: Opt.some(0)
+          )
+        ),
       )
       .toGossipSub()
 
@@ -257,11 +263,7 @@ suite "GossipSub Component - Message Cache":
     # And Node2 sends IWant to Node0 requesting both messages
     nodes[2].broadcast(
       @[nodes[2].getPeerByPeerId(topic, nodes[0].peerInfo.peerId)],
-      RPCMsg(
-        control: some(
-          ControlMessage(iwant: @[ControlIWant(messageIDs: @[messageId1, messageId2])])
-        )
-      ),
+      RPCMsg.withControl(ControlMessage.withIWant(@[messageId1, messageId2])),
       isHighPriority = false,
     )
 
@@ -289,7 +291,11 @@ suite "GossipSub Component - Message Cache":
     # Given Node0 has msgId already in seen cache
     let data = "Hello".toBytes()
     let msg = Message.init(
-      some(nodes[0].peerInfo), data, topic, some(nodes[0].msgSeqno), nodes[0].sign
+      Opt.some(nodes[0].peerInfo),
+      data,
+      topic,
+      Opt.some(nodes[0].msgSeqno),
+      nodes[0].sign,
     )
     let msgId = nodes[0].msgIdProvider(msg)
 

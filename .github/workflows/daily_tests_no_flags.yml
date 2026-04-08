@@ -7,7 +7,7 @@ on:
 
 jobs:
   tests-no-flags:
-    timeout-minutes: 30
+    timeout-minutes: 55
     strategy:
       fail-fast: false
 
@@ -47,16 +47,4 @@ jobs:
         run: |
           nim c -r tests/test_all.nim
   
-  notify-on-failure:
-    name: Notify Discord on Failure
-    needs: tests-no-flags
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Discord notification
-        uses: ./.github/actions/discord_notify
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}

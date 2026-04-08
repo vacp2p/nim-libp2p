@@ -9,7 +9,7 @@ runnableExamples:
 
 {.push raises: [].}
 
-import options, tables, chronos, chronicles, sequtils
+import tables, chronos, chronicles, sequtils
 import
   switch,
   peerid,
@@ -22,6 +22,7 @@ import
   protocols/[identify, secure/secure, secure/noise, rendezvous, kademlia],
   protocols/connectivity/[
     autonat/server,
+    autonat/service,
     autonatv2/server,
     autonatv2/service,
     autonatv2/client,
@@ -81,9 +82,10 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     autonat: bool
+    autonatService*: Opt[AutonatService]
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
-    autonatV2ServiceConfig: AutonatV2ServiceConfig
+    autonatV2Service*: Opt[AutonatV2Service]
     autotls: Opt[AutotlsService]
     circuitRelay: Opt[Relay]
     rdv: Opt[RendezVous]
@@ -306,10 +308,13 @@ proc withAutonatV2Server*(
   b
 
 proc withAutonatV2*(
-    b: SwitchBuilder, serviceConfig = AutonatV2ServiceConfig.new()
+    b: SwitchBuilder,
+    serviceConfig: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
 ): SwitchBuilder =
   b.autonatV2Client = AutonatV2Client.new(b.rng)
-  b.autonatV2ServiceConfig = serviceConfig
+  b.autonatV2Service = Opt.some(
+    AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
+  )
   b
 
 when defined(libp2p_autotls_support):
@@ -413,12 +418,11 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   if b.enableWildcardResolver:
     b.services.add(WildcardAddressResolverService.new())
 
-  if not isNil(b.autonatV2Client):
-    b.services.add(
-      AutonatV2Service.new(
-        b.rng, client = b.autonatV2Client, config = b.autonatV2ServiceConfig
-      )
-    )
+  b.autonatV2Service.withValue(autonatV2Service):
+    b.services.add(autonatV2Service)
+
+  b.autonatService.withValue(autonatService):
+    b.services.add(autonatService)
 
   let switch = newSwitch(
     peerInfo = peerInfo,
@@ -429,6 +433,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     nameResolver = b.nameResolver,
     peerStore = peerStore,
     services = b.services,
+    rng = b.rng,
   )
 
   switch.mount(identify)

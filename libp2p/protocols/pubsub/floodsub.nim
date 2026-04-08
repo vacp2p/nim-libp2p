@@ -32,14 +32,14 @@ type FloodSub* {.public.} = ref object of PubSub
     # We use a salted id because the messages in this cache have not yet
     # been validated meaning that an attacker has greater control over the
     # hash key and therefore could poison the table
-  seenSalt*: sha256
-    # The salt in this case is a partially updated SHA256 context pre-seeded
-    # with some random data
+  seenSalt: array[32, byte] # random data used as salt
 
 proc salt*(f: FloodSub, msgId: MessageId): SaltedId =
-  var tmp = f.seenSalt
-  tmp.update(msgId)
-  SaltedId(data: tmp.finish())
+  var hash: sha256
+  hash.init()
+  hash.update(f.seenSalt)
+  hash.update(msgId)
+  SaltedId(data: hash.finish())
 
 proc hasSeen*(f: FloodSub, saltedId: SaltedId): bool =
   saltedId in f.seen
@@ -165,7 +165,7 @@ method rpcHandler*(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    f.broadcast(toSendPeers, RPCMsg(messages: @[msg]), isHighPriority = false)
+    f.broadcast(toSendPeers, RPCMsg.withMessages(msg), isHighPriority = false)
     trace "Forwared message to peers", peers = toSendPeers.len
 
   f.updateMetrics(rpcMsg)
@@ -189,7 +189,7 @@ method publish*(
     f: FloodSub,
     topic: string,
     data: seq[byte],
-    publishParams: Option[PublishParams] = none(PublishParams),
+    publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
   # base returns always 0
   discard await procCall PubSub(f).publish(topic, data)
@@ -209,10 +209,10 @@ method publish*(
   let
     msg =
       if f.anonymize:
-        Message.init(none(PeerInfo), data, topic, none(uint64), false)
+        Message.init(Opt.none(PeerInfo), data, topic, Opt.none(uint64), false)
       else:
         inc f.msgSeqno
-        Message.init(some(f.peerInfo), data, topic, some(f.msgSeqno), f.sign)
+        Message.init(Opt.some(f.peerInfo), data, topic, Opt.some(f.msgSeqno), f.sign)
     msgId = f.msgIdProvider(msg).valueOr:
       trace "Error generating message id, skipping publish", error = error
       return 0
@@ -225,7 +225,7 @@ method publish*(
     return 0
 
   # Try to send to all peers that are known to be interested
-  f.broadcast(peers, RPCMsg(messages: @[msg]), isHighPriority = true)
+  f.broadcast(peers, RPCMsg.withMessages(msg), isHighPriority = true)
 
   when defined(libp2p_expensive_metrics):
     libp2p_pubsub_messages_published.inc(labelValues = [topic])
@@ -237,10 +237,6 @@ method publish*(
 method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[SaltedId].init(2.minutes)
-  f.seenSalt.init()
-
-  var tmp: array[32, byte]
-  hmacDrbgGenerate(f.rng[], tmp)
-  f.seenSalt.update(tmp)
+  hmacDrbgGenerate(f.rng[], f.seenSalt)
 
   f.init()

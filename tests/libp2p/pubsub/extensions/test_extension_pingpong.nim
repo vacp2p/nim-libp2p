@@ -23,33 +23,31 @@ proc config(c: CallbackRecorder, peerBudgetBytes: int = 6400): PingPongExtension
   return PingPongExtensionConfig(sendPong: sendPong, peerBudgetBytes: peerBudgetBytes)
 
 proc handlePingPong(ext: PingPongExtension, peerId: PeerId, ping: seq[byte]) =
-  ext.onHandleRPC(
-    peerId, RPCMsg(pingpongExtension: some(PingPongExtensionRPC(ping: ping)))
-  )
+  ext.onHandleRPC(peerId, RPCMsg.withPing(ping))
 
 suite "GossipSub Extensions :: PingPong Extension":
   let peerId = PeerId.random(rng).get()
 
   test "isSupported":
-    let ext = PingPongExtension.new(CallbackRecorder().config())
+    let ext = PingPongExtension.new()
     check:
       ext.isSupported(PeerExtensions()) == false
       ext.isSupported(PeerExtensions(pingpongExtension: true)) == true
 
   test "config validation - sendPong must be set":
     expect AssertionDefect:
-      let ext = PingPongExtension.new(PingPongExtensionConfig())
+      discard PingPongExtension.new(PingPongExtensionConfig())
 
     expect AssertionDefect:
       var cfg = CallbackRecorder().config()
       cfg.sendPong = nil
-      let ext = PingPongExtension.new(cfg)
+      discard PingPongExtension.new(cfg)
 
   test "config validation - peerBudgetBytes must be positive":
     expect AssertionDefect:
       var cfg = CallbackRecorder().config()
       cfg.peerBudgetBytes = 0
-      let ext = PingPongExtension.new(cfg)
+      discard PingPongExtension.new(cfg)
 
   test "ping triggers pong with same bytes":
     var cr = CallbackRecorder()

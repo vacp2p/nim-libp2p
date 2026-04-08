@@ -5,7 +5,7 @@ from times import parse, toTime, toUnix
 import strformat
 import strutils
 import json
-import options
+import results
 import ../types
 import common
 
@@ -54,8 +54,8 @@ proc extractNetworkRaw(statsJson: JsonNode): (int, int) =
       netTxBytes += v["tx_bytes"].getInt(0)
   return (netRxBytes, netTxBytes)
 
-proc parseDockerStatsLine(line: string): Option[DockerStatsSample] =
-  var samples = none(DockerStatsSample)
+proc parseDockerStatsLine(line: string): Opt[DockerStatsSample] =
+  var samples = Opt.none(DockerStatsSample)
   if line.len == 0:
     return samples
   try:
@@ -67,7 +67,7 @@ proc parseDockerStatsLine(line: string): Option[DockerStatsSample] =
     let (netRxRaw, netTxRaw) = extractNetworkRaw(statsJson)
     let netRxMB = netRxRaw.convertMB()
     let netTxMB = netTxRaw.convertMB()
-    return some(
+    return Opt.some(
       DockerStatsSample(
         timestamp: timestamp,
         cpuPercent: cpuPercent,

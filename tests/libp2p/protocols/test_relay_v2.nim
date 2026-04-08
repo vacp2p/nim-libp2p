@@ -13,12 +13,12 @@ import
     protocols/connectivity/relay/utils,
     protocols/connectivity/relay/client,
   ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(newRng())
+    .withRng(rng)
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
     .withTcpTransport()
 
@@ -423,7 +423,7 @@ suite "Circuit Relay V2":
         await dst.connect(rel2.peerInfo.peerId, rel2.peerInfo.addrs)
 
         rsvp = await rel2Cl.reserve(rel.peerInfo.peerId, rel.peerInfo.addrs)
-        let rsvp2 = await dstCl.reserve(rel2.peerInfo.peerId, rel2.peerInfo.addrs)
+        discard await dstCl.reserve(rel2.peerInfo.peerId, rel2.peerInfo.addrs)
 
         expect DialFailedError:
           conn = await src.dial(dst.peerInfo.peerId, addrs, customProtoCodec)
@@ -521,12 +521,9 @@ suite "Circuit Relay V2":
         await switchA.connect(switchB.peerInfo.peerId, switchB.peerInfo.addrs)
         await switchB.connect(switchC.peerInfo.peerId, switchC.peerInfo.addrs)
         await switchC.connect(switchA.peerInfo.peerId, switchA.peerInfo.addrs)
-        let rsvpABC =
-          await clientA.reserve(switchC.peerInfo.peerId, switchC.peerInfo.addrs)
-        let rsvpBCA =
-          await clientB.reserve(switchA.peerInfo.peerId, switchA.peerInfo.addrs)
-        let rsvpCAB =
-          await clientC.reserve(switchB.peerInfo.peerId, switchB.peerInfo.addrs)
+        discard await clientA.reserve(switchC.peerInfo.peerId, switchC.peerInfo.addrs)
+        discard await clientB.reserve(switchA.peerInfo.peerId, switchA.peerInfo.addrs)
+        discard await clientC.reserve(switchB.peerInfo.peerId, switchB.peerInfo.addrs)
         let connABC =
           await switchA.dial(switchC.peerInfo.peerId, @[addrsABC], "/abctest")
         let connBCA =

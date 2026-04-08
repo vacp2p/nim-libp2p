@@ -18,7 +18,7 @@ runnableExamples:
 {.push raises: [].}
 
 import
-  std/[tables, sets, options, macros],
+  std/[tables, sets, macros],
   chronos,
   ./crypto/crypto,
   ./crypto/curve25519,

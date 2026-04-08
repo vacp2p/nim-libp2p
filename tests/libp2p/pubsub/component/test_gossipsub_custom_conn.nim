@@ -11,15 +11,12 @@ import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
 type DummyConnection* = ref object of Connection
+  data: seq[byte]
 
 method write*(
     self: DummyConnection, msg: seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-  discard
-
-proc new*(T: typedesc[DummyConnection]): DummyConnection =
-  let instance = T()
-  instance
+  self.data.add(msg)
 
 suite "GossipSub Component - Custom Connection Support":
   const topic = "foobar"
@@ -31,16 +28,15 @@ suite "GossipSub Component - Custom Connection Support":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     var
-      customConnCreated = false
+      dummyConn = DummyConnection()
       peerSelectionCalled = false
 
-    nodes[0].customConnCallbacks = some(
+    nodes[0].customConnCallbacks = Opt.some(
       CustomConnectionCallbacks(
         customConnCreationCB: proc(
-            destAddr: Option[MultiAddress], destPeerId: PeerId, codec: string
+            destAddr: Opt[MultiAddress], destPeerId: PeerId, codec: string
         ): Connection =
-          customConnCreated = true
-          return DummyConnection.new(),
+          return dummyConn,
         customPeerSelectionCB: proc(
             allPeers: HashSet[PubSubPeer],
             directPeers: HashSet[PubSubPeer],
@@ -59,12 +55,14 @@ suite "GossipSub Component - Custom Connection Support":
     waitSubscribe(nodes[0], nodes[1], topic)
 
     tryPublish await nodes[0].publish(
-      topic, "hello".toBytes(), publishParams = some(PublishParams(useCustomConn: true))
+      topic,
+      "hello".toBytes(),
+      publishParams = Opt.some(PublishParams(useCustomConn: true)),
     ), 1
 
     check:
       peerSelectionCalled
-      customConnCreated
+      dummyConn.data.len > 0
 
   asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
@@ -79,5 +77,5 @@ suite "GossipSub Component - Custom Connection Support":
       discard await nodes[0].publish(
         topic,
         "hello".toBytes(),
-        publishParams = some(PublishParams(useCustomConn: true)),
+        publishParams = Opt.some(PublishParams(useCustomConn: true)),
       )

@@ -58,7 +58,7 @@ method dialMe*(
     raise newException(AutonatError, incomingConnection.error.msg)
   defer:
     await conn.close()
-    incomingConnection.cancel()
+    incomingConnection.cancelSoon()
       # Safer to always try to cancel cause we aren't sure if the peer dialled us or not
     if incomingConnection.completed():
       try:

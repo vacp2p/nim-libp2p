@@ -3,7 +3,6 @@
 
 {.push raises: [].}
 
-import options
 import stew/assign2
 import chronicles
 import messages, ../../../peerid, ../../../utility, ../../../protobuf/minprotobuf
@@ -71,7 +70,7 @@ proc write*(pb: var ProtoBuffer, field: int, iwant: ControlIWant) =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["iwant"])
 
-proc write*(pb: var ProtoBuffer, field: int, preamble: ControlPreamble) =
+proc write*(pb: var ProtoBuffer, field: int, preamble: Preamble) =
   var ipb = initProtoBuffer()
   ipb.write(1, preamble.topicID)
   ipb.write(2, preamble.messageID)
@@ -84,7 +83,7 @@ proc write*(pb: var ProtoBuffer, field: int, preamble: ControlPreamble) =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["preamble"])
 
-proc write*(pb: var ProtoBuffer, field: int, imreceiving: ControlIMReceiving) =
+proc write*(pb: var ProtoBuffer, field: int, imreceiving: IMReceiving) =
   var ipb = initProtoBuffer()
   ipb.write(1, imreceiving.messageID)
   ipb.write(2, imreceiving.messageLength)
@@ -99,15 +98,17 @@ proc write*(pb: var ProtoBuffer, field: int, imreceiving: ControlIMReceiving) =
 proc write*(pb: var ProtoBuffer, field: int, extensions: ControlExtensions) =
   var ipb = initProtoBuffer()
 
-  extensions.partialMessageExtension.withValue(pme):
-    ipb.write(10, pme)
+  extensions.partialMessageExtension.withValue(v):
+    ipb.write(10, v)
 
   # Experimental extensions must use field numbers larger than 0x200000 to be
   # encoded with 4 bytes
-  extensions.pingpongExtension.withValue(ppe):
-    ipb.write(3145728, ppe)
-  extensions.testExtension.withValue(te):
-    ipb.write(6492434, te)
+  extensions.pingpongExtension.withValue(v):
+    ipb.write(3145728, v)
+  extensions.preambleExtension.withValue(v):
+    ipb.write(4194304, v)
+  extensions.testExtension.withValue(v):
+    ipb.write(6492434, v)
 
   if ipb.buffer.len > 0:
     ipb.finish()
@@ -130,12 +131,6 @@ proc write*(pb: var ProtoBuffer, field: int, control: ControlMessage) =
     ipb.write(5, idontwant)
   if control.extensions.isSome():
     ipb.write(6, control.extensions.get())
-
-  when defined(libp2p_gossipsub_1_4):
-    for preamble in control.preamble:
-      ipb.write(7, preamble)
-    for imreceiving in control.imreceiving:
-      ipb.write(8, imreceiving)
 
   if len(ipb.buffer) > 0:
     ipb.finish()
@@ -178,6 +173,19 @@ proc write*(pb: var ProtoBuffer, field: int, ppe: PingPongExtensionRPC) =
 
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["ping_pong"])
+
+proc write*(pb: var ProtoBuffer, field: int, rpc: PreambleExtensionRPC) =
+  var ipb = initProtoBuffer()
+  for preamble in rpc.preamble:
+    ipb.write(1, preamble)
+  for imreceiving in rpc.imreceiving:
+    ipb.write(2, imreceiving)
+
+  ipb.finish()
+  pb.write(field, ipb)
+
+  when defined(libp2p_protobuf_metrics):
+    libp2p_pubsub_rpc_bytes_write.inc(ipb.getLen().int64, labelValues = ["preamble"])
 
 proc encodeMessage*(msg: Message, anonymize: bool): seq[byte] =
   var pb = initProtoBuffer()
@@ -273,12 +281,12 @@ proc decodeIWant*(pb: ProtoBuffer): ProtoResult[ControlIWant] {.inline.} =
     trace "decodeIWant: no messageIDs"
   ok(control)
 
-proc decodePreamble*(pb: ProtoBuffer): ProtoResult[ControlPreamble] {.inline.} =
+proc decodePreamble*(pb: ProtoBuffer): ProtoResult[Preamble] {.inline.} =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["preamble"])
 
   trace "decodePreamble: decoding message"
-  var control = ControlPreamble()
+  var control = Preamble()
   if ?pb.getField(1, control.topicID):
     trace "decodePreamble: read topicID", topic = control.topicID
   else:
@@ -293,12 +301,12 @@ proc decodePreamble*(pb: ProtoBuffer): ProtoResult[ControlPreamble] {.inline.} =
     trace "decodePreamble: message Length is missing"
   ok(control)
 
-proc decodeIMReceiving*(pb: ProtoBuffer): ProtoResult[ControlIMReceiving] {.inline.} =
+proc decodeIMReceiving*(pb: ProtoBuffer): ProtoResult[IMReceiving] {.inline.} =
   when defined(libp2p_protobuf_metrics):
     libp2p_pubsub_rpc_bytes_read.inc(pb.getLen().int64, labelValues = ["imreceiving"])
 
   trace "decodeIMReceiving: decoding message"
-  var control = ControlIMReceiving()
+  var control = IMReceiving()
   if ?pb.getField(1, control.messageID):
     trace "decodeIMReceiving: read messageID", message_id = control.messageID
   else:
@@ -331,6 +339,12 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
   else:
     trace "decodeExtensions: pingpongExtension is missing"
 
+  if ?pb.getField(4194304, control.preambleExtension):
+    trace "decodeExtensions: read preambleExtension",
+      preambleExtension = control.preambleExtension
+  else:
+    trace "decodeExtensions: preambleExtension is missing"
+
   if ?pb.getField(6492434, control.testExtension):
     trace "decodeExtensions: read testExtension", testExtension = control.testExtension
   else:
@@ -338,7 +352,7 @@ proc decodeExtensions*(pb: ProtoBuffer): ProtoResult[ControlExtensions] {.inline
 
   ok(control)
 
-proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inline.} =
+proc decodeControl*(pb: ProtoBuffer): ProtoResult[Opt[ControlMessage]] {.inline.} =
   trace "decodeControl: decoding message"
   var buffer: seq[byte]
   if ?pb.getField(3, buffer):
@@ -350,10 +364,6 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
     var prunepbs: seq[seq[byte]]
     var idontwant: seq[seq[byte]]
     var extensions: seq[byte]
-
-    when defined(libp2p_gossipsub_1_4):
-      var preamble: seq[seq[byte]]
-      var imreceiving: seq[seq[byte]]
 
     if ?cpb.getRepeatedField(1, ihavepbs):
       for item in ihavepbs:
@@ -371,24 +381,16 @@ proc decodeControl*(pb: ProtoBuffer): ProtoResult[Option[ControlMessage]] {.inli
       for item in idontwant:
         control.idontwant.add(?decodeIWant(initProtoBuffer(item)))
     if ?cpb.getField(6, extensions):
-      control.extensions = some(?decodeExtensions(initProtoBuffer(extensions)))
-
-    when defined(libp2p_gossipsub_1_4):
-      if ?cpb.getRepeatedField(7, preamble):
-        for item in preamble:
-          control.preamble.add(?decodePreamble(initProtoBuffer(item)))
-      if ?cpb.getRepeatedField(8, imreceiving):
-        for item in imreceiving:
-          control.imreceiving.add(?decodeIMReceiving(initProtoBuffer(item)))
+      control.extensions = Opt.some(?decodeExtensions(initProtoBuffer(extensions)))
 
     trace "decodeControl: message statistics",
       graft_count = len(control.graft),
       prune_count = len(control.prune),
       ihave_count = len(control.ihave),
       iwant_count = len(control.iwant)
-    ok(some(control))
+    ok(Opt.some(control))
   else:
-    ok(none[ControlMessage]())
+    ok(Opt.none(ControlMessage))
 
 proc decodeSubscription*(pb: ProtoBuffer): ProtoResult[SubOpts] {.inline.} =
   when defined(libp2p_protobuf_metrics):
@@ -494,6 +496,8 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
   msg.pingpongExtension.withValue(ppe):
     pb.write(3145728, ppe)
+  msg.preambleExtension.withValue(v):
+    pb.write(4194304, v)
   if msg.testExtension.isSome():
     # if set write empty bytes, this will set filed tag
     pb.write(6492434, newSeq[byte](0))
@@ -504,18 +508,18 @@ proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
 
 proc decodeTestExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Option[TestExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[TestExtensionRPC]] {.inline.} =
   trace "TestExtensionRPC: decoding message"
 
   var testExtension: seq[byte]
   if ?pb.getField(field, testExtension):
-    ok(some(TestExtensionRPC()))
+    ok(Opt.some(TestExtensionRPC()))
   else:
-    ok(none(TestExtensionRPC))
+    ok(Opt.none(TestExtensionRPC))
 
 proc decodePingPongExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Option[PingPongExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[PingPongExtensionRPC]] {.inline.} =
   trace "PingPongExtensionRPC: decoding message"
 
   var bytes: seq[byte]
@@ -523,7 +527,7 @@ proc decodePingPongExtensionRPC*(
     trace "PingPongExtensionRPC: is set"
   else:
     trace "PingPongExtensionRPC: is not set"
-    return ok(none(PingPongExtensionRPC))
+    return ok(Opt.none(PingPongExtensionRPC))
 
   var pbp = initProtoBuffer(bytes)
   var ppe = PingPongExtensionRPC()
@@ -531,11 +535,37 @@ proc decodePingPongExtensionRPC*(
   discard pbp.getField(1, ppe.ping)
   discard pbp.getField(2, ppe.pong)
 
-  ok(some(ppe))
+  ok(Opt.some(ppe))
+
+proc decodePreambleExtensionRPC*(
+    pb: ProtoBuffer, field: int
+): ProtoResult[Opt[PreambleExtensionRPC]] {.inline.} =
+  trace "PreambleExtensionRPC: decoding message"
+
+  var bytes: seq[byte]
+  if ?pb.getField(field, bytes):
+    trace "PreambleExtensionRPC: is set"
+  else:
+    trace "PreambleExtensionRPC: is not set"
+    return ok(Opt.none(PreambleExtensionRPC))
+
+  var pbp = initProtoBuffer(bytes)
+  var rpc = PreambleExtensionRPC()
+  var preamble: seq[seq[byte]]
+  var imreceiving: seq[seq[byte]]
+
+  if ?pbp.getRepeatedField(1, preamble):
+    for item in preamble:
+      rpc.preamble.add(?decodePreamble(initProtoBuffer(item)))
+  if ?pbp.getRepeatedField(2, imreceiving):
+    for item in imreceiving:
+      rpc.imreceiving.add(?decodeIMReceiving(initProtoBuffer(item)))
+
+  ok(Opt.some(rpc))
 
 proc decodePartialMessageExtensionRPC*(
     pb: ProtoBuffer, field: int
-): ProtoResult[Option[PartialMessageExtensionRPC]] {.inline.} =
+): ProtoResult[Opt[PartialMessageExtensionRPC]] {.inline.} =
   trace "PartialMessageExtensionRPC: decoding message"
 
   var partialMessgeExtensionsRPCBytes: seq[byte]
@@ -543,7 +573,7 @@ proc decodePartialMessageExtensionRPC*(
     trace "decodePartialMessageExtensionRPC: is set"
   else:
     trace "decodePartialMessageExtensionRPC: is not set"
-    return ok(none(PartialMessageExtensionRPC))
+    return ok(Opt.none(PartialMessageExtensionRPC))
 
   var pbp = initProtoBuffer(partialMessgeExtensionsRPCBytes)
   var pme = PartialMessageExtensionRPC()
@@ -570,7 +600,7 @@ proc decodePartialMessageExtensionRPC*(
   else:
     trace "decodePartialMessageExtensionRPC: partsMetadata is missing"
 
-  ok(some(pme))
+  ok(Opt.some(pme))
 
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   trace "decodeRpcMsg: decoding message", payload = msg.shortLog()
@@ -578,12 +608,13 @@ proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   var rpcMsg = RPCMsg()
   assign(rpcMsg.messages, ?pb.decodeMessages())
   assign(rpcMsg.subscriptions, ?pb.decodeSubscriptions())
-  assign(rpcMsg.control, ?pb.decodeControl())
+  rpcMsg.control = ?pb.decodeControl()
   rpcMsg.partialMessageExtension = ?pb.decodePartialMessageExtensionRPC(10)
 
   # Experimental extensions should register their messages here.
   # They must use field numbers larger than 0x200000 to be encoded with at least 4 bytes.
   rpcMsg.pingpongExtension = ?pb.decodePingPongExtensionRPC(3145728)
+  rpcMsg.preambleExtension = ?pb.decodePreambleExtensionRPC(4194304)
   rpcMsg.testExtension = ?pb.decodeTestExtensionRPC(6492434)
 
   ok(rpcMsg)

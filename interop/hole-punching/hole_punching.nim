@@ -1,129 +1,134 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
-import std/[os, options, strformat, sequtils]
-import redis
-import chronos, chronicles
+import chronos, chronicles, redis, strformat, sequtils
 import
   ../../libp2p/[
     builders,
     switch,
     multicodec,
-    observedaddrmanager,
     services/hpservice,
     services/autorelayservice,
-    protocols/connectivity/autonat/client as aclient,
-    protocols/connectivity/relay/client as rclient,
+    protocols/connectivity/relay/client,
     protocols/connectivity/relay/relay,
     protocols/connectivity/autonat/service,
     protocols/ping,
   ]
-import ../../tests/[stubs/autonatclientstub, errorhelpers]
+import ../../tests/stubs/autonatclientstub
+import ./lib
 
 logScope:
-  topics = "hp interop node"
-
-proc createSwitch(r: Relay = nil, hpService: Service = nil): Switch =
-  let rng = newRng()
-  var builder = SwitchBuilder
-    .new()
-    .withRng(rng)
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withObservedAddrManager(ObservedAddrManager.new(maxSize = 1, minCount = 1))
-    .withTcpTransport({ServerFlags.TcpNoDelay})
-    .withYamux()
-    .withAutonat()
-    .withNoise()
-
-  if hpService != nil:
-    builder = builder.withServices(@[hpService])
-
-  if r != nil:
-    builder = builder.withCircuitRelay(r)
-
-  let s = builder.build()
-  s.mount(Ping.new(rng = rng))
-  return s
+  topics = "hp interop peer"
 
 proc main() {.async.} =
+  # Read test configuration
+  let config = readConfig()
+
+  # Setup relay
   let relayClient = RelayClient.new()
   let autoRelayService = AutoRelayService.new(1, relayClient, nil, newRng())
+
+  # Setup autonat
   let autonatClientStub = AutonatClientStub.new(expectedDials = 1)
   autonatClientStub.answer = NotReachable
+
+  # Setup hpservice
   let autonatService = AutonatService.new(autonatClientStub, newRng(), maxQueueSize = 1)
   let hpservice = HPService.new(autonatService, autoRelayService)
 
-  let
-    isListener = getEnv("MODE") == "listen"
-    switch = createSwitch(relayClient, hpservice)
-    auxSwitch = createSwitch()
-    redisClient = open("redis", 6379.Port)
+  # Setup switches
+  let switch = createSwitch(
+    config.bindIp, config.transport, config.secureChannel, config.muxer, relayClient,
+    hpservice,
+  )
+  let auxSwitch =
+    createSwitch(config.bindIp, config.transport, config.secureChannel, config.muxer)
 
-  debug "Connected to redis"
+  await allFutures(switch.start(), auxSwitch.start())
+  defer:
+    # Timeout the stop to avoid hanging on mplex teardown 
+    discard await allFutures(switch.stop(), auxSwitch.stop()).withTimeout(5.seconds)
 
-  await switch.start()
-  await auxSwitch.start()
-
-  let relayAddr =
-    try:
-      redisClient.bLPop(@["RELAY_TCP_ADDRESS"], 0)
-    except Exception as e:
-      raise newException(CatchableError, e.msg)
-
-  debug "All relay addresses", relayAddr
-
-  # This is necessary to make the autonat service work. It will ask this peer for our reachability which the autonat
-  # client stub will answer NotReachable.
+  # Connect to aux switch for AutoNAT stub to report NotReachable
   await switch.connect(auxSwitch.peerInfo.peerId, auxSwitch.peerInfo.addrs)
 
-  # Wait for autonat to be NotReachable
-  while autonatService.networkReachability != NetworkReachability.NotReachable:
-    await sleepAsync(100.milliseconds)
+  # Wait for autonat to report NotReachable
+  pollUntil(
+    autonatService.networkReachability == NetworkReachability.NotReachable,
+    errorMsg = "Timeout waiting for AutoNAT NotReachable",
+  )
+  info "AutoNAT reports NotReachable"
 
-  # This will trigger the autonat relay service to make a reservation.
-  let relayMA = MultiAddress.init(relayAddr[1]).tryGet()
+  # Get relay multiaddr from Redis (set by Rust relay)
+  let redisClient = setupRedis(config)
+  let relayAddr = await redisClient.pollGet(&"{config.testKey}_relay_multiaddr")
+  info "Got relay address", relayAddr
 
+  # Connect to relay (triggers AutoRelay reservation)
+  let relayMA = MultiAddress.init(relayAddr).tryGet()
   try:
-    debug "Dialing relay...", relayMA
+    info "Dialing relay", relayMA
     let relayId = await switch.connect(relayMA).wait(30.seconds)
-    debug "Connected to relay", relayId
+    info "Connected to relay", relayId
   except AsyncTimeoutError as e:
     raise newException(CatchableError, "Connection to relay timed out: " & e.msg, e)
 
-  # Wait for our relay address to be published
-  while not switch.peerInfo.addrs.anyIt(it.contains(multiCodec("p2p-circuit")).tryGet()):
-    await sleepAsync(100.milliseconds)
+  # Wait for our relay circuit address
+  pollUntil(
+    switch.peerInfo.addrs.anyIt(it.contains(multiCodec("p2p-circuit")).tryGet()),
+    errorMsg = "Timeout waiting for relay circuit address",
+  )
+  info "Got relay circuit address"
 
-  if isListener:
-    let listenerPeerId = switch.peerInfo.peerId
-    discard redisClient.rPush("LISTEN_CLIENT_PEER_ID", $listenerPeerId)
-    debug "Pushed listener client peer id to redis", listenerPeerId
+  if config.isDialer:
+    # Get listener peer ID from Redis
+    let listenerPeerIdStr =
+      await redisClient.pollGet(&"{config.testKey}_listener_peer_id")
+    let listenerId = PeerId.init(listenerPeerIdStr).tryGet()
+    info "Got listener peer ID", listenerId
 
-    # Nothing to do anymore, wait to be killed
-    await sleepAsync(2.minutes)
-  else:
-    let listenerId =
-      try:
-        PeerId.init(redisClient.bLPop(@["LISTEN_CLIENT_PEER_ID"], 0)[1]).tryGet()
-      except Exception as e:
-        raise newException(CatchableError, "Exception init peer: " & e.msg, e)
-
-    debug "Got listener peer id", listenerId
     let listenerRelayAddr = MultiAddress.init($relayMA & "/p2p-circuit").tryGet()
 
-    debug "Dialing listener relay address", listenerRelayAddr
+    # Start DCUtR timer
+    let dcutrStart = Moment.now()
+
+    info "Dialing listener via relay", listenerRelayAddr
     await switch.connect(listenerId, @[listenerRelayAddr])
 
-    # wait for hole-punching to complete in the background
-    await sleepAsync(5000.milliseconds)
-
-    let conn = switch.connManager.selectMuxer(listenerId).connection
-    let channel = await switch.dial(listenerId, @[listenerRelayAddr], PingCodec)
-    let delay = await Ping.new().ping(channel)
-    await allFuturesRaising(
-      channel.close(), conn.close(), switch.stop(), auxSwitch.stop()
+    # Wait for DCUtR to complete (direct connection established)
+    # HPService handles DCUtR in the background when the listener receives
+    # the relayed connection. Poll for a direct connection.
+    pollUntil(
+      switch.isDirectlyConnected(listenerId),
+      errorMsg = "DCUtR failed: no direct connection established within timeout",
     )
-    echo &"""{{"rtt_to_holepunched_peer_millis":{delay.millis}}}"""
+
+    let dcutrElapsed = Moment.now() - dcutrStart
+    info "Direct connection established via DCUtR"
+
+    # Ping over the direct connection
+    let channel = await switch.dial(listenerId, PingCodec)
+    defer:
+      await channel.close()
+
+    let pingDelay = await Ping.new().ping(channel)
+    let pingRttMs = pingDelay.toMs()
+
+    let handshakePlusOneRtt = dcutrElapsed.toMs() + pingRttMs
+
+    # Output YAML to stdout
+    echo "latency:"
+    echo &"  handshake_plus_one_rtt: {handshakePlusOneRtt:.2f}"
+    echo &"  ping_rtt: {pingRttMs:.2f}"
+    echo "  unit: ms"
+  else:
+    # Listener: publish peer ID to Redis and wait
+    let listenerPeerId = $switch.peerInfo.peerId
+    redisClient.setk(&"{config.testKey}_listener_peer_id", listenerPeerId)
+    info "Published listener peer ID to Redis", listenerPeerId
+
+    # Wait to be killed (docker-compose will stop us after dialer exits)
+    await sleepAsync(5.minutes)
 
 try:
   proc mainAsync(): Future[string] {.async.} =

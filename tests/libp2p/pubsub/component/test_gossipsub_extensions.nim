@@ -5,7 +5,8 @@
 
 import chronos, algorithm, stew/byteutils, sequtils
 import
-  ../../../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
+  ../../../../libp2p/protocols/pubsub/
+    [gossipsub, gossipsub/extensions, gossipsub/extension_preamble, rpc/message]
 import ../../../tools/[lifecycle, unittest]
 import ../extensions/my_partial_message
 import ../utils
@@ -29,7 +30,8 @@ suite "GossipSub Component - Extensions":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          testExtensionConfig = some(TestExtensionConfig(onNegotiated: onNegotiated)),
+          testExtensionConfig =
+            Opt.some(TestExtensionConfig(onNegotiated: onNegotiated)),
         )
         .toGossipSub()
 
@@ -70,7 +72,7 @@ suite "GossipSub Component - Extensions":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          partialMessageExtensionConfig = some(
+          partialMessageExtensionConfig = Opt.some(
             PartialMessageExtensionConfig(
               unionPartsMetadata: my_partial_message.unionPartsMetadata,
               validateRPC: validateRPC,
@@ -137,7 +139,7 @@ suite "GossipSub Component - Extensions":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          pingpongExtensionConfig = some(PingPongExtensionConfig()),
+          pingpongExtensionConfig = Opt.some(PingPongExtensionConfig()),
         )
         .toGossipSub()
 
@@ -161,10 +163,50 @@ suite "GossipSub Component - Extensions":
     # send ping from nodes[0] to nodes[1]
     nodes[0].send(
       nodes[0].peers[nodes[1].peerInfo.peerId],
-      RPCMsg(pingpongExtension: some(PingPongExtensionRPC(ping: pingBytes))),
+      RPCMsg.withPing(pingBytes),
       isHighPriority = true,
     )
 
     # nodes[1] should echo the ping back as a pong
     checkUntilTimeout:
       receivedPong == pingBytes
+
+  asyncTest "Preamble Extension":
+    const topic = "preamble-topic"
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          preambleExtensionConfig = Opt.some(PreambleExtensionConfig()),
+          sendIDontWantOnPublish = true,
+        )
+        .toGossipSub()
+
+    # Capture IMReceiving messages received by nodes[1] (sent by nodes[0] after processing the preamble)
+    var receivedImReceiving: seq[IMReceiving]
+    nodes[1].addObserver(
+      PubSubObserver(
+        onRecv: proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
+          msgs.preambleExtension.withValue(pe):
+            for ir in pe.imreceiving:
+              receivedImReceiving.add(ir)
+      )
+    )
+
+    startAndDeferStop(nodes)
+
+    await connect(nodes[0], nodes[1])
+
+    subscribeAllNodes(nodes, topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    # publishing large message should publish preamble (nodes[0] will receive preamble as well).
+    let msgLength = preambleMessageSizeThreshold + 4 # some large message length
+    discard await nodes[1].publish(topic, newSeq[byte](msgLength))
+
+    # nodes[1] should receive IMReceiving right after it broadcasted preamble.
+    checkUntilTimeout:
+      receivedImReceiving.len == 1
+      receivedImReceiving[0].messageLength == msgLength.uint32

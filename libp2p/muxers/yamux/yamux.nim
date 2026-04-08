@@ -458,10 +458,11 @@ type Yamux* = ref object of Muxer
   inTimeout: Duration
   outTimeout: Duration
 
-proc lenBySrc(m: Yamux, isSrc: bool): int =
-  for v in m.channels.values():
-    if v.isSrc == isSrc:
-      result += 1
+when defined(libp2p_yamux_metrics):
+  proc lenBySrc(m: Yamux, isSrc: bool): int =
+    for v in m.channels.values():
+      if v.isSrc == isSrc:
+        result += 1
 
 proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   try:
@@ -591,7 +592,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             let newStream =
               m.createStream(header.streamId, false, m.windowSize, m.maxSendQueueSize)
             if m.channels.len > m.maxChannCount:
-              warn "too many channels created by remote peer",
+              debug "too many channels created by remote peer",
                 peerId = m.connection.peerId, allowedMax = m.maxChannCount
               await newStream.reset()
               continue

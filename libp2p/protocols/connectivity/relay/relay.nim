@@ -19,6 +19,7 @@ import
   ../../../protocols/protocol,
   ../../../errors,
   ../../../utils/heartbeat,
+  ../../../utils/future,
   ../../../signed_envelope
 
 # TODO:
@@ -400,8 +401,7 @@ proc deletesReservation(r: Relay) {.async: (raises: [CancelledError]).} =
       raiseAssert "checked with in"
 
 method start*(r: Relay): Future[void] {.async: (raises: [CancelledError], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
+  let fut = newFutureCompleted[void]()
   if not r.reservationLoop.isNil:
     warn "Starting relay twice"
     return fut
@@ -410,12 +410,11 @@ method start*(r: Relay): Future[void] {.async: (raises: [CancelledError], raw: t
   fut
 
 method stop*(r: Relay): Future[void] {.async: (raises: [], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
   if r.reservationLoop.isNil:
     warn "Stopping relay without starting it"
-    return fut
+    return newFutureCompleted[void]()
+
   r.started = false
   r.reservationLoop.cancelSoon()
   r.reservationLoop = nil
-  fut
+  newFutureCompleted[void]()

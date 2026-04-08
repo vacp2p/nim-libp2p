@@ -4,16 +4,15 @@
 {.push raises: [].}
 
 import chronos
-import std/[options, tables, sets, heapqueue]
+import std/[tables, sets]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
 import "../../.."/[peerid, multiaddress, utility]
-import extensions
+import extensions, preamblestore
 
-export options, tables, sets
+export results, tables, sets
 
 const
-  GossipSubCodec_14* = "/meshsub/1.4.0"
   GossipSubCodec_13* = "/meshsub/1.3.0"
   GossipSubCodec_12* = "/meshsub/1.2.0"
   GossipSubCodec_11* = "/meshsub/1.1.0"
@@ -62,24 +61,6 @@ type
     meshMessageDeliveries*: float64
     meshFailurePenalty*: float64
     invalidMessageDeliveries*: float64
-
-  PeerSet* = object
-    order*: seq[PeerId]
-    peers*: HashSet[PeerId]
-
-  PreambleInfo* = ref object
-    messageId*: MessageId
-    messageLength*: uint32
-    topicId*: string
-    sender*: PubSubPeer
-    startsAt*: Moment
-    expiresAt*: Moment
-    deleted*: bool # tombstone marker
-    peerSet*: PeerSet
-
-  PreambleStore* = object
-    byId*: Table[MessageId, PreambleInfo]
-    heap*: HeapQueue[PreambleInfo]
 
   TopicParams* {.public.} = object
     topicWeight*: float64
@@ -177,15 +158,16 @@ type
     sendIDontWantOnPublish*: bool
 
     # Extensions configuration
-    testExtensionConfig*: Option[TestExtensionConfig]
-    partialMessageExtensionConfig*: Option[PartialMessageExtensionConfig]
-    pingpongExtensionConfig*: Option[PingPongExtensionConfig]
+    testExtensionConfig*: Opt[TestExtensionConfig]
+    partialMessageExtensionConfig*: Opt[PartialMessageExtensionConfig]
+    pingpongExtensionConfig*: Opt[PingPongExtensionConfig]
+    preambleExtensionConfig*: Opt[PreambleExtensionConfig]
 
   BackoffTable* = Table[string, Table[PeerId, Moment]]
   ValidationSeenTable* = Table[SaltedId, HashSet[PubSubPeer]]
   OngoingReceivesStore* = PreambleStore
 
-  RoutingRecordsPair* = tuple[id: PeerId, record: Option[PeerRecord]]
+  RoutingRecordsPair* = tuple[id: PeerId, record: Opt[PeerRecord]]
   RoutingRecordsHandler* = proc(
     peer: PeerId,
     tag: string, # For gossipsub, the topic
@@ -203,9 +185,6 @@ type
     mcache*: MCache # messages cache
     validationSeen*: ValidationSeenTable # peers who sent us message in validation
     heartbeatFut*: Future[void] # cancellation future for heartbeat interval
-    when defined(libp2p_gossipsub_1_4):
-      preambleExpirationFut*: Future[void]
-      # cancellation future for preamble expiration heartbeat interval
     scoringHeartbeatFut*: Future[void]
       # cancellation future for scoring heartbeat interval
     heartbeatRunning*: bool
@@ -216,13 +195,7 @@ type
     directPeersLoop*: Future[void]
     peersInIP*: Table[MultiAddress, HashSet[PeerId]]
     routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
-
     heartbeatEvents*: seq[AsyncEvent]
-
-    when defined(libp2p_gossipsub_1_4):
-      ongoingReceives*: OngoingReceivesStore # list of messages we are receiving
-      ongoingIWantReceives*: OngoingReceivesStore
-        # list of iwant replies we are receiving
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64

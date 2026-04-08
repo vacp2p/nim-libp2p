@@ -14,21 +14,31 @@ concurrency:
 
 jobs:
   test:
-    timeout-minutes: 45
+    env:
+      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+    timeout-minutes: 55
     strategy:
       fail-fast: false
       matrix:
         platform:
           - os: linux
             cpu: amd64
+            cc: gcc
           - os: linux
             cpu: i386
+            cc: gcc
           - os: linux-gcc-14
             cpu: amd64
+            cc: gcc
           - os: macos-15
             cpu: arm64
+            cc: clang
           - os: windows
             cpu: amd64
+            cc: clang
+          - os: windows
+            cpu: amd64
+            cc: gcc
         nim:
           - ref: v2.0.16
             memory_management: refc
@@ -51,14 +61,20 @@ jobs:
             shell: bash
           - platform:
               os: windows
+              cc: clang
             builder: windows-2022
             shell: bash
+          - platform:
+              os: windows
+              cc: gcc
+            builder: windows-2022
+            shell: "msys2 {0}"
 
     defaults:
       run:
         shell: ${{ matrix.shell }}
 
-    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }})"
+    name: "${{ matrix.platform.os }}-${{ matrix.platform.cpu }} (Nim ${{ matrix.nim.ref }} / ${{ matrix.platform.cc }})"
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
@@ -81,10 +97,10 @@ jobs:
           path: nimbledeps
           # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
           # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
-          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }} # hashFiles returns a different value on windows
+          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }} # hashFiles returns a different value on windows
 
       - name: Restore llvm-mingw (Windows) from cache
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
         id: windows-mingw-cache
         uses: actions/cache@v4
         with:
@@ -94,7 +110,8 @@ jobs:
       - name: Install llvm-mingw dependency (Windows)
         if: >
           steps.windows-mingw-cache.outputs.cache-hit != 'true' &&
-          runner.os == 'Windows'
+          runner.os == 'Windows' &&
+          matrix.platform.cc == 'clang'
         run: |
           mkdir -p external
           MINGW_BASE="https://github.com/mstorsjo/llvm-mingw/releases/download/20230905"
@@ -114,7 +131,8 @@ jobs:
 
       - name: Path to cached dependencies (Windows)
         if: >
-          runner.os == 'Windows'
+          runner.os == 'Windows' &&
+          matrix.platform.cc == 'clang'
         run: |
           echo '${{ github.workspace }}'"/external/mingw-${{ matrix.platform.cpu }}/bin" >> $GITHUB_PATH
           echo "." >> $GITHUB_PATH
@@ -136,11 +154,15 @@ jobs:
         run: |
           nim --version
           nimble --version
-          gcc --version
+          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
+            clang --version
+          else
+            gcc --version
+          fi
 
           export NIMFLAGS="${NIMFLAGS} --mm:${{ matrix.nim.memory_management }}"
 
-          if [[ '${{ runner.os }}' == 'Windows' ]]; then
+          if [[ '${{ matrix.platform.cc }}' == 'clang' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
           nimble test

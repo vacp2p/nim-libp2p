@@ -3,7 +3,7 @@
 
 {.used.}
 
-import options, chronos, chronicles
+import chronos, chronicles
 import
   ../../../libp2p/[
     protocols/identify,
@@ -262,7 +262,7 @@ suite "Identify":
           switch2.peerInfo.protocols
 
       let oldPeerId = switch2.peerInfo.peerId
-      switch2.peerInfo = PeerInfo.new(PrivateKey.random(newRng()[]).get())
+      switch2.peerInfo = PeerInfo.new(PrivateKey.random(rng[]).get())
 
       await identifyPush2.push(switch2.peerInfo, conn)
 

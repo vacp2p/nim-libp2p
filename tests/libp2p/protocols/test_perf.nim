@@ -13,7 +13,7 @@ import
       protocols/perf/server,
       protocols/perf/core,
     ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 proc createSwitch(
     isServer: bool = false,
@@ -22,7 +22,7 @@ proc createSwitch(
     useYamux: bool = false,
 ): Switch =
   var builder = SwitchBuilder.new()
-  builder = builder.withRng(newRng()).withNoise()
+  builder = builder.withRng(rng).withNoise()
 
   if useQuic:
     builder = builder.withQuicTransport().withAddresses(
@@ -93,8 +93,7 @@ proc runTestWithException(server: Switch, client: Switch) {.async.} =
     stats.uploadBytes == bytesToUpload
     stats.downloadBytes > 0
 
-  perfFut.cancel() # cancelling future will raise exception in perfClient
-  await sleepAsync(10.milliseconds)
+  await perfFut.cancelAndWait() # cancelling future will raise exception in perfClient
 
   # after cancelling perf, stats must indicate that it is final one
   stats = perfClient.currentStats()

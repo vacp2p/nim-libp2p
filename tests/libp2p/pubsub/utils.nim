@@ -48,12 +48,12 @@ proc waitForNextHeartbeat*[T: PubSub](node: T) {.async.} =
 type
   TestGossipSub* = ref object of GossipSub
   DValues* = object
-    d*: Option[int]
-    dLow*: Option[int]
-    dHigh*: Option[int]
-    dScore*: Option[int]
-    dOut*: Option[int]
-    dLazy*: Option[int]
+    d*: Opt[int]
+    dLow*: Opt[int]
+    dHigh*: Opt[int]
+    dScore*: Opt[int]
+    dOut*: Opt[int]
+    dLazy*: Opt[int]
 
 proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
   discard
@@ -96,7 +96,9 @@ proc setupGossipSubWithPeers*(
     populateMesh: bool = false,
     populateFanout: bool = false,
 ): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
-  let gossipSub = TestGossipSub.init(newStandardSwitch(transport = TransportType.QUIC))
+  let gossipSub = TestGossipSub.init(
+    newStandardSwitch(transport = TransportType.QUIC, rng = rng()), rng = rng()
+  )
 
   for topic in topics:
     gossipSub.subscribe(topic, voidTopicHandler)
@@ -152,7 +154,7 @@ func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
       $m.data.hash & $m.topic.hash
   ok mid.toBytes()
 
-proc applyDValues*(parameters: var GossipSubParams, dValues: Option[DValues]) =
+proc applyDValues*(parameters: var GossipSubParams, dValues: Opt[DValues]) =
   if dValues.isNone:
     return
   let values = dValues.get
@@ -191,8 +193,8 @@ proc generateNodes*(
     sendIDontWantOnPublish: bool = false,
     heartbeatInterval: Duration = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
     floodPublish: bool = false,
-    dValues: Option[DValues] = DValues.none(),
-    gossipFactor: Option[float] = float.none(),
+    dValues: Opt[DValues] = Opt.none(DValues),
+    gossipFactor: Opt[float] = Opt.none(float),
     opportunisticGraftThreshold: float = 0.0,
     historyLength = 20,
     historyGossip = 5,
@@ -201,15 +203,18 @@ proc generateNodes*(
     publishThreshold = -1000.0,
     graylistThreshold = -10000.0,
     disconnectBadPeers: bool = false,
-    testExtensionConfig: Option[TestExtensionConfig] = none(TestExtensionConfig),
-    partialMessageExtensionConfig: Option[PartialMessageExtensionConfig] =
-      none(PartialMessageExtensionConfig),
-    pingpongExtensionConfig: Option[PingPongExtensionConfig] =
-      none(PingPongExtensionConfig),
+    testExtensionConfig: Opt[TestExtensionConfig] = Opt.none(TestExtensionConfig),
+    partialMessageExtensionConfig: Opt[PartialMessageExtensionConfig] =
+      Opt.none(PartialMessageExtensionConfig),
+    pingpongExtensionConfig: Opt[PingPongExtensionConfig] =
+      Opt.none(PingPongExtensionConfig),
+    preambleExtensionConfig: Opt[PreambleExtensionConfig] =
+      Opt.none(PreambleExtensionConfig),
     transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
     let switch = newStandardSwitch(
+      rng = rng(),
       secureManagers = secureManagers,
       sendSignedPeerRecord = sendSignedPeerRecord,
       transport = transport,
@@ -217,6 +222,7 @@ proc generateNodes*(
     let pubsub =
       if gossip:
         let g = GossipSub.init(
+          rng = rng(),
           switch = switch,
           triggerSelf = triggerSelf,
           verifySignature = verifySignature,
@@ -245,6 +251,7 @@ proc generateNodes*(
             p.testExtensionConfig = testExtensionConfig
             p.partialMessageExtensionConfig = partialMessageExtensionConfig
             p.pingpongExtensionConfig = pingpongExtensionConfig
+            p.preambleExtensionConfig = preambleExtensionConfig
             if gossipFactor.isSome: p.gossipFactor = gossipFactor.get
             applyDValues(p, dValues)
             p
@@ -255,6 +262,7 @@ proc generateNodes*(
         g.PubSub
       else:
         FloodSub.init(
+          rng = rng(),
           switch = switch,
           triggerSelf = triggerSelf,
           verifySignature = verifySignature,

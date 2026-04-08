@@ -34,7 +34,7 @@ proc createOtherPeer(): tuple[switch: Switch, gossipsub: GossipSub] =
     switch = switch,
     parameters = (
       var param = GossipSubParams.init()
-      param.partialMessageExtensionConfig = some(
+      param.partialMessageExtensionConfig = Opt.some(
         PartialMessageExtensionConfig(
           unionPartsMetadata: my_partial_message.unionPartsMetadata,
           validateRPC: validateRPC,

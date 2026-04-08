@@ -5,8 +5,9 @@
 
 import random, results, chronicles, bearssl/rand
 import ../../../libp2p/crypto/crypto
-import ../../../libp2p/protocols/mix/[curve25519, serialization, sphinx, tag_manager]
-import ../../tools/[unittest]
+import
+  ../../../libp2p/protocols/mix/[curve25519, serialization, sphinx, tag_manager, delay]
+import ../../tools/[unittest, crypto]
 
 # Helper function to pad/truncate message
 proc addPadding(message: openArray[byte], size: int): seq[byte] =
@@ -19,7 +20,7 @@ proc addPadding(message: openArray[byte], size: int): seq[byte] =
 
 # Helper function to create dummy data
 proc createDummyData(): (
-  Message, seq[FieldElement], seq[FieldElement], seq[seq[byte]], seq[Hop], Hop
+  Message, seq[FieldElement], seq[FieldElement], seq[Delay], seq[Hop], Hop
 ) =
   let (privateKey1, publicKey1) = generateKeyPair().expect("generate keypair error")
   let (privateKey2, publicKey2) = generateKeyPair().expect("generate keypair error")
@@ -29,7 +30,7 @@ proc createDummyData(): (
     privateKeys = @[privateKey1, privateKey2, privateKey3]
     publicKeys = @[publicKey1, publicKey2, publicKey3]
 
-    delay = @[newSeq[byte](DelaySize), newSeq[byte](DelaySize), newSeq[byte](DelaySize)]
+    delay: seq[Delay] = @[NoDelay, NoDelay, NoDelay]
 
     hops =
       @[
@@ -43,7 +44,7 @@ proc createDummyData(): (
   return (message, privateKeys, publicKeys, delay, hops, dest)
 
 template randomI(): SURBIdentifier =
-  newRng()[].generate(SURBIdentifier)
+  rng[].generate(SURBIdentifier)
 
 # Unit tests for sphinx.nim
 suite "Sphinx Tests":
@@ -123,6 +124,75 @@ suite "Sphinx Tests":
 
     check invalidMacPkt.status == InvalidMAC
 
+  test "tampered Beta invalidates MAC":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    var packetBytes = sp.serialize()
+
+    # Tamper a byte in Beta
+    packetBytes[AlphaSize] = packetBytes[AlphaSize] xor 0x01
+
+    let tamperedPacket =
+      SphinxPacket.deserialize(packetBytes).expect("deserialize error")
+    let processed =
+      processSphinxPacket(tamperedPacket, privateKeys[0], tm).expect("processing error")
+
+    check processed.status == InvalidMAC
+
+  test "tampered Gamma invalidates MAC":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    var packetBytes = sp.serialize()
+
+    # Tamper a byte in Gamma
+    let gammaOffset = AlphaSize + BetaSize
+    packetBytes[gammaOffset] = packetBytes[gammaOffset] xor 0x01
+
+    let tamperedPacket =
+      SphinxPacket.deserialize(packetBytes).expect("deserialize error")
+    let processed =
+      processSphinxPacket(tamperedPacket, privateKeys[0], tm).expect("processing error")
+
+    check processed.status == InvalidMAC
+
+  test "tampered Delta passes MAC but corrupts message":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    var packetBytes = sp.serialize()
+
+    # Tamper a byte in Delta
+    packetBytes[HeaderSize] = packetBytes[HeaderSize] xor 0x01
+
+    let tamperedPacket =
+      SphinxPacket.deserialize(packetBytes).expect("deserialize error")
+
+    # MAC passes at intermediate hops - proving MAC only covers Beta, not Delta
+    let processedSP1 =
+      processSphinxPacket(tamperedPacket, privateKeys[0], tm).expect("processing error")
+    check processedSP1.status == Intermediate
+
+    let packet2 = SphinxPacket.deserialize(processedSP1.serializedSphinxPacket).expect(
+        "deserialize error"
+      )
+    let processedSP2 =
+      processSphinxPacket(packet2, privateKeys[1], tm).expect("processing error")
+    check processedSP2.status == Intermediate
+
+    # At exit, the delta integrity check catches the corruption (not MAC)
+    let packet3 = SphinxPacket.deserialize(processedSP2.serializedSphinxPacket).expect(
+        "deserialize error"
+      )
+    let exitResult = processSphinxPacket(packet3, privateKeys[2], tm)
+    check:
+      exitResult.isErr()
+      exitResult.error() == "delta_prime should be all zeros"
+
   test "sphinx process duplicate tag":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
 
@@ -199,7 +269,7 @@ suite "Sphinx Tests":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
-      createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
+      createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
     let packetBytes = useSURB(surb, message).serialize()
 
     check packetBytes.len == PacketSize
@@ -241,14 +311,29 @@ suite "Sphinx Tests":
     check msg == message
 
   test "create surb empty public keys":
-    let (message, _, _, delay, _, _) = createDummyData()
-    check createSURB(@[], delay, @[], randomI()).isErr()
+    let (_, _, _, delay, _, _) = createDummyData()
+    check createSURB(@[], delay, @[], randomI(), rng()).isErr()
+
+  test "create surb with zero id returns error":
+    let (_, _, publicKeys, delay, hops, _) = createDummyData()
+    let zeroId = default(SURBIdentifier)
+    let res = createSURB(publicKeys, delay, hops, zeroId, rng())
+    check:
+      res.isErr()
+      res.error == "id should be initialized"
+
+  test "create surb with nil rng returns error":
+    let (_, _, publicKeys, delay, hops, _) = createDummyData()
+    let res = createSURB(publicKeys, delay, hops, randomI(), nil)
+    check:
+      res.isErr()
+      res.error == "rng must not be nil"
 
   test "surb sphinx process invalid mac":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
-      createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
+      createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
 
     let packetBytes = useSURB(surb, message).serialize()
 
@@ -271,7 +356,7 @@ suite "Sphinx Tests":
     let (message, privateKeys, publicKeys, delay, hops, _) = createDummyData()
 
     let surb =
-      createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
+      createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
 
     let packetBytes = useSURB(surb, message).serialize()
 
@@ -300,8 +385,9 @@ suite "Sphinx Tests":
         message[i] = byte(rand(256))
       let paddedMessage = addPadding(message, MessageSize)
 
-      let surb =
-        createSURB(publicKeys, delay, hops, randomI()).expect("Create SURB error")
+      let surb = createSURB(publicKeys, delay, hops, randomI(), rng()).expect(
+          "Create SURB error"
+        )
 
       let packetBytes = useSURB(surb, Message(paddedMessage)).serialize()
 
@@ -341,3 +427,46 @@ suite "Sphinx Tests":
         .expect("Reply processing failed")
 
       check paddedMessage == msg
+
+  test "checkReplay returns false for new packet, true for replay":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    let packet = SphinxPacket.deserialize(sp.serialize()).expect("deserialize error")
+
+    # First check - not a replay
+    let first = checkReplay(packet, privateKeys[0], tm).expect("checkReplay error")
+    check not first.isReplay
+
+    # Second check - replay detected
+    let second = checkReplay(packet, privateKeys[0], tm).expect("checkReplay error")
+    check second.isReplay
+
+    # Shared secret should be the same both times
+    check first.sharedSecret == second.sharedSecret
+
+  test "processSphinxPacket with reused sharedSecret":
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    let packet = SphinxPacket.deserialize(sp.serialize()).expect("deserialize error")
+
+    # Normal path
+    let normal =
+      processSphinxPacket(packet, privateKeys[0], tm).expect("normal processing error")
+
+    # Reused sharedSecret
+    var tm2 = TagManager.new(autoStart = false)
+    let replay = checkReplay(packet, privateKeys[0], tm2).expect("checkReplay error")
+    check not replay.isReplay
+
+    let reused = processSphinxPacket(
+        packet, privateKeys[0], tm2, Opt.some(replay.sharedSecret)
+      )
+      .expect("reused processing error")
+
+    check:
+      normal.status == reused.status
+      normal.serializedSphinxPacket == reused.serializedSphinxPacket

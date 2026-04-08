@@ -91,7 +91,7 @@ proc partialMessageInteropTest*(
     switch = switch,
     parameters = (
       var param = GossipSubParams.init()
-      param.partialMessageExtensionConfig = some(
+      param.partialMessageExtensionConfig = Opt.some(
         PartialMessageExtensionConfig(
           unionPartsMetadata: my_partial_message.unionPartsMetadata,
           validateRPC: validateRPC,

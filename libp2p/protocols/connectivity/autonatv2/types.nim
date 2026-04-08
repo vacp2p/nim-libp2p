@@ -229,9 +229,7 @@ proc encode*(msg: AutonatV2Msg): ProtoBuffer =
   encoded
 
 proc decode*(T: typedesc[AutonatV2Msg], pb: ProtoBuffer): Opt[T] =
-  var
-    msgTypeOrd: uint32
-    msg: ProtoBuffer
+  var msg: ProtoBuffer
 
   if ?pb.getField(MsgType.DialRequest.protoField, msg).toOpt():
     let dialReq = DialRequest.decode(msg).valueOr:

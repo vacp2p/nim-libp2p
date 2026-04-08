@@ -145,7 +145,7 @@ proc askPeer(
     return Unknown
 
   if not hasEnoughIncomingSlots(switch):
-    debug "No incoming slots available, not asking peer",
+    debug "Not enough incoming slots available, not asking peer",
       incomingSlotsAvailable = switch.connManager.slotsAvailable(In)
     return Unknown
 

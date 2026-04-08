@@ -103,7 +103,7 @@ proc new*(
           debug "Timed out waiting for peer ready before handling stream", conn
           return
       await upgrader.ms.handle(conn) # handle incoming connection
-    except CancelledError as exc:
+    except CancelledError:
       return
     finally:
       await conn.closeWithEOF()

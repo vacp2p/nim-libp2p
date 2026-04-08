@@ -3,20 +3,21 @@
 {.push raises: [].}
 {.push public.}
 
-import chronos, chronicles
+import chronicles
 import ../errors
 
 logScope:
   topics = "libp2p utils"
 
-const
-  DefaultDnsRetries = 3
-  DefaultDnsRetryTime = 1.seconds
-
 type AutoTLSError* = object of LPError
 
 when defined(libp2p_autotls_support):
-  import strutils
+  import chronos, strutils
+
+  const
+    DefaultDnsRetries = 3
+    DefaultDnsRetryTime = 1.seconds
+
   from times import DateTime, toTime, toUnix
   import stew/base36
   import

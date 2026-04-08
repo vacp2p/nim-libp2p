@@ -35,14 +35,14 @@ suite "GossipSub Component - Heartbeat":
     const
       newDLow = 2
       newDHigh = 4
-      newDValues = some(
+      newDValues = Opt.some(
         DValues(
-          dLow: some(newDLow),
-          dHigh: some(newDHigh),
-          d: some(3),
-          dLazy: some(3),
-          dScore: some(2),
-          dOut: some(2),
+          dLow: Opt.some(newDLow),
+          dHigh: Opt.some(newDHigh),
+          d: Opt.some(3),
+          dLazy: Opt.some(3),
+          dScore: Opt.some(2),
+          dOut: Opt.some(2),
         )
       )
     node0.parameters.applyDValues(newDValues)
@@ -60,8 +60,13 @@ suite "GossipSub Component - Heartbeat":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          dValues = some(
-            DValues(dLow: some(dLow), dHigh: some(dHigh), d: some(3), dOut: some(1))
+          dValues = Opt.some(
+            DValues(
+              dLow: Opt.some(dLow),
+              dHigh: Opt.some(dHigh),
+              d: Opt.some(3),
+              dOut: Opt.some(1),
+            )
           ),
           pruneBackoff = 20.milliseconds,
           heartbeatInterval = 500.milliseconds,
@@ -95,19 +100,19 @@ suite "GossipSub Component - Heartbeat":
       nodes = generateNodes(
           numberOfNodes,
           gossip = true,
-          dValues = some(
+          dValues = Opt.some(
             DValues(
-              dLow: some(3),
-              dHigh: some(4),
-              d: some(3),
-              dOut: some(1),
-              dLazy: some(3),
-              dScore: some(2),
+              dLow: Opt.some(3),
+              dHigh: Opt.some(4),
+              d: Opt.some(3),
+              dOut: Opt.some(1),
+              dLazy: Opt.some(3),
+              dScore: Opt.some(2),
             )
           ),
           pruneBackoff = 20.milliseconds,
           opportunisticGraftThreshold = 600,
-          heartbeatInterval = 500.milliseconds,
+          heartbeatInterval = 1000.milliseconds,
         )
         .toGossipSub()
       node0 = nodes[0]
@@ -119,6 +124,10 @@ suite "GossipSub Component - Heartbeat":
 
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeHub(node0, nodes[1 .. ^1], topic)
+
+    # Wait for beginning of the heartbeat to increase chances for
+    # peer graft to happen within same heartbeat
+    await node0.waitForNextHeartbeat()
 
     # Keep track of initial mesh of Node0
     let startingMesh = node0.mesh[topic].toSeq()
@@ -289,8 +298,11 @@ suite "GossipSub Component - Heartbeat":
         numberOfNodes,
         gossip = true,
         historyLength = historyLength,
-        dValues =
-          some(DValues(dLow: some(1), dHigh: some(1), d: some(1), dOut: some(0))),
+        dValues = Opt.some(
+          DValues(
+            dLow: Opt.some(1), dHigh: Opt.some(1), d: Opt.some(1), dOut: Opt.some(0)
+          )
+        ),
         heartbeatInterval = 500.milliseconds,
         gossipThreshold = gossipThreshold,
       )

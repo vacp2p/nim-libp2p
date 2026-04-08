@@ -14,6 +14,7 @@ import
     transports/tcptransport,
     protocols/protocol,
     upgrademngrs/upgrade,
+    utils/future,
   ]
 import ../tools/[unittest, sync]
 
@@ -61,16 +62,12 @@ method readOnce*(
 method write*(
     s: TestSelectStream, msg: seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 method close(s: TestSelectStream) {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 proc newTestSelectStream(): TestSelectStream =
   new result
@@ -123,16 +120,12 @@ method write*(
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
     return s.ls(msg)
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 method close(s: TestLsStream): Future[void] {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
   new result
@@ -186,21 +179,22 @@ method write*(
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
     return s.na(string.fromBytes(msg))
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 method close(s: TestNaStream): Future[void] {.async: (raises: [], raw: true).} =
   s.isClosed = true
   s.isEof = true
-  let fut = newFuture[void]()
-  fut.complete()
-  fut
+  newFutureCompleted[void]()
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
   new result
   result.na = na
   result.step = 1
+
+proc noReachHandler(
+    conn: Connection, proto: string
+): Future[void] {.async: (raises: [CancelledError]).} =
+  raiseAssert "must not be reached"
 
 suite "Multistream select":
   teardown:
@@ -242,13 +236,8 @@ suite "Multistream select":
 
     conn = Connection(newTestLsStream(testLsHandler))
 
-    proc testHandler(
-        conn: Connection, proto: string
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      discard
-
     var protocol: LPProtocol = new LPProtocol
-    protocol.handler = testHandler
+    protocol.handler = noReachHandler
     ms.addHandler("/test/proto1/1.0.0", protocol)
     ms.addHandler("/test/proto2/1.0.0", protocol)
     await ms.handle(conn)
@@ -267,12 +256,7 @@ suite "Multistream select":
     conn = newTestNaStream(testNaHandler)
 
     var protocol: LPProtocol = new LPProtocol
-    proc testHandler(
-        conn: Connection, proto: string
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      discard
-
-    protocol.handler = testHandler
+    protocol.handler = noReachHandler
     ms.addHandler("/unabvailable/proto/1.0.0", protocol)
 
     await ms.handle(conn)
@@ -403,19 +387,7 @@ suite "Multistream select":
 
     let msListen = MultistreamSelect.new()
     var protocol: LPProtocol = new LPProtocol
-    protocol.handler = proc(
-        conn: Connection, proto: string
-    ) {.async: (raises: [CancelledError]).} =
-      # never reached
-      discard
-
-    proc testHandler(
-        conn: Connection, proto: string
-    ): Future[void] {.async: (raises: [CancelledError]).} =
-      # never reached
-      discard
-
-    protocol.handler = testHandler
+    protocol.handler = noReachHandler
     msListen.addHandler("/test/proto1/1.0.0", protocol)
     msListen.addHandler("/test/proto2/1.0.0", protocol)
 
@@ -426,10 +398,10 @@ suite "Multistream select":
       let conn = await transport1.accept()
       try:
         await msListen.handle(conn)
-      except LPStreamEOFError:
-        discard
-      except LPStreamClosedError:
-        discard
+      except LPStreamEOFError as e:
+        raiseAssert "unexpected error: " & e.msg
+      except LPStreamClosedError as e:
+        raiseAssert "unexpected error: " & e.msg
       finally:
         await conn.close()
 

@@ -63,6 +63,6 @@ suite "Future":
     var f3 = fut3()
     var f = anyCompleted(@[f1, f2, f3])
     if not await f.withTimeout(20.milliseconds):
-      f.cancel()
+      f.cancelSoon()
 
     check f.cancelled()
