@@ -4,7 +4,7 @@
 import chronos, chronicles
 import
   ../../../libp2p/protocols/kademlia/
-    [types, routingtable, protobuf, get, provider, find]
+    [types, routing_table, protobuf, get, provider, find]
 import ../../../libp2p/[peerid, stream/connection]
 
 type MockKadDHT* = ref object of KadDHT
