@@ -56,7 +56,7 @@ proc new*(
     discoConf: KademliaDiscoveryConfig = KademliaDiscoveryConfig.new(),
     xprPublishing: bool = true,
 ): T {.raises: [].} =
-  var rtable = RoutingTable.new(
+  let rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(replication = config.replication),
   )

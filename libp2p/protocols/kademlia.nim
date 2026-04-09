@@ -16,18 +16,13 @@ logScope:
 const KadCodec = "/ipfs/kad/1.0.0"
 
 proc refreshTable*(
-    kad: KadDHT, rtable: var RoutingTable, forceRefresh = false
+    kad: KadDHT, rtable: RoutingTable, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  # `var rt` is a local mutable alias required to call `insert(var RoutingTable)`.
-  # Because RoutingTable is a ref, rt and rtable share the same heap object —
-  # mutations are visible to the caller without needing a var parameter
-  # (which async closures cannot capture).
-  var rt = rtable
-  for peer in await kad.findNode(rt.selfId):
-    discard rt.insert(peer.toKey())
+  for peer in await kad.findNode(rtable.selfId):
+    discard rtable.insert(peer.toKey())
 
   # Snapshot bucket count. findNode() can grow buckets and mutate length.
   # If it changes mid-iteration, Nim triggers an assertion defect.
@@ -65,7 +60,7 @@ proc new*(
     client: bool = false,
     codec: string = KadCodec,
 ): T {.raises: [].} =
-  var rtable = RoutingTable.new(
+  let rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(replication = config.replication),
   )

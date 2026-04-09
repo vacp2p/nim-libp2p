@@ -35,7 +35,7 @@ proc new*(
 proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
   return xorDistance(selfId, key, hasher).leadingZeros
 
-proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
+proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
     if p.nodeId == nodeId:
       return Opt.some(i)
@@ -75,7 +75,7 @@ proc updateRoutingTableMetrics*(rtable: RoutingTable) =
   kad_routing_table_peers.set(total.float64)
   kad_routing_table_buckets.set(rtable.buckets.len.float64)
 
-proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
+proc insert*(rtable: RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
     debug "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
@@ -109,7 +109,7 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   updateRoutingTableMetrics(rtable)
   return true
 
-proc insert*(rtable: var RoutingTable, peerId: PeerId): bool =
+proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
