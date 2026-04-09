@@ -13,7 +13,8 @@ logScope:
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Opt[Message]] {.
-    async: (raises: [CancelledError, DialFailedError, LPStreamError]), gcsafe
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]),
+    gcsafe
 .} =
   let conn =
     await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
