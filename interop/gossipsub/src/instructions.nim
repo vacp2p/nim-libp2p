@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, json
+import chronos, json, math
 import ../../../libp2p/protocols/pubsub/gossipsub
 
 type
@@ -43,7 +43,7 @@ proc parseDurationNano*(node: JsonNode): Duration =
 proc parseDurationSec*(node: JsonNode): Duration =
   ## Parse a JSON number (int or float) as seconds into a Duration.
   let secs = node.getFloat()
-  int64(secs * 1_000_000_000.0).nanoseconds()
+  int64(round(secs * 1_000_000_000.0)).nanoseconds()
 
 proc getDurationNano(node: JsonNode, default: Duration): Duration =
   if node == nil or node.kind == JNull:
