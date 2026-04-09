@@ -71,15 +71,15 @@ proc removeService*(
   if serviceId notin manager.serviceStatus:
     return
 
-  let currentStatus = manager.serviceStatus.getOrDefault(serviceId)
-  if currentStatus == status:
-    manager.tables.del(serviceId)
-    manager.serviceStatus.del(serviceId)
-    manager.updateServiceTablesMetrics()
-    return
+  manager.serviceStatus.withValue(serviceId, currentStatus):
+    if currentStatus == status:
+      manager.tables.del(serviceId)
+      manager.serviceStatus.del(serviceId)
+      manager.updateServiceTablesMetrics()
+      return
 
-  if currentStatus == Both:
-    manager.serviceStatus[serviceId] = if status == Interest: Provided else: Interest
+    if currentStatus == Both:
+      manager.serviceStatus[serviceId] = if status == Interest: Provided else: Interest
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
