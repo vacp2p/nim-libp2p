@@ -5,11 +5,10 @@ import chronicles, chronos, sequtils, results, sets
 import std/[strformat, tables], metrics
 import
   ./[
-    curve25519, fragmentation, mix_message, mix_node, sphinx, serialization,
+    curve25519, delay, fragmentation, mix_message, mix_node, sphinx, serialization,
     tag_manager, mix_metrics, exit_layer, multiaddr, exit_connection, spam_protection,
     delay_strategy, pool,
   ]
-import stew/endians2
 import ../protocol
 import ../../utils/[sequninit, future]
 import ../../stream/[connection, lpstream]
@@ -342,9 +341,8 @@ method handleMixMessages*(
     trace "Intermediate node processing",
       peerId = mixProto.mixNodeInfo.peerId, multiAddr = mixProto.mixNodeInfo.multiAddr
     mix_messages_recvd.inc(labelValues = ["Intermediate"])
-    let actualDelayMs =
-      mixProto.delayStrategy.generateForIntermediate(processedSP.delayMs.uint16)
-    trace "Computed delay", encodedDelayMs = processedSP.delayMs, actualDelayMs
+    let actualDelay = mixProto.delayStrategy.generateForIntermediate(processedSP.delay)
+    trace "Computed delay", encodedDelay = processedSP.delay, actualDelay
 
     # Forward to next hop
     let nextHopBytes = processedSP.nextHop.get()
@@ -367,7 +365,7 @@ method handleMixMessages*(
     # exponential delays, a lower sampling floor can be applied so this overlap
     # does not collapse short samples into a fixed processing-time spike.
     let proofGenStartTime = Moment.now()
-    let delayFut = sleepAsync(milliseconds(actualDelayMs.int))
+    let delayFut = sleepAsync(actualDelay.toDuration)
 
     let proofGenFut = (
       proc(): Future[Result[seq[byte], string]] {.async.} =
@@ -380,10 +378,10 @@ method handleMixMessages*(
 
     if mixProto.spamProtection.isSome():
       let proofGenTimeMs = (Moment.now() - proofGenStartTime).milliseconds
-      if proofGenTimeMs > actualDelayMs.int64:
+      if proofGenTimeMs > actualDelay.int64:
         warn "Proof generation time exceeds sampled delay",
           proofGenTimeMs,
-          sampledDelayMs = actualDelayMs,
+          sampledDelay = actualDelay,
           hint = "Increase the minimum delay floor or reduce proof generation time"
 
     let outgoingPacket = proofGenFut.value().valueOr:
@@ -450,7 +448,7 @@ method buildSurb*(
   var
     publicKeys: seq[FieldElement] = @[]
     hops: seq[Hop] = @[]
-    delay: seq[seq[byte]] = @[]
+    delays: seq[Delay] = @[]
 
   if mixProto.nodePool.len < PathLength:
     return err("No. of public mix nodes less than path length")
@@ -462,7 +460,7 @@ method buildSurb*(
 
   # Select L mix nodes at random
   for i in 0 ..< PathLength:
-    let (peerId, multiAddr, mixPubKey, delayMillisec) =
+    let (peerId, multiAddr, mixPubKey, hopDelay) =
       if i < PathLength - 1:
         let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
           return err("failed to generate random num: " & error)
@@ -481,7 +479,7 @@ method buildSurb*(
       else:
         (
           mixProto.mixNodeInfo.peerId, mixProto.mixNodeInfo.multiAddr,
-          mixProto.mixNodeInfo.mixPubKey, 0.uint16,
+          mixProto.mixNodeInfo.mixPubKey, NoDelay,
         ) # No delay for last hop
 
     publicKeys.add(mixPubKey)
@@ -492,9 +490,9 @@ method buildSurb*(
 
     hops.add(Hop.init(multiAddrBytes))
 
-    delay.add(@(delayMillisec.uint16.toBytesBE()))
+    delays.add(hopDelay)
 
-  return createSURB(publicKeys, delay, hops, id)
+  return createSURB(publicKeys, delays, hops, id, mixProto.rng)
 
 proc buildSurbs(
     mixProto: MixProtocol,
@@ -656,7 +654,7 @@ proc anonymizeLocalProtocolSend*(
   var
     publicKeys: seq[FieldElement] = @[]
     hop: seq[Hop] = @[]
-    delay: seq[seq[byte]] = @[]
+    delays: seq[Delay] = @[]
     exitPeerId: PeerId
 
   # Select L mix nodes at random
@@ -745,13 +743,13 @@ proc anonymizeLocalProtocolSend*(
       nextHopAddr = multiAddr
       nextHopPeerId = peerId
 
-    let delayMillisec =
+    let hopDelay =
       if hop.len != PathLength - 1:
         mixProto.delayStrategy.generateForEntry()
       else:
-        0.uint16 # No delay for exit node
+        NoDelay # No delay for exit node
 
-    delay.add(@(delayMillisec.toBytesBE()))
+    delays.add(hopDelay)
 
     hop.add(Hop.init(multiAddrBytes))
 
@@ -775,7 +773,7 @@ proc anonymizeLocalProtocolSend*(
     return err(fmt"Error building message: {error[0]}")
 
   # Wrap in Sphinx packet
-  let sphinxPacket = wrapInSphinxPacket(message, publicKeys, delay, hop, destHop).valueOr:
+  let sphinxPacket = wrapInSphinxPacket(message, publicKeys, delays, hop, destHop).valueOr:
     mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
     return err(fmt"Failed to wrap in sphinx packet: {error}")
 
@@ -813,9 +811,8 @@ proc init*(
     mixNodeInfo: MixNodeInfo,
     switch: Switch,
     tagManager: TagManager = TagManager.new(),
-    rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
-    delayStrategy: DelayStrategy,
+    delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ) {.raises: [].} =
   ## Initialize a MixProtocol instance.
   ##
@@ -825,14 +822,22 @@ proc init*(
   ## When `spamProtection` is enabled, callers should prefer
   ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
   ## generation and short exponential delays.
+
+  var rng = switch.rng
+  if rng.isNil:
+    rng = newRng()
+  doAssert(not rng.isNil, "MixProtocol could not create random")
+
   mixProto.mixNodeInfo = mixNodeInfo
   mixProto.switch = switch
+  mixProto.rng = rng
   mixProto.nodePool = MixNodePool.new(switch.peerStore)
   mixProto.tagManager = tagManager
   mixProto.destReadBehavior = newTable[string, DestReadBehavior]()
 
   mixProto.spamProtection = spamProtection
-  mixProto.delayStrategy = delayStrategy
+  mixProto.delayStrategy = delayStrategy.valueOr:
+    NoSamplingDelayStrategy.new(rng)
 
   let onReplyDialer = proc(
       surb: SURB, message: seq[byte]
@@ -840,8 +845,8 @@ proc init*(
     await mixProto.reply(surb, message)
 
   mixProto.exitLayer = ExitLayer.init(switch, onReplyDialer, mixProto.destReadBehavior)
+
   mixProto.codecs = @[MixProtocolID]
-  mixProto.rng = rng
   mixProto.handler = proc(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =
@@ -855,7 +860,6 @@ proc new*(
     mixNodeInfo: MixNodeInfo,
     switch: Switch,
     tagManager: TagManager = TagManager.new(),
-    rng: ref HmacDrbgContext = newRng(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
 ): T {.raises: [].} =
@@ -867,10 +871,6 @@ proc new*(
   ## When `spamProtection` is enabled, callers should prefer
   ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
   ## generation and short exponential delays.
-  let actualDelayStrategy = delayStrategy.valueOr:
-    NoSamplingDelayStrategy.new(rng)
   let mixProto = new(T)
-  mixProto.init(
-    mixNodeInfo, switch, tagManager, rng, spamProtection, actualDelayStrategy
-  )
+  mixProto.init(mixNodeInfo, switch, tagManager, spamProtection, delayStrategy)
   mixProto

@@ -47,16 +47,21 @@ proc streamProvider(conn: Connection, handle: bool = true): Muxer =
 const
   wsAddress = "/ip4/127.0.0.1/tcp/0/ws"
   wsSecureAddress = "/ip4/127.0.0.1/tcp/0/wss"
-  validAddresses =
+  validWireAddresses =
     @[
       # Plain WebSocket
       "/ip4/127.0.0.1/tcp/1234/ws",
       "/ip6/::1/tcp/1234/ws",
-      "/dns/example.com/tcp/1234/ws",
       # Secure WebSocket
       "/ip4/127.0.0.1/tcp/1234/wss",
       "/ip4/127.0.0.1/tcp/1234/tls/ws",
       "/ip6/::1/tcp/1234/wss",
+    ]
+  validNonWireAddresses =
+    @[
+      # Plain WebSocket 
+      "/dns/example.com/tcp/1234/ws",
+      # Secure WebSocket
       "/dns/example.com/tcp/1234/wss",
       "/dns/example.com/tcp/1234/tls/ws",
     ]
@@ -72,9 +77,13 @@ suite "WebSocket transport":
   teardown:
     checkTrackers()
 
-  basicTransportTest(wsTransProvider, wsAddress, validAddresses, invalidAddresses)
   basicTransportTest(
-    wsSecureTransProvider, wsSecureAddress, validAddresses, invalidAddresses
+    wsTransProvider, wsAddress, validWireAddresses, validNonWireAddresses,
+    invalidAddresses,
+  )
+  basicTransportTest(
+    wsSecureTransProvider, wsSecureAddress, validWireAddresses, validNonWireAddresses,
+    invalidAddresses,
   )
 
   connectionTransportTest(wsTransProvider, wsAddress)

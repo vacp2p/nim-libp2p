@@ -2197,6 +2197,27 @@ proc random*(t: typedesc[EdPrivateKey], rng: var HmacDrbgContext): EdPrivateKey 
 
   res
 
+proc fromSeed*(t: typedesc[EdPrivateKey], seed: openArray[byte]): EdPrivateKey =
+  ## Create ED25519 private key from a 32-byte seed.
+  ## This mirrors Go's ed25519.NewKeyFromSeed(seed).
+  doAssert len(seed) == EdPublicKeySize, "ED25519 seed must be exactly 32 bytes"
+  var
+    point: GeP3
+    pk: array[EdPublicKeySize, byte]
+    res: EdPrivateKey
+
+  copyMem(addr res.data[0], unsafeAddr seed[0], 32)
+
+  var hh = sha512.digest(res.data.toOpenArray(0, 31))
+  hh.data[0] = hh.data[0] and 0xF8'u8
+  hh.data[31] = hh.data[31] and 0x3F'u8
+  hh.data[31] = hh.data[31] or 0x40'u8
+  geScalarMultBase(point, hh.data)
+  geP3ToBytes(pk, point)
+  res.data[32 .. 63] = pk
+
+  res
+
 proc random*(t: typedesc[EdKeyPair], rng: var HmacDrbgContext): EdKeyPair =
   ## Generate new random ED25519 private and public keypair using OS specific
   ## CSPRNG.

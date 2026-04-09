@@ -41,6 +41,7 @@ jobs:
               ("Daily Nimbus", "daily_nimbus.yml"),
               ("Daily amd64", "daily_amd64.yml"),
               ("Daily i386", "daily_i386.yml"),
+              ("Daily without feature flags", "daily_tests_no_flags.yml"),
           ]
 
           LABEL_NAME = "daily-ci-failure"
@@ -151,6 +152,9 @@ jobs:
           content = "\n".join(lines)
 
           # ── 6. Comment on existing issue or create a new one ─────────────────
+          ASSIGNEES = ["gmelodie", "richard-ramos", "vladopajic"]
+          assignee = ASSIGNEES[(week - 1) % len(ASSIGNEES)]
+
           if existing_issue:
               # Reopen the issue if it was closed, then add a comment
               if existing_issue["state"] == "closed":
@@ -174,13 +178,12 @@ jobs:
           else:
               body = (
                   f"This issue tracks daily CI failures for week **{week_id}**.\n\n"
-                  f"A new issue will be opened at the start of each week.\n\n"
                   f"---\n\n{content}"
               )
               r = requests.post(
                   f"{BASE}/issues",
                   headers=HEADERS,
-                  json={"title": issue_title, "body": body, "labels": [LABEL_NAME]},
+                  json={"title": issue_title, "body": body, "labels": [LABEL_NAME], "assignees": [assignee]},
               )
               r.raise_for_status()
               new_issue = r.json()

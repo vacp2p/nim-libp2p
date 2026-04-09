@@ -187,6 +187,12 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `cancel()` procedure of `Future` type is deprecated, code should ether call `cancelSoon()` for non blocking call or `cancelAndWait()` for blocking call till future is canceled.
 - Give suggestions if  `cancelSoon()` or `cancelAndWait()` should be called.
 
+### Avoid `sleepAsync`
+- `sleepAsync` should be avoided when is used to fix race condition, or to wait on condition, becasue it is always source of flakyness.
+- Remaind developer that:
+  - if `sleepAsync` is used in tests, then `checkUntilTimeout` might be use to wait for condition
+  - if it is necessery to use `sleepAsync`, comment with reasoning why it was used must be added next to it
+
 ### Error Handling
 - Use the **results** library: `Result[T, E]`, `?`, `valueOr`, `isOk`, `isErr`
 - Custom error types are in `libp2p/errors.nim` (derive from `LPError`)
@@ -328,7 +334,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `discard` should not be used for empty body statements in tests: if used in try-except block when error is expected it is better to use `expect` instead. For callbacks, they should either raise an error because they should not be called, or, if it is indeed a noop callback, it should be written once then reused always.
 
 #### RNG
-- Do not use `newRng()`. In the nim-libp2p test files, do not use `newRng()`. Instead use `rng` template from `tests/tools/crypto.nim`
+- Do not use `newRng()` as a default value for arguments in object constructors or initializers, because the entropy seed could be exhausted. Random arguments must always be passed down.
+- Do not use `newRng()` in the nim-libp2p test files. Instead use `rng` template from `tests/tools/crypto.nim`.
 - Ignore `nim-libp2p/tests/tools/crypto.nim` (that's the definition file)
 
 ### API Stability

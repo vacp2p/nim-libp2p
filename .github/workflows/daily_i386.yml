@@ -2,8 +2,12 @@ name: Daily i386
 
 on:
   schedule:
-    - cron: "30 6 * * *"
+    - cron: "31 6 * * *"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test_i386_latest:
@@ -15,10 +19,8 @@ jobs:
           {'ref': 'v2.2.6', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
-      cpu: "['i386']"
-      exclude: "[
-          {'platform': {'os':'macos'}},
-          {'platform': {'os':'windows'}},
+      configuration: "[
+          {'os': 'linux', 'cpu': 'i386', 'cc': 'gcc', 'builder': 'ubuntu-22.04', 'shell': 'bash'},
         ]"
   test_i386_pinned:
     name: Daily i386 (pinned dependencies)
@@ -30,21 +32,6 @@ jobs:
           {'ref': 'v2.2.6', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
-      cpu: "['i386']"
-      exclude: "[
-          {'platform': {'os':'macos'}},
-          {'platform': {'os':'windows'}},
+      configuration: "[
+          {'os': 'linux', 'cpu': 'i386', 'cc': 'gcc', 'builder': 'ubuntu-22.04', 'shell': 'bash'},
         ]"
-  notify-on-failure:
-    name: Notify Discord on Failure
-    needs: [test_i386_latest, test_i386_pinned]
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Discord notification
-        uses: ./.github/actions/discord_notify
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -11,6 +11,17 @@ when not defined(macosx):
   import ../../tools/[unittest]
 
   suite "Heartbeat":
+    asyncTest "simple runAfter":
+      var i = 0
+      proc t() {.async.} =
+        runAfter 500.milliseconds:
+          i.inc()
+
+      discard t()
+      check i == 0
+      await sleepAsync(700.milliseconds)
+      check i == 1
+
     asyncTest "simple heartbeat":
       var i = 0
       proc t() {.async.} =
@@ -20,8 +31,7 @@ when not defined(macosx):
       let hb = t()
       await sleepAsync(500.milliseconds)
       await hb.cancelAndWait()
-      check:
-        i in 9 .. 12
+      check i in 9 .. 12
 
     asyncTest "change heartbeat period on the fly":
       var i = 0
@@ -39,8 +49,7 @@ when not defined(macosx):
       # 4x 30 ms heartbeat = 120ms
       # (500 ms - 120 ms) / 75ms = 5x 75ms
       # total 9
-      check:
-        i in 8 .. 11
+      check i in 8 .. 11
 
     asyncTest "catch up on slow heartbeat":
       var i = 0
@@ -56,8 +65,7 @@ when not defined(macosx):
       # 3x (150ms heartbeat + 30ms interval) = 540ms
       # 360ms remaining, / 30ms = 12x
       # total 15
-      check:
-        i in 14 .. 17
+      check i in 14 .. 17
 
     asyncTest "heartbeat sleep first":
       var i = 0
@@ -67,10 +75,8 @@ when not defined(macosx):
 
       let hb = t()
       await sleepAsync(100.milliseconds)
-      check:
-        i == 0
+      check i == 0
 
       await sleepAsync(500.milliseconds)
       await hb.cancelAndWait()
-      check:
-        i == 1
+      check i == 1
