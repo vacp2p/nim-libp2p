@@ -202,9 +202,11 @@ proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): Opt[seq[T]] =
     return Opt.none(seq[T])
   if n == 0:
     return Opt.some(newSeq[T]())
+
   var indices = newSeq[int](x.len)
   for i in 0 ..< x.len:
     indices[i] = i
+
   let count = min(n, x.len)
   var output = newSeq[T](count)
   for i in 0 ..< count:
