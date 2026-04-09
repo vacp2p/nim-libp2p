@@ -41,7 +41,7 @@ suite "KadDHT Bootstrap":
     check kad.findNodeCalls.len == 1
 
   asyncTest "bootstrap refreshes stale buckets":
-    let kad = setupMockKad()
+    let kad = setupMockKad(findNodeEmpty = true)
     startAndDeferStop(@[kad])
 
     # Add multiple peers to create multiple buckets
@@ -61,7 +61,7 @@ suite "KadDHT Bootstrap":
     check kad.findNodeCalls.len == bucketIndices.len + 1
 
   asyncTest "bootstrap with mixed fresh and stale buckets refreshes only stale":
-    let kad = setupMockKad()
+    let kad = setupMockKad(findNodeEmpty = true)
     startAndDeferStop(@[kad])
 
     kad.populateRoutingTable(20)
@@ -103,7 +103,7 @@ suite "KadDHT Bootstrap":
     check kad.findNodeCalls.len == nonEmptyBucketCount + 1
 
   asyncTest "refreshTable operates on the given routing table, not kad.rtable":
-    let kad = setupMockKad()
+    let kad = setupMockKad(findNodeEmpty = true)
     startAndDeferStop(@[kad])
 
     # Populate kad's own table — these buckets should NOT be refreshed

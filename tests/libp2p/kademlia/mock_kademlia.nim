@@ -9,6 +9,7 @@ import ../../../libp2p/[peerid, stream/connection]
 
 type MockKadDHT* = ref object of KadDHT
   findNodeCalls*: seq[Key]
+  findNodeEmpty*: bool
   getValueResponse*: Opt[Message]
   handleAddProviderMessage*: Opt[Message]
   handleFindNodeDelay*: Duration
@@ -18,6 +19,8 @@ method findNode*(
     kad: MockKadDHT, target: Key, queue = newAsyncQueue[(PeerId, Opt[Message])]()
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   kad.findNodeCalls.add(target)
+  if kad.findNodeEmpty:
+    return @[]
   return kad.rtable.findClosestPeerIds(target, kad.config.replication)
 
 method handleGetValue*(

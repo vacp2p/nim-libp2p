@@ -78,12 +78,14 @@ proc setupMockKad*(
     getValueResponse: Opt[Message] = Opt.none(Message),
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
     handleFindNodeDelay: Duration = ZeroDuration,
+    findNodeEmpty: bool = false,
 ): MockKadDHT =
   let switch = createSwitch()
   let kad = MockKadDHT.new(switch, bootstrapNodes, config)
   kad.getValueResponse = getValueResponse
   kad.handleAddProviderMessage = handleAddProviderMessage
   kad.handleFindNodeDelay = handleFindNodeDelay
+  kad.findNodeEmpty = findNodeEmpty
   kad.switch.mount(kad)
   kad
 
