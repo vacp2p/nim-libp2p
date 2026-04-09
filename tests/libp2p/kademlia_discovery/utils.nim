@@ -154,17 +154,3 @@ proc connect*(kad1, kad2: KademliaDiscovery) {.async.} =
     kad2.switch.peerInfo.addrs
   kad2.switch.peerStore[AddressBook][kad1.switch.peerInfo.peerId] =
     kad1.switch.peerInfo.addrs
-
-proc createTestDisco*(
-    fReturn: int = 3, advertExpiry: float64 = -1, safetyParam: float64 = -1
-): KademliaDiscovery =
-  var conf = KademliaDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
-
-  conf.fReturn = fReturn
-
-  if advertExpiry >= 0:
-    conf.advertExpiry = advertExpiry
-  if safetyParam >= 0:
-    conf.safetyParam = safetyParam
-
-  result = createMockDiscovery(conf)

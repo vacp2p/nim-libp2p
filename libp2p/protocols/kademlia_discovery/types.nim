@@ -10,7 +10,7 @@ import
 import ../../protobuf/minprotobuf
 import ../kademlia/types
 import ../service_discovery/types
-import ../service_discovery/serviceroutingtables
+import ../service_discovery/service_routing_tables
 
 const ExtendedKademliaDiscoveryCodec* = "/logos/service-discovery/1.0.0"
 

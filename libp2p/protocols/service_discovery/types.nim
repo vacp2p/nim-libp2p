@@ -48,7 +48,6 @@ type
     boundIp*: Table[string, float64] # bound(IP)
     timestampIp*: Table[string, uint64] # timestamp(IP)
     usedNonces*: Table[seq[byte], uint64] # nonce -> expiresAt (replay prevention)
-    lock*: AsyncLock
 
   PendingAction* =
     tuple[
@@ -71,7 +70,7 @@ type
     kLookup*: int
     fLookup*: int
     fReturn*: int
-    advertExpiry*: float64
+    advertExpiry*: chronos.Duration
     advertCacheCap*: float64
     occupancyExp*: float64
     safetyParam*: float64
@@ -84,7 +83,7 @@ proc new*(
     kLookup = Default_K_lookup,
     fLookup = Default_F_lookup,
     fReturn = Default_F_return,
-    advertExpiry = Default_E,
+    advertExpiry = chronos.seconds(Default_E.int),
     advertCacheCap = Default_C,
     occupancyExp = Default_P_occ,
     safetyParam = Default_G,

@@ -33,7 +33,6 @@ proc new*(T: typedesc[ServiceRoutingTableManager]): T =
   T(
     tables: initTable[ServiceId, RoutingTable](),
     serviceStatus: initTable[ServiceId, ServiceStatus](),
-    lock: newAsyncLock(),
   )
 
 proc addService*(
@@ -43,7 +42,7 @@ proc addService*(
     replication: int,
     bucketsCount: int,
     status: ServiceStatus,
-): Future[bool] {.async: (raises: [CancelledError]).} =
+): bool {.raises: [].} =
   manager.serviceStatus.withValue(serviceId, currentStatus):
     if status == currentStatus[]:
       return false
@@ -67,10 +66,7 @@ proc addService*(
 
 proc removeService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, status: ServiceStatus
-) {.async: (raises: [CancelledError]).} =
-  if serviceId notin manager.serviceStatus:
-    return
-
+) {.raises: [].} =
   manager.serviceStatus.withValue(serviceId, currentStatus):
     if currentStatus[] == status:
       manager.tables.del(serviceId)
@@ -83,7 +79,7 @@ proc removeService*(
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
-): Future[Opt[RoutingTable]] {.async: (raises: [CancelledError]).} =
+): Opt[RoutingTable] {.raises: [].} =
   let res = catch:
     manager.tables[serviceId]
   let table = res.valueOr:
@@ -93,7 +89,7 @@ proc getTable*(
 
 proc insertPeer*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, peerKey: Key
-): Future[bool] {.async: (raises: [CancelledError]).} =
+): bool {.raises: [].} =
   manager.tables.withValue(serviceId, table):
     let inserted = table[].insert(peerKey)
     if inserted:
@@ -105,32 +101,27 @@ proc insertPeer*(
 
 proc hasService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
-): Future[bool] {.async: (raises: [CancelledError]).} =
+): bool {.raises: [].} =
   return serviceId in manager.tables
 
 proc refreshAllTables*(
     manager: ServiceRoutingTableManager, kad: KadDHT
 ) {.async: (raises: [CancelledError]).} =
-  var tablesCopy: seq[RoutingTable]
-
-  tablesCopy = manager.tables.values.toSeq()
-
-  for serviceTable in tablesCopy.mitems:
+  let tables: seq[RoutingTable] = manager.tables.values.toSeq()
+  for serviceTable in tables:
     let refreshRes = catch:
       await kad.refreshTable(serviceTable)
     if refreshRes.isErr:
       error "failed to refresh service routing table", error = refreshRes.error.msg
 
-proc count*(
-    manager: ServiceRoutingTableManager
-): Future[int] {.async: (raises: [CancelledError]).} =
+proc count*(manager: ServiceRoutingTableManager): int {.inline, raises: [].} =
   return manager.tables.len
 
 proc serviceIds*(
     manager: ServiceRoutingTableManager
-): Future[seq[ServiceId]] {.async: (raises: [CancelledError]).} =
+): seq[ServiceId] {.inline, raises: [].} =
   return manager.tables.keys.toSeq()
 
-proc clear*(manager: ServiceRoutingTableManager) {.async: (raises: [CancelledError]).} =
+proc clear*(manager: ServiceRoutingTableManager) {.inline, raises: [].} =
   manager.tables.clear()
   manager.serviceStatus.clear()
