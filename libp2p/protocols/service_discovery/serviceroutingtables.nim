@@ -72,13 +72,13 @@ proc removeService*(
     return
 
   manager.serviceStatus.withValue(serviceId, currentStatus):
-    if currentStatus == status:
+    if currentStatus[] == status:
       manager.tables.del(serviceId)
       manager.serviceStatus.del(serviceId)
       manager.updateServiceTablesMetrics()
       return
 
-    if currentStatus == Both:
+    if currentStatus[] == Both:
       manager.serviceStatus[serviceId] = if status == Interest: Provided else: Interest
 
 proc getTable*(
