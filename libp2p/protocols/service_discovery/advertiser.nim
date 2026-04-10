@@ -14,12 +14,6 @@ import ./[types, serviceroutingtables, service_discovery_metrics]
 logScope:
   topics = "service-disco advertiser"
 
-proc isClientMode(disco: KademliaDiscovery): bool {.inline, raises: [].} =
-  disco.handler.isNil
-
-proc requireServerMode(disco: KademliaDiscovery, op: string) {.inline, raises: [].} =
-  doAssert not disco.isClientMode(), op & " is not supported in client mode"
-
 proc new*(T: typedesc[Advertiser]): T =
   T(running: initHashSet[AdvertiseTask]())
 
@@ -41,7 +35,7 @@ proc sendRegister*(
 .} =
   ## Send REGISTER request to a peer
 
-  requireServerMode(disco, "sendRegister")
+  doAssert not disco.clientMode, "not supported in client mode"
 
   let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
@@ -117,7 +111,7 @@ proc startAdvertising*(
 ) {.async: (raises: [CancelledError]).} =
   ## Execute a registration action and schedule the next one based on response.
 
-  requireServerMode(disco, "startAdvertising")
+  doAssert not disco.clientMode, "not supported in client mode"
 
   if not disco.serviceRoutingTables.hasService(serviceId):
     error "no service routing table found", serviceId
@@ -177,7 +171,7 @@ proc addProvidedService*(
 ) {.async: (raises: [CancelledError]).} =
   ## Include this service in the set of services this node provides.
 
-  requireServerMode(disco, "addProvidedService")
+  doAssert not disco.clientMode, "not supported in client mode"
 
   let serviceId = service.id.hashServiceId()
 
@@ -216,7 +210,7 @@ proc addProvidedService*(
 proc removeProvidedService*(
     disco: KademliaDiscovery, service: ServiceInfo
 ) {.async: (raises: [CancelledError]).} =
-  requireServerMode(disco, "removeProvidedService")
+  doAssert not disco.clientMode, "not supported in client mode"
   let serviceId = service.id.hashServiceId()
 
   # cancel and remove futures for this service

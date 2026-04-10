@@ -69,6 +69,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    clientMode: client,
   )
 
   # Fill up buckets with initial bootstrap nodes

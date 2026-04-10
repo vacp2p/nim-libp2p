@@ -20,12 +20,6 @@ import ./[types, iptree, serviceroutingtables, service_discovery_metrics]
 logScope:
   topics = "service-disco registrar"
 
-proc isClientMode(disco: KademliaDiscovery): bool {.inline, raises: [].} =
-  disco.handler.isNil
-
-proc requireServerMode(disco: KademliaDiscovery, op: string) {.inline, raises: [].} =
-  doAssert not disco.isClientMode(), op & " is not supported in client mode"
-
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   cd_registrar_cache_ads.set(registrar.cacheTimestamps.len.float64)
   cd_registrar_cache_services.set(registrar.cache.len.float64)
@@ -192,8 +186,6 @@ proc getRegistrarCloserPeers*(
   ## Get closer peers from registrar table for a service.
   ## Falls back to main DHT if table is empty or not found.
 
-  requireServerMode(disco, "getRegistrarCloserPeers")
-
   var closerPeerKeys: seq[Key] = @[]
   block thisBlock:
     if disco.serviceRoutingTables.hasService(serviceId):
@@ -320,8 +312,6 @@ proc acceptAdvertisement*(
     Interest,
   )
 
-  requireServerMode(disco, "acceptAdvertisement")
-
   let peerKey = ad.data.peerId.toKey()
   await disco.serviceRoutingTables.insertPeer(serviceId, peerKey)
 
@@ -442,8 +432,6 @@ proc handleGetAds*(
 ) {.async: (raises: [CancelledError]).} =
   ## Handle GET_ADS request
 
-  requireServerMode(disco, "handleGetAds")
-
   cd_messages_received.inc(labelValues = [$MessageType.getAds])
 
   let serviceId = msg.key
@@ -485,7 +473,6 @@ proc handleGetAds*(
 proc handleRegister*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  requireServerMode(disco, "handleRegister")
 
   cd_messages_received.inc(labelValues = [$MessageType.register])
 
