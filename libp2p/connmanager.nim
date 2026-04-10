@@ -3,9 +3,9 @@
 
 {.push raises: [].}
 
-import std/[tables, sequtils, sets]
+import std/[tables, sets]
 import pkg/[chronos, chronicles, metrics]
-import peerinfo, peerstore, stream/connection, muxers/muxer, errors
+import peerinfo, peerstore, stream/connection, muxers/muxer, errors, muxer_store
 
 logScope:
   topics = "libp2p connmanager"
@@ -59,11 +59,11 @@ type
   ConnManager* = ref object of RootObj
     closed: bool
     maxConnsPerPeer: int
+    muxerStore: MuxerStore
     maxConnectionsIn: int
     maxConnectionsOut: int
     inSema: AsyncSemaphore
     outSema: AsyncSemaphore
-    muxed: Table[PeerId, seq[Muxer]]
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
     peerEvents: array[PeerEventKind, OrderedSet[PeerEventHandler]]
     readyEvents: Table[PeerId, Future[void].Raising([CancelledError])]
@@ -101,17 +101,13 @@ proc new*(
     raiseAssert "Invalid connection counts!"
 
   C(
+    muxerStore: MuxerStore.new(),
     maxConnsPerPeer: maxConnsPerPeer,
     maxConnectionsIn: maxConnectionsIn,
     maxConnectionsOut: maxConnectionsOut,
     inSema: inSema,
     outSema: outSema,
   )
-
-proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
-  c.muxed.withValue(peerId, muxers):
-    return muxers[].len
-  return 0
 
 proc getReadyEvent(
     c: ConnManager, peerId: PeerId
@@ -169,14 +165,10 @@ proc availableSlots*(c: ConnManager, dir: Direction): int =
     c.outSema.availableSlots()
 
 proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
-  var peers = newSeqOfCap[PeerId](c.muxed.len)
-  for peerId, mux in c.muxed:
-    if mux.anyIt(it.connection.dir == dir):
-      peers.add(peerId)
-  return peers
+  c.muxerStore.getPeers(dir)
 
 proc getConnections*(c: ConnManager): Table[PeerId, seq[Muxer]] =
-  return c.muxed
+  return c.muxerStore.getAll()
 
 proc addConnEventHandler*(
     c: ConnManager, handler: ConnEventHandler, kind: ConnEventKind
@@ -265,18 +257,12 @@ proc expectConnection*(
     c.expectedConnectionsOverLimit.del(key)
 
 proc contains*(c: ConnManager, peerId: PeerId): bool =
-  peerId in c.muxed
+  return c.muxerStore.contains(peerId)
 
 proc contains*(c: ConnManager, muxer: Muxer): bool =
-  ## checks if a muxer is being tracked by the connection
-  ## manager
-  ##
-
   if muxer.isNil:
     return false
-
-  let conn = muxer.connection
-  return muxer in c.muxed.getOrDefault(conn.peerId)
+  return c.muxerStore.contains(muxer)
 
 proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
   trace "Cleaning up muxer", m = muxer
@@ -294,17 +280,11 @@ proc muxCleanup(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     trace "Triggering disconnect events", mux
     let peerId = mux.connection.peerId
 
-    var allPeerMuxersRemoved: bool = true
-    c.muxed.withValue(peerId, muxers):
-      let idx = muxers[].find(mux)
-      if idx >= 0:
-        muxers[].del(idx)
-      allPeerMuxersRemoved = muxers[].len == 0
+    discard c.muxerStore.remove(mux)
 
-    if allPeerMuxersRemoved:
+    if c.muxerStore.count(peerId) == 0:
       c.clearPeerReadyState(peerId)
-      c.muxed.del(peerId)
-      libp2p_peers.set(c.muxed.len.int64)
+      libp2p_peers.set(c.muxerStore.countPeers.int64)
       await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
 
       if not c.peerStore.isNil:
@@ -330,14 +310,10 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
   finally:
     await c.muxCleanup(mux)
 
-proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer =
+proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer {.inline.} =
   ## Select a connection for the provided peer and direction
   ##
-  c.muxed.withValue(peerId, muxers):
-    for _, m in muxers[]:
-      if m.connection.dir == dir:
-        return m
-  return nil
+  return c.muxerStore.selectMuxer(peerId, dir)
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
   ## Select a connection for the provided giving priority
@@ -370,25 +346,19 @@ proc storeMuxer*(
     peerId = muxer.connection.peerId
     dir = muxer.connection.dir
 
-  if c.connCount(peerId) > c.maxConnsPerPeer:
+  if c.muxerStore.count(peerId) > c.maxConnsPerPeer:
     let key = (peerId, dir)
     let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Too many connections for peer", conns = c.connCount(peerId), peerId, dir
+      debug "Too many connections for peer", conns = c.muxerStore.count(peerId), peerId, dir
 
       raise newTooManyConnectionsError()
 
-  var newPeer = false
-  c.muxed.withValue(peerId, muxers):
-    doAssert muxers[].len > 0
-    doAssert muxer notin muxers[]
-    muxers[].add(muxer)
-  do:
-    c.muxed[peerId] = @[muxer]
-    newPeer = true
-  libp2p_peers.set(c.muxed.len.int64)
+  let isNewPeer = c.muxerStore.count(peerId) == 0
+  discard c.muxerStore.add(muxer)
+  libp2p_peers.set(c.muxerStore.count(peerId).int64)
 
   asyncSpawn c.onClose(muxer)
 
@@ -402,12 +372,13 @@ proc storeMuxer*(
   c.notifyPeerReady(peerId)
   await connectedEvent
 
-  if newPeer:
+  if isNewPeer:
     asyncSpawn c.triggerPeerEvents(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
     )
 
-  trace "Stored muxer", muxer, direction = $muxer.connection.dir, peers = c.muxed.len
+  trace "Stored muxer",
+    muxer, direction = $muxer.connection.dir, peers = c.muxerStore.countPeers()
 
 proc getIncomingSlot*(
     c: ConnManager
@@ -483,7 +454,7 @@ proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError
   ##
   trace "Dropping peer", peerId
 
-  let muxers = c.muxed.getOrDefault(peerId)
+  let muxers = c.muxerStore.remove(peerId)
   for muxer in muxers:
     await closeMuxer(muxer)
 
@@ -496,8 +467,6 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   trace "Closing ConnManager"
   c.closed = true
-  let muxed = c.muxed
-  c.muxed.clear()
 
   let expected = c.expectedConnectionsOverLimit
   c.expectedConnectionsOverLimit.clear()
@@ -510,8 +479,10 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
     if not readyEvent.finished:
       readyEvent.cancelSoon()
 
+  let muxed = c.muxerStore.getAll()
   for _, muxers in muxed:
     for mux in muxers:
       await closeMuxer(mux)
+  c.muxerStore.clear()
 
   trace "Closed ConnManager"
