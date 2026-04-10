@@ -312,6 +312,14 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#newRng" title="newRng(): ref HmacDrbgContext">newRng(): ref HmacDrbgContext</a></li>
 
 </ul>
+<ul class="simple nested-toc-section">pick
+  <li><a class="reference" href="#pick%2Cref.HmacDrbgContext%2CopenArray%5BT%5D%2Cint" title="pick[T](rng: ref HmacDrbgContext; x: openArray[T]; n: int): Opt[seq[T]]">pick[T](rng: ref HmacDrbgContext; x: openArray[T]; n: int): Opt[seq[T]]</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">pickOne
+  <li><a class="reference" href="#pickOne%2Cref.HmacDrbgContext%2CopenArray%5BT%5D" title="pickOne[T](rng: ref HmacDrbgContext; x: openArray[T]): Opt[T]">pickOne[T](rng: ref HmacDrbgContext; x: openArray[T]): Opt[T]</a></li>
+
+</ul>
 <ul class="simple nested-toc-section">random
   <li><a class="reference" href="#random%2Ctypedesc%5BKeyPair%5D%2CHmacDrbgContext" title="random(T: typedesc[KeyPair]; rng: var HmacDrbgContext; bits = RsaDefaultKeySize): CryptoResult[
     KeyPair]">random(T: typedesc[KeyPair]; rng: var HmacDrbgContext; bits = RsaDefaultKeySize): CryptoResult[
@@ -630,8 +638,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 Get string representation of private/public key <tt class="docutils literal"><span class="pre">key</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L701" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L701" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L742" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L742" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -640,8 +648,8 @@ Get string representation of private/public key <tt class="docutils literal"><sp
 <dd>
 
 Get string representation of signature <tt class="docutils literal"><span class="pre">sig</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L749" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L749" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L790" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L790" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -653,8 +661,8 @@ Get string representation of signature <tt class="docutils literal"><span class=
 <dd>
 
 Return <tt class="docutils literal"><span class="pre">true</span></tt> if two private keys <tt class="docutils literal"><span class="pre">key1</span></tt> and <tt class="docutils literal"><span class="pre">key2</span></tt> of the same scheme and equal.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L673" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L673" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L714" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L714" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -664,8 +672,8 @@ Return <tt class="docutils literal"><span class="pre">true</span></tt> if two pr
 <dd>
 
 Return <tt class="docutils literal"><span class="pre">true</span></tt> if two public keys <tt class="docutils literal"><span class="pre">key1</span></tt> and <tt class="docutils literal"><span class="pre">key2</span></tt> of the same scheme and equal.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L645" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L645" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L686" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L686" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -678,8 +686,8 @@ Return <tt class="docutils literal"><span class="pre">true</span></tt> if two pu
 <dd>
 
 Return private key <tt class="docutils literal"><span class="pre">key</span></tt> in binary form (using libp2p's protobuf serialization).
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L464" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L464" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L505" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L505" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -689,8 +697,8 @@ Return private key <tt class="docutils literal"><span class="pre">key</span></tt
 <dd>
 
 Return public key <tt class="docutils literal"><span class="pre">key</span></tt> in binary form (using libp2p's protobuf serialization).
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L473" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L473" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L514" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L514" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -699,8 +707,8 @@ Return public key <tt class="docutils literal"><span class="pre">key</span></tt>
 <dd>
 
 Return signature <tt class="docutils literal"><span class="pre">sig</span></tt> in binary form.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L482" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L482" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L523" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L523" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -715,8 +723,8 @@ Return signature <tt class="docutils literal"><span class="pre">sig</span></tt> 
 <p>Deserialize signature from protobuf's message <tt class="docutils literal"><span class="pre">pb</span></tt> using field index <tt class="docutils literal"><span class="pre">field</span></tt>.</p>
 <p>On success deserialized signature will be stored in <tt class="docutils literal"><span class="pre">value</span></tt>.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1023" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1023" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1064" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1064" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -728,8 +736,8 @@ Return signature <tt class="docutils literal"><span class="pre">sig</span></tt> 
 <p>Deserialize public/private key from protobuf's message <tt class="docutils literal"><span class="pre">pb</span></tt> using field index <tt class="docutils literal"><span class="pre">field</span></tt>.</p>
 <p>On success deserialized key will be stored in <tt class="docutils literal"><span class="pre">value</span></tt>.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1004" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1004" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1045" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1045" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -743,8 +751,8 @@ Return signature <tt class="docutils literal"><span class="pre">sig</span></tt> 
 <dd>
 
 Compare values and calculate <tt class="docutils literal"><span class="pre"><span class="Identifier">order</span></span></tt> parameter.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L930" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L930" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L971" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L971" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -757,8 +765,8 @@ Compare values and calculate <tt class="docutils literal"><span class="pre"><spa
 <dd>
 
 Get public key from corresponding private key <tt class="docutils literal"><span class="pre">key</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L346" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L346" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L387" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L387" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -771,8 +779,8 @@ Get public key from corresponding private key <tt class="docutils literal"><span
 <dd>
 
 Return private key <tt class="docutils literal"><span class="pre">key</span></tt> in binary form (using scheme's own serialization).
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L403" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L403" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L444" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L444" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -785,8 +793,8 @@ Return private key <tt class="docutils literal"><span class="pre">key</span></tt
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L549" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L549" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L590" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L590" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -796,8 +804,8 @@ Return private key <tt class="docutils literal"><span class="pre">key</span></tt
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L552" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L552" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L593" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L593" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -809,8 +817,8 @@ Return private key <tt class="docutils literal"><span class="pre">key</span></tt
 <p>Initialize signature <tt class="docutils literal"><span class="pre">sig</span></tt> from raw binary form.</p>
 <p>Returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L557" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L557" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L598" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L598" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -822,8 +830,8 @@ Return private key <tt class="docutils literal"><span class="pre">key</span></tt
 <p>Initialize signature <tt class="docutils literal"><span class="pre">sig</span></tt> from serialized hexadecimal string representation.</p>
 <p>Returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L572" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L572" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L613" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L613" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -833,8 +841,8 @@ Return private key <tt class="docutils literal"><span class="pre">key</span></tt
 <dd>
 
 Create new private key from libp2p's protobuf serialized binary form.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L579" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L579" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L620" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L620" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -844,8 +852,8 @@ Create new private key from libp2p's protobuf serialized binary form.
 <dd>
 
 Create new private key from libp2p's protobuf serialized hexadecimal string form.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L603" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L603" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L644" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L644" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -855,8 +863,8 @@ Create new private key from libp2p's protobuf serialized hexadecimal string form
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L630" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L630" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L671" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L671" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -865,8 +873,8 @@ Create new private key from libp2p's protobuf serialized hexadecimal string form
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L616" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L616" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L657" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L657" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -876,8 +884,8 @@ Create new private key from libp2p's protobuf serialized hexadecimal string form
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L609" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L609" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L650" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L650" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -886,8 +894,8 @@ Create new private key from libp2p's protobuf serialized hexadecimal string form
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L623" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L623" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L664" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L664" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -897,8 +905,8 @@ Create new private key from libp2p's protobuf serialized hexadecimal string form
 <dd>
 
 Create new public key from libp2p's protobuf serialized binary form.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L587" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L587" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L628" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L628" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -908,8 +916,8 @@ Create new public key from libp2p's protobuf serialized binary form.
 <dd>
 
 Create new public key from libp2p's protobuf serialized hexadecimal string form.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L636" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L636" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L677" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L677" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -919,8 +927,8 @@ Create new public key from libp2p's protobuf serialized hexadecimal string form.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L633" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L633" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L674" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L674" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -929,8 +937,8 @@ Create new public key from libp2p's protobuf serialized hexadecimal string form.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L619" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L619" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L660" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L660" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -939,8 +947,8 @@ Create new public key from libp2p's protobuf serialized hexadecimal string form.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L612" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L612" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L653" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L653" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -949,8 +957,8 @@ Create new public key from libp2p's protobuf serialized hexadecimal string form.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L626" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L626" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L667" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L667" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -960,8 +968,8 @@ Create new public key from libp2p's protobuf serialized hexadecimal string form.
 <dd>
 
 Create new public key from libp2p's protobuf serialized binary form.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L595" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L595" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L636" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L636" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -971,8 +979,8 @@ Create new public key from libp2p's protobuf serialized binary form.
 <dd>
 
 Create new signature from serialized hexadecimal string form.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L641" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L641" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L682" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L682" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -984,8 +992,8 @@ Create new signature from serialized hexadecimal string form.
 <p>Initialize private/public key <tt class="docutils literal"><span class="pre">key</span></tt> from libp2p's protobuf serialized hexadecimal string representation.</p>
 <p>Returns <tt class="docutils literal"><span class="pre">true</span></tt> on success.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L565" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L565" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L606" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L606" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -998,8 +1006,8 @@ Create new signature from serialized hexadecimal string form.
 <dd>
 
 Get array of bytes with with initial vector.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L900" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L900" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L941" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L941" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1012,8 +1020,8 @@ Get array of bytes with with initial vector.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L910" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L910" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L951" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L951" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1026,8 +1034,8 @@ Get array of bytes with with initial vector.
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L920" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L920" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L961" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L961" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1046,6 +1054,33 @@ Get array of bytes with with initial vector.
 </div>
 
 </div>
+<div id="pick-procs-all">
+  <div id="pick,ref.HmacDrbgContext,openArray[T],int" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#pick%2Cref.HmacDrbgContext%2CopenArray%5BT%5D%2Cint"><span class="Identifier">pick</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">;</span> <span class="Identifier">x</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">n</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">]</span> {.
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L199" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L199" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="pickOne-procs-all">
+  <div id="pickOne,ref.HmacDrbgContext,openArray[T]" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#pickOne%2Cref.HmacDrbgContext%2CopenArray%5BT%5D"><span class="Identifier">pickOne</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">;</span> <span class="Identifier">x</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L218" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L218" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
 <div id="random-procs-all">
   <div id="random,typedesc[KeyPair],HmacDrbgContext" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BKeyPair%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="crypto.html#KeyPair"><span class="Identifier">KeyPair</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">;</span>
@@ -1056,8 +1091,8 @@ Get array of bytes with with initial vector.
 <p>Default public-key cryptography schemes are following order: ed25519, secp256k1, RSA, secp256r1.</p>
 <p>So will be used first available (supported) method.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L301" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L301" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L342" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L342" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1069,8 +1104,8 @@ Get array of bytes with with initial vector.
 <p>Generate random key pair for scheme <tt class="docutils literal"><span class="pre">scheme</span></tt>.</p>
 <p><tt class="docutils literal"><span class="pre">bits</span></tt> is number of bits for RSA key, <tt class="docutils literal"><span class="pre">bits</span></tt> value must be in <a class="reference internal" href="#512, 4096">512, 4096</a>, default value is 2048 bits.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L245" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L245" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L286" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L286" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1083,8 +1118,8 @@ Get array of bytes with with initial vector.
 <p>Default public-key cryptography schemes are following order: ed25519, secp256k1, RSA, secp256r1.</p>
 <p>So will be used first available (supported) method.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L220" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L220" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L261" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L261" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1096,8 +1131,8 @@ Get array of bytes with with initial vector.
 <p>Generate random private key for scheme <tt class="docutils literal"><span class="pre">scheme</span></tt>.</p>
 <p><tt class="docutils literal"><span class="pre">bits</span></tt> is number of bits for RSA key, <tt class="docutils literal"><span class="pre">bits</span></tt> value must be in <a class="reference internal" href="#2048, 4096">2048, 4096</a>, default value is 3072 bits.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L183" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L183" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L224" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L224" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1112,8 +1147,8 @@ Get array of bytes with with initial vector.
 <p>Determines which algorithm to use from list <tt class="docutils literal"><span class="pre"><span class="Identifier">p1</span></span></tt> and <tt class="docutils literal"><span class="pre"><span class="Identifier">p2</span></span></tt>.</p>
 <p>Returns empty string if there no algorithms in common.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L956" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L956" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L997" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L997" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1125,8 +1160,8 @@ Get array of bytes with with initial vector.
 <dd>
 
 Get short string representation of private/public key <tt class="docutils literal"><span class="pre">key</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L725" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L725" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L766" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L766" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1152,8 +1187,8 @@ Get short string representation of private/public key <tt class="docutils litera
 <dd>
 
 Sign message <tt class="docutils literal"><span class="pre">data</span></tt> using private key <tt class="docutils literal"><span class="pre">key</span></tt> and return generated signature in raw binary form.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L753" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L753" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L794" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L794" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1166,8 +1201,8 @@ Sign message <tt class="docutils literal"><span class="pre">data</span></tt> usi
 <dd>
 
 Expand shared secret to cryptographic keys.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L854" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L854" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L895" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L895" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1182,8 +1217,8 @@ Expand shared secret to cryptographic keys.
 <p>Serialize private key <tt class="docutils literal"><span class="pre">key</span></tt> (using libp2p protobuf scheme) and store it to <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Returns number of bytes (octets) needed to store private key <tt class="docutils literal"><span class="pre">key</span></tt>.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L428" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L428" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L469" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L469" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1195,8 +1230,8 @@ Expand shared secret to cryptographic keys.
 <p>Serialize public key <tt class="docutils literal"><span class="pre">key</span></tt> (using libp2p protobuf scheme) and store it to <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Returns number of bytes (octets) needed to store public key <tt class="docutils literal"><span class="pre">key</span></tt>.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L442" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L442" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L483" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L483" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1208,8 +1243,8 @@ Expand shared secret to cryptographic keys.
 <p>Serialize signature <tt class="docutils literal"><span class="pre">sig</span></tt> and store it to <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Returns number of bytes (octets) needed to store signature <tt class="docutils literal"><span class="pre">sig</span></tt>.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L456" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L456" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L497" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L497" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1224,8 +1259,8 @@ Expand shared secret to cryptographic keys.
 <p>Serialize private key <tt class="docutils literal"><span class="pre">key</span></tt> (using scheme's own serialization) and store it to <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
 <p>Returns number of bytes (octets) needed to store private key <tt class="docutils literal"><span class="pre">key</span></tt>.</p>
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L374" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L374" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L415" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L415" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1238,8 +1273,8 @@ Expand shared secret to cryptographic keys.
 <dd>
 
 Verify signature <tt class="docutils literal"><span class="pre">sig</span></tt> using message <tt class="docutils literal"><span class="pre">message</span></tt> and public key <tt class="docutils literal"><span class="pre">key</span></tt>. Return <tt class="docutils literal"><span class="pre">true</span></tt> if message signature is valid.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L787" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L787" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L828" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L828" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1252,8 +1287,8 @@ Verify signature <tt class="docutils literal"><span class="pre">sig</span></tt> 
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1001" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1001" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1042" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1042" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1263,8 +1298,8 @@ Verify signature <tt class="docutils literal"><span class="pre">sig</span></tt> 
 <dd>
 
 Write PublicKey value <tt class="docutils literal"><span class="pre">pubkey</span></tt> to buffer <tt class="docutils literal"><span class="pre">vb</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L978" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L978" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1019" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1019" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1274,8 +1309,8 @@ Write PublicKey value <tt class="docutils literal"><span class="pre">pubkey</spa
 <dd>
 
 Write PrivateKey value <tt class="docutils literal"><span class="pre">seckey</span></tt> to buffer <tt class="docutils literal"><span class="pre">vb</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L984" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L984" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1025" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1025" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1285,8 +1320,8 @@ Write PrivateKey value <tt class="docutils literal"><span class="pre">seckey</sp
 <dd>
 
 Write Signature value <tt class="docutils literal"><span class="pre">sig</span></tt> to buffer <tt class="docutils literal"><span class="pre">vb</span></tt>.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L990" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L990" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1031" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1031" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1296,8 +1331,8 @@ Write Signature value <tt class="docutils literal"><span class="pre">sig</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L996" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L996" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L1037" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L1037" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1315,8 +1350,8 @@ Write Signature value <tt class="docutils literal"><span class="pre">sig</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L878" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L878" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L919" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L919" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1328,8 +1363,8 @@ Write Signature value <tt class="docutils literal"><span class="pre">sig</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L881" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L881" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L922" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L922" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1341,8 +1376,8 @@ Write Signature value <tt class="docutils literal"><span class="pre">sig</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L886" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L886" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L927" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L927" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1354,8 +1389,8 @@ Write Signature value <tt class="docutils literal"><span class="pre">sig</span><
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L893" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L893" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/crypto/crypto.nim#L934" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/crypto/crypto.nim#L934" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -1403,7 +1438,7 @@ Returns true if specified <tt class="docutils literal"><span class="pre">scheme<
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-09 09:56:51 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-10 10:12:54 UTC</small>
       </div>
     </div>
   </div>
