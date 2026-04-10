@@ -355,8 +355,11 @@ proc storeMuxer*(
       raise newTooManyConnectionsError()
 
   let isNewPeer = c.muxerStore.count(peerId) == 0
-  discard c.muxerStore.add(muxer)
-  libp2p_peers.set(c.muxerStore.count(peerId).int64)
+
+  if not c.muxerStore.add(muxer):
+    raise newException(LPError, "muxer already stored")
+
+  libp2p_peers.set(c.muxerStore.countPeers().int64)
 
   asyncSpawn c.onClose(muxer)
 
