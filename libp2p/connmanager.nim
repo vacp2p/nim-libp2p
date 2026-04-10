@@ -468,7 +468,7 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   let muxed = c.muxerStore.getAll()
   c.muxerStore.clear()
-  for _, muxers in muxed:
+  for peerId, muxers in muxed:
     for mux in muxers:
       await closeMuxer(mux)
     await c.onPeerDisconnected(peerId)
