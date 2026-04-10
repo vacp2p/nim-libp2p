@@ -433,9 +433,7 @@ proc handleData*(
           futs = await allFinished(futs)
         except CancelledError:
           # propagate cancellation
-          for fut in futs:
-            if not (fut.finished):
-              fut.cancelSoon()
+          futs.cancelSoon()
 
         # check for errors in futures
         for fut in futs:
