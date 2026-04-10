@@ -66,3 +66,35 @@ suite "Future":
       f.cancelSoon()
 
     check f.cancelled()
+
+  asyncTest "cancelSoon cancels pending futures":
+    proc longRunning() {.async.} =
+      await sleepAsync(10.seconds)
+
+    var f1 = longRunning()
+    var f2 = longRunning()
+    var f3 = longRunning()
+
+    check not f1.finished()
+    check not f2.finished()
+    check not f3.finished()
+
+    @[f1, f2, f3].cancelSoon()
+
+    checkUntilTimeout:
+      f1.cancelled() and f2.cancelled() and f3.cancelled()
+
+  asyncTest "cancelSoon is no-op for completed futures":
+    var f1 = newFuture[void]()
+    var f2 = newFuture[void]()
+    f1.complete()
+    f2.fail(newException(CatchableError, "error"))
+
+    check f1.completed()
+    check f2.failed()
+
+    # cancelSoon on already-finished futures should not raise or change state
+    @[f1, f2].cancelSoon()
+
+    check f1.completed()
+    check f2.failed()
