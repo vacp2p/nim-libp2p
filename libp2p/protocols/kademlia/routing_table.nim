@@ -6,6 +6,7 @@ import bearssl/rand, chronos, chronicles, results
 import ./types
 import ./kademlia_metrics
 import ../../peerid
+import ../../crypto/crypto
 import ../../utils/sequninit
 
 logScope:
@@ -34,7 +35,7 @@ proc new*(
 proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
   return xorDistance(selfId, key, hasher).leadingZeros
 
-proc peerIndexInBucket(bucket: var Bucket, nodeId: Key): Opt[int] =
+proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
     if p.nodeId == nodeId:
       return Opt.some(i)
@@ -74,7 +75,7 @@ proc updateRoutingTableMetrics*(rtable: RoutingTable) =
   kad_routing_table_peers.set(total.float64)
   kad_routing_table_buckets.set(rtable.buckets.len.float64)
 
-proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
+proc insert*(rtable: RoutingTable, nodeId: Key): bool =
   if nodeId == rtable.selfId:
     debug "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
@@ -108,7 +109,7 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
   updateRoutingTableMetrics(rtable)
   return true
 
-proc insert*(rtable: var RoutingTable, peerId: PeerId): bool =
+proc insert*(rtable: RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
@@ -142,7 +143,7 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: var HmacDrbgContext): Key =
+proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext): Key =
   var raw = selfId
 
   # zero out higher bits
@@ -156,22 +157,21 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: var HmacDrbgContext)
   let tgtBitInByte = 7 - (bucketIndex mod 8)
   raw[tgtByte] = raw[tgtByte] xor (1'u8 shl tgtBitInByte)
 
-  # randomize all less significant bits
-  let totalBits = raw.len * 8
-  let lsbStart = bucketIndex + 1
-  let lsbBytes = (totalBits - lsbStart + 7) div 8
-  var randomBuf = newSeqUninit[byte](lsbBytes)
-  rng.hmacDrbgGenerate(randomBuf)
+  # randomize lower bits of the boundary byte
+  let lsbMask = (1'u8 shl tgtBitInByte) - 1
+  if lsbMask != 0:
+    var rb: array[1, byte]
+    hmacDrbgGenerate(rng[], rb)
+    raw[tgtByte] = (raw[tgtByte] and not lsbMask) or (rb[0] and lsbMask)
 
-  for i in lsbStart ..< totalBits:
-    let byteIdx = i div 8
-    let bitInByte = 7 - (i mod 8)
-    let lsbByte = (i - lsbStart) div 8
-    let lsbBit = 7 - ((i - lsbStart) mod 8)
-    let randBit = (randomBuf[lsbByte] shr lsbBit) and 1
-    if randBit == 1:
-      raw[byteIdx] = raw[byteIdx] or (1'u8 shl bitInByte)
-    else:
-      raw[byteIdx] = raw[byteIdx] and not (1'u8 shl bitInByte)
+  # randomize remaining bytes
+  if tgtByte + 1 < raw.len:
+    hmacDrbgGenerate(rng[], raw.toOpenArray(tgtByte + 1, raw.len - 1))
 
   return raw
+
+proc randomPeer*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
+  rng.pickOne(bucket.peers).map(
+    proc(e: NodeEntry): Key =
+      e.nodeId
+  )

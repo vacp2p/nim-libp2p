@@ -7,7 +7,7 @@ import ../../../[alloc, ffi_types]
 import ../../../../libp2p
 import ../../../../libp2p/extended_peer_record
 import ../../../../libp2p/protocols/kademlia
-import ../../../../libp2p/protocols/kademlia_discovery/[randomfind, types]
+import ../../../../libp2p/protocols/kademlia_discovery/[random_find, types]
 import ./libp2p_peer_manager_requests
 
 type KademliaMsgType* = enum
