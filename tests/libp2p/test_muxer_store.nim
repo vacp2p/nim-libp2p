@@ -10,7 +10,8 @@ import ../tools/unittest
 
 template makeMuxer(name: untyped, pid: PeerId, dir: Direction = Direction.In) =
   let name = Muxer(connection: Connection.new(pid, dir))
-  defer: await name.close()
+  defer:
+    await name.close()
 
 suite "MuxerStore":
   teardown:

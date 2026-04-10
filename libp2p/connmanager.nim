@@ -158,12 +158,6 @@ proc waitForPeerReady*(
 proc maxConnections*(c: ConnManager, dir: Direction): int =
   if dir == Direction.In: c.maxConnectionsIn else: c.maxConnectionsOut
 
-proc availableSlots*(c: ConnManager, dir: Direction): int =
-  if dir == Direction.In:
-    c.inSema.availableSlots()
-  else:
-    c.outSema.availableSlots()
-
 proc connectedPeers*(c: ConnManager, dir: Direction): seq[PeerId] =
   c.muxerStore.getPeers(dir)
 
@@ -352,7 +346,8 @@ proc storeMuxer*(
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Too many connections for peer", conns = c.muxerStore.count(peerId), peerId, dir
+      debug "Too many connections for peer",
+        conns = c.muxerStore.count(peerId), peerId, dir
 
       raise newTooManyConnectionsError()
 
@@ -401,7 +396,7 @@ proc getOutgoingSlot*(
 func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
   return if dir == In: c.inSema else: c.outSema
 
-proc slotsAvailable*(c: ConnManager, dir: Direction): int =
+proc availableSlots*(c: ConnManager, dir: Direction): int =
   return semaphore(c, dir).availableSlots
 
 proc release*(cs: ConnectionSlot) =
