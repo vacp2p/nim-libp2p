@@ -4,9 +4,10 @@
 {.used.}
 
 import chronos, json, stew/[byteutils]
-import ../../libp2p/[peerid, protocols/pubsub/gossipsub, protocols/pubsub/rpc/message]
-import ../../interop/gossipsub/src/[node, instructions]
-import ../tools/[unittest]
+import
+  ../../../libp2p/[peerid, protocols/pubsub/gossipsub, protocols/pubsub/rpc/message]
+import ../../../interop/gossipsub/src/[node, instructions]
+import ../../tools/[unittest]
 
 suite "GossipSub Interop":
   const expectedPeerIds = [
