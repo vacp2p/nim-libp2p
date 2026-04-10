@@ -5,7 +5,7 @@ import std/[tables, sequtils, sets, algorithm]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash]
 import ../protocol
-import ./[routingtable, protobuf, types, kademlia_metrics]
+import ./[routing_table, protobuf, types, kademlia_metrics]
 
 logScope:
   topics = "kad-dht find"
