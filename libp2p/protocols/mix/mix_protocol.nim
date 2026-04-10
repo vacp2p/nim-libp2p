@@ -7,10 +7,10 @@ import
   ./[
     curve25519, delay, fragmentation, mix_message, mix_node, sphinx, serialization,
     tag_manager, mix_metrics, exit_layer, multiaddr, exit_connection, spam_protection,
-    delay_strategy, pool,
+    delay_strategy, pool, cover_traffic,
   ]
 import ../protocol
-import ../../utils/[sequninit, future]
+import ../../utils/sequninit
 import ../../stream/[connection, lpstream]
 import ../../[switch, multicodec, peerinfo, varint]
 import ../../peerstore
@@ -54,6 +54,7 @@ type MixProtocol* = ref object of LPProtocol
   connPool: Table[PeerId, Connection]
   spamProtection: Opt[SpamProtection]
   delayStrategy: DelayStrategy
+  coverTraffic*: Opt[CoverTraffic]
 
 proc hasDestReadBehavior*(mixProto: MixProtocol, codec: string): bool =
   return mixProto.destReadBehavior.hasKey(codec)
@@ -266,6 +267,15 @@ method handleMixMessages*(
       mix_messages_error.inc(labelValues = ["Exit", "INVALID_SPHINX"])
       return
 
+    # Cover packets use an empty codec to avoid introducing a reserved protocol codec
+    if deserialized.codec.len == 0:
+      trace "Cover packet received (loop), discarding",
+        peerId = mixProto.mixNodeInfo.peerId
+      mix_cover_received.inc()
+      if mixProto.coverTraffic.isSome:
+        mixProto.coverTraffic.get().onCoverReceived()
+      return
+
     let (surbs, message) = extractSURBs(deserialized.message).valueOr:
       error "Extracting surbs from payload failed", err = error
       mix_messages_error.inc(labelValues = ["Exit", "INVALID_MSG_SURBS"])
@@ -341,6 +351,15 @@ method handleMixMessages*(
     trace "Intermediate node processing",
       peerId = mixProto.mixNodeInfo.peerId, multiAddr = mixProto.mixNodeInfo.multiAddr
     mix_messages_recvd.inc(labelValues = ["Intermediate"])
+
+    # Claim a slot for forwarding (Mix Cover Traffic spec §6.4)
+    if mixProto.coverTraffic.isSome:
+      if not mixProto.coverTraffic.get().slotPool.claimSlot():
+        warn "Slot exhaustion, dropping forwarded packet"
+        mix_messages_error.inc(labelValues = ["Intermediate", "SLOT_EXHAUSTED"])
+        mix_slots_exhausted.inc(labelValues = ["forward"])
+        return
+
     let actualDelay = mixProto.delayStrategy.generateForIntermediate(processedSP.delay)
     trace "Computed delay", encodedDelay = processedSP.delay, actualDelay
 
@@ -454,9 +473,9 @@ method buildSurb*(
     return err("No. of public mix nodes less than path length")
 
   # Remove exit and dest node from nodes to consider for surbs
-  var pubNodeInfoKeys =
+  var poolPeerIds =
     mixProto.nodePool.peerIds().filterIt(it != exitPeerId and it != destPeerId)
-  var availableIndices = toSeq(0 ..< pubNodeInfoKeys.len)
+  var availableIndices = toSeq(0 ..< poolPeerIds.len)
 
   # Select L mix nodes at random
   for i in 0 ..< PathLength:
@@ -465,7 +484,7 @@ method buildSurb*(
         let randomIndexPosition = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
           return err("failed to generate random num: " & error)
         let selectedIndex = availableIndices[randomIndexPosition]
-        let randPeerId = pubNodeInfoKeys[selectedIndex]
+        let randPeerId = poolPeerIds[selectedIndex]
         availableIndices.del(randomIndexPosition)
         debug "Selected mix node for surbs: ", indexInPath = i, peerId = randPeerId
         let mixPubInfo = mixProto.nodePool.get(randPeerId).valueOr:
@@ -644,9 +663,15 @@ proc anonymizeLocalProtocolSend*(
 
   mix_messages_recvd.inc(labelValues = ["Entry"])
 
+  # Claim a slot for local origination (Mix Cover Traffic spec §6.3)
+  if mixProto.coverTraffic.isSome:
+    if not mixProto.coverTraffic.get().slotPool.claimSlot():
+      mix_slots_exhausted.inc(labelValues = ["send"])
+      return err("No slots available in current epoch")
+
   var logConfig = SendPacketLogConfig(logType: Entry)
   when defined(enable_mix_benchmarks):
-    # Assumes a fixed message layout whose first 16 bytes are the time at 
+    # Assumes a fixed message layout whose first 16 bytes are the time at
     # origin and msgId
     logConfig.startTime = getTime()
     logConfig.metadata = Metadata.deserialize(msg)
@@ -673,10 +698,10 @@ proc anonymizeLocalProtocolSend*(
     )
 
   # Skip the destination peer
-  var pubNodeInfoKeys = mixProto.nodePool.peerIds()
-  var availableIndices = toSeq(0 ..< pubNodeInfoKeys.len)
+  var poolPeerIds = mixProto.nodePool.peerIds()
+  var availableIndices = toSeq(0 ..< poolPeerIds.len)
 
-  let index = pubNodeInfoKeys.find(destination.peerId)
+  let index = poolPeerIds.find(destination.peerId)
   if index != -1:
     availableIndices.del(index)
   elif destination.kind == MixNode:
@@ -693,7 +718,7 @@ proc anonymizeLocalProtocolSend*(
       mix_messages_error.inc(labelValues = ["Entry", "NON_RECOVERABLE"])
       return err(fmt"Failed to generate random number: {error}")
     let selectedIndex = availableIndices[randomIndexPosition]
-    var randPeerId = pubNodeInfoKeys[selectedIndex]
+    var randPeerId = poolPeerIds[selectedIndex]
     availableIndices.del(randomIndexPosition)
 
     if destination.kind == ForwardAddr and randPeerId == destination.peerId:
@@ -800,11 +825,115 @@ proc reply(
   if sendRes.isErr:
     error "could not send reply", peerId, multiAddr, err = sendRes.error
 
-method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: [], raw: true).} =
+type PathNode = tuple[peerId: PeerId, multiAddr: MultiAddress, mixPubKey: FieldElement]
+
+proc selectRandomNodes(
+    mixProto: MixProtocol, count: int, excludePeerIds: openArray[PeerId]
+): Result[seq[PathNode], string] {.raises: [].} =
+  ## Select `count` random mix nodes from the pool, excluding specified peers.
+  let poolPeerIds = mixProto.nodePool.peerIds()
+  var availableIndices: seq[int] = @[]
+  for i in 0 ..< poolPeerIds.len:
+    if poolPeerIds[i] notin excludePeerIds:
+      availableIndices.add(i)
+
+  if availableIndices.len < count:
+    return err("Not enough mix nodes in pool")
+
+  var selected: seq[PathNode] = @[]
+  for _ in 0 ..< count:
+    let pos = cryptoRandomInt(mixProto.rng, availableIndices.len).valueOr:
+      return err("Failed to generate random number: " & error)
+    let idx = availableIndices[pos]
+    let peerId = poolPeerIds[idx]
+    availableIndices.del(pos)
+
+    let mixPubInfo = mixProto.nodePool.get(peerId).valueOr:
+      return err("Could not get mix pub info for peer: " & $peerId)
+    let (pid, multiAddr, mixPubKey, _) = mixPubInfo.get()
+    selected.add((peerId: pid, multiAddr: multiAddr, mixPubKey: mixPubKey))
+
+  ok(selected)
+
+proc buildCoverPacket*(
+    mixProto: MixProtocol
+): Result[
+    tuple[packet: seq[byte], firstHopPeerId: PeerId, firstHopAddr: MultiAddress], string
+] {.raises: [].} =
+  ## Build a cover Sphinx packet with a loop path (self = exit node),
+  ## random payload, and an empty codec.
+  let nodes = mixProto.selectRandomNodes(PathLength - 1, [mixProto.mixNodeInfo.peerId]).valueOr:
+    return err(error)
+
+  var
+    publicKeys: seq[FieldElement] = @[]
+    hops: seq[Hop] = @[]
+    delays: seq[Delay] = @[]
+
+  for node in nodes:
+    let addrBytes = multiAddrToBytes(node.peerId, node.multiAddr).valueOr:
+      return err("Failed to convert multiaddress to bytes: " & error)
+    publicKeys.add(node.mixPubKey)
+    hops.add(Hop.init(addrBytes))
+    delays.add(mixProto.delayStrategy.generateForEntry())
+
+  let selfAddrBytes = multiAddrToBytes(
+    mixProto.mixNodeInfo.peerId, mixProto.mixNodeInfo.multiAddr
+  ).valueOr:
+    return err("Failed to convert self multiaddress to bytes: " & error)
+  publicKeys.add(mixProto.mixNodeInfo.mixPubKey)
+  hops.add(Hop.init(selfAddrBytes))
+  delays.add(NoDelay)
+
+  # Empty codec identifies cover packets at exit processing
+  let maxMsgSize = getMaxMessageSizeForCodec("").valueOr:
+    return err("Failed to get max message size for cover codec: " & error)
+  var randomPayload = newSeq[byte](maxMsgSize)
+  mixProto.rng[].generate(randomPayload)
+
+  let message = buildMessage(randomPayload, "", mixProto.mixNodeInfo.peerId).valueOr:
+    return err("Error building cover message: " & error[0])
+
+  let sphinxPacket = wrapInSphinxPacket(message, publicKeys, delays, hops, Hop()).valueOr:
+    return err("Failed to wrap cover sphinx packet: " & error)
+
+  let packetToSend = mixProto.generateAndAppendProof(sphinxPacket.serialize(), "Cover").valueOr:
+    return err("Failed to generate proof for cover packet: " & error)
+
+  let firstNode = nodes[0]
+  ok(
+    (
+      packet: packetToSend,
+      firstHopPeerId: firstNode.peerId,
+      firstHopAddr: firstNode.multiAddr,
+    )
+  )
+
+proc sendCoverPacket*(
+    mixProto: MixProtocol, peerId: PeerId, multiAddr: MultiAddress, packet: seq[byte]
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+  try:
+    await mixProto.writeLp(peerId, @[multiAddr], @[MixProtocolID], packet)
+    mix_messages_forwarded.inc(labelValues = ["Cover"])
+    return ok()
+  except DialFailedError as exc:
+    mix_messages_error.inc(labelValues = ["Cover", "SEND_FAILED"])
+    return err("Failed to dial for cover packet: " & exc.msg)
+  except LPStreamError as exc:
+    mix_messages_error.inc(labelValues = ["Cover", "SEND_FAILED"])
+    return err("Failed to write cover packet: " & exc.msg)
+
+method start*(mixProto: MixProtocol) {.async: (raises: [CancelledError]).} =
+  await procCall LPProtocol(mixProto).start()
+  if mixProto.coverTraffic.isSome:
+    asyncSpawn mixProto.coverTraffic.get().start()
+
+method stop*(mixProto: MixProtocol) {.async: (raises: []).} =
   ## Stop the MixProtocol background tasks.
   mixProto.started = false
   mixProto.tagManager.stopSoon()
-  newFutureCompleted[void]()
+  if mixProto.coverTraffic.isSome:
+    await mixProto.coverTraffic.get().stop()
 
 proc init*(
     mixProto: MixProtocol,
@@ -813,6 +942,7 @@ proc init*(
     tagManager: TagManager = TagManager.new(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
+    coverTraffic: Opt[CoverTraffic] = Opt.none(CoverTraffic),
 ) {.raises: [].} =
   ## Initialize a MixProtocol instance.
   ##
@@ -839,6 +969,28 @@ proc init*(
   mixProto.delayStrategy = delayStrategy.valueOr:
     NoSamplingDelayStrategy.new(rng)
 
+  mixProto.coverTraffic = coverTraffic
+  if coverTraffic.isSome:
+    let ct = coverTraffic.get()
+    ct.setCoverPacketBuilder(
+      proc(): Result[
+          tuple[packet: seq[byte], firstHopPeerId: PeerId, firstHopAddr: MultiAddress],
+          string,
+      ] {.gcsafe, raises: [].} =
+        mixProto.buildCoverPacket()
+    )
+    ct.setCoverPacketSender(
+      proc(
+          peerId: PeerId, multiAddr: MultiAddress, packet: seq[byte]
+      ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+        await mixProto.sendCoverPacket(peerId, multiAddr, packet)
+    )
+    if spamProtection.isSome:
+      spamProtection.get().registerOnEpochChange(
+        proc(epoch: uint64) {.gcsafe, raises: [].} =
+          ct.onEpochChange(epoch)
+      )
+
   let onReplyDialer = proc(
       surb: SURB, message: seq[byte]
   ) {.async: (raises: [CancelledError]).} =
@@ -862,6 +1014,7 @@ proc new*(
     tagManager: TagManager = TagManager.new(),
     spamProtection: Opt[SpamProtection] = default(Opt[SpamProtection]),
     delayStrategy: Opt[DelayStrategy] = Opt.none(DelayStrategy),
+    coverTraffic: Opt[CoverTraffic] = Opt.none(CoverTraffic),
 ): T {.raises: [].} =
   ## Create a new MixProtocol instance.
   ##
@@ -872,5 +1025,7 @@ proc new*(
   ## `SpamProtectionDelayStrategy` to avoid timing correlation between proof
   ## generation and short exponential delays.
   let mixProto = new(T)
-  mixProto.init(mixNodeInfo, switch, tagManager, spamProtection, delayStrategy)
+  mixProto.init(
+    mixNodeInfo, switch, tagManager, spamProtection, delayStrategy, coverTraffic
+  )
   mixProto

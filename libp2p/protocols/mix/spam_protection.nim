@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## This module defines the spam protection interface for the Mix Protocol
 ## as specified in section 9.6 of the MIX protocol specification.
@@ -8,11 +8,17 @@
 
 import results
 
-type SpamProtection* = ref object of RootObj
-  ## Abstract interface that spam protection mechanisms must implement
-  ## to integrate with the Mix Protocol.
-  ## Uses per-hop proof generation architecture.
-  proofSize*: int
+type
+  EpochChangeCallback* = proc(epoch: uint64) {.gcsafe, raises: [].}
+    ## Callback invoked when the DoS protection mechanism detects an epoch transition.
+    ## See Mix DoS Protection spec §8.2.3.
+
+  SpamProtection* = ref object of RootObj
+    ## Abstract interface that spam protection mechanisms must implement
+    ## to integrate with the Mix Protocol.
+    ## Uses per-hop proof generation architecture.
+    proofSize*: int
+    epochChangeCallbacks*: seq[EpochChangeCallback]
 
 method generateProof*(
     self: SpamProtection, bindingData: seq[byte]
@@ -55,6 +61,26 @@ method verifyProof*(
   ##
   ## Note: This base implementation should be overridden by concrete types.
   raiseAssert "verifyProof must be implemented by concrete spam protection types"
+
+method registerOnEpochChange*(
+    self: SpamProtection, cb: EpochChangeCallback
+) {.base, gcsafe, raises: [].} =
+  self.epochChangeCallbacks.add(cb)
+
+method epochDurationSeconds*(
+    self: SpamProtection
+): float64 {.base, gcsafe, raises: [].} =
+  ## Base returns 0.0 (unknown). Override in concrete implementations.
+  0.0
+
+method rateLimitBudget*(self: SpamProtection): int {.base, gcsafe, raises: [].} =
+  ## Base returns 0 (unknown). Override in concrete implementations.
+  0
+
+proc notifyEpochChange*(self: SpamProtection, epoch: uint64) {.raises: [].} =
+  ## Fire all registered epoch change callbacks.
+  for cb in self.epochChangeCallbacks:
+    cb(epoch)
 
 # Note: To disable spam protection, pass nil as the spamProtection parameter
 # when initializing MixProtocol. No no-op implementation is needed.
