@@ -442,16 +442,16 @@ proc getStream*(
 
   return await c.getStream(c.selectMuxer(peerId, dir))
 
-proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError]).} =
+proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
   ## drop connections and cleanup resources for peer
   ##
   trace "Dropping peer", peerId
 
   let muxers = c.muxerStore.remove(peerId)
   for muxer in muxers:
-    await closeMuxer(muxer)
+    await noCancel closeMuxer(muxer)
   if muxers.len > 0:
-    await c.onPeerDisconnected(peerId)
+    await noCancel c.onPeerDisconnected(peerId)
 
   trace "Peer dropped", peerId
 
