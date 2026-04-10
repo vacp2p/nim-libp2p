@@ -272,26 +272,13 @@ proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
       trace "Exception in close muxer handler", description = exc.msg
   trace "Cleaned up muxer", m = muxer
 
-proc muxCleanup(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
-  try:
-    trace "Triggering disconnect events", mux
-    let peerId = mux.connection.peerId
-
-    discard c.muxerStore.remove(mux)
-
-    if c.muxerStore.count(peerId) == 0:
-      c.clearPeerReadyState(peerId)
-      libp2p_peers.set(c.muxerStore.countPeers.int64)
-      await c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
-
-      if not c.peerStore.isNil:
-        c.peerStore.cleanup(peerId)
-
-    await c.triggerConnEvent(peerId, ConnEvent(kind: ConnEventKind.Disconnected))
-  except CatchableError as exc:
-    # This is top-level procedure which will work as separate task, so it
-    # do not need to propagate CancelledError and should handle other errors
-    warn "Unexpected exception peer cleanup handler", mux, description = exc.msg
+proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
+  c.clearPeerReadyState(peerId)
+  libp2p_peers.set(c.muxerStore.countPeers.int64)
+  await noCancel c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
+  await noCancel c.triggerConnEvent(peerId, ConnEvent(kind: ConnEventKind.Disconnected))
+  if not c.peerStore.isNil:
+    c.peerStore.cleanup(peerId)
 
 proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
   ## connection close event handler
@@ -305,7 +292,10 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     debug "Unexpected exception in connection manager's cleanup",
       description = exc.msg, mux
   finally:
-    await c.muxCleanup(mux)
+    let peerId = mux.connection.peerId
+    let removed = c.muxerStore.remove(mux)
+    if removed and c.muxerStore.count(peerId) == 0:
+      await c.onPeerDisconnected(peerId)
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer {.inline.} =
   ## Select a connection for the provided peer and direction
@@ -458,6 +448,7 @@ proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError
   let muxers = c.muxerStore.remove(peerId)
   for muxer in muxers:
     await closeMuxer(muxer)
+  await c.onPeerDisconnected(peerId)
 
   trace "Peer dropped", peerId
 
