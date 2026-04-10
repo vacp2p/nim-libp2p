@@ -264,7 +264,7 @@ suite "GossipSub Component - Message Cache":
     nodes[2].broadcast(
       @[nodes[2].getPeerByPeerId(topic, nodes[0].peerInfo.peerId)],
       RPCMsg.withControl(ControlMessage.withIWant(@[messageId1, messageId2])),
-      priority = MessagePriority.Low,
+      MessagePriority.Low,
     )
 
     # Then Node2 receives only messageId2 and messageId1 is dropped

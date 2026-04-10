@@ -54,18 +54,18 @@ when defined(pubsubpeer_queue_metrics):
     labels = ["id"],
   )
 
-declareCounter(
-  libp2p_pubsub_disconnects_over_high_priority_queue_limit,
-  "number of peers disconnected due to high-priority queue overflow",
-)
-declareCounter(
-  libp2p_pubsub_medium_priority_queue_drops,
-  "number of messages dropped from medium-priority queue due to overflow",
-)
-declareCounter(
-  libp2p_pubsub_low_priority_queue_drops,
-  "number of messages dropped from low-priority queue due to overflow",
-)
+  declareCounter(
+    libp2p_pubsub_disconnects_over_high_priority_queue_limit,
+    "number of peers disconnected due to high-priority queue overflow",
+  )
+  declareCounter(
+    libp2p_pubsub_medium_priority_queue_drops,
+    "number of messages dropped from medium-priority queue due to overflow",
+  )
+  declareCounter(
+    libp2p_pubsub_low_priority_queue_drops,
+    "number of messages dropped from low-priority queue due to overflow",
+  )
 
 const
   DefaultMaxHighPriorityQueueLen* = 256
@@ -378,17 +378,13 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64, labelValues = [$p.peerId]
     )
 
-proc sendMsgContinue(
-    conn: Connection, msgFut: Future[void]
-) {.async: (raises: [CancelledError]).} =
+proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
   # Continuation for a pending `sendMsg` future from below
   try:
     await msgFut
     trace "sent pubsub message to remote", conn
-  except CancelledError as exc:
-    raise exc
   except CatchableError as exc:
-    trace "sending encoded msg to peer failed", conn, description = exc.msg
+    trace "Unexpected exception in sendMsgContinue", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
     await conn.close() # This will clean up the send connection
@@ -411,7 +407,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
-): Future[void] {.async: (raises: [CancelledError]).} =
+): Future[void] {.async: (raises: []).} =
   type ConnectionType = enum
     ctCustom
     ctSend
@@ -436,15 +432,69 @@ proc sendMsg(
       conntype = $connType, conn = conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
     if not f.completed():
-      await sendMsgContinue(conn, f)
+      sendMsgContinue(conn, f)
     else:
       if f.failed():
         trace "sending encoded msg to peer failed", description = f.error.msg
       else:
         trace "sent pubsub message to remote", conn
+      f
   else:
     trace "sending encoded msg to peer via slow path"
-    await sendMsgSlow(p, msg)
+    sendMsgSlow(p, msg)
+
+proc sendHighPriorityMessage(
+    p: PubSubPeer, msg: seq[byte], useCustomConn: bool
+): Future[void] =
+  # Check high-priority queue bound - if exceeded, the peer is too slow
+  # to keep up with protocol-critical messages and must be disconnected.
+  if p.rpcmessagequeue.sendPriorityQueue.len >= p.maxHighPriorityQueueLen:
+    if not p.disconnected:
+      p.disconnected = true
+      when defined(pubsubpeer_queue_metrics):
+        libp2p_pubsub_disconnects_over_high_priority_queue_limit.inc()
+      return p.closeSendConn(PubSubPeerEventKind.DisconnectionRequested)
+
+    return newFutureCompleted[void]()
+
+  let f = p.sendMsg(msg, useCustomConn)
+  if not f.finished:
+    p.rpcmessagequeue.sendPriorityQueue.addLast(f)
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_gossipsub_high_priority_queue_size.inc(labelValues = [$p.peerId])
+  return f
+
+proc sendMediumPriorityMessage(
+    p: PubSubPeer, msg: seq[byte], useCustomConn: bool
+): Future[void] =
+  let queuedMsg = QueuedMessage(data: msg, useCustomConn: useCustomConn)
+  if p.rpcmessagequeue.mediumPriorityQueue.len >= p.maxMediumPriorityQueueLen:
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_pubsub_medium_priority_queue_drops.inc()
+    trace "medium priority queue full, dropping message", p
+  else:
+    p.rpcmessagequeue.mediumPriorityQueue.addLast(queuedMsg)
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_gossipsub_medium_priority_queue_size.inc(labelValues = [$p.peerId])
+    p.rpcmessagequeue.dataAvailableEvent.fire()
+
+  return newFutureCompleted[void]()
+
+proc sendLowPriorityMessage(
+    p: PubSubPeer, msg: seq[byte], useCustomConn: bool
+): Future[void] =
+  let queuedMsg = QueuedMessage(data: msg, useCustomConn: useCustomConn)
+  if p.rpcmessagequeue.lowPriorityQueue.len >= p.maxLowPriorityQueueLen:
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_pubsub_low_priority_queue_drops.inc()
+    trace "low priority queue full, dropping message", p
+  else:
+    p.rpcmessagequeue.lowPriorityQueue.addLast(queuedMsg)
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_gossipsub_low_priority_queue_size.inc(labelValues = [$p.peerId])
+    p.rpcmessagequeue.dataAvailableEvent.fire()
+
+  return newFutureCompleted[void]()
 
 proc sendEncoded*(
     p: PubSubPeer,
@@ -463,7 +513,7 @@ proc sendEncoded*(
   ##   - `Low`: queued in `lowPriorityQueue`. Dropped when full.
   ## - `useCustomConn`: boolean used to indicate if a custom connection is going to 
   ##   be used for sending this message
-  ## Lower priority messages are queued and sent only after all high
+  ## Low and medium priority messages are queued and sent only after all high
   ## priority messages have been sent.
   doAssert(not isNil(p), "pubsubpeer nil!")
 
@@ -484,52 +534,11 @@ proc sendEncoded*(
       maxSize = p.maxMessageSize, msgSize = msg.len
     newFutureCompleted[void]()
   elif priority == MessagePriority.High or emptyQueues:
-    # High priority: always send immediately.
-    # Empty queues: any priority sends immediately for lower latency.
-    let f = p.sendMsg(msg, useCustomConn)
-    if not f.finished:
-      p.rpcmessagequeue.sendPriorityQueue.addLast(f)
-      when defined(pubsubpeer_queue_metrics):
-        libp2p_gossipsub_high_priority_queue_size.inc(labelValues = [$p.peerId])
-      # Check high-priority queue bound — if exceeded, the peer is too slow
-      # to keep up with protocol-critical messages and must be disconnected.
-      if p.rpcmessagequeue.sendPriorityQueue.len > p.maxHighPriorityQueueLen:
-        if not p.disconnected:
-          p.disconnected = true
-          libp2p_pubsub_disconnects_over_high_priority_queue_limit.inc()
-          p.closeSendConn(PubSubPeerEventKind.DisconnectionRequested)
-        else:
-          newFutureCompleted[void]()
-      else:
-        f
-    else:
-      f
+    p.sendHighPriorityMessage(msg, useCustomConn)
   elif priority == MessagePriority.Medium:
-    if p.rpcmessagequeue.mediumPriorityQueue.len >= p.maxMediumPriorityQueueLen:
-      libp2p_pubsub_medium_priority_queue_drops.inc()
-      trace "medium priority queue full, dropping message", p
-      newFutureCompleted[void]()
-    else:
-      p.rpcmessagequeue.mediumPriorityQueue.addLast(
-        QueuedMessage(data: msg, useCustomConn: useCustomConn)
-      )
-      when defined(pubsubpeer_queue_metrics):
-        libp2p_gossipsub_medium_priority_queue_size.inc(labelValues = [$p.peerId])
-      p.rpcmessagequeue.dataAvailableEvent.fire()
-      newFutureCompleted[void]()
+    p.sendMediumPriorityMessage(msg, useCustomConn)
   else: # Low
-    if p.rpcmessagequeue.lowPriorityQueue.len >= p.maxLowPriorityQueueLen:
-      libp2p_pubsub_low_priority_queue_drops.inc()
-      trace "low priority queue full, dropping message", p
-      newFutureCompleted[void]()
-    else:
-      p.rpcmessagequeue.lowPriorityQueue.addLast(
-        QueuedMessage(data: msg, useCustomConn: useCustomConn)
-      )
-      when defined(pubsubpeer_queue_metrics):
-        libp2p_gossipsub_low_priority_queue_size.inc(labelValues = [$p.peerId])
-      p.rpcmessagequeue.dataAvailableEvent.fire()
-      newFutureCompleted[void]()
+    p.sendLowPriorityMessage(msg, useCustomConn)
 
 iterator splitRPCMsg(
     peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool
@@ -621,8 +630,17 @@ proc sendNonHighPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).
     # we send non-priority messages only if there are no pending priority messages
     while p.rpcmessagequeue.mediumPriorityQueue.len == 0 and
         p.rpcmessagequeue.lowPriorityQueue.len == 0:
-      p.rpcmessagequeue.dataAvailableEvent.clear()
       await p.rpcmessagequeue.dataAvailableEvent.wait()
+      p.rpcmessagequeue.dataAvailableEvent.clear()
+
+    # Dequeue messages by priority
+    let (msg, priority) =
+      if p.rpcmessagequeue.mediumPriorityQueue.len != 0:
+        (p.rpcmessagequeue.mediumPriorityQueue.popFirst(), MessagePriority.Medium)
+      elif p.rpcmessagequeue.lowPriorityQueue.len != 0:
+        (p.rpcmessagequeue.lowPriorityQueue.popFirst(), MessagePriority.Low)
+      else:
+        continue
 
     while p.rpcmessagequeue.sendPriorityQueue.len > 0:
       p.clearSendPriorityQueue()
@@ -634,18 +652,13 @@ proc sendNonHighPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).
         # `race` prevents `p.rpcmessagequeue.sendPriorityQueue[^1]` from being
         # cancelled when this task is cancelled
         discard await race(p.rpcmessagequeue.sendPriorityQueue[^1])
-
-    # Dequeue messages by priority
-    if p.rpcmessagequeue.mediumPriorityQueue.len > 0:
-      let msg = p.rpcmessagequeue.mediumPriorityQueue.popFirst()
-      when defined(pubsubpeer_queue_metrics):
+    when defined(pubsubpeer_queue_metrics):
+      if priority == MessagePriority.Medium:
         libp2p_gossipsub_medium_priority_queue_size.dec(labelValues = [$p.peerId])
-      await p.sendMsg(msg.data, msg.useCustomConn)
-    elif p.rpcmessagequeue.lowPriorityQueue.len > 0:
-      let msg = p.rpcmessagequeue.lowPriorityQueue.popFirst()
-      when defined(pubsubpeer_queue_metrics):
+      else:
         libp2p_gossipsub_low_priority_queue_size.dec(labelValues = [$p.peerId])
-      await p.sendMsg(msg.data, msg.useCustomConn)
+
+    await p.sendMsg(msg.data, msg.useCustomConn)
 
 proc startSendNonHighPriorityTask(p: PubSubPeer) =
   debug "starting sendNonHighPriorityTask", p

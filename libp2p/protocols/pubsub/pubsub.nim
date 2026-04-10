@@ -310,7 +310,7 @@ proc sendSubs*(
         subOpt.supportsSendingPartial = Opt.some(topicData[].supportsSendingPartial)
     subscriptions.add(subOpt)
 
-  p.send(peer, RPCMsg.withSubscriptions(subscriptions), priority = MessagePriority.High)
+  p.send(peer, RPCMsg.withSubscriptions(subscriptions), MessagePriority.High)
 
   for topic in subTopics:
     if subscribe:

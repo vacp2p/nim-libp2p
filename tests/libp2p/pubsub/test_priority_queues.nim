@@ -87,6 +87,17 @@ proc releaseFirstWrite(conn: RecorderConnection) {.raises: [].} =
   if not conn.firstWriteFut.isNil and not conn.firstWriteFut.finished:
     conn.firstWriteFut.complete()
 
+proc callbacksDrained(fut: FutureBase): Future[void] {.raises: [].} =
+  let drained = Future[void].init("callbacksDrained")
+
+  proc continuation(udata: pointer) {.gcsafe, raises: [].} =
+    let drained = cast[Future[void]](udata)
+    if not drained.finished:
+      drained.complete()
+
+  fut.addCallback(continuation, cast[pointer](drained))
+  drained
+
 proc newDisconnectRecorder(disconnectRequested: ref bool): OnEvent =
   proc recordDisconnect(
       peer: PubSubPeer, event: PubSubPeerEvent
@@ -114,32 +125,48 @@ suite "Priority queue behavior":
   teardown:
     checkTrackers()
 
-  asyncTest "Exceeding max high priority messages triggers disconnection event":
+  asyncTest "High priority sends return immediately even while writes stay pending":
     let disconnectRequestedForTest = new bool
 
     let peer = createTestPeer(
       maxHigh = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
     )
+    let conn = createPendingConnection()
     defer:
       peer.stopSendNonHighPriorityTask()
 
-    peer.sendConn = createPendingConnection()
+    peer.sendConn = conn
 
-    # These writes stay pending, so the high-priority queue can actually fill.
+    # These writes stay pending, but sendEncoded itself now completes immediately.
     let f1 = peer.sendEncoded(@[1'u8, 2, 3], MessagePriority.High)
     let f2 = peer.sendEncoded(@[1'u8, 2, 3], MessagePriority.High)
-    let overflowFut = peer.sendEncoded(@[1'u8, 2, 3], MessagePriority.High)
+    let f3 = peer.sendEncoded(@[1'u8, 2, 3], MessagePriority.High)
 
     check:
-      not f1.finished
-      not f2.finished
+      f1.finished
+      f2.finished
+      f3.finished
+      conn.pendingWrites.len == 3
+      not conn.pendingWrites[0].finished
+      not conn.pendingWrites[1].finished
+      not conn.pendingWrites[2].finished
+      not disconnectRequestedForTest[]
+      peer.hasSendConn()
 
-    await overflowFut
+    await conn.close()
+    let drain1 = callbacksDrained(conn.pendingWrites[0])
+    let drain2 = callbacksDrained(conn.pendingWrites[1])
+    let drain3 = callbacksDrained(conn.pendingWrites[2])
+
+    checkUntilTimeout:
+      drain1.finished
+      drain2.finished
+      drain3.finished
+
     check:
-      disconnectRequestedForTest[]
-      not peer.hasSendConn()
+      not disconnectRequestedForTest[]
 
-  asyncTest "Exceeding max medium priority messages drops messages without disconnect":
+  asyncTest "Medium priority sends fast-path even behind a pending high write":
     let disconnectRequestedForTest = new bool
 
     let peer = createTestPeer(
@@ -154,27 +181,29 @@ suite "Priority queue behavior":
     let highMsg = @[1'u8, 2, 3]
     let mediumMsgs = @[@[10'u8, 0, 0], @[11'u8, 0, 0], @[12'u8, 0, 0], @[13'u8, 0, 0]]
 
-    # Enqueue a pending high-priority message to disable the fast path
-    discard peer.sendEncoded(highMsg, MessagePriority.High)
+    # The first high-priority write remains pending on the connection, but later
+    # medium-priority sends still take the fast path and complete immediately.
+    let highFut = peer.sendEncoded(highMsg, MessagePriority.High)
+    check highFut.finished
 
     for msg in mediumMsgs:
       let f = peer.sendEncoded(msg, MessagePriority.Medium)
       check f.finished
 
-    check conn.writes == @[highMsg]
+    check conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
 
-    # Releasing the first message so medium messages can be sent
     conn.releaseFirstWrite()
+    let writeDrain = callbacksDrained(conn.firstWriteFut)
 
     checkUntilTimeout:
-      conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1]]
+      writeDrain.finished
 
     check:
-      conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1]]
+      conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
       not disconnectRequestedForTest[]
       peer.hasSendConn()
 
-  asyncTest "Exceeding max low priority messages drops messages without disconnect":
+  asyncTest "Low priority sends fast-path even behind a pending high write":
     let disconnectRequestedForTest = new bool
 
     let peer = createTestPeer(
@@ -189,42 +218,57 @@ suite "Priority queue behavior":
     let highMsg = @[1'u8, 2, 3]
     let lowMsgs = @[@[20'u8, 0, 0], @[21'u8, 0, 0], @[22'u8, 0, 0], @[23'u8, 0, 0]]
 
-    # Enqueue a pending high-priority message to disable the fast path
-    discard peer.sendEncoded(highMsg, MessagePriority.High)
+    # The first high-priority write remains pending on the connection, but later
+    # low-priority sends still take the fast path and complete immediately.
+    let highFut = peer.sendEncoded(highMsg, MessagePriority.High)
+    check highFut.finished
 
     for msg in lowMsgs:
       let f = peer.sendEncoded(msg, MessagePriority.Low)
       check f.finished
 
-    check conn.writes == @[highMsg]
+    check conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1], lowMsgs[2], lowMsgs[3]]
 
-    # Releasing the first message so other low messages can be sent
     conn.releaseFirstWrite()
+    let writeDrain = callbacksDrained(conn.firstWriteFut)
 
     checkUntilTimeout:
-      conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1]]
+      writeDrain.finished
 
     check:
-      conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1]]
+      conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1], lowMsgs[2], lowMsgs[3]]
       not disconnectRequestedForTest[]
       peer.hasSendConn()
 
-  asyncTest "Empty queues fast-path the first medium or low message":
+  asyncTest "Empty queues fast-path medium and low sends while returning completed futures":
     let mediumPeer = createTestPeer()
     let lowPeer = createTestPeer()
+    let mediumConn = createPendingConnection()
+    let lowConn = createPendingConnection()
     defer:
       mediumPeer.stopSendNonHighPriorityTask()
       lowPeer.stopSendNonHighPriorityTask()
 
     # This is required so we can test the send path
-    mediumPeer.sendConn = createPendingConnection()
-    lowPeer.sendConn = createPendingConnection()
+    mediumPeer.sendConn = mediumConn
+    lowPeer.sendConn = lowConn
 
     let mediumFut = mediumPeer.sendEncoded(@[1'u8, 2, 3], MessagePriority.Medium)
     let lowFut = lowPeer.sendEncoded(@[4'u8, 5, 6], MessagePriority.Low)
 
     check:
-      not mediumFut.finished
-      not lowFut.finished
+      mediumFut.finished
+      lowFut.finished
+      mediumConn.pendingWrites.len == 1
+      lowConn.pendingWrites.len == 1
       mediumPeer.hasSendConn()
       lowPeer.hasSendConn()
+
+    await mediumConn.close()
+    await lowConn.close()
+    let mediumDrain = callbacksDrained(mediumConn.pendingWrites[0])
+    let lowDrain = callbacksDrained(lowConn.pendingWrites[0])
+
+    checkUntilTimeout:
+      mediumDrain.finished
+      lowDrain.finished
