@@ -68,12 +68,9 @@ suite "Future":
     check f.cancelled()
 
   asyncTest "cancelSoon cancels pending futures":
-    proc longRunning() {.async.} =
-      await sleepAsync(10.seconds)
-
-    var f1 = longRunning()
-    var f2 = longRunning()
-    var f3 = longRunning()
+    var f1 = newFuture[void]()
+    var f2 = newFuture[void]()
+    var f3 = newFuture[void]()
 
     check not f1.finished()
     check not f2.finished()
