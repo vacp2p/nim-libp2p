@@ -78,8 +78,9 @@ suite "Future":
 
     @[f1, f2, f3].cancelSoon()
 
-    checkUntilTimeout:
-      f1.cancelled() and f2.cancelled() and f3.cancelled()
+    check f1.cancelled()
+    check f2.cancelled()
+    check f3.cancelled()
 
   asyncTest "cancelSoon is no-op for completed futures":
     var f1 = newFuture[void]()
