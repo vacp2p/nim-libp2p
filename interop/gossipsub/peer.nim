@@ -70,18 +70,10 @@ proc main() {.async.} =
         params = instr.inner.gossipSubParams
         break
 
-  let listenAddr = MultiAddress.init("/ip4/0.0.0.0/tcp/9000").tryGet()
-  let node = createNode(nodeId, listenAddr, params)
-
-  await node.switch.start()
-  defer:
-    await node.switch.stop()
-
   let logStream = newFileStream(stdout)
 
   let runner = ScriptRunner(
     nodeId: nodeId,
-    node: node,
     logStream: logStream,
     resolveAddr: proc(id: int): MultiAddress {.gcsafe, raises: [CatchableError].} =
       let peerId = nodePeerId(id)
@@ -92,6 +84,15 @@ proc main() {.async.} =
           getHostByName("node" & $id).addrList[0] # Shadow simulated DNS
       MultiAddress.init("/ip4/" & ip & "/tcp/9000/p2p/" & $peerId).tryGet(),
   )
+
+  let listenAddr = MultiAddress.init("/ip4/0.0.0.0/tcp/9000").tryGet()
+  let node =
+    createNode(nodeId, listenAddr, params, Opt.some(runner.makePartialMessageConfig()))
+  runner.node = node
+
+  await node.switch.start()
+  defer:
+    await node.switch.stop()
 
   await runner.runScript(instructions)
 
