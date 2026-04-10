@@ -5,12 +5,7 @@
 
 import std/[tables, sequtils, sets]
 import pkg/[chronos, chronicles, metrics]
-import
-  peerinfo,
-  peerstore,
-  stream/connection,
-  muxers/muxer,
-  errors
+import peerinfo, peerstore, stream/connection, muxers/muxer, errors
 
 logScope:
   topics = "libp2p connmanager"
