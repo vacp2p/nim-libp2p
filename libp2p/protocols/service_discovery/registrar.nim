@@ -473,7 +473,6 @@ proc handleGetAds*(
 proc handleRegister*(
     disco: KademliaDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-
   cd_messages_received.inc(labelValues = [$MessageType.register])
 
   let serviceId = msg.key
