@@ -109,6 +109,9 @@ proc new*(
     outSema: outSema,
   )
 
+proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
+  c.muxerStore.count(peerId)
+
 proc getReadyEvent(
     c: ConnManager, peerId: PeerId
 ): Future[void].Raising([CancelledError]) =
