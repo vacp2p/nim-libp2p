@@ -295,7 +295,9 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     let removed = c.muxerStore.remove(mux)
     if removed and c.muxerStore.count(peerId) == 0:
       await c.onPeerDisconnected(peerId)
-    await noCancel c.triggerConnEvent(peerId, ConnEvent(kind: ConnEventKind.Disconnected))
+    await noCancel c.triggerConnEvent(
+      peerId, ConnEvent(kind: ConnEventKind.Disconnected)
+    )
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer {.inline.} =
   ## Select a connection for the provided peer and direction
