@@ -299,7 +299,7 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
       peerId, ConnEvent(kind: ConnEventKind.Disconnected)
     )
 
-proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer {.inline.} =
+proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer =
   ## Select a connection for the provided peer and direction
   ##
   return c.muxerStore.selectMuxer(peerId, dir)
