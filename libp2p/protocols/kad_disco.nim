@@ -5,9 +5,9 @@ import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./kademlia_discovery/[randomfind, types]
+import ./kademlia_discovery/[random_find, types]
 
-export randomfind, types
+export random_find, types
 
 logScope:
   topics = "kad-disco"

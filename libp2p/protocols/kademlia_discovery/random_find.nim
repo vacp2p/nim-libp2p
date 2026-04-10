@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[sequtils, sets]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
 import ../protocol
-import ../kademlia/[types, find, get, protobuf, routingtable]
+import ../kademlia/[types, find, get, protobuf, routing_table]
 import ./[types]
 
 logScope:
