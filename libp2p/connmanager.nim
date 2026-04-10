@@ -466,15 +466,11 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   for _, fut in expected:
     await fut.cancelAndWait()
 
-  let readyEvents = c.readyEvents
-  for _, readyEvent in readyEvents:
-    if not readyEvent.finished:
-      readyEvent.cancelSoon()
-
   let muxed = c.muxerStore.getAll()
+  c.muxerStore.clear()
   for _, muxers in muxed:
     for mux in muxers:
       await closeMuxer(mux)
-  c.muxerStore.clear()
+    await c.onPeerDisconnected(peerId)
 
   trace "Closed ConnManager"
