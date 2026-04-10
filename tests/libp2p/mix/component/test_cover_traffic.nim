@@ -35,7 +35,7 @@ suite "Cover Traffic - Integration":
     let node = nodes[0]
     let buildRes = node.buildCoverPacket()
     check buildRes.isOk
-    let (packet, firstHopPeerId, _) = buildRes.get()
+    let (packet, firstHopPeerId, _, _) = buildRes.get()
 
     check packet.len == PacketSize
     check firstHopPeerId != node.switch.peerInfo.peerId
@@ -56,7 +56,12 @@ suite "Cover Traffic - Integration":
 
     ct.setCoverPacketBuilder(
       proc(): Result[
-          tuple[packet: seq[byte], firstHopPeerId: PeerId, firstHopAddr: MultiAddress],
+          tuple[
+            packet: seq[byte],
+            firstHopPeerId: PeerId,
+            firstHopAddr: MultiAddress,
+            proofToken: seq[byte],
+          ],
           string,
       ] {.gcsafe, raises: [].} =
         nodes[0].buildCoverPacket()

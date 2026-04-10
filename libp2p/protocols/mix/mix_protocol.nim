@@ -119,14 +119,15 @@ proc writeLp(
 
 proc generateAndAppendProof(
     mixProto: MixProtocol, packet: seq[byte], label: string
-): Result[seq[byte], string] =
+): Result[tuple[packet: seq[byte], proofToken: seq[byte]], string] =
   ## Generate spam protection proof and append it to the packet.
-  ## Returns the packet with proof appended if spam protection is enabled, or an error.
+  ## Returns the packet with proof appended and an opaque proof token
+  ## for proof slot tracking.
   let spamProtection = mixProto.spamProtection.valueOr:
-    return ok(packet)
+    return ok((packet, newSeq[byte]()))
 
   let bindingData = packet
-  let proof = spamProtection
+  let proofResult = spamProtection
     .generateProof(bindingData)
     .mapErr(
       proc(e: string): string =
@@ -135,7 +136,7 @@ proc generateAndAppendProof(
     ).valueOr:
       return err(error)
 
-  let packetWithProof = appendProofToPacket(packet, proof)
+  let packetWithProof = appendProofToPacket(packet, proofResult.proof)
     .mapErr(
       proc(e: string): string =
         mix_messages_error.inc(labelValues = [label, "SPAM_PROOF_EMBED_FAILED"])
@@ -143,7 +144,7 @@ proc generateAndAppendProof(
     ).valueOr:
       return err(error)
 
-  ok(packetWithProof)
+  ok((packetWithProof, proofResult.token))
 
 proc extractProof(
     mixProto: MixProtocol, packetWithProof: var seq[byte], label: string
@@ -354,11 +355,15 @@ method handleMixMessages*(
 
     # Claim a slot for forwarding (Mix Cover Traffic spec §6.4)
     if mixProto.coverTraffic.isSome:
-      if not mixProto.coverTraffic.get().slotPool.claimSlot():
+      let claim = mixProto.coverTraffic.get().slotPool.claimSlot()
+      if not claim.success:
         warn "Slot exhaustion, dropping forwarded packet"
         mix_messages_error.inc(labelValues = ["Intermediate", "SLOT_EXHAUSTED"])
         mix_slots_exhausted.inc(labelValues = ["forward"])
         return
+      # Reclaim proof token from discarded cover packet for messageId reuse
+      if claim.reclaimedToken.len > 0 and mixProto.spamProtection.isSome:
+        mixProto.spamProtection.get().reclaimProofToken(claim.reclaimedToken)
 
     let actualDelay = mixProto.delayStrategy.generateForIntermediate(processedSP.delay)
     trace "Computed delay", encodedDelay = processedSP.delay, actualDelay
@@ -387,7 +392,9 @@ method handleMixMessages*(
     let delayFut = sleepAsync(actualDelay.toDuration)
 
     let proofGenFut = (
-      proc(): Future[Result[seq[byte], string]] {.async.} =
+      proc(): Future[Result[tuple[packet: seq[byte], proofToken: seq[byte]], string]] {.
+          async
+      .} =
         return mixProto.generateAndAppendProof(
           processedSP.serializedSphinxPacket, "Intermediate"
         )
@@ -403,7 +410,7 @@ method handleMixMessages*(
           sampledDelay = actualDelay,
           hint = "Increase the minimum delay floor or reduce proof generation time"
 
-    let outgoingPacket = proofGenFut.value().valueOr:
+    let (outgoingPacket, _) = proofGenFut.value().valueOr:
       error "Failed to generate spam protection proof for next hop", err = error
       return
 
@@ -572,7 +579,9 @@ proc sendPacket(
   let label = $logConfig.logType
 
   # Per-hop spam protection: Generate initial proof and append to packet
-  let packetToSend = mixProto.generateAndAppendProof(sphinxPacket.serialize(), label).valueOr:
+  let (packetToSend, _) = mixProto.generateAndAppendProof(
+    sphinxPacket.serialize(), label
+  ).valueOr:
     return err(error)
 
   when defined(enable_mix_benchmarks):
@@ -665,9 +674,13 @@ proc anonymizeLocalProtocolSend*(
 
   # Claim a slot for local origination (Mix Cover Traffic spec §6.3)
   if mixProto.coverTraffic.isSome:
-    if not mixProto.coverTraffic.get().slotPool.claimSlot():
+    let claim = mixProto.coverTraffic.get().slotPool.claimSlot()
+    if not claim.success:
       mix_slots_exhausted.inc(labelValues = ["send"])
       return err("No slots available in current epoch")
+    # Reclaim proof token from discarded cover packet for messageId reuse
+    if claim.reclaimedToken.len > 0 and mixProto.spamProtection.isSome:
+      mixProto.spamProtection.get().reclaimProofToken(claim.reclaimedToken)
 
   var logConfig = SendPacketLogConfig(logType: Entry)
   when defined(enable_mix_benchmarks):
@@ -858,7 +871,13 @@ proc selectRandomNodes(
 proc buildCoverPacket*(
     mixProto: MixProtocol
 ): Result[
-    tuple[packet: seq[byte], firstHopPeerId: PeerId, firstHopAddr: MultiAddress], string
+    tuple[
+      packet: seq[byte],
+      firstHopPeerId: PeerId,
+      firstHopAddr: MultiAddress,
+      proofToken: seq[byte],
+    ],
+    string,
 ] {.raises: [].} =
   ## Build a cover Sphinx packet with a loop path (self = exit node),
   ## random payload, and an empty codec.
@@ -897,7 +916,9 @@ proc buildCoverPacket*(
   let sphinxPacket = wrapInSphinxPacket(message, publicKeys, delays, hops, Hop()).valueOr:
     return err("Failed to wrap cover sphinx packet: " & error)
 
-  let packetToSend = mixProto.generateAndAppendProof(sphinxPacket.serialize(), "Cover").valueOr:
+  let (packetToSend, proofToken) = mixProto.generateAndAppendProof(
+    sphinxPacket.serialize(), "Cover"
+  ).valueOr:
     return err("Failed to generate proof for cover packet: " & error)
 
   let firstNode = nodes[0]
@@ -906,6 +927,7 @@ proc buildCoverPacket*(
       packet: packetToSend,
       firstHopPeerId: firstNode.peerId,
       firstHopAddr: firstNode.multiAddr,
+      proofToken: proofToken,
     )
   )
 
@@ -974,7 +996,12 @@ proc init*(
     let ct = coverTraffic.get()
     ct.setCoverPacketBuilder(
       proc(): Result[
-          tuple[packet: seq[byte], firstHopPeerId: PeerId, firstHopAddr: MultiAddress],
+          tuple[
+            packet: seq[byte],
+            firstHopPeerId: PeerId,
+            firstHopAddr: MultiAddress,
+            proofToken: seq[byte],
+          ],
           string,
       ] {.gcsafe, raises: [].} =
         mixProto.buildCoverPacket()
@@ -986,9 +1013,14 @@ proc init*(
         await mixProto.sendCoverPacket(peerId, multiAddr, packet)
     )
     if spamProtection.isSome:
-      spamProtection.get().registerOnEpochChange(
+      let sp = spamProtection.get()
+      sp.registerOnEpochChange(
         proc(epoch: uint64) {.gcsafe, raises: [].} =
           ct.onEpochChange(epoch)
+      )
+      ct.setProofTokenValidator(
+        proc(token: seq[byte]): bool {.gcsafe, raises: [].} =
+          sp.isProofTokenValid(token)
       )
 
   let onReplyDialer = proc(

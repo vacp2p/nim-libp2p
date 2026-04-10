@@ -29,17 +29,29 @@ const
 # where they have access to nodePool, sphinx, and spam protection.
 type
   BuildCoverPacketProc* = proc(): Result[
-    tuple[packet: seq[byte], firstHopPeerId: PeerId, firstHopAddr: MultiAddress], string
+    tuple[
+      packet: seq[byte],
+      firstHopPeerId: PeerId,
+      firstHopAddr: MultiAddress,
+      proofToken: seq[byte],
+    ],
+    string,
   ] {.gcsafe, raises: [].}
 
   SendCoverPacketProc* = proc(
     peerId: PeerId, multiAddr: MultiAddress, packet: seq[byte]
   ): Future[Result[void, string]] {.async: (raises: [CancelledError]).}
 
-type CoverPacket* = object
-  packet*: seq[byte]
-  firstHopPeerId*: PeerId
-  firstHopAddr*: MultiAddress
+type
+  CoverPacket* = object
+    packet*: seq[byte]
+    firstHopPeerId*: PeerId
+    firstHopAddr*: MultiAddress
+    proofToken*: seq[byte] ## Opaque token from spam protection proof generation
+
+  ClaimResult* = object
+    success*: bool
+    reclaimedToken*: seq[byte] ## Proof token from discarded cover packet (empty if none)
 
 type SlotPool* = ref object
   ## Manages the R-slot budget per epoch. All traffic types (cover, local
@@ -55,9 +67,11 @@ func new*(T: typedesc[SlotPool], totalSlots: int): T =
   T(epoch: 0, totalSlots: totalSlots)
 
 func beginEpoch*(pool: SlotPool, epoch: uint64) =
-  ## Swap staged pending packets into the active queue and refill slots.
+  ## Clear stale cover packets and refill slots for the new epoch.
+  ## Precomputed packets from the previous epoch are discarded because
+  ## their proofs belong to the old epoch.
   pool.epoch = epoch
-  pool.coverQueue = pool.pendingQueue
+  pool.coverQueue = initDeque[CoverPacket]()
   pool.pendingQueue = initDeque[CoverPacket]()
   pool.coverEmitted = 0
   pool.nonCoverClaimed = 0
@@ -74,15 +88,17 @@ func claimSlotForCover*(pool: SlotPool): bool =
   pool.coverEmitted += 1
   true
 
-func claimSlot*(pool: SlotPool): bool =
+func claimSlot*(pool: SlotPool): ClaimResult =
   ## Claim a slot for non-cover use. Discards one pre-built cover packet
-  ## to prevent proof reuse (Mix Cover Traffic spec §5.2).
+  ## and returns its proof token for potential reuse (Mix Cover Traffic spec §5.2).
   if not pool.hasAvailableSlots():
-    return false
+    return ClaimResult(success: false)
   pool.nonCoverClaimed += 1
+  var token: seq[byte]
   if pool.coverQueue.len > 0:
-    discard pool.coverQueue.popFirst()
-  true
+    let discarded = pool.coverQueue.popFirst()
+    token = discarded.proofToken
+  ClaimResult(success: true, reclaimedToken: token)
 
 func totalSlots*(pool: SlotPool): int =
   pool.totalSlots
@@ -107,12 +123,18 @@ func dequeue*(pool: SlotPool): Opt[CoverPacket] =
     return Opt.none(CoverPacket)
   Opt.some(pool.coverQueue.popFirst())
 
-type CoverTraffic* = ref object of RootObj
-  ## Abstract base to allow alternate emission strategies (e.g. Poisson-Rate).
-  ## MixProtocol injects packet building and sending via callback procs.
-  slotPool*: SlotPool
-  buildPacket: BuildCoverPacketProc
-  sendPacket: SendCoverPacketProc
+type
+  ValidateProofTokenProc* = proc(token: seq[byte]): bool {.gcsafe, raises: [].}
+    ## Callback to check if a prebuilt proof is still valid (e.g., Merkle root
+    ## still in the acceptable window). Returns true if valid, false if stale.
+
+  CoverTraffic* = ref object of RootObj
+    ## Abstract base to allow alternate emission strategies (e.g. Poisson-Rate).
+    ## MixProtocol injects packet building and sending via callback procs.
+    slotPool*: SlotPool
+    buildPacket: BuildCoverPacketProc
+    sendPacket: SendCoverPacketProc
+    validateProofToken: ValidateProofTokenProc
 
 method start*(ct: CoverTraffic) {.base, async: (raises: [CancelledError]).} =
   raiseAssert "start must be implemented by concrete cover traffic types"
@@ -129,6 +151,9 @@ method onCoverReceived*(ct: CoverTraffic) {.base, gcsafe, raises: [].} =
 
 proc setCoverPacketBuilder*(ct: CoverTraffic, builder: BuildCoverPacketProc) =
   ct.buildPacket = builder
+
+proc setProofTokenValidator*(ct: CoverTraffic, validator: ValidateProofTokenProc) =
+  ct.validateProofToken = validator
 
 proc setCoverPacketSender*(ct: CoverTraffic, sender: SendCoverPacketProc) =
   ct.sendPacket = sender
@@ -195,20 +220,26 @@ proc emitCoverPacket*(
     let prebuilt = ct.slotPool.dequeue()
     if prebuilt.isSome:
       let pkt = prebuilt.get()
-      let sendRes =
-        await ct.sendPacket(pkt.firstHopPeerId, pkt.firstHopAddr, pkt.packet)
-      if sendRes.isErr:
-        debug "Failed to send pre-built cover packet", err = sendRes.error
+      # Check if the prebuilt proof is still valid (e.g., Merkle root not stale)
+      if ct.validateProofToken != nil and pkt.proofToken.len > 0 and
+          not ct.validateProofToken(pkt.proofToken):
+        trace "Prebuilt cover packet has stale proof, falling back to on-demand"
+        # Fall through to on-demand building below
       else:
-        mix_cover_emitted.inc(labelValues = ["prebuilt"])
-      return
+        let sendRes =
+          await ct.sendPacket(pkt.firstHopPeerId, pkt.firstHopAddr, pkt.packet)
+        if sendRes.isErr:
+          debug "Failed to send pre-built cover packet", err = sendRes.error
+        else:
+          mix_cover_emitted.inc(labelValues = ["prebuilt"])
+        return
 
   if ct.slotPool.claimSlotForCover():
     let buildRes = ct.buildPacket()
     if buildRes.isErr:
       trace "Failed to build cover packet", err = buildRes.error
       return
-    let (packet, pid, multiAddr) = buildRes.get()
+    let (packet, pid, multiAddr, _) = buildRes.get()
     let sendRes = await ct.sendPacket(pid, multiAddr, packet)
     if sendRes.isErr:
       debug "Failed to send cover packet", err = sendRes.error
@@ -231,24 +262,24 @@ proc runEmissionLoop(
 proc runPrecomputeLoop(
     ct: ConstantRateCoverTraffic
 ) {.async: (raises: [CancelledError]).} =
-  ## Builds cover packets in batches and stages them in pendingQueue for the
-  ## next epoch.
+  ## Builds cover packets in batches and adds them to the coverQueue for the
+  ## current epoch (same-epoch precomputation).
   ##
-  ## Future optimization: generate proofs for next epoch once SpamProtection API
-  ## supports it (Mix Cover Traffic spec §6.1). Currently proofs are for the
-  ## current epoch.
+  ## Packets are built with proofs for the current epoch so their proof tokens
+  ## can be reclaimed if the packet is discarded before sending.
   while ct.running:
     let currentEpoch = ct.slotPool.epoch
     let targetCount = ct.slotPool.totalSlots div (1 + PathLength)
+    let alreadyQueued = ct.slotPool.queuedCount
     var built = 0
 
-    while built < targetCount and ct.running:
+    while built + alreadyQueued < targetCount and ct.running:
       if ct.slotPool.epoch != currentEpoch:
         trace "Epoch changed during pre-computation, aborting",
           startedEpoch = currentEpoch, currentEpoch = ct.slotPool.epoch
         break
 
-      let batchEnd = min(built + ct.precomputeBatchSize, targetCount)
+      let batchEnd = min(built + ct.precomputeBatchSize, targetCount - alreadyQueued)
       var batchFailed = false
       while built < batchEnd:
         let buildRes = ct.buildPacket()
@@ -256,9 +287,14 @@ proc runPrecomputeLoop(
           debug "Pre-computation: failed to build cover packet", err = buildRes.error
           batchFailed = true
           break
-        let (packet, pid, multiAddr) = buildRes.get()
-        ct.slotPool.addPendingPacket(
-          CoverPacket(packet: packet, firstHopPeerId: pid, firstHopAddr: multiAddr)
+        let (packet, pid, multiAddr, proofToken) = buildRes.get()
+        ct.slotPool.addPacket(
+          CoverPacket(
+            packet: packet,
+            firstHopPeerId: pid,
+            firstHopAddr: multiAddr,
+            proofToken: proofToken,
+          )
         )
         built += 1
         mix_cover_precomputed.inc()

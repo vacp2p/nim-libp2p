@@ -13,6 +13,13 @@ type
     ## Callback invoked when the DoS protection mechanism detects an epoch transition.
     ## See Mix DoS Protection spec §8.2.3.
 
+  ProofResult* = object ## Result of spam protection proof generation.
+    proof*: seq[byte] ## Serialized proof bytes
+    token*: seq[byte]
+      ## Opaque token for proof slot tracking.
+      ## Only meaningful to the concrete implementation.
+      ## Used to reclaim proof slots when precomputed cover packets are discarded.
+
   SpamProtection* = ref object of RootObj
     ## Abstract interface that spam protection mechanisms must implement
     ## to integrate with the Mix Protocol.
@@ -22,7 +29,7 @@ type
 
 method generateProof*(
     self: SpamProtection, bindingData: seq[byte]
-): Result[seq[byte], string] {.base, gcsafe, raises: [].} =
+): Result[ProofResult, string] {.base, gcsafe, raises: [].} =
   ## Generate a spam protection proof bound to specific packet data.
   ##
   ## Parameters:
@@ -31,15 +38,33 @@ method generateProof*(
   ##                outgoing Sphinx packet state.
   ##
   ## Returns:
-  ##   Serialized bytes containing proof and verification metadata
-  ##   (opaque to Mix Protocol layer).
+  ##   ProofResult containing serialized proof bytes and an opaque token
+  ##   for proof slot tracking.
   ##
   ## Requirements:
-  ##   - Must produce output with length == self.proofSize
+  ##   - Must produce proof with length == self.proofSize
   ##   - Mechanism manages its own runtime state independently
   ##
   ## Note: This base implementation should be overridden by concrete types.
   raiseAssert "generateProof must be implemented by concrete spam protection types"
+
+method reclaimProofToken*(
+    self: SpamProtection, token: seq[byte]
+) {.base, gcsafe, raises: [].} =
+  ## Return an opaque proof token for potential reuse.
+  ## Called when a precomputed cover packet is discarded without being sent.
+  ## The concrete implementation may reclaim internal resources (e.g., rate limit slots).
+  ## Default: no-op.
+  discard
+
+method isProofTokenValid*(
+    self: SpamProtection, token: seq[byte]
+): bool {.base, gcsafe, raises: [].} =
+  ## Check if a precomputed proof is still valid (e.g., its Merkle root
+  ## is still in the acceptable window). Called before sending a prebuilt
+  ## cover packet. If false, the packet should be discarded and rebuilt.
+  ## Default: always valid.
+  true
 
 method verifyProof*(
     self: SpamProtection, encodedProofData: seq[byte], bindingData: seq[byte]

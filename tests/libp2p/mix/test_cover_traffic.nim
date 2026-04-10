@@ -22,14 +22,31 @@ proc mockBuildCoverPacket(): BuildCoverPacketProc =
   let pid = makePeerId()
   let ma = makeMultiAddr(5000)
   return proc(): Result[
-      tuple[packet: seq[byte], firstHopPeerId: PeerId, firstHopAddr: MultiAddress],
+      tuple[
+        packet: seq[byte],
+        firstHopPeerId: PeerId,
+        firstHopAddr: MultiAddress,
+        proofToken: seq[byte],
+      ],
       string,
   ] {.gcsafe, raises: [].} =
-    ok((packet: newSeq[byte](PacketSize), firstHopPeerId: pid, firstHopAddr: ma))
+    ok(
+      (
+        packet: newSeq[byte](PacketSize),
+        firstHopPeerId: pid,
+        firstHopAddr: ma,
+        proofToken: @[0x42.byte],
+      )
+    )
 
 proc mockBuildCoverPacketFailing(): BuildCoverPacketProc =
   return proc(): Result[
-      tuple[packet: seq[byte], firstHopPeerId: PeerId, firstHopAddr: MultiAddress],
+      tuple[
+        packet: seq[byte],
+        firstHopPeerId: PeerId,
+        firstHopAddr: MultiAddress,
+        proofToken: seq[byte],
+      ],
       string,
   ] {.gcsafe, raises: [].} =
     err("mock build failure")
@@ -50,12 +67,12 @@ proc mockSendCoverPacketFailing(): SendCoverPacketProc =
 suite "SlotPool":
   test "exhaustion returns false for both claim types":
     let pool = SlotPool.new(2)
-    check pool.claimSlot() == true
+    check pool.claimSlot().success == true
     check pool.claimSlotForCover() == true
-    check pool.claimSlot() == false
+    check pool.claimSlot().success == false
     check pool.claimSlotForCover() == false
 
-  test "beginEpoch refills pool and swaps pending queue":
+  test "beginEpoch refills pool and clears stale packets":
     let pool = SlotPool.new(10)
     let pid = makePeerId()
     let ma = makeMultiAddr(5000)
@@ -64,41 +81,49 @@ suite "SlotPool":
     pool.addPacket(
       CoverPacket(packet: @[1.byte], firstHopPeerId: pid, firstHopAddr: ma)
     )
-    pool.addPendingPacket(
-      CoverPacket(packet: @[2.byte], firstHopPeerId: pid, firstHopAddr: ma)
-    )
     pool.beginEpoch(42)
     check:
       pool.epoch == 42
       pool.availableSlots == 10
       pool.coverEmitted == 0
       pool.nonCoverClaimed == 0
-      pool.queuedCount == 1
+      pool.queuedCount == 0 # Stale packets cleared on epoch change
       pool.pendingCount == 0
-    check pool.dequeue().get().packet == @[2.byte]
 
-  test "claimSlot discards a pre-built packet (Mix Cover Traffic spec §5.2)":
+  test "claimSlot discards a pre-built packet and returns its proof token":
     let pool = SlotPool.new(10)
     let pid = makePeerId()
     let ma = makeMultiAddr(5000)
     pool.addPacket(
-      CoverPacket(packet: @[0xAA.byte], firstHopPeerId: pid, firstHopAddr: ma)
+      CoverPacket(
+        packet: @[0xAA.byte],
+        firstHopPeerId: pid,
+        firstHopAddr: ma,
+        proofToken: @[0x01.byte],
+      )
     )
     pool.addPacket(
-      CoverPacket(packet: @[0xBB.byte], firstHopPeerId: pid, firstHopAddr: ma)
+      CoverPacket(
+        packet: @[0xBB.byte],
+        firstHopPeerId: pid,
+        firstHopAddr: ma,
+        proofToken: @[0x02.byte],
+      )
     )
-    check pool.claimSlot() == true
+    let claim = pool.claimSlot()
+    check claim.success == true
+    check claim.reclaimedToken == @[0x01.byte]
     check pool.queuedCount == 1
     check pool.dequeue().get().packet == @[0xBB.byte]
 
   test "mixed traffic draws from same pool":
     let pool = SlotPool.new(5)
-    check pool.claimSlot() == true
+    check pool.claimSlot().success == true
     check pool.claimSlotForCover() == true
-    check pool.claimSlot() == true
+    check pool.claimSlot().success == true
     check pool.claimSlotForCover() == true
-    check pool.claimSlot() == true
-    check pool.claimSlot() == false
+    check pool.claimSlot().success == true
+    check pool.claimSlot().success == false
     check pool.claimSlotForCover() == false
     check:
       pool.nonCoverClaimed == 3
@@ -181,7 +206,7 @@ suite "CoverTraffic Pre-computation":
     waitFor ct.emitCoverPacket()
     check sentPackets[][1].len == PacketSize
 
-  test "pending packets become active on epoch change":
+  test "epoch change clears stale cover packets":
     let ct = ConstantRateCoverTraffic.new(
       totalSlots = 10, epochDurationSec = 1.0, enablePrecomputation = true
     )
@@ -190,11 +215,8 @@ suite "CoverTraffic Pre-computation":
     ct.slotPool.addPacket(
       CoverPacket(packet: @[0xAA.byte], firstHopPeerId: pid, firstHopAddr: ma)
     )
-    ct.slotPool.addPendingPacket(
-      CoverPacket(packet: @[0xCC.byte], firstHopPeerId: pid, firstHopAddr: ma)
-    )
     ct.onEpochChange(2)
-    check ct.slotPool.queuedCount == 1
+    check ct.slotPool.queuedCount == 0 # Stale packets cleared
     check ct.slotPool.pendingCount == 0
 
 suite "CoverTraffic DoS Protection Independence":
