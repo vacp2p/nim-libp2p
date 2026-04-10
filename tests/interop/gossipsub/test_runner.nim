@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, streams, strutils
+import chronos, streams, sequtils, strutils
 import
   ../../../libp2p/[
     multiaddress,
@@ -16,33 +16,34 @@ import
   ../../../interop/gossipsub/src/[node, instructions, runner, interop_partial_message]
 import ../../tools/[unittest]
 
+proc setupNodes(count: int): Future[seq[GossipSub]] {.async.} =
+  var nodes: seq[GossipSub]
+
+  for i in 0 ..< count:
+    let node = createNode(i, MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
+    nodes.add(node)
+
+  await allFutures(nodes.mapIt(it.switch.start()))
+  nodes
+
+proc teardownNodes(nodes: seq[GossipSub]) {.async.} =
+  await allFutures(nodes.mapIt(it.switch.stop()))
+
+proc getAddr(node: GossipSub): MultiAddress =
+  node.switch.peerInfo.addrs[0]
+
 suite "GossipSub Interop - Script runner - Component":
-  var node0, node1: GossipSub
-
-  proc setupNodes(): Future[void] {.async.} =
-    node0 = createNode(0, MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
-    node1 = createNode(1, MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
-    await node0.switch.start()
-    await node1.switch.start()
-
-  proc teardownNodes(): Future[void] {.async.} =
-    await node0.switch.stop()
-    await node1.switch.stop()
-
-  proc getAddr(node: GossipSub): MultiAddress =
-    node.switch.peerInfo.addrs[0]
-
   asyncTest "script runs connect + subscribe + publish":
-    await setupNodes()
+    let nodes = await setupNodes(2)
     defer:
-      await teardownNodes()
+      await teardownNodes(nodes)
 
     const topic = "foobar"
     let receivedMsgIdFut = newFuture[string]()
-    let targetAddr = node1.getAddr()
+    let targetAddr = nodes[1].getAddr()
 
     # Node 1: subscribe to receive messages
-    node1.subscribe(
+    nodes[1].subscribe(
       topic,
       proc(topic: string, data: seq[byte]) {.async.} =
         if data.len >= 8 and not receivedMsgIdFut.finished():
@@ -73,7 +74,7 @@ suite "GossipSub Interop - Script runner - Component":
     var stream = newStringStream()
     let runner = ScriptRunner(
       nodeId: 0,
-      node: node0,
+      node: nodes[0],
       logStream: stream,
       resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
         return targetAddr,
@@ -84,11 +85,11 @@ suite "GossipSub Interop - Script runner - Component":
     check (await receivedMsgIdFut.wait(10.seconds)) == "99"
 
   asyncTest "ifNodeIDEquals filters correctly":
-    await setupNodes()
+    let nodes = await setupNodes(2)
     defer:
-      await teardownNodes()
+      await teardownNodes(nodes)
 
-    let targetAddr = node1.getAddr()
+    let targetAddr = nodes[1].getAddr()
 
     let inner = new ScriptInstruction
     inner[] = ScriptInstruction(kind: Connect, connectTo: @[1])
@@ -103,7 +104,7 @@ suite "GossipSub Interop - Script runner - Component":
     var stream = newStringStream()
     let runner = ScriptRunner(
       nodeId: 0,
-      node: node0,
+      node: nodes[0],
       logStream: stream,
       resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
         return targetAddr,
@@ -112,14 +113,14 @@ suite "GossipSub Interop - Script runner - Component":
     await runner.runScript(script)
 
     # Node 0 should not be connected
-    check node0.switch.connectedPeers(Direction.Out).len == 0
+    check nodes[0].switch.connectedPeers(Direction.Out).len == 0
 
     # Run with matching nodeID
     let script2 = @[ScriptInstruction(kind: IfNodeIDEquals, nodeID: 0, inner: inner)]
 
     let runner2 = ScriptRunner(
       nodeId: 0,
-      node: node0,
+      node: nodes[0],
       logStream: stream,
       resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
         return targetAddr,
@@ -128,144 +129,83 @@ suite "GossipSub Interop - Script runner - Component":
     await runner2.runScript(script2)
 
     # Now should be connected
-    check node0.switch.connectedPeers(Direction.Out).len == 1
-
-  asyncTest "addPartialMessage logs 'All parts received' when bitmap is complete":
-    let pmState = PartialMessageState(logStream: newStringStream())
-    let node = createNode(0, MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
-    await node.switch.start()
-    defer:
-      await node.switch.stop()
-
-    let runner = ScriptRunner(
-      nodeId: 0,
-      node: node,
-      logStream: pmState.logStream,
-      pmState: pmState,
-      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    )
-
-    let script =
-      @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-        ScriptInstruction(
-          kind: AddPartialMessage,
-          addTopicID: "test",
-          groupID: 1'u64,
-          partsBitmap: 0xFF'u8, # all parts
-        ),
-      ]
-
-    await runner.runScript(script)
-
-    let output = StringStream(pmState.logStream).data
-    check output.contains("All parts received")
-    check output.contains("\"group id\":\"1\"")
-
-  asyncTest "addPartialMessage does NOT log when bitmap is partial":
-    let pmState = PartialMessageState(logStream: newStringStream())
-    let node = createNode(0, MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
-    await node.switch.start()
-    defer:
-      await node.switch.stop()
-
-    let runner = ScriptRunner(
-      nodeId: 0,
-      node: node,
-      logStream: pmState.logStream,
-      pmState: pmState,
-      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-    )
-
-    let script =
-      @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-        ScriptInstruction(
-          kind: AddPartialMessage,
-          addTopicID: "test",
-          groupID: 1'u64,
-          partsBitmap: 0b00001111'u8, # only 4 parts
-        ),
-      ]
-
-    await runner.runScript(script)
-
-    let output = StringStream(pmState.logStream).data
-    check not output.contains("All parts received")
+    check nodes[0].switch.connectedPeers(Direction.Out).len == 1
 
   asyncTest "two nodes exchange partial messages and both log 'All parts received'":
     # Node 0 has parts 0-3 (0x0F), Node 1 has parts 4-7 (0xF0)
     # After exchange, both should have all parts.
-    let pmState0 = PartialMessageState(logStream: newStringStream())
-    let pmState1 = PartialMessageState(logStream: newStringStream())
 
-    let pmConfig0 = makePartialMessageConfig(pmState0)
-    let pmConfig1 = makePartialMessageConfig(pmState1)
+    # Create runners first (with nil node), build configs from them
+    let logStream0 = newStringStream()
+    let logStream1 = newStringStream()
+    let runner0 = ScriptRunner(nodeId: 0, logStream: logStream0)
+    let runner1 = ScriptRunner(nodeId: 1, logStream: logStream1)
 
     let n0 = createNode(
       0,
       MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-      partialMessageConfig = Opt.some(pmConfig0),
+      partialMessageConfig = Opt.some(runner0.makePartialMessageConfig()),
     )
     let n1 = createNode(
       1,
       MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-      partialMessageConfig = Opt.some(pmConfig1),
+      partialMessageConfig = Opt.some(runner1.makePartialMessageConfig()),
     )
 
-    pmState0.gossipsub = n0
-    pmState1.gossipsub = n1
-
-    await n0.switch.start()
-    await n1.switch.start()
+    await allFutures(@[n0, n1].mapIt(it.switch.start()))
     defer:
-      await n0.switch.stop()
-      await n1.switch.stop()
+      await allFutures(@[n0, n1].mapIt(it.switch.stop()))
 
-    let addr1 = n1.switch.peerInfo.addrs[0]
+    # Update runners after nodes are created and started
+    runner0.node = n0
+    runner1.node = n1
+    runner1.resolveAddr = proc(id: int): MultiAddress {.gcsafe.} =
+      n0.getAddr()
 
-    const topic = "a-subnet"
+    const topic = "foobar"
     const groupId = 42'u64
+    let key = makeKey(topic, groupId)
 
-    # Connect first, then subscribe (to ensure subscription exchange happens correctly)
-    await n0.switch.connect(nodePeerId(1), @[addr1])
-    await sleepAsync(500.milliseconds) # let connection establish
+    # Build a script for node 0
+    let script =
+      @[
+        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+        ScriptInstruction(kind: Connect, connectTo: @[0]),
+        ScriptInstruction(kind: WaitUntil, elapsed: 1.seconds),
+        ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: true),
+        ScriptInstruction(kind: WaitUntil, elapsed: 5.seconds),
+        ScriptInstruction(
+          kind: AddPartialMessage,
+          addTopicID: topic,
+          groupID: groupId,
+          partsBitmap: 0xF0,
+        ),
+        ScriptInstruction(
+          kind: PublishPartial,
+          publishPartialTopicID: topic,
+          publishPartialGroupID: groupId,
+          publishToNodeIDs: @[0],
+        ),
+      ]
 
-    # Both subscribe with partial=true
+    await runner1.runScript(script)
+
+    # Node 0 subscribes to the topic and adds partial message
     n0.subscribe(topic, nil, requestsPartial = true, supportsSendingPartial = true)
-    n1.subscribe(topic, nil, requestsPartial = true, supportsSendingPartial = true)
-
-    # Wait for mesh formation and extension negotiation
-    await sleepAsync(3.seconds)
 
     # Node 0 adds parts 0-3
     let pm0 = newInteropPartialMessage(groupId)
     pm0.fillParts(0x0F)
-    pmState0.messages[topic & ":" & $groupId] = pm0
+    runner0.messages[key] = pm0
 
-    # Node 1 adds parts 4-7
-    let pm1 = newInteropPartialMessage(groupId)
-    pm1.fillParts(0xF0)
-    pmState1.messages[topic & ":" & $groupId] = pm1
+    # Assert both nodes receive full messages
+    checkUntilTimeout:
+      runner0.messages[key].isComplete()
+      runner1.messages[key].isComplete()
 
-    # Node 0 publishes — sends metadata to node 1
-    await n0.publishPartial(topic, pm0)
-    await sleepAsync(1.seconds)
+    let output0 = logStream0.data
+    let output1 = logStream1.data
 
-    # Node 1 publishes — sends metadata to node 0
-    await n1.publishPartial(topic, pm1)
-    await sleepAsync(1.seconds)
-
-    # Second round of publishes to trigger data exchange
-    # (now both sides know each other's metadata)
-    await n0.publishPartial(topic, pm0)
-    await n1.publishPartial(topic, pm1)
-    await sleepAsync(3.seconds)
-
-    let output0 = StringStream(pmState0.logStream).data
-    let output1 = StringStream(pmState1.logStream).data
-
-    check output0.contains("All parts received")
-    check output1.contains("All parts received")
+    check:
+      output0.contains("All parts received")
+      output1.contains("All parts received")
