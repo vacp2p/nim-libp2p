@@ -276,7 +276,6 @@ proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} 
   c.clearPeerReadyState(peerId)
   libp2p_peers.set(c.muxerStore.countPeers.int64)
   await noCancel c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
-  await noCancel c.triggerConnEvent(peerId, ConnEvent(kind: ConnEventKind.Disconnected))
   if not c.peerStore.isNil:
     c.peerStore.cleanup(peerId)
 
@@ -296,6 +295,7 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
     let removed = c.muxerStore.remove(mux)
     if removed and c.muxerStore.count(peerId) == 0:
       await c.onPeerDisconnected(peerId)
+    await noCancel c.triggerConnEvent(peerId, ConnEvent(kind: ConnEventKind.Disconnected))
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer {.inline.} =
   ## Select a connection for the provided peer and direction
@@ -448,7 +448,8 @@ proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError
   let muxers = c.muxerStore.remove(peerId)
   for muxer in muxers:
     await closeMuxer(muxer)
-  await c.onPeerDisconnected(peerId)
+  if muxers.len > 0:
+    await c.onPeerDisconnected(peerId)
 
   trace "Peer dropped", peerId
 
@@ -471,6 +472,7 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   for peerId, muxers in muxed:
     for mux in muxers:
       await closeMuxer(mux)
-    await c.onPeerDisconnected(peerId)
+    if muxers.len > 0:
+      await c.onPeerDisconnected(peerId)
 
   trace "Closed ConnManager"
