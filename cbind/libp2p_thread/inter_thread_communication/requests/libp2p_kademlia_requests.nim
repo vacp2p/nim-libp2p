@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/sequtils
 import chronos, results, sets
@@ -7,7 +7,7 @@ import ../../../[alloc, ffi_types]
 import ../../../../libp2p
 import ../../../../libp2p/extended_peer_record
 import ../../../../libp2p/protocols/kademlia
-import ../../../../libp2p/protocols/kademlia_discovery/[random_find, types]
+import ../../../../libp2p/protocols/service_discovery/[random_find, types]
 import ./libp2p_peer_manager_requests
 
 type KademliaMsgType* = enum
@@ -354,10 +354,10 @@ proc processRandomRecords*(
   let kad = kadOpt.valueOr:
     return err("kad-dht not initialized")
 
-  if not (kad of KademliaDiscovery):
-    return err("KademliaDiscovery is not mounted")
+  if not (kad of ServiceDiscovery):
+    return err("ServiceDiscovery is not mounted")
 
-  let disco = KademliaDiscovery(kad)
+  let disco = ServiceDiscovery(kad)
   let records = await disco.randomRecords()
 
   buildRandomRecordsResult(records)
