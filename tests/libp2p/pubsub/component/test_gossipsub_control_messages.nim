@@ -140,7 +140,7 @@ suite "GossipSub Component - Control Messages":
 
     # When a PRUNE message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg.withControl(pruneMessage), MessagePriority.Low)
+    n0.broadcast(@[p1], RPCMsg.withControl(pruneMessage), MessagePriority.High)
 
     # Then the peer is PRUNEd
     checkUntilTimeout:
@@ -265,7 +265,7 @@ suite "GossipSub Component - Control Messages":
 
     # When an IWANT message is sent
     let p1 = n0.getOrCreatePeer(n1.peerInfo.peerId, @[GossipSubCodec_12])
-    n0.broadcast(@[p1], RPCMsg.withControl(iwantMessage), MessagePriority.Low)
+    n0.broadcast(@[p1], RPCMsg.withControl(iwantMessage), MessagePriority.High)
 
     # Wait until IWANT response is received
     # Then the peer has exactly one IWANT message with the correct message ID

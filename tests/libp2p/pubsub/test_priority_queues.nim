@@ -87,8 +87,10 @@ proc releaseFirstWrite(conn: RecorderConnection) {.raises: [].} =
   if not conn.firstWriteFut.isNil and not conn.firstWriteFut.finished:
     conn.firstWriteFut.complete()
 
-proc callbacksDrained(fut: FutureBase): Future[void] {.raises: [].} =
-  let drained = Future[void].init("callbacksDrained")
+proc callbacksDrained(
+    fut: FutureBase
+): Future[void].Raising([CancelledError]) {.raises: [].} =
+  let drained = Future[void].Raising([CancelledError]).init("callbacksDrained")
 
   proc continuation(udata: pointer) {.gcsafe, raises: [].} =
     let drained = cast[Future[void]](udata)
@@ -190,7 +192,8 @@ suite "Priority queue behavior":
       let f = peer.sendEncoded(msg, MessagePriority.Medium)
       check f.finished
 
-    check conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
+    check conn.writes ==
+      @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
 
     conn.releaseFirstWrite()
     let writeDrain = callbacksDrained(conn.firstWriteFut)
@@ -199,7 +202,8 @@ suite "Priority queue behavior":
       writeDrain.finished
 
     check:
-      conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
+      conn.writes ==
+        @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
       not disconnectRequestedForTest[]
       peer.hasSendConn()
 
