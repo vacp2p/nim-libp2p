@@ -22,7 +22,9 @@ type LookupState* = object
   attempts*: Table[PeerId, int]
 
 type DispatchProc* = proc(kad: KadDHT, peer: PeerId, target: Key): Future[Opt[Message]] {.
-  async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]), gcsafe
+  async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]),
+  gcsafe,
+  closure
 .}
 
 type ReplyHandler* = proc(

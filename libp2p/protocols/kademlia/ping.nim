@@ -30,9 +30,10 @@ proc ping*(
 
   kad_message_bytes_received.inc(replyBuf.len.int64, labelValues = [$MessageType.ping])
 
-  let reply = Message.decode(replyBuf).tryGet()
+  let reply = Message.decode(replyBuf).valueOr:
+    return false
 
-  reply == request
+  return reply == request
 
 proc handlePing*(
     kad: KadDHT, conn: Connection, msg: Message
