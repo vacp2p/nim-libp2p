@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[tables, sets]
+import std/[tables, sets, sequtils]
 import pkg/[chronos, chronicles, metrics]
 import peerinfo, peerstore, stream/connection, muxers/muxer, errors, muxer_store
 
@@ -442,18 +442,19 @@ proc getStream*(
 
   return await c.getStream(c.selectMuxer(peerId, dir))
 
-proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
+proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError]).} =
   ## drop connections and cleanup resources for peer
   ##
   trace "Dropping peer", peerId
 
   let muxers = c.muxerStore.remove(peerId)
-  for muxer in muxers:
-    await noCancel closeMuxer(muxer)
   if muxers.len > 0:
-    await noCancel c.onPeerDisconnected(peerId)
+    try:
+      await allFutures(muxers.mapIt(closeMuxer(it)))
+    finally:
+      await noCancel c.onPeerDisconnected(peerId)
 
-  trace "Peer dropped", peerId
+  trace "Peer dropped", peerId, connCount = muxers.len
 
 proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   ## cleanup resources for the connection
@@ -477,9 +478,8 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
   let muxed = c.muxerStore.getAll()
   c.muxerStore.clear()
   for peerId, muxers in muxed:
-    for mux in muxers:
-      await closeMuxer(mux)
     if muxers.len > 0:
+      await allFutures(muxers.mapIt(closeMuxer(it)))
       await c.onPeerDisconnected(peerId)
 
   trace "Closed ConnManager"
