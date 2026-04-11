@@ -486,7 +486,11 @@ proc getBytes*(sig: EcSignature): EcResult[seq[byte]] =
   ## Serialize EC signature ``sig`` to ASN.1 DER binary form and return it.
   if isNil(sig):
     return err(EcSignatureError)
-  ok(sig.buffer)
+  let slen = len(sig.buffer)
+  var res = newSeqUninit[byte](slen)
+  if slen > 0:
+    copyMem(addr res[0], unsafeAddr sig.buffer[0], slen)
+  ok(res)
 
 proc getRawBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
   ## Serialize EC private key ``seckey`` to raw binary form and return it.
