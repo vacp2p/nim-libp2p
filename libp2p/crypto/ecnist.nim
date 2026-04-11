@@ -390,8 +390,13 @@ proc toBytes*(seckey: EcPrivateKey, target: var openArray[byte]): EcResult[int] 
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and store it
   ## to ``target``.
   ##
-  ## Procedure returns number of bytes (octets) needed to store EC private key,
-  ## or `0` if private key is not in supported curve.
+  ## Returns `ok(number of bytes written)` on success.
+  ##
+  ## Returns `err(EcInsufficientTargetSize)` if ``target`` is smaller than the
+  ## DER-encoded private key.
+  ##
+  ## Returns `err(EcKeyIncorrectError)` if ``seckey`` is nil, invalid, or uses
+  ## an unsupported curve.
   if isNil(seckey):
     return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
@@ -434,8 +439,10 @@ proc toBytes*(pubkey: EcPublicKey, target: var openArray[byte]): EcResult[int] =
   ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and store it
   ## to ``target``.
   ##
-  ## Procedure returns number of bytes (octets) needed to store EC public key,
-  ## or `0` if public key is not in supported curve.
+  ## On success, procedure returns the number of bytes (octets) written to
+  ## ``target``. Returns `err(EcInsufficientTargetSize)` if ``target`` is too
+  ## small, or `err(EcKeyIncorrectError)` if public key is nil or not in a
+  ## supported curve.
   if isNil(pubkey):
     return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
