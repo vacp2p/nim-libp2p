@@ -22,7 +22,9 @@ type LookupState* = object
   attempts*: Table[PeerId, int]
 
 type DispatchProc* = proc(kad: KadDHT, peer: PeerId, target: Key): Future[Opt[Message]] {.
-  async: (raises: [CancelledError, LPStreamError]), gcsafe
+  async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]),
+  gcsafe,
+  closure
 .}
 
 type ReplyHandler* = proc(
@@ -120,14 +122,12 @@ proc dispatchFindNode*(
     peer: PeerId,
     target: Key,
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
-): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
+): Future[Opt[Message]] {.
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]),
+    gcsafe
+.} =
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
-  let conn =
-    try:
-      await kad.switch.dial(peer, addrs, kad.codec)
-    except DialFailedError as e:
-      error "FindNode could not dial peer", description = e.msg
-      return Opt.none(Message)
+  let conn = await kad.switch.dial(peer, addrs, kad.codec)
   defer:
     await conn.close()
 
@@ -149,8 +149,7 @@ proc dispatchFindNode*(
   )
 
   let reply = Message.decode(replyBuf).valueOr:
-    debug "FindNode reply decode fail", error = error, conn = conn
-    return Opt.none(Message)
+    raise newException(ValueError, "FindNode reply decode fail")
 
   if reply.closerPeers.len > 0:
     kad_responses_with_closer_peers.inc(labelValues = [$MessageType.findNode])
@@ -191,7 +190,8 @@ proc iterativeLookup*(
     let dispatchWithPeer = proc(
         peerId: PeerId
     ): Future[(PeerId, Opt[Message])] {.
-        async: (raises: [CancelledError, LPStreamError]), gcsafe
+        async: (raises: [CancelledError, ValueError, DialFailedError, LPStreamError]),
+        gcsafe
     .} =
       let msg = await dispatch(kad, peerId, target)
       return (peerId, msg)
@@ -203,8 +203,15 @@ proc iterativeLookup*(
     for (fut, peerId) in zip(rpcBatch, toQuery):
       if not fut.finished():
         continue
-      state.responded[peerId] =
-        if fut.failed(): RespondedStatus.Failed else: RespondedStatus.Success
+      if fut.failed():
+        state.responded[peerId] = RespondedStatus.Failed
+        let err = fut.error()
+        if err of DialFailedError:
+          error "Kad lookup: dial failed", peer = peerId.shortLog(), msg = err.msg
+        else:
+          error "Kad lookup: RPC error", peer = peerId.shortLog(), msg = err.msg
+      else:
+        state.responded[peerId] = RespondedStatus.Success
 
     for (peerId, msg) in completedRPCBatch:
       msg.withValue(reply):
@@ -232,7 +239,11 @@ method findNode*(
 
   let dispatchFind = proc(
       kad: KadDHT, peer: PeerId, target: Key
-  ): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
+  ): Future[Opt[Message]] {.
+      async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]),
+      gcsafe,
+      closure
+  .} =
     return await dispatchFindNode(kad, peer, target)
 
   let state = await kad.iterativeLookup(target, dispatchFind, ignoreReply, stop)

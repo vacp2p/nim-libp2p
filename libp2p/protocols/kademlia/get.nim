@@ -12,13 +12,12 @@ logScope:
 
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
-): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
+): Future[Opt[Message]] {.
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]),
+    gcsafe
+.} =
   let conn =
-    try:
-      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-    except DialFailedError as e:
-      error "GetValue could not dial peer", description = e.msg
-      return Opt.none(Message)
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
   defer:
     await conn.close()
 
@@ -40,8 +39,7 @@ proc dispatchGetVal*(
   )
 
   let reply = Message.decode(replyBuf).valueOr:
-    error "GetValue reply decode fail", error = error, conn = conn
-    return Opt.none(Message)
+    raise newException(ValueError, "GetValue reply decode fail")
 
   if reply.closerPeers.len > 0:
     kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
