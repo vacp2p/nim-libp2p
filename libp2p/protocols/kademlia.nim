@@ -5,10 +5,10 @@ import chronos, chronicles, results
 import ../utils/heartbeat
 import ../[peerid, switch, multihash]
 import ./protocol
-import ./kademlia/[routingtable, protobuf, types, find, get, put, provider, ping]
+import ./kademlia/[routing_table, protobuf, types, find, get, put, provider, ping]
 import ./kademlia/kademlia_metrics
 
-export routingtable, protobuf, types, find, get, put, provider, ping, kademlia_metrics
+export routing_table, protobuf, types, find, get, put, provider, ping, kademlia_metrics
 
 logScope:
   topics = "kad-dht"
@@ -34,7 +34,7 @@ proc bootstrap*(
     if not (forceRefresh or bucket.isStale()):
       continue
 
-    let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng[])
+    let randomKey = randomKeyInBucket(kad.rtable.selfId, i, kad.rng)
     discard await kad.findNode(randomKey)
 
   trace "Bootstrap complete"
