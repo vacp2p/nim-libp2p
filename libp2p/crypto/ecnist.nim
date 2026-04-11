@@ -66,6 +66,7 @@ type
     EcPublicKeyError
     EcKeyIncorrectError
     EcSignatureError
+    EcInsufficientTargetSize
 
   EcResult*[T] = Result[T, EcError]
 
@@ -385,9 +386,9 @@ proc buildPrivateKeyBytes(seckey: EcPrivateKey): EcResult[seq[byte]] =
   b.finish()
   ok(move(b.buffer))
 
-proc toBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int] =
+proc toBytes*(seckey: EcPrivateKey, target: var openArray[byte]): EcResult[int] =
   ## Serialize EC private key ``seckey`` to ASN.1 DER binary form and store it
-  ## to ``data``.
+  ## to ``target``.
   ##
   ## Procedure returns number of bytes (octets) needed to store EC private key,
   ## or `0` if private key is not in supported curve.
@@ -396,9 +397,13 @@ proc toBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int] =
   if seckey.key.curve in EcSupportedCurvesCint:
     let bytes = ?buildPrivateKeyBytes(seckey)
     let blen = len(bytes)
-    if len(data) >= blen:
-      copyMem(addr data[0], unsafeAddr bytes[0], blen)
-    ok(blen)
+    if len(target) < blen:
+      err(EcInsufficientTargetSize)
+    elif blen == 0:
+      err(EcKeyIncorrectError)
+    else:
+      copyMem(addr target[0], unsafeAddr bytes[0], blen)
+      ok(blen)
   else:
     err(EcKeyIncorrectError)
 
@@ -425,9 +430,9 @@ proc buildPublicKeyBytes(pubkey: EcPublicKey): EcResult[seq[byte]] =
   b.finish()
   ok(move(b.buffer))
 
-proc toBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] =
+proc toBytes*(pubkey: EcPublicKey, target: var openArray[byte]): EcResult[int] =
   ## Serialize EC public key ``pubkey`` to ASN.1 DER binary form and store it
-  ## to ``data``.
+  ## to ``target``.
   ##
   ## Procedure returns number of bytes (octets) needed to store EC public key,
   ## or `0` if public key is not in supported curve.
@@ -436,9 +441,13 @@ proc toBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] =
   if pubkey.key.curve in EcSupportedCurvesCint:
     let bytes = ?buildPublicKeyBytes(pubkey)
     let blen = len(bytes)
-    if len(data) >= blen:
-      copyMem(addr data[0], unsafeAddr bytes[0], blen)
-    ok(blen)
+    if len(target) < blen:
+      err(EcInsufficientTargetSize)
+    elif blen == 0:
+      err(EcKeyIncorrectError)
+    else:
+      copyMem(addr target[0], unsafeAddr bytes[0], blen)
+      ok(blen)
   else:
     err(EcKeyIncorrectError)
 
