@@ -497,9 +497,8 @@ proc getRawBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
   if isNil(seckey):
     return err(EcKeyIncorrectError)
   if seckey.key.curve in EcSupportedCurvesCint:
-    var res = newSeqUninit[byte](0)
-    let length = ?seckey.toRawBytes(res)
-    res.setLen(length)
+    let klen = getPrivateKeyLength(cast[EcCurveKind](seckey.key.curve))
+    var res = newSeqUninit[byte](klen)
     discard ?seckey.toRawBytes(res)
     ok(res)
   else:
@@ -510,23 +509,18 @@ proc getRawBytes*(pubkey: EcPublicKey): EcResult[seq[byte]] =
   if isNil(pubkey):
     return err(EcKeyIncorrectError)
   if pubkey.key.curve in EcSupportedCurvesCint:
-    var res = newSeqUninit[byte](0)
-    let length = ?pubkey.toRawBytes(res)
-    res.setLen(length)
+    let klen = getPublicKeyLength(cast[EcCurveKind](pubkey.key.curve))
+    var res = newSeqUninit[byte](klen)
     discard ?pubkey.toRawBytes(res)
-    return ok(res)
+    ok(res)
   else:
-    return err(EcKeyIncorrectError)
+    err(EcKeyIncorrectError)
 
 proc getRawBytes*(sig: EcSignature): EcResult[seq[byte]] =
   ## Serialize EC signature ``sig`` to raw binary form and return it.
   if isNil(sig):
     return err(EcSignatureError)
-  var res = newSeqUninit[byte](0)
-  let length = ?sig.toBytes(res)
-  res.setLen(length)
-  discard ?sig.toBytes(res)
-  ok(res)
+  ok(sig.buffer)
 
 proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
   ## Returns ``true`` if both keys ``pubkey1`` and ``pubkey2`` are equal.
