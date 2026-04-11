@@ -287,6 +287,41 @@ suite "GossipSubParams validation":
     params.maxLowPriorityQueueLen = 1
     check params.validateParameters().isOk()
 
+  test "deprecated maxNumElementsInNonPriorityQueue maps to medium and low queue limits":
+    let params = GossipSubParams.init(maxNumElementsInNonPriorityQueue = 33)
+    check params.maxNumElementsInNonPriorityQueue == 33
+    check params.maxMediumPriorityQueueLen == 33
+    check params.maxLowPriorityQueueLen == 33
+    check params.validateParameters().isOk()
+
+  test "explicit maxMediumPriorityQueueLen wins over deprecated queue parameter":
+    let params = GossipSubParams.init(
+      maxNumElementsInNonPriorityQueue = 33, maxMediumPriorityQueueLen = 7
+    )
+    check params.maxNumElementsInNonPriorityQueue == 33
+    check params.maxMediumPriorityQueueLen == 7
+    check params.maxLowPriorityQueueLen == 33
+    check params.validateParameters().isOk()
+
+  test "explicit maxLowPriorityQueueLen wins over deprecated queue parameter":
+    let params = GossipSubParams.init(
+      maxNumElementsInNonPriorityQueue = 33, maxLowPriorityQueueLen = 7
+    )
+    check params.maxNumElementsInNonPriorityQueue == 33
+    check params.maxMediumPriorityQueueLen == 33
+    check params.maxLowPriorityQueueLen == 7
+    check params.validateParameters().isOk()
+
+  test "deprecated maxNumElementsInNonPriorityQueue keeps invalid zero value":
+    const errorMessage =
+      "gossipsub: maxMediumPriorityQueueLen parameter error, Must be > 0"
+    let params = GossipSubParams.init(maxNumElementsInNonPriorityQueue = 0)
+    check params.maxMediumPriorityQueueLen == 0
+    check params.maxLowPriorityQueueLen == 0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
 suite "TopicParams validation":
   proc newDefaultValidTopicParams(): TopicParams =
     result = TopicParams.init()

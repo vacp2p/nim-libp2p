@@ -220,21 +220,6 @@ proc send*(
     p: PubSub,
     peer: PubSubPeer,
     msg: RPCMsg,
-    isHighPriority: bool,
-    useCustomConn: bool = false,
-) {.raises: [], deprecated: "use send(..., priority = High/Low, ...) instead".} =
-  let priority =
-    if isHighPriority:
-      High
-    else:
-      Low
-
-  p.send(peer, msg, priority, useCustomConn)
-
-proc send*(
-    p: PubSub,
-    peer: PubSubPeer,
-    msg: RPCMsg,
     priority: MessagePriority,
     useCustomConn: bool = false,
 ) {.raises: [].} =
@@ -250,6 +235,22 @@ proc send*(
 
   trace "sending pubsub message to peer", peer, payload = shortLog(msg)
   peer.send(msg, p.anonymize, priority, useCustomConn)
+
+proc send*(
+    p: PubSub,
+    peer: PubSubPeer,
+    msg: RPCMsg,
+    isHighPriority: bool,
+    useCustomConn: bool = false,
+) {.raises: [], deprecated: "use send(..., priority = High/Low, ...) instead".} =
+  let priority =
+    if isHighPriority:
+      MessagePriority.High
+    else:
+      # Locally published messages have higher priority than gossip but not than control messages       
+      MessagePriority.Medium
+
+  p.send(peer, msg, priority, useCustomConn)
 
 proc broadcast*(
     p: PubSub,
@@ -310,6 +311,18 @@ proc broadcast*(
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
       asyncSpawn peer.sendEncoded(encoded, priority, useCustomConn)
+
+proc broadcast*(
+    p: PubSub,
+    sendPeers: auto, # Iterable[PubSubPeer]
+    msg: RPCMsg,
+    isHighPriority: bool,
+    useCustomConn: bool = false,
+) {.deprecated: "Use broadcast with priority: MessagePriority instead", raises: [].} =
+  ## Backward-compatible overload for callers still using the previous
+  ## boolean priority API. Maps `true` to `High` and `false` to `Medium`.
+  let priority = if isHighPriority: High else: Medium
+  p.broadcast(sendPeers, msg, priority, useCustomConn)
 
 proc sendSubs*(
     p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool

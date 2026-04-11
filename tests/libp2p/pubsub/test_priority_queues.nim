@@ -160,10 +160,7 @@ suite "Priority queue behavior":
     let drain2 = callbacksDrained(conn.pendingWrites[1])
     let drain3 = callbacksDrained(conn.pendingWrites[2])
 
-    checkUntilTimeout:
-      drain1.finished
-      drain2.finished
-      drain3.finished
+    await allFutures(drain1, drain2, drain3)
 
     check:
       not disconnectRequestedForTest[]
@@ -196,10 +193,8 @@ suite "Priority queue behavior":
       @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
 
     conn.releaseFirstWrite()
-    let writeDrain = callbacksDrained(conn.firstWriteFut)
 
-    checkUntilTimeout:
-      writeDrain.finished
+    await callbacksDrained(conn.firstWriteFut)
 
     check:
       conn.writes ==
@@ -234,10 +229,8 @@ suite "Priority queue behavior":
     check conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1], lowMsgs[2], lowMsgs[3]]
 
     conn.releaseFirstWrite()
-    let writeDrain = callbacksDrained(conn.firstWriteFut)
 
-    checkUntilTimeout:
-      writeDrain.finished
+    await callbacksDrained(conn.firstWriteFut)
 
     check:
       conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1], lowMsgs[2], lowMsgs[3]]
