@@ -220,6 +220,21 @@ proc send*(
     p: PubSub,
     peer: PubSubPeer,
     msg: RPCMsg,
+    isHighPriority: bool,
+    useCustomConn: bool = false,
+) {.raises: [], deprecated: "use send(..., priority = High/Low, ...) instead".} =
+  let priority =
+    if isHighPriority:
+      High
+    else:
+      Low
+
+  p.send(peer, msg, priority, useCustomConn)
+
+proc send*(
+    p: PubSub,
+    peer: PubSubPeer,
+    msg: RPCMsg,
     priority: MessagePriority,
     useCustomConn: bool = false,
 ) {.raises: [].} =
