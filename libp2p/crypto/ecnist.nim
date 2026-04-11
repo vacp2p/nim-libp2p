@@ -520,7 +520,11 @@ proc getRawBytes*(sig: EcSignature): EcResult[seq[byte]] =
   ## Serialize EC signature ``sig`` to raw binary form and return it.
   if isNil(sig):
     return err(EcSignatureError)
-  ok(sig.buffer)
+  let slen = len(sig.buffer)
+  var res = newSeqUninit[byte](slen)
+  if slen > 0:
+    copyMem(addr res[0], unsafeAddr sig.buffer[0], slen)
+  ok(res)
 
 proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
   ## Returns ``true`` if both keys ``pubkey1`` and ``pubkey2`` are equal.
