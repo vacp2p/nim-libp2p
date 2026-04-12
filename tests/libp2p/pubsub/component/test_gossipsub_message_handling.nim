@@ -6,7 +6,7 @@
 import chronos, std/[sequtils, enumerate], stew/byteutils, sugar, chronicles
 import
   ../../../../libp2p/protocols/pubsub/
-    [gossipsub, mcache, peertable, timedcache, rpc/message]
+    [gossipsub, mcache, peertable, pubsubpeer, timedcache, rpc/message]
 import ../../../tools/[lifecycle, topology, unittest, futures, sync]
 import ../utils
 
@@ -90,7 +90,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, iwantMessageIds)),
-      isHighPriority = false,
+      MessagePriority.High,
     )
 
     checkUntilTimeout:
@@ -110,7 +110,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
-      isHighPriority = false,
+      MessagePriority.High,
     )
 
     # wait some time before asserting that messages is not received
@@ -133,7 +133,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
-      isHighPriority = false,
+      MessagePriority.High,
     )
 
     checkUntilTimeout:
@@ -154,7 +154,7 @@ suite "GossipSub Component - Message Handling":
     gossip1.broadcast(
       gossip1.mesh[topic],
       RPCMsg.withControl(ControlMessage.withIHave(topic, bigIWantMessageIds)),
-      isHighPriority = false,
+      MessagePriority.High,
     )
 
     var smallestSet: HashSet[seq[byte]]

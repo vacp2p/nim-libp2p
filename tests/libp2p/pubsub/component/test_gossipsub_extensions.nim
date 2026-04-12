@@ -5,8 +5,13 @@
 
 import chronos, algorithm, stew/byteutils, sequtils
 import
-  ../../../../libp2p/protocols/pubsub/
-    [gossipsub, gossipsub/extensions, gossipsub/extension_preamble, rpc/message]
+  ../../../../libp2p/protocols/pubsub/[
+    gossipsub,
+    gossipsub/extensions,
+    gossipsub/extension_preamble,
+    pubsubpeer,
+    rpc/message,
+  ]
 import ../../../tools/[lifecycle, unittest]
 import ../extensions/my_partial_message
 import ../utils
@@ -164,7 +169,7 @@ suite "GossipSub Component - Extensions":
     nodes[0].send(
       nodes[0].peers[nodes[1].peerInfo.peerId],
       RPCMsg.withPing(pingBytes),
-      isHighPriority = true,
+      MessagePriority.High,
     )
 
     # nodes[1] should echo the ping back as a pong
