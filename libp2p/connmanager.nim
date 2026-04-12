@@ -273,11 +273,16 @@ proc closeMuxer(muxer: Muxer) {.async: (raises: [CancelledError]).} =
   trace "Cleaned up muxer", m = muxer
 
 proc onPeerDisconnected(c: ConnManager, peerId: PeerId) {.async: (raises: []).} =
+  if c.muxerStore.count(peerId) > 0:
+    # onPeerDisconnected is called when we assumed that peer was disconnected.
+    # but if peer did reconnect, we should not trigger the cleanup.
+    return
+
   c.clearPeerReadyState(peerId)
-  libp2p_peers.set(c.muxerStore.countPeers.int64)
-  await noCancel c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
   if not c.peerStore.isNil:
     c.peerStore.cleanup(peerId)
+  libp2p_peers.set(c.muxerStore.countPeers.int64)
+  await noCancel c.triggerPeerEvents(peerId, PeerEvent(kind: PeerEventKind.Left))
 
 proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
   ## connection close event handler
