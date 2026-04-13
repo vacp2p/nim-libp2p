@@ -115,12 +115,16 @@ template streamTransportTest*(
 
   asyncTest "server writes after EOF":
     var clientHandlerDone = newFuture[void]()
+    var serverReadDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
         check string.fromBytes(buffer) == serverMessage
+
+        # Signal client that data has been read; client will now close the connection
+        serverReadDone.complete()
 
         await clientHandlerDone
 
@@ -134,11 +138,13 @@ template streamTransportTest*(
 
       let stream = await muxer.newStream()
       await stream.write(serverMessage)
+      # Wait for the server to read before closing the connection to avoid a race
+      # where lsquic discards buffered but unread stream data on connection close,
+      # causing readExactly to fail with LPStreamRemoteClosedError.
+      await serverReadDone
       await stream.close()
       await muxer.close()
       await conn.close()
-
-      await sleepAsync(20.milliseconds)
       await client.stop()
 
       clientHandlerDone.complete()
