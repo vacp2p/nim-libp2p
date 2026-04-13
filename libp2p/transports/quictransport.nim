@@ -322,18 +322,23 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   doAssert self.listeners.len == 0, "start() already called"
 
+  var addrsTa = newSeq[TransportAddress](addrs.len)
+  for i, maAddr in addrs:
+    if not self.handles(maAddr):
+      raise (ref TransportStartError)(msg: "Unsupported address: " & $maAddr)
+    addrsTa[i] = initTAddress(maAddr).valueOr:
+      raise (ref TransportStartError)(
+        msg:
+          "Cannot start QUIC transport on non-wire address: " & $maAddr & ". " & error
+      )
+  if addrsTa.len == 0:
+    raise newException(TransportStartError, "No addr was provided.")
+
   var listenMAs: seq[MultiAddress]
   var initialized = false
   try:
     let server = QuicServer.new(self.makeConfig())
-    for maAddr in addrs:
-      if not self.handles(maAddr):
-        raise (ref TransportStartError)(msg: "Unsupported address: " & $maAddr)
-      let ta = initTAddress(maAddr).valueOr:
-        raise (ref TransportStartError)(
-          msg:
-            "Cannot start QUIC transport on non-wire address: " & $maAddr & ". " & error
-        )
+    for ta in addrsTa:
       let listener = server.listen(ta)
       self.listeners.add(listener)
       listenMAs.add(toMultiAddress(listener.localAddress()))

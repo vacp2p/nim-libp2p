@@ -118,17 +118,22 @@ method start*(
 
   self.flags.incl(ServerFlags.ReusePort)
 
+  var addrsTa = newSeq[TransportAddress](addrs.len)
+  for i, ma in addrs:
+    if not self.handles(ma):
+      raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
+
+    addrsTa[i] = initTAddress(ma).valueOr:
+      raise (ref TransportStartError)(
+        msg: "Cannot start TCP transport on non-wire address: " & $ma & ". " & error
+      )
+  if addrsTa.len == 0:
+    raise newException(TransportStartError, "No addr was provided.")
+
   var supported: seq[MultiAddress]
   var initialized = false
   try:
-    for ma in addrs:
-      if not self.handles(ma):
-        raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
-
-      let ta = initTAddress(ma).valueOr:
-        raise (ref TransportStartError)(
-          msg: "Cannot start TCP transport on non-wire address: " & $ma & ". " & error
-        )
+    for i, ta in addrsTa:
       let server =
         try:
           createStreamServer(ta, flags = self.flags)
@@ -139,7 +144,7 @@ method start*(
 
       self.servers &= server
 
-      trace "Listening on", address = ma
+      trace "Listening on", address = addrs[i]
       supported.add(
         MultiAddress.init(server.sock.getLocalAddress()).expect(
           "Can init from local address"

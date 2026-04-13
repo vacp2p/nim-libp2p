@@ -262,14 +262,11 @@ method start*(
     let onion3 = ma[multiCodec("onion3")].tryGet()
     onion3Addrs.add(onion3)
 
-  if len(listenAddrs) != 0 and len(onion3Addrs) != 0:
-    await procCall Transport(self).start(onion3Addrs)
-    await self.tcpTransport.start(listenAddrs)
-  else:
-    raise newException(
-      TransportStartError,
-      "Tor Transport couldn't start, no supported addr was provided.",
-    )
+  if listenAddrs.len == 0:
+    raise newException(TransportStartError, "No addr was provided.")
+
+  await procCall Transport(self).start(onion3Addrs)
+  await self.tcpTransport.start(listenAddrs)
 
 method accept*(
     self: TorTransport

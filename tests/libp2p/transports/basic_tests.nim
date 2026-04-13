@@ -89,6 +89,11 @@ template basicTransportTest*(
         await transport.start(@[MultiAddress.init(ma).tryGet()])
         await transport.stop()
 
+    asyncTest "start fails when no address is provided":
+      let transport = transportProvider()
+      expect TransportStartError:
+        await transport.start(@[])
+
     asyncTest "start fails for valid non-wire addresses":
       for addrs in validNonWireAddresses:
         let transport = transportProvider()

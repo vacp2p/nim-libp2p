@@ -127,6 +127,7 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
   ##
+  trace "Starting WS transport"
 
   if self.running:
     warn "WS transport already running"
@@ -140,6 +141,8 @@ method start*(
       raise (ref TransportStartError)(
         msg: "Cannot start WS transport on non-wire address: " & $ma & ". " & error
       )
+  if addrsTa.len == 0:
+    raise newException(TransportStartError, "No addr was provided.")
 
   when defined(libp2p_autotls_support):
     if not self.secure and self.autotls.isSome():
@@ -159,7 +162,6 @@ method start*(
         except TLSStreamProtocolError as exc:
           raise newException(LPError, exc.msg, exc)
 
-  trace "Starting WS transport"
   await procCall Transport(self).start(addrs)
 
   self.wsserver = WSServer.new(factories = self.factories, rng = self.rng)
