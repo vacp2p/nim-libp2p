@@ -263,24 +263,25 @@ when defined(libp2p_autotls_support):
 
       api.mockedResponses.add(
         HTTPResponse(
-          body: %*{
-            "identifier": {"type": "dns", "value": "example.com"},
-            "status": "pending",
-            "challenges": [
-              {
-                "type": "dns-persist-01",
-                "url": "http://example.com/unknown-challenge",
-                "status": "pending",
-                "token": "unknown-token",
-              },
-              {
-                "type": "dns-01",
-                "url": "http://example.com/recognized-challenge",
-                "status": "pending",
-                "token": "recognized-token",
-              },
-            ],
-          },
+          body:
+            %*{
+              "identifier": {"type": "dns", "value": "example.com"},
+              "status": "pending",
+              "challenges": [
+                {
+                  "type": "dns-persist-01",
+                  "url": "http://example.com/unknown-challenge",
+                  "status": "pending",
+                  "token": "unknown-token",
+                },
+                {
+                  "type": "dns-01",
+                  "url": "http://example.com/recognized-challenge",
+                  "status": "pending",
+                  "token": "recognized-token",
+                },
+              ],
+            },
           headers: HttpTable.init(),
         )
       )
