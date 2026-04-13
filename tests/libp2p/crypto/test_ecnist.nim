@@ -628,3 +628,23 @@ suite "EC NIST-P256/384/521 test suite":
       let error = csig.buffer.high
       csig.buffer[error] = not (csig.buffer[error])
       check csig.verify(message, pubkey) == false
+
+  test "Private key toBytes returns EcInsufficientTargetSize for undersized buffer":
+    for curve in [Secp256r1, Secp384r1, Secp521r1]:
+      let key = EcPrivateKey.random(curve, rng[]).expect("random key")
+      # Determine correct size first, then use a buffer one byte too small.
+      var full = newSeq[byte](512)
+      let needed = key.toBytes(full).expect("bytes")
+      var small = newSeq[byte](needed - 1)
+      check:
+        key.toBytes(small) == EcResult[int].err(EcInsufficientTargetSize)
+
+  test "Public key toBytes returns EcInsufficientTargetSize for undersized buffer":
+    for curve in [Secp256r1, Secp384r1, Secp521r1]:
+      let pair = EcKeyPair.random(curve, rng[]).expect("random key")
+      # Determine correct size first, then use a buffer one byte too small.
+      var full = newSeq[byte](512)
+      let needed = pair.pubkey.toBytes(full).expect("bytes")
+      var small = newSeq[byte](needed - 1)
+      check:
+        pair.pubkey.toBytes(small) == EcResult[int].err(EcInsufficientTargetSize)
