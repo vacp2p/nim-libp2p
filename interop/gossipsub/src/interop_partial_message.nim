@@ -19,21 +19,48 @@ const
   GroupIdLen* = 8 ## big-endian uint64
   PositionsPerPart = PartLen div sizeof(uint64) ## 128 uint64
 
-proc hasBit(bitmap: uint8, i: int): bool =
-  (bitmap and (1'u8 shl uint8(i))) != 0
+type InteropPartsMetadata* = object
+  bitmap*: uint8 ## bit i == part i present
 
-proc setBit(bitmap: var uint8, i: int) =
-  bitmap = bitmap or (1'u8 shl uint8(i))
+proc newInteropPartsMetadata*(bitmap: uint8): InteropPartsMetadata =
+  InteropPartsMetadata(bitmap: bitmap)
 
-proc bytesForBitmap(bitmap: uint8): int =
+proc convert*(
+    _: typedesc[InteropPartsMetadata], metadata: PartsMetadata
+): Result[InteropPartsMetadata, string] =
+  if metadata.len == 0:
+    return ok(InteropPartsMetadata(bitmap: 0'u8))
+
+  if metadata.len != MetadataLen:
+    return err("invalid metadata length, expected 0 or 1 byte")
+
+  ok(InteropPartsMetadata(bitmap: metadata[0]))
+
+proc hasBit*(metadata: InteropPartsMetadata, i: int): bool =
+  (metadata.bitmap and (1'u8 shl uint8(i))) != 0
+
+proc setBit*(metadata: var InteropPartsMetadata, i: int) =
+  metadata.bitmap = metadata.bitmap or (1'u8 shl uint8(i))
+
+proc bytesForBitmap(metadata: InteropPartsMetadata): int =
   var partsCount = 0
   for i in 0 ..< NumParts:
-    if bitmap.hasBit(i):
+    if metadata.hasBit(i):
       inc partsCount
   partsCount * PartLen
 
+proc isComplete*(metadata: InteropPartsMetadata): bool =
+  metadata.bitmap == 0b11111111
+
+func partsPresent*(metadata: InteropPartsMetadata): int =
+  var count = 0
+  for i in 0 ..< NumParts:
+    if metadata.hasBit(i):
+      inc count
+  count
+
 type InteropPartialMessage* = ref object of PartialMessage
-  bitmap*: uint8 ## bit i == part i present
+  metadata*: InteropPartsMetadata
   parts*: array[NumParts, seq[byte]]
   groupIdBytes*: array[GroupIdLen, byte]
 
@@ -49,22 +76,18 @@ proc newInteropPartialMessageFromBytes*(
   InteropPartialMessage(groupIdBytes: groupIdArr)
 
 proc isComplete*(pm: InteropPartialMessage): bool =
-  pm.bitmap == 0b11111111
+  pm.metadata.isComplete()
 
 func partsPresent*(pm: InteropPartialMessage): int =
-  var count = 0
-  for i in 0 ..< NumParts:
-    if pm.bitmap.hasBit(i):
-      inc count
-  count
+  pm.metadata.partsPresent()
 
-proc fillParts*(pm: InteropPartialMessage, bitmap: uint8) =
+proc fillParts*(pm: InteropPartialMessage, metadata: InteropPartsMetadata) =
   ## Fill parts with deterministic data.
   ## start = BigEndian(groupId)
   ## Part i, position j: value == start + i*128 + j
   let start = fromBytesBE(uint64, pm.groupIdBytes)
   for i in 0 ..< NumParts:
-    if not bitmap.hasBit(i):
+    if not metadata.hasBit(i):
       continue
     var part = newSeq[byte](PartLen)
     var counter = start + uint64(i) * PositionsPerPart
@@ -73,7 +96,7 @@ proc fillParts*(pm: InteropPartialMessage, bitmap: uint8) =
       part[pos ..< pos + sizeof(uint64)] = @(toBytesBE(counter))
       counter.inc
     pm.parts[i] = part
-    pm.bitmap.setBit(i)
+    pm.metadata.setBit(i)
 
 proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
   ## Decode wire format and add new parts.
@@ -81,7 +104,7 @@ proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
   if data.len < MetadataLen + GroupIdLen:
     return err("data too short")
 
-  let msgBitmap = data[0]
+  let msgMetadata = newInteropPartsMetadata(data[0])
   let groupIdStart = data.len - GroupIdLen
   let partData = data[MetadataLen ..< groupIdStart]
 
@@ -89,15 +112,15 @@ proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
   if data[groupIdStart ..< data.len] != @(pm.groupIdBytes):
     return err("group ID mismatch")
 
-  if partData.len != bytesForBitmap(msgBitmap):
+  if partData.len != bytesForBitmap(msgMetadata):
     return err("invalid data length")
 
   var offset = 0
   for i in 0 ..< NumParts:
-    if not msgBitmap.hasBit(i):
+    if not msgMetadata.hasBit(i):
       continue # not in message
 
-    if pm.bitmap.hasBit(i):
+    if pm.metadata.hasBit(i):
       offset += PartLen
       continue # already have this part, step past them
 
@@ -105,7 +128,7 @@ proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
       return err("not enough data for part")
 
     pm.parts[i] = partData[offset ..< offset + PartLen]
-    pm.bitmap.setBit(i)
+    pm.metadata.setBit(i)
     offset += PartLen
 
   ok()
@@ -114,7 +137,7 @@ method groupId*(pm: InteropPartialMessage): GroupId {.gcsafe, raises: [].} =
   @(pm.groupIdBytes)
 
 method partsMetadata*(pm: InteropPartialMessage): PartsMetadata {.gcsafe, raises: [].} =
-  @[pm.bitmap]
+  @[pm.metadata.bitmap]
 
 method materializeParts*(
     pm: InteropPartialMessage, metadata: PartsMetadata
@@ -122,38 +145,36 @@ method materializeParts*(
   ## Encode parts that the peer doesn't have.
   ## metadata is the peer's 1-byte bitmap (what parts they have).
   ## Returns: [bitmap][parts...][groupId] for parts we have that they don't.
-  if metadata.len != MetadataLen and metadata.len != 0:
-    return err("invalid metadata length, expected 0 or 1 byte")
+  let peerMetadata = InteropPartsMetadata.convert(metadata).valueOr:
+    return err(error)
 
-  let peerBitmap =
-    if metadata.len == 0:
-      0'u8 # peer has nothing, send all available
-    else:
-      metadata[0]
-  var responseBitmap: uint8 = 0
+  var responseMetadata = InteropPartsMetadata()
   var data = newSeq[byte](MetadataLen) # placeholder for bitmap byte
 
   for i in 0 ..< NumParts:
-    if peerBitmap.hasBit(i):
+    if peerMetadata.hasBit(i):
       continue # peer has this part
 
-    if not pm.bitmap.hasBit(i):
+    if not pm.metadata.hasBit(i):
       continue # we don't have this part
 
-    responseBitmap.setBit(i)
+    responseMetadata.setBit(i)
     data.add(pm.parts[i])
 
-  if responseBitmap == 0:
+  if responseMetadata.partsPresent() == 0:
     return ok(newSeq[byte]()) # nothing to send
 
-  data[0] = responseBitmap
+  data[0] = responseMetadata.bitmap
   data.add(@(pm.groupIdBytes))
   ok(data)
 
 proc interopUnionPartsMetadata*(
     a, b: PartsMetadata
 ): Result[PartsMetadata, string] {.gcsafe, raises: [].} =
-  if a.len != MetadataLen or b.len != MetadataLen:
-    return err("invalid metadata length, expected 1 byte each")
+  let metaA = InteropPartsMetadata.convert(a).valueOr:
+    return err(error)
 
-  ok(@[a[0] or b[0]])
+  let metaB = InteropPartsMetadata.convert(b).valueOr:
+    return err(error)
+
+  ok(@[metaA.bitmap or metaB.bitmap])
