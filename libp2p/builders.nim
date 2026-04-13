@@ -22,6 +22,7 @@ import
   protocols/[identify, secure/secure, secure/noise, rendezvous, kademlia],
   protocols/connectivity/[
     autonat/server,
+    autonat/client,
     autonat/service,
     autonatv2/server,
     autonatv2/service,
@@ -30,6 +31,7 @@ import
     relay/client,
     relay/rtransport,
   ],
+  services/[autorelayservice, hpservice],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
@@ -86,6 +88,7 @@ type
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
     autonatV2Service*: Opt[AutonatV2Service]
+    hpService*: Opt[HPService]
     autotls: Opt[AutotlsService]
     circuitRelay: Opt[Relay]
     rdv: Opt[RendezVous]
@@ -317,6 +320,18 @@ proc withAutonatV2*(
   )
   b
 
+proc withHolePunching*(
+    b: SwitchBuilder, maxNumRelays: int = 5, onReservationHandler: proc = nil
+): SwitchBuilder =
+  let
+    autonatService = AutonatService.new(AutonatClient(), b.rng)
+    autoRelayService =
+      AutoRelayService.new(maxNumRelays, RelayClient.new(), onReservationHandler, b.rng)
+    hpService = HPService.new(autonatService, autoRelayService)
+
+  b.hpService = Opt.some(hpService)
+  b
+
 when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
@@ -423,6 +438,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   b.autonatService.withValue(autonatService):
     b.services.add(autonatService)
+
+  b.hpService.withValue(hpservice):
+    b.services.add(hpservice)
 
   let switch = newSwitch(
     peerInfo = peerInfo,
