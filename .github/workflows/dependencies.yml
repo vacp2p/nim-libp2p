@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  # All PR event types are listed so GitHub delivers the event payload (which includes label info).
+  # The job-level `if` then gates execution on the `run-bump-job` label — GitHub's `on:` syntax
+  # has no native label filter, so this two-part pattern is the standard workaround.
   pull_request:
     types: [labeled, synchronize, opened, reopened]
   workflow_dispatch:
@@ -11,7 +14,7 @@ on:
 jobs:
   bumper:
     # Pushes new refs to interested external repositories, so they can do early testing against libp2p's newer versions
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-bump-job')
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-bump-ci')
     runs-on: ubuntu-latest
     name: Bump libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
     strategy:
@@ -40,13 +43,41 @@ jobs:
 
       - name: Checkout this ref in target repository
         run: |
+
           cd nbc
+
           if [ "${{ matrix.target.nimble }}" = "true" ]; then
-            # nwaku uses nimble — update nim-libp2p's pinned revision in the lock file
+            # Clone libp2p at the target SHA
+            tmpdir=$(mktemp -d)
+
+            git init "$tmpdir"
+            cd "$tmpdir"
+
+            git remote add origin https://github.com/vacp2p/nim-libp2p.git
+
+            # Fetch the exact commit with full history for that object
+            git fetch --depth=1 origin $GITHUB_SHA
+
+            git checkout FETCH_HEAD
+
+            # Compute SHA1 of repo contents (same idea Nimble uses)
+            checksum=$(git ls-files -z | sort -z | xargs -0 sha1sum | sha1sum | cut -d ' ' -f1)
+
+            cd - >/dev/null
+            rm -rf "$tmpdir"
+
+            # Update nimble.lock with BOTH revision and checksum
             jq --arg sha "$GITHUB_SHA" \
-              '.packages["nim-libp2p"].vcsRevision = $sha' \
-              nimble.lock > nimble.lock.tmp
+               --arg checksum "$checksum" \
+               '.packages["libp2p"].vcsRevision = $sha |
+                .packages["libp2p"].checksums = (.packages["libp2p"].checksums // {}) |
+                .packages["libp2p"].checksums.sha1 = $checksum' \
+               nimble.lock > nimble.lock.tmp
+
             mv nimble.lock.tmp nimble.lock
+
+            rm -rf "$tmpdir"
+
           else
             git submodule update --init vendor/nim-libp2p
             cd vendor/nim-libp2p
@@ -58,7 +89,7 @@ jobs:
         run: |
           cd nbc
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name = "${{ github.actor }}"
+          git config --global user.name "${{ github.actor }}"
           git commit --allow-empty -a -m "auto-bump nim-libp2p"
           git branch -D nim-libp2p-auto-bump-${{ matrix.target.ref }} || true
           git switch -c nim-libp2p-auto-bump-${{ matrix.target.ref }}
