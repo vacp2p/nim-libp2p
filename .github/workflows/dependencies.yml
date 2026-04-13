@@ -41,6 +41,12 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets[matrix.target.secret] }}
 
+      - name: Setup Nim (only for nimble targets)
+        if: matrix.target.nimble == true
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.4'
+
       - name: Checkout this ref in target repository
         run: |
           cd nbc
@@ -49,14 +55,22 @@ jobs:
             # Update waku.nimble: replace commit after 'nim-libp2p.git#' with current commit
             sed -i -E "s|(https://github.com/vacp2p/nim-libp2p\.git#)[a-f0-9]+|\1$GITHUB_SHA|" waku.nimble
 
-            # Re-resolve dependencies and regenerate lock
-            rm nimble.lock
+            # Clean previous state
+            rm -rf nimble.lock nimbledeps nimble.paths
+
+            # Ensure nimble is up-to-date
+            nimble install nimble -y
+
+            # Regenerate lock file
+            nimble setup --localdeps -y
 
           else
+
             git submodule update --init vendor/nim-libp2p
             cd vendor/nim-libp2p
             git fetch https://github.com/status-im/nim-libp2p.git $GITHUB_SHA
             git checkout $GITHUB_SHA
+
           fi
 
       - name: Push this ref to target repository
