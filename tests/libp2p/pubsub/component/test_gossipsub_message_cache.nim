@@ -6,7 +6,7 @@
 import chronos, std/[sequtils], stew/byteutils
 import
   ../../../../libp2p/protocols/pubsub/
-    [gossipsub, mcache, peertable, floodsub, rpc/messages, rpc/message]
+    [gossipsub, mcache, peertable, floodsub, pubsubpeer, rpc/messages, rpc/message]
 import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
@@ -264,7 +264,7 @@ suite "GossipSub Component - Message Cache":
     nodes[2].broadcast(
       @[nodes[2].getPeerByPeerId(topic, nodes[0].peerInfo.peerId)],
       RPCMsg.withControl(ControlMessage.withIWant(@[messageId1, messageId2])),
-      isHighPriority = false,
+      MessagePriority.High,
     )
 
     # Then Node2 receives only messageId2 and messageId1 is dropped

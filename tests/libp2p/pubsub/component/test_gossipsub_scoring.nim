@@ -71,7 +71,7 @@ suite "GossipSub Component - Scoring":
     nodes[0].broadcast(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](10))),
-      isHighPriority = true,
+      MessagePriority.High,
     )
 
     checkUntilTimeout:
@@ -83,7 +83,7 @@ suite "GossipSub Component - Scoring":
     nodes[0].broadcast(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](12))),
-      isHighPriority = true,
+      MessagePriority.High,
     )
 
     checkUntilTimeout:
@@ -110,7 +110,7 @@ suite "GossipSub Component - Scoring":
 
     # Simulate sending an undecodable message
     await nodes[1].peers[nodes[0].switch.peerInfo.peerId].sendEncoded(
-      newSeqWith(33, 1.byte), isHighPriority = true
+      newSeqWith(33, 1.byte), MessagePriority.High
     )
 
     checkUntilTimeout:
@@ -120,7 +120,7 @@ suite "GossipSub Component - Scoring":
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
     await nodes[0].peers[nodes[1].switch.peerInfo.peerId].sendEncoded(
-      newSeqWith(35, 1.byte), isHighPriority = true
+      newSeqWith(35, 1.byte), MessagePriority.High
     )
 
     checkUntilTimeout:
@@ -150,7 +150,7 @@ suite "GossipSub Component - Scoring":
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))]
       )
     )
-    nodes[0].broadcast(nodes[0].mesh[topic], msg, isHighPriority = true)
+    nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)
 
     checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
@@ -163,7 +163,7 @@ suite "GossipSub Component - Scoring":
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))]
       )
     )
-    nodes[0].broadcast(nodes[0].mesh[topic], msg2, isHighPriority = true)
+    nodes[0].broadcast(nodes[0].mesh[topic], msg2, MessagePriority.High)
 
     checkUntilTimeout:
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == false
@@ -196,7 +196,7 @@ suite "GossipSub Component - Scoring":
     nodes[1].addValidator(topic, execValidator)
 
     let msg = RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](40)))
-    nodes[0].broadcast(nodes[0].mesh[topic], msg, isHighPriority = true)
+    nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)
 
     checkUntilTimeout:
       currentRateLimitHits() == rateLimitHits + 1
@@ -207,7 +207,7 @@ suite "GossipSub Component - Scoring":
     nodes[0].broadcast(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](35))),
-      isHighPriority = true,
+      MessagePriority.High,
     )
 
     checkUntilTimeout:
@@ -401,12 +401,12 @@ suite "GossipSub Component - Scoring":
       nodes[1].broadcast(
         nodes[1].mesh[topic],
         RPCMsg.withMessages(Message(topic: topic, data: ("valid_" & $i).toBytes())),
-        isHighPriority = true,
+        MessagePriority.High,
       )
       nodes[2].broadcast(
         nodes[2].mesh[topic],
         RPCMsg.withMessages(Message(topic: topic, data: ("invalid_" & $i).toBytes())),
-        isHighPriority = true,
+        MessagePriority.High,
       )
 
     # And messages are processed

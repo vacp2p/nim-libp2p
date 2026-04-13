@@ -180,6 +180,47 @@ proc shuffle*[T](rng: ref HmacDrbgContext, x: var openArray[T]) =
       y = rand mod i
     swap(x[i], x[y])
 
+proc randBelow(rng: ref HmacDrbgContext, max: uint32): int =
+  ## Returns a uniformly random integer in the range [0, max).
+  ## Uses 32-bit rejection sampling to eliminate modulo bias and to
+  ## support max values larger than 65536.
+  # threshold = 2^32 mod max. In uint32 arithmetic: (0 - umax) mod umax.
+  # Values in [0, threshold) are rejected to eliminate modulo bias.
+  let threshold = (0'u32 - max) mod max
+  while true:
+    var bytes: array[4, byte]
+    hmacDrbgGenerate(rng[], bytes)
+    let r =
+      bytes[0].uint32 or (bytes[1].uint32 shl 8) or (bytes[2].uint32 shl 16) or
+      (bytes[3].uint32 shl 24)
+    if r >= threshold:
+      return (r mod max).int
+
+proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): Opt[seq[T]] =
+  doAssert n >= 0, "n must be non-negative"
+  if x.len == 0:
+    return Opt.none(seq[T])
+  if n == 0:
+    return Opt.some(newSeq[T]())
+
+  var indices = newSeq[int](x.len)
+  for i in 0 ..< x.len:
+    indices[i] = i
+
+  let count = min(n, x.len)
+  var output = newSeq[T](count)
+  for i in 0 ..< count:
+    let j = i + rng.randBelow((x.len - i).uint32)
+    swap(indices[i], indices[j])
+    output[i] = x[indices[i]]
+  Opt.some(output)
+
+proc pickOne*[T](rng: ref HmacDrbgContext, x: openArray[T]): Opt[T] =
+  if x.len == 0:
+    return Opt.none(T)
+
+  Opt.some(x[rng.randBelow(x.len.uint32)])
+
 proc random*(
     T: typedesc[PrivateKey],
     scheme: PKScheme,
