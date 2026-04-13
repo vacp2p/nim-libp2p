@@ -34,3 +34,7 @@ template newFutureCompleted*[T](): auto =
   let fut = newFuture[T]()
   fut.complete()
   fut
+
+template cancelSoon*[T](futs: seq[T]) =
+  for fut in futs:
+    fut.cancelSoon()
