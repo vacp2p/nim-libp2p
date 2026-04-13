@@ -65,6 +65,7 @@ suite "Mix Protocol - Spam Protection":
     let testPayload = "test message".toBytes()
 
     # Send 3 messages — all should arrive
+    var receivedMsgFut = newSeqOfCap[Future[ReceivedMessage]](rateLimit)
     for i in 0 ..< rateLimit:
       let conn = nodes[0]
         .toConnection(destNode.toMixDestination(), nrProto.codec)
@@ -73,8 +74,10 @@ suite "Mix Protocol - Spam Protection":
         await conn.close()
 
       await conn.writeLp(testPayload)
-      let receivedMsg = await nrProto.receivedMessages.get().wait(2.seconds)
-      check testPayload == receivedMsg.data
+      receivedMsgFut[i] = nrProto.receivedMessages.get()
+
+    for fut in receivedMsgFut:
+      check testPayload == (await fut).data
 
     # 4th message — should be dropped at intermediate node
     let conn = nodes[0].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
