@@ -216,6 +216,7 @@ suite "GossipSub Component - Heartbeat":
     # Before publishing messages, wait for beginning of Node0 heartbeat interval
     # to further increase chances peers to be dropped within same heartbeat.
     await node0.waitForNextHeartbeat()
+
     # When Node0 sends a message to the topic
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
 
