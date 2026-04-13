@@ -65,7 +65,7 @@ suite "Mix Protocol - Spam Protection":
     let testPayload = "test message".toBytes()
 
     # Send 3 messages — all should arrive
-    var receivedMsgFut = newSeqOfCap[Future[ReceivedMessage]](rateLimit)
+    var receivedMsgFut = newSeq[Future[ReceivedMessage]](rateLimit)
     for i in 0 ..< rateLimit:
       let conn = nodes[0]
         .toConnection(destNode.toMixDestination(), nrProto.codec)
