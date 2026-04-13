@@ -321,7 +321,7 @@ proc withAutonatV2*(
   b
 
 proc withHolePunching*(
-    b: SwitchBuilder, maxNumRelays: int = 5, onReservationHandler: proc = nil
+    b: SwitchBuilder, maxNumRelays: int, onReservationHandler: proc
 ): SwitchBuilder =
   let
     autonatService = AutonatService.new(AutonatClient(), b.rng)
