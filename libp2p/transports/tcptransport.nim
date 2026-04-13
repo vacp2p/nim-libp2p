@@ -121,7 +121,7 @@ method start*(
   var supported: seq[MultiAddress]
   var initialized = false
   try:
-    for i, ma in addrs:
+    for ma in addrs:
       if not self.handles(ma):
         raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
 
