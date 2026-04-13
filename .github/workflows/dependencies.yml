@@ -18,9 +18,6 @@ jobs:
           - repository: status-im/nimbus-eth2
             ref: unstable
             secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
-          - repository: waku-org/nwaku
-            ref: master
-            secret: ACTIONS_GITHUB_TOKEN_NWAKU
           - repository: codex-storage/nim-codex
             ref: master
             secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
@@ -37,9 +34,7 @@ jobs:
       - name: Checkout this ref in target repository
         run: |
           cd nbc
-          if [ "${{ matrix.target.repository }}" != "waku-org/nwaku" ]; then
-            git submodule update --init vendor/nim-libp2p
-          fi
+          git submodule update --init vendor/nim-libp2p
           cd vendor/nim-libp2p
           git checkout $GITHUB_SHA
 
