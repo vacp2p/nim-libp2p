@@ -144,10 +144,20 @@ suite "GossipSub Interop - Wire Format":
     check data.len == MetadataLen + PartLen + GroupIdLen
     check data[0] == 0b00000001'u8
 
+  test "materializeParts with empty metadata sends all available parts":
+    let pm = newInteropPartialMessage(42)
+    pm.fillParts(0b00000101) # parts 0 and 2
+
+    let res = pm.materializeParts(@[])
+    check res.isOk()
+
+    let data = res.get()
+    check data.len == MetadataLen + 2 * PartLen + GroupIdLen
+    check data[0] == 0b00000101'u8
+
   test "materializeParts rejects metadata of wrong length":
     let pm = newInteropPartialMessage(42)
     pm.fillParts(0b00000001)
-    check pm.materializeParts(@[]).isErr()
     check pm.materializeParts(@[0'u8, 0'u8]).isErr()
 
   test "extend decodes wire format":

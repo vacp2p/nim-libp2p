@@ -115,10 +115,14 @@ method materializeParts*(
   ## Encode parts that the peer doesn't have.
   ## metadata is the peer's 1-byte bitmap (what parts they have).
   ## Returns: [bitmap][parts...][groupId] for parts we have that they don't.
-  if metadata.len != MetadataLen:
-    return err("invalid metadata length, expected 1 byte")
+  if metadata.len != MetadataLen and metadata.len != 0:
+    return err("invalid metadata length, expected 0 or 1 byte")
 
-  let peerBitmap = metadata[0]
+  let peerBitmap =
+    if metadata.len == 0:
+      0'u8 # peer has nothing, send all available
+    else:
+      metadata[0]
   var responseBitmap: uint8 = 0
   var data = newSeq[byte](MetadataLen) # placeholder for bitmap byte
 

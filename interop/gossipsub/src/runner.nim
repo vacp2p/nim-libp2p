@@ -48,7 +48,7 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
   proc onIncomingRPC(
       peer: PeerId, rpc: PartialMessageExtensionRPC
   ) {.gcsafe, raises: [].} =
-    if rpc.groupID.len < GroupIdLen:
+    if rpc.groupID.len != GroupIdLen:
       warn "Incoming RPC has invalid groupID length", len = rpc.groupID.len
       return
 
@@ -109,6 +109,9 @@ proc stop*(runner: ScriptRunner) {.async.} =
 proc executeInstruction*(runner: ScriptRunner, instruction: ScriptInstruction) {.async.}
 
 proc executeConnect(runner: ScriptRunner, connectTo: seq[int]) {.async.} =
+  if runner.resolveAddr == nil:
+    raiseAssert "resolveAddr must be set before executing Connect instructions"
+
   for targetId in connectTo:
     let targetPeerId = nodePeerId(targetId)
     try:

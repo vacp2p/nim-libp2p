@@ -38,4 +38,4 @@ proc logReceivedMessage*(stream: Stream, msgId: string, topic: string) {.raises:
 
 proc logAllPartsReceived*(stream: Stream, groupId: uint64) {.raises: [].} =
   ## Log that all parts of a partial message have been received.
-  logJSON(stream, "All parts received", {"group id": $groupId})
+  logJSON(stream, "All parts received", {"group_id": $groupId})
