@@ -6,7 +6,8 @@ import ../../varint
 import ../../utility
 import results
 import ../../multiaddress
-import stew/objects
+import stew/[endians2, objects]
+import ../../crypto/crypto
 
 type
   Record* {.public.} = object
@@ -284,3 +285,33 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
 proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
   var pb = initProtoBuffer(buf)
   return Message.decode(pb)
+
+proc sign*(ticket: var Ticket, privateKey: PrivateKey): Result[void, CryptoError] =
+  ## Sign the ticket with the given private key.
+  ## Signature covers: advertisement || tInit || tMod || tWaitFor || expiresAt || nonce
+  var sigInput =
+    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
+  sigInput.add(ticket.advertisement)
+  sigInput.add(@(toBytesBE(ticket.tInit)))
+  sigInput.add(@(toBytesBE(ticket.tMod)))
+  sigInput.add(@(toBytesBE(ticket.tWaitFor)))
+  sigInput.add(@(toBytesBE(ticket.expiresAt)))
+  sigInput.add(ticket.nonce)
+  let sig = ?privateKey.sign(sigInput)
+  ticket.signature = sig.getBytes()
+  ok()
+
+proc verify*(ticket: Ticket, publicKey: PublicKey): bool =
+  ## Verify the ticket signature against the given public key.
+  var sigInput =
+    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
+  sigInput.add(ticket.advertisement)
+  sigInput.add(@(toBytesBE(ticket.tInit)))
+  sigInput.add(@(toBytesBE(ticket.tMod)))
+  sigInput.add(@(toBytesBE(ticket.tWaitFor)))
+  sigInput.add(@(toBytesBE(ticket.expiresAt)))
+  sigInput.add(ticket.nonce)
+  var sig: Signature
+  if not sig.init(ticket.signature):
+    return false
+  sig.verify(sigInput, publicKey)

@@ -16,6 +16,13 @@ const
   ExtendedServiceDiscoveryCodec* = "/logos/service-discovery/1.0.0"
 
 type
+  IpTreeNode* = ref object
+    counter*: int
+    left*, right*: IpTreeNode
+
+  IpTree* = ref object
+    root*: IpTreeNode
+
   ServiceDiscoveryConfig* = object ## placeholder for now
 
   ServiceDiscovery* = ref object of KadDHT

@@ -3,9 +3,29 @@
 {.used.}
 
 import chronicles, chronos, results
-import ../../../libp2p/[switch, builders]
+import ../../../libp2p/[switch, builders, crypto/crypto]
 import ../../../libp2p/protocols/[service_discovery, kademlia]
+import ../../../libp2p/protocols/kademlia/protobuf
 import ../../tools/[crypto]
+
+export protobuf
+
+proc makeTicket*(): Ticket =
+  Ticket(
+    advertisement: @[1'u8, 2, 3, 4],
+    tInit: 1_000_000,
+    tMod: 2_000_000,
+    tWaitFor: 3000,
+    expiresAt: 0,
+    nonce: @[],
+    signature: @[],
+  )
+
+proc signedTicket*(privateKey: PrivateKey): Ticket =
+  var t = makeTicket()
+  let res = t.sign(privateKey)
+  doAssert res.isOk(), "sign failed in test helper"
+  t
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
