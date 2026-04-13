@@ -4,8 +4,7 @@
 {.used.}
 
 import chronos, results, stew/byteutils
-import ../../../../libp2p/[protocols/mix, protocols/ping, protocols/protocol]
-
+import ../../../../libp2p/protocols/[protocol, ping, mix, mix/delay_strategy]
 import ../../../tools/[lifecycle, unittest]
 import ../utils
 
@@ -53,9 +52,13 @@ suite "Mix Protocol - Spam Protection":
     const
       numNodes = 4 # sender + 3 path nodes
       rateLimit = 3
+      maxDelayPerHop = 1.Delay # 
 
-    let nodes =
-      await setupMixNodes(numNodes, spamProtectionRateLimit = Opt.some(rateLimit))
+    let nodes = await setupMixNodes(
+      numNodes,
+      spamProtectionRateLimit = Opt.some(rateLimit),
+      delayStrategy = Opt.some(DelayStrategy(FixedDelayStrategy(delay: maxDelayPerHop))),
+    )
     startAndDeferStop(nodes)
 
     let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
@@ -89,4 +92,9 @@ suite "Mix Protocol - Spam Protection":
     await conn.writeLp(testPayload)
 
     expect AsyncTimeoutError:
-      discard await nrProto.receivedMessages.get().wait(2.seconds)
+      # code needs to wait here more then maximum time that is need for message to 
+      # propagate through mix protocol to ensure that message is not delivered.
+      # max expected time for message ~= number of hops * delay per hop
+      # maxWaitTime = double the max expected time for message
+      let maxWaitTime = (maxDelayPerHop.toDuration * (numNodes - 1)) * 2
+      discard await nrProto.receivedMessages.get().wait(maxWaitTime)
