@@ -177,8 +177,8 @@ suite "GossipSub Component - Heartbeat":
       node0.gossipsub.hasKey(topic)
       nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len >= 1)
 
-    # Before publishing messages, wait for beginning of Node0 heartbeat interval
-    # to further increase chances peers to be dropped within same heartbeat.
+    # Before publishing messages, wait for Node0's next heartbeat so publishing
+    # happens right after a heartbeat and the test has a full interval.
     await node0.waitForNextHeartbeat()
 
     # When Node0 sends a message to the topic
@@ -213,8 +213,8 @@ suite "GossipSub Component - Heartbeat":
       node0.gossipsub.hasKey(topic)
       nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 2)
 
-    # Before publishing messages, wait for beginning of Node0 heartbeat interval
-    # to further increase chances peers to be dropped within same heartbeat.
+    # Before publishing messages, wait for Node0's next heartbeat so publishing
+    # happens right after a heartbeat and the test has a full interval.
     await node0.waitForNextHeartbeat()
 
     # When Node0 sends a message to the topic
