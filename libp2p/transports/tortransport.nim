@@ -253,10 +253,9 @@ method start*(
 
   var listenAddrs: seq[MultiAddress]
   var onion3Addrs: seq[MultiAddress]
-  for i, ma in addrs:
+  for ma in addrs:
     if not handlesStart(ma):
-      warn "Invalid address detected, skipping!", address = ma
-      continue
+      raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
 
     let listenAddress = ma[0 .. 1].tryGet()
     listenAddrs.add(listenAddress)
