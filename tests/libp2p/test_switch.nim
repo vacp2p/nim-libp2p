@@ -1164,6 +1164,7 @@ suite "Switch":
     check srcQuicSwitch.isConnected(destSwitch.peerInfo.peerId)
 
   asyncTest "mount unstarted protocol":
+    let handleFinished = newWaitGroup(1)
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         check "test123" == string.fromBytes(await conn.readLp(1024))
@@ -1172,6 +1173,7 @@ suite "Switch":
         raiseAssert "Unexpected LPStreamError in mount unstarted protocol test handler"
       finally:
         await conn.close()
+        handleFinished.done()
 
     let
       src = newStandardSwitch()
@@ -1182,6 +1184,8 @@ suite "Switch":
 
     await src.start()
     await dst.start()
+    defer:
+      await allFutures(@[src, dst].mapIt(it.stop()))
     expect LPError:
       dst.mount(testProto)
     await testProto.start()
@@ -1191,8 +1195,7 @@ suite "Switch":
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
     await conn.close()
-    await src.stop()
-    await dst.stop()
+    await handleFinished.wait(5.seconds)
 
   asyncTest "switch failing to start stops properly":
     let switch = newStandardSwitch(
