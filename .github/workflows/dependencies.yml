@@ -5,11 +5,13 @@ on:
     branches:
       - master
   pull_request:
+    types: [labeled, synchronize, opened, reopened]
   workflow_dispatch:
 
 jobs:
   bumper:
     # Pushes new refs to interested external repositories, so they can do early testing against libp2p's newer versions
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-bump-job')
     runs-on: ubuntu-latest
     name: Bump libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
     strategy:
