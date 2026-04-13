@@ -98,12 +98,36 @@ proc init*(
     bandwidthEstimatebps = 100_000_000, # 100 Mbps or 12.5 MBps
     overheadRateLimit = Opt.none(tuple[bytes: int, interval: Duration]),
     disconnectPeerAboveRateLimit = false,
-    maxNumElementsInNonPriorityQueue = DefaultMaxNumElementsInNonPriorityQueue,
+    maxHighPriorityQueueLen = DefaultMaxHighPriorityQueueLen,
+    maxMediumPriorityQueueLen = DefaultMaxMediumPriorityQueueLen,
+    maxLowPriorityQueueLen = DefaultMaxLowPriorityQueueLen,
+    maxNumElementsInNonPriorityQueue: int = -1,
+      # Deprecated: use maxMediumPriorityQueueLen and maxLowPriorityQueueLen instead.
     sendIDontWantOnPublish = false,
     testExtensionConfig = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig = Opt.none(PartialMessageExtensionConfig),
     pingpongExtensionConfig = Opt.none(PingPongExtensionConfig),
 ): GossipSubParams =
+  if maxNumElementsInNonPriorityQueue >= 0:
+    warn "maxNumElementsInNonPriorityQueue is deprecated. Use maxMediumPriorityQueueLen and maxLowPriorityQueueLen"
+
+  let resolvedMaxMediumPriorityQueueLen =
+    if maxNumElementsInNonPriorityQueue >= 0 and
+        maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen:
+      maxNumElementsInNonPriorityQueue
+    else:
+      maxMediumPriorityQueueLen
+
+  let resolvedMaxLowPriorityQueueLen =
+    if maxNumElementsInNonPriorityQueue >= 0 and
+        maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
+      maxNumElementsInNonPriorityQueue
+    else:
+      maxLowPriorityQueueLen
+
+  let deprecatedMaxNumElementsInNonPriorityQueue =
+    if maxNumElementsInNonPriorityQueue >= 0: maxNumElementsInNonPriorityQueue else: 0
+
   GossipSubParams(
     explicit: true,
     pruneBackoff: pruneBackoff,
@@ -139,7 +163,10 @@ proc init*(
     bandwidthEstimatebps: bandwidthEstimatebps,
     overheadRateLimit: overheadRateLimit,
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
-    maxNumElementsInNonPriorityQueue: maxNumElementsInNonPriorityQueue,
+    maxHighPriorityQueueLen: maxHighPriorityQueueLen,
+    maxMediumPriorityQueueLen: resolvedMaxMediumPriorityQueueLen,
+    maxLowPriorityQueueLen: resolvedMaxLowPriorityQueueLen,
+    maxNumElementsInNonPriorityQueue: deprecatedMaxNumElementsInNonPriorityQueue,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
     testExtensionConfig: testExtensionConfig,
     partialMessageExtensionConfig: partialMessageExtensionConfig,
@@ -175,8 +202,12 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: behaviourPenaltyWeight parameter error, Must be negative")
   elif parameters.behaviourPenaltyDecay < 0 or parameters.behaviourPenaltyDecay >= 1:
     err("gossipsub: behaviourPenaltyDecay parameter error, Must be between 0 and 1")
-  elif parameters.maxNumElementsInNonPriorityQueue <= 0:
-    err("gossipsub: maxNumElementsInNonPriorityQueue parameter error, Must be > 0")
+  elif parameters.maxHighPriorityQueueLen <= 0:
+    err("gossipsub: maxHighPriorityQueueLen parameter error, Must be > 0")
+  elif parameters.maxMediumPriorityQueueLen <= 0:
+    err("gossipsub: maxMediumPriorityQueueLen parameter error, Must be > 0")
+  elif parameters.maxLowPriorityQueueLen <= 0:
+    err("gossipsub: maxLowPriorityQueueLen parameter error, Must be > 0")
   else:
     ok()
 
@@ -246,7 +277,7 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
       RPCMsg.withControl(
         ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
       ),
-      true, # use high priority as message must be the first message on the stream
+      MessagePriority.High, # must be the first message on the stream
     )
 
   # before extensions control is sent, node needs to known if peer actually supports
@@ -336,7 +367,7 @@ method unsubscribePeer*(g: GossipSub, peer: PeerId) =
     for topic, info in stats[].topicInfos.mpairs:
       info.firstMessageDeliveries = 0
 
-  pubSubPeer.stopSendNonPriorityTask()
+  pubSubPeer.stopSendNonHighPriorityTask()
 
   g.extensionsState.removePeer(peer)
 
@@ -409,7 +440,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
         libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
     trace "sending control message", payload = shortLog(respControl), peer
-    g.send(peer, RPCMsg.withControl(respControl), isHighPriority = true)
+    g.send(peer, RPCMsg.withControl(respControl), MessagePriority.High)
 
   if messages.len > 0:
     for i, smsg in messages:
@@ -423,7 +454,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
     # iwant replies have lower priority
     trace "sending iwant reply messages", peer
-    g.send(peer, RPCMsg.withMessages(messages), isHighPriority = false)
+    g.send(peer, RPCMsg.withMessages(messages), MessagePriority.Low)
 
 proc sendIDontWant(
     g: GossipSub,
@@ -451,9 +482,7 @@ proc sendIDontWant(
   )
 
   g.broadcast(
-    peers,
-    RPCMsg.withControl(ControlMessage.withIDontWant(msgId)),
-    isHighPriority = true,
+    peers, RPCMsg.withControl(ControlMessage.withIDontWant(msgId)), MessagePriority.High
   )
 
 const iDontWantMessageSizeThreshold* = 512
@@ -540,7 +569,7 @@ proc validateAndRelay(
 
     # In theory, if topics are the same in all messages, we could batch - we'd
     # also have to be careful to only include validated messages
-    g.broadcast(toSendPeers, RPCMsg.withMessages(msg), isHighPriority = false)
+    g.broadcast(toSendPeers, RPCMsg.withMessages(msg), MessagePriority.Low)
     trace "forwarded message to peers", peers = toSendPeers.len, msgId, peer
 
     libp2p_pubsub_messages_rebroadcasted.inc(
@@ -726,7 +755,7 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
         topic, g.parameters.unsubscribeBackoff.seconds.uint64, g.peerExchangeList(topic)
       )
     )
-    g.broadcast(mpeers, msg, isHighPriority = true)
+    g.broadcast(mpeers, msg, MessagePriority.High)
 
     for peer in mpeers:
       g.pruned(peer, topic, backoff = Opt.some(g.parameters.unsubscribeBackoff))
@@ -888,7 +917,7 @@ method publish*(
   g.broadcast(
     peers,
     RPCMsg.withMessages(msg),
-    isHighPriority = true,
+    MessagePriority.Medium,
     useCustomConn = pubParams.useCustomConn,
   )
 
@@ -960,7 +989,11 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.onNegotiated.isNil:
       cfg.onNegotiated = proc(peerId: PeerId) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg(testExtension: Opt.some(TestExtensionRPC())), false)
+          g.send(
+            peer[],
+            RPCMsg(testExtension: Opt.some(TestExtensionRPC())),
+            MessagePriority.High,
+          )
 
     g.parameters.testExtensionConfig = Opt.some(cfg)
 
@@ -972,7 +1005,9 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
           peerId: PeerId, rpc: PartialMessageExtensionRPC
       ) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg(partialMessageExtension: Opt.some(rpc)), false)
+          g.send(
+            peer[], RPCMsg(partialMessageExtension: Opt.some(rpc)), MessagePriority.Low
+          )
 
     if cfg.publishToPeers.isNil:
       cfg.publishToPeers = proc(topic: string): seq[PeerId] {.gcsafe, raises: [].} =
@@ -996,7 +1031,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     if cfg.sendPong.isNil:
       cfg.sendPong = proc(peerId: PeerId, pong: seq[byte]) {.gcsafe, raises: [].} =
         g.peers.withValue(peerId, peer):
-          g.send(peer[], RPCMsg.withPong(pong), true)
+          g.send(peer[], RPCMsg.withPong(pong), MessagePriority.High)
 
     g.parameters.pingpongExtensionConfig = Opt.some(cfg)
 
@@ -1007,7 +1042,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
       cfg.broadcastRPC = proc(msg: RPCMsg, peers: seq[PeerId]) {.gcsafe, raises: [].} =
         let peersToBroadcast =
           peers.filterIt(it in g.peers).mapIt(g.peers.getOrDefault(it))
-        g.broadcast(peersToBroadcast, msg, isHighPriority = true)
+        g.broadcast(peersToBroadcast, msg, MessagePriority.High)
     if cfg.hasSeen.isNil:
       cfg.hasSeen = proc(mid: MessageId): bool {.gcsafe, raises: [].} =
         return g.hasSeen(g.salt(mid))
@@ -1063,6 +1098,20 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
   if not g.parameters.explicit:
     g.parameters = GossipSubParams.init()
 
+  # If deprecated maxNumElementsInNonPriorityQueue was set
+  # and the new fields are still at their defaults, copy the value over.
+  if g.parameters.maxNumElementsInNonPriorityQueue > 0 and (
+    g.parameters.maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen or
+    g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen
+  ):
+    warn "maxNumElementsInNonPriorityQueue is deprecated. Use maxMediumPriorityQueueLen and maxLowPriorityQueueLen"
+    if g.parameters.maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen:
+      g.parameters.maxMediumPriorityQueueLen =
+        g.parameters.maxNumElementsInNonPriorityQueue
+    if g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
+      g.parameters.maxLowPriorityQueueLen =
+        g.parameters.maxNumElementsInNonPriorityQueue
+
   let validationRes = g.parameters.validateParameters()
   if validationRes.isErr:
     raise newException(InitializationError, $validationRes.error)
@@ -1084,6 +1133,8 @@ method getOrCreatePeer*(
   g.parameters.overheadRateLimit.withValue(overheadRateLimit):
     peer.overheadRateLimitOpt =
       Opt.some(TokenBucket.new(overheadRateLimit.bytes, overheadRateLimit.interval))
-  peer.maxNumElementsInNonPriorityQueue = g.parameters.maxNumElementsInNonPriorityQueue
+  peer.maxHighPriorityQueueLen = g.parameters.maxHighPriorityQueueLen
+  peer.maxMediumPriorityQueueLen = g.parameters.maxMediumPriorityQueueLen
+  peer.maxLowPriorityQueueLen = g.parameters.maxLowPriorityQueueLen
 
   return peer
