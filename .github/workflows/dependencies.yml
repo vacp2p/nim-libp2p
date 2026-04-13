@@ -43,40 +43,14 @@ jobs:
 
       - name: Checkout this ref in target repository
         run: |
-
           cd nbc
-
+          GITHUB_SHA=${{ github.event.pull_request.head.sha || github.sha }}
           if [ "${{ matrix.target.nimble }}" = "true" ]; then
-            # Clone libp2p at the target SHA
-            tmpdir=$(mktemp -d)
+            # Update waku.nimble: replace commit after 'nim-libp2p.git#' with current commit
+            sed -i -E "s|(https://github.com/vacp2p/nim-libp2p\.git#)[a-f0-9]+|\1$GITHUB_SHA|" waku.nimble
 
-            git init "$tmpdir"
-            cd "$tmpdir"
-
-            git remote add origin https://github.com/vacp2p/nim-libp2p.git
-
-            # Fetch the exact commit with full history for that object
-            git fetch --depth=1 origin $GITHUB_SHA
-
-            git checkout FETCH_HEAD
-
-            # Compute SHA1 of repo contents (same idea Nimble uses)
-            checksum=$(git ls-files -z | sort -z | xargs -0 sha1sum | sha1sum | cut -d ' ' -f1)
-
-            cd - >/dev/null
-            rm -rf "$tmpdir"
-
-            # Update nimble.lock with BOTH revision and checksum
-            jq --arg sha "$GITHUB_SHA" \
-               --arg checksum "$checksum" \
-               '.packages["libp2p"].vcsRevision = $sha |
-                .packages["libp2p"].checksums = (.packages["libp2p"].checksums // {}) |
-                .packages["libp2p"].checksums.sha1 = $checksum' \
-               nimble.lock > nimble.lock.tmp
-
-            mv nimble.lock.tmp nimble.lock
-
-            rm -rf "$tmpdir"
+            # Re-resolve dependencies and regenerate lock
+            rm nimble.lock
 
           else
             git submodule update --init vendor/nim-libp2p
