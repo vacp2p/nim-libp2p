@@ -50,12 +50,21 @@ suite "Mix Protocol - Spam Protection":
     ## 4 nodes, PathLength=3 => all 3 non-sender nodes are on every path.
     ## Each hop calls verifyProof once, so after 3 messages each node
     ## has hit the rate limit. The 4th message gets dropped mid-path.
+    ##
+    ## A FixedDelayStrategy with a small deterministic delay is used here so
+    ## that messages traverse all hops well within the per-message timeout.
+    ## The stochastic SpamProtectionDelayStrategy can sample delays up to
+    ## ~1380 ms per hop; with 3 hops the worst-case traversal time exceeds
+    ## the 2-second wait, causing spurious AsyncTimeoutError failures.
     const
       numNodes = 4 # sender + 3 path nodes
       rateLimit = 3
 
-    let nodes =
-      await setupMixNodes(numNodes, spamProtectionRateLimit = Opt.some(rateLimit))
+    let nodes = await setupMixNodes(
+      numNodes,
+      spamProtectionRateLimit = Opt.some(rateLimit),
+      delayStrategy = Opt.some(DelayStrategy(FixedDelayStrategy(delay: 1))),
+    )
     startAndDeferStop(nodes)
 
     let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
