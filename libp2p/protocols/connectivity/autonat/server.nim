@@ -92,9 +92,7 @@ proc tryDial(
       autonat.sem.release()
     except AsyncSemaphoreError:
       raiseAssert "semaphore released without acquire"
-    for f in futs:
-      if not f.finished():
-        f.cancelSoon()
+    futs.cancelSoon()
 
 proc handleDial(autonat: Autonat, conn: Connection, msg: AutonatMsg): Future[void] =
   let dial = msg.dial.valueOr:
