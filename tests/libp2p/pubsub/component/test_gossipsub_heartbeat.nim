@@ -272,7 +272,7 @@ suite "GossipSub Component - Heartbeat":
       peer.iDontWants.len == historyLength
 
     # Before publishing messages, wait for beginning of Node1 heartbeat interval
-    # to further increase chances of all publications to be received within same heartbeat. 
+    # to further increase chances of all publications to be received within same heartbeat.
     await nodes[1].waitForNextHeartbeat()
 
     # When Node0 sends large messages to the topic
