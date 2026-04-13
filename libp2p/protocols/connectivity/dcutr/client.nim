@@ -76,8 +76,7 @@ proc startSync*(
       discard await anyCompleted(futs).wait(self.connectTimeout)
       debug "Dcutr initiator has directly connected to the remote peer."
     finally:
-      for fut in futs:
-        fut.cancelSoon()
+      futs.cancelSoon()
   except CancelledError as err:
     raise err
   except AllFuturesFailedError as err:

@@ -4,8 +4,7 @@
 {.used.}
 
 import chronos, results, stew/byteutils
-import ../../../../libp2p/[protocols/mix, protocols/ping, protocols/protocol]
-
+import ../../../../libp2p/protocols/[protocol, ping, mix, mix/delay_strategy]
 import ../../../tools/[lifecycle, unittest]
 import ../utils
 
@@ -53,9 +52,13 @@ suite "Mix Protocol - Spam Protection":
     const
       numNodes = 4 # sender + 3 path nodes
       rateLimit = 3
+      maxDelayPerHop = 1.Delay # big delay is not really needed here
 
-    let nodes =
-      await setupMixNodes(numNodes, spamProtectionRateLimit = Opt.some(rateLimit))
+    let nodes = await setupMixNodes(
+      numNodes,
+      spamProtectionRateLimit = Opt.some(rateLimit),
+      delayStrategy = Opt.some(DelayStrategy(FixedDelayStrategy(delay: maxDelayPerHop))),
+    )
     startAndDeferStop(nodes)
 
     let (destNode, nrProto) = await setupDestNode(NoReplyProtocol.new())
@@ -65,6 +68,7 @@ suite "Mix Protocol - Spam Protection":
     let testPayload = "test message".toBytes()
 
     # Send 3 messages — all should arrive
+    var receivedMsgFut = newSeq[Future[ReceivedMessage]](rateLimit)
     for i in 0 ..< rateLimit:
       let conn = nodes[0]
         .toConnection(destNode.toMixDestination(), nrProto.codec)
@@ -73,8 +77,10 @@ suite "Mix Protocol - Spam Protection":
         await conn.close()
 
       await conn.writeLp(testPayload)
-      let receivedMsg = await nrProto.receivedMessages.get().wait(2.seconds)
-      check testPayload == receivedMsg.data
+      receivedMsgFut[i] = nrProto.receivedMessages.get()
+
+    for fut in receivedMsgFut:
+      check testPayload == (await fut).data
 
     # 4th message — should be dropped at intermediate node
     let conn = nodes[0].toConnection(destNode.toMixDestination(), nrProto.codec).expect(
@@ -86,4 +92,12 @@ suite "Mix Protocol - Spam Protection":
     await conn.writeLp(testPayload)
 
     expect AsyncTimeoutError:
-      discard await nrProto.receivedMessages.get().wait(2.seconds)
+      # wait longer than the maximum time needed for a message to propagate
+      # through the mix protocol, to ensure that the message is not delivered.
+
+      # maxMixDelay = number of hops * delay per hop
+      let maxMixDelay = (maxDelayPerHop.toDuration * (numNodes - 1))
+      # maxWaitTime = maxMixDelay + 2s (to accommodate network transmission overhead)
+      let maxWaitTime = maxMixDelay + 2.seconds
+
+      discard await nrProto.receivedMessages.get().wait(maxWaitTime)

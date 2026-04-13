@@ -14,7 +14,8 @@ import
   ../stream/connection,
   ../stream/chronosstream,
   ../upgrademngrs/upgrade,
-  ../utility
+  ../utility,
+  ../utils/future
 
 logScope:
   topics = "libp2p tcptransport"
@@ -209,11 +210,6 @@ method accept*(
   #      available to the caller - further refactoring should propagate errors
   #      to the caller instead
 
-  proc cancelAcceptFuts() =
-    for fut in self.acceptFuts:
-      if not fut.completed():
-        fut.cancelSoon()
-
   if not self.running:
     raise newTransportClosedError()
 
@@ -231,7 +227,7 @@ method accept*(
       except ValueError:
         raiseAssert "Accept futures should not be empty"
       except CancelledError as exc:
-        cancelAcceptFuts()
+        self.acceptFuts.cancelSoon()
         raise exc
     index = self.acceptFuts.find(finished)
 
@@ -258,7 +254,7 @@ method accept*(
         msg: "TransportError in accept: " & exc.msg, parent: exc
       )
     except CancelledError as exc:
-      cancelAcceptFuts()
+      self.acceptFuts.cancelSoon()
       raise exc
 
   if not self.running: # Stopped while waiting
