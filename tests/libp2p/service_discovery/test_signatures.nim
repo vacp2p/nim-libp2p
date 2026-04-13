@@ -12,8 +12,9 @@ suite "Ticket - sign and verify":
   test "sign succeeds and verify passes with matching key":
     let key = PrivateKey.random(rng[]).get()
     var t = makeTicket()
-    check t.sign(key).isOk()
-    check t.verify(key.getPublicKey().get())
+    check:
+      t.sign(key).isOk()
+      t.verify(key.getPublicKey().get())
 
   test "verify fails with a different key":
     let key = PrivateKey.random(rng[]).get()
@@ -65,11 +66,17 @@ suite "Ticket - boundary values":
     # tInit=0, tMod=0, tWaitFor=0 are valid; must not be treated as unsigned
     let key = PrivateKey.random(rng[]).get()
     var t = Ticket(
-      advertisement: @[0xAB'u8], tInit: 0, tMod: 0, tWaitFor: 0,
-      expiresAt: 0, nonce: @[], signature: @[],
+      advertisement: @[0xAB'u8],
+      tInit: 0,
+      tMod: 0,
+      tWaitFor: 0,
+      expiresAt: 0,
+      nonce: @[],
+      signature: @[],
     )
-    check t.sign(key).isOk()
-    check t.verify(key.getPublicKey().get())
+    check:
+      t.sign(key).isOk()
+      t.verify(key.getPublicKey().get())
 
   test "empty advertisement bytes sign and verify correctly":
     let key = PrivateKey.random(rng[]).get()
@@ -82,15 +89,17 @@ suite "Ticket - boundary values":
       nonce: @[],
       signature: @[],
     )
-    check t.sign(key).isOk()
-    check t.verify(key.getPublicKey().get())
+    check:
+      t.sign(key).isOk()
+      t.verify(key.getPublicKey().get())
 
   test "re-signing overwrites previous signature":
     # Signing twice must not leave a ticket that verifies against the first key
     let key1 = PrivateKey.random(rng[]).get()
     let key2 = PrivateKey.random(rng[]).get()
     var t = makeTicket()
-    discard t.sign(key1)
-    discard t.sign(key2)
-    check not t.verify(key1.getPublicKey().get())
-    check t.verify(key2.getPublicKey().get())
+    check:
+      t.sign(key1).isOk()
+      t.sign(key2).isOk()
+      not t.verify(key1.getPublicKey().get())
+      t.verify(key2.getPublicKey().get())

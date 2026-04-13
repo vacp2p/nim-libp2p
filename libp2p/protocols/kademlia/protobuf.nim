@@ -286,7 +286,9 @@ proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
   var pb = initProtoBuffer(buf)
   return Message.decode(pb)
 
-proc sign*(ticket: var Ticket, privateKey: PrivateKey): Result[void, CryptoError] =
+proc sign*(
+    ticket: var Ticket, privateKey: PrivateKey
+): Result[void, CryptoError] {.raises: [], gcsafe.} =
   ## Sign the ticket with the given private key.
   ## Signature covers: advertisement || tInit || tMod || tWaitFor || expiresAt || nonce
   var sigInput =
@@ -301,7 +303,7 @@ proc sign*(ticket: var Ticket, privateKey: PrivateKey): Result[void, CryptoError
   ticket.signature = sig.getBytes()
   ok()
 
-proc verify*(ticket: Ticket, publicKey: PublicKey): bool =
+proc verify*(ticket: Ticket, publicKey: PublicKey): bool {.raises: [], gcsafe.} =
   ## Verify the ticket signature against the given public key.
   var sigInput =
     newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)

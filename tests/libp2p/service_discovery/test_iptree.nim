@@ -137,74 +137,83 @@ suite "IpTree":
     check tree.removeIp(parseIpAddress("2001:db8::1")).isErr()
     check tree.root.counter == 3
 
+  test "ipScore rejects IPv6 on empty tree":
+    let tree = IpTree.new()
+    check tree.ipScore(parseIpAddress("::1")).isErr()
+
+  test "ipScore rejects IPv6 on populated tree":
+    let tree = IpTree.new()
+    discard tree.insertIp(parseIpAddress("192.168.1.1"))
+    check tree.ipScore(parseIpAddress("2001:db8::1")).isErr()
+
   test "ipScore returns 0.0 for empty tree":
     let tree = IpTree.new()
-    check tree.ipScore(parseIpAddress("192.168.1.1")) == 0.0
+    check tree.ipScore(parseIpAddress("192.168.1.1")).value == 0.0
 
   test "ipScore returns high score for exact same IP":
     let tree = IpTree.new()
     let ip = parseIpAddress("192.168.1.1")
     discard tree.insertIp(ip)
-    check tree.ipScore(ip) > 0.9
+    check tree.ipScore(ip).value > 0.9
 
   test "ipScore detects /24 subnet similarity":
     let tree = IpTree.new()
     discard tree.insertIp(parseIpAddress("192.168.1.10"))
-    check tree.ipScore(parseIpAddress("192.168.1.20")) > 0.7
+    check tree.ipScore(parseIpAddress("192.168.1.20")).value > 0.7
 
   test "ipScore detects /16 subnet similarity":
     let tree = IpTree.new()
     discard tree.insertIp(parseIpAddress("192.168.1.10"))
-    let score = tree.ipScore(parseIpAddress("192.168.2.20"))
+    let score = tree.ipScore(parseIpAddress("192.168.2.20")).value
     check score > 0.4 and score < 0.8
 
   test "ipScore detects /8 subnet similarity":
     let tree = IpTree.new()
     discard tree.insertIp(parseIpAddress("192.168.1.10"))
-    let score = tree.ipScore(parseIpAddress("192.255.255.255"))
+    let score = tree.ipScore(parseIpAddress("192.255.255.255")).value
     check score > 0.1 and score < 0.5
 
   test "ipScore returns low score for completely different IPs":
     let tree = IpTree.new()
     # 192 = 11000000, 10 = 00001010 — first bits differ
     discard tree.insertIp(parseIpAddress("192.168.1.1"))
-    check tree.ipScore(parseIpAddress("10.0.0.1")) < 0.2
+    check tree.ipScore(parseIpAddress("10.0.0.1")).value < 0.2
 
   test "ipScore demonstrates graduated similarity across prefix lengths":
     let tree = IpTree.new()
     let base = parseIpAddress("192.168.1.100")
     discard tree.insertIp(base)
 
-    check tree.ipScore(base) > 0.9
+    check tree.ipScore(base).value > 0.9
 
     let same24 = parseIpAddress("192.168.1.200")
-    check tree.ipScore(same24) > 0.7
+    check tree.ipScore(same24).value > 0.7
 
     let same16 = parseIpAddress("192.168.255.255")
-    let score16 = tree.ipScore(same16)
+    let score16 = tree.ipScore(same16).value
     check score16 > 0.4 and score16 <= 0.7
 
     let same8 = parseIpAddress("192.255.255.255")
-    let score8 = tree.ipScore(same8)
+    let score8 = tree.ipScore(same8).value
     check score8 > 0.1 and score8 <= 0.4
 
-    check tree.ipScore(parseIpAddress("10.0.0.1")) < 0.1
+    check tree.ipScore(parseIpAddress("10.0.0.1")).value < 0.1
 
   test "insert and remove maintains scoring consistency":
     let tree = IpTree.new()
     let ip = parseIpAddress("192.168.1.1")
 
     discard tree.insertIp(ip)
-    check tree.ipScore(ip) > 0.9
+    check tree.ipScore(ip).value > 0.9
 
     discard tree.removeIp(ip)
-    check tree.ipScore(ip) == 0.0
+    check tree.ipScore(ip).value == 0.0
 
   test "similar IPs with single bit difference":
     # 192.168.1.0 and 192.168.1.1 differ only in the last bit
     let tree = IpTree.new()
     discard tree.insertIp(parseIpAddress("192.168.1.0"))
-    check tree.ipScore(parseIpAddress("192.168.1.1")) > 0.9
+    check tree.ipScore(parseIpAddress("192.168.1.1")).value > 0.9
 
   test "diverse IP distribution yields low individual scores":
     let tree = IpTree.new()
@@ -216,9 +225,9 @@ suite "IpTree":
     check tree.root.counter == 5
 
     # Same /8 as 10.0.0.1 → moderate score
-    check tree.ipScore(parseIpAddress("10.0.0.2")) > 0.7
+    check tree.ipScore(parseIpAddress("10.0.0.2")).value > 0.7
     # Different from all existing IPs → low score
-    check tree.ipScore(parseIpAddress("11.0.0.1")) < 0.3
+    check tree.ipScore(parseIpAddress("11.0.0.1")).value < 0.3
 
   test "threshold calculation at different tree depths":
     let tree = IpTree.new()
@@ -228,4 +237,4 @@ suite "IpTree":
 
     # All 8 IPs share the same /24 prefix, so the shared-path counters are
     # well above the threshold at every depth → high score
-    check tree.ipScore(parseIpAddress("192.168.1.200")) > 0.7
+    check tree.ipScore(parseIpAddress("192.168.1.200")).value > 0.7

@@ -2,11 +2,8 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/net
-import chronicles, results
+import results
 import ./types
-
-logScope:
-  topics = "service-disco iptree"
 
 proc new*(T: typedesc[IpTree]): T =
   T(root: IpTreeNode(counter: 0))
@@ -69,19 +66,20 @@ proc removeIp*(ipTree: IpTree, ip: IpAddress): Result[void, string] {.raises: []
       dec n.counter
   ok()
 
-proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
-  ## Returns an IP similarity score in [0.0, 1.0] for the given IPv4 address.
+proc ipScore*(ipTree: IpTree, ip: IpAddress): Result[float64, string] {.raises: [].} =
+  ## Returns an IP similarity score in [0.0, 1.0] for the given IPv4 address,
+  ## or an error if the address family is not supported.
   ##
   ## The score counts how many of the 32 prefix nodes along the IP's path have
-  ## a counter exceeding the expected threshold (root.counter / 2^depth).
+  ## a counter exceeding the expected threshold (root.counter / 2^(depth+1)),
+  ## where depth+1 is the tree level of the child node being evaluated.
   ## A high score means many existing IPs share the same subnet — a signal of
   ## Sybil-style clustering.
   if ip.family != IpAddressFamily.IPv4:
-    error "ipScore: IPv6 not supported"
-    return 0.0
+    return err("ipScore: IPv6 not supported")
 
   if ipTree.root.counter == 0:
-    return 0.0
+    return ok(0.0)
 
   var v = ipTree.root
   var score = 0
@@ -91,15 +89,15 @@ proc ipScore*(ipTree: IpTree, ip: IpAddress): float64 {.raises: [].} =
   for i in 0 ..< 4:
     let b = bytes[i]
     for bit in countdown(7, 0):
-      let depth = i * 8 + (7 - bit) # 0 .. 31
-      let threshold = total / float64(1 shl depth)
+      let depth = i * 8 + (7 - bit) # 0 .. 31; child node sits at tree level depth+1
+      let threshold = total / float64(1'u64 shl (depth + 1))
 
       v = if (b and (1'u8 shl bit)) == 0: v.left else: v.right
 
       if v.isNil:
-        return float64(score) / 32.0
+        return ok(float64(score) / 32.0)
 
       if float64(v.counter) > threshold:
         score += 1
 
-  float64(score) / 32.0
+  ok(float64(score) / 32.0)
