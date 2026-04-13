@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -18,6 +19,10 @@ jobs:
           - repository: status-im/nimbus-eth2
             ref: unstable
             secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
+          - repository: logos-messaging/logos-delivery
+            ref: master
+            secret: ACTIONS_GITHUB_TOKEN_NWAKU
+            nimble: true
           - repository: codex-storage/nim-codex
             ref: master
             secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
@@ -34,9 +39,18 @@ jobs:
       - name: Checkout this ref in target repository
         run: |
           cd nbc
-          git submodule update --init vendor/nim-libp2p
-          cd vendor/nim-libp2p
-          git checkout $GITHUB_SHA
+          if [ "${{ matrix.target.nimble }}" = "true" ]; then
+            # nwaku uses nimble — update nim-libp2p's pinned revision in the lock file
+            jq --arg sha "$GITHUB_SHA" \
+              '.packages["nim-libp2p"].vcsRevision = $sha' \
+              nimble.lock > nimble.lock.tmp
+            mv nimble.lock.tmp nimble.lock
+          else
+            git submodule update --init vendor/nim-libp2p
+            cd vendor/nim-libp2p
+            git fetch https://github.com/status-im/nim-libp2p.git $GITHUB_SHA
+            git checkout $GITHUB_SHA
+          fi
 
       - name: Push this ref to target repository
         run: |
