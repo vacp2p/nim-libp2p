@@ -74,8 +74,13 @@ suite "Ticket - boundary values":
   test "empty advertisement bytes sign and verify correctly":
     let key = PrivateKey.random(rng[]).get()
     var t = Ticket(
-      advertisement: @[], tInit: 1000, tMod: 2000, tWaitFor: 300,
-      expiresAt: 0, nonce: @[], signature: @[],
+      advertisement: @[],
+      tInit: 1000,
+      tMod: 2000,
+      tWaitFor: 300,
+      expiresAt: 0,
+      nonce: @[],
+      signature: @[],
     )
     check t.sign(key).isOk()
     check t.verify(key.getPublicKey().get())
