@@ -327,7 +327,13 @@ method start*(
   try:
     let server = QuicServer.new(self.makeConfig())
     for maAddr in addrs:
-      let listener = server.listen(initTAddress(maAddr).tryGet)
+      if not self.handles(maAddr):
+        raise (ref TransportStartError)(msg: "Unsupported address: " & $maAddr)
+      let ta = initTAddress(maAddr).valueOr:
+        raise (ref TransportStartError)(
+          msg: "Cannot start QUIC transport on non-wire address: " & $maAddr
+        )
+      let listener = server.listen(ta)
       self.listeners.add(listener)
       listenMAs.add(toMultiAddress(listener.localAddress()))
     initialized = true

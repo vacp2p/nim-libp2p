@@ -23,6 +23,7 @@ type
   TransportError* = object of LPError
   TransportInvalidAddrError* = object of TransportError
   TransportClosedError* = object of TransportError
+  TransportStartError* = object of TransportError
   TransportDialError* = object of TransportError
 
   Transport* = ref object of RootObj

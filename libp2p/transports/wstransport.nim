@@ -132,6 +132,14 @@ method start*(
     warn "WS transport already running"
     return
 
+  for ma in addrs:
+    if not self.handles(ma):
+      raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
+    discard initTAddress(ma).valueOr:
+      raise (ref TransportStartError)(
+        msg: "Cannot start WS transport on non-wire address: " & $ma
+      )
+
   when defined(libp2p_autotls_support):
     if not self.secure and self.autotls.isSome():
       self.autotls.withValue(autotls):
@@ -166,7 +174,7 @@ method start*(
       else:
         false
 
-    let address = ma.initTAddress().tryGet()
+    let address = ma.initTAddress().expect("validated above")
 
     let httpserver =
       try:

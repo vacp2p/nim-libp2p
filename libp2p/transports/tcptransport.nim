@@ -123,12 +123,13 @@ method start*(
   try:
     for i, ma in addrs:
       if not self.handles(ma):
-        trace "Invalid address detected, skipping!", address = ma
-        continue
+        raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
 
-      let
-        ta = initTAddress(ma).expect("valid address per handles check above")
-        server =
+      let ta = initTAddress(ma).valueOr:
+        raise (ref TransportStartError)(
+          msg: "Cannot start TCP transport on non-wire address: " & $ma
+        )
+      let server =
           try:
             createStreamServer(ta, flags = self.flags)
           except common.TransportError as exc:

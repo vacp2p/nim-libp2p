@@ -58,7 +58,7 @@ type
     CommandNotSupported = (7, "Command Not Supported")
     AddressTypeNotSupported = (8, "Address Type Not Supported")
 
-  TransportStartError* = object of transport.TransportError
+  TransportStartError* = transport.TransportStartError
 
   Socks5Error* = object of CatchableError
   Socks5AuthFailedError* = object of Socks5Error
