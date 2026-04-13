@@ -40,7 +40,12 @@ proc waitForHeartbeatByEvent*[T: PubSub](node: T, multiplier: int = 1) {.async.}
   for _ in 0 ..< multiplier:
     let evnt = newAsyncEvent()
     node.heartbeatEvents &= evnt
-    await evnt.wait()
+    try:
+      await evnt.wait()
+    finally:
+      let i = node.heartbeatEvents.find(evnt)
+      if i != -1:
+        node.heartbeatEvents.delete(i)
 
 proc waitForNextHeartbeat*[T: PubSub](node: T) {.async.} =
   await node.waitForHeartbeatByEvent(1)
