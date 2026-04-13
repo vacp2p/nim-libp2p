@@ -191,17 +191,12 @@ suite "GossipSub Interop - Script runner - Component":
 
     # Node 0 adds parts 0-3
     let pm0 = newInteropPartialMessage(groupId)
-    pm0.fillParts(0b00001111)
+    pm0.fillParts(newInteropPartsMetadata(0b00001111))
     runner0.messages[key] = pm0
 
     # Assert both nodes receive full messages
     checkUntilTimeout:
       runner0.messages[key].isComplete()
       runner1.messages[key].isComplete()
-
-    let output0 = logStream0.data
-    let output1 = logStream1.data
-
-    check:
-      output0.contains("All parts received")
-      output1.contains("All parts received")
+      logStream0.data.contains("All parts received")
+      logStream1.data.contains("All parts received")

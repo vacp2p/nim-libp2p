@@ -10,6 +10,7 @@ import
     protocols/pubsub/gossipsub/extension_partial_message,
     protocols/pubsub/rpc/messages,
     switch,
+    utils/tablekey,
   ]
 import ./[instructions, node, logger, interop_partial_message]
 
@@ -31,7 +32,7 @@ proc setResolveAddr*(
   runner.resolveAddr = resolve
 
 proc makeKey*(topicId: string, groupId: uint64): string =
-  topicId & ":" & $groupId
+  TableKey.makeKey(topicId, groupId)
 
 proc makeKey(topicId: string, groupId: seq[byte]): string =
   makeKey(topicId, fromBytesBE(uint64, groupId.toOpenArray(0, GroupIdLen - 1)))
@@ -57,19 +58,18 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
       runner.messages.mgetOrPut(key, newInteropPartialMessageFromBytes(rpc.groupID))
 
     if rpc.partialMessage.len > 0:
-      let beforeBitmap = pm.bitmap
+      let beforeBitmap = pm.metadata.bitmap
       let extendRes = pm.extend(rpc.partialMessage)
       if extendRes.isErr():
         warn "Failed to extend partial message", error = extendRes.error
         return
 
-      if pm.bitmap != beforeBitmap:
+      if pm.metadata.bitmap != beforeBitmap:
         if pm.isComplete():
           let gid = fromBytesBE(uint64, pm.groupIdBytes)
           logAllPartsReceived(runner.logStream, gid)
 
-    if (runner.node == nil):
-      raiseAssert "runner.node must be set before RPC processing"
+    doAssert runner.node != nil, "runner.node must be set before RPC processing"
 
     asyncSpawn runner.node.publishPartial(rpc.topicID, pm)
 
@@ -109,8 +109,8 @@ proc stop*(runner: ScriptRunner) {.async.} =
 proc executeInstruction*(runner: ScriptRunner, instruction: ScriptInstruction) {.async.}
 
 proc executeConnect(runner: ScriptRunner, connectTo: seq[int]) {.async.} =
-  if runner.resolveAddr == nil:
-    raiseAssert "resolveAddr must be set before executing Connect instructions"
+  doAssert runner.resolveAddr != nil,
+    "resolveAddr must be set before executing Connect instructions"
 
   for targetId in connectTo:
     let targetPeerId = nodePeerId(targetId)
@@ -189,7 +189,7 @@ proc executeAddPartialMessage(
     runner: ScriptRunner, topicId: string, groupId: uint64, partsBitmap: uint8
 ) {.async.} =
   let pm = newInteropPartialMessage(groupId)
-  pm.fillParts(partsBitmap)
+  pm.fillParts(newInteropPartsMetadata(partsBitmap))
 
   let key = makeKey(topicId, groupId)
   runner.messages[key] = pm
