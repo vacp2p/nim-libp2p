@@ -126,7 +126,7 @@ type Libp2pConfig* {.bycopy.} = object
   gossipsubTriggerSelf*: cint
   mountKad*: cint
   mountMix*: cint
-  mountKadDiscovery*: cint
+  mountServiceDiscovery*: cint
   dnsResolver*: cstring
   addrs*: ptr cstring
   addrsLen*: csize_t
