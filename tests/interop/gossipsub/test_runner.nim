@@ -4,46 +4,31 @@
 {.used.}
 
 import chronos, streams, sequtils, strutils
-import
-  ../../../libp2p/[
-    multiaddress,
-    peerid,
-    protocols/pubsub/gossipsub,
-    protocols/pubsub/rpc/message,
-    switch,
-  ]
+import ../../../libp2p/[multiaddress, protocols/pubsub/gossipsub, switch]
 import
   ../../../interop/gossipsub/src/[node, instructions, runner, interop_partial_message]
 import ../../tools/[unittest]
 
-proc setupNodes(count: int): Future[seq[GossipSub]] {.async.} =
-  var nodes: seq[GossipSub]
-
-  for i in 0 ..< count:
-    let node = createNode(i, MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
-    nodes.add(node)
-
-  await allFutures(nodes.mapIt(it.switch.start()))
-  nodes
-
-proc teardownNodes(nodes: seq[GossipSub]) {.async.} =
-  await allFutures(nodes.mapIt(it.switch.stop()))
+template localhost(): MultiAddress =
+  MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
 proc getAddr(node: GossipSub): MultiAddress =
   node.switch.peerInfo.addrs[0]
 
 suite "GossipSub Interop - Script runner - Component":
   asyncTest "script runs connect + subscribe + publish":
-    let nodes = await setupNodes(2)
+    # Standalone peer node (no runner)
+    let peer = createNode(1, localhost)
+    await peer.switch.start()
     defer:
-      await teardownNodes(nodes)
+      await peer.switch.stop()
 
     const topic = "foobar"
     let receivedMsgIdFut = newFuture[string]()
-    let targetAddr = nodes[1].getAddr()
+    let peerAddr = peer.getAddr()
 
-    # Node 1: subscribe to receive messages
-    nodes[1].subscribe(
+    # Peer subscribes to receive messages
+    peer.subscribe(
       topic,
       proc(topic: string, data: seq[byte]) {.async.} =
         if data.len >= 8 and not receivedMsgIdFut.finished():
@@ -72,24 +57,29 @@ suite "GossipSub Interop - Script runner - Component":
       ]
 
     var stream = newStringStream()
-    let runner = ScriptRunner(
-      nodeId: 0,
-      node: nodes[0],
-      logStream: stream,
-      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
-        return targetAddr,
+    let runner = newScriptRunner(
+      nodeId = 0,
+      logStream = stream,
+      listenAddr = localhost,
+      resolveAddr = proc(id: int): MultiAddress {.gcsafe.} =
+        return peerAddr,
     )
+    await runner.node.switch.start()
+    defer:
+      await runner.node.switch.stop()
 
     await runner.runScript(script)
 
     check (await receivedMsgIdFut.wait(10.seconds)) == "99"
 
   asyncTest "ifNodeIDEquals filters correctly":
-    let nodes = await setupNodes(2)
+    # Standalone peer node (no runner)
+    let peer = createNode(1, localhost)
+    await peer.switch.start()
     defer:
-      await teardownNodes(nodes)
+      await peer.switch.stop()
 
-    let targetAddr = nodes[1].getAddr()
+    let peerAddr = peer.getAddr()
 
     let inner = new ScriptInstruction
     inner[] = ScriptInstruction(kind: Connect, connectTo: @[1])
@@ -102,71 +92,75 @@ suite "GossipSub Interop - Script runner - Component":
       ]
 
     var stream = newStringStream()
-    let runner = ScriptRunner(
-      nodeId: 0,
-      node: nodes[0],
-      logStream: stream,
-      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
-        return targetAddr,
+    let runner = newScriptRunner(
+      nodeId = 0,
+      logStream = stream,
+      listenAddr = localhost,
+      resolveAddr = proc(id: int): MultiAddress {.gcsafe.} =
+        return peerAddr,
     )
+    await runner.node.switch.start()
+    defer:
+      await runner.node.switch.stop()
 
     await runner.runScript(script)
 
     # Node 0 should not be connected
-    check nodes[0].switch.connectedPeers(Direction.Out).len == 0
+    check runner.node.switch.connectedPeers(Direction.Out).len == 0
 
     # Run with matching nodeID
     let script2 = @[ScriptInstruction(kind: IfNodeIDEquals, nodeID: 0, inner: inner)]
 
-    let runner2 = ScriptRunner(
-      nodeId: 0,
-      node: nodes[0],
-      logStream: stream,
-      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
-        return targetAddr,
+    let runner2 = newScriptRunner(
+      nodeId = 0,
+      logStream = stream,
+      listenAddr = localhost,
+      resolveAddr = proc(id: int): MultiAddress {.gcsafe.} =
+        return peerAddr,
     )
+    await runner2.node.switch.start()
+    defer:
+      await runner2.node.switch.stop()
 
     await runner2.runScript(script2)
 
     # Now should be connected
-    check nodes[0].switch.connectedPeers(Direction.Out).len == 1
+    check runner2.node.switch.connectedPeers(Direction.Out).len == 1
 
   asyncTest "two nodes exchange partial messages and both log 'All parts received'":
-    # Node 0 has parts 0-3 (0x0F), Node 1 has parts 4-7 (0xF0)
+    # Node 0 has parts 0-3 (0b00001111), Node 1 has parts 4-7 (0b11110000)
     # After exchange, both should have all parts.
 
-    # Create runners first (with nil node), build configs from them
     let logStream0 = newStringStream()
     let logStream1 = newStringStream()
-    let runner0 = ScriptRunner(nodeId: 0, logStream: logStream0)
-    let runner1 = ScriptRunner(nodeId: 1, logStream: logStream1)
 
-    let n0 = createNode(
-      0,
-      MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-      partialMessageConfig = Opt.some(runner0.makePartialMessageConfig()),
+    let runner0 = newScriptRunner(
+      nodeId = 0,
+      logStream = logStream0,
+      listenAddr = localhost,
+      enablePartialMessages = true,
     )
-    let n1 = createNode(
-      1,
-      MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-      partialMessageConfig = Opt.some(runner1.makePartialMessageConfig()),
+    let runner1 = newScriptRunner(
+      nodeId = 1,
+      logStream = logStream1,
+      listenAddr = localhost,
+      enablePartialMessages = true,
     )
 
-    await allFutures(@[n0, n1].mapIt(it.switch.start()))
+    await allFutures(@[runner0, runner1].mapIt(it.start()))
     defer:
-      await allFutures(@[n0, n1].mapIt(it.switch.stop()))
+      await allFutures(@[runner0, runner1].mapIt(it.stop()))
 
-    # Update runners after nodes are created and started
-    runner0.node = n0
-    runner1.node = n1
-    runner1.resolveAddr = proc(id: int): MultiAddress {.gcsafe.} =
-      n0.getAddr()
+    runner1.setResolveAddr(
+      proc(id: int): MultiAddress {.gcsafe.} =
+        runner0.node.getAddr()
+    )
 
     const topic = "foobar"
     const groupId = 42'u64
     let key = makeKey(topic, groupId)
 
-    # Build a script for node 0
+    # Build a script for node 1
     let script =
       @[
         ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
@@ -178,7 +172,7 @@ suite "GossipSub Interop - Script runner - Component":
           kind: AddPartialMessage,
           addTopicID: topic,
           groupID: groupId,
-          partsBitmap: 0xF0,
+          partsBitmap: 0b11110000,
         ),
         ScriptInstruction(
           kind: PublishPartial,
@@ -191,11 +185,13 @@ suite "GossipSub Interop - Script runner - Component":
     await runner1.runScript(script)
 
     # Node 0 subscribes to the topic and adds partial message
-    n0.subscribe(topic, nil, requestsPartial = true, supportsSendingPartial = true)
+    runner0.node.subscribe(
+      topic, nil, requestsPartial = true, supportsSendingPartial = true
+    )
 
     # Node 0 adds parts 0-3
     let pm0 = newInteropPartialMessage(groupId)
-    pm0.fillParts(0x0F)
+    pm0.fillParts(0b00001111)
     runner0.messages[key] = pm0
 
     # Assert both nodes receive full messages

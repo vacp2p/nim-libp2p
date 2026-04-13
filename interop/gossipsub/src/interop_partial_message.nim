@@ -42,7 +42,7 @@ proc newInteropPartialMessageFromBytes*(
   InteropPartialMessage(groupIdBytes: groupIdArr)
 
 proc isComplete*(pm: InteropPartialMessage): bool =
-  pm.bitmap == 0xFF
+  pm.bitmap == 0b11111111
 
 func partsPresent*(pm: InteropPartialMessage): int =
   var count = 0
@@ -87,9 +87,6 @@ proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
 
   var offset = 0
   for i in 0 ..< NumParts:
-    if offset >= partData.len:
-      break
-
     if not msgBitmap.hasBit(i):
       continue # not in message
 

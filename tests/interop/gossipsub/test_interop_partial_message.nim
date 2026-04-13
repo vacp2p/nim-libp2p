@@ -144,6 +144,12 @@ suite "GossipSub Interop - Wire Format":
     check data.len == MetadataLen + PartLen + GroupIdLen
     check data[0] == 0b00000001'u8
 
+  test "materializeParts rejects metadata of wrong length":
+    let pm = newInteropPartialMessage(42)
+    pm.fillParts(0b00000001)
+    check pm.materializeParts(@[]).isErr()
+    check pm.materializeParts(@[0'u8, 0'u8]).isErr()
+
   test "extend decodes wire format":
     let sender = newInteropPartialMessage(42)
     sender.fillParts(0b00000011) # parts 0, 1
@@ -227,3 +233,26 @@ suite "GossipSub Interop - Wire Format":
     let enc2 = pm2.materializeParts(@[0b00000001'u8]).get()
     check receiver.extend(enc2).isOk()
     check receiver.bitmap == 0b00000011
+
+  test "extend rejects bitmap claiming more parts than data contains":
+    # bitmap claims 3 parts (bits 0,1,2) but partData holds only 2*PartLen bytes
+    # groupId tail is all-zero, matching newInteropPartialMessage(0)
+    var wire = newSeq[byte](MetadataLen + 2 * PartLen + GroupIdLen)
+    wire[0] = 0b00000111'u8 # 3 bits set
+    let receiver = newInteropPartialMessage(0)
+    check receiver.extend(wire).isErr()
+
+  test "extend rejects partData length not a multiple of PartLen":
+    # Wire has one extra byte beyond a full part
+    var wire = newSeq[byte](MetadataLen + PartLen + 1 + GroupIdLen)
+    wire[0] = 0b00000001'u8
+    let receiver = newInteropPartialMessage(0)
+    check receiver.extend(wire).isErr()
+
+  test "extend accepts empty bitmap with no part data":
+    # bitmap=0, no parts in the stream
+    var wire = newSeq[byte](MetadataLen + GroupIdLen)
+    wire[0] = 0b00000000'u8
+    let receiver = newInteropPartialMessage(0)
+    check receiver.extend(wire).isOk()
+    check receiver.bitmap == 0b00000000

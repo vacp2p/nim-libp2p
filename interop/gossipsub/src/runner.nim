@@ -24,6 +24,87 @@ type ScriptRunner* = ref object
   startTime: Moment
   messages*: Table[string, InteropPartialMessage]
 
+proc setResolveAddr*(
+    runner: ScriptRunner,
+    resolve: proc(nodeId: int): MultiAddress {.gcsafe, raises: [CatchableError].},
+) =
+  runner.resolveAddr = resolve
+
+proc makeKey*(topicId: string, groupId: uint64): string =
+  topicId & ":" & $groupId
+
+proc makeKey(topicId: string, groupId: seq[byte]): string =
+  makeKey(topicId, fromBytesBE(uint64, groupId.toOpenArray(0, GroupIdLen - 1)))
+
+proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConfig =
+  ## Create a PartialMessageExtensionConfig wired to this runner.
+  ## runner.node must be set after node creation but before any RPC processing.
+
+  proc validateRPC(
+      rpc: PartialMessageExtensionRPC
+  ): Result[void, string] {.gcsafe, raises: [].} =
+    ok()
+
+  proc onIncomingRPC(
+      peer: PeerId, rpc: PartialMessageExtensionRPC
+  ) {.gcsafe, raises: [].} =
+    if rpc.groupID.len < GroupIdLen:
+      warn "Incoming RPC has invalid groupID length", len = rpc.groupID.len
+      return
+
+    let key = makeKey(rpc.topicID, rpc.groupID)
+    let pm =
+      runner.messages.mgetOrPut(key, newInteropPartialMessageFromBytes(rpc.groupID))
+
+    if rpc.partialMessage.len > 0:
+      let beforeBitmap = pm.bitmap
+      let extendRes = pm.extend(rpc.partialMessage)
+      if extendRes.isErr():
+        warn "Failed to extend partial message", error = extendRes.error
+        return
+
+      if pm.bitmap != beforeBitmap:
+        if pm.isComplete():
+          let gid = fromBytesBE(uint64, pm.groupIdBytes)
+          logAllPartsReceived(runner.logStream, gid)
+
+    if (runner.node == nil):
+      raiseAssert "runner.node must be set before RPC processing"
+
+    asyncSpawn runner.node.publishPartial(rpc.topicID, pm)
+
+  PartialMessageExtensionConfig(
+    unionPartsMetadata: interopUnionPartsMetadata,
+    validateRPC: validateRPC,
+    onIncomingRPC: onIncomingRPC,
+    heartbeatsTillEviction: 100,
+  )
+
+proc newScriptRunner*(
+    nodeId: int,
+    logStream: Stream,
+    listenAddr: MultiAddress,
+    gossipSubParams: GossipSubParams = GossipSubParams.init(),
+    resolveAddr: proc(nodeId: int): MultiAddress {.gcsafe, raises: [CatchableError].} =
+      nil,
+    enablePartialMessages: bool = false,
+): ScriptRunner =
+  let runner =
+    ScriptRunner(nodeId: nodeId, logStream: logStream, resolveAddr: resolveAddr)
+  let pmConfig =
+    if enablePartialMessages:
+      Opt.some(runner.makePartialMessageConfig())
+    else:
+      Opt.none(PartialMessageExtensionConfig)
+  runner.node = createNode(nodeId, listenAddr, gossipSubParams, pmConfig)
+  runner
+
+proc start*(runner: ScriptRunner) {.async.} =
+  await runner.node.switch.start()
+
+proc stop*(runner: ScriptRunner) {.async.} =
+  await runner.node.switch.stop()
+
 # Forward declaration
 proc executeInstruction*(runner: ScriptRunner, instruction: ScriptInstruction) {.async.}
 
@@ -101,12 +182,6 @@ proc executeSetTopicValidationDelay(
       validationFut,
   )
 
-proc makeKey*(topicId: string, groupId: uint64): string =
-  topicId & ":" & $groupId
-
-proc makeKey(topicId: string, groupId: seq[byte]): string =
-  makeKey(topicId, fromBytesBE(uint64, groupId.toOpenArray(0, GroupIdLen - 1)))
-
 proc executeAddPartialMessage(
     runner: ScriptRunner, topicId: string, groupId: uint64, partsBitmap: uint8
 ) {.async.} =
@@ -175,45 +250,3 @@ proc runScript*(runner: ScriptRunner, instructions: seq[ScriptInstruction]) {.as
 
   for instr in instructions:
     await runner.executeInstruction(instr)
-
-proc makePartialMessageConfig*(runner: ScriptRunner): PartialMessageExtensionConfig =
-  ## Create a PartialMessageExtensionConfig wired to this runner.
-  ## runner.node must be set after node creation but before any RPC processing.
-
-  proc validateRPC(
-      rpc: PartialMessageExtensionRPC
-  ): Result[void, string] {.gcsafe, raises: [].} =
-    ok()
-
-  proc onIncomingRPC(
-      peer: PeerId, rpc: PartialMessageExtensionRPC
-  ) {.gcsafe, raises: [].} =
-    if rpc.groupID.len < GroupIdLen:
-      warn "Incoming RPC has invalid groupID length", len = rpc.groupID.len
-      return
-
-    let key = makeKey(rpc.topicID, rpc.groupID)
-    let pm =
-      runner.messages.mgetOrPut(key, newInteropPartialMessageFromBytes(rpc.groupID))
-
-    if rpc.partialMessage.len > 0:
-      let beforeBitmap = pm.bitmap
-      let extendRes = pm.extend(rpc.partialMessage)
-      if extendRes.isErr():
-        warn "Failed to extend partial message", error = extendRes.error
-        return
-
-      if pm.bitmap != beforeBitmap:
-        if pm.isComplete():
-          let gid = fromBytesBE(uint64, pm.groupIdBytes)
-          logAllPartsReceived(runner.logStream, gid)
-
-    if runner.node != nil:
-      asyncSpawn runner.node.publishPartial(rpc.topicID, pm)
-
-  PartialMessageExtensionConfig(
-    unionPartsMetadata: interopUnionPartsMetadata,
-    validateRPC: validateRPC,
-    onIncomingRPC: onIncomingRPC,
-    heartbeatsTillEviction: 100,
-  )
