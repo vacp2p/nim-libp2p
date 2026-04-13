@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, times, tables]
+import std/[sequtils, sets, times]
 import chronos, results, stew/byteutils
 import
   ../../[
@@ -16,21 +16,9 @@ const
   ExtendedServiceDiscoveryCodec* = "/logos/service-discovery/1.0.0"
 
 type
-  ServiceId* = Key
-
-  ServiceStatus* = enum
-    Interest = 0
-    Provided = 1
-    Both = 2
-
-  ServiceRoutingTableManager* = ref object
-    tables*: Table[ServiceId, RoutingTable]
-    serviceStatus*: Table[ServiceId, ServiceStatus]
-
   ServiceDiscoveryConfig* = object ## placeholder for now
 
   ServiceDiscovery* = ref object of KadDHT
-    serviceRoutingTables*: ServiceRoutingTableManager
     services*: HashSet[ServiceInfo]
     discoveryConfig*: ServiceDiscoveryConfig
       # can't use name "config", clashes with KadDHT's config
