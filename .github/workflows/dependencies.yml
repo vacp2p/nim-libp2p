@@ -37,7 +37,9 @@ jobs:
       - name: Checkout this ref in target repository
         run: |
           cd nbc
-          git submodule update --init vendor/nim-libp2p
+          if [ "${{ matrix.target.repository }}" != "waku-org/nwaku" ]; then
+            git submodule update --init vendor/nim-libp2p
+          fi
           cd vendor/nim-libp2p
           git checkout $GITHUB_SHA
 
