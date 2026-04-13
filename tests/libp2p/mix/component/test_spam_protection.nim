@@ -52,7 +52,7 @@ suite "Mix Protocol - Spam Protection":
     const
       numNodes = 4 # sender + 3 path nodes
       rateLimit = 3
-      maxDelayPerHop = 1.Delay # 
+      maxDelayPerHop = 1.Delay # big delay is not really needed here
 
     let nodes = await setupMixNodes(
       numNodes,
