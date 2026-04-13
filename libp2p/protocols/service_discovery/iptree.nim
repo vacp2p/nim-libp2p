@@ -9,25 +9,28 @@ proc new*(T: typedesc[IpTree]): T =
   T(root: IpTreeNode(counter: 0))
 
 proc insertIp*(ipTree: IpTree, ip: IpAddress): Result[void, string] {.raises: [].} =
-  ## Adds an IPv4 address to the IP tree by incrementing counters along the
-  ## 32-bit path. Only IPv4 is supported (the tree has exactly 32 levels).
   if ip.family != IpAddressFamily.IPv4:
     return err("insertIp: IPv6 not supported")
 
   var v = ipTree.root
+  v.counter += 1
+
   let bytes = ip.address_v4
   for i in 0 ..< 4:
     let b = bytes[i]
     for bit in countdown(7, 0):
-      v.counter += 1
-      if (b and (1'u8 shl bit)) == 0:
-        if v.left.isNil:
-          v.left = IpTreeNode(counter: 0)
-        v = v.left
-      else:
+      let goRight = (b and (1'u8 shl bit)) != 0
+
+      if goRight:
         if v.right.isNil:
           v.right = IpTreeNode(counter: 0)
         v = v.right
+      else:
+        if v.left.isNil:
+          v.left = IpTreeNode(counter: 0)
+        v = v.left
+
+      v.counter += 1
   ok()
 
 proc removeIp*(ipTree: IpTree, ip: IpAddress): Result[void, string] {.raises: [].} =
