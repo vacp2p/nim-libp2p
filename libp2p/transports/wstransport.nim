@@ -132,10 +132,11 @@ method start*(
     warn "WS transport already running"
     return
 
-  for ma in addrs:
+  var addrsTa = newSeq[TransportAddress](addrs.len)
+  for i, ma in addrs:
     if not self.handles(ma):
       raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
-    discard initTAddress(ma).valueOr:
+    addrsTa[i] = initTAddress(ma).valueOr:
       raise (ref TransportStartError)(
         msg: "Cannot start WS transport on non-wire address: " & $ma & ". " & error
       )
@@ -174,10 +175,9 @@ method start*(
       else:
         false
 
-    let address = ma.initTAddress().expect("validated above")
-
     let httpserver =
       try:
+        let address = addrsTa[i]
         if isWss:
           TlsHttpServer.create(
             address = address,
