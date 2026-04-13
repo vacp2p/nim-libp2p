@@ -92,9 +92,12 @@ suite "Mix Protocol - Spam Protection":
     await conn.writeLp(testPayload)
 
     expect AsyncTimeoutError:
-      # code needs to wait here more then maximum time that is need for message to 
-      # propagate through mix protocol to ensure that message is not delivered.
-      # max expected time for message ~= number of hops * delay per hop
-      # maxWaitTime = double the max expected time for message
-      let maxWaitTime = (maxDelayPerHop.toDuration * (numNodes - 1)) * 2
+      # wait longer than the maximum time needed for a message to propagate
+      # through the mix protocol, to ensure that the message is not delivered.
+
+      # maxMixDelay = number of hops * delay per hop
+      let maxMixDelay = (maxDelayPerHop.toDuration * (numNodes - 1))
+      # maxWaitTime = maxMixDelay + 2s (to accommodate network transmission overhead)
+      let maxWaitTime = maxMixDelay + 2.seconds
+
       discard await nrProto.receivedMessages.get().wait(maxWaitTime)
