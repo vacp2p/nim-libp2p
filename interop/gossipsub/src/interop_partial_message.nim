@@ -81,21 +81,24 @@ proc isComplete*(pm: InteropPartialMessage): bool =
 func partsPresent*(pm: InteropPartialMessage): int =
   pm.metadata.partsPresent()
 
+proc makePart(groupId: uint64, partIndex: int): seq[byte] =
+  ## Generate deterministic data for a single part.
+  ## Part i, position j: value == groupId + i*128 + j
+  var part = newSeq[byte](PartLen)
+  var counter = groupId + uint64(partIndex) * PositionsPerPart
+  for j in 0 ..< PositionsPerPart:
+    let pos = j * sizeof(uint64)
+    part[pos ..< pos + sizeof(uint64)] = @(toBytesBE(counter))
+    counter.inc
+  part
+
 proc fillParts*(pm: InteropPartialMessage, metadata: InteropPartsMetadata) =
   ## Fill parts with deterministic data.
-  ## start = BigEndian(groupId)
-  ## Part i, position j: value == start + i*128 + j
-  let start = fromBytesBE(uint64, pm.groupIdBytes)
+  let groupId = fromBytesBE(uint64, pm.groupIdBytes)
   for i in 0 ..< NumParts:
     if not metadata.hasBit(i):
       continue
-    var part = newSeq[byte](PartLen)
-    var counter = start + uint64(i) * PositionsPerPart
-    for j in 0 ..< PositionsPerPart:
-      let pos = j * sizeof(uint64)
-      part[pos ..< pos + sizeof(uint64)] = @(toBytesBE(counter))
-      counter.inc
-    pm.parts[i] = part
+    pm.parts[i] = makePart(groupId, i)
     pm.metadata.setBit(i)
 
 proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
