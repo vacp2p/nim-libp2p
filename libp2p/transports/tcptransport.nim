@@ -130,12 +130,12 @@ method start*(
           msg: "Cannot start TCP transport on non-wire address: " & $ma & ". " & error
         )
       let server =
-          try:
-            createStreamServer(ta, flags = self.flags)
-          except common.TransportError as exc:
-            raise (ref TcpTransportError)(
-              msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
-            )
+        try:
+          createStreamServer(ta, flags = self.flags)
+        except common.TransportError as exc:
+          raise (ref TcpTransportError)(
+            msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
+          )
 
       self.servers &= server
 

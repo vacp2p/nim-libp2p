@@ -5,12 +5,7 @@
 
 import chronos, results
 import
-  ../../../libp2p/[
-    stream/connection,
-    transports/transport,
-    multiaddress,
-    multicodec,
-  ]
+  ../../../libp2p/[stream/connection, transports/transport, multiaddress, multicodec]
 import ../../tools/[unittest]
 import ./utils
 
