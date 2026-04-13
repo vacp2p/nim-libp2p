@@ -269,3 +269,48 @@ suite "Priority queue behavior":
     checkUntilTimeout:
       mediumDrain.finished
       lowDrain.finished
+
+  test "Queue admission drops medium when backlog exists and medium queue is full":
+    let queueAction = determineQueueAction(
+      priority = MessagePriority.Medium,
+      sendPriorityQueueLen = 1,
+      mediumPriorityQueueLen = 1,
+      lowPriorityQueueLen = 0,
+      maxHighPriorityQueueLen = 2,
+      maxMediumPriorityQueueLen = 1,
+      maxLowPriorityQueueLen = 2,
+    )
+
+    check:
+      queueAction.action == QueueActionType.DropMedium
+      queueAction.slowPeerPenaltyDelta == 1.0
+
+  test "Queue admission drops low when backlog exists and low queue is full":
+    let queueAction = determineQueueAction(
+      priority = MessagePriority.Low,
+      sendPriorityQueueLen = 1,
+      mediumPriorityQueueLen = 0,
+      lowPriorityQueueLen = 1,
+      maxHighPriorityQueueLen = 2,
+      maxMediumPriorityQueueLen = 2,
+      maxLowPriorityQueueLen = 1,
+    )
+
+    check:
+      queueAction.action == QueueActionType.DropLow
+      queueAction.slowPeerPenaltyDelta == 1.0
+
+  test "Queue admission disconnects when high priority queue is full":
+    let queueAction = determineQueueAction(
+      priority = MessagePriority.High,
+      sendPriorityQueueLen = 1,
+      mediumPriorityQueueLen = 0,
+      lowPriorityQueueLen = 0,
+      maxHighPriorityQueueLen = 1,
+      maxMediumPriorityQueueLen = 2,
+      maxLowPriorityQueueLen = 2,
+    )
+
+    check:
+      queueAction.action == QueueActionType.Disconnect
+      queueAction.slowPeerPenaltyDelta == 0.0
