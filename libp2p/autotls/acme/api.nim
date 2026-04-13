@@ -347,13 +347,19 @@ when defined(libp2p_autotls_support):
   ): Future[ACMEAuthorizationsResponse] {.async: (raises: [ACMEError, CancelledError]).} =
     handleError("requestAuthorizations"):
       doAssert authorizations.len > 0
+
       let acmeResponse = await self.get(parseUri(authorizations[0]))
       var challenges: seq[ACMEChallenge]
+
       for challenge in acmeResponse.body.getOrDefault("challenges").getElems():
         try:
           challenges.add(challenge.to(ACMEChallenge))
         except ValueError, JsonKindError:
           debug "Skipping challenge with unrecognized fields", challenge = $challenge
+
+      if challenges.len == 0:
+        raise newException(ACMEError, "No challenges received")
+
       ACMEAuthorizationsResponse(challenges: challenges)
 
   proc requestChallenge*(
@@ -370,8 +376,6 @@ when defined(libp2p_autotls_support):
 
     let authorizationsResponse =
       await self.requestAuthorizations(orderResponse.authorizations, key, kid)
-    if authorizationsResponse.challenges.len == 0:
-      raise newException(ACMEError, "No challenges received")
 
     return ACMEChallengeResponseWrapper(
       finalize: orderResponse.finalize,
