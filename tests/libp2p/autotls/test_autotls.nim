@@ -256,8 +256,10 @@ when defined(libp2p_autotls_support):
       expect(ACMEError):
         discard await api.requestNewOrder(@["some-domain"], key, "kid")
 
-      expect(ACMEError):
-        discard await api.requestAuthorizations(@["auth-1", "auth-2"], key, "kid")
+      # requestAuthorizations now silently skips unrecognized challenge types
+      # instead of raising, so an invalid JSON body yields empty challenges
+      let authResp = await api.requestAuthorizations(@["auth-1", "auth-2"], key, "kid")
+      check authResp.challenges.len == 0
 
       expect(ACMEError):
         discard await api.requestChallenge(@["domain-1", "domain-2"], key, "kid")

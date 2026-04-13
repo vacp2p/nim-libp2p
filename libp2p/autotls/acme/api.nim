@@ -348,7 +348,13 @@ when defined(libp2p_autotls_support):
     handleError("requestAuthorizations"):
       doAssert authorizations.len > 0
       let acmeResponse = await self.get(parseUri(authorizations[0]))
-      acmeResponse.body.to(ACMEAuthorizationsResponse)
+      var challenges: seq[ACMEChallenge]
+      for challenge in acmeResponse.body.getOrDefault("challenges").getElems():
+        try:
+          challenges.add(challenge.to(ACMEChallenge))
+        except ValueError, JsonKindError:
+          debug "Skipping challenge with unrecognized fields", challenge = $challenge
+      ACMEAuthorizationsResponse(challenges: challenges)
 
   proc requestChallenge*(
       self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
