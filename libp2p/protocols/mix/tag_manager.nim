@@ -49,13 +49,13 @@ proc start*(tm: TagManager) =
 
 proc stop*(tm: TagManager) {.async: (raises: []).} =
   ## Stop the background purge loop and wait for it to finish.
-  if not tm.purgeLoop.isNil and not tm.purgeLoop.finished:
+  if not tm.purgeLoop.isNil:
     await tm.purgeLoop.cancelAndWait()
 
 proc stopSoon*(tm: TagManager) =
   ## Stop the background purge loop without waiting.
   ## Use this in non-async contexts or when immediate return is needed.
-  if not tm.purgeLoop.isNil and not tm.purgeLoop.finished:
+  if not tm.purgeLoop.isNil:
     tm.purgeLoop.cancelSoon()
 
 proc new*(
