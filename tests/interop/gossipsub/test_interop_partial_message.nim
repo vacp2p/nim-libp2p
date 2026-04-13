@@ -252,6 +252,17 @@ suite "GossipSub Interop - Wire Format":
     let receiver = newInteropPartialMessage(0)
     check receiver.extend(wire).isErr()
 
+  test "extend rejects duplicate bitmap entries without corresponding part bytes":
+    # bitmap claims part 0 is present, but the wire has no part bytes at all.
+    # receiver already has part 0, so the duplicate branch must still reject this.
+    var wire = newSeq[byte](MetadataLen + GroupIdLen)
+    wire[0] = 0b00000001'u8
+
+    let receiver = newInteropPartialMessage(0)
+    receiver.fillParts(0b00000001)
+
+    check receiver.extend(wire).isErr()
+
   test "extend rejects partData length not a multiple of PartLen":
     # Wire has one extra byte beyond a full part
     var wire = newSeq[byte](MetadataLen + PartLen + 1 + GroupIdLen)

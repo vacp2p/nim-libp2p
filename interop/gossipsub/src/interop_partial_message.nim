@@ -25,6 +25,13 @@ proc hasBit(bitmap: uint8, i: int): bool =
 proc setBit(bitmap: var uint8, i: int) =
   bitmap = bitmap or (1'u8 shl uint8(i))
 
+proc bytesForBitmap(bitmap: uint8): int =
+  var partsCount = 0
+  for i in 0 ..< NumParts:
+    if bitmap.hasBit(i):
+      inc partsCount
+  partsCount * PartLen
+
 type InteropPartialMessage* = ref object of PartialMessage
   bitmap*: uint8 ## bit i == part i present
   parts*: array[NumParts, seq[byte]]
@@ -82,7 +89,7 @@ proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
   if data[groupIdStart ..< data.len] != @(pm.groupIdBytes):
     return err("group ID mismatch")
 
-  if partData.len mod PartLen != 0:
+  if partData.len != bytesForBitmap(msgBitmap):
     return err("invalid data length")
 
   var offset = 0
