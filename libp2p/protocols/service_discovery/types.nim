@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[sequtils, sets, times]
 import chronos, results, stew/byteutils
@@ -13,11 +13,17 @@ import ../kademlia/types
 const
   DefaultSelfSPRRereshTime* = 10.minutes
 
-  ExtendedKademliaDiscoveryCodec* = "/logos/kad/1.0.0"
+  ExtendedServiceDiscoveryCodec* = "/logos/service-discovery/1.0.0"
 
-type KademliaDiscovery* = ref object of KadDHT
-  services*: HashSet[ServiceInfo]
-  selfSignedLoop*: Future[void]
+type
+  ServiceDiscoveryConfig* = object ## placeholder for now
+
+  ServiceDiscovery* = ref object of KadDHT
+    services*: HashSet[ServiceInfo]
+    discoveryConfig*: ServiceDiscoveryConfig
+      # can't use name "config", clashes with KadDHT's config
+    xprPublishing*: bool
+    selfSignedPeerRecordLoop*: Future[void]
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
@@ -39,7 +45,7 @@ type ExtEntryValidator* = ref object of EntryValidator
 method isValid*(
     self: ExtEntryValidator, key: Key, record: EntryRecord
 ): bool {.raises: [], gcsafe.} =
-  let spr = SignedPeerRecord.decode(record.value).valueOr:
+  let spr = SignedExtendedPeerRecord.decode(record.value).valueOr:
     return false
 
   let expectedPeerId = key.toPeerId().valueOr:
@@ -58,7 +64,7 @@ method select*(
   var bestIdx: int = -1
 
   for i, rec in records:
-    let spr = SignedPeerRecord.decode(rec.value).valueOr:
+    let spr = SignedExtendedPeerRecord.decode(rec.value).valueOr:
       continue
 
     let seqNo = spr.data.seqNo

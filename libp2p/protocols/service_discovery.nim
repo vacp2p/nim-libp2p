@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./kademlia_discovery/[random_find, types]
+import ./service_discovery/[random_find, types]
 
 export random_find, types
 
 logScope:
-  topics = "kad-disco"
+  topics = "service-discovery"
 
 proc refreshSelfSignedPeerRecord(
-    disco: KademliaDiscovery
+    disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
   await disco.switch.peerInfo.update()
 
@@ -44,37 +44,37 @@ proc refreshSelfSignedPeerRecord(
     error "Failed to put signed peer record", err = putRes.error
 
 proc maintainSelfSignedPeerRecord(
-    disco: KademliaDiscovery
+    disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
     await disco.refreshSelfSignedPeerRecord()
 
-proc startAdvertising*(disco: KademliaDiscovery, service: ServiceInfo): bool =
+proc startAdvertising*(disco: ServiceDiscovery, service: ServiceInfo): bool =
   ## Include this service in the set of services this node provides.
 
   return disco.services.containsOrIncl(service)
 
-proc stopAdvertising*(disco: KademliaDiscovery, service: ServiceInfo): bool =
+proc stopAdvertising*(disco: ServiceDiscovery, service: ServiceInfo): bool =
   ## Exclude this service from the set of services this node provides.
 
   return disco.services.missingOrExcl(service)
 
-method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
+method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
   if disco.started:
     warn "Starting kad-disco twice"
     return
 
-  disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
-
   await procCall start(KadDHT(disco))
 
-  info "Kademlia Discovery started"
+  disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
 
-method stop*(disco: KademliaDiscovery) {.async: (raises: []).} =
+  info "Service Discovery started"
+
+method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   if not disco.started:
     return
 
-  await procCall stop(KadDHT(disco))
+  disco.selfSignedPeerRecordLoop.cancelSoon()
+  disco.selfSignedPeerRecordLoop = nil
 
-  disco.selfSignedLoop.cancelSoon()
-  disco.selfSignedLoop = nil
+  await procCall stop(KadDHT(disco))

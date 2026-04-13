@@ -177,6 +177,10 @@ suite "GossipSub Component - Heartbeat":
       node0.gossipsub.hasKey(topic)
       nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len >= 1)
 
+    # Before publishing messages, wait for Node0's next heartbeat so publishing
+    # happens right after a heartbeat and the test has a full interval.
+    await node0.waitForNextHeartbeat()
+
     # When Node0 sends a message to the topic
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 3
 
@@ -208,6 +212,10 @@ suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       node0.gossipsub.hasKey(topic)
       nodes[1 .. ^1].allIt(it.gossipsub.getOrDefault(topic).len == numberOfNodes - 2)
+
+    # Before publishing messages, wait for Node0's next heartbeat so publishing
+    # happens right after a heartbeat and the test has a full interval.
+    await node0.waitForNextHeartbeat()
 
     # When Node0 sends a message to the topic
     tryPublish await node0.publish(topic, newSeq[byte](10000)), 1
@@ -263,8 +271,8 @@ suite "GossipSub Component - Heartbeat":
     checkUntilTimeout:
       peer.iDontWants.len == historyLength
 
-    # Before publishing messages, wait for begining of Node1 heartbeat interval
-    # to futher increase chances of all publications to be received within same heartbeat. 
+    # Before publishing messages, wait for beginning of Node1 heartbeat interval
+    # to further increase chances of all publications to be received within same heartbeat.
     await nodes[1].waitForNextHeartbeat()
 
     # When Node0 sends large messages to the topic
