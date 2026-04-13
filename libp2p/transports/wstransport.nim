@@ -137,7 +137,7 @@ method start*(
       raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
     discard initTAddress(ma).valueOr:
       raise (ref TransportStartError)(
-        msg: "Cannot start WS transport on non-wire address: " & $ma
+        msg: "Cannot start WS transport on non-wire address: " & $ma & ". " & error
       )
 
   when defined(libp2p_autotls_support):

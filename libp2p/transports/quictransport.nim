@@ -331,7 +331,8 @@ method start*(
         raise (ref TransportStartError)(msg: "Unsupported address: " & $maAddr)
       let ta = initTAddress(maAddr).valueOr:
         raise (ref TransportStartError)(
-          msg: "Cannot start QUIC transport on non-wire address: " & $maAddr
+          msg: "Cannot start QUIC transport on non-wire address: " & $maAddr & ". " &
+            error
         )
       let listener = server.listen(ta)
       self.listeners.add(listener)

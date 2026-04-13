@@ -127,7 +127,7 @@ method start*(
 
       let ta = initTAddress(ma).valueOr:
         raise (ref TransportStartError)(
-          msg: "Cannot start TCP transport on non-wire address: " & $ma
+          msg: "Cannot start TCP transport on non-wire address: " & $ma & ". " & error
         )
       let server =
           try:
