@@ -6,7 +6,7 @@
 {.push raises: [].}
 
 import std/[sequtils]
-import chronos, chronicles
+import chronos, chronicles, results
 import
   ./transport,
   ../wire,
@@ -118,17 +118,8 @@ method start*(
 
   self.flags.incl(ServerFlags.ReusePort)
 
-  var addrsTa = newSeq[TransportAddress](addrs.len)
-  for i, ma in addrs:
-    if not self.handles(ma):
-      raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
-
-    addrsTa[i] = initTAddress(ma).valueOr:
-      raise (ref TransportStartError)(
-        msg: "Cannot start TCP transport on non-wire address: " & $ma & ". " & error
-      )
-  if addrsTa.len == 0:
-    raise newException(TransportStartError, "No addr was provided.")
+  let addrsTa = self.toTransportAddress(addrs).valueOr:
+    raise newException(TransportStartError, $error)
 
   var supported: seq[MultiAddress]
   var initialized = false

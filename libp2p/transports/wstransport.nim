@@ -6,8 +6,7 @@
 {.push raises: [].}
 
 import std/[sequtils]
-import results
-import chronos, chronicles
+import chronos, chronicles, results
 import
   transport,
   ../autotls/service,
@@ -133,16 +132,8 @@ method start*(
     warn "WS transport already running"
     return
 
-  var addrsTa = newSeq[TransportAddress](addrs.len)
-  for i, ma in addrs:
-    if not self.handles(ma):
-      raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
-    addrsTa[i] = initTAddress(ma).valueOr:
-      raise (ref TransportStartError)(
-        msg: "Cannot start WS transport on non-wire address: " & $ma & ". " & error
-      )
-  if addrsTa.len == 0:
-    raise newException(TransportStartError, "No addr was provided.")
+  let addrsTa = self.toTransportAddress(addrs).valueOr:
+    raise newException(TransportStartError, $error)
 
   when defined(libp2p_autotls_support):
     if not self.secure and self.autotls.isSome():
