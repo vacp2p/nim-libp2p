@@ -8,7 +8,10 @@ import
     peerid, switch, multihash, cid, multicodec, routing_record, extended_peer_record
   ]
 import ../../protobuf/minprotobuf
+import ../../utils/iptree
 import ../kademlia/types
+
+export iptree
 
 const
   DefaultSelfSPRRereshTime* = 10.minutes
@@ -16,13 +19,6 @@ const
   ExtendedServiceDiscoveryCodec* = "/logos/service-discovery/1.0.0"
 
 type
-  IpTreeNode* = ref object
-    counter*: int
-    left*, right*: IpTreeNode
-
-  IpTree* = ref object
-    root*: IpTreeNode
-
   ServiceDiscoveryConfig* = object ## placeholder for now
 
   ServiceDiscovery* = ref object of KadDHT

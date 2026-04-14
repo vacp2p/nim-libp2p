@@ -286,34 +286,30 @@ proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
   var pb = initProtoBuffer(buf)
   return Message.decode(pb)
 
+proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
+  ## Returns the canonical byte representation of a Ticket used for signing.
+  ## Covers: advertisement || tInit || tMod || tWaitFor || expiresAt || nonce
+  var buf =
+    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
+  buf.add(ticket.advertisement)
+  buf.add(@(toBytesBE(ticket.tInit)))
+  buf.add(@(toBytesBE(ticket.tMod)))
+  buf.add(@(toBytesBE(ticket.tWaitFor)))
+  buf.add(@(toBytesBE(ticket.expiresAt)))
+  buf.add(ticket.nonce)
+  buf
+
 proc sign*(
     ticket: var Ticket, privateKey: PrivateKey
 ): Result[void, CryptoError] {.raises: [], gcsafe.} =
   ## Sign the ticket with the given private key.
-  ## Signature covers: advertisement || tInit || tMod || tWaitFor || expiresAt || nonce
-  var sigInput =
-    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
-  sigInput.add(ticket.advertisement)
-  sigInput.add(@(toBytesBE(ticket.tInit)))
-  sigInput.add(@(toBytesBE(ticket.tMod)))
-  sigInput.add(@(toBytesBE(ticket.tWaitFor)))
-  sigInput.add(@(toBytesBE(ticket.expiresAt)))
-  sigInput.add(ticket.nonce)
-  let sig = ?privateKey.sign(sigInput)
+  let sig = ?privateKey.sign(ticket.toBytes())
   ticket.signature = sig.getBytes()
   ok()
 
 proc verify*(ticket: Ticket, publicKey: PublicKey): bool {.raises: [], gcsafe.} =
   ## Verify the ticket signature against the given public key.
-  var sigInput =
-    newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4 + 8 + ticket.nonce.len)
-  sigInput.add(ticket.advertisement)
-  sigInput.add(@(toBytesBE(ticket.tInit)))
-  sigInput.add(@(toBytesBE(ticket.tMod)))
-  sigInput.add(@(toBytesBE(ticket.tWaitFor)))
-  sigInput.add(@(toBytesBE(ticket.expiresAt)))
-  sigInput.add(ticket.nonce)
   var sig: Signature
   if not sig.init(ticket.signature):
     return false
-  sig.verify(sigInput, publicKey)
+  sig.verify(ticket.toBytes(), publicKey)
