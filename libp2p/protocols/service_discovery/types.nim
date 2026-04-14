@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, times]
+import std/[sequtils, sets, times, tables, hashes]
 import chronos, results, stew/byteutils
+import nimcrypto/sha2
 import
   ../../[
     peerid, switch, multihash, cid, multicodec, routing_record, extended_peer_record
@@ -15,17 +16,119 @@ const
 
   ExtendedServiceDiscoveryCodec* = "/logos/service-discovery/1.0.0"
 
+  Default_K_register* = 3
+  Default_K_lookup* = 5
+  Default_F_lookup* = 30
+  Default_F_return* = 10
+  Default_E* = 900.0
+  Default_C* = 1_000.0
+  Default_P_occ* = 10.0
+  Default_G* = 1e-7
+  Default_Delta* = chronos.seconds(1)
+  Default_M_buckets* = 16
+
 type
   ServiceId* = Key
 
-  ServiceDiscoveryConfig* = object ## placeholder for now
+  AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
+
+  Advertisement* = SignedExtendedPeerRecord
+
+  Registrar* = ref object
+    cache*: OrderedTable[ServiceId, seq[Advertisement]]
+    cacheTimestamps*: Table[AdvertisementKey, uint64]
+    ipTree*: IpTree
+    boundService*: Table[ServiceId, float64]
+    timestampService*: Table[ServiceId, uint64]
+    boundIp*: Table[string, float64]
+    timestampIp*: Table[string, uint64]
+    usedNonces*: Table[seq[byte], uint64]
+    lock*: AsyncLock
+
+  AdvertiseTask* = ref object
+    fut*: Future[void]
+    serviceId*: ServiceId
+
+  Advertiser* = ref object
+    running*: HashSet[AdvertiseTask]
+
+  ServiceDiscoveryConfig* = object
+    kRegister*: int
+    kLookup*: int
+    fLookup*: int
+    fReturn*: int
+    advertExpiry*: float64
+    advertCacheCap*: float64
+    occupancyExp*: float64
+    safetyParam*: float64
+    registrationWindow*: chronos.Duration
+    bucketsCount*: int
 
   ServiceDiscovery* = ref object of KadDHT
+    registrar*: Registrar
     services*: HashSet[ServiceInfo]
-    discoveryConfig*: ServiceDiscoveryConfig
+    discoConfig*: ServiceDiscoveryConfig
       # can't use name "config", clashes with KadDHT's config
     xprPublishing*: bool
     selfSignedPeerRecordLoop*: Future[void]
+
+proc new*(
+    T: typedesc[ServiceDiscoveryConfig],
+    kRegister = Default_K_register,
+    kLookup = Default_K_lookup,
+    fLookup = Default_F_lookup,
+    fReturn = Default_F_return,
+    advertExpiry = Default_E,
+    advertCacheCap = Default_C,
+    occupancyExp = Default_P_occ,
+    safetyParam = Default_G,
+    registrationWindow = Default_Delta,
+    bucketsCount = Default_M_buckets,
+): T {.raises: [].} =
+  ServiceDiscoveryConfig(
+    kRegister: kRegister,
+    kLookup: kLookup,
+    fLookup: fLookup,
+    fReturn: fReturn,
+    advertExpiry: advertExpiry,
+    advertCacheCap: advertCacheCap,
+    occupancyExp: occupancyExp,
+    safetyParam: safetyParam,
+    registrationWindow: registrationWindow,
+    bucketsCount: bucketsCount,
+  )
+
+proc hash*(t: AdvertiseTask): Hash =
+  hash(cast[pointer](t))
+
+proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
+  (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
+
+proc hashServiceId*(serviceStr: string): ServiceId =
+  let digest = sha256.digest(serviceStr)
+  @(digest.data)
+
+proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
+  for service in ad.data.services:
+    if hashServiceId(service.id) == serviceId:
+      return true
+  false
+
+proc new*(T: typedesc[Registrar]): T =
+  T(
+    cache: initOrderedTable[ServiceId, seq[Advertisement]](),
+    cacheTimestamps: initTable[AdvertisementKey, uint64](),
+    ipTree: IpTree.new(),
+    boundService: initTable[ServiceId, float64](),
+    timestampService: initTable[ServiceId, uint64](),
+    boundIp: initTable[string, float64](),
+    timestampIp: initTable[string, uint64](),
+    usedNonces: initTable[seq[byte], uint64](),
+    lock: newAsyncLock(),
+  )
+
+proc new*(T: typedesc[Advertiser]): T =
+  T(running: initHashSet[AdvertiseTask]())
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
