@@ -12,7 +12,7 @@ requires "nim >= 2.0.0",
   "chronicles >= 0.11.0", "chronos >= 4.2.2", "metrics", "secp256k1", "stew >= 0.4.2",
   "unittest2", "results", "serialization",
   "https://github.com/status-im/nim-websock#42c37b4172519566db016810eccfce8a02cc1cdf",
-  "https://github.com/vacp2p/nim-lsquic#7d888688a5ec077a00a43691e206084a923e2b64",
+  "https://github.com/vacp2p/nim-lsquic#68655618a0e13e6788f8f59a80e990495ba9d189",
   "https://github.com/vacp2p/nim-jwt.git#057ec95eb5af0eea9c49bfe9025b3312c95dc5f2"
 
 import hashes, os, sequtils, strutils
