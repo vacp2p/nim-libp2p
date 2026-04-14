@@ -424,19 +424,22 @@ proc spawnMixMessage(
 ) =
   ## Spawns a handleMixMessages task, tracks its future in `ongoingMixMessages`,
   ## and removes it from the list when it finishes.
-  let fut: Future[void] = (proc() {.async: (raises: []).} =
-    try:
-      await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
-    except CancelledError:
-      error "Handling mix message cancelled", fromPeerId
-    except LPStreamError as e:
-      error "Error handling mix message", fromPeerId, err = e.msg
+  let fut: Future[void] = (
+    proc() {.async: (raises: []).} =
+      try:
+        await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
+      except CancelledError:
+        error "Handling mix message cancelled", fromPeerId
+      except LPStreamError as e:
+        error "Error handling mix message", fromPeerId, err = e.msg
   )()
   mixProto.ongoingMixMessages.add(fut)
   # Chronos callbacks run on the single event-loop thread, so no locking is
   # needed when accessing ongoingMixMessages here.
-  fut.addCallback(proc(udata: pointer) {.gcsafe, raises: [].} =
-    mixProto.ongoingMixMessages.keepItIf(not it.finished))
+  fut.addCallback(
+    proc(udata: pointer) {.gcsafe, raises: [].} =
+      mixProto.ongoingMixMessages.keepItIf(not it.finished)
+  )
 
 proc handleMixNodeConnection(
     mixProto: MixProtocol, conn: Connection
