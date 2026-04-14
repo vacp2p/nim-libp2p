@@ -346,6 +346,7 @@ suite "GossipSub Scoring":
       slowPeerPenaltyDecay = 0.5
       initialPenalty = 4.0
       expectedScore = (initialPenalty - defaultThreshold) * defaultWeight
+      expectedDecayedPenalty = initialPenalty * slowPeerPenaltyDecay
 
     check:
       defaultWeight == -0.05
@@ -358,8 +359,8 @@ suite "GossipSub Scoring":
     gossipSub.updateScores()
 
     check:
-      abs(peers[0].score - expectedScore) < 1e-9
-      abs(peers[0].slowPeerPenalty - (initialPenalty * slowPeerPenaltyDecay)) < 1e-9
+      peers[0].score == expectedScore
+      peers[0].slowPeerPenalty == expectedDecayedPenalty
 
   asyncTest "Slow peer penalty can still be disabled with zero weight":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
