@@ -840,8 +840,8 @@ method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: []).} =
   # the time we reach here.
   let pending = mixProto.ongoingMixMessages
   mixProto.ongoingMixMessages = @[]
-  for fut in pending:
-    await fut.cancelAndWait()
+  if pending.len > 0:
+    await noCancel allFutures(pending.mapIt(it.cancelAndWait()))
 
 proc init*(
     mixProto: MixProtocol,
