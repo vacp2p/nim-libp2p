@@ -21,6 +21,7 @@ proc insertIp*(ipTree: IpTree, ip: IpAddress) {.raises: [].} =
   v.counter += 1
 
   let bytes = ip.address_v4
+
   for i in 0 ..< 4:
     let b = bytes[i]
     for bit in countdown(7, 0):

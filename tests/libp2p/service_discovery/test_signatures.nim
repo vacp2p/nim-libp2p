@@ -14,8 +14,6 @@ proc makeTicket*(): Ticket =
     tInit: 1_000_000,
     tMod: 2_000_000,
     tWaitFor: 3000,
-    expiresAt: 0,
-    nonce: @[],
     signature: @[],
   )
 
@@ -51,7 +49,7 @@ suite "Ticket - sign and verify":
     check not t.verify(key.getPublicKey().get())
 
 suite "Ticket - tamper detection":
-  # The signature covers: advertisement || tInit || tMod || tWaitFor || expiresAt || nonce
+  # The signature covers: advertisement || tInit || tMod || tWaitFor
   # Mutating any covered field must break verification.
 
   test "tampered advertisement bytes":
@@ -82,30 +80,16 @@ suite "Ticket - boundary values":
   test "all-zero time fields sign and verify correctly":
     # tInit=0, tMod=0, tWaitFor=0 are valid; must not be treated as unsigned
     let key = PrivateKey.random(rng[]).get()
-    var t = Ticket(
-      advertisement: @[0xAB'u8],
-      tInit: 0,
-      tMod: 0,
-      tWaitFor: 0,
-      expiresAt: 0,
-      nonce: @[],
-      signature: @[],
-    )
+    var t =
+      Ticket(advertisement: @[0xAB'u8], tInit: 0, tMod: 0, tWaitFor: 0, signature: @[])
     check:
       t.sign(key).isOk()
       t.verify(key.getPublicKey().get())
 
   test "empty advertisement bytes sign and verify correctly":
     let key = PrivateKey.random(rng[]).get()
-    var t = Ticket(
-      advertisement: @[],
-      tInit: 1000,
-      tMod: 2000,
-      tWaitFor: 300,
-      expiresAt: 0,
-      nonce: @[],
-      signature: @[],
-    )
+    var t =
+      Ticket(advertisement: @[], tInit: 1000, tMod: 2000, tWaitFor: 300, signature: @[])
     check:
       t.sign(key).isOk()
       t.verify(key.getPublicKey().get())
