@@ -2,15 +2,76 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronicles, chronos, results
-import ../../../libp2p/[switch, builders, crypto/crypto]
+import std/[times, sequtils]
+import chronos, chronicles, results
+import
+  ../../../libp2p/
+    [peerid, switch, builders, crypto/crypto, extended_peer_record, multiaddress]
 import ../../../libp2p/protocols/[service_discovery, kademlia]
 import ../../../libp2p/protocols/kademlia/protobuf
+import ../../../libp2p/protocols/service_discovery/[types, registrar]
 import ../../tools/[crypto]
 
-export protobuf
+export protobuf, types, registrar
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+
+proc makeNow*(): uint64 =
+  getTime().toUnix().uint64
+
+proc makePeerId*(): PeerId =
+  PeerId.init(PrivateKey.random(rng[]).get()).get()
+
+proc makeServiceId*(): ServiceId =
+  @[1'u8, 2, 3, 4]
+
+proc makeServiceId*(id: byte): ServiceId =
+  @[id, 2'u8, 3, 4]
+
+proc makeServiceInfo*(): ServiceInfo =
+  ServiceInfo(id: "blabla", data: @[1, 2, 3, 4])
+
+proc makeServiceInfo*(id: string): ServiceInfo =
+  ServiceInfo(id: id, data: @[1, 2, 3, 4])
+
+proc makeTicket*(): Ticket =
+  Ticket(
+    advertisement: @[1'u8, 2, 3, 4],
+    tInit: 1_000_000,
+    tMod: 2_000_000,
+    tWaitFor: 3000,
+    signature: @[],
+  )
+
+proc signedTicket*(privateKey: PrivateKey): Ticket =
+  var t = makeTicket()
+  let res = t.sign(privateKey)
+  doAssert res.isOk(), "sign failed in test helper"
+  t
+
+proc createTestMultiAddress*(ip: string): MultiAddress =
+  MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
+
+proc createTestAdvertisement*(
+    serviceId: ServiceId = makeServiceId(), addrs: seq[MultiAddress] = @[]
+): Advertisement =
+  let privateKey = PrivateKey.random(rng[]).get()
+  let peerId = PeerId.init(privateKey).get()
+  let extRecord = ExtendedPeerRecord(
+    peerId: peerId,
+    seqNo: getTime().toUnix().uint64,
+    addresses: addrs.mapIt(AddressInfo(address: it)),
+    services: @[],
+  )
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
+proc createTestRegistrar*(): Registrar =
+  Registrar.new()
+
+proc fillCache*(registrar: Registrar, n: int, now: uint64) =
+  for i in 0 ..< n:
+    let ad = createTestAdvertisement(serviceId = makeServiceId(i.byte))
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
 
 proc createSwitch*(): Switch =
   SwitchBuilder
@@ -21,6 +82,38 @@ proc createSwitch*(): Switch =
   .withMplex()
   .withNoise()
   .build()
+
+proc createMockDiscovery*(
+    discoConfig: ServiceDiscoveryConfig =
+      ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
+): ServiceDiscovery =
+  let switch = createSwitch()
+  ServiceDiscovery.new(
+    switch,
+    bootstrapNodes = @[],
+    discoConfig = discoConfig,
+    config = KadDHTConfig.new(
+      ExtEntryValidator(),
+      ExtEntrySelector(),
+      timeout = chronos.seconds(1),
+      cleanupProvidersInterval = chronos.milliseconds(100),
+      providerExpirationInterval = chronos.seconds(1),
+      republishProvidedKeysInterval = chronos.milliseconds(50),
+    ),
+  )
+
+proc createTestDisco*(
+    fReturn: int = 3, advertExpiry: float64 = -1, safetyParam: float64 = -1
+): ServiceDiscovery =
+  var config = ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
+  config.fReturn = fReturn
+  if advertExpiry >= 0:
+    config.advertExpiry = advertExpiry
+  if safetyParam >= 0:
+    config.safetyParam = safetyParam
+  createMockDiscovery(config)
+
+# --- Legacy helpers for existing tests ---
 
 proc setupDiscovery*(
     validator: EntryValidator,
