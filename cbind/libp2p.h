@@ -144,8 +144,8 @@ typedef struct {
   // Enable/disable mix protocol support (default off).
   int mount_mix;
 
-  // Enable Kademlia Discovery  (default off).
-  int mount_kad_discovery;
+  // Enable Service Discovery  (default off).
+  int mount_service_discovery;
 
   // DNS resolver address used by name resolution (e.g. "1.1.1.1:53").
   const char *dns_resolver;
@@ -206,7 +206,7 @@ typedef struct {
   size_t addrsLen;
 } Libp2pPeerInfo;
 
-// Service descriptor returned by Kademlia discovery.
+// Service descriptor returned by Service discovery.
 // Fields are only valid for the duration of the callback; copy if needed.
 typedef struct {
   char *id;
@@ -214,7 +214,7 @@ typedef struct {
   size_t dataLen;
 } Libp2pServiceInfo;
 
-// Extended peer record returned by Kademlia discovery.
+// Extended peer record returned by Service discovery.
 // All fields/arrays are only valid for the duration of the callback; copy if
 // needed.
 typedef struct {

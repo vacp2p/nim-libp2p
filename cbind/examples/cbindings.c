@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
   libp2p_config_t cfg1 = libp2p_new_default_config();
   cfg1.mount_gossipsub = 1;
   cfg1.gossipsub_trigger_self = 1;
-  cfg1.mount_kad_discovery = 1;
+  cfg1.mount_service_discovery = 1;
   cfg1.kad_validator = permissive_kad_validator;
   cfg1.kad_selector = permissive_kad_selector;
   cfg1.kad_user_data = NULL;
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
   libp2p_config_t cfg2 = libp2p_new_default_config();
   cfg2.mount_gossipsub = 1;
   cfg2.gossipsub_trigger_self = 1;
-  cfg2.mount_kad_discovery = 1;
+  cfg2.mount_service_discovery = 1;
   cfg2.kad_validator = permissive_kad_validator;
   cfg2.kad_selector = permissive_kad_selector;
   cfg2.kad_user_data = NULL;
