@@ -32,6 +32,8 @@ proc adScore*(ipTree: IpTree, ad: Advertisement): float64 {.raises: [].} =
     let multiAddr = addressInfo.address
     let ip = multiAddr.getIp().valueOr:
       continue
+    if ip.family != IpAddressFamily.IPv4:
+      continue
 
     let score = ipTree.ipScore(ip)
     if score > maxScore:
@@ -97,13 +99,6 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: uint64) =
   for ip in expiredIps:
     registrar.boundIp.del(ip)
     registrar.timestampIp.del(ip)
-
-  var expiredNonces: seq[seq[byte]] = @[]
-  for nonce, exp in registrar.usedNonces:
-    if now > exp:
-      expiredNonces.add(nonce)
-  for nonce in expiredNonces:
-    registrar.usedNonces.del(nonce)
 
 proc waitingTime*(
     registrar: Registrar,
