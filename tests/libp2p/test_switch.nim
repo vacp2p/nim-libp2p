@@ -1164,6 +1164,7 @@ suite "Switch":
     check srcQuicSwitch.isConnected(destSwitch.peerInfo.peerId)
 
   asyncTest "mount unstarted protocol":
+    let handleFinished = newWaitGroup(1)
     proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
       try:
         check "test123" == string.fromBytes(await conn.readLp(1024))
@@ -1172,6 +1173,7 @@ suite "Switch":
         raiseAssert "Unexpected LPStreamError in mount unstarted protocol test handler"
       finally:
         await conn.close()
+        handleFinished.done()
 
     let
       src = newStandardSwitch()
@@ -1182,17 +1184,43 @@ suite "Switch":
 
     await src.start()
     await dst.start()
+    defer:
+      await allFutures(@[src, dst].mapIt(it.stop()))
     expect LPError:
       dst.mount(testProto)
     await testProto.start()
     dst.mount(testProto)
 
-    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    let conn =
+      # On Windows, there is a brief gap between switch.start() returning and the
+      # TCP transport being ready to accept connections, causing sporadic
+      # DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
+      when defined(windows):
+        var dialConn: Connection
+        var lastDialError: ref DialFailedError
+        var connected = false
+        for _ in 0 ..< 10:
+          try:
+            dialConn =
+              await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+            connected = true
+            break
+          except DialFailedError as e:
+            lastDialError = e
+            # Bounded retry for the documented Windows listener readiness gap.
+            await sleepAsync(200.milliseconds)
+        if not connected:
+          if not isNil(lastDialError):
+            raise lastDialError
+          raiseAssert "dial retry loop exited without establishing a connection"
+        dialConn
+      else:
+        await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
     await conn.close()
-    await src.stop()
-    await dst.stop()
+    await handleFinished.wait(5.seconds)
 
   asyncTest "switch failing to start stops properly":
     let switch = newStandardSwitch(

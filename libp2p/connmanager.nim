@@ -133,8 +133,7 @@ proc notifyPeerReady(c: ConnManager, peerId: PeerId) =
 proc clearPeerReadyState(c: ConnManager, peerId: PeerId) =
   c.readyPeers.excl(peerId)
   c.readyEvents.withValue(peerId, readyEvent):
-    if not readyEvent[].finished:
-      readyEvent[].cancelSoon()
+    readyEvent[].cancelSoon()
     c.readyEvents.del(peerId)
 
 proc waitForPeerReady*(
@@ -477,8 +476,8 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   let readyEvents = c.readyEvents
   for _, readyEvent in readyEvents:
-    if not readyEvent.finished:
-      readyEvent.cancelSoon()
+    readyEvent.cancelSoon()
+  c.readyEvents.clear()
 
   let muxed = c.muxerStore.getAll()
   c.muxerStore.clear()

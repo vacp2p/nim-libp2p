@@ -12,7 +12,8 @@ import
   ../muxers/muxer,
   ../stream/connection,
   ../upgrademngrs/upgrade,
-  ../utility
+  ../utility,
+  ../utils/future
 import ./transport
 import tls/certificate
 
@@ -416,9 +417,7 @@ method accept*(
     except ValueError:
       raiseAssert "acceptFuts should never be empty"
     except CancelledError as exc:
-      for fut in self.acceptFuts:
-        if not fut.finished():
-          fut.cancelSoon()
+      self.acceptFuts.cancelSoon()
       raise exc
 
   if not self.running or self.listeners.len == 0: # Stopped while waiting
