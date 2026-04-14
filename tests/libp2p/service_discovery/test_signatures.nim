@@ -8,6 +8,23 @@ import ../../../libp2p/protocols/kademlia/protobuf
 import ../../tools/[unittest, crypto]
 import ./utils
 
+proc makeTicket*(): Ticket =
+  Ticket(
+    advertisement: @[1'u8, 2, 3, 4],
+    tInit: 1_000_000,
+    tMod: 2_000_000,
+    tWaitFor: 3000,
+    expiresAt: 0,
+    nonce: @[],
+    signature: @[],
+  )
+
+proc signedTicket*(privateKey: PrivateKey): Ticket =
+  var t = makeTicket()
+  let res = t.sign(privateKey)
+  doAssert res.isOk(), "sign failed in test helper"
+  t
+
 suite "Ticket - sign and verify":
   test "sign succeeds and verify passes with matching key":
     let key = PrivateKey.random(rng[]).get()
