@@ -427,8 +427,10 @@ proc spawnMixMessage(
   let fut: Future[void] = (proc() {.async: (raises: []).} =
     try:
       await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
-    except LPStreamError as exc:
-      error "Error handling mix message", fromPeerId, err = exc.msg
+    except CancelledError:
+      error "Handling mix message cancelled", fromPeerId
+    except LPStreamError as e:
+      error "Error handling mix message", fromPeerId, err = e.msg
   )()
   mixProto.ongoingMixMessages.add(fut)
   # Chronos callbacks run on the single event-loop thread, so no locking is
