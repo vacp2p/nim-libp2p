@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, math, times, sets]
+import std/[tables, math, times]
 import chronos, chronicles, results
 import
   ../../[
@@ -9,14 +9,12 @@ import
     extended_peer_record,
   ]
 import ../../protobuf/minprotobuf
+import ../../utils/iptree
 import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/types
 import ../kademlia/protobuf as kademlia_protobuf
-import ../kademlia/routing_table
-import ./[types, service_routing_tables, service_discovery_metrics]
-
-export types, service_routing_tables
+import ./[types, routing_table_manager, service_discovery_metrics]
 
 logScope:
   topics = "service-disco registrar"
@@ -215,9 +213,6 @@ proc processRetryTicket*(
   if not ticketMsg.verify(registrarPubKey):
     return t_wait
 
-  if now > ticketMsg.expiresAt:
-    return t_wait
-
   let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
   let delta = disco.discoConfig.registrationWindow.seconds.uint64
   let windowEnd = windowStart + delta
@@ -255,13 +250,13 @@ proc acceptAdvertisement*(
     closerPeers: seq[Peer],
     conn: Connection,
 ) {.async: (raises: [CancelledError]).} =
-  disco.serviceRoutingTables.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
+  discard disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
 
   let peerKey = ad.data.peerId.toKey()
-  disco.serviceRoutingTables.insertPeer(serviceId, peerKey)
+  disco.rtManager.insertPeer(serviceId, peerKey)
 
   var shouldUpdateMetrics = false
 

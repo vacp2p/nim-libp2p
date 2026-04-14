@@ -9,6 +9,7 @@ import
     peerid, switch, multihash, cid, multicodec, routing_record, extended_peer_record
   ]
 import ../../protobuf/minprotobuf
+import ../../utils/iptree
 import ../kademlia/types
 
 const
@@ -29,6 +30,15 @@ const
 
 type
   ServiceId* = Key
+
+  ServiceStatus* = enum
+    Interest = 0
+    Provided = 1
+    Both = 2
+
+  ServiceRoutingTableManager* = ref object
+    tables*: Table[ServiceId, RoutingTable]
+    serviceStatus*: Table[ServiceId, ServiceStatus]
 
   AdvertisementKey* = tuple[peerId: PeerId, seqNo: uint64]
 
@@ -66,6 +76,7 @@ type
 
   ServiceDiscovery* = ref object of KadDHT
     registrar*: Registrar
+    rtManager*: ServiceRoutingTableManager
     services*: HashSet[ServiceInfo]
     discoConfig*: ServiceDiscoveryConfig
       # can't use name "config", clashes with KadDHT's config
