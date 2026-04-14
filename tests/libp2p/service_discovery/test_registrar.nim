@@ -18,29 +18,25 @@ import ../../tools/bufferstream as testbufferstream
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
 import ../../../libp2p/protocols/service_discovery/[types, registrar]
 import ../../../libp2p/utils/iptree
-import ../../tools/unittest
+import ../../tools/[unittest, crypto]
 import ./utils
 
-# ============================================================================
-# Waiting Time Calculation Tests
-# ============================================================================
-
 suite "Service Discovery Registrar - Waiting Time Calculation":
-  asyncTest "waitingTime returns low value for empty cache with no IP similarity":
+  test "waitingTime returns low value for empty cache with no IP similarity":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let now = getTime().toUnix().uint64
     let serviceId = makeServiceId()
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # With empty cache: c = 0, occupancy = 1.0, c_s = 0, ipSim = 0
     # w = advertExpiry * 1.0 * (0 + 0 + safetyParam)
-    let expected = discoConf.advertExpiry * discoConf.safetyParam
+    let expected = discoConfig.advertExpiry * discoConfig.safetyParam
     check abs(w - expected) < 0.001
 
-  asyncTest "waitingTime increases with cache occupancy":
+  test "waitingTime increases with cache occupancy":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId1 = makeServiceId(1)
@@ -52,13 +48,13 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
     registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now
 
-    let w1 = await registrar.waitingTime(discoConfig, ad1, 1000, serviceId1, now)
-    let w2 = await registrar.waitingTime(discoConfig, ad2, 1000, serviceId2, now)
+    let w1 = registrar.waitingTime(discoConfig, ad1, 1000, serviceId1, now)
+    let w2 = registrar.waitingTime(discoConfig, ad2, 1000, serviceId2, now)
 
     # With non-zero cache, occupancy > 1.0
     check w1 > 0 or w2 > 0
 
-  asyncTest "waitingTime increases with service similarity":
+  test "waitingTime increases with service similarity":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -72,12 +68,12 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now
     registrar.cacheTimestamps[ad3.toAdvertisementKey()] = now
 
-    let w = await registrar.waitingTime(discoConfig, ad1, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad1, 1000, serviceId, now)
 
     # c_s = 3, serviceSim = 3/1000 contributes to wait time
     check w > 0
 
-  asyncTest "waitingTime returns 0.0 IP similarity for IPs not in tree":
+  test "waitingTime returns 0.0 IP similarity for IPs not in tree":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -89,11 +85,11 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
       IpAddress(family: IpAddressFamily.IPv4, address_v4: [192'u8, 168, 1, 1])
     ) == 0.0
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w > 0
 
-  asyncTest "waitingTime uses maximum IP score across multiple addresses":
+  test "waitingTime uses maximum IP score across multiple addresses":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -116,11 +112,11 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
         ]
     )
     let now = getTime().toUnix().uint64
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w > 0
 
-  asyncTest "waitingTime at cache capacity returns high occupancy":
+  test "waitingTime at cache capacity returns high occupancy":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = createTestAdvertisement()
@@ -131,30 +127,26 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = getTime().toUnix().uint64
 
     let now = getTime().toUnix().uint64
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # At capacity, occupancy = 100.0
-    check w >= discoConf.advertExpiry * 100.0 * discoConf.safetyParam
+    check w >= discoConfig.advertExpiry * 100.0 * discoConfig.safetyParam
 
-  asyncTest "waitingTime formula includes safety parameter":
+  test "waitingTime formula includes safety parameter":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new(safetyParam = 0.5)
     let ad = createTestAdvertisement()
     let now = getTime().toUnix().uint64
     let serviceId = makeServiceId()
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # Empty cache, no IP sim: w = advertExpiry * 1.0 * safetyParam
-    let expected = discoConf.advertExpiry * discoConf.safetyParam
+    let expected = discoConfig.advertExpiry * discoConfig.safetyParam
     check abs(w - expected) < 1.0
 
-# ============================================================================
-# Lower Bound Enforcement Tests
-# ============================================================================
-
 suite "Service Discovery Registrar - Lower Bound Enforcement":
-  asyncTest "waitingTime enforces service lower bound when exists":
+  test "waitingTime enforces service lower bound when exists":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -165,11 +157,11 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     registrar.boundService[serviceId] = 1500.0
     registrar.timestampService[serviceId] = 1000
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 500.0
 
-  asyncTest "waitingTime service lower bound decreases with elapsed time":
+  test "waitingTime service lower bound decreases with elapsed time":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -180,12 +172,12 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     registrar.boundService[serviceId] = 1500.0
     registrar.timestampService[serviceId] = 1000
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 500.0
     check w < 1000.0
 
-  asyncTest "waitingTime enforces IP lower bound when exists":
+  test "waitingTime enforces IP lower bound when exists":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ip = "192.168.1.50"
@@ -196,11 +188,11 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     registrar.boundIp[ip] = 1500.0
     registrar.timestampIp[ip] = 1000
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 500.0
 
-  asyncTest "waitingTime IP lower bound is per IP address":
+  test "waitingTime IP lower bound is per IP address":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ip1 = "192.168.1.1"
@@ -212,14 +204,14 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     registrar.timestampIp[ip1] = 1000
 
     let ad2 = createTestAdvertisement(addrs = @[createTestMultiAddress(ip2)])
-    let w2 = await registrar.waitingTime(discoConfig, ad2, 1000, serviceId, now)
+    let w2 = registrar.waitingTime(discoConfig, ad2, 1000, serviceId, now)
 
     let ad1 = createTestAdvertisement(addrs = @[createTestMultiAddress(ip1)])
-    let w1 = await registrar.waitingTime(discoConfig, ad1, 1000, serviceId, now)
+    let w1 = registrar.waitingTime(discoConfig, ad1, 1000, serviceId, now)
 
     check w1 > w2
 
-  asyncTest "waitingTime uses most restrictive lower bound":
+  test "waitingTime uses most restrictive lower bound":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -241,29 +233,25 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
       addrs = @[createTestMultiAddress(ip1), createTestMultiAddress(ip2)],
     )
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 2000.0
 
-# ============================================================================
-# Lower Bound Update Tests
-# ============================================================================
-
 suite "Service Discovery Registrar - Lower Bound Updates":
-  asyncTest "updateLowerBounds stores service bound as w + now":
+  test "updateLowerBounds stores service bound as w + now":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
     let now: uint64 = 1000
     let w = 500.0
 
-    await updateLowerBounds(registrar, serviceId, ad, w, now)
+    updateLowerBounds(registrar, serviceId, ad, w, now)
 
     check serviceId in registrar.boundService
     check registrar.boundService[serviceId] == w + float64(now) # 1500.0
     check registrar.timestampService[serviceId] == now
 
-  asyncTest "updateLowerBounds updates service bound when w exceeds effective bound":
+  test "updateLowerBounds updates service bound when w exceeds effective bound":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
@@ -273,12 +261,12 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     registrar.timestampService[serviceId] = 500
     # effective = 1500 - (1000 - 500) = 1000; new w = 1200 > 1000 → update
 
-    await updateLowerBounds(registrar, serviceId, ad, 1200.0, now)
+    updateLowerBounds(registrar, serviceId, ad, 1200.0, now)
 
     check registrar.boundService[serviceId] == 2200.0
     check registrar.timestampService[serviceId] == 1000
 
-  asyncTest "updateLowerBounds does not decrease service bound":
+  test "updateLowerBounds does not decrease service bound":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
@@ -289,11 +277,11 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     # effective = 2500 - 500 = 2000; new w = 1000 < 2000 → no update
     let oldBound = registrar.boundService[serviceId]
 
-    await updateLowerBounds(registrar, serviceId, ad, 1000.0, now)
+    updateLowerBounds(registrar, serviceId, ad, 1000.0, now)
 
     check registrar.boundService[serviceId] == oldBound
 
-  asyncTest "updateLowerBounds updates IP bound for each address":
+  test "updateLowerBounds updates IP bound for each address":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ip1 = "192.168.1.1"
@@ -305,7 +293,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     let now: uint64 = 1000
     let w = 500.0
 
-    await updateLowerBounds(registrar, serviceId, ad, w, now)
+    updateLowerBounds(registrar, serviceId, ad, w, now)
 
     check ip1 in registrar.boundIp
     check registrar.boundIp[ip1] == w + float64(now)
@@ -315,46 +303,42 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     check registrar.boundIp[ip2] == w + float64(now)
     check registrar.timestampIp[ip2] == now
 
-  asyncTest "updateLowerBounds accumulates bounds correctly across multiple calls":
+  test "updateLowerBounds accumulates bounds correctly across multiple calls":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
 
-    await updateLowerBounds(registrar, serviceId, ad, 500.0, 1000)
+    updateLowerBounds(registrar, serviceId, ad, 500.0, 1000)
     check registrar.boundService[serviceId] == 1500.0
 
     # effective at t=1500 = 1500 - 500 = 1000; w=800 < 1000 → no update
-    await updateLowerBounds(registrar, serviceId, ad, 800.0, 1500)
+    updateLowerBounds(registrar, serviceId, ad, 800.0, 1500)
     check registrar.boundService[serviceId] == 1500.0
 
     # effective at t=2000 = 1500 - 1000 = 500; w=1200 > 500 → update
-    await updateLowerBounds(registrar, serviceId, ad, 1200.0, 2000)
+    updateLowerBounds(registrar, serviceId, ad, 1200.0, 2000)
     check registrar.boundService[serviceId] == 3200.0 # 1200 + 2000
 
-  asyncTest "updateLowerBounds with empty addresses does not crash":
+  test "updateLowerBounds with empty addresses does not crash":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId, addrs = @[])
     let now: uint64 = 1000
 
-    await updateLowerBounds(registrar, serviceId, ad, 500.0, now)
+    updateLowerBounds(registrar, serviceId, ad, 500.0, now)
 
     check registrar.boundService[serviceId] == 500.0 + float64(now)
 
-# ============================================================================
-# Cache Pruning Tests
-# ============================================================================
-
 suite "Service Discovery Registrar - Cache Pruning":
-  asyncTest "pruneExpiredAds does nothing on empty registrar":
+  test "pruneExpiredAds does nothing on empty registrar":
     let registrar = createTestRegistrar()
 
-    await pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900)
 
     check registrar.cache.len == 0
     check registrar.cacheTimestamps.len == 0
 
-  asyncTest "pruneExpiredAds keeps ad within expiry time":
+  test "pruneExpiredAds keeps ad within expiry time":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
@@ -363,12 +347,12 @@ suite "Service Discovery Registrar - Cache Pruning":
     registrar.cache[serviceId] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
 
-    await pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900)
 
     check ad in registrar.cache[serviceId]
     check ad.toAdvertisementKey() in registrar.cacheTimestamps
 
-  asyncTest "pruneExpiredAds removes ad past expiry time":
+  test "pruneExpiredAds removes ad past expiry time":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
@@ -377,12 +361,12 @@ suite "Service Discovery Registrar - Cache Pruning":
     registrar.cache[serviceId] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000
 
-    await pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900)
 
     check ad notin registrar.cache[serviceId]
     check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
-  asyncTest "pruneExpiredAds removes ad from IP tree":
+  test "pruneExpiredAds removes ad from IP tree":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ip = IpAddress(family: IpAddressFamily.IPv4, address_v4: [192'u8, 168, 1, 1])
@@ -397,11 +381,11 @@ suite "Service Discovery Registrar - Cache Pruning":
 
     check registrar.ipTree.root.counter == 1
 
-    await pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900)
 
     check registrar.ipTree.root.counter == 0
 
-  asyncTest "pruneExpiredAds removes from cacheTimestamps":
+  test "pruneExpiredAds removes from cacheTimestamps":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
@@ -412,11 +396,11 @@ suite "Service Discovery Registrar - Cache Pruning":
 
     check ad.toAdvertisementKey() in registrar.cacheTimestamps
 
-    await pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900)
 
     check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
-  asyncTest "pruneExpiredAds handles multiple ads for same service":
+  test "pruneExpiredAds handles multiple ads for same service":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad1 = createTestAdvertisement(serviceId = serviceId)
@@ -429,14 +413,14 @@ suite "Service Discovery Registrar - Cache Pruning":
     registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now # fresh
     registrar.cacheTimestamps[ad3.toAdvertisementKey()] = now - 2000 # expired
 
-    await pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900)
 
     check registrar.cache[serviceId].len == 1
     check ad2 in registrar.cache[serviceId]
     check ad1 notin registrar.cache[serviceId]
     check ad3 notin registrar.cache[serviceId]
 
-  asyncTest "pruneExpiredAds handles ad with no valid IP addresses":
+  test "pruneExpiredAds handles ad with no valid IP addresses":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId, addrs = @[])
@@ -445,16 +429,12 @@ suite "Service Discovery Registrar - Cache Pruning":
     registrar.cache[serviceId] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000
 
-    await pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900)
 
     check ad notin registrar.cache[serviceId]
 
-# ============================================================================
-# State Management Tests
-# ============================================================================
-
 suite "Service Discovery Registrar - State Management":
-  asyncTest "cache can store multiple ads for same service ID":
+  test "cache can store multiple ads for same service ID":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad1 = createTestAdvertisement(serviceId = serviceId)
@@ -468,7 +448,7 @@ suite "Service Discovery Registrar - State Management":
     check ad2 in registrar.cache[serviceId]
     check ad3 in registrar.cache[serviceId]
 
-  asyncTest "cache can store ads for different service IDs":
+  test "cache can store ads for different service IDs":
     let registrar = createTestRegistrar()
     let serviceId1 = makeServiceId(1)
     let serviceId2 = makeServiceId(2)
@@ -482,7 +462,7 @@ suite "Service Discovery Registrar - State Management":
     check serviceId1 in registrar.cache
     check serviceId2 in registrar.cache
 
-  asyncTest "cacheTimestamps correctly tracks insertion time":
+  test "cacheTimestamps correctly tracks insertion time":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let timestamp: uint64 = 12345
@@ -491,7 +471,7 @@ suite "Service Discovery Registrar - State Management":
 
     check registrar.cacheTimestamps[ad.toAdvertisementKey()] == timestamp
 
-  asyncTest "IP tree is independent from cache":
+  test "IP tree is independent from cache":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ip = IpAddress(family: IpAddressFamily.IPv4, address_v4: [192'u8, 168, 1, 1])
@@ -507,23 +487,19 @@ suite "Service Discovery Registrar - State Management":
 
     check registrar.ipTree.root.counter == 1
 
-# ============================================================================
-# Edge Cases Tests
-# ============================================================================
-
 suite "Service Discovery Registrar - Edge Cases":
-  asyncTest "waitingTime with advertisement with no addresses":
+  test "waitingTime with advertisement with no addresses":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = createTestAdvertisement(addrs = @[])
     let now = getTime().toUnix().uint64
     let serviceId = makeServiceId()
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 0
 
-  asyncTest "waitingTime with IPv6 addresses only (ignored in IP tree)":
+  test "waitingTime with IPv6 addresses only (ignored in IP tree)":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -531,11 +507,11 @@ suite "Service Discovery Registrar - Edge Cases":
     let ad = createTestAdvertisement(addrs = @[ipv6Addr])
     let now = getTime().toUnix().uint64
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 0
 
-  asyncTest "waitingTime with mixed IPv4 and IPv6 addresses":
+  test "waitingTime with mixed IPv4 and IPv6 addresses":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -549,44 +525,44 @@ suite "Service Discovery Registrar - Edge Cases":
     let ad = createTestAdvertisement(addrs = @[ipv4Addr, ipv6Addr])
     let now = getTime().toUnix().uint64
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w > 0
 
-  asyncTest "waitingTime with service ID not in boundService":
+  test "waitingTime with service ID not in boundService":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix().uint64
     let serviceId = makeServiceId()
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 0
 
-  asyncTest "waitingTime with IP not in boundIp":
+  test "waitingTime with IP not in boundIp":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
     let now = getTime().toUnix().uint64
     let serviceId = makeServiceId()
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 0
 
-  asyncTest "updateLowerBounds with zero w":
+  test "updateLowerBounds with zero w":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
     let now: uint64 = 1000
 
-    await updateLowerBounds(registrar, serviceId, ad, 0.0, now)
+    updateLowerBounds(registrar, serviceId, ad, 0.0, now)
 
     check serviceId in registrar.boundService
     check registrar.boundService[serviceId] == 1000.0
 
-  asyncTest "pruneExpiredAds with very old timestamp":
+  test "pruneExpiredAds with very old timestamp":
     let registrar = createTestRegistrar()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
@@ -594,17 +570,13 @@ suite "Service Discovery Registrar - Edge Cases":
     registrar.cache[serviceId] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = 1000.uint64
 
-    await pruneExpiredAds(registrar, 1)
+    pruneExpiredAds(registrar, 1)
 
     check ad notin registrar.cache[serviceId]
     check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
-# ============================================================================
-# Configuration Variations Tests
-# ============================================================================
-
 suite "Service Discovery Registrar - Configuration Variations":
-  asyncTest "different advertCacheCap affects occupancy":
+  test "different advertCacheCap affects occupancy":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix().uint64
@@ -615,12 +587,12 @@ suite "Service Discovery Registrar - Configuration Variations":
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConfig = ServiceDiscoveryConfig.new()
-    let w1 = await registrar.waitingTime(discoConfig, ad, 100, serviceId, now)
-    let w2 = await registrar.waitingTime(discoConfig, ad, 10000, serviceId, now)
+    let w1 = registrar.waitingTime(discoConfig, ad, 100, serviceId, now)
+    let w2 = registrar.waitingTime(discoConfig, ad, 10000, serviceId, now)
 
     check w1 >= w2
 
-  asyncTest "different occupancyExp changes wait time curve":
+  test "different occupancyExp changes wait time curve":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix().uint64
@@ -631,42 +603,42 @@ suite "Service Discovery Registrar - Configuration Variations":
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConfig1 = ServiceDiscoveryConfig.new(occupancyExp = 1.0)
-    let w1 = await registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
+    let w1 = registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
 
     let discoConfig2 = ServiceDiscoveryConfig.new(occupancyExp = 20.0)
-    let w2 = await registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
+    let w2 = registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
 
     check w2 >= w1
 
-  asyncTest "different advertExpiry scales base wait time":
+  test "different advertExpiry scales base wait time":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix().uint64
     let serviceId = makeServiceId()
 
     let discoConfig1 = ServiceDiscoveryConfig.new(advertExpiry = 100.0)
-    let w1 = await registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
+    let w1 = registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
 
     let discoConfig2 = ServiceDiscoveryConfig.new(advertExpiry = 2000.0)
-    let w2 = await registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
+    let w2 = registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
 
     check w2 > w1
 
-  asyncTest "different safetyParam adds to wait time":
+  test "different safetyParam adds to wait time":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix().uint64
     let serviceId = makeServiceId()
 
     let discoConfig1 = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let w1 = await registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
+    let w1 = registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
 
     let discoConfig2 = ServiceDiscoveryConfig.new(safetyParam = 1.0)
-    let w2 = await registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
+    let w2 = registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
 
     check w2 > w1
 
-  asyncTest "occupancyExp of 0 gives occupancy of 1.0":
+  test "occupancyExp of 0 gives occupancy of 1.0":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix().uint64
@@ -677,12 +649,12 @@ suite "Service Discovery Registrar - Configuration Variations":
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = 0.0)
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # pow(x, 0) = 1.0 regardless of x, so occupancy = 1.0 / 1.0 = 1.0
     check w >= 0
 
-  asyncTest "occupancyExp of 1 gives linear occupancy":
+  test "occupancyExp of 1 gives linear occupancy":
     let registrar = createTestRegistrar()
     let ad = createTestAdvertisement()
     let now = getTime().toUnix().uint64
@@ -693,14 +665,10 @@ suite "Service Discovery Registrar - Configuration Variations":
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = 1.0)
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # occupancyExp=1: occupancy = 1/(1-0.5) = 2.0
     check w >= 0
-
-# ============================================================================
-# Register Message Validation Tests
-# ============================================================================
 
 suite "Service Discovery Registrar - Register Message Validation":
   test "validateRegisterMessage rejects empty advertisement":
@@ -736,10 +704,6 @@ suite "Service Discovery Registrar - Register Message Validation":
     check decoded.isSome()
     check decoded.get().data.peerId == ad.data.peerId
     check decoded.get().data.seqNo == ad.data.seqNo
-
-# ============================================================================
-# Retry Ticket Processing Tests
-# ============================================================================
 
 suite "Service Discovery Registrar - Retry Ticket Processing":
   test "processRetryTicket returns original wait time when no ticket is present":
@@ -807,33 +771,6 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     check abs(tRemaining - tWait) < 0.001
 
-  test "processRetryTicket returns original wait time when ticket is expired":
-    let disco = createMockDiscovery()
-    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
-    let adBuf = ad.encode().get()
-
-    var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: 1_000,
-      tMod: 1_100,
-      tWaitFor: 50,
-      expiresAt: 1_149, # expired relative to now = 1_150
-      signature: @[],
-    )
-    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.some(ticket),
-    )
-    let tWait = 300.0
-    let now: uint64 = 1_150
-
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
-
-    check abs(tRemaining - tWait) < 0.001
-
   test "processRetryTicket returns original wait time when retry is too early":
     let disco = createMockDiscovery()
     let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
@@ -841,12 +778,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     # windowStart = tMod + tWaitFor = 1_100 + 50 = 1_150; now = 1_149 < windowStart
     var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: 1_000,
-      tMod: 1_100,
-      tWaitFor: 50,
-      expiresAt: 1_151,
-      signature: @[],
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -869,12 +801,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     # windowStart = 1_150, windowEnd = 1_151 (default delta = 1s); now = 1_152 > windowEnd
     var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: 1_000,
-      tMod: 1_100,
-      tWaitFor: 50,
-      expiresAt: 1_151,
-      signature: @[],
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -897,12 +824,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     # windowStart = 1_150, windowEnd = 1_151; now = 1_151 (at boundary)
     var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: 1_000,
-      tMod: 1_100,
-      tWaitFor: 50,
-      expiresAt: 1_151,
-      signature: @[],
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -925,12 +847,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let adBuf = ad.encode().get()
 
     var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: 1_000,
-      tMod: 1_100,
-      tWaitFor: 50,
-      expiresAt: 1_151,
-      signature: @[],
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -953,12 +870,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let adBuf = ad.encode().get()
 
     var ticket = Ticket(
-      advertisement: adBuf,
-      tInit: 1_000,
-      tMod: 1_100,
-      tWaitFor: 50,
-      expiresAt: 1_151,
-      signature: @[],
+      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -974,10 +886,6 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     # totalWaitSoFar = 1_150 - 1_000 = 150; tRemaining = 300 - 150 = 150
     check abs(tRemaining - 150.0) < 0.001
-
-# ============================================================================
-# acceptAdvertisement seqNo Handling Tests
-# ============================================================================
 
 proc makeTestConn(): TestBufferStream =
   TestBufferStream.new(
@@ -1140,12 +1048,8 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     check disco.registrar.cache[serviceId][0].data.seqNo == 2
     check disco.registrar.ipTree.root.counter == counterAfterFirst
 
-# ============================================================================
-# waitingTime Never Negative Tests
-# ============================================================================
-
 suite "Service Discovery Registrar - waitingTime never negative":
-  asyncTest "waitingTime returns non-negative with stale high service lower bound":
+  test "waitingTime returns non-negative with stale high service lower bound":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -1157,11 +1061,11 @@ suite "Service Discovery Registrar - waitingTime never negative":
 
     let now = getTime().toUnix().uint64
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 0.0
 
-  asyncTest "waitingTime returns non-negative with stale high IP lower bound":
+  test "waitingTime returns non-negative with stale high IP lower bound":
     let registrar = createTestRegistrar()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
@@ -1170,15 +1074,12 @@ suite "Service Discovery Registrar - waitingTime never negative":
     registrar.boundIp[ip] = 50.0
     registrar.timestampIp[ip] = 0
 
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress(ip)])
     let now = getTime().toUnix().uint64
 
-    let w = await registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w >= 0.0
-
-# ============================================================================
-# Concurrent Registration Tests
-# ============================================================================
 
 suite "Service Discovery Registrar - concurrent same-peer registration":
   asyncTest "concurrent acceptAdvertisement calls for same ad are idempotent":

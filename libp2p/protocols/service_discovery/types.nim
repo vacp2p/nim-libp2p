@@ -52,7 +52,6 @@ type
     timestampService*: Table[ServiceId, uint64]
     boundIp*: Table[string, float64]
     timestampIp*: Table[string, uint64]
-    usedNonces*: Table[seq[byte], uint64]
     lock*: AsyncLock
 
   AdvertiseTask* = ref object
@@ -134,7 +133,6 @@ proc new*(T: typedesc[Registrar]): T =
     timestampService: initTable[ServiceId, uint64](),
     boundIp: initTable[string, float64](),
     timestampIp: initTable[string, uint64](),
-    usedNonces: initTable[seq[byte], uint64](),
     lock: newAsyncLock(),
   )
 
