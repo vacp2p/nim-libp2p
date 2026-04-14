@@ -243,13 +243,13 @@ suite "GossipSub Component - Scoring":
       handlerFut.finished() == true
 
   asyncTest "Slow peer penalty can prune a peer on heartbeat":
-    let nodes =
-      generateNodes(
+    let nodes = generateNodes(
         2,
         gossip = true,
         decayInterval = 20.milliseconds,
         heartbeatInterval = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
-      ).toGossipSub()
+      )
+      .toGossipSub()
 
     startAndDeferStop(nodes)
     await connectStar(nodes)

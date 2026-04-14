@@ -595,7 +595,9 @@ proc sendEncoded*(
     of QueueActionType.SendLow:
       p.enqueueNonHighPriorityMessage(msg, useCustomConn, MessagePriority.Low)
     of QueueActionType.DropLow:
-      p.dropNonHighPriorityMessage(queueAction.slowPeerPenaltyDelta, MessagePriority.Low)
+      p.dropNonHighPriorityMessage(
+        queueAction.slowPeerPenaltyDelta, MessagePriority.Low
+      )
     of QueueActionType.Disconnect:
       p.disconnectPeer()
 
