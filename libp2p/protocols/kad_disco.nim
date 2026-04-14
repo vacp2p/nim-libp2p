@@ -46,7 +46,7 @@ proc maintainRegistrarCache(
     disco: KademliaDiscovery
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "prune expired advertisements",
-    chronos.seconds(int(disco.discoConf.advertExpiry)):
+    chronos.seconds(int(disco.discoConf.advertExpiry)), sleepFirst = true:
     await disco.registrar.pruneExpiredAds(disco.discoConf.advertExpiry.uint64)
 
 proc maintainTables(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
@@ -141,6 +141,9 @@ method start*(disco: KademliaDiscovery) {.async: (raises: [CancelledError]).} =
 
   if disco.xprPublishing:
     disco.selfSignedLoop = disco.maintainSelfSignedPeerRecord()
+
+  for serviceInfo in disco.services:
+    await disco.addProvidedService(serviceInfo)
 
   disco.registrarCacheLoop = disco.maintainRegistrarCache()
   disco.serviceTableLoop = disco.maintainTables()
