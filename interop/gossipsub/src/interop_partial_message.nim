@@ -22,10 +22,10 @@ const
 type InteropPartsMetadata* = object
   bitmap: uint8 ## bit i == part i present
 
-proc init*(_: typedesc[InteropPartsMetadata], bitmap: uint8): InteropPartsMetadata =
+func init*(_: typedesc[InteropPartsMetadata], bitmap: uint8): InteropPartsMetadata =
   InteropPartsMetadata(bitmap: bitmap)
 
-proc convert*(
+func convert*(
     _: typedesc[InteropPartsMetadata], metadata: PartsMetadata
 ): Result[InteropPartsMetadata, string] =
   if metadata.len == 0:
@@ -36,20 +36,15 @@ proc convert*(
 
   ok(InteropPartsMetadata(bitmap: metadata[0]))
 
-proc hasBit*(metadata: InteropPartsMetadata, i: int): bool =
+func hasBit*(metadata: InteropPartsMetadata, i: int): bool =
+  doAssert i in 0 ..< NumParts
   (metadata.bitmap and (1'u8 shl uint8(i))) != 0
 
 proc setBit*(metadata: var InteropPartsMetadata, i: int) =
+  doAssert i in 0 ..< NumParts
   metadata.bitmap = metadata.bitmap or (1'u8 shl uint8(i))
 
-proc bytesForBitmap(metadata: InteropPartsMetadata): int =
-  var partsCount = 0
-  for i in 0 ..< NumParts:
-    if metadata.hasBit(i):
-      inc partsCount
-  partsCount * PartLen
-
-proc isComplete*(metadata: InteropPartsMetadata): bool =
+func isComplete*(metadata: InteropPartsMetadata): bool =
   metadata.bitmap == 0b11111111
 
 func partsPresent*(metadata: InteropPartsMetadata): int =
@@ -59,12 +54,15 @@ func partsPresent*(metadata: InteropPartsMetadata): int =
       inc count
   count
 
+func bytesForBitmap(metadata: InteropPartsMetadata): int =
+  metadata.partsPresent() * PartLen
+
 type InteropPartialMessage* = ref object of PartialMessage
-  metadata*: InteropPartsMetadata
+  metadata: InteropPartsMetadata
   parts*: array[NumParts, seq[byte]]
   groupIdBytes*: array[GroupIdLen, byte]
 
-proc new*(_: typedesc[InteropPartialMessage], groupId: uint64): InteropPartialMessage =
+func new*(_: typedesc[InteropPartialMessage], groupId: uint64): InteropPartialMessage =
   InteropPartialMessage(groupIdBytes: toBytesBE(groupId))
 
 proc fromBytes*(
@@ -75,7 +73,7 @@ proc fromBytes*(
   copyMem(addr groupIdArr[0], unsafeAddr groupIdBytes[0], GroupIdLen)
   InteropPartialMessage(groupIdBytes: groupIdArr)
 
-proc isComplete*(pm: InteropPartialMessage): bool =
+func isComplete*(pm: InteropPartialMessage): bool =
   pm.metadata.isComplete()
 
 func partsPresent*(pm: InteropPartialMessage): int =

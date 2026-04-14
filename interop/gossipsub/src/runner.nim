@@ -58,13 +58,13 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
       runner.messages.mgetOrPut(key, InteropPartialMessage.fromBytes(rpc.groupID))
 
     if rpc.partialMessage.len > 0:
-      let before = pm.metadata
+      let before = pm.partsMetadata()
       let extendRes = pm.extend(rpc.partialMessage)
       if extendRes.isErr():
         warn "Failed to extend partial message", error = extendRes.error
         return
 
-      if pm.metadata != before:
+      if pm.partsMetadata() != before:
         if pm.isComplete():
           let gid = fromBytesBE(uint64, pm.groupIdBytes)
           logAllPartsReceived(runner.logStream, gid)
