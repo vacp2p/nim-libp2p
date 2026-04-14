@@ -118,10 +118,7 @@ proc refreshAllTables*(
   let tables = manager.tables.values.toSeq()
 
   for serviceTable in tables:
-    let refreshRes = catch:
-      await kad.refreshTable(serviceTable)
-    if refreshRes.isErr:
-      error "failed to refresh service routing table", error = refreshRes.error.msg
+    await kad.refreshTable(serviceTable)
 
 proc count*(manager: ServiceRoutingTableManager): int {.inline.} =
   return manager.tables.len
