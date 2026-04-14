@@ -46,22 +46,6 @@ suite "Mix Protocol - Message Delivery":
     check response != 0.seconds
 
   asyncTest "expect no reply, exit != destination":
-    # This test can fail flakily due to a race condition between the test
-    # teardown and background async tasks in the mix network.
-    #
-    # `handleMixNodeConnection` (mix_protocol.nim) uses `asyncSpawn` to
-    # fire-and-forget each `handleMixMessages` call. At the exit node,
-    # `handleMixMessages` calls `fwdRequest` (exit_layer.nim), which opens a
-    # new TCP connection (`destConn`) to the destination to deliver the message.
-    #
-    # The test waits only for the message to appear in the destination's queue
-    # (`nrProto.receivedMessages.get().wait(2.seconds)`). Once the message is
-    # enqueued, the test body completes and teardown begins
-    # (`stopDestNode`/`stopNodes`). However, the `asyncSpawn`'d task may still
-    # be alive at this point, holding `destConn` open. If `checkTrackers()` in
-    # `asyncTeardown` runs while that connection has not yet been closed, the
-    # ChronosStream tracker reports one more open stream than closed streams,
-    # causing the test to fail.
     let nodes = await setupMixNodes(10)
     startAndDeferStop(nodes)
 

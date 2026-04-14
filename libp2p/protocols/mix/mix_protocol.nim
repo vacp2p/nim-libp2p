@@ -10,7 +10,7 @@ import
     delay_strategy, pool,
   ]
 import ../protocol
-import ../../utils/[sequninit, future]
+import ../../utils/[sequninit]
 import ../../stream/[connection, lpstream]
 import ../../[switch, multicodec, peerinfo, varint]
 import ../../peerstore
@@ -54,6 +54,9 @@ type MixProtocol* = ref object of LPProtocol
   connPool: Table[PeerId, Connection]
   spamProtection: Opt[SpamProtection]
   delayStrategy: DelayStrategy
+  ongoingMixMessages: seq[Future[void]]
+    ## Tracks all in-flight handleMixMessages futures so they can be
+    ## cancelled on stop and waited for during teardown.
 
 proc hasDestReadBehavior*(mixProto: MixProtocol, codec: string): bool =
   return mixProto.destReadBehavior.hasKey(codec)
@@ -413,6 +416,26 @@ proc proofSize(sp: Opt[SpamProtection]): int =
     return 0
   return sp.get().proofSize
 
+proc spawnMixMessage(
+    mixProto: MixProtocol,
+    fromPeerId: PeerId,
+    receivedBytes: seq[byte],
+    metadataBytes: seq[byte],
+) =
+  ## Spawns a handleMixMessages task, tracks its future in `ongoingMixMessages`,
+  ## and removes it from the list when it finishes.
+  let fut: Future[void] = (proc() {.async: (raises: []).} =
+    try:
+      await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
+    except LPStreamError as exc:
+      error "Error handling mix message", fromPeerId, err = exc.msg
+  )()
+  mixProto.ongoingMixMessages.add(fut)
+  # Chronos callbacks run on the single event-loop thread, so no locking is
+  # needed when accessing ongoingMixMessages here.
+  fut.addCallback(proc(udata: pointer) {.gcsafe, raises: [].} =
+    mixProto.ongoingMixMessages.keepItIf(not it.finished))
+
 proc handleMixNodeConnection(
     mixProto: MixProtocol, conn: Connection
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
@@ -428,7 +451,7 @@ proc handleMixNodeConnection(
     # Calculate maximum wire packet size including spam protection proof
     let maxWireSize = PacketSize + mixProto.spamProtection.proofSize()
     let receivedBytes = await conn.readLp(maxWireSize)
-    asyncSpawn mixProto.handleMixMessages(conn.peerId, receivedBytes, metadataBytes)
+    mixProto.spawnMixMessage(conn.peerId, receivedBytes, metadataBytes)
 
 proc getMaxMessageSizeForCodec*(
     codec: string, numberOfSurbs: uint8 = 0
@@ -800,11 +823,20 @@ proc reply(
   if sendRes.isErr:
     error "could not send reply", peerId, multiAddr, err = sendRes.error
 
-method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: [], raw: true).} =
+method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: []).} =
   ## Stop the MixProtocol background tasks.
+  ## Cancels all in-flight handleMixMessages futures and waits for them
+  ## to finish before returning.
   mixProto.started = false
   mixProto.tagManager.stopSoon()
-  newFutureCompleted[void]()
+  # Snapshot the list and clear it before cancelling. The switch closes all
+  # connections before stopping protocols, so handleMixNodeConnection will have
+  # exited (got EOF) and no new futures will be added to ongoingMixMessages by
+  # the time we reach here.
+  let pending = mixProto.ongoingMixMessages
+  mixProto.ongoingMixMessages = @[]
+  for fut in pending:
+    await fut.cancelAndWait()
 
 proc init*(
     mixProto: MixProtocol,
