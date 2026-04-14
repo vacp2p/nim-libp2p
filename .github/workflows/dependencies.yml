@@ -5,7 +5,7 @@ on:
     branches:
       - master
   # All PR event types are listed so GitHub delivers the event payload (which includes label info).
-  # The job-level `if` then gates execution on the `run-bump-job` label — GitHub's `on:` syntax
+  # The job-level `if` then gates execution on the `run-bump-ci` label — GitHub's `on:` syntax
   # has no native label filter, so this two-part pattern is the standard workaround.
   pull_request:
     types: [labeled, synchronize, opened, reopened]
