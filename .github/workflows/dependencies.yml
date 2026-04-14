@@ -68,7 +68,7 @@ jobs:
 
             git submodule update --init vendor/nim-libp2p
             cd vendor/nim-libp2p
-            git fetch https://github.com/status-im/nim-libp2p.git $GITHUB_SHA
+            git fetch https://github.com/vacp2p/nim-libp2p.git $GITHUB_SHA
             git checkout $GITHUB_SHA
 
           fi
