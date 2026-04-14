@@ -21,21 +21,21 @@ proc refreshTable*(
   ## Sends a findNode to find itself to keep nearby peers up to date
   ## Also sends a findNode to find a random key for each non-empty k-bucket
 
-  discard await kad.findNode(rtable.selfId)
+  discard await kad.findNode(rtable.selfId, rtable)
 
   # Snapshot bucket count. findNode() can grow buckets and mutate length.
   # If it changes mid-iteration, Nim triggers an assertion defect.
-  for i in 0 ..< kad.rtable.buckets.len:
-    let bucket = kad.rtable.buckets[i]
+  for i in 0 ..< rtable.buckets.len:
+    let bucket = rtable.buckets[i]
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
-    # skip if refresh conditions not met (forceRefresh OR stale bucket) 
+    # skip if refresh conditions not met (forceRefresh OR stale bucket)
     if not (forceRefresh or bucket.isStale()):
       continue
 
     let randomKey = randomKeyInBucket(rtable.selfId, i, kad.rng)
-    discard await kad.findNode(randomKey)
+    discard await kad.findNode(randomKey, rtable)
 
 proc bootstrap*(
     kad: KadDHT, forceRefresh = false

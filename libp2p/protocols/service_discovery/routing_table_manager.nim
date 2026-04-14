@@ -3,7 +3,6 @@
 
 import std/[tables, sequtils]
 import chronos, chronicles, results
-import ../../[peerid, switch, multihash]
 import ../kademlia
 import ../kademlia/[types, routing_table]
 import ./types
