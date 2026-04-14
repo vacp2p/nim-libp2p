@@ -20,9 +20,9 @@ const
   PositionsPerPart = PartLen div sizeof(uint64) ## 128 uint64
 
 type InteropPartsMetadata* = object
-  bitmap*: uint8 ## bit i == part i present
+  bitmap: uint8 ## bit i == part i present
 
-proc newInteropPartsMetadata*(bitmap: uint8): InteropPartsMetadata =
+proc init*(_: typedesc[InteropPartsMetadata], bitmap: uint8): InteropPartsMetadata =
   InteropPartsMetadata(bitmap: bitmap)
 
 proc convert*(
@@ -64,11 +64,11 @@ type InteropPartialMessage* = ref object of PartialMessage
   parts*: array[NumParts, seq[byte]]
   groupIdBytes*: array[GroupIdLen, byte]
 
-proc newInteropPartialMessage*(groupId: uint64): InteropPartialMessage =
+proc new*(_: typedesc[InteropPartialMessage], groupId: uint64): InteropPartialMessage =
   InteropPartialMessage(groupIdBytes: toBytesBE(groupId))
 
-proc newInteropPartialMessageFromBytes*(
-    groupIdBytes: seq[byte]
+proc fromBytes*(
+    _: typedesc[InteropPartialMessage], groupIdBytes: seq[byte]
 ): InteropPartialMessage =
   doAssert groupIdBytes.len == GroupIdLen, "groupId must be 8 bytes"
   var groupIdArr: array[GroupIdLen, byte]
@@ -107,7 +107,7 @@ proc extend*(pm: InteropPartialMessage, data: seq[byte]): Result[void, string] =
   if data.len < MetadataLen + GroupIdLen:
     return err("data too short")
 
-  let msgMetadata = newInteropPartsMetadata(data[0])
+  let msgMetadata = InteropPartsMetadata.init(data[0])
   let groupIdStart = data.len - GroupIdLen
   let partData = data[MetadataLen ..< groupIdStart]
 

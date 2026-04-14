@@ -190,8 +190,8 @@ suite "GossipSub Interop - Script runner - Component":
     )
 
     # Node 0 adds parts 0-3
-    let pm0 = newInteropPartialMessage(groupId)
-    pm0.fillParts(newInteropPartsMetadata(0b00001111))
+    let pm0 = InteropPartialMessage.new(groupId)
+    pm0.fillParts(InteropPartsMetadata.init(0b00001111))
     runner0.messages[key] = pm0
 
     # Assert both nodes receive full messages

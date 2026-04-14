@@ -14,10 +14,10 @@ const
 
 suite "GossipSub Interop - InteropPartialMessage":
   test "partsMetadata returns 1-byte bitmap":
-    let pm = newInteropPartialMessage(0)
+    let pm = InteropPartialMessage.new(0)
     check pm.partsMetadata() == @[0b00000000'u8]
 
-    pm.fillParts(newInteropPartsMetadata(0b10101010))
+    pm.fillParts(InteropPartsMetadata.init(0b10101010))
     check pm.partsMetadata() == @[0b10101010'u8]
 
   test "interopUnionPartsMetadata performs OR":
@@ -35,29 +35,29 @@ suite "GossipSub Interop - InteropPartialMessage":
     check interopUnionPartsMetadata(@[1'u8, 2'u8], @[]).isErr()
 
   test "bitmap tracks present parts":
-    let pm = newInteropPartialMessage(1)
+    let pm = InteropPartialMessage.new(1)
     check:
-      pm.metadata.bitmap == 0b00000000
+      pm.metadata == InteropPartsMetadata.init(0b00000000)
       pm.partsPresent() == 0
       not pm.isComplete()
 
-    pm.fillParts(newInteropPartsMetadata(0b00000101)) # parts 0 and 2
+    pm.fillParts(InteropPartsMetadata.init(0b00000101)) # parts 0 and 2
     check:
-      pm.metadata.bitmap == 0b00000101
+      pm.metadata == InteropPartsMetadata.init(0b00000101)
       pm.partsPresent() == 2
       not pm.isComplete()
 
   test "isComplete when all 8 parts present":
-    let pm = newInteropPartialMessage(1)
-    pm.fillParts(newInteropPartsMetadata(0b11111111))
+    let pm = InteropPartialMessage.new(1)
+    pm.fillParts(InteropPartsMetadata.init(0b11111111))
     check:
-      pm.metadata.bitmap == 0b11111111
+      pm.metadata == InteropPartsMetadata.init(0b11111111)
       pm.partsPresent() == 8
       pm.isComplete()
 
   test "fillParts generates deterministic data":
-    let pm = newInteropPartialMessage(100)
-    pm.fillParts(newInteropPartsMetadata(0b00000001)) # part 0 only
+    let pm = InteropPartialMessage.new(100)
+    pm.fillParts(InteropPartsMetadata.init(0b00000001)) # part 0 only
 
     check pm.parts[0].len == PartLen
 
@@ -80,8 +80,8 @@ suite "GossipSub Interop - InteropPartialMessage":
     check posLast == uint64(100 + PositionsPerPart - 1)
 
   test "fillParts offset per part":
-    let pm = newInteropPartialMessage(0)
-    pm.fillParts(newInteropPartsMetadata(0b00000011)) # parts 0 and 1
+    let pm = InteropPartialMessage.new(0)
+    pm.fillParts(InteropPartsMetadata.init(0b00000011)) # parts 0 and 1
 
     # Part 0 starts at counter = 0
     let p0p0 = fromBytesBE(uint64, pm.parts[0].toOpenArray(0, PositionLen - 1))
@@ -92,8 +92,8 @@ suite "GossipSub Interop - InteropPartialMessage":
     check p1p0 == uint64(PositionsPerPart)
 
   test "fillParts last position value":
-    let pm = newInteropPartialMessage(0)
-    pm.fillParts(newInteropPartsMetadata(0b10000000)) # part 7 only
+    let pm = InteropPartialMessage.new(0)
+    pm.fillParts(InteropPartsMetadata.init(0b10000000)) # part 7 only
 
     # Part 7 starts at counter = 0 + 7*PositionsPerPart
     let p7p0 = fromBytesBE(uint64, pm.parts[7].toOpenArray(0, PositionLen - 1))
@@ -110,8 +110,8 @@ suite "GossipSub Interop - InteropPartialMessage":
 
 suite "GossipSub Interop - Wire Format":
   test "materializeParts encodes parts peer doesn't have":
-    let pm = newInteropPartialMessage(42)
-    pm.fillParts(newInteropPartsMetadata(0b00000111)) # parts 0, 1, 2
+    let pm = InteropPartialMessage.new(42)
+    pm.fillParts(InteropPartsMetadata.init(0b00000111)) # parts 0, 1, 2
 
     # Peer has part 0 (bitmap = 0b00000001), needs parts 1 and 2
     let res = pm.materializeParts(@[0b00000001'u8])
@@ -129,8 +129,8 @@ suite "GossipSub Interop - Wire Format":
     check gid == 42'u64
 
   test "materializeParts returns empty when peer has all":
-    let pm = newInteropPartialMessage(42)
-    pm.fillParts(newInteropPartsMetadata(0b00000011)) # parts 0, 1
+    let pm = InteropPartialMessage.new(42)
+    pm.fillParts(InteropPartsMetadata.init(0b00000011)) # parts 0, 1
 
     # Peer has both parts
     let res = pm.materializeParts(@[0b00000011'u8])
@@ -138,8 +138,8 @@ suite "GossipSub Interop - Wire Format":
     check res.get().len == 0
 
   test "materializeParts skips parts we don't have":
-    let pm = newInteropPartialMessage(42)
-    pm.fillParts(newInteropPartsMetadata(0b00000001)) # only part 0
+    let pm = InteropPartialMessage.new(42)
+    pm.fillParts(InteropPartsMetadata.init(0b00000001)) # only part 0
 
     # Peer has nothing
     let res = pm.materializeParts(@[0b00000000'u8])
@@ -150,8 +150,8 @@ suite "GossipSub Interop - Wire Format":
     check data[0] == 0b00000001'u8
 
   test "materializeParts with empty metadata sends all available parts":
-    let pm = newInteropPartialMessage(42)
-    pm.fillParts(newInteropPartsMetadata(0b00000101)) # parts 0 and 2
+    let pm = InteropPartialMessage.new(42)
+    pm.fillParts(InteropPartsMetadata.init(0b00000101)) # parts 0 and 2
 
     let res = pm.materializeParts(@[])
     check res.isOk()
@@ -161,34 +161,34 @@ suite "GossipSub Interop - Wire Format":
     check data[0] == 0b00000101'u8
 
   test "materializeParts rejects metadata of wrong length":
-    let pm = newInteropPartialMessage(42)
-    pm.fillParts(newInteropPartsMetadata(0b00000001))
+    let pm = InteropPartialMessage.new(42)
+    pm.fillParts(InteropPartsMetadata.init(0b00000001))
     check pm.materializeParts(@[0'u8, 0'u8]).isErr()
 
   test "extend decodes wire format":
-    let sender = newInteropPartialMessage(42)
-    sender.fillParts(newInteropPartsMetadata(0b00000011)) # parts 0, 1
+    let sender = InteropPartialMessage.new(42)
+    sender.fillParts(InteropPartsMetadata.init(0b00000011)) # parts 0, 1
 
     # Encode parts for a peer with nothing
     let encoded = sender.materializeParts(@[0b00000000'u8]).get()
 
     # Receiver decodes
-    let receiver = newInteropPartialMessage(42)
+    let receiver = InteropPartialMessage.new(42)
     let res = receiver.extend(encoded)
     check res.isOk()
-    check receiver.metadata.bitmap == 0b00000011
+    check receiver.metadata == InteropPartsMetadata.init(0b00000011)
     check receiver.parts[0] == sender.parts[0]
     check receiver.parts[1] == sender.parts[1]
 
   test "extend ignores parts already present":
-    let sender = newInteropPartialMessage(42)
-    sender.fillParts(newInteropPartsMetadata(0b00000011)) # parts 0 and 1
+    let sender = InteropPartialMessage.new(42)
+    sender.fillParts(InteropPartsMetadata.init(0b00000011)) # parts 0 and 1
 
     # Encode for a peer that has nothing — both parts appear in the wire stream
     let encoded = sender.materializeParts(@[0b00000000'u8]).get()
 
-    let receiver = newInteropPartialMessage(42)
-    receiver.fillParts(newInteropPartsMetadata(0b00000001))
+    let receiver = InteropPartialMessage.new(42)
+    receiver.fillParts(InteropPartsMetadata.init(0b00000001))
       # has part 0 with deterministic data
 
     # Overwrite part 0 with sentinel bytes so we can detect if extend touches it
@@ -197,65 +197,65 @@ suite "GossipSub Interop - Wire Format":
 
     let res = receiver.extend(encoded)
     check res.isOk()
-    check receiver.metadata.bitmap == 0b00000011
+    check receiver.metadata == InteropPartsMetadata.init(0b00000011)
     check receiver.parts[0] == sentinel # part 0 not overwritten by extend
     check receiver.parts[1] == sender.parts[1]
 
   test "extend correctly reads part after a duplicate — offset advances past duplicate":
-    let sender = newInteropPartialMessage(42)
-    sender.fillParts(newInteropPartsMetadata(0b00000101)) # parts 0 and 2
+    let sender = InteropPartialMessage.new(42)
+    sender.fillParts(InteropPartsMetadata.init(0b00000101)) # parts 0 and 2
 
     # Encode for a peer that has nothing — wire contains [part0][part2] contiguously
     let encoded = sender.materializeParts(@[0b00000000'u8]).get()
     check encoded.len == MetadataLen + 2 * PartLen + GroupIdLen
 
-    let receiver = newInteropPartialMessage(42)
-    receiver.fillParts(newInteropPartsMetadata(0b00000001)) # already has part 0
+    let receiver = InteropPartialMessage.new(42)
+    receiver.fillParts(InteropPartsMetadata.init(0b00000001)) # already has part 0
 
     let res = receiver.extend(encoded)
     check res.isOk()
-    check receiver.metadata.bitmap == 0b00000101
+    check receiver.metadata == InteropPartsMetadata.init(0b00000101)
     check receiver.parts[2] == sender.parts[2]
       # part 2 read from correct offset, not part 0's bytes
 
   test "extend rejects wrong group ID":
-    let sender = newInteropPartialMessage(42)
-    sender.fillParts(newInteropPartsMetadata(0b00000001))
+    let sender = InteropPartialMessage.new(42)
+    sender.fillParts(InteropPartsMetadata.init(0b00000001))
 
     let encoded = sender.materializeParts(@[0b00000000'u8]).get()
 
-    let receiver = newInteropPartialMessage(99) # different group ID
+    let receiver = InteropPartialMessage.new(99) # different group ID
     let res = receiver.extend(encoded)
     check res.isErr()
 
   test "extend rejects data too short":
-    let receiver = newInteropPartialMessage(42)
+    let receiver = InteropPartialMessage.new(42)
     let res = receiver.extend(@[0'u8]) # way too short
     check res.isErr()
 
   test "extend accumulates across multiple calls":
-    let pm1 = newInteropPartialMessage(42)
-    pm1.fillParts(newInteropPartsMetadata(0b00000001)) # part 0
+    let pm1 = InteropPartialMessage.new(42)
+    pm1.fillParts(InteropPartsMetadata.init(0b00000001)) # part 0
 
-    let pm2 = newInteropPartialMessage(42)
-    pm2.fillParts(newInteropPartsMetadata(0b00000010)) # part 1
+    let pm2 = InteropPartialMessage.new(42)
+    pm2.fillParts(InteropPartsMetadata.init(0b00000010)) # part 1
 
-    let receiver = newInteropPartialMessage(42)
+    let receiver = InteropPartialMessage.new(42)
 
     let enc1 = pm1.materializeParts(@[0b00000000'u8]).get()
     check receiver.extend(enc1).isOk()
-    check receiver.metadata.bitmap == 0b00000001
+    check receiver.metadata == InteropPartsMetadata.init(0b00000001)
 
     let enc2 = pm2.materializeParts(@[0b00000001'u8]).get()
     check receiver.extend(enc2).isOk()
-    check receiver.metadata.bitmap == 0b00000011
+    check receiver.metadata == InteropPartsMetadata.init(0b00000011)
 
   test "extend rejects bitmap claiming more parts than data contains":
     # bitmap claims 3 parts (bits 0,1,2) but partData holds only 2*PartLen bytes
-    # groupId tail is all-zero, matching newInteropPartialMessage(0)
+    # groupId tail is all-zero, matching InteropPartialMessage.new(0)
     var wire = newSeq[byte](MetadataLen + 2 * PartLen + GroupIdLen)
     wire[0] = 0b00000111'u8 # 3 bits set
-    let receiver = newInteropPartialMessage(0)
+    let receiver = InteropPartialMessage.new(0)
     check receiver.extend(wire).isErr()
 
   test "extend rejects duplicate bitmap entries without corresponding part bytes":
@@ -264,8 +264,8 @@ suite "GossipSub Interop - Wire Format":
     var wire = newSeq[byte](MetadataLen + GroupIdLen)
     wire[0] = 0b00000001'u8
 
-    let receiver = newInteropPartialMessage(0)
-    receiver.fillParts(newInteropPartsMetadata(0b00000001))
+    let receiver = InteropPartialMessage.new(0)
+    receiver.fillParts(InteropPartsMetadata.init(0b00000001))
 
     check receiver.extend(wire).isErr()
 
@@ -273,13 +273,13 @@ suite "GossipSub Interop - Wire Format":
     # Wire has one extra byte beyond a full part
     var wire = newSeq[byte](MetadataLen + PartLen + 1 + GroupIdLen)
     wire[0] = 0b00000001'u8
-    let receiver = newInteropPartialMessage(0)
+    let receiver = InteropPartialMessage.new(0)
     check receiver.extend(wire).isErr()
 
   test "extend accepts empty bitmap with no part data":
     # bitmap=0, no parts in the stream
     var wire = newSeq[byte](MetadataLen + GroupIdLen)
     wire[0] = 0b00000000'u8
-    let receiver = newInteropPartialMessage(0)
+    let receiver = InteropPartialMessage.new(0)
     check receiver.extend(wire).isOk()
-    check receiver.metadata.bitmap == 0b00000000
+    check receiver.metadata == InteropPartsMetadata.init(0b00000000)

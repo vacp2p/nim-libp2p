@@ -55,16 +55,16 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
 
     let key = makeKey(rpc.topicID, rpc.groupID)
     let pm =
-      runner.messages.mgetOrPut(key, newInteropPartialMessageFromBytes(rpc.groupID))
+      runner.messages.mgetOrPut(key, InteropPartialMessage.fromBytes(rpc.groupID))
 
     if rpc.partialMessage.len > 0:
-      let beforeBitmap = pm.metadata.bitmap
+      let before = pm.metadata
       let extendRes = pm.extend(rpc.partialMessage)
       if extendRes.isErr():
         warn "Failed to extend partial message", error = extendRes.error
         return
 
-      if pm.metadata.bitmap != beforeBitmap:
+      if pm.metadata != before:
         if pm.isComplete():
           let gid = fromBytesBE(uint64, pm.groupIdBytes)
           logAllPartsReceived(runner.logStream, gid)
@@ -188,8 +188,8 @@ proc executeSetTopicValidationDelay(
 proc executeAddPartialMessage(
     runner: ScriptRunner, topicId: string, groupId: uint64, partsBitmap: uint8
 ) {.async.} =
-  let pm = newInteropPartialMessage(groupId)
-  pm.fillParts(newInteropPartsMetadata(partsBitmap))
+  let pm = InteropPartialMessage.new(groupId)
+  pm.fillParts(InteropPartsMetadata.init(partsBitmap))
 
   let key = makeKey(topicId, groupId)
   runner.messages[key] = pm
