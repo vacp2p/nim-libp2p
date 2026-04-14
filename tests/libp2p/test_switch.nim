@@ -1208,7 +1208,7 @@ suite "Switch":
           except DialFailedError as e:
             lastDialError = e
             # Bounded retry for the documented Windows listener readiness gap.
-            await asyncSleep(200.milliseconds)
+            await sleepAsync(200.milliseconds)
         if not connected:
           if not isNil(lastDialError):
             raise lastDialError
