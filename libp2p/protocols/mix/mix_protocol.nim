@@ -416,23 +416,28 @@ proc proofSize(sp: Opt[SpamProtection]): int =
     return 0
   return sp.get().proofSize
 
+proc runMixMessage(
+    mixProto: MixProtocol,
+    fromPeerId: PeerId,
+    receivedBytes: sink seq[byte],
+    metadataBytes: sink seq[byte],
+) {.async: (raises: []).} =
+  try:
+    await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
+  except CancelledError:
+    trace "Handling mix message cancelled", fromPeerId
+  except LPStreamError as e:
+    error "Error handling mix message", fromPeerId, err = e.msg
+
 proc spawnMixMessage(
     mixProto: MixProtocol,
     fromPeerId: PeerId,
-    receivedBytes: seq[byte],
-    metadataBytes: seq[byte],
+    receivedBytes: sink seq[byte],
+    metadataBytes: sink seq[byte],
 ) =
   ## Spawns a handleMixMessages task, tracks its future in `ongoingMixMessages`,
   ## and removes it from the list when it finishes.
-  let fut: Future[void] = (
-    proc() {.async: (raises: []).} =
-      try:
-        await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
-      except CancelledError:
-        trace "Handling mix message cancelled", fromPeerId
-      except LPStreamError as e:
-        error "Error handling mix message", fromPeerId, err = e.msg
-  )()
+  let fut = runMixMessage(mixProto, fromPeerId, receivedBytes, metadataBytes)
   mixProto.ongoingMixMessages.add(fut)
   # Chronos callbacks run on the single event-loop thread, so no locking is
   # needed when accessing ongoingMixMessages here.
