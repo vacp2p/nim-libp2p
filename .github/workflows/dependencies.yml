@@ -45,7 +45,7 @@ jobs:
         if: matrix.target.nimble == true
         uses: jiro4989/setup-nim-action@v2
         with:
-          nim-version: '2.2.4'
+          nim-version: '2.2.4' # should be the same as the one in logos-delivery/nimbus/codex
 
       - name: Checkout this ref in target repository
         run: |
