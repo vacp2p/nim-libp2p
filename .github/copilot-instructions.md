@@ -340,6 +340,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 
 ### API Stability
 - Procedures marked with `.public.` pragma are backward-compatible within MAJOR versions
+- Do not warn about breaking changes in the following modules as they are still not considered stable and under active development: `kademlia`, `mix`, `service_discovery`
 - Internal procedures may change at MINOR versions
 
 ### Experimental GossipSub Extensions
