@@ -16,11 +16,11 @@ suite "Spam Protection - Per Hop Proof Generation":
 
     # Simulate node generating proof for packet
     let packetData = testPacketData
-    let proof = spamProtection.generateProof(packetData).get()
-    check proof.len == 8
+    let proofResult = spamProtection.generateProof(packetData).get()
+    check proofResult.proof.len == 8
 
     # Simulate next node verifying proof with same packet
-    let verifyResult = spamProtection.verifyProof(proof, packetData)
+    let verifyResult = spamProtection.verifyProof(proofResult.proof, packetData)
 
     check verifyResult.isOk()
     check verifyResult.get() == true
@@ -30,11 +30,11 @@ suite "Spam Protection - Per Hop Proof Generation":
     let spamProtection = newPoWSpamProtection(2)
 
     let originalPacket = testPacketData
-    let proof = spamProtection.generateProof(originalPacket).get()
+    let proofResult = spamProtection.generateProof(originalPacket).get()
 
     # Try to verify with different packet
     let differentPacket = @[1.byte, 2, 3, 4, 6]
-    let verifyResult = spamProtection.verifyProof(proof, differentPacket)
+    let verifyResult = spamProtection.verifyProof(proofResult.proof, differentPacket)
 
     check verifyResult.isOk()
     check verifyResult.get() == false
@@ -57,16 +57,16 @@ suite "Spam Protection - Per Hop Proof Generation":
     let packet1 = testPacketData
     let packet2 = @[4.byte, 5, 6]
 
-    let proof1 = spamProtection.generateProof(packet1).get()
-    let proof2 = spamProtection.generateProof(packet2).get()
+    let pr1 = spamProtection.generateProof(packet1).get()
+    let pr2 = spamProtection.generateProof(packet2).get()
 
     # Each proof should verify with its corresponding packet
-    check spamProtection.verifyProof(proof1, packet1).get() == true
-    check spamProtection.verifyProof(proof2, packet2).get() == true
+    check spamProtection.verifyProof(pr1.proof, packet1).get() == true
+    check spamProtection.verifyProof(pr2.proof, packet2).get() == true
 
     # But not with the other packet
-    check spamProtection.verifyProof(proof1, packet2).get() == false
-    check spamProtection.verifyProof(proof2, packet1).get() == false
+    check spamProtection.verifyProof(pr1.proof, packet2).get() == false
+    check spamProtection.verifyProof(pr2.proof, packet1).get() == false
 
   test "Rate limiting blocks packets exceeding limit":
     let spamProtection = newRateLimitSpamProtection(3)
@@ -75,13 +75,13 @@ suite "Spam Protection - Per Hop Proof Generation":
 
     # First 3 packets should be accepted
     for i in 0 ..< 3:
-      let proof = spamProtection.generateProof(packetData).get()
-      let valid = spamProtection.verifyProof(proof, packetData).get()
+      let pr = spamProtection.generateProof(packetData).get()
+      let valid = spamProtection.verifyProof(pr.proof, packetData).get()
       check valid == true
 
     # 4th packet should be rejected
-    let proof4 = spamProtection.generateProof(packetData).get()
-    let valid4 = spamProtection.verifyProof(proof4, packetData).get()
+    let pr4 = spamProtection.generateProof(packetData).get()
+    let valid4 = spamProtection.verifyProof(pr4.proof, packetData).get()
     check valid4 == false
 
   test "Per-hop proofs are independently generated":
@@ -91,12 +91,12 @@ suite "Spam Protection - Per Hop Proof Generation":
     let packet2 = @[4.byte, 5, 6]
 
     # Generate fresh proofs for each packet
-    let proof1 = spamProtection.generateProof(packet1).get()
-    let proof2 = spamProtection.generateProof(packet2).get()
+    let pr1 = spamProtection.generateProof(packet1).get()
+    let pr2 = spamProtection.generateProof(packet2).get()
 
     # Both should verify successfully (rate limit not exceeded)
-    check spamProtection.verifyProof(proof1, packet1).get() == true
-    check spamProtection.verifyProof(proof2, packet2).get() == true
+    check spamProtection.verifyProof(pr1.proof, packet1).get() == true
+    check spamProtection.verifyProof(pr2.proof, packet2).get() == true
 
 suite "Spam Protection - Packet Integration":
   test "Proof can be appended and extracted from packet":
