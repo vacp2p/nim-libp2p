@@ -10,7 +10,10 @@ func ip4(a, b, c, d: uint8): IpAddress =
   IpAddress(family: IpAddressFamily.IPv4, address_v4: [a, b, c, d])
 
 func ip6(): IpAddress =
-  IpAddress(family: IpAddressFamily.IPv6, address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+  IpAddress(
+    family: IpAddressFamily.IPv6,
+    address_v6: [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+  )
 
 # IP Similarity Score Semantics:
 # - Score range: 0.0 to 1.0
