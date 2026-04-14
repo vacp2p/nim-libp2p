@@ -129,3 +129,5 @@ proc serviceIds*(manager: ServiceRoutingTableManager): seq[ServiceId] {.inline.}
 
 proc clear*(manager: ServiceRoutingTableManager) {.inline.} =
   manager.tables.clear()
+  manager.serviceStatus.clear()
+  manager.updateServiceTablesMetrics()
