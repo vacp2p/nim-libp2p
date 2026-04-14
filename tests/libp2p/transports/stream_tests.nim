@@ -128,6 +128,25 @@ template streamTransportTest*(
 
         # step 5: server waits for client to close and attempts to write
         await clientHandlerDone
+
+        # TCP transport does properly close the connection when client.stop()
+        # is called, but the close propagates asynchronously through the OS
+        # TCP stack. After client.stop(), the client TCP socket sends FIN and
+        # is closed; the server socket enters CLOSE_WAIT state. In this state,
+        # the OS kernel still accepts writes to the socket's send buffer and
+        # returns success - only after it tries to deliver the data and receives
+        # a RST back does it know the connection is fully broken.
+        #
+        # The mplex handle loop detects the TCP EOF (when readMsg() fails) and
+        # calls m.close() -> channel.reset(), setting closedLocal = true and
+        # firing the closeEvent. After that, any write attempt immediately fails
+        # with LPStreamClosedError (a subtype of LPStreamEOFError).
+        #
+        # We use stream.join() to wait for the closeEvent to fire, which happens
+        # when the mplex handle loop finishes closing the channel. This ensures
+        # the write fails immediately rather than relying on a fixed sleep.
+        check await stream.join().withTimeout(10.seconds)
+
         expect LPStreamEOFError:
           await stream.write(clientMessage)
 
@@ -150,11 +169,10 @@ template streamTransportTest*(
       await conn.close()
       await client.stop()
 
-      # tcp transport (and tor (tor is tcp))
-      # needs more time to fully close itself in background
-      await sleepAsync(200.milliseconds)
-
-      # step 4: client has fully closed, tell server to write now
+      # step 4: client has fully closed, tell server to write now.
+      # The server uses stream.join() to wait for the mplex handle loop to
+      # detect the TCP connection close and reset the channel before writing,
+      # so no sleepAsync is needed here.
       clientHandlerDone.complete()
 
     let server = transportProvider()
