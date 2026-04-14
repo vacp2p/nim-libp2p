@@ -59,62 +59,53 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
       continue
     ipTree.removeIp(ip)
 
-proc pruneExpiredAds*(
-    registrar: Registrar, advertExpiry: uint64
-) {.async: (raises: [CancelledError]).} =
-  await registrar.lock.acquire()
-  try:
-    let now = getTime().toUnix().uint64
-    var toDelete: seq[tuple[serviceId: ServiceId, ad: Advertisement]] = @[]
+proc pruneExpiredAds*(registrar: Registrar, advertExpiry: uint64) =
+  let now = getTime().toUnix().uint64
+  var toDelete: seq[tuple[serviceId: ServiceId, ad: Advertisement]] = @[]
 
-    for serviceId, ads in registrar.cache.mpairs:
-      var i = 0
-      while i < ads.len:
-        let ad = ads[i]
-        let adKey = ad.toAdvertisementKey()
-        let adTime = registrar.cacheTimestamps.getOrDefault(adKey, 0)
+  for serviceId, ads in registrar.cache.mpairs:
+    var i = 0
+    while i < ads.len:
+      let ad = ads[i]
+      let adKey = ad.toAdvertisementKey()
+      let adTime = registrar.cacheTimestamps.getOrDefault(adKey, 0)
 
-        if now - adTime > advertExpiry:
-          registrar.ipTree.removeAd(ad)
-          toDelete.add((serviceId, ad))
-          ads.delete(i)
-        else:
-          inc(i)
+      if now - adTime > advertExpiry:
+        registrar.ipTree.removeAd(ad)
+        toDelete.add((serviceId, ad))
+        ads.delete(i)
+      else:
+        inc(i)
 
-    for (_, ad) in toDelete:
-      registrar.cacheTimestamps.del(ad.toAdvertisementKey())
+  for (_, ad) in toDelete:
+    registrar.cacheTimestamps.del(ad.toAdvertisementKey())
 
-    if toDelete.len > 0:
-      cd_registrar_ads_expired.inc(toDelete.len.float64)
-      registrar.updateRegistrarMetrics()
+  if toDelete.len > 0:
+    cd_registrar_ads_expired.inc(toDelete.len.float64)
+    registrar.updateRegistrarMetrics()
 
-    var expiredServices: seq[ServiceId] = @[]
-    for sid, ts in registrar.timestampService:
-      if now - ts > advertExpiry:
-        expiredServices.add(sid)
-    for sid in expiredServices:
-      registrar.boundService.del(sid)
-      registrar.timestampService.del(sid)
+  var expiredServices: seq[ServiceId] = @[]
+  for sid, ts in registrar.timestampService:
+    if now - ts > advertExpiry:
+      expiredServices.add(sid)
+  for sid in expiredServices:
+    registrar.boundService.del(sid)
+    registrar.timestampService.del(sid)
 
-    var expiredIps: seq[string] = @[]
-    for ip, ts in registrar.timestampIp:
-      if now - ts > advertExpiry:
-        expiredIps.add(ip)
-    for ip in expiredIps:
-      registrar.boundIp.del(ip)
-      registrar.timestampIp.del(ip)
+  var expiredIps: seq[string] = @[]
+  for ip, ts in registrar.timestampIp:
+    if now - ts > advertExpiry:
+      expiredIps.add(ip)
+  for ip in expiredIps:
+    registrar.boundIp.del(ip)
+    registrar.timestampIp.del(ip)
 
-    var expiredNonces: seq[seq[byte]] = @[]
-    for nonce, exp in registrar.usedNonces:
-      if now > exp:
-        expiredNonces.add(nonce)
-    for nonce in expiredNonces:
-      registrar.usedNonces.del(nonce)
-  finally:
-    try:
-      registrar.lock.release()
-    except AsyncLockError as exc:
-      raiseAssert exc.msg
+  var expiredNonces: seq[seq[byte]] = @[]
+  for nonce, exp in registrar.usedNonces:
+    if now > exp:
+      expiredNonces.add(nonce)
+  for nonce in expiredNonces:
+    registrar.usedNonces.del(nonce)
 
 proc waitingTime*(
     registrar: Registrar,
@@ -123,50 +114,44 @@ proc waitingTime*(
     advertCacheCap: uint64,
     serviceId: ServiceId,
     now: uint64,
-): Future[float64] {.async: (raises: [CancelledError]).} =
-  await registrar.lock.acquire()
-  try:
-    let c = registrar.cacheTimestamps.len.uint64
-    let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
+): float64 =
+  let c = registrar.cacheTimestamps.len.uint64
+  let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
 
-    let occupancy: float64 =
-      if c >= advertCacheCap:
-        100.0
-      else:
-        1.0 / pow(1.0 - c.float64 / advertCacheCap.float64, discoConfig.occupancyExp)
+  let occupancy: float64 =
+    if c >= advertCacheCap:
+      100.0
+    else:
+      1.0 / pow(1.0 - c.float64 / advertCacheCap.float64, discoConfig.occupancyExp)
 
-    let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
-    let ipSim = registrar.ipTree.adScore(ad)
+  let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
+  let ipSim = registrar.ipTree.adScore(ad)
 
-    var w: float64 =
-      discoConfig.advertExpiry * occupancy *
-      (serviceSim + ipSim + discoConfig.safetyParam)
+  var w: float64 =
+    discoConfig.advertExpiry * occupancy * (
+      serviceSim + ipSim + discoConfig.safetyParam
+    )
 
-    if serviceId in registrar.timestampService:
-      let elapsedService = now - registrar.timestampService.getOrDefault(serviceId, 0)
-      let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
-      let serviceLowerBound = boundServiceVal - elapsedService.float64
-      if serviceLowerBound > w:
-        w = serviceLowerBound
+  if serviceId in registrar.timestampService:
+    let elapsedService = now - registrar.timestampService.getOrDefault(serviceId, 0)
+    let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
+    let serviceLowerBound = boundServiceVal - elapsedService.float64
+    if serviceLowerBound > w:
+      w = serviceLowerBound
 
-    for addressInfo in ad.data.addresses:
-      let ip = addressInfo.address.getIp().valueOr:
-        continue
+  for addressInfo in ad.data.addresses:
+    let ip = addressInfo.address.getIp().valueOr:
+      continue
 
-      let ipKey = $ip
-      if ipKey in registrar.timestampIp:
-        let elapsedIp = now - registrar.timestampIp.getOrDefault(ipKey, 0)
-        let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
-        let ipLowerBound = boundIpVal - elapsedIp.float64
-        if ipLowerBound > w:
-          w = ipLowerBound
+    let ipKey = $ip
+    if ipKey in registrar.timestampIp:
+      let elapsedIp = now - registrar.timestampIp.getOrDefault(ipKey, 0)
+      let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
+      let ipLowerBound = boundIpVal - elapsedIp.float64
+      if ipLowerBound > w:
+        w = ipLowerBound
 
-    return max(0.0, w)
-  finally:
-    try:
-      registrar.lock.release()
-    except AsyncLockError as exc:
-      raiseAssert exc.msg
+  return max(0.0, w)
 
 proc updateLowerBounds*(
     registrar: Registrar,
@@ -174,32 +159,25 @@ proc updateLowerBounds*(
     ad: Advertisement,
     w: float64,
     now: uint64,
-) {.async: (raises: [CancelledError]).} =
-  await registrar.lock.acquire()
-  try:
-    let elapsedService = now - registrar.timestampService.getOrDefault(serviceId, 0)
-    let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
+) =
+  let elapsedService = now - registrar.timestampService.getOrDefault(serviceId, 0)
+  let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
 
-    if w > boundServiceVal - elapsedService.float64:
-      registrar.boundService[serviceId] = w + now.float64
-      registrar.timestampService[serviceId] = now
+  if w > boundServiceVal - elapsedService.float64:
+    registrar.boundService[serviceId] = w + now.float64
+    registrar.timestampService[serviceId] = now
 
-    for addressInfo in ad.data.addresses:
-      let ip = addressInfo.address.getIp().valueOr:
-        continue
+  for addressInfo in ad.data.addresses:
+    let ip = addressInfo.address.getIp().valueOr:
+      continue
 
-      let ipKey = $ip
-      let elapsedIp = float64(now - registrar.timestampIp.getOrDefault(ipKey, 0))
-      let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
+    let ipKey = $ip
+    let elapsedIp = float64(now - registrar.timestampIp.getOrDefault(ipKey, 0))
+    let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
 
-      if w > (boundIpVal - elapsedIp):
-        registrar.boundIp[ipKey] = w + float64(now)
-        registrar.timestampIp[ipKey] = now
-  finally:
-    try:
-      registrar.lock.release()
-    except AsyncLockError as exc:
-      raiseAssert exc.msg
+    if w > (boundIpVal - elapsedIp):
+      registrar.boundIp[ipKey] = w + float64(now)
+      registrar.timestampIp[ipKey] = now
 
 proc validateRegisterMessage*(regMsg: RegisterMessage): Opt[Advertisement] =
   ## Validate a REGISTER message and decode/verify the advertisement.
@@ -277,81 +255,75 @@ proc acceptAdvertisement*(
     closerPeers: seq[Peer],
     conn: Connection,
 ) {.async: (raises: [CancelledError]).} =
-   discard await disco.serviceRoutingTables.addService(
+  disco.serviceRoutingTables.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConf.bucketsCount,
     Interest,
   )
 
   let peerKey = ad.data.peerId.toKey()
-  await disco.serviceRoutingTables.insertPeer(serviceId, peerKey)
+  disco.serviceRoutingTables.insertPeer(serviceId, peerKey)
 
   var shouldUpdateMetrics = false
 
-  try:
-    var ads = disco.registrar.cache.getOrDefault(serviceId)
+  var ads = disco.registrar.cache.getOrDefault(serviceId)
 
-    var replaced = false
-    var isDuplicate = false
+  var replaced = false
+  var isDuplicate = false
 
-    for i in 0 ..< ads.len:
-      if ads[i].data.peerId == ad.data.peerId:
-        if ads[i].data.seqNo == ad.data.seqNo:
-          isDuplicate = true
-          disco.registrar.cacheTimestamps[ads[i].toAdvertisementKey()] = now
-        elif ad.data.seqNo > ads[i].data.seqNo:
-          disco.registrar.ipTree.removeAd(ads[i])
-          disco.registrar.cacheTimestamps.del(ads[i].toAdvertisementKey())
-          ads[i] = ad
-          disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-          disco.registrar.ipTree.insertAd(ad)
-          replaced = true
-          shouldUpdateMetrics = true
-        else:
-          isDuplicate = true
-        break
+  for i in 0 ..< ads.len:
+    if ads[i].data.peerId == ad.data.peerId:
+      if ads[i].data.seqNo == ad.data.seqNo:
+        isDuplicate = true
+        disco.registrar.cacheTimestamps[ads[i].toAdvertisementKey()] = now
+      elif ad.data.seqNo > ads[i].data.seqNo:
+        disco.registrar.ipTree.removeAd(ads[i])
+        disco.registrar.cacheTimestamps.del(ads[i].toAdvertisementKey())
+        ads[i] = ad
+        disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
+        disco.registrar.ipTree.insertAd(ad)
+        replaced = true
+        shouldUpdateMetrics = true
+      else:
+        isDuplicate = true
+      break
 
-    if not isDuplicate and not replaced:
-      if disco.registrar.cacheTimestamps.len.uint64 >=
-          disco.discoConfig.advertCacheCap.uint64:
-        var oldestKey: AdvertisementKey
-        var oldestTime = high(uint64)
-        for k, t in disco.registrar.cacheTimestamps:
-          if t < oldestTime:
-            oldestTime = t
-            oldestKey = k
-        var evictSid: ServiceId
-        var evictIdx = -1
-        for sid, sads in disco.registrar.cache:
-          for i in 0 ..< sads.len:
-            if sads[i].toAdvertisementKey() == oldestKey:
-              evictSid = sid
-              evictIdx = i
-              break
-          if evictIdx >= 0:
+  if not isDuplicate and not replaced:
+    if disco.registrar.cacheTimestamps.len.uint64 >=
+        disco.discoConfig.advertCacheCap.uint64:
+      var oldestKey: AdvertisementKey
+      var oldestTime = high(uint64)
+      for k, t in disco.registrar.cacheTimestamps:
+        if t < oldestTime:
+          oldestTime = t
+          oldestKey = k
+      var evictSid: ServiceId
+      var evictIdx = -1
+      for sid, sads in disco.registrar.cache:
+        for i in 0 ..< sads.len:
+          if sads[i].toAdvertisementKey() == oldestKey:
+            evictSid = sid
+            evictIdx = i
             break
         if evictIdx >= 0:
-          var evictAds = disco.registrar.cache.getOrDefault(evictSid)
-          disco.registrar.ipTree.removeAd(evictAds[evictIdx])
-          disco.registrar.cacheTimestamps.del(oldestKey)
-          evictAds.delete(evictIdx)
-          disco.registrar.cache[evictSid] = evictAds
-          if evictSid == serviceId:
-            ads = evictAds
-        shouldUpdateMetrics = true
-
-      ads.add(ad)
-      disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-      disco.registrar.ipTree.insertAd(ad)
+          break
+      if evictIdx >= 0:
+        var evictAds = disco.registrar.cache.getOrDefault(evictSid)
+        disco.registrar.ipTree.removeAd(evictAds[evictIdx])
+        disco.registrar.cacheTimestamps.del(oldestKey)
+        evictAds.delete(evictIdx)
+        disco.registrar.cache[evictSid] = evictAds
+        if evictSid == serviceId:
+          ads = evictAds
       shouldUpdateMetrics = true
 
-    disco.registrar.cache[serviceId] = ads
+    ads.add(ad)
+    disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
+    disco.registrar.ipTree.insertAd(ad)
+    shouldUpdateMetrics = true
 
-    if shouldUpdateMetrics:
-      disco.registrar.updateRegistrarMetrics()
-  finally:
-    try:
-      disco.registrar.lock.release()
-    except AsyncLockError as exc:
-      raiseAssert exc.msg
+  disco.registrar.cache[serviceId] = ads
+
+  if shouldUpdateMetrics:
+    disco.registrar.updateRegistrarMetrics()
 
   await conn.sendRegisterResponse(RegistrationStatus.Confirmed, closerPeers)
