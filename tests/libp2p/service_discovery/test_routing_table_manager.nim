@@ -21,34 +21,33 @@ proc makeMainTable*(selfId: Key, peers: seq[Key]): RoutingTable =
   rt
 
 suite "ServiceRoutingTableManager":
-  asyncTest "new creates empty manager":
+  test "new creates empty manager":
     let manager = ServiceRoutingTableManager.new()
     check:
-      (await manager.count()) == 0
-      (await manager.serviceIds()).len == 0
+      manager.count() == 0
+      manager.serviceIds().len == 0
 
-  asyncTest "addService returns true and adds table":
+  test "addService returns true and adds table":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    let added = await manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
-    )
     check:
-      added == true
+      manager.addService(
+        serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+      )
+      manager.count() == 1
       manager.hasService(serviceId)
-      (await manager.count()) == 1
 
-  asyncTest "addService with same service and same status returns false":
+  test "addService with same service and same status returns false":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
-    let addedAgain = await manager.addService(
+    let addedAgain = manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
@@ -56,15 +55,15 @@ suite "ServiceRoutingTableManager":
       addedAgain == false
       manager.serviceStatus[serviceId] == Interest
 
-  asyncTest "addService with same service but different status sets Both and returns true":
+  test "addService with same service but different status sets Both and returns true":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
-    let upgraded = await manager.addService(
+    let upgraded = manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
 
@@ -72,7 +71,7 @@ suite "ServiceRoutingTableManager":
       upgraded == true
       manager.serviceStatus[serviceId] == Both
 
-  asyncTest "addService pre-populates table from main routing table":
+  test "addService pre-populates table from main routing table":
     let selfId = testKey(0x00)
     let peer1 = testKey(0x01)
     let peer2 = testKey(0x02)
@@ -80,13 +79,11 @@ suite "ServiceRoutingTableManager":
 
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0xAA)
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    let tableOpt = await manager.getTable(serviceId)
-    check tableOpt.isSome()
-    let table = tableOpt.get()
+    let table = manager.getTable(serviceId).get()
 
     var found: seq[Key]
     for bucket in table.buckets:
@@ -97,96 +94,96 @@ suite "ServiceRoutingTableManager":
       peer1 in found
       peer2 in found
 
-  asyncTest "removeService removes entry when status matches":
+  test "removeService removes entry when status matches":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
-    await manager.removeService(serviceId, Interest)
+    manager.removeService(serviceId, Interest)
 
     check:
       not manager.hasService(serviceId)
-      (await manager.count()) == 0
+      manager.count() == 0
 
-  asyncTest "removeService on Both with Interest leaves Provided":
+  test "removeService on Both with Interest leaves Provided":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
     check manager.serviceStatus[serviceId] == Both
 
-    await manager.removeService(serviceId, Interest)
+    manager.removeService(serviceId, Interest)
 
     check:
       manager.hasService(serviceId)
       manager.serviceStatus[serviceId] == Provided
 
-  asyncTest "removeService on Both with Provided leaves Interest":
+  test "removeService on Both with Provided leaves Interest":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
     check manager.serviceStatus[serviceId] == Both
 
-    await manager.removeService(serviceId, Provided)
+    manager.removeService(serviceId, Provided)
 
     check:
       manager.hasService(serviceId)
       manager.serviceStatus[serviceId] == Interest
 
-  asyncTest "removeService on non-existent service is a no-op":
+  test "removeService on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x99)
 
-    await manager.removeService(serviceId, Interest)
-    check (await manager.count()) == 0
+    manager.removeService(serviceId, Interest)
+    check manager.count() == 0
 
-  asyncTest "getTable returns Some for existing service":
+  test "getTable returns Some for existing service":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
 
-    check (await manager.getTable(serviceId)).isSome()
+    check manager.getTable(serviceId).isSome()
 
-  asyncTest "getTable returns None for non-existing service":
+  test "getTable returns None for non-existing service":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
 
-    check (await manager.getTable(serviceId)).isNone()
+    check manager.getTable(serviceId).isNone()
 
-  asyncTest "insertPeer adds peer to the service routing table":
+  test "insertPeer adds peer to the service routing table":
     let selfId = testKey(0x00)
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x01)
     let mainRt = RoutingTable.new(selfId)
 
-    discard await manager.addService(
+    check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
     let peerKey = testKey(0x42)
-    await manager.insertPeer(serviceId, peerKey)
+    manager.insertPeer(serviceId, peerKey)
 
-    let tableOpt = await manager.getTable(serviceId)
+    let tableOpt = manager.getTable(serviceId)
     check tableOpt.isSome()
 
     var found = false
@@ -196,63 +193,63 @@ suite "ServiceRoutingTableManager":
           found = true
     check found
 
-  asyncTest "insertPeer on non-existent service is a no-op":
+  test "insertPeer on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = testKey(0x99)
     let peerKey = testKey(0x42)
 
-    await manager.insertPeer(serviceId, peerKey)
-    check (await manager.count()) == 0
+    manager.insertPeer(serviceId, peerKey)
+    check manager.count() == 0
 
-  asyncTest "hasService returns false for unknown service":
+  test "hasService returns false for unknown service":
     let manager = ServiceRoutingTableManager.new()
     check not manager.hasService(testKey(0x01))
 
-  asyncTest "count reflects number of tracked services":
+  test "count reflects number of tracked services":
     let manager = ServiceRoutingTableManager.new()
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    discard await manager.addService(
+    check manager.addService(
       testKey(0x01), mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
-    discard await manager.addService(
+    check manager.addService(
       testKey(0x02), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
-    discard await manager.addService(
+    check manager.addService(
       testKey(0x03), mainRt, DefaultReplication, DefaultMaxBuckets, Both
     )
 
-    check (await manager.count()) == 3
+    check manager.count() == 3
 
-  asyncTest "serviceIds returns all service IDs":
+  test "serviceIds returns all service IDs":
     let manager = ServiceRoutingTableManager.new()
     let mainRt = RoutingTable.new(testKey(0x00))
     let ids = @[testKey(0x01), testKey(0x02), testKey(0x03)]
 
     for id in ids:
-      discard await manager.addService(
+      check manager.addService(
         id, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
       )
 
-    let returned = await manager.serviceIds()
+    let returned = manager.serviceIds()
     check returned.len == ids.len
     for id in ids:
       check id in returned
 
-  asyncTest "clear removes all service tables":
+  test "clear removes all service tables":
     let manager = ServiceRoutingTableManager.new()
     let mainRt = RoutingTable.new(testKey(0x00))
 
-    discard await manager.addService(
+    check manager.addService(
       testKey(0x01), mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
-    discard await manager.addService(
+    check manager.addService(
       testKey(0x02), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
 
-    await manager.clear()
+    manager.clear()
 
     check:
-      (await manager.count()) == 0
+      manager.count() == 0
       not manager.hasService(testKey(0x01))
       not manager.hasService(testKey(0x02))
