@@ -115,15 +115,19 @@ template streamTransportTest*(
 
   asyncTest "server writes after EOF":
     var clientHandlerDone = newFuture[void]()
+    var serverReadDone = newFuture[void]()
 
     proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
+        # step 2: read message from client (ensure connection is established)
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
         check string.fromBytes(buffer) == serverMessage
+        # and notify this to client
+        serverReadDone.complete()
 
+        # step 5: server waits for client to close and attempts to write
         await clientHandlerDone
-
         expect LPStreamEOFError:
           await stream.write(clientMessage)
 
@@ -132,15 +136,25 @@ template streamTransportTest*(
       let conn = await client.dial("", server.addrs[0])
       let muxer = streamProvider(conn)
 
+      # step 1: send some message to server
       let stream = await muxer.newStream()
       await stream.write(serverMessage)
+      await stream.closeWrite() # flush message
+
+      # step 3: wait for server to read message
+      # (closing stream too early risk data not being transmitted)
+      await serverReadDone
+      # then close connection
       await stream.close()
       await muxer.close()
       await conn.close()
-
-      await sleepAsync(20.milliseconds)
       await client.stop()
 
+      # tcp transport (and tor (tor is tcp))
+      # needs more time to fully close itself in background
+      await sleepAsync(200.milliseconds)
+
+      # step 4: client has fully closed, tell server to write now
       clientHandlerDone.complete()
 
     let server = transportProvider()
