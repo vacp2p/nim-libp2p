@@ -101,8 +101,10 @@ proc insertPeer*(
   var table = res.valueOr:
     return
 
-  discard table.insert(peerKey)
-  cd_service_table_insertions.inc()
+  let inserted = table.insert(peerKey)
+  if inserted:
+    cd_service_table_insertions.inc()
+    manager.updateServiceTablesMetrics()
 
 proc hasService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
