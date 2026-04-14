@@ -429,7 +429,7 @@ proc spawnMixMessage(
       try:
         await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
       except CancelledError:
-        debug "Handling mix message cancelled", fromPeerId
+        trace "Handling mix message cancelled", fromPeerId
       except LPStreamError as e:
         error "Error handling mix message", fromPeerId, err = e.msg
   )()
@@ -437,7 +437,7 @@ proc spawnMixMessage(
   # Chronos callbacks run on the single event-loop thread, so no locking is
   # needed when accessing ongoingMixMessages here.
   fut.addCallback(
-    proc(udata: pointer) {.gcsafe, raises: [].} =
+    proc(_: pointer) {.gcsafe, raises: [].} =
       mixProto.ongoingMixMessages.keepItIf(not it.finished)
   )
 
