@@ -8,10 +8,7 @@ import
     peerid, switch, multihash, cid, multicodec, routing_record, extended_peer_record
   ]
 import ../../protobuf/minprotobuf
-import ../../utils/iptree
 import ../kademlia/types
-
-export iptree
 
 const
   DefaultSelfSPRRereshTime* = 10.minutes
