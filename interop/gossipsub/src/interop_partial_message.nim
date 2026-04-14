@@ -34,7 +34,7 @@ func convert*(
   if metadata.len != MetadataLen:
     return err("invalid metadata length, expected 0 or 1 byte")
 
-  ok(InteropPartsMetadata(bitmap: metadata[0]))
+  ok(InteropPartsMetadata.init(metadata[0]))
 
 func hasBit*(metadata: InteropPartsMetadata, i: int): bool =
   doAssert i in 0 ..< NumParts
