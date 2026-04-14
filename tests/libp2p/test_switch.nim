@@ -1191,22 +1191,11 @@ suite "Switch":
     await testProto.start()
     dst.mount(testProto)
 
-    # On Windows, the TCP transport may not be immediately ready to accept
-    # incoming connections right after switch.start() returns. There is a brief
-    # window between when the server socket is bound/listened on and when the OS
-    # fully propagates that readiness, causing sporadic DialFailedError. We
-    # retry the dial instead of a fixed sleep to deterministically wait for
-    # readiness without adding unnecessary latency on faster platforms.
-    var conn: Connection
-    untilTimeout:
-      pre:
-        conn =
-          try:
-            await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
-          except DialFailedError:
-            nil
-      check:
-        not conn.isNil
+    # On Windows, there is a brief gap between switch.start() returning and the
+    # TCP transport being ready to accept connections, causing sporadic
+    # DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
+    await asyncSleep(500.milliseconds)
+    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
     await conn.close()
