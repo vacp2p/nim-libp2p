@@ -1194,7 +1194,8 @@ suite "Switch":
     # On Windows, there is a brief gap between switch.start() returning and the
     # TCP transport being ready to accept connections, causing sporadic
     # DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
-    await sleepAsync(500.milliseconds)
+    when defined(windows):
+       await sleepAsync(500.milliseconds)
     let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
