@@ -5,7 +5,7 @@ import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./service_discovery/[random_find, types]
+import ./service_discovery/[random_find, types, routing_table_manager]
 
 export random_find, types
 
@@ -63,12 +63,12 @@ proc new*(
     T: typedesc[ServiceDiscovery],
     switch: Switch,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
-    kadConfig: KadDHTConfig = KadDHTConfig.new(),
+    config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
     client: bool = false,
     codec: string = ExtendedServiceDiscoveryCodec,
     services: seq[ServiceInfo] = @[],
-    discoConf: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
+    discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     xprPublishing: bool = true,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
@@ -83,11 +83,10 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    rtManager: ServiceRoutingTableManager.new(),
     registrar: Registrar.new(),
-    advertiser: Advertiser.new(),
-    serviceRoutingTables: ServiceRoutingTableManager.new(),
     services: toHashSet(services),
-    discoConf: discoConf,
+    discoConfig: discoConfig,
     xprPublishing: xprPublishing,
   )
 
@@ -130,9 +129,11 @@ proc new*(
       of MessageType.ping:
         await disco.handlePing(conn, msg)
       of MessageType.getAds:
-        await disco.handleGetAds(conn, msg)
+        trace "Unimplemented"
+        return
       of MessageType.register:
-        await disco.handleRegister(conn, msg)
+        trace "Unimplemented"
+        return
 
   return disco
 
