@@ -1165,8 +1165,6 @@ suite "Kademlia Discovery Registrar - waitingTime never negative":
     let discoConf = KademliaDiscoveryConfig.new()
     let serviceId = makeServiceId()
     let ip = "10.0.0.1"
-    let ad =
-      createTestAdvertisement(serviceId = serviceId, addrs = @[createTestMultiAddress(ip)])
 
     registrar.boundIp[ip] = 50.0
     registrar.timestampIp[ip] = 0
