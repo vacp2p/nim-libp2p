@@ -95,7 +95,7 @@ proc callHandler(self: AutonatV2Service) {.async: (raises: [CancelledError]).} =
 
 proc hasEnoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
-  return switch.connManager.slotsAvailable(In) >= 2
+  return switch.connManager.availableSlots(In) >= 2
 
 proc doesPeerHaveIncomingConn(switch: Switch, peerId: PeerId): bool =
   return switch.connManager.selectMuxer(peerId, In) != nil
@@ -146,7 +146,7 @@ proc askPeer(
 
   if not hasEnoughIncomingSlots(switch):
     debug "Not enough incoming slots available, not asking peer",
-      incomingSlotsAvailable = switch.connManager.slotsAvailable(In)
+      incomingSlotsAvailable = switch.connManager.availableSlots(In)
     return Unknown
 
   trace "Asking peer for reachability"
@@ -185,7 +185,7 @@ proc askConnectedPeers(
       break
     if not hasEnoughIncomingSlots(switch):
       debug "No incoming slots available, not asking peers",
-        incomingSlotsAvailable = switch.connManager.slotsAvailable(In)
+        incomingSlotsAvailable = switch.connManager.availableSlots(In)
       break
     if (await askPeer(self, switch, peer)) != Unknown:
       answersFromPeers.inc()
