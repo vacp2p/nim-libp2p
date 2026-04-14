@@ -429,7 +429,7 @@ proc spawnMixMessage(
       try:
         await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
       except CancelledError:
-        error "Handling mix message cancelled", fromPeerId
+        debug "Handling mix message cancelled", fromPeerId
       except LPStreamError as e:
         error "Error handling mix message", fromPeerId, err = e.msg
   )()
