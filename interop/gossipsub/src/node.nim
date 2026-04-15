@@ -70,8 +70,11 @@ proc createNode*(
     .build()
 
   var params = gossipSubParams
-  # Disable behaviour penalty scoring to prevent pruning from graft race conditions.
+  # Keep behaviour penalties from affecting score-based behaviour in interop runs.
   params.behaviourPenaltyWeight = -0.000001
+  params.behaviourPenaltyDecay = 0.0
+  params.disconnectBadPeers = false
+  params.disconnectPeerAboveRateLimit = false
   partialMessageConfig.withValue(pmConfig):
     params.partialMessageExtensionConfig = Opt.some(pmConfig)
 
