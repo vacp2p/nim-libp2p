@@ -7,4 +7,4 @@ import ../../config.nims
 
 # Send chronicles logs to stderr so stdout is reserved for structured JSON output
 switch("define", "chronicles_sinks=textlines[stderr]")
-switch("define", "chronicles_log_level=INFO")
+switch("define", "chronicles_log_level=TRACE")

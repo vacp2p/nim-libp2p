@@ -116,7 +116,9 @@ proc executeConnect(runner: ScriptRunner, connectTo: seq[int]) {.async.} =
     let targetPeerId = nodePeerId(targetId)
     try:
       let targetAddr = runner.resolveAddr(targetId)
+      warn "Connecting to peer", target = targetId, peerId = targetPeerId, addr = targetAddr
       await runner.node.switch.connect(targetPeerId, @[targetAddr])
+      warn "Connected to peer", target = targetId
     except CancelledError as e:
       raise e
     except CatchableError as e:
