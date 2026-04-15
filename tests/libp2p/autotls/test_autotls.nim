@@ -259,6 +259,44 @@ when defined(libp2p_autotls_support):
       expect(ACMEError):
         discard await api.requestAuthorizations(@["auth-1", "auth-2"], key, "kid")
 
+      # clear leftover invalid responses so the mixed response is next in queue
+      api.mockedResponses = @[]
+      api.mockedResponses.add(
+        HTTPResponse(
+          body:
+            %*{
+              "identifier": {"type": "dns", "value": "example.com"},
+              "status": "pending",
+              "challenges": [
+                {
+                  "type": "dns-persist-01",
+                  "url": "http://example.com/unknown-challenge",
+                  "status": "pending",
+                  "token": "unknown-token",
+                },
+                {
+                  "type": "dns-01",
+                  "url": "http://example.com/recognized-challenge",
+                  "status": "pending",
+                  "token": "recognized-token",
+                },
+              ],
+            },
+          headers: HttpTable.init(),
+        )
+      )
+
+      let mixedAuthResp = await api.requestAuthorizations(@["auth-3"], key, "kid")
+      check mixedAuthResp.challenges.len == 1
+
+      # replenish invalid responses for the remaining expect(ACMEError) blocks
+      for _ in 0 .. 5:
+        api.mockedResponses.add(
+          HTTPResponse(
+            body: %*{"inexistent field": "invalid value"}, headers: HttpTable.init()
+          )
+        )
+
       expect(ACMEError):
         discard await api.requestChallenge(@["domain-1", "domain-2"], key, "kid")
 
