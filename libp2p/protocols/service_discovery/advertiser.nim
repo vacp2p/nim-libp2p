@@ -182,9 +182,8 @@ proc addProvidedService*(
         error "cannot convert key to peer id", error
         continue
 
-      let fut = disco.startAdvertising(
-        serviceId, registrar, bucketIdx, Opt.none(Ticket), add
-      )
+      let fut =
+        disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket), add)
       disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
       cd_advertiser_pending_actions.inc()
 
