@@ -79,7 +79,6 @@ proc main() {.async.} =
     listenAddr = listenAddr,
     gossipSubParams = params,
     resolveAddr = proc(id: int): MultiAddress {.gcsafe, raises: [CatchableError].} =
-      let peerId = nodePeerId(id)
       let hostname = "node" & $id
       let ip =
         if localMode:
@@ -91,7 +90,7 @@ proc main() {.async.} =
             " ip=" & resolved.addrList[0])
           stderr.flushFile()
           resolved.addrList[0]
-      let addrStr = "/ip4/" & ip & "/tcp/9000/p2p/" & $peerId
+      let addrStr = "/ip4/" & ip & "/tcp/9000"
       stderr.writeLine("DEBUG resolveAddr: target=" & $id & " addr=" & addrStr)
       stderr.flushFile()
       MultiAddress.init(addrStr).tryGet(),
