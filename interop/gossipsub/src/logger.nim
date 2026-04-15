@@ -35,3 +35,7 @@ proc logPeerId*(stream: Stream, peerId: PeerId, nodeId: int) {.raises: [].} =
 proc logReceivedMessage*(stream: Stream, msgId: string, topic: string) {.raises: [].} =
   ## Log a received message event.
   logJSON(stream, "Received Message", {"id": msgId, "topic": topic})
+
+proc logAllPartsReceived*(stream: Stream, groupId: uint64) {.raises: [].} =
+  ## Log that all parts of a partial message have been received.
+  logJSON(stream, "All parts received", {"group_id": $groupId})
