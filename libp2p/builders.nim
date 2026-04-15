@@ -394,11 +394,16 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     else:
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
-  let
-    connManager =
-      ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
-    ms = MultistreamSelect.new()
-    muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
+  var connManager: ConnManager
+  if b.maxIn > 0 or b.maxOut > 0:
+    connManager = ConnManager.newMaxInOut(b.maxIn, b.maxOut, b.maxConnsPerPeer)
+  elif b.maxConnections > 0:
+    connManager = ConnManager.newMaxTotal(b.maxConnections, b.maxConnsPerPeer)
+  else:
+    connManager = ConnManager.newMaxTotal()
+
+  let ms = MultistreamSelect.new()
+  let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
 
   b.autotls.withValue(autotlsService):
     b.services.add(autotlsService)

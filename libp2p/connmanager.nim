@@ -78,35 +78,34 @@ type
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
 
-proc new*(
+proc newMaxTotal*(
     C: type ConnManager,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
     maxConnections = MaxConnections,
-    maxIn = -1,
-    maxOut = -1,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
 ): ConnManager =
-  var inSema, outSema: AsyncSemaphore
-  var maxConnectionsIn, maxConnectionsOut: int
-  if maxIn > 0 or maxOut > 0:
-    inSema = newAsyncSemaphore(maxIn)
-    outSema = newAsyncSemaphore(maxOut)
-    maxConnectionsIn = maxIn
-    maxConnectionsOut = maxOut
-  elif maxConnections > 0:
-    inSema = newAsyncSemaphore(maxConnections)
-    outSema = inSema
-    maxConnectionsIn = maxConnections
-    maxConnectionsOut = maxConnections
-  else:
-    raiseAssert "Invalid connection counts!"
-
+  let sema = newAsyncSemaphore(maxConnections)
   C(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer: maxConnsPerPeer,
-    maxConnectionsIn: maxConnectionsIn,
-    maxConnectionsOut: maxConnectionsOut,
-    inSema: inSema,
-    outSema: outSema,
+    maxConnectionsIn: maxConnections,
+    maxConnectionsOut: maxConnections,
+    inSema: sema,
+    outSema: sema,
+  )
+
+proc newMaxInOut*(
+    C: type ConnManager,
+    maxIn: int,
+    maxOut: int,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
+): ConnManager =
+  C(
+    muxerStore: MuxerStore.new(),
+    maxConnsPerPeer: maxConnsPerPeer,
+    maxConnectionsIn: maxIn,
+    maxConnectionsOut: maxOut,
+    inSema: newAsyncSemaphore(maxIn),
+    outSema: newAsyncSemaphore(maxOut),
   )
 
 proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
