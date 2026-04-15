@@ -70,6 +70,8 @@ proc createNode*(
     .build()
 
   var params = gossipSubParams
+  # Disable behaviour penalty scoring to prevent pruning from graft race conditions.
+  params.behaviourPenaltyWeight = 0.0
   partialMessageConfig.withValue(pmConfig):
     params.partialMessageExtensionConfig = Opt.some(pmConfig)
 
