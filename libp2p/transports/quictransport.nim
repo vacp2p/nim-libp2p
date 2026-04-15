@@ -189,6 +189,10 @@ method newStream*(
   except ConnectionError as e:
     raise newException(MuxerError, "error in newStream: " & e.msg, e)
 
+method getStreams*(m: QuicMuxer): seq[connection.Connection] {.gcsafe.} =
+  for s in m.session.streams:
+    result.add(s)
+
 method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   proc handleStream(stream: QuicStream) {.async: (raises: []).} =
     ## call the muxer stream handler for this channel
@@ -209,6 +213,9 @@ method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
       # keep handling, until connection is closed. 
       # this stream failed but we need to keep handling for other streams.
       trace "QuicMuxer.handler got error while opening stream", msg = e.msg
+
+  if not m.session.isClosed:
+    await m.session.close()
 
 method close*(m: QuicMuxer) {.async: (raises: []).} =
   try:
