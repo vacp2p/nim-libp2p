@@ -83,6 +83,10 @@ proc newMaxTotal*(
     maxConnections = MaxConnections,
     maxConnsPerPeer = MaxConnectionsPerPeer,
 ): ConnManager =
+  ## Creates a `ConnManager` where incoming and outgoing connections share a
+  ## single pool capped at `maxConnections`. Acquiring a slot for either
+  ## direction draws from the same semaphore, so the combined total never
+  ## exceeds `maxConnections`.
   let sema = newAsyncSemaphore(maxConnections)
   C(
     muxerStore: MuxerStore.new(),
@@ -99,6 +103,9 @@ proc newMaxInOut*(
     maxOut: int,
     maxConnsPerPeer = MaxConnectionsPerPeer,
 ): ConnManager =
+  ## Creates a `ConnManager` where incoming and outgoing connections are limited
+  ## independently: at most `maxIn` inbound and `maxOut` outbound connections
+  ## may be open concurrently, each tracked by its own semaphore.
   C(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer: maxConnsPerPeer,
