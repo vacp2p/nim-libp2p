@@ -137,14 +137,10 @@ template streamTransportTest*(
           # The mplex handle loop detects the TCP EOF asynchronously (when
           # readMsg() fails) and calls m.close() -> channel.reset(), raising
           # LPStreamClosedError on subsequent writes.
-          let expiration = Moment.now() + 10.seconds
-          var gotEOF = false
-          while not gotEOF and Moment.now() < expiration:
-            try:
+          expect LPStreamEOFError:
+            let expiration = Moment.now() + 10.seconds
+            while Moment.now() < expiration:
               await stream.write(clientMessage)
-            except LPStreamEOFError:
-              gotEOF = true
-          check gotEOF
         else:
           # For other transports check is trivial.
           expect LPStreamEOFError:
