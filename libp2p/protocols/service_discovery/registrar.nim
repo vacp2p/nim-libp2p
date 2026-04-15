@@ -34,7 +34,7 @@ proc filterIPv4(addrsInfos: seq[AddressInfo]): seq[IpAddress] {.raises: [].} =
   return ips
 
 proc adScore*(ipTree: IpTree, ad: Advertisement): float64 {.raises: [].} =
-  ## Return the max score for this advertisment
+  ## Return the max score for this advertisement
 
   var maxScore = 0.0
   for ip in ad.data.addresses.filterIPv4():
