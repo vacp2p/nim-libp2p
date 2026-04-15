@@ -8,11 +8,12 @@ import
   ../../../libp2p/
     [peerid, switch, builders, crypto/crypto, extended_peer_record, multiaddress]
 import ../../../libp2p/protocols/[service_discovery, kademlia]
-import ../../../libp2p/protocols/kademlia/protobuf
-import ../../../libp2p/protocols/service_discovery/[types, registrar]
+import ../../../libp2p/protocols/kademlia/[protobuf, types as kademlia_types, routing_table]
+import ../../../libp2p/protocols/service_discovery/[types, registrar, routing_table_manager]
 import ../../tools/[crypto]
+import ../kademlia/utils as kademlia_utils
 
-export protobuf, types, registrar
+export protobuf, types, registrar, routing_table_manager
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
@@ -143,6 +144,26 @@ proc setupDiscos*(
   for i in 0 ..< count:
     discos.add(setupDiscovery(validator, selector, bootstrapNodes))
   discos
+
+proc populateRoutingTable*(disco: ServiceDiscovery, n: int) =
+  for _ in 0 ..< n:
+    discard disco.rtable.insert(kademlia_utils.randomPeerId())
+
+proc populateAdvTable*(
+    disco: ServiceDiscovery, serviceId: ServiceId
+) {.async: (raises: [CancelledError]).} =
+  discard disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+  let advTable = disco.rtManager.getTable(serviceId).valueOr:
+    return
+  if advTable.buckets.len == 0:
+    advTable.buckets.add(Bucket())
+  for _ in 0 ..< disco.discoConfig.kRegister + 2:
+    advTable.buckets[0].peers.add(
+      NodeEntry(nodeId: kademlia_utils.randomPeerId().toKey(), lastSeen: Moment.now())
+    )
 
 proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
   discard disco1.rtable.insert(disco2.switch.peerInfo.peerId)

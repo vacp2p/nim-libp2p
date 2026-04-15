@@ -84,6 +84,7 @@ proc new*(
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     rtManager: ServiceRoutingTableManager.new(),
+    advertiser: Advertiser.new(),
     registrar: Registrar.new(),
     services: toHashSet(services),
     discoConfig: discoConfig,
