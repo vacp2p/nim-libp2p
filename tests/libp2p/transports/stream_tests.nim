@@ -114,6 +114,7 @@ template streamTransportTest*(
     )
 
   asyncTest "server writes after EOF":
+    let listenAddrs = addressIP4
     var clientHandlerDone = newFuture[void]()
     var serverReadDone = newFuture[void]()
 
@@ -129,25 +130,25 @@ template streamTransportTest*(
         # step 5: server waits for client to close and attempts to write
         await clientHandlerDone
 
-        # For TCP/Tor: after client.stop(), the OS sends FIN but the server
-        # socket enters CLOSE_WAIT. In this state, the OS still accepts writes
-        # to the send buffer and returns success until it receives a RST back.
-        # The mplex handle loop detects the TCP EOF asynchronously (when
-        # readMsg() fails) and calls m.close() -> channel.reset(), raising
-        # LPStreamClosedError on subsequent writes.
-        #
-        # We write in a loop so each `await` yields to the event loop, giving
-        # the mplex handle loop a chance to detect the EOF. This preserves the
-        # test intent (server writes not knowing the connection is closed) while
-        # being deterministic, replacing the original sleepAsync approach.
-        let expiration = Moment.now() + 10.seconds
-        var gotEOF = false
-        while not gotEOF and Moment.now() < expiration:
-          try:
+        if isTcpTransport(listenAddrs) or isTorTransport(listenAddrs):
+          # For TCP/Tor: after client.stop(), the OS sends FIN but the server
+          # socket enters CLOSE_WAIT. In this state, the OS still accepts writes
+          # to the send buffer and returns success until it receives a RST back.
+          # The mplex handle loop detects the TCP EOF asynchronously (when
+          # readMsg() fails) and calls m.close() -> channel.reset(), raising
+          # LPStreamClosedError on subsequent writes.
+          let expiration = Moment.now() + 10.seconds
+          var gotEOF = false
+          while not gotEOF and Moment.now() < expiration:
+            try:
+              await stream.write(clientMessage)
+            except LPStreamEOFError:
+              gotEOF = true
+          check gotEOF
+        else:
+          # For other transports check is trivial.
+          expect LPStreamEOFError:
             await stream.write(clientMessage)
-          except LPStreamEOFError:
-            gotEOF = true
-        check gotEOF
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
@@ -172,7 +173,7 @@ template streamTransportTest*(
       clientHandlerDone.complete()
 
     let server = transportProvider()
-    await server.start(@[addressIP4])
+    await server.start(@[listenAddrs])
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
