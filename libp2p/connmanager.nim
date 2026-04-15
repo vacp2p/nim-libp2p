@@ -12,7 +12,9 @@ logScope:
 
 declareGauge(libp2p_peers, "total connected peers")
 declareCounter(libp2p_connmgr_trim_total, "total connection manager trim cycles")
-declareCounter(libp2p_connmgr_pruned_peers_total, "total peers pruned by connection manager")
+declareCounter(
+  libp2p_connmgr_pruned_peers_total, "total peers pruned by connection manager"
+)
 
 const
   MaxConnections* = 50
@@ -23,9 +25,9 @@ type
     ## Configuration for hi/lo watermark connection management.
     ## When peer count exceeds `highWater`, a trim cycle runs until
     ## peer count drops to `lowWater`.
-    lowWater*:     int       ## target peer count after trimming
-    highWater*:    int       ## peer count that triggers a trim cycle
-    gracePeriod*:  Duration  ## newly connected peers are exempt from trimming
+    lowWater*: int ## target peer count after trimming
+    highWater*: int ## peer count that triggers a trim cycle
+    gracePeriod*: Duration ## newly connected peers are exempt from trimming
     silencePeriod*: Duration ## minimum interval between trim cycles
 
   TooManyConnectionsError* = object of LPError
@@ -458,12 +460,12 @@ func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
 
 proc availableSlots*(c: ConnManager, dir: Direction): int =
   if c.watermark.isSome:
-    return -1  # unlimited slots in watermark mode
+    return -1 # unlimited slots in watermark mode
   return semaphore(c, dir).availableSlots
 
 proc release*(cs: ConnectionSlot) =
   if cs.connManager.watermark.isSome:
-    return  # no semaphore in watermark mode
+    return # no semaphore in watermark mode
   try:
     semaphore(cs.connManager, cs.direction).release()
   except AsyncSemaphoreError:
@@ -558,8 +560,9 @@ proc trimConnections(c: ConnManager) {.async: (raises: []).} =
       continue
     candidates.add((connTime, peerId))
 
-  candidates.sort(proc(a, b: (Moment, PeerId)): int =
-    a[0].cmp(b[0])
+  candidates.sort(
+    proc(a, b: (Moment, PeerId)): int =
+      a[0].cmp(b[0])
   )
 
   for (_, peerId) in candidates:
@@ -578,7 +581,7 @@ proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
   if not c.trimFut.isNil and not c.trimFut.finished:
     # trim is ongoing
     return
-  
+
   c.watermark.withValue(wm):
     if Moment.now() - c.lastTrim < wm.silencePeriod:
       return
