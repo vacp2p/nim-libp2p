@@ -437,6 +437,8 @@ proc spawnMixMessage(
 ) =
   ## Spawns a handleMixMessages task, tracks its future in `ongoingMixMessages`,
   ## and removes it from the list when it finishes.
+  if not mixProto.started:
+    return
   let fut = runMixMessage(mixProto, fromPeerId, receivedBytes, metadataBytes)
   mixProto.ongoingMixMessages.add(fut)
   fut.addCallback(
@@ -449,9 +451,6 @@ proc handleMixNodeConnection(
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
   defer:
     await conn.close()
-
-  if not mixProto.started:
-    return
 
   while not conn.atEof:
     var metadataBytes = newSeqUninit[byte](0)
