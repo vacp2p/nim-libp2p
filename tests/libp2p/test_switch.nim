@@ -1191,7 +1191,32 @@ suite "Switch":
     await testProto.start()
     dst.mount(testProto)
 
-    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    let conn =
+      # On Windows, there is a brief gap between switch.start() returning and the
+      # TCP transport being ready to accept connections, causing sporadic
+      # DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
+      when defined(windows):
+        var dialConn: Connection
+        var lastDialError: ref DialFailedError
+        var connected = false
+        for _ in 0 ..< 10:
+          try:
+            dialConn =
+              await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+            connected = true
+            break
+          except DialFailedError as e:
+            lastDialError = e
+            # Bounded retry for the documented Windows listener readiness gap.
+            await sleepAsync(200.milliseconds)
+        if not connected:
+          if not isNil(lastDialError):
+            raise lastDialError
+          raiseAssert "dial retry loop exited without establishing a connection"
+        dialConn
+      else:
+        await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
     await conn.close()
