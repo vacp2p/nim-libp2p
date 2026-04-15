@@ -114,9 +114,8 @@ proc waitingTime*(
   let ipSim = registrar.ipTree.adScore(ad)
 
   var w: float64 =
-    discoConfig.advertExpiry * occupancy * (
-      serviceSim + ipSim + discoConfig.safetyParam
-    )
+    discoConfig.advertExpiry.seconds.float64 * occupancy *
+    (serviceSim + ipSim + discoConfig.safetyParam)
 
   if serviceId in registrar.timestampService:
     let elapsedService = now - registrar.timestampService.getOrDefault(serviceId, 0)
@@ -236,9 +235,7 @@ proc findAdIdx*(ads: seq[Advertisement], peerId: PeerId): int =
       return i
   -1
 
-proc evictOldestAd*(
-    disco: ServiceDiscovery, serviceId: ServiceId, ads: var seq[Advertisement]
-) =
+proc findOldestKey(disco: ServiceDiscovery): AdvertisementKey =
   var oldestKey: AdvertisementKey
   var oldestTime = high(uint64)
 
@@ -246,6 +243,13 @@ proc evictOldestAd*(
     if t < oldestTime:
       oldestTime = t
       oldestKey = k
+
+  return oldestKey
+
+proc evictOldestAd*(
+    disco: ServiceDiscovery, serviceId: ServiceId, ads: var seq[Advertisement]
+) =
+  let oldestKey = disco.findOldestKey()
 
   for sid, sads in disco.registrar.cache.mpairs:
     for i in 0 ..< sads.len:

@@ -52,7 +52,6 @@ type
     timestampService*: Table[ServiceId, uint64]
     boundIp*: Table[string, float64]
     timestampIp*: Table[string, uint64]
-    lock*: AsyncLock
 
   AdvertiseTask* = ref object
     fut*: Future[void]
@@ -66,7 +65,7 @@ type
     kLookup*: int
     fLookup*: int
     fReturn*: int
-    advertExpiry*: float64
+    advertExpiry*: chronos.Duration
     advertCacheCap*: float64
     occupancyExp*: float64
     safetyParam*: float64
@@ -88,7 +87,7 @@ proc new*(
     kLookup = Default_K_lookup,
     fLookup = Default_F_lookup,
     fReturn = Default_F_return,
-    advertExpiry = Default_E,
+    advertExpiry: chronos.Duration = chronos.seconds(int(Default_E)),
     advertCacheCap = Default_C,
     occupancyExp = Default_P_occ,
     safetyParam = Default_G,
@@ -133,7 +132,6 @@ proc new*(T: typedesc[Registrar]): T =
     timestampService: initTable[ServiceId, uint64](),
     boundIp: initTable[string, float64](),
     timestampIp: initTable[string, uint64](),
-    lock: newAsyncLock(),
   )
 
 proc new*(T: typedesc[Advertiser]): T =
