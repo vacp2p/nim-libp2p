@@ -6,7 +6,8 @@ import ../../varint
 import ../../utility
 import results
 import ../../multiaddress
-import stew/objects
+import stew/[endians2, objects]
+import ../../crypto/crypto
 
 type
   Record* {.public.} = object
@@ -49,8 +50,6 @@ type
     tMod*: uint64 # field 3 - Last modification timestamp (Unix time in seconds)
     tWaitFor*: uint32 # field 4 - Remaining wait time in seconds
     signature*: seq[byte] # field 5 - Ed25519 signature
-    nonce*: seq[byte] # field 6 - Random bytes for replay prevention
-    expiresAt*: uint64 # field 7 - Absolute expiry timestamp (Unix time in seconds)
 
   # Register message for Service Discovery
   # Field 21 in the main Message
@@ -102,10 +101,6 @@ proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
   pb.write(4, ticket.tWaitFor)
   if ticket.signature.len > 0:
     pb.write(5, ticket.signature)
-  if ticket.nonce.len > 0:
-    pb.write(6, ticket.nonce)
-  if ticket.expiresAt > 0:
-    pb.write(7, ticket.expiresAt)
   pb.finish()
   return pb
 
@@ -196,23 +191,14 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
   return ok(p)
 
 proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
-  var ticket = Ticket(
-    advertisement: @[],
-    tInit: 0,
-    tMod: 0,
-    tWaitFor: 0,
-    signature: @[],
-    nonce: @[],
-    expiresAt: 0,
-  )
+  var ticket =
+    Ticket(advertisement: @[], tInit: 0, tMod: 0, tWaitFor: 0, signature: @[])
 
   discard ?pb.getField(1, ticket.advertisement)
   discard ?pb.getField(2, ticket.tInit)
   discard ?pb.getField(3, ticket.tMod)
   discard ?pb.getField(4, ticket.tWaitFor)
   discard ?pb.getField(5, ticket.signature)
-  discard ?pb.getField(6, ticket.nonce)
-  discard ?pb.getField(7, ticket.expiresAt)
 
   return ok(ticket)
 
@@ -284,3 +270,28 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
 proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
   var pb = initProtoBuffer(buf)
   return Message.decode(pb)
+
+proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
+  ## Returns the canonical byte representation of a Ticket used for signing.
+  ## Covers: advertisement || tInit || tMod || tWaitFor
+  var buf = newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4)
+  buf.add(ticket.advertisement)
+  buf.add(@(toBytesBE(ticket.tInit)))
+  buf.add(@(toBytesBE(ticket.tMod)))
+  buf.add(@(toBytesBE(ticket.tWaitFor)))
+  buf
+
+proc sign*(
+    ticket: var Ticket, privateKey: PrivateKey
+): Result[void, CryptoError] {.raises: [], gcsafe.} =
+  ## Sign the ticket with the given private key.
+  let sig = ?privateKey.sign(ticket.toBytes())
+  ticket.signature = sig.getBytes()
+  ok()
+
+proc verify*(ticket: Ticket, publicKey: PublicKey): bool {.raises: [], gcsafe.} =
+  ## Verify the ticket signature against the given public key.
+  var sig: Signature
+  if not sig.init(ticket.signature):
+    return false
+  sig.verify(ticket.toBytes(), publicKey)
