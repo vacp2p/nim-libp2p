@@ -19,16 +19,10 @@ trace "chronicles has to be imported to fix Error: undeclared identifier: 'activ
 proc makePeerId*(): PeerId =
   PeerId.init(PrivateKey.random(rng[]).get()).get()
 
-proc makeServiceId*(): ServiceId =
-  @[1'u8, 2, 3, 4]
-
-proc makeServiceId*(id: byte): ServiceId =
+proc makeServiceId*(id: byte = 1'u8): ServiceId =
   @[id, 2'u8, 3, 4]
 
-proc makeServiceInfo*(): ServiceInfo =
-  ServiceInfo(id: "blabla", data: @[1, 2, 3, 4])
-
-proc makeServiceInfo*(id: string): ServiceInfo =
+proc makeServiceInfo*(id: string = "blabla"): ServiceInfo =
   ServiceInfo(id: id, data: @[1, 2, 3, 4])
 
 proc makeTicket*(): Ticket =
@@ -46,10 +40,10 @@ proc signedTicket*(privateKey: PrivateKey): Ticket =
   doAssert res.isOk(), "sign failed in test helper"
   t
 
-proc createTestMultiAddress*(ip: string): MultiAddress =
+proc makeMultiAddress*(ip: string): MultiAddress =
   MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
 
-proc createTestAdvertisement*(
+proc makeAdvertisement*(
     serviceId: ServiceId = makeServiceId(), addrs: seq[MultiAddress] = @[]
 ): Advertisement =
   let privateKey = PrivateKey.random(rng[]).get()
@@ -62,7 +56,7 @@ proc createTestAdvertisement*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-proc createTestAdvertisementWithSeqNo*(
+proc makeAdvertisementWithSeqNo*(
     privateKey: PrivateKey, seqNo: uint64, addrs: seq[MultiAddress] = @[]
 ): Advertisement =
   let peerId = PeerId.init(privateKey).get()
@@ -74,12 +68,9 @@ proc createTestAdvertisementWithSeqNo*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-proc createTestRegistrar*(): Registrar =
-  Registrar.new()
-
 proc fillCache*(registrar: Registrar, n: int, now: uint64) =
   for i in 0 ..< n:
-    let ad = createTestAdvertisement(serviceId = makeServiceId(i.byte))
+    let ad = makeAdvertisement(serviceId = makeServiceId(i.byte))
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
 
 proc createSwitch*(): Switch =
@@ -92,7 +83,7 @@ proc createSwitch*(): Switch =
   .withNoise()
   .build()
 
-proc createMockDiscovery*(
+proc makeMockDiscovery*(
     discoConfig: ServiceDiscoveryConfig =
       ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
 ): ServiceDiscovery =
@@ -111,16 +102,16 @@ proc createMockDiscovery*(
     ),
   )
 
-proc createTestDisco*(
+proc makeDisco*(
     fReturn: int = 3, advertExpiry: float64 = -1, safetyParam: float64 = -1
 ): ServiceDiscovery =
   var config = ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
   config.fReturn = fReturn
   if advertExpiry >= 0:
-    config.advertExpiry = advertExpiry
+    config.advertExpiry = chronos.seconds(int(advertExpiry))
   if safetyParam >= 0:
     config.safetyParam = safetyParam
-  createMockDiscovery(config)
+  makeMockDiscovery(config)
 
 # --- Legacy helpers for existing tests ---
 
