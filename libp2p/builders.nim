@@ -396,7 +396,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   var connManager: ConnManager
   if b.maxIn > 0 or b.maxOut > 0:
-    connManager = ConnManager.newMaxInOut(b.maxIn, b.maxOut, b.maxConnsPerPeer)
+    if b.maxIn > 0 and b.maxOut > 0:
+      connManager = ConnManager.newMaxInOut(b.maxIn, b.maxOut, b.maxConnsPerPeer)
+    else:
+      raiseAssert "withMaxIn() should be paired with withMaxOut()"
   elif b.maxConnections > 0:
     connManager = ConnManager.newMaxTotal(b.maxConnections, b.maxConnsPerPeer)
   else:
