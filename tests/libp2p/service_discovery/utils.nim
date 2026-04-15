@@ -3,9 +3,12 @@
 {.used.}
 
 import chronicles, chronos, results
-import ../../../libp2p/[switch, builders]
+import ../../../libp2p/[switch, builders, crypto/crypto]
 import ../../../libp2p/protocols/[service_discovery, kademlia]
+import ../../../libp2p/protocols/kademlia/protobuf
 import ../../tools/[crypto]
+
+export protobuf
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
