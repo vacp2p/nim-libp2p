@@ -14,6 +14,7 @@ import
   switch,
   peerid,
   peerinfo,
+  peeraddrpolicy,
   stream/connection,
   multiaddress,
   crypto/crypto,
@@ -42,8 +43,8 @@ import
 import services/wildcardresolverservice
 
 export
-  switch, peerid, peerinfo, connection, multiaddress, crypto, errors, TLSPrivateKey,
-  TLSCertificate, TLSFlags, ServerFlags
+  switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
+  TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -96,6 +97,7 @@ type
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
+    addressPolicy: PeerAddressPolicy
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -369,6 +371,22 @@ proc withObservedAddrManager*(
   b.observedAddrManager = observedAddrManager
   b
 
+proc withAddressPolicy*(
+    b: SwitchBuilder, addressPolicy: PeerAddressPolicy
+): SwitchBuilder {.public.} =
+  ## Applies a single address visibility policy across local address
+  ## announcements and all discovery/storage paths configured by the builder.
+  b.addressPolicy = addressPolicy
+  b
+
+proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  ## Filter private (RFC1918/link-local) addresses from all peer address
+  ## announcements and incoming peer address records. When enabled:
+  ## - Our node will not announce private addresses to the network
+  ## - Private addresses received from other peers are discarded
+  ## Circuit relay and DNS addresses are never filtered.
+  b.withAddressPolicy(publicRoutableAddressPolicy())
+
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
@@ -385,7 +403,11 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     secureManagerInstances.add(Noise.new(b.rng, seckey).Secure)
 
   let peerInfo = PeerInfo.new(
-    seckey, b.addresses, protoVersion = b.protoVersion, agentVersion = b.agentVersion
+    seckey,
+    b.addresses,
+    protoVersion = b.protoVersion,
+    agentVersion = b.agentVersion,
+    addressPolicy = b.addressPolicy,
   )
 
   let identify =
@@ -442,6 +464,8 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   b.hpService.withValue(hpservice):
     b.services.add(hpservice)
 
+  peerStore.addressPolicy = b.addressPolicy
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -477,6 +501,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     switch.mount(rdvService)
 
   b.kad.withValue(kadInfo):
+    kadInfo.config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
       switch, bootstrapNodes = kadInfo.bootstrapNodes, config = kadInfo.config
     )
@@ -594,4 +619,4 @@ proc newStandardSwitch*(
     sendSignedPeerRecord = sendSignedPeerRecord,
     peerStoreCapacity = peerStoreCapacity,
   )
-  .build()
+    .build()

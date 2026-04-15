@@ -18,13 +18,14 @@ runnableExamples:
 {.push raises: [].}
 
 import
-  std/[tables, sets, macros],
+  std/[tables, sets, macros, sequtils],
   chronos,
   ./crypto/crypto,
   ./crypto/curve25519,
   ./protocols/identify,
   ./protocols/protocol,
   ./peerid,
+  ./peeraddrpolicy,
   ./peerinfo,
   ./routing_record,
   ./multiaddress,
@@ -74,6 +75,9 @@ type
     identify: Identify
     capacity*: int
     toClean*: seq[PeerId]
+    addressPolicy*: PeerAddressPolicy
+      ## When set, inbound peer addresses are filtered through the shared
+      ## policy before they are stored or redistributed.
 
 proc new*(
     T: type PeerStore, identify: Identify, capacity = 1000
@@ -152,7 +156,11 @@ proc updatePeerInfo*(
     direction: Opt[Direction] = Opt.none(Direction),
 ) =
   if len(info.addrs) > 0:
-    peerStore[AddressBook][info.peerId] = info.addrs
+    let addrs = peerStore.addressPolicy.filterAddrs(info.addrs)
+    if addrs.len > 0:
+      peerStore[AddressBook][info.peerId] = addrs
+    else:
+      discard peerStore[AddressBook].del(info.peerId)
 
   peerStore[LastSeenBook][info.peerId] = observedAddr
 

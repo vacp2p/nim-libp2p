@@ -3,7 +3,7 @@
 
 import std/[tables, sequtils, sets, algorithm]
 import chronos, chronicles, results
-import ../../[peerid, peerinfo, switch, multihash]
+import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
 import ./[routing_table, protobuf, types, kademlia_metrics]
 
@@ -158,14 +158,20 @@ proc dispatchFindNode*(
   return Opt.some(reply)
 
 proc updatePeers*(
-    switch: Switch, rtable: RoutingTable, peerInfos: seq[PeerInfo]
+    switch: Switch,
+    addressPolicy: PeerAddressPolicy,
+    rtable: RoutingTable,
+    peerInfos: seq[PeerInfo],
 ) {.raises: [].} =
   for p in peerInfos:
-    if rtable.insert(p.peerId):
+    let addrs = addressPolicy.filterAddrs(p.addrs)
+    if addrs.len == 0:
+      continue
+    if rtable.insert(p.peerId) and addrs.len > 0:
       switch.peerStore[AddressBook].extend(p.peerId, p.addrs)
 
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
-  updatePeers(kad.switch, kad.rtable, peerInfos)
+  updatePeers(kad.switch, kad.config.addressPolicy, kad.rtable, peerInfos)
 
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
@@ -215,7 +221,7 @@ proc iterativeLookup*(
     for (peerId, msg) in completedRPCBatch:
       msg.withValue(reply):
         let newPeerInfos = state.updateShortlist(reply)
-        kad.switch.updatePeers(rtable, newPeerInfos)
+        kad.switch.updatePeers(kad.config.addressPolicy, rtable, newPeerInfos)
       await onReply(peerId, msg, state)
 
   return state

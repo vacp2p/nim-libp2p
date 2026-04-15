@@ -4,7 +4,7 @@
 import std/[tables, sequtils, sets, heapqueue]
 from times import now
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
-import ../../[peerid, switch, multihash, cid, multicodec]
+import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
 import ../protocol
 import ./protobuf
 
@@ -296,6 +296,7 @@ type KadDHTConfig* = ref object
   republishProvidedKeysInterval*: chronos.Duration
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
+  addressPolicy*: PeerAddressPolicy
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -312,6 +313,7 @@ proc new*(
     republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
+    addressPolicy: PeerAddressPolicy = nil,
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,
@@ -327,6 +329,7 @@ proc new*(
     republishProvidedKeysInterval: republishProvidedKeysInterval,
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
+    addressPolicy: addressPolicy,
   )
 
 type KadDHT* = ref object of LPProtocol
