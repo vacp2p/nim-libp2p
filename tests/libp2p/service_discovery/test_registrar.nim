@@ -359,7 +359,7 @@ suite "Service Discovery Registrar - Cache Pruning":
 
     pruneExpiredAds(registrar, 900)
 
-    check ad notin registrar.cache[serviceId]
+    check ad notin registrar.cache.getOrDefault(serviceId)
     check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
   test "pruneExpiredAds removes ad from IP tree":
@@ -427,7 +427,7 @@ suite "Service Discovery Registrar - Cache Pruning":
 
     pruneExpiredAds(registrar, 900)
 
-    check ad notin registrar.cache[serviceId]
+    check ad notin registrar.cache.getOrDefault(serviceId)
 
 suite "Service Discovery Registrar - State Management":
   test "cache can store multiple ads for same service ID":
@@ -568,7 +568,7 @@ suite "Service Discovery Registrar - Edge Cases":
 
     pruneExpiredAds(registrar, 1)
 
-    check ad notin registrar.cache[serviceId]
+    check ad notin registrar.cache.getOrDefault(serviceId)
     check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
 suite "Service Discovery Registrar - Configuration Variations":
@@ -598,10 +598,10 @@ suite "Service Discovery Registrar - Configuration Variations":
       let testAd = makeAdvertisement(serviceId = makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
-    let discoConfig1 = ServiceDiscoveryConfig.new(occupancyExp = 1.0)
+    let discoConfig1 = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(1))
     let w1 = registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
 
-    let discoConfig2 = ServiceDiscoveryConfig.new(occupancyExp = 20.0)
+    let discoConfig2 = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(20))
     let w2 = registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
 
     check w2 >= w1
@@ -644,7 +644,7 @@ suite "Service Discovery Registrar - Configuration Variations":
       let testAd = makeAdvertisement(serviceId = makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
-    let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = 0.0)
+    let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(0))
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # pow(x, 0) = 1.0 regardless of x, so occupancy = 1.0 / 1.0 = 1.0
@@ -660,7 +660,7 @@ suite "Service Discovery Registrar - Configuration Variations":
       let testAd = makeAdvertisement(serviceId = makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
-    let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = 1.0)
+    let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(1))
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # occupancyExp=1: occupancy = 1/(1-0.5) = 2.0
@@ -1162,7 +1162,7 @@ suite "Service Discovery Registrar - insertNewAd":
     # Use a small cap so i.byte never overflows (byte wraps at 256)
     let cap = 5
     let config = ServiceDiscoveryConfig.new(
-      kRegister = 3, bucketsCount = 16, advertCacheCap = cap.float64
+      kRegister = 3, bucketsCount = 16, advertCacheCap = cap.uint64
     )
     let disco = makeMockDiscovery(config)
     let serviceId = makeServiceId()

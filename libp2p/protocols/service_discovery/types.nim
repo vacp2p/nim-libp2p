@@ -22,8 +22,8 @@ const
   Default_F_lookup* = 30
   Default_F_return* = 10
   Default_E* = 900.0
-  Default_C* = 1_000.0
-  Default_P_occ* = 10.0
+  Default_C*: uint64 = 1_000
+  Default_P_occ* = chronos.seconds(10)
   Default_G* = 1e-7
   Default_Delta* = chronos.seconds(1)
   Default_M_buckets* = 16
@@ -66,8 +66,8 @@ type
     fLookup*: int
     fReturn*: int
     advertExpiry*: chronos.Duration
-    advertCacheCap*: float64
-    occupancyExp*: float64
+    advertCacheCap*: uint64
+    occupancyExp*: chronos.Duration
     safetyParam*: float64
     registrationWindow*: chronos.Duration
     bucketsCount*: int
@@ -94,6 +94,7 @@ proc new*(
     registrationWindow = Default_Delta,
     bucketsCount = Default_M_buckets,
 ): T {.raises: [].} =
+  doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
   ServiceDiscoveryConfig(
     kRegister: kRegister,
     kLookup: kLookup,
