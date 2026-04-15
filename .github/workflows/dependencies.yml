@@ -4,11 +4,17 @@ on:
   push:
     branches:
       - master
+  # All PR event types are listed so GitHub delivers the event payload (which includes label info).
+  # The job-level `if` then gates execution on the `run-bump-ci` label — GitHub's `on:` syntax
+  # has no native label filter, so this two-part pattern is the standard workaround.
+  pull_request:
+    types: [labeled, synchronize, opened, reopened]
   workflow_dispatch:
 
 jobs:
   bumper:
     # Pushes new refs to interested external repositories, so they can do early testing against libp2p's newer versions
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-bump-ci')
     runs-on: ubuntu-latest
     name: Bump libp2p's version for ${{ matrix.target.repository }}:${{ matrix.target.ref }}
     strategy:
@@ -18,9 +24,10 @@ jobs:
           - repository: status-im/nimbus-eth2
             ref: unstable
             secret: ACTIONS_GITHUB_TOKEN_NIMBUS_ETH2
-          - repository: waku-org/nwaku
+          - repository: logos-messaging/logos-delivery
             ref: master
             secret: ACTIONS_GITHUB_TOKEN_NWAKU
+            nimble: true
           - repository: codex-storage/nim-codex
             ref: master
             secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
@@ -34,18 +41,43 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets[matrix.target.secret] }}
 
+      - name: Setup Nim (only for nimble targets)
+        if: matrix.target.nimble == true
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: '2.2.4' # should be the same as the one in logos-delivery/nimbus/codex
+
       - name: Checkout this ref in target repository
         run: |
           cd nbc
-          git submodule update --init vendor/nim-libp2p
-          cd vendor/nim-libp2p
-          git checkout $GITHUB_SHA
+          GITHUB_SHA=${{ github.event.pull_request.head.sha || github.sha }}
+          if [ "${{ matrix.target.nimble }}" = "true" ]; then
+            # Update waku.nimble: replace commit after 'nim-libp2p.git#' with current commit
+            sed -i -E "s|(https://github.com/vacp2p/nim-libp2p\.git#)[a-f0-9]+|\1$GITHUB_SHA|" waku.nimble
+
+            # Clean previous state
+            rm -rf nimble.lock nimbledeps nimble.paths
+
+            # Ensure nimble is up-to-date
+            nimble install nimble -y
+
+            # Regenerate lock file
+            nimble setup --localdeps -y
+
+          else
+
+            git submodule update --init vendor/nim-libp2p
+            cd vendor/nim-libp2p
+            git fetch https://github.com/vacp2p/nim-libp2p.git $GITHUB_SHA
+            git checkout $GITHUB_SHA
+
+          fi
 
       - name: Push this ref to target repository
         run: |
           cd nbc
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-          git config --global user.name = "${{ github.actor }}"
+          git config --global user.name "${{ github.actor }}"
           git commit --allow-empty -a -m "auto-bump nim-libp2p"
           git branch -D nim-libp2p-auto-bump-${{ matrix.target.ref }} || true
           git switch -c nim-libp2p-auto-bump-${{ matrix.target.ref }}

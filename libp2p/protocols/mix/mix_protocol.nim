@@ -834,7 +834,7 @@ proc reply(
     error "could not send reply", peerId, multiAddr, err = sendRes.error
 
 method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: []).} =
-  ## Stop the MixProtocol background tasks and ancels all in-flight handleMixMessages futures.
+  ## Stop the MixProtocol background tasks and cancels all in-flight handleMixMessages futures.
   ## 
 
   mixProto.started = false
