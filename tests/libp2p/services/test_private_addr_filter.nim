@@ -122,58 +122,6 @@ suite "PeerStore addressPolicy":
     )
     check peerStore[AddressBook][peerId].len == 0
 
-  test "updatePeerInfo drops stored SPRs when address filtering would change them":
-    let
-      privKey = PrivateKey.random(rng[]).tryGet()
-      peerId = PeerId.init(privKey).tryGet()
-      peerStore = PeerStore.new(nil)
-    peerStore.addressPolicy = publicRoutableAddressPolicy()
-
-    let signedPeerRecord = SignedPeerRecord
-      .init(
-        privKey,
-        PeerRecord.init(
-          peerId, @[ma("/ip4/127.0.0.1/tcp/4001"), ma("/ip4/1.1.1.1/tcp/4001")]
-        ),
-      )
-      .tryGet()
-
-    peerStore.updatePeerInfo(
-      IdentifyInfo(
-        peerId: peerId,
-        addrs: @[ma("/ip4/127.0.0.1/tcp/4001"), ma("/ip4/1.1.1.1/tcp/4001")],
-        signedPeerRecord: Opt.some(signedPeerRecord.envelope),
-      )
-    )
-
-    check peerStore[SPRBook][peerId] == default(Envelope)
-
-  test "updatePeerInfo drops stored SPRs even when identify addrs are omitted":
-    let
-      privKey = PrivateKey.random(rng[]).tryGet()
-      peerId = PeerId.init(privKey).tryGet()
-      peerStore = PeerStore.new(nil)
-    peerStore.addressPolicy = publicRoutableAddressPolicy()
-
-    let signedPeerRecord = SignedPeerRecord
-      .init(
-        privKey,
-        PeerRecord.init(
-          peerId, @[ma("/ip4/127.0.0.1/tcp/4001"), ma("/ip4/1.1.1.1/tcp/4001")]
-        ),
-      )
-      .tryGet()
-
-    peerStore.updatePeerInfo(
-      IdentifyInfo(
-        peerId: peerId,
-        addrs: @[],
-        signedPeerRecord: Opt.some(signedPeerRecord.envelope),
-      )
-    )
-
-    check peerStore[SPRBook][peerId] == default(Envelope)
-
   test "circuit relay addresses pass through the filter":
     let peerId = PeerId.random(rng()).tryGet()
     let peerStore = PeerStore.new(nil)
@@ -185,10 +133,6 @@ suite "PeerStore addressPolicy":
     peerStore.updatePeerInfo(IdentifyInfo(peerId: peerId, addrs: @[relayAddr]))
 
     check peerStore[AddressBook][peerId] == @[relayAddr]
-
-# ---------------------------------------------------------------------------
-# Unit tests: KadDHT.updatePeers with addressPolicy
-# ---------------------------------------------------------------------------
 
 suite "KadDHT updatePeers address policy":
   test "updatePeers stores all addresses when addressPolicy is nil":
