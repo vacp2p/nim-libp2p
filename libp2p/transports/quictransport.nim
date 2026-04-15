@@ -120,12 +120,12 @@ method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
 method closed*(session: QuicSession): bool {.raises: [].} =
   procCall P2PConnection(session).isClosed or session.connection.isClosed
 
-method close*(session: QuicSession) {.async: (raises: []).} =
+method closeImpl*(session: QuicSession) {.async: (raises: []).} =
   let streams = session.streams
   session.streams.clear()
   await noCancel allFutures(streams.mapIt(it.close()))
   session.connection.close()
-  await procCall P2PConnection(session).close()
+  await procCall P2PConnection(session).closeImpl()
 
 proc getStream(
     session: QuicSession, direction = Direction.In
