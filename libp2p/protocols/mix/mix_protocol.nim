@@ -439,8 +439,6 @@ proc spawnMixMessage(
   ## and removes it from the list when it finishes.
   let fut = runMixMessage(mixProto, fromPeerId, receivedBytes, metadataBytes)
   mixProto.ongoingMixMessages.add(fut)
-  # Chronos callbacks run on the single event-loop thread, so no locking is
-  # needed when accessing ongoingMixMessages here.
   fut.addCallback(
     proc(_: pointer) {.gcsafe, raises: [].} =
       mixProto.ongoingMixMessages.keepItIf(not it.finished)
@@ -451,6 +449,9 @@ proc handleMixNodeConnection(
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
   defer:
     await conn.close()
+
+  if not mixProto.started:
+    return
 
   while not conn.atEof:
     var metadataBytes = newSeqUninit[byte](0)
@@ -834,15 +835,14 @@ proc reply(
     error "could not send reply", peerId, multiAddr, err = sendRes.error
 
 method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: []).} =
-  ## Stop the MixProtocol background tasks.
-  ## Cancels all in-flight handleMixMessages futures and waits for them
-  ## to finish before returning.
+  ## Stop the MixProtocol background tasks and ancels all in-flight handleMixMessages futures.
+  ## 
+
   mixProto.started = false
-  mixProto.tagManager.stopSoon()
-  # Snapshot the list and clear it before cancelling. The switch closes all
-  # connections before stopping protocols, so handleMixNodeConnection will have
-  # exited (got EOF) and no new futures will be added to ongoingMixMessages by
-  # the time we reach here.
+
+  await mixProto.tagManager.stop()
+
+  # Snapshot the list and clear it before cancelling.
   let pending = mixProto.ongoingMixMessages
   mixProto.ongoingMixMessages = @[]
   if pending.len > 0:
