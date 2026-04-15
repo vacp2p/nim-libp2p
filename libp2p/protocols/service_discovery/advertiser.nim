@@ -41,7 +41,8 @@ proc sendRegister*(
     await conn.close()
 
   let regMsg = RegisterMessage(
-    advertisement: ad, status: Opt.none(kademlia_protobuf.RegistrationStatus),
+    advertisement: ad,
+    status: Opt.none(kademlia_protobuf.RegistrationStatus),
     ticket: ticket,
   )
   let msg =
