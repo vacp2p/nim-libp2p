@@ -43,45 +43,49 @@ proc addService*(
     bucketsCount: int,
     status: ServiceStatus,
 ): bool =
-  if serviceId in manager.serviceStatus:
-    if status == manager.serviceStatus.getOrDefault(serviceId):
+  # Fast path: service already exists
+  manager.serviceStatus.withValue(serviceId, currentStatus):
+    # No change needed
+    if currentStatus[] == status or currentStatus[] == Both:
       return false
 
+    # Merge states
     manager.serviceStatus[serviceId] = Both
+    manager.updateServiceTablesMetrics()
     return true
 
-  var serviceTable = RoutingTable.new(
+  # Create new routing table
+  var rtable = RoutingTable.new(
     serviceId,
     config =
       RoutingTableConfig.new(replication = replication, maxBuckets = bucketsCount),
   )
 
+  # Seed from main table
   for bucket in mainRoutingTable.buckets:
     for peer in bucket.peers:
-      discard serviceTable.insert(peer.nodeId)
+      discard rtable.insert(peer.nodeId)
 
-  manager.tables[serviceId] = serviceTable
+  manager.tables[serviceId] = rtable
   manager.serviceStatus[serviceId] = status
+
   manager.updateServiceTablesMetrics()
   return true
 
 proc removeService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId, status: ServiceStatus
 ) =
-  if serviceId notin manager.serviceStatus:
-    return
+  manager.serviceStatus.withValue(serviceId, currentStatus):
+    if currentStatus[] == status:
+      manager.tables.del(serviceId)
+      manager.serviceStatus.del(serviceId)
+      manager.updateServiceTablesMetrics()
+      return
 
-  if manager.serviceStatus.getOrDefault(serviceId) == status:
-    manager.tables.del(serviceId)
-    manager.serviceStatus.del(serviceId)
-    manager.updateServiceTablesMetrics()
-    return
-
-  if manager.serviceStatus.getOrDefault(serviceId) == Both:
-    if status == Interest:
-      manager.serviceStatus[serviceId] = Provided
-    elif status == Provided:
-      manager.serviceStatus[serviceId] = Interest
+    if (currentStatus[], status) == (Both, Interest):
+      currentStatus[] = Provided
+    elif (currentStatus[], status) == (Both, Provided):
+      currentStatus[] = Interest
 
 proc getTable*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
@@ -117,8 +121,8 @@ proc refreshAllTables*(
 ) {.async: (raises: [CancelledError]).} =
   let tables = manager.tables.values.toSeq()
 
-  for serviceTable in tables:
-    await kad.refreshTable(serviceTable)
+  for rtable in tables:
+    await kad.refreshTable(rtable)
 
 proc count*(manager: ServiceRoutingTableManager): int {.inline.} =
   return manager.tables.len

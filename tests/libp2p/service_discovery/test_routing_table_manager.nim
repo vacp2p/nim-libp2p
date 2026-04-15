@@ -3,14 +3,14 @@
 
 {.used.}
 
-import chronos, results
+import chronos, results, sets
 import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/routing_table_manager
 import ../../tools/[lifecycle, unittest]
 import ../kademlia/[mock_kademlia, utils]
 
-proc testKey*(x: byte): Key =
+proc makeKey*(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
   return @buf
@@ -30,8 +30,8 @@ suite "ServiceRoutingTableManager":
 
   test "addService returns true and adds table":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let serviceId = makeKey(1)
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check:
       manager.addService(
@@ -42,8 +42,8 @@ suite "ServiceRoutingTableManager":
 
   test "addService with same service and same status returns false":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let serviceId = makeKey(1)
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
@@ -58,8 +58,8 @@ suite "ServiceRoutingTableManager":
 
   test "addService with same service but different status sets Both and returns true":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let serviceId = makeKey(1)
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
@@ -73,32 +73,29 @@ suite "ServiceRoutingTableManager":
       manager.serviceStatus[serviceId] == Both
 
   test "addService pre-populates table from main routing table":
-    let selfId = testKey(0x00)
-    let peer1 = testKey(0x01)
-    let peer2 = testKey(0x02)
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let peer2 = makeKey(2)
     let mainRt = makeMainTable(selfId, @[peer1, peer2])
 
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0xAA)
+    let serviceId = makeKey(0xAA)
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
     let table = manager.getTable(serviceId).get()
 
-    var found: seq[Key]
-    for bucket in table.buckets:
-      for entry in bucket.peers:
-        found.add(entry.nodeId)
+    let peers = table.allKeys()
 
     check:
-      peer1 in found
-      peer2 in found
+      peer1 in peers
+      peer2 in peers
 
   test "removeService removes entry when status matches":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let serviceId = makeKey(1)
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
@@ -111,8 +108,8 @@ suite "ServiceRoutingTableManager":
 
   test "removeService on Both with Interest leaves Provided":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let serviceId = makeKey(1)
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
@@ -130,8 +127,8 @@ suite "ServiceRoutingTableManager":
 
   test "removeService on Both with Provided leaves Interest":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let serviceId = makeKey(1)
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
@@ -149,15 +146,15 @@ suite "ServiceRoutingTableManager":
 
   test "removeService on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x99)
+    let serviceId = makeKey(0x99)
 
     manager.removeService(serviceId, Interest)
     check manager.count() == 0
 
   test "getTable returns Some for existing service":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let serviceId = makeKey(1)
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
@@ -167,93 +164,84 @@ suite "ServiceRoutingTableManager":
 
   test "getTable returns None for non-existing service":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
+    let serviceId = makeKey(1)
 
     check manager.getTable(serviceId).isNone()
 
   test "insertPeer adds peer to the service routing table":
-    let selfId = testKey(0x00)
+    let selfId = makeKey(0)
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x01)
+    let serviceId = makeKey(1)
     let mainRt = RoutingTable.new(selfId)
 
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    let peerKey = testKey(0x42)
+    let peerKey = makeKey(0x42)
     manager.insertPeer(serviceId, peerKey)
 
-    let tableOpt = manager.getTable(serviceId)
-    check tableOpt.isSome()
+    let table = manager.getTable(serviceId).get()
 
-    var found = false
-    for bucket in tableOpt.get().buckets:
-      for entry in bucket.peers:
-        if entry.nodeId == peerKey:
-          found = true
-    check found
+    check peerKey in table.allKeys()
 
   test "insertPeer on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = testKey(0x99)
-    let peerKey = testKey(0x42)
+    let serviceId = makeKey(0x99)
+    let peerKey = makeKey(0x42)
 
     manager.insertPeer(serviceId, peerKey)
     check manager.count() == 0
 
   test "hasService returns false for unknown service":
     let manager = ServiceRoutingTableManager.new()
-    check not manager.hasService(testKey(0x01))
+    check not manager.hasService(makeKey(1))
 
   test "count reflects number of tracked services":
     let manager = ServiceRoutingTableManager.new()
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      testKey(0x01), mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+      makeKey(1), mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     check manager.addService(
-      testKey(0x02), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
+      makeKey(2), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
     check manager.addService(
-      testKey(0x03), mainRt, DefaultReplication, DefaultMaxBuckets, Both
+      makeKey(3), mainRt, DefaultReplication, DefaultMaxBuckets, Both
     )
 
     check manager.count() == 3
 
   test "serviceIds returns all service IDs":
     let manager = ServiceRoutingTableManager.new()
-    let mainRt = RoutingTable.new(testKey(0x00))
-    let ids = @[testKey(0x01), testKey(0x02), testKey(0x03)]
+    let mainRt = RoutingTable.new(makeKey(0))
+    let ids = @[makeKey(1), makeKey(2), makeKey(3)]
 
     for id in ids:
       check manager.addService(
         id, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
       )
 
-    let returned = manager.serviceIds()
-    check returned.len == ids.len
-    for id in ids:
-      check id in returned
+    check manager.serviceIds().toHashSet() == ids.toHashSet()
 
   test "clear removes all service tables":
     let manager = ServiceRoutingTableManager.new()
-    let mainRt = RoutingTable.new(testKey(0x00))
+    let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      testKey(0x01), mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+      makeKey(1), mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     check manager.addService(
-      testKey(0x02), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
+      makeKey(2), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
 
     manager.clear()
 
     check:
       manager.count() == 0
-      not manager.hasService(testKey(0x01))
-      not manager.hasService(testKey(0x02))
+      not manager.hasService(makeKey(1))
+      not manager.hasService(makeKey(2))
 
 suite "ServiceRoutingTableManager - refreshAllTables":
   teardown:
@@ -274,8 +262,8 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
-    let serviceId = testKey(0x01)
-    let mainRt = RoutingTable.new(testKey(0x02))
+    let serviceId = makeKey(1)
+    let mainRt = RoutingTable.new(makeKey(2))
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
@@ -293,8 +281,8 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
-    let mainRt = RoutingTable.new(testKey(0x00))
-    let serviceIds = @[testKey(0x01), testKey(0x02), testKey(0x03)]
+    let mainRt = RoutingTable.new(makeKey(0))
+    let serviceIds = @[makeKey(1), makeKey(2), makeKey(3)]
     for id in serviceIds:
       check manager.addService(
         id, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
@@ -313,9 +301,9 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
-    let mainRt = RoutingTable.new(testKey(0x00))
-    let kept = testKey(0x01)
-    let removed = testKey(0x02)
+    let mainRt = RoutingTable.new(makeKey(0))
+    let kept = makeKey(1)
+    let removed = makeKey(2)
     check manager.addService(
       kept, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
