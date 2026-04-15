@@ -13,8 +13,6 @@ import
     crypto/crypto,
     signed_envelope,
   ]
-import ../../../libp2p/stream/lpstream
-import ../../tools/bufferstream as testbufferstream
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
 import ../../../libp2p/protocols/service_discovery/[types, registrar]
 import ../../../libp2p/utils/iptree
@@ -887,48 +885,32 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     # totalWaitSoFar = 1_150 - 1_000 = 150; tRemaining = 300 - 150 = 150
     check abs(tRemaining - 150.0) < 0.001
 
-proc makeTestConn(): TestBufferStream =
-  TestBufferStream.new(
-    proc(
-        data: seq[byte]
-    ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-      discard
-  )
-
 suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
-  asyncTest "new peer ad is added to cache":
+  test "new peer ad is added to cache":
     let disco = createTestDisco()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
-    let now = makeNow()
-    let conn = makeTestConn()
-    defer:
-      await conn.close()
 
-    await disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
+    disco.acceptAdvertisement(serviceId, ad)
 
     check disco.registrar.cache.getOrDefault(serviceId).len == 1
     check disco.registrar.cache[serviceId][0].data.peerId == ad.data.peerId
 
-  asyncTest "same peer same seqNo is treated as duplicate and not added again":
+  test "same peer same seqNo is treated as duplicate and not added again":
     let disco = createTestDisco()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
-    let now = makeNow()
-    let conn = makeTestConn()
-    defer:
-      await conn.close()
 
-    await disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
-    await disco.acceptAdvertisement(serviceId, ad, now + 1, @[], conn)
+    disco.acceptAdvertisement(serviceId, ad)
+    disco.acceptAdvertisement(serviceId, ad)
 
     check disco.registrar.cache[serviceId].len == 1
 
-  asyncTest "same peer higher seqNo replaces existing ad":
+  test "same peer higher seqNo replaces existing ad":
     let disco = createTestDisco()
     let serviceId = makeServiceId()
-    let peerId = makePeerId()
     let privateKey = PrivateKey.random(rng[]).get()
+    let peerId = PeerId.init(privateKey).get()
 
     let oldAd = SignedExtendedPeerRecord
       .init(
@@ -944,24 +926,19 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    let now = makeNow()
-    let conn = makeTestConn()
-    defer:
-      await conn.close()
-
-    await disco.acceptAdvertisement(serviceId, oldAd, now, @[], conn)
+    disco.acceptAdvertisement(serviceId, oldAd)
     check disco.registrar.cache[serviceId][0].data.seqNo == 1
 
-    await disco.acceptAdvertisement(serviceId, newAd, now + 1, @[], conn)
+    disco.acceptAdvertisement(serviceId, newAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 2
 
-  asyncTest "same peer lower seqNo is silently dropped":
+  test "same peer lower seqNo is silently dropped":
     let disco = createTestDisco()
     let serviceId = makeServiceId()
-    let peerId = makePeerId()
     let privateKey = PrivateKey.random(rng[]).get()
+    let peerId = PeerId.init(privateKey).get()
 
     let newerAd = SignedExtendedPeerRecord
       .init(
@@ -977,37 +954,28 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    let now = makeNow()
-    let conn = makeTestConn()
-    defer:
-      await conn.close()
-
-    await disco.acceptAdvertisement(serviceId, newerAd, now, @[], conn)
-    await disco.acceptAdvertisement(serviceId, olderAd, now + 1, @[], conn)
+    disco.acceptAdvertisement(serviceId, newerAd)
+    disco.acceptAdvertisement(serviceId, olderAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 10
 
-  asyncTest "different peers each store their own ad":
+  test "different peers each store their own ad":
     let disco = createTestDisco()
     let serviceId = makeServiceId()
     let ad1 = createTestAdvertisement(serviceId = serviceId)
     let ad2 = createTestAdvertisement(serviceId = serviceId)
-    let now = makeNow()
-    let conn = makeTestConn()
-    defer:
-      await conn.close()
 
-    await disco.acceptAdvertisement(serviceId, ad1, now, @[], conn)
-    await disco.acceptAdvertisement(serviceId, ad2, now, @[], conn)
+    disco.acceptAdvertisement(serviceId, ad1)
+    disco.acceptAdvertisement(serviceId, ad2)
 
     check disco.registrar.cache[serviceId].len == 2
 
-  asyncTest "seqNo replacement updates IP tree correctly":
+  test "seqNo replacement updates IP tree correctly":
     let disco = createTestDisco()
     let serviceId = makeServiceId()
-    let peerId = makePeerId()
     let privateKey = PrivateKey.random(rng[]).get()
+    let peerId = PeerId.init(privateKey).get()
 
     let oldAd = SignedExtendedPeerRecord
       .init(
@@ -1033,16 +1001,11 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    let now = makeNow()
-    let conn = makeTestConn()
-    defer:
-      await conn.close()
-
-    await disco.acceptAdvertisement(serviceId, oldAd, now, @[], conn)
+    disco.acceptAdvertisement(serviceId, oldAd)
     let counterAfterFirst = disco.registrar.ipTree.root.counter
     check counterAfterFirst > 0
 
-    await disco.acceptAdvertisement(serviceId, newAd, now + 1, @[], conn)
+    disco.acceptAdvertisement(serviceId, newAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 2
@@ -1082,17 +1045,148 @@ suite "Service Discovery Registrar - waitingTime never negative":
     check w >= 0.0
 
 suite "Service Discovery Registrar - concurrent same-peer registration":
-  asyncTest "concurrent acceptAdvertisement calls for same ad are idempotent":
+  test "repeated acceptAdvertisement calls for same ad are idempotent":
     let disco = createTestDisco()
     let serviceId = makeServiceId()
     let ad = createTestAdvertisement(serviceId = serviceId)
-    let now = makeNow()
-    let conn = makeTestConn()
-    defer:
-      await conn.close()
 
-    let f1 = disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
-    let f2 = disco.acceptAdvertisement(serviceId, ad, now, @[], conn)
-    await allFutures(f1, f2)
+    disco.acceptAdvertisement(serviceId, ad)
+    disco.acceptAdvertisement(serviceId, ad)
 
     check disco.registrar.cache[serviceId].len == 1
+
+suite "Service Discovery Registrar - updateExistingAd":
+  test "same seqNo refreshes timestamp and returns false":
+    let registrar = createTestRegistrar()
+    let ad = createTestAdvertisement()
+    var ads = @[ad]
+    let oldTime: uint64 = 1000
+    let newTime: uint64 = 2000
+
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = oldTime
+    registrar.ipTree.insertAd(ad)
+    let counterBefore = registrar.ipTree.root.counter
+
+    let changed = registrar.updateExistingAd(ads, 0, ad, newTime)
+
+    check not changed
+    check registrar.cacheTimestamps[ad.toAdvertisementKey()] == newTime
+    check registrar.ipTree.root.counter == counterBefore
+
+  test "higher seqNo replaces ad, updates timestamps and IP tree, returns true":
+    let registrar = createTestRegistrar()
+    let privateKey = PrivateKey.random(rng[]).get()
+    let oldAd = createTestAdvertisementWithSeqNo(privateKey, seqNo = 1)
+    let newAd = createTestAdvertisementWithSeqNo(privateKey, seqNo = 2)
+    var ads = @[oldAd]
+
+    registrar.cacheTimestamps[oldAd.toAdvertisementKey()] = 1000
+    registrar.ipTree.insertAd(oldAd)
+
+    let changed = registrar.updateExistingAd(ads, 0, newAd, 2000)
+
+    check changed
+    check ads.len == 1
+    check ads[0].data.seqNo == 2
+    check oldAd.toAdvertisementKey() notin registrar.cacheTimestamps
+    check newAd.toAdvertisementKey() in registrar.cacheTimestamps
+    check registrar.cacheTimestamps[newAd.toAdvertisementKey()] == 2000
+
+  test "higher seqNo with address swap removes old IP and inserts new one":
+    let registrar = createTestRegistrar()
+    let privateKey = PrivateKey.random(rng[]).get()
+    let oldAd = createTestAdvertisementWithSeqNo(
+      privateKey, seqNo = 1, addrs = @[createTestMultiAddress("10.0.0.1")]
+    )
+    let newAd = createTestAdvertisementWithSeqNo(
+      privateKey, seqNo = 2, addrs = @[createTestMultiAddress("192.168.1.1")]
+    )
+    var ads = @[oldAd]
+
+    registrar.ipTree.insertAd(oldAd)
+    registrar.cacheTimestamps[oldAd.toAdvertisementKey()] = 1000
+    let counterBefore = registrar.ipTree.root.counter
+
+    discard registrar.updateExistingAd(ads, 0, newAd, 2000)
+
+    # IP tree entry count is unchanged: one removed, one added
+    check registrar.ipTree.root.counter == counterBefore
+
+  test "lower seqNo leaves cache and timestamps unchanged, returns false":
+    let registrar = createTestRegistrar()
+    let privateKey = PrivateKey.random(rng[]).get()
+    let currentAd = createTestAdvertisementWithSeqNo(privateKey, seqNo = 10)
+    let staleAd = createTestAdvertisementWithSeqNo(privateKey, seqNo = 5)
+    var ads = @[currentAd]
+
+    registrar.cacheTimestamps[currentAd.toAdvertisementKey()] = 1000
+
+    let changed = registrar.updateExistingAd(ads, 0, staleAd, 2000)
+
+    check not changed
+    check ads[0].data.seqNo == 10
+    check currentAd.toAdvertisementKey() in registrar.cacheTimestamps
+    check staleAd.toAdvertisementKey() notin registrar.cacheTimestamps
+
+suite "Service Discovery Registrar - insertNewAd":
+  test "inserts ad into cache, IP tree, and timestamps, returns true":
+    let disco = createTestDisco()
+    let serviceId = makeServiceId()
+    let ad = createTestAdvertisement(addrs = @[createTestMultiAddress("10.0.0.1")])
+    var ads: seq[Advertisement] = @[]
+    let now: uint64 = 1000
+
+    let changed = disco.insertNewAd(serviceId, ads, ad, now)
+
+    check changed
+    check ads.len == 1
+    check ads[0].data.peerId == ad.data.peerId
+    check ad.toAdvertisementKey() in disco.registrar.cacheTimestamps
+    check disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] == now
+    check disco.registrar.ipTree.root.counter > 0
+
+  test "inserts ad without eviction when cache is under capacity":
+    let disco = createTestDisco(advertExpiry = 900.0)
+    let serviceId = makeServiceId()
+    let existingAd = createTestAdvertisement(serviceId = makeServiceId(99))
+    disco.registrar.cacheTimestamps[existingAd.toAdvertisementKey()] = 1000
+
+    let newAd = createTestAdvertisement()
+    var ads: seq[Advertisement] = @[]
+
+    discard disco.insertNewAd(serviceId, ads, newAd, 2000)
+
+    # Existing ad must still be present (no eviction)
+    check existingAd.toAdvertisementKey() in disco.registrar.cacheTimestamps
+    check ads.len == 1
+
+  test "evicts oldest entry and inserts new ad when cache is at capacity":
+    # Use a small cap so i.byte never overflows (byte wraps at 256)
+    let cap = 5
+    let config = ServiceDiscoveryConfig.new(
+      kRegister = 3, bucketsCount = 16, advertCacheCap = cap.float64
+    )
+    let disco = createMockDiscovery(config)
+    let serviceId = makeServiceId()
+    let now: uint64 = 5000
+
+    # Fill cache exactly to capacity; the first entry gets the oldest timestamp
+    var oldestAd: Advertisement
+    for i in 0 ..< cap:
+      let sid = makeServiceId(i.byte)
+      let a = createTestAdvertisement(serviceId = sid)
+      let ts = if i == 0: 100'u64 else: now
+      disco.registrar.cacheTimestamps[a.toAdvertisementKey()] = ts
+      disco.registrar.cache[sid] = @[a]
+      if i == 0:
+        oldestAd = a
+
+    let newAd = createTestAdvertisement()
+    var ads: seq[Advertisement] = @[]
+
+    let changed = disco.insertNewAd(serviceId, ads, newAd, now)
+
+    check changed
+    check oldestAd.toAdvertisementKey() notin disco.registrar.cacheTimestamps
+    check newAd.toAdvertisementKey() in disco.registrar.cacheTimestamps
+    check ads.len == 1
