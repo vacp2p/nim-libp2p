@@ -27,9 +27,7 @@ proc sendRegister*(
     ad: seq[byte],
     ticket: Opt[Ticket] = Opt.none(Ticket),
 ): Future[
-    Result[
-      (kademlia_protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string
-    ]
+    Result[(kademlia_protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]
 ] {.async: (raises: [CancelledError]).} =
   let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
