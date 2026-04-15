@@ -24,17 +24,20 @@ proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   cd_registrar_cache_services.set(registrar.cache.len.float64)
   cd_iptree_unique_ips.set(registrar.ipTree.root.counter.float64)
 
+proc filterIPv4(addrsInfos: seq[AddressInfo]): seq[IpAddress] {.raises: [].} =
+  var ips: seq[IpAddress]
+  for addrInfo in addrsInfos:
+    let multiAddr = addrInfo.address
+    multiAddr.getIp().withValue(ip):
+      if ip.family == IpAddressFamily.IPv4:
+        ips.add(ip)
+  return ips
+
 proc adScore*(ipTree: IpTree, ad: Advertisement): float64 {.raises: [].} =
   ## Return the max score for this advertisment
 
   var maxScore = 0.0
-  for addressInfo in ad.data.addresses:
-    let multiAddr = addressInfo.address
-    let ip = multiAddr.getIp().valueOr:
-      continue
-    if ip.family != IpAddressFamily.IPv4:
-      continue
-
+  for ip in ad.data.addresses.filterIPv4():
     let score = ipTree.ipScore(ip)
     if score > maxScore:
       maxScore = score
@@ -42,21 +45,11 @@ proc adScore*(ipTree: IpTree, ad: Advertisement): float64 {.raises: [].} =
   return maxScore
 
 proc insertAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
-  for addressInfo in ad.data.addresses:
-    let multiAddr = addressInfo.address
-    let ip = multiAddr.getIp().valueOr:
-      continue
-    if ip.family != IpAddressFamily.IPv4:
-      continue
+  for ip in ad.data.addresses.filterIPv4():
     ipTree.insertIp(ip)
 
 proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
-  for addressInfo in ad.data.addresses:
-    let multiAddr = addressInfo.address
-    let ip = multiAddr.getIp().valueOr:
-      continue
-    if ip.family != IpAddressFamily.IPv4:
-      continue
+  for ip in ad.data.addresses.filterIPv4():
     ipTree.removeIp(ip)
 
 proc pruneExpiredAds*(registrar: Registrar, advertExpiry: uint64) =
@@ -237,83 +230,100 @@ proc sendRegisterResponse*(
   if writeRes.isErr:
     error "failed to send register response", err = writeRes.error.msg
 
-proc acceptAdvertisement*(
-    disco: ServiceDiscovery,
-    serviceId: ServiceId,
+proc findAdIdx*(ads: seq[Advertisement], peerId: PeerId): int =
+  for i in 0 ..< ads.len:
+    if ads[i].data.peerId == peerId:
+      return i
+  -1
+
+proc evictOldestAd*(
+    disco: ServiceDiscovery, serviceId: ServiceId, ads: var seq[Advertisement]
+) =
+  var oldestKey: AdvertisementKey
+  var oldestTime = high(uint64)
+
+  for k, t in disco.registrar.cacheTimestamps:
+    if t < oldestTime:
+      oldestTime = t
+      oldestKey = k
+
+  for sid, sads in disco.registrar.cache.mpairs:
+    for i in 0 ..< sads.len:
+      if sads[i].toAdvertisementKey() == oldestKey:
+        disco.registrar.ipTree.removeAd(sads[i])
+        disco.registrar.cacheTimestamps.del(oldestKey)
+        sads.delete(i)
+
+        if sid == serviceId:
+          ads = sads
+
+        return
+
+proc updateExistingAd*(
+    registrar: Registrar,
+    ads: var seq[Advertisement],
+    idx: int,
     ad: Advertisement,
     now: uint64,
-    closerPeers: seq[Peer],
-    conn: Connection,
-) {.async: (raises: [CancelledError]).} =
+): bool =
+  ## Update an advertisement that already exists in the cache for this peer.
+  ## - Same seqNo: refreshes the timestamp (no structural change).
+  ## - Higher seqNo: replaces the old entry in the cache and IP tree.
+  ## - Lower seqNo: stale update, ignored.
+  ## Returns true when the cache changed and metrics should be refreshed.
+  let existing = ads[idx]
+  if existing.data.seqNo == ad.data.seqNo:
+    registrar.cacheTimestamps[existing.toAdvertisementKey()] = now
+    return false
+  elif ad.data.seqNo > existing.data.seqNo:
+    registrar.ipTree.removeAd(existing)
+    registrar.cacheTimestamps.del(existing.toAdvertisementKey())
+    ads[idx] = ad
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
+    registrar.ipTree.insertAd(ad)
+    return true
+  else:
+    return false
+
+proc insertNewAd*(
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    ads: var seq[Advertisement],
+    ad: Advertisement,
+    now: uint64,
+): bool =
+  ## Insert a brand-new advertisement into the cache.
+  ## Evicts the globally oldest entry first if the cache is at capacity.
+  ## Returns true (a new insertion always warrants a metrics update).
+  if disco.registrar.cacheTimestamps.len.uint64 >=
+      disco.discoConfig.advertCacheCap.uint64:
+    evictOldestAd(disco, serviceId, ads)
+  ads.add(ad)
+  disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
+  disco.registrar.ipTree.insertAd(ad)
+  return true
+
+proc acceptAdvertisement*(
+    disco: ServiceDiscovery, serviceId: ServiceId, ad: Advertisement
+) =
+  let now = getTime().toUnix().uint64
+
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-
-  let peerKey = ad.data.peerId.toKey()
-  disco.rtManager.insertPeer(serviceId, peerKey)
-
-  var shouldUpdateMetrics = false
+  disco.rtManager.insertPeer(serviceId, ad.data.peerId.toKey())
 
   var ads = disco.registrar.cache.getOrDefault(serviceId)
+  let idx = findAdIdx(ads, ad.data.peerId)
 
-  var replaced = false
-  var isDuplicate = false
-
-  for i in 0 ..< ads.len:
-    if ads[i].data.peerId == ad.data.peerId:
-      if ads[i].data.seqNo == ad.data.seqNo:
-        isDuplicate = true
-        disco.registrar.cacheTimestamps[ads[i].toAdvertisementKey()] = now
-      elif ad.data.seqNo > ads[i].data.seqNo:
-        disco.registrar.ipTree.removeAd(ads[i])
-        disco.registrar.cacheTimestamps.del(ads[i].toAdvertisementKey())
-        ads[i] = ad
-        disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-        disco.registrar.ipTree.insertAd(ad)
-        replaced = true
-        shouldUpdateMetrics = true
-      else:
-        isDuplicate = true
-      break
-
-  if not isDuplicate and not replaced:
-    if disco.registrar.cacheTimestamps.len.uint64 >=
-        disco.discoConfig.advertCacheCap.uint64:
-      var oldestKey: AdvertisementKey
-      var oldestTime = high(uint64)
-      for k, t in disco.registrar.cacheTimestamps:
-        if t < oldestTime:
-          oldestTime = t
-          oldestKey = k
-      var evictSid: ServiceId
-      var evictIdx = -1
-      for sid, sads in disco.registrar.cache:
-        for i in 0 ..< sads.len:
-          if sads[i].toAdvertisementKey() == oldestKey:
-            evictSid = sid
-            evictIdx = i
-            break
-        if evictIdx >= 0:
-          break
-      if evictIdx >= 0:
-        var evictAds = disco.registrar.cache.getOrDefault(evictSid)
-        disco.registrar.ipTree.removeAd(evictAds[evictIdx])
-        disco.registrar.cacheTimestamps.del(oldestKey)
-        evictAds.delete(evictIdx)
-        disco.registrar.cache[evictSid] = evictAds
-        if evictSid == serviceId:
-          ads = evictAds
-      shouldUpdateMetrics = true
-
-    ads.add(ad)
-    disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-    disco.registrar.ipTree.insertAd(ad)
-    shouldUpdateMetrics = true
+  let shouldUpdateMetrics =
+    if idx >= 0:
+      disco.registrar.updateExistingAd(ads, idx, ad, now)
+    else:
+      disco.insertNewAd(serviceId, ads, ad, now)
 
   disco.registrar.cache[serviceId] = ads
 
   if shouldUpdateMetrics:
     disco.registrar.updateRegistrarMetrics()
-
-  await conn.sendRegisterResponse(RegistrationStatus.Confirmed, closerPeers)

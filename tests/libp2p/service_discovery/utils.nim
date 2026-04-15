@@ -16,9 +16,6 @@ export protobuf, types, registrar
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
-proc makeNow*(): uint64 =
-  getTime().toUnix().uint64
-
 proc makePeerId*(): PeerId =
   PeerId.init(PrivateKey.random(rng[]).get()).get()
 
@@ -60,6 +57,18 @@ proc createTestAdvertisement*(
   let extRecord = ExtendedPeerRecord(
     peerId: peerId,
     seqNo: getTime().toUnix().uint64,
+    addresses: addrs.mapIt(AddressInfo(address: it)),
+    services: @[],
+  )
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
+proc createTestAdvertisementWithSeqNo*(
+    privateKey: PrivateKey, seqNo: uint64, addrs: seq[MultiAddress] = @[]
+): Advertisement =
+  let peerId = PeerId.init(privateKey).get()
+  let extRecord = ExtendedPeerRecord(
+    peerId: peerId,
+    seqNo: seqNo,
     addresses: addrs.mapIt(AddressInfo(address: it)),
     services: @[],
   )
