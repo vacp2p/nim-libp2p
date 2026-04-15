@@ -109,7 +109,8 @@ proc new*(
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          debug "Read error when handling kademlia RPC", conn = conn, err = exc.msg
+          debug "Read error when handling service-discovery RPC",
+            conn = conn, err = exc.msg
           return
       let msg = Message.decode(buf).valueOr:
         debug "Failed to decode message", err = error
