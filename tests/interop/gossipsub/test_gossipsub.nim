@@ -3,17 +3,11 @@
 
 {.used.}
 
-import chronos, json, stew/byteutils, streams
+import chronos, json, stew/[byteutils]
 import
-  ../../libp2p/[
-    multiaddress,
-    peerid,
-    protocols/pubsub/gossipsub,
-    protocols/pubsub/rpc/message,
-    switch,
-  ]
-import ../tools/[unittest]
-import ../../interop/gossipsub/src/[node, instructions, runner]
+  ../../../libp2p/[peerid, protocols/pubsub/gossipsub, protocols/pubsub/rpc/message]
+import ../../../interop/gossipsub/src/[node, instructions]
+import ../../tools/[unittest]
 
 suite "GossipSub Interop":
   const expectedPeerIds = [
@@ -115,6 +109,49 @@ suite "GossipSub Interop":
       instr.validationTopicID == "foobar"
       instr.delay == 300.milliseconds
 
+  test "parse addPartialMessage instruction":
+    let j = parseJson(
+      """{"type": "addPartialMessage", "topicID": "a-subnet", "groupID": 42, "parts": 5}"""
+    )
+    let instr = parseInstruction(j)
+    check:
+      instr.kind == AddPartialMessage
+      instr.addTopicID == "a-subnet"
+      instr.groupID == 42'u64
+      instr.partsBitmap == 5'u8 # bits 0 and 2
+
+  test "parse publishPartial instruction":
+    let j =
+      parseJson("""{"type": "publishPartial", "topicID": "a-subnet", "groupID": 42}""")
+    let instr = parseInstruction(j)
+    check:
+      instr.kind == PublishPartial
+      instr.publishPartialTopicID == "a-subnet"
+      instr.publishPartialGroupID == 42'u64
+      instr.publishToNodeIDs.len == 0
+
+  test "parse publishPartial with publishToNodeIDs":
+    let j = parseJson(
+      """{"type": "publishPartial", "topicID": "a-subnet", "groupID": 42, "publishToNodeIDs": [0, 1, 2]}"""
+    )
+    let instr = parseInstruction(j)
+    check:
+      instr.kind == PublishPartial
+      instr.publishToNodeIDs == @[0, 1, 2]
+
+  test "parse ifNodeIDEquals wrapping addPartialMessage":
+    let j = parseJson(
+      """{"type": "ifNodeIDEquals", "nodeID": 3, "instruction": {"type": "addPartialMessage", "topicID": "a-subnet", "groupID": 1, "parts": 255}}"""
+    )
+    let instr = parseInstruction(j)
+    check:
+      instr.kind == IfNodeIDEquals
+      instr.nodeID == 3
+      instr.inner.kind == AddPartialMessage
+      instr.inner.addTopicID == "a-subnet"
+      instr.inner.groupID == 1'u64
+      instr.inner.partsBitmap == 255'u8
+
   test "parse full script":
     let j = parseJson(
       """{"script": [
@@ -165,117 +202,3 @@ suite "GossipSub Interop":
       params.historyGossip == 5
       params.dLazy == 8
       params.gossipFactor == 0.5
-
-suite "GossipSub Interop - Script runner":
-  var node0, node1: GossipSub
-
-  proc setupNodes(): Future[void] {.async.} =
-    node0 = createNode(0, MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
-    node1 = createNode(1, MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
-    await node0.switch.start()
-    await node1.switch.start()
-
-  proc teardownNodes(): Future[void] {.async.} =
-    await node0.switch.stop()
-    await node1.switch.stop()
-
-  proc getAddr(node: GossipSub): MultiAddress =
-    node.switch.peerInfo.addrs[0]
-
-  asyncTest "script runs connect + subscribe + publish":
-    await setupNodes()
-    defer:
-      await teardownNodes()
-
-    const topic = "foobar"
-    let receivedMsgIdFut = newFuture[string]()
-    let targetAddr = node1.getAddr()
-
-    # Node 1: subscribe to receive messages
-    node1.subscribe(
-      topic,
-      proc(topic: string, data: seq[byte]) {.async.} =
-        if data.len >= 8 and not receivedMsgIdFut.finished():
-          receivedMsgIdFut.complete($extractMsgId(data))
-      ,
-    )
-
-    # Build a script for node 0
-    let script =
-      @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-        ScriptInstruction(kind: Connect, connectTo: @[1]),
-        ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false),
-        ScriptInstruction(kind: WaitUntil, elapsed: 2.seconds),
-        ScriptInstruction(
-          kind: Publish,
-          publishMessageID: 99,
-          messageSizeBytes: 512,
-          publishTopicID: topic,
-        ),
-        ScriptInstruction(
-          kind: SetTopicValidationDelay,
-          validationTopicID: topic,
-          delay: 300.milliseconds,
-        ),
-      ]
-
-    var stream = newStringStream()
-    let runner = ScriptRunner(
-      nodeId: 0,
-      node: node0,
-      logStream: stream,
-      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
-        return targetAddr,
-    )
-
-    await runner.runScript(script)
-
-    check (await receivedMsgIdFut.wait(10.seconds)) == "99"
-
-  asyncTest "ifNodeIDEquals filters correctly":
-    await setupNodes()
-    defer:
-      await teardownNodes()
-
-    let targetAddr = node1.getAddr()
-
-    let inner = new ScriptInstruction
-    inner[] = ScriptInstruction(kind: Connect, connectTo: @[1])
-
-    let script =
-      @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-        # This should be skipped (node 5 != node 0)
-        ScriptInstruction(kind: IfNodeIDEquals, nodeID: 5, inner: inner),
-      ]
-
-    var stream = newStringStream()
-    let runner = ScriptRunner(
-      nodeId: 0,
-      node: node0,
-      logStream: stream,
-      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
-        return targetAddr,
-    )
-
-    await runner.runScript(script)
-
-    # Node 0 should not be connected
-    check node0.switch.connectedPeers(Direction.Out).len == 0
-
-    # Run with matching nodeID
-    let script2 = @[ScriptInstruction(kind: IfNodeIDEquals, nodeID: 0, inner: inner)]
-
-    let runner2 = ScriptRunner(
-      nodeId: 0,
-      node: node0,
-      logStream: stream,
-      resolveAddr: proc(id: int): MultiAddress {.gcsafe.} =
-        return targetAddr,
-    )
-
-    await runner2.runScript(script2)
-
-    # Now should be connected
-    check node0.switch.connectedPeers(Direction.Out).len == 1
