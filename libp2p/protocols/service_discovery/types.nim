@@ -16,6 +16,8 @@ const
   ExtendedServiceDiscoveryCodec* = "/logos/service-discovery/1.0.0"
 
 type
+  ServiceId* = Key
+
   ServiceDiscoveryConfig* = object ## placeholder for now
 
   ServiceDiscovery* = ref object of KadDHT

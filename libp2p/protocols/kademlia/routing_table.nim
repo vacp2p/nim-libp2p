@@ -170,7 +170,13 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext)
 
   return raw
 
-proc randomPeer*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
+proc allKeys*(bucket: Bucket): seq[Key] {.inline.} =
+  return bucket.peers.mapIt(it.nodeId)
+
+proc allKeys*(rtable: RoutingTable): seq[Key] {.inline.} =
+  rtable.buckets.mapIt(it.allKeys()).concat()
+
+proc randomKey*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
   rng.pickOne(bucket.peers).map(
     proc(e: NodeEntry): Key =
       e.nodeId
