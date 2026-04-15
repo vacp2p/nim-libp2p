@@ -338,7 +338,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track max outgoing connection limits":
-    let connMngr = ConnManager.newMaxInOut(3, 1)
+    let connMngr = ConnManager.newMaxInOut(1, 3)
 
     for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()

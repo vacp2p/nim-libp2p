@@ -106,6 +106,9 @@ proc newMaxInOut*(
   ## Creates a `ConnManager` where incoming and outgoing connections are limited
   ## independently: at most `maxIn` inbound and `maxOut` outbound connections
   ## may be open concurrently, each tracked by its own semaphore.
+  doAssert maxIn > 0 and maxOut > 0,
+    "ConnManager.newMaxInOut requires maxIn > 0 and maxOut > 0"
+
   C(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer: maxConnsPerPeer,
