@@ -190,7 +190,10 @@ method newStream*(
     raise newException(MuxerError, "error in newStream: " & e.msg, e)
 
 method getStreams*(m: QuicMuxer): seq[connection.Connection] {.gcsafe.} =
-  toSeq(m.session.streams)
+  var streams: seq[connection.Connection]
+  for s in m.session.streams:
+    streams.add(s)
+  return streams
 
 method handle*(m: QuicMuxer): Future[void] {.async: (raises: []).} =
   proc handleStream(stream: QuicStream) {.async: (raises: []).} =
