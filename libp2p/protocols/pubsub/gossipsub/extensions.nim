@@ -137,14 +137,17 @@ proc heartbeat*(state: ExtensionsState) =
 
   state.onHeartbeat()
 
-proc addPeer*(state: ExtensionsState, peerId: PeerId) =
+proc addPeer*(state: ExtensionsState, peerId: PeerId): bool =
   # called after peer has connected to node and extensions control message is sent by gossipsub.
 
+  let firstControlSent = peerId notin state.sentExtensions
   state.sentExtensions.incl(peerId)
 
   # when node has received control extensions from peer then extensions have negotiated
-  if peerId in state.peerExtensions:
+  if firstControlSent and peerId in state.peerExtensions:
     state.onNegotiated(peerId)
+
+  return firstControlSent
 
 proc removePeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has disconnected from node

@@ -51,6 +51,52 @@ suite "GossipSub Component - Extensions":
       check:
         negotiatedPeersSorted == nodesPeerIdSorted
 
+  asyncTest "Extensions control is sent before subscriptions on stream open":
+    const topic = "logos-extensions-ordering"
+
+    proc onNegotiated(_: PeerId) {.gcsafe, raises: [].} =
+      discard
+
+    var firstOutgoing = Opt.none(RPCMsg)
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          testExtensionConfig =
+            Opt.some(TestExtensionConfig(onNegotiated: onNegotiated)),
+        )
+        .toGossipSub()
+
+    let remotePeerId = nodes[0].peerInfo.peerId
+    nodes[1].addObserver(
+      PubSubObserver(
+        onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+          if peer.peerId == remotePeerId and firstOutgoing.isNone:
+            firstOutgoing = Opt.some(msg)
+      )
+    )
+
+    startAndDeferStop(nodes)
+
+    # Regresses the shadow failure where a pre-existing subscription could be
+    # sent before the extensions control message on a newly opened stream.
+    for node in nodes:
+      node.subscribe(topic, voidTopicHandler)
+
+    await connect(nodes[1], nodes[0])
+
+    checkUntilTimeout:
+      firstOutgoing.isSome()
+
+    check:
+      firstOutgoing.get().control.isSome()
+      firstOutgoing.get().control.get().extensions.isSome()
+      firstOutgoing.get().subscriptions.len == 0
+
+    waitSubscribeStar(nodes, topic)
+
   asyncTest "Partial Message Extension":
     const topic = "logos-partial"
     const groupId = "group-id-1".toBytes

@@ -270,8 +270,13 @@ proc usesExtensions(g: GossipSub): bool =
     g.parameters.preambleExtensionConfig.isSome()
 
 proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
-  proc send() =
-    g.extensionsState.addPeer(peer.peerId)
+  proc sendIfSupported() =
+    if not gossipExtensionsSupported(peer.codec):
+      return
+
+    if not g.extensionsState.addPeer(peer.peerId):
+      return
+
     g.send(
       peer,
       RPCMsg.withControl(
@@ -280,18 +285,15 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
       MessagePriority.High, # must be the first message on the stream
     )
 
-  # before extensions control is sent, node needs to known if peer actually supports
-  # version of gossipsub that supports extensions (in general). 
-  # only then node should send extensions control message.
+  # Extensions control may only be sent to peers that negotiated a codec version
+  # with extensions support. If codec negotiation is not finished yet, wait for it.
+  if peer.codec != "":
+    sendIfSupported()
+    return
 
-  # it's very likely that codecs will not be set at this point as connection was 
-  # not established and details of negotiated protocol (codecs) are not known.
-  # in this case node needs to wait for connection to be established or 
-  # more precisely for codecs to be initialized.
   proc sendAfterCodecInitialized(): Future[void] {.async: (raises: [CancelledError]).} =
     await peer.codecInitializedFut
-    if gossipExtensionsSupported(peer.codec):
-      send()
+    sendIfSupported()
 
   asyncSpawn sendAfterCodecInitialized()
 
@@ -308,17 +310,13 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
   peer.iHaveBudget = IHavePeerBudget
 
-  if g.usesExtensions():
-    # if gossipsub uses extensions it must send 
-    # extensions control message as first message on the stream
-    g.sendExtensionsControl(peer)
-
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
 ) {.gcsafe.} =
   case event.kind
   of PubSubPeerEventKind.StreamOpened:
-    discard
+    if p.usesExtensions():
+      p.sendExtensionsControl(peer)
   of PubSubPeerEventKind.StreamClosed:
     # If a send stream is lost, it's better to remove peer from the mesh -
     # if it gets reestablished, the peer will be readded to the mesh, and if it
