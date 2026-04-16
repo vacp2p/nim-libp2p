@@ -78,6 +78,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    clientMode: client,
     registrar: Registrar.new(),
     advertiser: Advertiser.new(),
     serviceRoutingTables: ServiceRoutingTableManager.new(),

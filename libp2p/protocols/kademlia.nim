@@ -30,7 +30,7 @@ proc refreshTable*(
     # skip empty buckets
     if bucket.peers.len == 0:
       continue
-    # skip if refresh conditions not met (forceRefresh OR stale bucket) 
+    # skip if refresh conditions not met (forceRefresh OR stale bucket)
     if not (forceRefresh or bucket.isStale()):
       continue
 
@@ -69,6 +69,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    clientMode: client,
   )
 
   # Fill up buckets with initial bootstrap nodes

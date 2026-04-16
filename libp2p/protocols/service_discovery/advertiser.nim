@@ -35,6 +35,8 @@ proc sendRegister*(
 .} =
   ## Send REGISTER request to a peer
 
+  doAssert not disco.clientMode, "not supported in client mode"
+
   let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
     return err("no address found for peer: " & $peerId)
@@ -109,6 +111,8 @@ proc startAdvertising*(
 ) {.async: (raises: [CancelledError]).} =
   ## Execute a registration action and schedule the next one based on response.
 
+  doAssert not disco.clientMode, "not supported in client mode"
+
   if not disco.serviceRoutingTables.hasService(serviceId):
     error "no service routing table found", serviceId
     return
@@ -167,6 +171,8 @@ proc addProvidedService*(
 ) {.async: (raises: [CancelledError]).} =
   ## Include this service in the set of services this node provides.
 
+  doAssert not disco.clientMode, "not supported in client mode"
+
   let serviceId = service.id.hashServiceId()
 
   if not await disco.serviceRoutingTables.addService(
@@ -204,6 +210,7 @@ proc addProvidedService*(
 proc removeProvidedService*(
     disco: KademliaDiscovery, service: ServiceInfo
 ) {.async: (raises: [CancelledError]).} =
+  doAssert not disco.clientMode, "not supported in client mode"
   let serviceId = service.id.hashServiceId()
 
   # cancel and remove futures for this service

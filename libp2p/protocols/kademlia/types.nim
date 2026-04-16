@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[tables, sequtils, sets, heapqueue]
 from times import now
@@ -339,3 +339,4 @@ type KadDHT* = ref object of LPProtocol
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig
+  clientMode*: bool
