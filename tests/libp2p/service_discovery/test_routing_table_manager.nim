@@ -82,7 +82,7 @@ suite "ServiceRoutingTableManager":
     let mainRt = makeMainTable(selfId, @[peer1, peer2])
 
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeServiceId(0xAA)
+    let serviceId = makeServiceId(3)
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
@@ -149,7 +149,7 @@ suite "ServiceRoutingTableManager":
 
   test "removeService on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeServiceId(0x99)
+    let serviceId = makeServiceId(1)
 
     manager.removeService(serviceId, Interest)
     check manager.count() == 0
@@ -181,7 +181,7 @@ suite "ServiceRoutingTableManager":
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
-    let peerKey = makeKey(0x42)
+    let peerKey = makeKey(2)
     manager.insertPeer(serviceId, peerKey)
 
     let table = manager.getTable(serviceId).get()
@@ -190,8 +190,8 @@ suite "ServiceRoutingTableManager":
 
   test "insertPeer on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeServiceId(0x99)
-    let peerKey = makeKey(0x42)
+    let serviceId = makeServiceId(1)
+    let peerKey = makeKey(2)
 
     manager.insertPeer(serviceId, peerKey)
     check manager.count() == 0
