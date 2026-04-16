@@ -93,7 +93,7 @@ proc pruneEmptyServices(registrar: Registrar) =
     registrar.cache.del(sid)
 
 proc pruneExpiredEntries[K](
-    timestamps: Table[K, uint64],
+    timestamps: var Table[K, uint64],
     bounds: var Table[K, float64],
     now: uint64,
     expiry: uint64,
