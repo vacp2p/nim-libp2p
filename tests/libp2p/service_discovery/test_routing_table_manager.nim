@@ -6,7 +6,7 @@
 import chronos, results, sets
 import
   ../../../libp2p/protocols/kademlia,
-  ../../../libp2p/protocols/service_discovery/routing_table_manager
+  ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
 import ../../tools/[lifecycle, unittest]
 import ../kademlia/[mock_kademlia, utils]
 

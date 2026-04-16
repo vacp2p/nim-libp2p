@@ -39,8 +39,8 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId1 = makeServiceId(1)
     let serviceId2 = makeServiceId(2)
-    let ad1 = makeAdvertisement(serviceId1)
-    let ad2 = makeAdvertisement(serviceId2)
+    let ad1 = makeAdvertisement($serviceId1)
+    let ad2 = makeAdvertisement($serviceId2)
     let now = getTime().toUnix().uint64
 
     registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
@@ -56,9 +56,9 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
-    let ad1 = makeAdvertisement(serviceId = serviceId)
-    let ad2 = makeAdvertisement(serviceId = serviceId)
-    let ad3 = makeAdvertisement(serviceId = serviceId)
+    let ad1 = makeAdvertisement($serviceId)
+    let ad2 = makeAdvertisement($serviceId)
+    let ad3 = makeAdvertisement($serviceId)
     let now = getTime().toUnix().uint64
 
     registrar.cache[serviceId] = @[ad1, ad2, ad3]
@@ -121,7 +121,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let serviceId = makeServiceId()
 
     for i in 0 ..< 1000:
-      let testAd = makeAdvertisement(serviceId = makeServiceId(i.byte))
+      let testAd = makeAdvertisement($i)
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = getTime().toUnix().uint64
 
     let now = getTime().toUnix().uint64
@@ -148,7 +148,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now: uint64 = 1000
 
     # bound = 1500, timestamp = 1000 → effective = 1500 - 0 = 1500
@@ -163,7 +163,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now: uint64 = 2000
 
     # bound = 1500, timestamp = 1000 → elapsed = 1000 → effective = 500
@@ -227,7 +227,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     registrar.timestampIp[ip2] = 1000
 
     let ad = makeAdvertisement(
-      serviceId = serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)]
+      $serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)]
     )
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
@@ -238,7 +238,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
   test "updateLowerBounds stores service bound as w + now":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now: uint64 = 1000
     let w = 500.0
 
@@ -251,7 +251,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
   test "updateLowerBounds updates service bound when w exceeds effective bound":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now: uint64 = 1000
 
     registrar.boundService[serviceId] = 1500.0
@@ -266,7 +266,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
   test "updateLowerBounds does not decrease service bound":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now: uint64 = 1000
 
     registrar.boundService[serviceId] = 2500.0
@@ -284,7 +284,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     let ip1 = "192.168.1.1"
     let ip2 = "10.0.0.1"
     let ad = makeAdvertisement(
-      serviceId = serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)]
+      $serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)]
     )
     let now: uint64 = 1000
     let w = 500.0
@@ -302,7 +302,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
   test "updateLowerBounds accumulates bounds correctly across multiple calls":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
 
     updateLowerBounds(registrar, serviceId, ad, 500.0, 1000)
     check registrar.boundService[serviceId] == 1500.0
@@ -318,7 +318,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
   test "updateLowerBounds with empty addresses does not crash":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId, addrs = @[])
+    let ad = makeAdvertisement($serviceId, addrs = @[])
     let now: uint64 = 1000
 
     updateLowerBounds(registrar, serviceId, ad, 500.0, now)
@@ -337,7 +337,7 @@ suite "Service Discovery Registrar - Cache Pruning":
   test "pruneExpiredAds keeps ad within expiry time":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now = getTime().toUnix().uint64
 
     registrar.cache[serviceId] = @[ad]
@@ -351,7 +351,7 @@ suite "Service Discovery Registrar - Cache Pruning":
   test "pruneExpiredAds removes ad past expiry time":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now = getTime().toUnix().uint64
 
     registrar.cache[serviceId] = @[ad]
@@ -366,9 +366,7 @@ suite "Service Discovery Registrar - Cache Pruning":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ip = IpAddress(family: IpAddressFamily.IPv4, address_v4: [192'u8, 168, 1, 1])
-    let ad = makeAdvertisement(
-      serviceId = serviceId, addrs = @[makeMultiAddress("192.168.1.1")]
-    )
+    let ad = makeAdvertisement($serviceId, addrs = @[makeMultiAddress("192.168.1.1")])
     let now = getTime().toUnix().uint64
 
     registrar.cache[serviceId] = @[ad]
@@ -384,7 +382,7 @@ suite "Service Discovery Registrar - Cache Pruning":
   test "pruneExpiredAds removes from cacheTimestamps":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now = getTime().toUnix().uint64
 
     registrar.cache[serviceId] = @[ad]
@@ -399,9 +397,9 @@ suite "Service Discovery Registrar - Cache Pruning":
   test "pruneExpiredAds handles multiple ads for same service":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad1 = makeAdvertisement(serviceId = serviceId)
-    let ad2 = makeAdvertisement(serviceId = serviceId)
-    let ad3 = makeAdvertisement(serviceId = serviceId)
+    let ad1 = makeAdvertisement($serviceId)
+    let ad2 = makeAdvertisement($serviceId)
+    let ad3 = makeAdvertisement($serviceId)
     let now = getTime().toUnix().uint64
 
     registrar.cache[serviceId] = @[ad1, ad2, ad3]
@@ -419,7 +417,7 @@ suite "Service Discovery Registrar - Cache Pruning":
   test "pruneExpiredAds handles ad with no valid IP addresses":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId, addrs = @[])
+    let ad = makeAdvertisement($serviceId, addrs = @[])
     let now = getTime().toUnix().uint64
 
     registrar.cache[serviceId] = @[ad]
@@ -433,9 +431,9 @@ suite "Service Discovery Registrar - State Management":
   test "cache can store multiple ads for same service ID":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad1 = makeAdvertisement(serviceId = serviceId)
-    let ad2 = makeAdvertisement(serviceId = serviceId)
-    let ad3 = makeAdvertisement(serviceId = serviceId)
+    let ad1 = makeAdvertisement($serviceId)
+    let ad2 = makeAdvertisement($serviceId)
+    let ad3 = makeAdvertisement($serviceId)
 
     registrar.cache[serviceId] = @[ad1, ad2, ad3]
 
@@ -448,8 +446,8 @@ suite "Service Discovery Registrar - State Management":
     let registrar = Registrar.new()
     let serviceId1 = makeServiceId(1)
     let serviceId2 = makeServiceId(2)
-    let ad1 = makeAdvertisement(serviceId = serviceId1)
-    let ad2 = makeAdvertisement(serviceId = serviceId2)
+    let ad1 = makeAdvertisement($serviceId1)
+    let ad2 = makeAdvertisement($serviceId2)
 
     registrar.cache[serviceId1] = @[ad1]
     registrar.cache[serviceId2] = @[ad2]
@@ -471,9 +469,7 @@ suite "Service Discovery Registrar - State Management":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ip = IpAddress(family: IpAddressFamily.IPv4, address_v4: [192'u8, 168, 1, 1])
-    let ad = makeAdvertisement(
-      serviceId = serviceId, addrs = @[makeMultiAddress("192.168.1.1")]
-    )
+    let ad = makeAdvertisement($serviceId, addrs = @[makeMultiAddress("192.168.1.1")])
 
     registrar.cache[serviceId] = @[ad]
 
@@ -550,7 +546,7 @@ suite "Service Discovery Registrar - Edge Cases":
   test "updateLowerBounds with zero w":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
     let now: uint64 = 1000
 
     updateLowerBounds(registrar, serviceId, ad, 0.0, now)
@@ -561,7 +557,7 @@ suite "Service Discovery Registrar - Edge Cases":
   test "pruneExpiredAds with very old timestamp":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
 
     registrar.cache[serviceId] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = 1000.uint64
@@ -579,7 +575,7 @@ suite "Service Discovery Registrar - Configuration Variations":
     let serviceId = makeServiceId()
 
     for i in 0 ..< 100:
-      let testAd = makeAdvertisement(serviceId = makeServiceId(i.byte))
+      let testAd = makeAdvertisement($makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConfig = ServiceDiscoveryConfig.new()
@@ -595,7 +591,7 @@ suite "Service Discovery Registrar - Configuration Variations":
     let serviceId = makeServiceId()
 
     for i in 0 ..< 500:
-      let testAd = makeAdvertisement(serviceId = makeServiceId(i.byte))
+      let testAd = makeAdvertisement($makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConfig1 = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(1))
@@ -641,7 +637,7 @@ suite "Service Discovery Registrar - Configuration Variations":
     let serviceId = makeServiceId()
 
     for i in 0 ..< 500:
-      let testAd = makeAdvertisement(serviceId = makeServiceId(i.byte))
+      let testAd = makeAdvertisement($makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(0))
@@ -657,7 +653,7 @@ suite "Service Discovery Registrar - Configuration Variations":
     let serviceId = makeServiceId()
 
     for i in 0 ..< 500:
-      let testAd = makeAdvertisement(serviceId = makeServiceId(i.byte))
+      let testAd = makeAdvertisement($makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
     let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(1))
@@ -887,7 +883,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "new peer ad is added to cache":
     let disco = makeDisco()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
 
     disco.acceptAdvertisement(serviceId, ad)
 
@@ -897,7 +893,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "same peer same seqNo is treated as duplicate and not added again":
     let disco = makeDisco()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
 
     disco.acceptAdvertisement(serviceId, ad)
     disco.acceptAdvertisement(serviceId, ad)
@@ -961,8 +957,8 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "different peers each store their own ad":
     let disco = makeDisco()
     let serviceId = makeServiceId()
-    let ad1 = makeAdvertisement(serviceId = serviceId)
-    let ad2 = makeAdvertisement(serviceId = serviceId)
+    let ad1 = makeAdvertisement($serviceId)
+    let ad2 = makeAdvertisement($serviceId)
 
     disco.acceptAdvertisement(serviceId, ad1)
     disco.acceptAdvertisement(serviceId, ad2)
@@ -1014,7 +1010,7 @@ suite "Service Discovery Registrar - waitingTime never negative":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
 
     # Large bound with epoch timestamp — elapsed time far exceeds bound
     registrar.boundService[serviceId] = 100.0
@@ -1046,7 +1042,7 @@ suite "Service Discovery Registrar - concurrent same-peer registration":
   test "repeated acceptAdvertisement calls for same ad are idempotent":
     let disco = makeDisco()
     let serviceId = makeServiceId()
-    let ad = makeAdvertisement(serviceId = serviceId)
+    let ad = makeAdvertisement($serviceId)
 
     disco.acceptAdvertisement(serviceId, ad)
     disco.acceptAdvertisement(serviceId, ad)
@@ -1074,8 +1070,8 @@ suite "Service Discovery Registrar - updateExistingAd":
   test "higher seqNo replaces ad, updates timestamps and IP tree, returns true":
     let registrar = Registrar.new()
     let privateKey = PrivateKey.random(rng[]).get()
-    let oldAd = makeAdvertisementWithSeqNo(privateKey, seqNo = 1)
-    let newAd = makeAdvertisementWithSeqNo(privateKey, seqNo = 2)
+    let oldAd = makeAdvertisement(privateKey = privateKey, seqNo = 1)
+    let newAd = makeAdvertisement(privateKey = privateKey, seqNo = 2)
     var ads = @[oldAd]
 
     registrar.cacheTimestamps[oldAd.toAdvertisementKey()] = 1000
@@ -1093,11 +1089,11 @@ suite "Service Discovery Registrar - updateExistingAd":
   test "higher seqNo with address swap removes old IP and inserts new one":
     let registrar = Registrar.new()
     let privateKey = PrivateKey.random(rng[]).get()
-    let oldAd = makeAdvertisementWithSeqNo(
-      privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.1")]
+    let oldAd = makeAdvertisement(
+      privateKey = privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.1")]
     )
-    let newAd = makeAdvertisementWithSeqNo(
-      privateKey, seqNo = 2, addrs = @[makeMultiAddress("192.168.1.1")]
+    let newAd = makeAdvertisement(
+      privateKey = privateKey, seqNo = 2, addrs = @[makeMultiAddress("192.168.1.1")]
     )
     var ads = @[oldAd]
 
@@ -1113,8 +1109,8 @@ suite "Service Discovery Registrar - updateExistingAd":
   test "lower seqNo leaves cache and timestamps unchanged, returns false":
     let registrar = Registrar.new()
     let privateKey = PrivateKey.random(rng[]).get()
-    let currentAd = makeAdvertisementWithSeqNo(privateKey, seqNo = 10)
-    let staleAd = makeAdvertisementWithSeqNo(privateKey, seqNo = 5)
+    let currentAd = makeAdvertisement(privateKey = privateKey, seqNo = 10)
+    let staleAd = makeAdvertisement(privateKey = privateKey, seqNo = 5)
     var ads = @[currentAd]
 
     registrar.cacheTimestamps[currentAd.toAdvertisementKey()] = 1000
@@ -1146,7 +1142,7 @@ suite "Service Discovery Registrar - insertNewAd":
   test "inserts ad without eviction when cache is under capacity":
     let disco = makeDisco(advertExpiry = 900.0)
     let serviceId = makeServiceId()
-    let existingAd = makeAdvertisement(serviceId = makeServiceId(99))
+    let existingAd = makeAdvertisement($makeServiceId(99))
     disco.registrar.cacheTimestamps[existingAd.toAdvertisementKey()] = 1000
 
     let newAd = makeAdvertisement()
@@ -1172,7 +1168,7 @@ suite "Service Discovery Registrar - insertNewAd":
     var oldestAd: Advertisement
     for i in 0 ..< cap:
       let sid = makeServiceId(i.byte)
-      let a = makeAdvertisement(serviceId = sid)
+      let a = makeAdvertisement($sid)
       let ts = if i == 0: 100'u64 else: now
       disco.registrar.cacheTimestamps[a.toAdvertisementKey()] = ts
       disco.registrar.cache[sid] = @[a]

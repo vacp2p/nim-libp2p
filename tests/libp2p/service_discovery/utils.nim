@@ -44,33 +44,23 @@ proc makeMultiAddress*(ip: string): MultiAddress =
   MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
 
 proc makeAdvertisement*(
-    serviceId: ServiceId = makeServiceId(), addrs: seq[MultiAddress] = @[]
-): Advertisement =
-  let privateKey = PrivateKey.random(rng[]).get()
-  let peerId = PeerId.init(privateKey).get()
-  let extRecord = ExtendedPeerRecord(
-    peerId: peerId,
-    seqNo: getTime().toUnix().uint64,
-    addresses: addrs.mapIt(AddressInfo(address: it)),
-    services: @[],
-  )
-  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-
-proc makeAdvertisementWithSeqNo*(
-    privateKey: PrivateKey, seqNo: uint64, addrs: seq[MultiAddress] = @[]
+    serviceId: string = $1,
+    privateKey: PrivateKey = PrivateKey.random(rng[]).get(),
+    addrs: seq[MultiAddress] = @[],
+    seqNo: uint64 = getTime().toUnix().uint64,
 ): Advertisement =
   let peerId = PeerId.init(privateKey).get()
   let extRecord = ExtendedPeerRecord(
     peerId: peerId,
     seqNo: seqNo,
     addresses: addrs.mapIt(AddressInfo(address: it)),
-    services: @[],
+    services: @[makeServiceInfo(serviceId)],
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
 proc fillCache*(registrar: Registrar, n: int, now: uint64) =
   for i in 0 ..< n:
-    let ad = makeAdvertisement(serviceId = makeServiceId(i.byte))
+    let ad = makeAdvertisement($i)
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
 
 proc createSwitch*(): Switch =
