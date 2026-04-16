@@ -20,7 +20,10 @@ logScope:
   topics = "service-disco registrar"
 
 func safeSub(a, b: uint64): uint64 {.inline.} =
-  if a > b: a - b else: 0
+  if a > b:
+    a - b
+  else:
+    0
 
 proc updateRegistrarMetrics(registrar: Registrar) {.raises: [].} =
   cd_registrar_cache_ads.set(registrar.cacheTimestamps.len.float64)
@@ -55,53 +58,86 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for ip in ad.data.addresses.filterIPv4():
     ipTree.removeIp(ip)
 
+proc isExpired(now, ts, expiry: uint64): bool {.inline.} =
+  safeSub(now, ts) > expiry
+
+proc pruneAdsForService(
+    registrar: Registrar,
+    serviceId: ServiceId,
+    ads: var seq[Advertisement],
+    now: uint64,
+    advertExpiry: uint64,
+    expiredCount: var int,
+) =
+  var i = 0
+  while i < ads.len:
+    let ad = ads[i]
+    let key = ad.toAdvertisementKey()
+    let ts = registrar.cacheTimestamps.getOrDefault(key, 0)
+
+    if isExpired(now, ts, advertExpiry):
+      registrar.ipTree.removeAd(ad)
+      registrar.cacheTimestamps.del(key)
+      ads.delete(i)
+      inc(expiredCount)
+    else:
+      inc(i)
+
+proc pruneEmptyServices(registrar: Registrar) =
+  var toRemove: seq[ServiceId] = @[]
+  for sid, ads in registrar.cache:
+    if ads.len == 0:
+      toRemove.add(sid)
+
+  for sid in toRemove:
+    registrar.cache.del(sid)
+
+proc pruneExpiredEntries[K](
+    timestamps: var Table[K, uint64],
+    bounds: var Table[K, float64],
+    now: uint64,
+    expiry: uint64,
+) =
+  var toRemove: seq[K] = @[]
+
+  for k, ts in timestamps:
+    if isExpired(now, ts, expiry):
+      toRemove.add(k)
+
+  for k in toRemove:
+    timestamps.del(k)
+    bounds.del(k)
+
 proc pruneExpiredAds*(registrar: Registrar, advertExpiry: uint64) =
   let now = getTime().toUnix().uint64
-  var toDelete: seq[tuple[serviceId: ServiceId, ad: Advertisement]] = @[]
 
+  var expiredCount = 0
+
+  # Prune ads per service
   for serviceId, ads in registrar.cache.mpairs:
-    var i = 0
-    while i < ads.len:
-      let ad = ads[i]
-      let adKey = ad.toAdvertisementKey()
-      let adTime = registrar.cacheTimestamps.getOrDefault(adKey, 0)
+    registrar.pruneAdsForService(serviceId, ads, now, advertExpiry, expiredCount)
 
-      if safeSub(now, adTime) > advertExpiry:
-        registrar.ipTree.removeAd(ad)
-        toDelete.add((serviceId, ad))
-        ads.delete(i)
-      else:
-        inc(i)
+  # Remove empty services
+  registrar.pruneEmptyServices()
 
-  for (_, ad) in toDelete:
-    registrar.cacheTimestamps.del(ad.toAdvertisementKey())
-
-  var emptyServices: seq[ServiceId] = @[]
-  for serviceId, ads in registrar.cache:
-    if ads.len == 0:
-      emptyServices.add(serviceId)
-  for serviceId in emptyServices:
-    registrar.cache.del(serviceId)
-
-  if toDelete.len > 0:
-    cd_registrar_ads_expired.inc(toDelete.len.float64)
+  # Calculate metrics
+  if expiredCount > 0:
+    cd_registrar_ads_expired.inc(expiredCount.float64)
     registrar.updateRegistrarMetrics()
 
-  var expiredServices: seq[ServiceId] = @[]
-  for sid, ts in registrar.timestampService:
-    if safeSub(now, ts) > advertExpiry:
-      expiredServices.add(sid)
-  for sid in expiredServices:
-    registrar.boundService.del(sid)
-    registrar.timestampService.del(sid)
+  # Expire service-level bounds
+  pruneExpiredEntries(
+    registrar.timestampService, registrar.boundService, now, advertExpiry
+  )
 
-  var expiredIps: seq[string] = @[]
-  for ip, ts in registrar.timestampIp:
-    if safeSub(now, ts) > advertExpiry:
-      expiredIps.add(ip)
-  for ip in expiredIps:
-    registrar.boundIp.del(ip)
-    registrar.timestampIp.del(ip)
+  # Expire IP-level bounds
+  pruneExpiredEntries(registrar.timestampIp, registrar.boundIp, now, advertExpiry)
+
+func secsAsDuration(secs: float64): chronos.Duration =
+  ## Convert a float64 number of seconds to a chronos Duration.
+  ## Nanosecond precision is used to preserve sub-second waiting times,
+  ## which matter when safetyParam is very small (e.g. the default 1e-7).
+  nanoseconds(int64(secs * 1_000_000_000))
 
 proc waitingTime*(
     registrar: Registrar,
@@ -110,16 +146,19 @@ proc waitingTime*(
     advertCacheCap: uint64,
     serviceId: ServiceId,
     now: uint64,
-): float64 =
+): chronos.Duration =
   doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
   let c = registrar.cacheTimestamps.len.uint64
   let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
 
-  let occupancy: float64 =
+  let occupancy =
     if c >= advertCacheCap:
       100.0
     else:
-      1.0 / pow(1.0 - c.float64 / advertCacheCap.float64, discoConfig.occupancyExp.seconds.float64)
+      let ratio = c.float64 / advertCacheCap.float64
+      let base = max(1e-9, 1.0 - ratio)
+      let exp = min(discoConfig.occupancyExp.seconds.float64, 10.0)
+      1.0 / pow(base, exp)
 
   let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
   let ipSim = registrar.ipTree.adScore(ad)
@@ -129,7 +168,8 @@ proc waitingTime*(
     (serviceSim + ipSim + discoConfig.safetyParam)
 
   if serviceId in registrar.timestampService:
-    let elapsedService = safeSub(now, registrar.timestampService.getOrDefault(serviceId, 0))
+    let elapsedService =
+      safeSub(now, registrar.timestampService.getOrDefault(serviceId, 0))
     let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
     let serviceLowerBound = boundServiceVal - elapsedService.float64
     if serviceLowerBound > w:
@@ -147,7 +187,7 @@ proc waitingTime*(
       if ipLowerBound > w:
         w = ipLowerBound
 
-  return max(0.0, w)
+  return secsAsDuration(max(0.0, w))
 
 proc updateLowerBounds*(
     registrar: Registrar,
@@ -156,7 +196,8 @@ proc updateLowerBounds*(
     w: float64,
     now: uint64,
 ) =
-  let elapsedService = safeSub(now, registrar.timestampService.getOrDefault(serviceId, 0))
+  let elapsedService =
+    safeSub(now, registrar.timestampService.getOrDefault(serviceId, 0))
   let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
 
   if w > boundServiceVal - elapsedService.float64:
@@ -213,10 +254,10 @@ proc processRetryTicket*(
 
   let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
   let delta = disco.discoConfig.registrationWindow.seconds.uint64
-  let windowEnd = windowStart + delta
+  let windowEnd = min(high(uint64), windowStart + delta)
 
   if now >= windowStart and now <= windowEnd:
-    let totalWaitSoFar = now - ticketMsg.tInit
+    let totalWaitSoFar = safeSub(now, ticketMsg.tInit)
     return t_wait - totalWaitSoFar.float64
 
   return t_wait
@@ -319,8 +360,7 @@ proc insertNewAd*(
   ## Insert a brand-new advertisement into the cache.
   ## Evicts the globally oldest entry first if the cache is at capacity.
   ## Returns true (a new insertion always warrants a metrics update).
-  if disco.registrar.cacheTimestamps.len.uint64 >=
-      disco.discoConfig.advertCacheCap:
+  if disco.registrar.cacheTimestamps.len.uint64 >= disco.discoConfig.advertCacheCap:
     evictOldestAd(disco, serviceId, ads)
   ads.add(ad)
   disco.registrar.cacheTimestamps[ad.toAdvertisementKey()] = now

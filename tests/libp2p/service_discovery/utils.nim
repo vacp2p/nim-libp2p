@@ -8,14 +8,11 @@ import
   ../../../libp2p/
     [peerid, switch, builders, crypto/crypto, extended_peer_record, multiaddress]
 import ../../../libp2p/protocols/[service_discovery, kademlia]
-import
-  ../../../libp2p/protocols/kademlia/[protobuf, types as kademlia_types, routing_table]
-import
-  ../../../libp2p/protocols/service_discovery/[types, registrar, routing_table_manager]
+import ../../../libp2p/protocols/kademlia/protobuf
+import ../../../libp2p/protocols/service_discovery/[types, registrar]
 import ../../tools/[crypto]
-import ../kademlia/utils as kademlia_utils
 
-export protobuf, types, registrar, routing_table_manager
+export protobuf, types, registrar
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
@@ -47,33 +44,23 @@ proc makeMultiAddress*(ip: string): MultiAddress =
   MultiAddress.init("/ip4/" & ip & "/tcp/9000").get()
 
 proc makeAdvertisement*(
-    serviceId: ServiceId = makeServiceId(), addrs: seq[MultiAddress] = @[]
-): Advertisement =
-  let privateKey = PrivateKey.random(rng[]).get()
-  let peerId = PeerId.init(privateKey).get()
-  let extRecord = ExtendedPeerRecord(
-    peerId: peerId,
-    seqNo: getTime().toUnix().uint64,
-    addresses: addrs.mapIt(AddressInfo(address: it)),
-    services: @[],
-  )
-  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
-
-proc makeAdvertisementWithSeqNo*(
-    privateKey: PrivateKey, seqNo: uint64, addrs: seq[MultiAddress] = @[]
+    serviceId: string = $1,
+    privateKey: PrivateKey = PrivateKey.random(rng[]).get(),
+    addrs: seq[MultiAddress] = @[],
+    seqNo: uint64 = getTime().toUnix().uint64,
 ): Advertisement =
   let peerId = PeerId.init(privateKey).get()
   let extRecord = ExtendedPeerRecord(
     peerId: peerId,
     seqNo: seqNo,
     addresses: addrs.mapIt(AddressInfo(address: it)),
-    services: @[],
+    services: @[makeServiceInfo(serviceId)],
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
 proc fillCache*(registrar: Registrar, n: int, now: uint64) =
   for i in 0 ..< n:
-    let ad = makeAdvertisement(serviceId = makeServiceId(i.byte))
+    let ad = makeAdvertisement($i)
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
 
 proc createSwitch*(): Switch =
@@ -146,26 +133,6 @@ proc setupDiscos*(
   for i in 0 ..< count:
     discos.add(setupDiscovery(validator, selector, bootstrapNodes))
   discos
-
-proc populateRoutingTable*(disco: ServiceDiscovery, n: int) =
-  for _ in 0 ..< n:
-    discard disco.rtable.insert(kademlia_utils.randomPeerId())
-
-proc populateAdvTable*(
-    disco: ServiceDiscovery, serviceId: ServiceId
-) {.async: (raises: [CancelledError]).} =
-  discard disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-  let advTable = disco.rtManager.getTable(serviceId).valueOr:
-    return
-  if advTable.buckets.len == 0:
-    advTable.buckets.add(Bucket())
-  for _ in 0 ..< disco.discoConfig.kRegister + 2:
-    advTable.buckets[0].peers.add(
-      NodeEntry(nodeId: kademlia_utils.randomPeerId().toKey(), lastSeen: Moment.now())
-    )
 
 proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
   discard disco1.rtable.insert(disco2.switch.peerInfo.peerId)

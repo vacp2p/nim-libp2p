@@ -75,7 +75,6 @@ type
   ServiceDiscovery* = ref object of KadDHT
     registrar*: Registrar
     rtManager*: ServiceRoutingTableManager
-    advertiser*: Advertiser
     services*: HashSet[ServiceInfo]
     discoConfig*: ServiceDiscoveryConfig
       # can't use name "config", clashes with KadDHT's config
