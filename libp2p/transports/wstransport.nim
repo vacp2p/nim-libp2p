@@ -15,7 +15,6 @@ import
   ../wire,
   ../multicodec,
   ../multistream,
-  ../connmanager,
   ../multiaddress,
   ../utility,
   ../stream/connection,
