@@ -18,7 +18,7 @@
 ## - Executes script instructions from params.json
 ## - Logs structured JSON events to stdout
 
-import chronos, parseopt, std/[nativesockets, streams, strutils]
+import chronos, nativesockets, parseopt, streams, strutils
 import ../../libp2p/[multiaddress, protocols/pubsub/gossipsub, switch]
 import ./src/[runner, instructions, node]
 
@@ -70,20 +70,15 @@ proc main() {.async.} =
         params = instr.inner.gossipSubParams
         break
 
-  let listenAddr = MultiAddress.init("/ip4/0.0.0.0/tcp/9000").tryGet()
-  let node = createNode(nodeId, listenAddr, params)
-
-  await node.switch.start()
-  defer:
-    await node.switch.stop()
-
   let logStream = newFileStream(stdout)
+  let listenAddr = MultiAddress.init("/ip4/0.0.0.0/tcp/9000").tryGet()
 
-  let runner = ScriptRunner(
-    nodeId: nodeId,
-    node: node,
-    logStream: logStream,
-    resolveAddr: proc(id: int): MultiAddress {.gcsafe, raises: [CatchableError].} =
+  let runner = newScriptRunner(
+    nodeId = nodeId,
+    logStream = logStream,
+    listenAddr = listenAddr,
+    gossipSubParams = params,
+    resolveAddr = proc(id: int): MultiAddress {.gcsafe, raises: [CatchableError].} =
       let peerId = nodePeerId(id)
       let ip =
         if localMode:
@@ -91,7 +86,12 @@ proc main() {.async.} =
         else:
           getHostByName("node" & $id).addrList[0] # Shadow simulated DNS
       MultiAddress.init("/ip4/" & ip & "/tcp/9000/p2p/" & $peerId).tryGet(),
+    enablePartialMessages = true,
   )
+
+  await runner.node.switch.start()
+  defer:
+    await runner.node.switch.stop()
 
   await runner.runScript(instructions)
 

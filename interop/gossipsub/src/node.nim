@@ -10,6 +10,7 @@ import
     multiaddress,
     peerid,
     protocols/pubsub/gossipsub,
+    protocols/pubsub/gossipsub/extension_partial_message,
     protocols/pubsub/rpc/message,
     switch,
   ]
@@ -55,6 +56,8 @@ proc createNode*(
     nodeId: int,
     listenAddr: MultiAddress,
     gossipSubParams: GossipSubParams = GossipSubParams.init(),
+    partialMessageConfig: Opt[PartialMessageExtensionConfig] =
+      Opt.none(PartialMessageExtensionConfig),
 ): GossipSub =
   let switch = SwitchBuilder
     .new()
@@ -66,6 +69,10 @@ proc createNode*(
     .withNoise()
     .build()
 
+  var params = gossipSubParams
+  partialMessageConfig.withValue(pmConfig):
+    params.partialMessageExtensionConfig = Opt.some(pmConfig)
+
   let gossipsub = GossipSub.init(
     rng = rng(),
     switch = switch,
@@ -74,7 +81,7 @@ proc createNode*(
     verifySignature = false,
     sign = false,
     maxMessageSize = 10 * 1024 * 1024,
-    parameters = gossipSubParams,
+    parameters = params,
   )
 
   switch.mount(gossipsub)

@@ -13,6 +13,8 @@ type
     SubscribeToTopic = "subscribeToTopic"
     Publish = "publish"
     SetTopicValidationDelay = "setTopicValidationDelay"
+    AddPartialMessage = "addPartialMessage"
+    PublishPartial = "publishPartial"
 
   ScriptInstruction* = object
     case kind*: InstructionKind
@@ -35,6 +37,14 @@ type
     of SetTopicValidationDelay:
       validationTopicID*: string
       delay*: Duration
+    of AddPartialMessage:
+      addTopicID*: string
+      groupID*: uint64
+      partsBitmap*: uint8
+    of PublishPartial:
+      publishPartialTopicID*: string
+      publishPartialGroupID*: uint64
+      publishToNodeIDs*: seq[int]
 
 proc parseDurationNano*(node: JsonNode): Duration =
   ## Parse a JSON number (int or float) as nanoseconds into a Duration.
@@ -135,6 +145,26 @@ proc parseSetTopicValidationDelay(j: JsonNode): ScriptInstruction =
     delay: j["delaySeconds"].parseDurationSec(),
   )
 
+proc parseAddPartialMessage(j: JsonNode): ScriptInstruction =
+  ScriptInstruction(
+    kind: AddPartialMessage,
+    addTopicID: j["topicID"].getStr(),
+    groupID: uint64(j["groupID"].getInt()),
+    partsBitmap: uint8(j["parts"].getInt()),
+  )
+
+proc parsePublishPartial(j: JsonNode): ScriptInstruction =
+  var nodeIDs: seq[int]
+  if j.hasKey("publishToNodeIDs") and j["publishToNodeIDs"].kind != JNull:
+    for item in j["publishToNodeIDs"]:
+      nodeIDs.add(item.getInt())
+  ScriptInstruction(
+    kind: PublishPartial,
+    publishPartialTopicID: j["topicID"].getStr(),
+    publishPartialGroupID: uint64(j["groupID"].getInt()),
+    publishToNodeIDs: nodeIDs,
+  )
+
 proc parseInstruction*(
     j: JsonNode
 ): ScriptInstruction {.raises: [KeyError, ValueError], gcsafe.} =
@@ -155,6 +185,10 @@ proc parseInstruction*(
     parsePublish(j)
   of "setTopicValidationDelay":
     parseSetTopicValidationDelay(j)
+  of "addPartialMessage":
+    parseAddPartialMessage(j)
+  of "publishPartial":
+    parsePublishPartial(j)
   else:
     raise newException(ValueError, "Unknown instruction type: " & instrType)
 
