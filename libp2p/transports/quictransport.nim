@@ -190,7 +190,7 @@ method newStream*(
     raise newException(MuxerError, "error in newStream: " & e.msg, e)
 
 method getStreams*(m: QuicMuxer): seq[connection.Connection] {.gcsafe.} =
-  var streams: seq[connection.Connection]
+  var streams = newSeqOfCap[connection.Connection](m.session.streams.len)
   for s in m.session.streams:
     streams.add(s)
   return streams
