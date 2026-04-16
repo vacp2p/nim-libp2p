@@ -133,6 +133,12 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: uint64) =
   # Expire IP-level bounds
   pruneExpiredEntries(registrar.timestampIp, registrar.boundIp, now, advertExpiry)
 
+func secsAsDuration(secs: float64): chronos.Duration =
+  ## Convert a float64 number of seconds to a chronos Duration.
+  ## Nanosecond precision is used to preserve sub-second waiting times,
+  ## which matter when safetyParam is very small (e.g. the default 1e-7).
+  nanoseconds(int64(secs * 1_000_000_000))
+
 proc waitingTime*(
     registrar: Registrar,
     discoConfig: ServiceDiscoveryConfig,
@@ -140,7 +146,7 @@ proc waitingTime*(
     advertCacheCap: uint64,
     serviceId: ServiceId,
     now: uint64,
-): float64 =
+): chronos.Duration =
   doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
   let c = registrar.cacheTimestamps.len.uint64
   let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
@@ -181,7 +187,7 @@ proc waitingTime*(
       if ipLowerBound > w:
         w = ipLowerBound
 
-  return max(0.0, w)
+  return secsAsDuration(max(0.0, w))
 
 proc updateLowerBounds*(
     registrar: Registrar,

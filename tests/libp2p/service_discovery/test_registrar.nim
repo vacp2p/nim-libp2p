@@ -19,6 +19,10 @@ import ../../../libp2p/utils/iptree
 import ../../tools/[unittest, crypto]
 import ./utils
 
+func inFloatSecs(d: chronos.Duration): float64 =
+  ## Convert a Duration back to float64 seconds via nanoseconds for full precision.
+  d.nanoseconds.float64 / 1_000_000_000.0
+
 suite "Service Discovery Registrar - Waiting Time Calculation":
   test "waitingTime returns low value for empty cache with no IP similarity":
     let registrar = Registrar.new()
@@ -32,7 +36,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     # With empty cache: c = 0, occupancy = 1.0, c_s = 0, ipSim = 0
     # w = advertExpiry * 1.0 * (0 + 0 + safetyParam)
     let expected = discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam
-    check abs(w - expected) < 0.001
+    check abs(w.inFloatSecs - expected) < 0.001
 
   test "waitingTime increases with cache occupancy":
     let registrar = Registrar.new()
@@ -50,7 +54,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let w2 = registrar.waitingTime(discoConfig, ad2, 1000, serviceId2, now)
 
     # With non-zero cache, occupancy > 1.0
-    check w1 > 0 or w2 > 0
+    check w1 > ZeroDuration or w2 > ZeroDuration
 
   test "waitingTime increases with service similarity":
     let registrar = Registrar.new()
@@ -69,7 +73,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let w = registrar.waitingTime(discoConfig, ad1, 1000, serviceId, now)
 
     # c_s = 3, serviceSim = 3/1000 contributes to wait time
-    check w > 0
+    check w > ZeroDuration
 
   test "waitingTime returns 0.0 IP similarity for IPs not in tree":
     let registrar = Registrar.new()
@@ -85,7 +89,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w > 0
+    check w > ZeroDuration
 
   test "waitingTime uses maximum IP score across multiple addresses":
     let registrar = Registrar.new()
@@ -112,7 +116,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let now = getTime().toUnix().uint64
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w > 0
+    check w > ZeroDuration
 
   test "waitingTime at cache capacity returns high occupancy":
     let registrar = Registrar.new()
@@ -128,7 +132,8 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # At capacity, occupancy = 100.0
-    check w >= discoConfig.advertExpiry.seconds.float64 * 100.0 * discoConfig.safetyParam
+    check w.inFloatSecs >=
+      discoConfig.advertExpiry.inFloatSecs * 100.0 * discoConfig.safetyParam
 
   test "waitingTime formula includes safety parameter":
     let registrar = Registrar.new()
@@ -141,7 +146,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
 
     # Empty cache, no IP sim: w = advertExpiry * 1.0 * safetyParam
     let expected = discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam
-    check abs(w - expected) < 1.0
+    check abs(w.inFloatSecs - expected) < 1.0
 
 suite "Service Discovery Registrar - Lower Bound Enforcement":
   test "waitingTime enforces service lower bound when exists":
@@ -157,7 +162,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 500.0
+    check w >= chronos.seconds(500)
 
   test "waitingTime service lower bound decreases with elapsed time":
     let registrar = Registrar.new()
@@ -172,8 +177,8 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 500.0
-    check w < 1000.0
+    check w >= chronos.seconds(500)
+    check w < chronos.seconds(1000)
 
   test "waitingTime enforces IP lower bound when exists":
     let registrar = Registrar.new()
@@ -188,7 +193,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 500.0
+    check w >= chronos.seconds(500)
 
   test "waitingTime IP lower bound is per IP address":
     let registrar = Registrar.new()
@@ -232,7 +237,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 2000.0
+    check w >= chronos.seconds(2000)
 
 suite "Service Discovery Registrar - Lower Bound Updates":
   test "updateLowerBounds stores service bound as w + now":
@@ -489,7 +494,7 @@ suite "Service Discovery Registrar - Edge Cases":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 0
+    check w >= ZeroDuration
 
   test "waitingTime with IPv6 addresses only (ignored in IP tree)":
     let registrar = Registrar.new()
@@ -501,7 +506,7 @@ suite "Service Discovery Registrar - Edge Cases":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 0
+    check w >= ZeroDuration
 
   test "waitingTime with mixed IPv4 and IPv6 addresses":
     let registrar = Registrar.new()
@@ -519,7 +524,7 @@ suite "Service Discovery Registrar - Edge Cases":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w > 0
+    check w > ZeroDuration
 
   test "waitingTime with service ID not in boundService":
     let registrar = Registrar.new()
@@ -530,7 +535,7 @@ suite "Service Discovery Registrar - Edge Cases":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 0
+    check w >= ZeroDuration
 
   test "waitingTime with IP not in boundIp":
     let registrar = Registrar.new()
@@ -541,7 +546,7 @@ suite "Service Discovery Registrar - Edge Cases":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 0
+    check w >= ZeroDuration
 
   test "updateLowerBounds with zero w":
     let registrar = Registrar.new()
@@ -644,7 +649,7 @@ suite "Service Discovery Registrar - Configuration Variations":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # pow(x, 0) = 1.0 regardless of x, so occupancy = 1.0 / 1.0 = 1.0
-    check w >= 0
+    check w >= ZeroDuration
 
   test "occupancyExp of 1 gives linear occupancy":
     let registrar = Registrar.new()
@@ -660,7 +665,7 @@ suite "Service Discovery Registrar - Configuration Variations":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # occupancyExp=1: occupancy = 1/(1-0.5) = 2.0
-    check w >= 0
+    check w >= ZeroDuration
 
 suite "Service Discovery Registrar - Register Message Validation":
   test "validateRegisterMessage rejects empty advertisement":
@@ -1020,7 +1025,7 @@ suite "Service Discovery Registrar - waitingTime never negative":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 0.0
+    check w >= ZeroDuration
 
   test "waitingTime returns non-negative with stale high IP lower bound":
     let registrar = Registrar.new()
@@ -1036,7 +1041,7 @@ suite "Service Discovery Registrar - waitingTime never negative":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= 0.0
+    check w >= ZeroDuration
 
 suite "Service Discovery Registrar - concurrent same-peer registration":
   test "repeated acceptAdvertisement calls for same ad are idempotent":
