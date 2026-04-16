@@ -150,9 +150,6 @@ proc populateAdvTable*(disco: ServiceDiscovery, serviceId: ServiceId) {.async.} 
   for i in 0 ..< disco.discoConfig.kRegister:
     discard disco.rtable.insert(makePeerId())
   discard disco.rtManager.addService(
-    serviceId,
-    disco.rtable,
-    disco.config.replication,
-    disco.discoConfig.bucketsCount,
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
