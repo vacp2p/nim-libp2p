@@ -302,8 +302,8 @@ proc withWatermark*(
     b: SwitchBuilder,
     lowWater: int,
     highWater: int,
-    gracePeriod: Duration,
-    silencePeriod: Duration,
+    gracePeriod: Duration = 1.minutes,
+    silencePeriod: Duration = 10.seconds,
 ): SwitchBuilder {.public.} =
   ## Enable hi/lo watermark connection management.
   ## When connected peers exceed `highWater`, the connection manager trims
