@@ -118,15 +118,14 @@ proc waitingTime*(
   let c = registrar.cacheTimestamps.len.uint64
   let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
 
-  let occupancy: float64 =
+  let occupancy =
     if c >= advertCacheCap:
       100.0
     else:
-      1.0 /
-        pow(
-          1.0 - c.float64 / advertCacheCap.float64,
-          discoConfig.occupancyExp.seconds.float64,
-        )
+      let ratio = c.float64 / advertCacheCap.float64
+      let base = max(1e-9, 1.0 - ratio)
+      let exp = min(discoConfig.occupancyExp.seconds.float64, 10.0)
+      1.0 / pow(base, exp)
 
   let serviceSim: float64 = c_s.float64 / advertCacheCap.float64
   let ipSim = registrar.ipTree.adScore(ad)
@@ -222,10 +221,10 @@ proc processRetryTicket*(
 
   let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
   let delta = disco.discoConfig.registrationWindow.seconds.uint64
-  let windowEnd = windowStart + delta
+  let windowEnd = min(high(uint64), windowStart + delta)
 
   if now >= windowStart and now <= windowEnd:
-    let totalWaitSoFar = now - ticketMsg.tInit
+    let totalWaitSoFar = safeSub(now, ticketMsg.tInit)
     return t_wait - totalWaitSoFar.float64
 
   return t_wait
