@@ -95,16 +95,10 @@ type
       ## Relayed messages and IWANT replies
       ## They are dropped if exceeded max. Peer is not disconnected.
 
-  QueueActionType* {.pure.} = enum
-    SendHigh
-    SendMedium
-    DropMedium
-    SendLow
-    DropLow
-    Disconnect
-
   QueueAction* = object
-    action*: QueueActionType
+    priority*: MessagePriority
+    send*: bool
+      # if true msg should be sent respecting priority, if false it means drop/disconnect
     slowPeerPenaltyDelta*: float64
 
   PubSubPeerEventKind* {.pure.} = enum
@@ -244,21 +238,29 @@ func determineQueueAction*(
     sendPriorityQueueLen == 0 and mediumPriorityQueueLen == 0 and
     lowPriorityQueueLen == 0
 
+  var send = true
+  var slowPeerPenaltyDelta = 0.0
+  var priority = priority
+
   if priority == MessagePriority.High or emptyQueues:
+    # If queues are empty, we can send medium/low messages immediatly
+    # thus setting the priority of the message to high
+    priority = MessagePriority.High
+
     if sendPriorityQueueLen >= maxHighPriorityQueueLen:
-      QueueAction(action: QueueActionType.Disconnect, slowPeerPenaltyDelta: 0.0)
-    else:
-      QueueAction(action: QueueActionType.SendHigh, slowPeerPenaltyDelta: 0.0)
+      send = false
   elif priority == MessagePriority.Medium:
     if mediumPriorityQueueLen >= maxMediumPriorityQueueLen:
-      QueueAction(action: QueueActionType.DropMedium, slowPeerPenaltyDelta: 1.0)
-    else:
-      QueueAction(action: QueueActionType.SendMedium, slowPeerPenaltyDelta: 0.0)
+      send = false
+      slowPeerPenaltyDelta = 1.0
   else:
     if lowPriorityQueueLen >= maxLowPriorityQueueLen:
-      QueueAction(action: QueueActionType.DropLow, slowPeerPenaltyDelta: 1.0)
-    else:
-      QueueAction(action: QueueActionType.SendLow, slowPeerPenaltyDelta: 0.0)
+      slowPeerPenaltyDelta = 1.0
+      send = false
+
+  QueueAction(
+    priority: priority, send: send, slowPeerPenaltyDelta: slowPeerPenaltyDelta
+  )
 
 func determineQueueAction*(
     priority: MessagePriority,
@@ -525,7 +527,7 @@ proc enqueueNonHighPriorityMessage(
     when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_low_priority_queue_size.inc(labelValues = [$p.peerId])
   of MessagePriority.High:
-    doAssert false, "high-priority messages are not enqueued"
+    raiseAssert "high-priority messages are not enqueued"
   p.rpcmessagequeue.dataAvailableEvent.fire()
 
   return newFutureCompleted[void]()
@@ -544,7 +546,7 @@ proc dropNonHighPriorityMessage(
       libp2p_pubsub_low_priority_queue_drops.inc()
     trace "low priority queue full, dropping message", p
   of MessagePriority.High:
-    doAssert false, "high-priority messages are not dropped via queue overflow scoring"
+    raiseAssert "high-priority messages are not dropped via queue overflow scoring"
   return newFutureCompleted[void]()
 
 proc sendEncoded*(
@@ -578,28 +580,22 @@ proc sendEncoded*(
       maxSize = p.maxMessageSize, msgSize = msg.len
     newFutureCompleted[void]()
   else:
-    let queueAction = determineQueueAction(
+    let action = determineQueueAction(
       priority, p.rpcmessagequeue, p.maxHighPriorityQueueLen,
       p.maxMediumPriorityQueueLen, p.maxLowPriorityQueueLen,
     )
 
-    case queueAction.action
-    of QueueActionType.SendHigh:
-      p.sendHighPriorityMessage(msg, useCustomConn)
-    of QueueActionType.SendMedium:
-      p.enqueueNonHighPriorityMessage(msg, useCustomConn, MessagePriority.Medium)
-    of QueueActionType.DropMedium:
-      p.dropNonHighPriorityMessage(
-        queueAction.slowPeerPenaltyDelta, MessagePriority.Medium
-      )
-    of QueueActionType.SendLow:
-      p.enqueueNonHighPriorityMessage(msg, useCustomConn, MessagePriority.Low)
-    of QueueActionType.DropLow:
-      p.dropNonHighPriorityMessage(
-        queueAction.slowPeerPenaltyDelta, MessagePriority.Low
-      )
-    of QueueActionType.Disconnect:
-      p.disconnectPeer()
+    case action.priority
+    of High:
+      if action.send:
+        p.sendHighPriorityMessage(msg, useCustomConn)
+      else:
+        p.disconnectPeer()
+    of Medium, Low:
+      if action.send:
+        p.enqueueNonHighPriorityMessage(msg, useCustomConn, action.priority)
+      else:
+        p.dropNonHighPriorityMessage(action.slowPeerPenaltyDelta, action.priority)
 
 iterator splitRPCMsg(
     peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool

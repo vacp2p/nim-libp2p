@@ -282,7 +282,8 @@ suite "Priority queue behavior":
     )
 
     check:
-      queueAction.action == QueueActionType.DropMedium
+      queueAction.priority == MessagePriority.Medium
+      queueAction.send == false
       queueAction.slowPeerPenaltyDelta == 1.0
 
   test "Queue admission drops low when backlog exists and low queue is full":
@@ -297,7 +298,8 @@ suite "Priority queue behavior":
     )
 
     check:
-      queueAction.action == QueueActionType.DropLow
+      queueAction.priority == MessagePriority.Low
+      queueAction.send == false
       queueAction.slowPeerPenaltyDelta == 1.0
 
   test "Queue admission disconnects when high priority queue is full":
@@ -312,5 +314,6 @@ suite "Priority queue behavior":
     )
 
     check:
-      queueAction.action == QueueActionType.Disconnect
+      queueAction.priority == MessagePriority.High
+      queueAction.send == false
       queueAction.slowPeerPenaltyDelta == 0.0
