@@ -110,7 +110,7 @@ proc new*(
     protoVersion: string = "",
     agentVersion: string = "",
     addressMappers = newSeq[AddressMapper](),
-    addressPolicy: PeerAddressPolicy = defaultAddressPolicy(),
+    addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
 ): PeerInfo {.raises: [LPError].} =
   let pubkey =
     try:

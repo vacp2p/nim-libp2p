@@ -313,7 +313,7 @@ proc new*(
     republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
-    addressPolicy: PeerAddressPolicy = defaultAddressPolicy(),
+    addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,

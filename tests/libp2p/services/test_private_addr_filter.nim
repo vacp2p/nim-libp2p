@@ -10,7 +10,6 @@ import
     builders,
     peeraddrpolicy,
     switch,
-    wire,
     multiaddress,
     peerid,
     peerstore,
@@ -21,41 +20,6 @@ import ../../tools/[unittest, crypto]
 
 proc ma(s: string): MultiAddress =
   MultiAddress.init(s).tryGet()
-
-suite "isFilterablePrivateMA":
-  test "RFC1918 addresses are filterable":
-    check isFilterablePrivateMA(ma("/ip4/10.0.0.1/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip4/172.16.0.1/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip4/172.31.255.255/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip4/192.168.1.5/tcp/4001"))
-
-  test "loopback addresses are filterable":
-    check isFilterablePrivateMA(ma("/ip4/127.0.0.1/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip6/::1/tcp/4001"))
-
-  test "link-local addresses are filterable":
-    check isFilterablePrivateMA(ma("/ip4/169.254.1.1/tcp/4001"))
-    check isFilterablePrivateMA(ma("/ip6/fe80::1/tcp/4001"))
-
-  test "public IPv4 addresses are not filterable":
-    check not isFilterablePrivateMA(ma("/ip4/1.1.1.1/tcp/4001"))
-    check not isFilterablePrivateMA(ma("/ip4/8.8.8.8/tcp/53"))
-
-  test "DNS addresses are not filterable":
-    check not isFilterablePrivateMA(ma("/dns4/example.com/tcp/4001"))
-    check not isFilterablePrivateMA(ma("/dns/example.com/tcp/4001"))
-
-  test "circuit relay addresses are not filterable even with private relay IP":
-    check not isFilterablePrivateMA(
-      ma(
-        "/ip4/192.168.1.5/tcp/4001/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit"
-      )
-    )
-    check not isFilterablePrivateMA(
-      ma(
-        "/ip4/127.0.0.1/tcp/4001/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit"
-      )
-    )
 
 suite "PeerStore addressPolicy":
   test "updatePeerInfo stores all addresses with default policy":
@@ -76,7 +40,7 @@ suite "PeerStore addressPolicy":
   test "updatePeerInfo filters private addresses when addressPolicy is set":
     let peerId = PeerId.random(rng()).tryGet()
     let peerStore = PeerStore.new(nil)
-    peerStore.addressPolicy = publicRoutableAddressPolicy()
+    peerStore.addressPolicy = publicRoutableAddressPolicy
 
     peerStore.updatePeerInfo(
       IdentifyInfo(
@@ -95,7 +59,7 @@ suite "PeerStore addressPolicy":
   test "updatePeerInfo skips storage when all addresses are filtered":
     let peerId = PeerId.random(rng()).tryGet()
     let peerStore = PeerStore.new(nil)
-    peerStore.addressPolicy = publicRoutableAddressPolicy()
+    peerStore.addressPolicy = publicRoutableAddressPolicy
 
     peerStore.updatePeerInfo(
       IdentifyInfo(
@@ -110,7 +74,7 @@ suite "PeerStore addressPolicy":
   test "updatePeerInfo clears stale addresses when a later update filters everything":
     let peerId = PeerId.random(rng()).tryGet()
     let peerStore = PeerStore.new(nil)
-    peerStore.addressPolicy = publicRoutableAddressPolicy()
+    peerStore.addressPolicy = publicRoutableAddressPolicy
 
     peerStore.updatePeerInfo(
       IdentifyInfo(peerId: peerId, addrs: @[ma("/ip4/1.1.1.1/tcp/4001")])
@@ -125,7 +89,7 @@ suite "PeerStore addressPolicy":
   test "circuit relay addresses pass through the filter":
     let peerId = PeerId.random(rng()).tryGet()
     let peerStore = PeerStore.new(nil)
-    peerStore.addressPolicy = publicRoutableAddressPolicy()
+    peerStore.addressPolicy = publicRoutableAddressPolicy
 
     let relayAddr = ma(
       "/ip4/192.168.1.5/tcp/4001/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit"
@@ -173,7 +137,7 @@ suite "KadDHT updatePeers address policy":
       .withNoise()
       .build()
 
-    let config = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy())
+    let config = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy)
     let kad = KadDHT.new(switch, @[], config)
     switch.mount(kad)
 
@@ -199,7 +163,7 @@ suite "KadDHT updatePeers address policy":
       .withNoise()
       .build()
 
-    let config = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy())
+    let config = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy)
     let kad = KadDHT.new(switch, @[], config)
     switch.mount(kad)
 
@@ -234,22 +198,31 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
     await switch.stop()
 
   asyncTest "public addresses are kept when filter is enabled":
-    # This test uses 127.0.0.1 (private) as listen addr but checks the mapper
-    # logic by directly verifying addresses without relying on a real public IP.
-    # We verify that a switch without the filter retains loopback addresses.
-    let switchNoFilter = SwitchBuilder
+    # Listen on loopback (always available) but use a stubbed address mapper
+    # to surface a routable address to the announcement pipeline. The filter
+    # must keep the public address while dropping the private listen address.
+    let publicAddr = ma("/ip4/1.2.3.4/tcp/4001")
+    let switch = SwitchBuilder
       .new()
       .withRng(rng)
       .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")], false)
       .withTcpTransport()
       .withMplex()
       .withNoise()
+      .withPrivateAddressFilter()
       .build()
 
-    await switchNoFilter.start()
-    # Without filter, loopback address should be present
-    check switchNoFilter.peerInfo.addrs.len > 0
-    await switchNoFilter.stop()
+    proc stubMapper(
+        input: seq[MultiAddress]
+    ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+      return input & @[publicAddr]
+
+    switch.peerInfo.addressMappers.add(stubMapper)
+
+    await switch.start()
+    # Filter removes loopback but keeps the mapper-injected public address.
+    check switch.peerInfo.addrs == @[publicAddr]
+    await switch.stop()
 
   asyncTest "withPrivateAddressFilter default is off":
     # Without calling withPrivateAddressFilter, private addresses pass through

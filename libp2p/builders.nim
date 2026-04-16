@@ -120,7 +120,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     rdv: Opt.none(RendezVous),
     kad: Opt.none(KadInfo),
     enableWildcardResolver: true,
-    addressPolicy: defaultAddressPolicy(),
+    addressPolicy: defaultAddressPolicy,
   )
 
 proc withPrivateKey*(
@@ -386,7 +386,7 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder {.public.} =
   ## - Our node will not announce private addresses to the network
   ## - Private addresses received from other peers are discarded
   ## Circuit relay and DNS addresses are never filtered.
-  b.withAddressPolicy(publicRoutableAddressPolicy())
+  b.withAddressPolicy(publicRoutableAddressPolicy)
 
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   if b.rng == nil: # newRng could fail
