@@ -78,35 +78,46 @@ type
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
 
-proc new*(
+proc newMaxTotal*(
     C: type ConnManager,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
     maxConnections = MaxConnections,
-    maxIn = -1,
-    maxOut = -1,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
 ): ConnManager =
-  var inSema, outSema: AsyncSemaphore
-  var maxConnectionsIn, maxConnectionsOut: int
-  if maxIn > 0 or maxOut > 0:
-    inSema = newAsyncSemaphore(maxIn)
-    outSema = newAsyncSemaphore(maxOut)
-    maxConnectionsIn = maxIn
-    maxConnectionsOut = maxOut
-  elif maxConnections > 0:
-    inSema = newAsyncSemaphore(maxConnections)
-    outSema = inSema
-    maxConnectionsIn = maxConnections
-    maxConnectionsOut = maxConnections
-  else:
-    raiseAssert "Invalid connection counts!"
+  ## Creates a `ConnManager` where incoming and outgoing connections share a
+  ## single pool capped at `maxConnections`. Acquiring a slot for either
+  ## direction draws from the same semaphore, so the combined total never
+  ## exceeds `maxConnections`.
+  doAssert maxConnections > 0, "`maxConnections` must be greater than 0"
+
+  let sema = newAsyncSemaphore(maxConnections)
+  C(
+    muxerStore: MuxerStore.new(),
+    maxConnsPerPeer: maxConnsPerPeer,
+    maxConnectionsIn: maxConnections,
+    maxConnectionsOut: maxConnections,
+    inSema: sema,
+    outSema: sema,
+  )
+
+proc newMaxInOut*(
+    C: type ConnManager,
+    maxIn: int,
+    maxOut: int,
+    maxConnsPerPeer = MaxConnectionsPerPeer,
+): ConnManager =
+  ## Creates a `ConnManager` where incoming and outgoing connections are limited
+  ## independently: at most `maxIn` inbound and `maxOut` outbound connections
+  ## may be open concurrently, each tracked by its own semaphore.
+  doAssert maxIn > 0 and maxOut > 0,
+    "ConnManager.newMaxInOut requires maxIn > 0 and maxOut > 0"
 
   C(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer: maxConnsPerPeer,
-    maxConnectionsIn: maxConnectionsIn,
-    maxConnectionsOut: maxConnectionsOut,
-    inSema: inSema,
-    outSema: outSema,
+    maxConnectionsIn: maxIn,
+    maxConnectionsOut: maxOut,
+    inSema: newAsyncSemaphore(maxIn),
+    outSema: newAsyncSemaphore(maxOut),
   )
 
 proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
