@@ -114,6 +114,7 @@ template streamTransportTest*(
     )
 
   asyncTest "server writes after EOF":
+    let listenAddrs = addressIP4
     var clientHandlerDone = newFuture[void]()
     var serverReadDone = newFuture[void]()
 
@@ -128,8 +129,22 @@ template streamTransportTest*(
 
         # step 5: server waits for client to close and attempts to write
         await clientHandlerDone
-        expect LPStreamEOFError:
-          await stream.write(clientMessage)
+
+        if isTcpTransport(listenAddrs) or isTorTransport(listenAddrs):
+          # For TCP/Tor: after client.stop(), the OS sends FIN but the server
+          # socket enters CLOSE_WAIT. In this state, the OS still accepts writes
+          # to the send buffer and returns success until it receives a RST back.
+          # The mplex handle loop detects the TCP EOF asynchronously (when
+          # readMsg() fails) and calls m.close() -> channel.reset(), raising
+          # LPStreamClosedError on subsequent writes.
+          expect LPStreamEOFError:
+            let expiration = Moment.now() + 10.seconds
+            while Moment.now() < expiration:
+              await stream.write(clientMessage)
+        else:
+          # For other transports check is trivial.
+          expect LPStreamEOFError:
+            await stream.write(clientMessage)
 
     proc runClient(server: Transport) {.async.} =
       let client = transportProvider()
@@ -150,15 +165,11 @@ template streamTransportTest*(
       await conn.close()
       await client.stop()
 
-      # tcp transport (and tor (tor is tcp))
-      # needs more time to fully close itself in background
-      await sleepAsync(200.milliseconds)
-
-      # step 4: client has fully closed, tell server to write now
+      # step 4: client has fully closed, tell server to write now.
       clientHandlerDone.complete()
 
     let server = transportProvider()
-    await server.start(@[addressIP4])
+    await server.start(@[listenAddrs])
     let serverTask =
       serverHandlerSingleStream(server, streamProvider, serverStreamHandler)
 
