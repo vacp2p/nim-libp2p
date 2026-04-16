@@ -73,6 +73,7 @@ type
     bucketsCount*: int
 
   ServiceDiscovery* = ref object of KadDHT
+    advertiser*: Advertiser
     registrar*: Registrar
     rtManager*: ServiceRoutingTableManager
     services*: HashSet[ServiceInfo]
