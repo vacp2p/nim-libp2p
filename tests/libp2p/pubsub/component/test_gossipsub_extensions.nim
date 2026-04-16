@@ -51,6 +51,68 @@ suite "GossipSub Component - Extensions":
       check:
         negotiatedPeersSorted == nodesPeerIdSorted
 
+  asyncTest "Extensions control is sent before subscriptions on stream open":
+    # If node has pre-existing subsciptions on a dial,
+    # then it sends the subscriptions control message before extensions control message on a newly opened stream,
+    # which violates the protocol contract.
+    const topic = "logos-extensions-ordering"
+    var
+      dialerFirstOutgoing = Opt.none(RPCMsg)
+      receiverFirstOutgoing = Opt.none(RPCMsg)
+
+    proc onNegotiated(_: PeerId) {.gcsafe, raises: [].} =
+      discard
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          testExtensionConfig =
+            Opt.some(TestExtensionConfig(onNegotiated: onNegotiated)),
+        )
+        .toGossipSub()
+
+    # Observe the first outgoing message from each node to the other.
+    let receiverPeerId = nodes[0].peerInfo.peerId
+    let dialerPeerId = nodes[1].peerInfo.peerId
+
+    nodes[1].addObserver(
+      PubSubObserver(
+        onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+          if peer.peerId == receiverPeerId and dialerFirstOutgoing.isNone:
+            dialerFirstOutgoing = Opt.some(msg)
+      )
+    )
+    nodes[0].addObserver(
+      PubSubObserver(
+        onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+          if peer.peerId == dialerPeerId and receiverFirstOutgoing.isNone:
+            receiverFirstOutgoing = Opt.some(msg)
+      )
+    )
+
+    startAndDeferStop(nodes)
+
+    # Subscribe before connect
+    nodes.subscribeAllNodes(topic, voidTopicHandler)
+
+    await connect(nodes[1], nodes[0])
+
+    checkUntilTimeout:
+      dialerFirstOutgoing.isSome() and receiverFirstOutgoing.isSome()
+
+    # First message must be extensions control, no subscriptions.
+    check:
+      # Dialer side
+      dialerFirstOutgoing.get().control.isSome()
+      dialerFirstOutgoing.get().control.get().extensions.isSome()
+      dialerFirstOutgoing.get().subscriptions.len == 0
+      # Receiver side
+      receiverFirstOutgoing.get().control.isSome()
+      receiverFirstOutgoing.get().control.get().extensions.isSome()
+      receiverFirstOutgoing.get().subscriptions.len == 0
+
   asyncTest "Partial Message Extension":
     const topic = "logos-partial"
     const groupId = "group-id-1".toBytes
