@@ -259,16 +259,33 @@ proc withMaxConnections*(
 ): SwitchBuilder {.public.} =
   ## Maximum concurrent connections of the switch. You should either use this, or
   ## `withMaxIn <#withMaxIn,SwitchBuilder,int>`_ & `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
+  doAssert maxConnections > 0, "`maxConnections` must be greater than 0"
   b.maxConnections = maxConnections
   b
 
-proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder {.public.} =
+proc withMaxIn*(
+    b: SwitchBuilder, maxIn: int
+): SwitchBuilder {.public, deprecated: "Use withMaxInOut() instead".} =
   ## Maximum concurrent incoming connections. Should be used with `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
+  doAssert maxIn > 0, "`maxIn` must be greater than 0"
   b.maxIn = maxIn
   b
 
-proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder {.public.} =
+proc withMaxOut*(
+    b: SwitchBuilder, maxOut: int
+): SwitchBuilder {.public, deprecated: "Use withMaxInOut() instead".} =
   ## Maximum concurrent outgoing connections. Should be used with `withMaxIn<#withMaxIn,SwitchBuilder,int>`_
+  doAssert maxOut > 0, "`maxOut` must be greater than 0"
+  b.maxOut = maxOut
+  b
+
+proc withMaxInOut*(
+    b: SwitchBuilder, maxIn: int, maxOut: int
+): SwitchBuilder {.public.} =
+  ## Maximum concurrent incoming and outgoing connections.
+  doAssert maxIn > 0, "`maxIn` must be greater than 0"
+  doAssert maxOut > 0, "`maxOut` must be greater than 0"
+  b.maxIn = maxIn
   b.maxOut = maxOut
   b
 
