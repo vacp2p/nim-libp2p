@@ -143,11 +143,11 @@ proc hasControlBeenSent*(state: ExtensionsState, peerId: PeerId): bool =
 proc addPeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has connected to node and extensions control message is sent by gossipsub.
 
-  state.sentExtensions.incl(peerId)
-
   # when node has received control extensions from peer then extensions have negotiated
   if peerId notin state.sentExtensions and peerId in state.peerExtensions:
     state.onNegotiated(peerId)
+
+  state.sentExtensions.incl(peerId)
 
 proc removePeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has disconnected from node
