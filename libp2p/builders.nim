@@ -120,6 +120,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     rdv: Opt.none(RendezVous),
     kad: Opt.none(KadInfo),
     enableWildcardResolver: true,
+    addressPolicy: defaultAddressPolicy(),
   )
 
 proc withPrivateKey*(

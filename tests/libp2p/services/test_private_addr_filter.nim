@@ -58,7 +58,7 @@ suite "isFilterablePrivateMA":
     )
 
 suite "PeerStore addressPolicy":
-  test "updatePeerInfo stores all addresses when filter is nil":
+  test "updatePeerInfo stores all addresses with default policy":
     let peerId = PeerId.random(rng()).tryGet()
     let peerStore = PeerStore.new(nil)
 
@@ -81,11 +81,12 @@ suite "PeerStore addressPolicy":
     peerStore.updatePeerInfo(
       IdentifyInfo(
         peerId: peerId,
-        addrs: @[
-          ma("/ip4/192.168.1.5/tcp/4001"),
-          ma("/ip4/1.1.1.1/tcp/4001"),
-          ma("/ip4/10.0.0.1/tcp/4001"),
-        ],
+        addrs:
+          @[
+            ma("/ip4/192.168.1.5/tcp/4001"),
+            ma("/ip4/1.1.1.1/tcp/4001"),
+            ma("/ip4/10.0.0.1/tcp/4001"),
+          ],
       )
     )
 
@@ -134,7 +135,7 @@ suite "PeerStore addressPolicy":
     check peerStore[AddressBook][peerId] == @[relayAddr]
 
 suite "KadDHT updatePeers address policy":
-  test "updatePeers stores all addresses when addressPolicy is nil":
+  test "updatePeers stores all addresses with default policy":
     let switch = SwitchBuilder
       .new()
       .withRng(rng)
