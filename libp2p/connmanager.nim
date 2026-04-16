@@ -19,6 +19,7 @@ declareCounter(
 const
   MaxConnections* = 50
   MaxConnectionsPerPeer* = 1
+  connectionsUnlimited = -1
 
 type
   WatermarkConfig* = object
@@ -71,10 +72,10 @@ type
 
   ConnManager* = ref object of RootObj
     closed: bool
-    maxConnsPerPeer: int
     muxerStore: MuxerStore
-    maxConnectionsIn: int
-    maxConnectionsOut: int
+    maxConnsPerPeer: int = MaxConnectionsPerPeer
+    maxConnectionsIn: int = connectionsUnlimited
+    maxConnectionsOut: int = connectionsUnlimited
     inSema: AsyncSemaphore
     outSema: AsyncSemaphore
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
@@ -146,9 +147,9 @@ proc newWatermark*(
 ): ConnManager =
   ## Creates a `ConnManager` in hi/lo watermark mode.
   ## When the number of connected peers exceeds `highWater`, a trim cycle
-  ## closes the lowest-scoring (oldest) peers until the count drops to
-  ## `lowWater`. Peers connected within `gracePeriod` and peers marked with
-  ## `protect` are exempt from trimming.
+  ## closes the oldest peers first until the count drops to `lowWater`.
+  ## Peers connected within `gracePeriod` and peers marked with `protect`
+  ## are exempt from trimming.
   ## Use `silencePeriod` to throttle back-to-back trim cycles.
   doAssert watermark.lowWater > 0, "lowWater must be > 0"
   doAssert watermark.highWater > watermark.lowWater, "highWater must be > lowWater"
@@ -460,7 +461,7 @@ func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
 
 proc availableSlots*(c: ConnManager, dir: Direction): int =
   if c.watermark.isSome:
-    return -1 # unlimited slots in watermark mode
+    return high(int) # unlimited slots in watermark mode, reported as a large count for callers
   return semaphore(c, dir).availableSlots
 
 proc release*(cs: ConnectionSlot) =
@@ -534,7 +535,10 @@ proc unprotect*(c: ConnManager, peerId: PeerId, tag: string): bool =
   ## Returns `true` if the peer is still protected via another tag, `false` otherwise.
   c.protectedPeers.withValue(peerId, tags):
     tags[].excl(tag)
-    return tags[].len > 0
+    let isProtected = tags[].len > 0
+    if not isProtected:
+      c.protectedPeers.del(peerId)
+    return isProtected
   return false
 
 proc isProtected*(c: ConnManager, peerId: PeerId): bool =
@@ -546,7 +550,7 @@ proc isProtected*(c: ConnManager, peerId: PeerId): bool =
 proc trimConnections(c: ConnManager) {.async: (raises: []).} =
   ## Closes peers until the total peer count is at or below `lowWater`.
   ## Skips peers within the grace period and peers that are protected.
-  ## Prunes oldest connections first (lowest-score-first strategy).
+  ## Prunes the oldest eligible connections first.
   libp2p_connmgr_trim_total.inc()
   let wm = c.watermark.get()
   let now = Moment.now()
@@ -565,14 +569,20 @@ proc trimConnections(c: ConnManager) {.async: (raises: []).} =
       a[0].cmp(b[0])
   )
 
+  # initiate all drops concurrently and await them together.
+  # this frees peer state immediately while letting the underlying
+  # connection close futures run in parallel.
+  var dropFuts: seq[Future[void]]
   for (_, peerId) in candidates:
     if c.muxerStore.countPeers() <= wm.lowWater:
       break
-    try:
-      await c.dropPeer(peerId)
-    except CancelledError:
-      return
+    dropFuts.add(c.dropPeer(peerId))
     libp2p_connmgr_pruned_peers_total.inc()
+
+  try:
+    await allFutures(dropFuts)
+  except CancelledError:
+    trace "watermark trim connection was cancelled"
 
   c.lastTrim = Moment.now()
 
