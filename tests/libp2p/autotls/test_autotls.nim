@@ -43,12 +43,11 @@ when defined(libp2p_autotls_support):
     asyncTest "request challenge for a domain":
       api.mockedResponses.add(
         HTTPResponse(
-          body:
-            %*{
-              "status": "pending",
-              "authorizations": ["http://example.com/expected-authorizations-url"],
-              "finalize": "http://example.com/expected-finalize-url",
-            },
+          body: %*{
+            "status": "pending",
+            "authorizations": ["http://example.com/expected-authorizations-url"],
+            "finalize": "http://example.com/expected-finalize-url",
+          },
           headers:
             HttpTable.init(@[("location", "http://example.com/expected-order-url")]),
         )
@@ -65,17 +64,16 @@ when defined(libp2p_autotls_support):
       # reset mocked obj for second request
       api.mockedResponses.add(
         HTTPResponse(
-          body:
-            %*{
-              "challenges": [
-                {
-                  "url": "http://example.com/expected-dns01-url",
-                  "type": "dns-01",
-                  "status": "pending",
-                  "token": "expected-dns01-token",
-                }
-              ]
-            },
+          body: %*{
+            "challenges": [
+              {
+                "url": "http://example.com/expected-dns01-url",
+                "type": "dns-01",
+                "status": "pending",
+                "token": "expected-dns01-token",
+              }
+            ]
+          },
           headers:
             HttpTable.init(@[("location", "http://example.com/expected-order-url")]),
         )
@@ -263,25 +261,24 @@ when defined(libp2p_autotls_support):
       api.mockedResponses = @[]
       api.mockedResponses.add(
         HTTPResponse(
-          body:
-            %*{
-              "identifier": {"type": "dns", "value": "example.com"},
-              "status": "pending",
-              "challenges": [
-                {
-                  "type": "dns-persist-01",
-                  "url": "http://example.com/unknown-challenge",
-                  "status": "pending",
-                  "token": "unknown-token",
-                },
-                {
-                  "type": "dns-01",
-                  "url": "http://example.com/recognized-challenge",
-                  "status": "pending",
-                  "token": "recognized-token",
-                },
-              ],
-            },
+          body: %*{
+            "identifier": {"type": "dns", "value": "example.com"},
+            "status": "pending",
+            "challenges": [
+              {
+                "type": "dns-persist-01",
+                "url": "http://example.com/unknown-challenge",
+                "status": "pending",
+                "token": "unknown-token",
+              },
+              {
+                "type": "dns-01",
+                "url": "http://example.com/recognized-challenge",
+                "status": "pending",
+                "token": "recognized-token",
+              },
+            ],
+          },
           headers: HttpTable.init(),
         )
       )

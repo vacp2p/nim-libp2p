@@ -43,57 +43,54 @@ suite "RendezVous Errors":
     expect AdvertiseError:
       await rdv.advertise("A", Opt.some(30.seconds))
 
-  let testCases =
-    @[
+  let testCases = @[
+    (
+      "Register - Invalid Namespace",
       (
-        "Register - Invalid Namespace",
-        (
-          proc(node: RendezVous): Message =
-            prepareRegisterMessage(
-              "A".repeat(300),
-              node.switch.peerInfo.signedPeerRecord.encode().get,
-              2.hours,
-            )
-        ),
-        ResponseStatus.InvalidNamespace,
+        proc(node: RendezVous): Message =
+          prepareRegisterMessage(
+            "A".repeat(300), node.switch.peerInfo.signedPeerRecord.encode().get, 2.hours
+          )
       ),
+      ResponseStatus.InvalidNamespace,
+    ),
+    (
+      "Register - Invalid Signed Peer Record",
       (
-        "Register - Invalid Signed Peer Record",
-        (
-          proc(node: RendezVous): Message =
-            # Malformed SPR - empty bytes will fail validation
-            prepareRegisterMessage("namespace", newSeq[byte](), 2.hours)
-        ),
-        ResponseStatus.InvalidSignedPeerRecord,
+        proc(node: RendezVous): Message =
+          # Malformed SPR - empty bytes will fail validation
+          prepareRegisterMessage("namespace", newSeq[byte](), 2.hours)
       ),
+      ResponseStatus.InvalidSignedPeerRecord,
+    ),
+    (
+      "Register - Invalid TTL",
       (
-        "Register - Invalid TTL",
-        (
-          proc(node: RendezVous): Message =
-            prepareRegisterMessage(
-              "namespace", node.switch.peerInfo.signedPeerRecord.encode().get, 73.hours
-            )
-        ),
-        ResponseStatus.InvalidTTL,
+        proc(node: RendezVous): Message =
+          prepareRegisterMessage(
+            "namespace", node.switch.peerInfo.signedPeerRecord.encode().get, 73.hours
+          )
       ),
+      ResponseStatus.InvalidTTL,
+    ),
+    (
+      "Discover - Invalid Namespace",
       (
-        "Discover - Invalid Namespace",
-        (
-          proc(node: RendezVous): Message =
-            prepareDiscoverMessage(ns = Opt.some("A".repeat(300)))
-        ),
-        ResponseStatus.InvalidNamespace,
+        proc(node: RendezVous): Message =
+          prepareDiscoverMessage(ns = Opt.some("A".repeat(300)))
       ),
+      ResponseStatus.InvalidNamespace,
+    ),
+    (
+      "Discover - Invalid Cookie",
       (
-        "Discover - Invalid Cookie",
-        (
-          proc(node: RendezVous): Message =
-            # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
-            prepareDiscoverMessage(cookie = Opt.some(newSeq[byte]()))
-        ),
-        ResponseStatus.InvalidCookie,
+        proc(node: RendezVous): Message =
+          # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
+          prepareDiscoverMessage(cookie = Opt.some(newSeq[byte]()))
       ),
-    ]
+      ResponseStatus.InvalidCookie,
+    ),
+  ]
 
   for test in testCases:
     let (testName, getMessage, expectedStatus) = test
