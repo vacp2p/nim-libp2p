@@ -6,16 +6,19 @@
 import chronos, results, sets
 import
   ../../../libp2p/protocols/kademlia,
-  ../../../libp2p/protocols/service_discovery/routing_table_manager
+  ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
 import ../../tools/[lifecycle, unittest]
 import ../kademlia/[mock_kademlia, utils]
 
-proc makeKey*(x: byte): Key =
+proc makeKey(x: byte): Key =
   var buf: array[IdLength, byte]
   buf[31] = x
   return @buf
 
-proc makeMainTable*(selfId: Key, peers: seq[Key]): RoutingTable =
+proc makeServiceId(x: byte): ServiceId =
+  return makeKey(x)
+
+proc makeMainTable(selfId: Key, peers: seq[Key]): RoutingTable =
   var rt = RoutingTable.new(selfId)
   for p in peers:
     discard rt.insert(p)
@@ -30,7 +33,7 @@ suite "ServiceRoutingTableManager":
 
   test "addService returns true and adds table":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
 
     check:
@@ -42,7 +45,7 @@ suite "ServiceRoutingTableManager":
 
   test "addService with same service and same status returns false":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
@@ -58,7 +61,7 @@ suite "ServiceRoutingTableManager":
 
   test "addService with same service but different status sets Both and returns true":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
@@ -79,7 +82,7 @@ suite "ServiceRoutingTableManager":
     let mainRt = makeMainTable(selfId, @[peer1, peer2])
 
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(0xAA)
+    let serviceId = makeServiceId(0xAA)
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
@@ -94,7 +97,7 @@ suite "ServiceRoutingTableManager":
 
   test "removeService removes entry when status matches":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
@@ -108,7 +111,7 @@ suite "ServiceRoutingTableManager":
 
   test "removeService on Both with Interest leaves Provided":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
@@ -127,7 +130,7 @@ suite "ServiceRoutingTableManager":
 
   test "removeService on Both with Provided leaves Interest":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
@@ -146,14 +149,14 @@ suite "ServiceRoutingTableManager":
 
   test "removeService on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(0x99)
+    let serviceId = makeServiceId(0x99)
 
     manager.removeService(serviceId, Interest)
     check manager.count() == 0
 
   test "getTable returns Some for existing service":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
@@ -164,14 +167,14 @@ suite "ServiceRoutingTableManager":
 
   test "getTable returns None for non-existing service":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
 
     check manager.getTable(serviceId).isNone()
 
   test "insertPeer adds peer to the service routing table":
     let selfId = makeKey(0)
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(selfId)
 
     check manager.addService(
@@ -187,7 +190,7 @@ suite "ServiceRoutingTableManager":
 
   test "insertPeer on non-existent service is a no-op":
     let manager = ServiceRoutingTableManager.new()
-    let serviceId = makeKey(0x99)
+    let serviceId = makeServiceId(0x99)
     let peerKey = makeKey(0x42)
 
     manager.insertPeer(serviceId, peerKey)
@@ -262,7 +265,7 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     let kad = setupMockKad()
     startAndDeferStop(@[kad])
 
-    let serviceId = makeKey(1)
+    let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(2))
     check manager.addService(
       serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
