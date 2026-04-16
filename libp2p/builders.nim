@@ -267,7 +267,6 @@ proc withMaxIn*(
     b: SwitchBuilder, maxIn: int
 ): SwitchBuilder {.public, deprecated: "Use withMaxInOut() instead".} =
   ## Maximum concurrent incoming connections. Should be used with `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
-  doAssert maxIn > 0, "`maxIn` must be greater than 0"
   b.maxIn = maxIn
   b
 
@@ -275,7 +274,6 @@ proc withMaxOut*(
     b: SwitchBuilder, maxOut: int
 ): SwitchBuilder {.public, deprecated: "Use withMaxInOut() instead".} =
   ## Maximum concurrent outgoing connections. Should be used with `withMaxIn<#withMaxIn,SwitchBuilder,int>`_
-  doAssert maxOut > 0, "`maxOut` must be greater than 0"
   b.maxOut = maxOut
   b
 
