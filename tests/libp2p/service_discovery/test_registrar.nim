@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, math]
+import std/[times]
 import chronos, chronicles, results
 import
   ../../../libp2p/[
