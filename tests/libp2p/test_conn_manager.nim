@@ -481,7 +481,7 @@ suite "Watermark Connection Manager":
     connMngr.protect(peers[0], "important")
     connMngr.protect(peers[1], "important")
 
-    # adding exter peer, triggering trim
+    # adding extra peer, triggering trim
     await connMngr.storeMuxer(getMuxer(PeerId.random.tryGet()))
 
     # protected peers must still be connected

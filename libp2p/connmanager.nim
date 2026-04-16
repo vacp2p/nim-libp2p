@@ -19,7 +19,7 @@ declareCounter(
 const
   MaxConnections* = 50
   MaxConnectionsPerPeer* = 1
-  connectionsUnlimited = -1
+  connectionsUnlimited = high(int)
 
 type
   WatermarkConfig* = object
@@ -74,8 +74,8 @@ type
     closed: bool
     muxerStore: MuxerStore
     maxConnsPerPeer: int = MaxConnectionsPerPeer
-    maxConnectionsIn: int = connectionsUnlimited
-    maxConnectionsOut: int = connectionsUnlimited
+    maxConnectionsIn: int
+    maxConnectionsOut: int
     inSema: AsyncSemaphore
     outSema: AsyncSemaphore
     connEvents: array[ConnEventKind, OrderedSet[ConnEventHandler]]
@@ -155,8 +155,10 @@ proc newWatermark*(
   doAssert watermark.highWater > watermark.lowWater, "highWater must be > lowWater"
   C(
     muxerStore: MuxerStore.new(),
-    maxConnsPerPeer: maxConnsPerPeer,
     watermark: Opt.some(watermark),
+    maxConnectionsIn: connectionsUnlimited,
+    maxConnectionsOut: connectionsUnlimited,
+    maxConnsPerPeer: maxConnsPerPeer,
   )
 
 proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
@@ -461,7 +463,7 @@ func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
 
 proc availableSlots*(c: ConnManager, dir: Direction): int =
   if c.watermark.isSome:
-    return high(int) # unlimited slots in watermark mode, reported as a large count for callers
+    return connectionsUnlimited # unlimited slots in watermark mode
   return semaphore(c, dir).availableSlots
 
 proc release*(cs: ConnectionSlot) =
