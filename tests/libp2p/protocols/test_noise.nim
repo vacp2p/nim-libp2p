@@ -70,7 +70,7 @@ proc createSwitch(
         [Secure(PlainText.new())]
       else:
         [Secure(Noise.new(rng, privateKey, outgoing = outgoing))]
-    connManager = ConnManager.new()
+    connManager = ConnManager.newMaxTotal()
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(muxers, secureManagers, ms)
     transports = @[Transport(TcpTransport.new(upgrade = muxedUpgrade))]
