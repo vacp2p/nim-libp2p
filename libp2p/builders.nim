@@ -619,4 +619,4 @@ proc newStandardSwitch*(
     sendSignedPeerRecord = sendSignedPeerRecord,
     peerStoreCapacity = peerStoreCapacity,
   )
-    .build()
+  .build()

@@ -9,7 +9,6 @@ import
   ../../../libp2p/[
     builders,
     peeraddrpolicy,
-    routing_record,
     switch,
     wire,
     multiaddress,

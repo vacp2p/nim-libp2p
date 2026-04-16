@@ -167,8 +167,8 @@ proc updatePeers*(
     let addrs = addressPolicy.filterAddrs(p.addrs)
     if addrs.len == 0:
       continue
-    if rtable.insert(p.peerId) and addrs.len > 0:
-      switch.peerStore[AddressBook].extend(p.peerId, p.addrs)
+    if rtable.insert(p.peerId):
+      switch.peerStore[AddressBook].extend(p.peerId, addrs)
 
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   updatePeers(kad.switch, kad.config.addressPolicy, kad.rtable, peerInfos)

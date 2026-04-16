@@ -20,14 +20,10 @@ proc filterAddrs*(
     return @addrs
   addrs.filterIt(policy.accept(it))
 
-proc preservesAddrs*(
-    policy: PeerAddressPolicy, addrs: openArray[MultiAddress]
-): bool =
+proc preservesAddrs*(policy: PeerAddressPolicy, addrs: openArray[MultiAddress]): bool =
   policy.filterAddrs(addrs).len == addrs.len
 
-proc filterPeerRecord*(
-    policy: PeerAddressPolicy, record: PeerRecord
-): Opt[PeerRecord] =
+proc filterPeerRecord*(policy: PeerAddressPolicy, record: PeerRecord): Opt[PeerRecord] =
   if policy.isNil or policy.accept.isNil:
     return Opt.some(record)
 
@@ -45,7 +41,7 @@ proc allowsSignedPeerRecord*(
 
   let spr = SignedPeerRecord.decode(signedPeerRecord).valueOr:
     return false
-  
+
   policy.preservesAddrs(spr.data.addresses.mapIt(it.address))
 
 proc publicRoutableAddressPolicy*(): PeerAddressPolicy =
