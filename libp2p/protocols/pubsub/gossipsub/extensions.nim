@@ -137,13 +137,16 @@ proc heartbeat*(state: ExtensionsState) =
 
   state.onHeartbeat()
 
+proc hasControlBeenSent*(state: ExtensionsState, peerId: PeerId): bool =
+  peerId in state.sentExtensions
+
 proc addPeer*(state: ExtensionsState, peerId: PeerId) =
   # called after peer has connected to node and extensions control message is sent by gossipsub.
 
   state.sentExtensions.incl(peerId)
 
   # when node has received control extensions from peer then extensions have negotiated
-  if peerId in state.peerExtensions:
+  if peerId notin state.sentExtensions and peerId in state.peerExtensions:
     state.onNegotiated(peerId)
 
 proc removePeer*(state: ExtensionsState, peerId: PeerId) =
