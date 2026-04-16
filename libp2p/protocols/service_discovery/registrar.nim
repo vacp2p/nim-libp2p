@@ -58,53 +58,80 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for ip in ad.data.addresses.filterIPv4():
     ipTree.removeIp(ip)
 
+proc isExpired(now, ts, expiry: uint64): bool {.inline.} =
+  safeSub(now, ts) > expiry
+
+proc pruneAdsForService(
+    registrar: Registrar,
+    serviceId: ServiceId,
+    ads: var seq[Advertisement],
+    now: uint64,
+    advertExpiry: uint64,
+    expiredCount: var int,
+) =
+  var i = 0
+  while i < ads.len:
+    let ad = ads[i]
+    let key = ad.toAdvertisementKey()
+    let ts = registrar.cacheTimestamps.getOrDefault(key, 0)
+
+    if isExpired(now, ts, advertExpiry):
+      registrar.ipTree.removeAd(ad)
+      registrar.cacheTimestamps.del(key)
+      ads.delete(i)
+      inc(expiredCount)
+    else:
+      inc(i)
+
+proc pruneEmptyServices(registrar: Registrar) =
+  var toRemove: seq[ServiceId] = @[]
+  for sid, ads in registrar.cache:
+    if ads.len == 0:
+      toRemove.add(sid)
+
+  for sid in toRemove:
+    registrar.cache.del(sid)
+
+proc pruneExpiredEntries[K](
+    timestamps: Table[K, uint64],
+    bounds: var Table[K, float64],
+    now: uint64,
+    expiry: uint64,
+) =
+  var toRemove: seq[K] = @[]
+
+  for k, ts in timestamps:
+    if isExpired(now, ts, expiry):
+      toRemove.add(k)
+
+  for k in toRemove:
+    timestamps.del(k)
+    bounds.del(k)
+
 proc pruneExpiredAds*(registrar: Registrar, advertExpiry: uint64) =
   let now = getTime().toUnix().uint64
-  var toDelete: seq[tuple[serviceId: ServiceId, ad: Advertisement]] = @[]
 
+  var expiredCount = 0
+
+  # Prune ads per service
   for serviceId, ads in registrar.cache.mpairs:
-    var i = 0
-    while i < ads.len:
-      let ad = ads[i]
-      let adKey = ad.toAdvertisementKey()
-      let adTime = registrar.cacheTimestamps.getOrDefault(adKey, 0)
+    registrar.pruneAdsForService(serviceId, ads, now, advertExpiry, expiredCount)
 
-      if safeSub(now, adTime) > advertExpiry:
-        registrar.ipTree.removeAd(ad)
-        toDelete.add((serviceId, ad))
-        ads.delete(i)
-      else:
-        inc(i)
+  # Remove empty services
+  registrar.pruneEmptyServices()
 
-  for (_, ad) in toDelete:
-    registrar.cacheTimestamps.del(ad.toAdvertisementKey())
-
-  var emptyServices: seq[ServiceId] = @[]
-  for serviceId, ads in registrar.cache:
-    if ads.len == 0:
-      emptyServices.add(serviceId)
-  for serviceId in emptyServices:
-    registrar.cache.del(serviceId)
-
-  if toDelete.len > 0:
-    cd_registrar_ads_expired.inc(toDelete.len.float64)
+  # Calculate metrics
+  if expiredCount > 0:
+    cd_registrar_ads_expired.inc(expiredCount.float64)
     registrar.updateRegistrarMetrics()
 
-  var expiredServices: seq[ServiceId] = @[]
-  for sid, ts in registrar.timestampService:
-    if safeSub(now, ts) > advertExpiry:
-      expiredServices.add(sid)
-  for sid in expiredServices:
-    registrar.boundService.del(sid)
-    registrar.timestampService.del(sid)
+  # Expire service-level bounds
+  pruneExpiredEntries(
+    registrar.timestampService, registrar.boundService, now, advertExpiry
+  )
 
-  var expiredIps: seq[string] = @[]
-  for ip, ts in registrar.timestampIp:
-    if safeSub(now, ts) > advertExpiry:
-      expiredIps.add(ip)
-  for ip in expiredIps:
-    registrar.boundIp.del(ip)
-    registrar.timestampIp.del(ip)
+  # Expire IP-level bounds
+  pruneExpiredEntries(registrar.timestampIp, registrar.boundIp, now, advertExpiry)
 
 proc waitingTime*(
     registrar: Registrar,
