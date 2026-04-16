@@ -9,7 +9,8 @@ import
     [peerid, switch, builders, crypto/crypto, extended_peer_record, multiaddress]
 import ../../../libp2p/protocols/[service_discovery, kademlia]
 import ../../../libp2p/protocols/kademlia/protobuf
-import ../../../libp2p/protocols/service_discovery/[types, registrar, routing_table_manager]
+import
+  ../../../libp2p/protocols/service_discovery/[types, registrar, routing_table_manager]
 import ../../tools/[crypto]
 
 export protobuf, types, registrar, routing_table_manager
