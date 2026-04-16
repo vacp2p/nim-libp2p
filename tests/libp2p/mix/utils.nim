@@ -153,9 +153,6 @@ proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
       await nrProto.receivedMessages.put(
         ReceivedMessage(connPeerId: conn.peerId, data: buffer)
       )
-      # Drain remaining data (important)
-      while true:
-        discard await conn.readLp(1024)
     except LPStreamError:
       raiseAssert "should not happen"
     finally:
