@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[os, strutils, sequtils], chronos, redis, serialization, json_serialization
 import ../../libp2p/[builders, protocols/ping, transports/wstransport]
