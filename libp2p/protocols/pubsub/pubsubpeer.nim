@@ -95,6 +95,12 @@ type
       ## Relayed messages and IWANT replies
       ## They are dropped if exceeded max. Peer is not disconnected.
 
+  QueueAction* = object
+    priority*: MessagePriority
+    send*: bool
+      # if true msg should be sent respecting priority, if false it means drop/disconnect
+    slowPeerPenaltyDelta*: float64
+
   PubSubPeerEventKind* {.pure.} = enum
     StreamOpened
     StreamClosed
@@ -163,6 +169,7 @@ type
     iHaveBudget*: int
     maxMessageSize: int
     appScore*: float64 # application specific score
+    slowPeerPenalty*: float64 # penalty from repeated medium/low queue overflow drops
     behaviourPenalty*: float64 # the eventual penalty score
     overheadRateLimitOpt*: Opt[TokenBucket]
     rpcmessagequeue: RpcMessageQueue
@@ -221,6 +228,50 @@ func outbound*(p: PubSubPeer): bool =
   # https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#outbound-mesh-quotas
   # This behaviour is presrcibed to counter sybil attacks and ensures that a coordinated inbound attack can never fully take over the mesh
   if not p.sendConn.isNil and p.sendConn.transportDir == Direction.Out: true else: false
+
+func determineQueueAction*(
+    priority: MessagePriority,
+    sendPriorityQueueLen, mediumPriorityQueueLen, lowPriorityQueueLen: int,
+    maxHighPriorityQueueLen, maxMediumPriorityQueueLen, maxLowPriorityQueueLen: int,
+): QueueAction =
+  let emptyQueues =
+    sendPriorityQueueLen == 0 and mediumPriorityQueueLen == 0 and
+    lowPriorityQueueLen == 0
+
+  var send = true
+  var slowPeerPenaltyDelta = 0.0
+  var priority = priority
+
+  if priority == MessagePriority.High or emptyQueues:
+    # If queues are empty, we can send medium/low messages immediatly
+    # thus setting the priority of the message to high
+    priority = MessagePriority.High
+
+    if sendPriorityQueueLen >= maxHighPriorityQueueLen:
+      send = false
+  elif priority == MessagePriority.Medium:
+    if mediumPriorityQueueLen >= maxMediumPriorityQueueLen:
+      send = false
+      slowPeerPenaltyDelta = 1.0
+  else:
+    if lowPriorityQueueLen >= maxLowPriorityQueueLen:
+      slowPeerPenaltyDelta = 1.0
+      send = false
+
+  QueueAction(
+    priority: priority, send: send, slowPeerPenaltyDelta: slowPeerPenaltyDelta
+  )
+
+func determineQueueAction*(
+    priority: MessagePriority,
+    rpcmessagequeue: RpcMessageQueue,
+    maxHighPriorityQueueLen, maxMediumPriorityQueueLen, maxLowPriorityQueueLen: int,
+): QueueAction =
+  determineQueueAction(
+    priority, rpcmessagequeue.sendPriorityQueue.len,
+    rpcmessagequeue.mediumPriorityQueue.len, rpcmessagequeue.lowPriorityQueue.len,
+    maxHighPriorityQueueLen, maxMediumPriorityQueueLen, maxLowPriorityQueueLen,
+  )
 
 proc recvObservers*(p: PubSubPeer, msg: var RPCMsg) =
   # trigger hooks
@@ -443,20 +494,18 @@ proc sendMsg(
     trace "sending encoded msg to peer via slow path"
     sendMsgSlow(p, msg)
 
+proc disconnectPeer(p: PubSubPeer): Future[void] =
+  if not p.disconnected:
+    p.disconnected = true
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_pubsub_disconnects_over_high_priority_queue_limit.inc()
+    return p.closeSendConn(PubSubPeerEventKind.DisconnectionRequested)
+
+  return newFutureCompleted[void]()
+
 proc sendHighPriorityMessage(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool
 ): Future[void] =
-  # Check high-priority queue bound - if exceeded, the peer is too slow
-  # to keep up with protocol-critical messages and must be disconnected.
-  if p.rpcmessagequeue.sendPriorityQueue.len >= p.maxHighPriorityQueueLen:
-    if not p.disconnected:
-      p.disconnected = true
-      when defined(pubsubpeer_queue_metrics):
-        libp2p_pubsub_disconnects_over_high_priority_queue_limit.inc()
-      return p.closeSendConn(PubSubPeerEventKind.DisconnectionRequested)
-
-    return newFutureCompleted[void]()
-
   let f = p.sendMsg(msg, useCustomConn)
   if not f.finished:
     p.rpcmessagequeue.sendPriorityQueue.addLast(f)
@@ -464,36 +513,40 @@ proc sendHighPriorityMessage(
       libp2p_gossipsub_high_priority_queue_size.inc(labelValues = [$p.peerId])
   return f
 
-proc sendMediumPriorityMessage(
-    p: PubSubPeer, msg: seq[byte], useCustomConn: bool
+proc enqueueNonHighPriorityMessage(
+    p: PubSubPeer, msg: seq[byte], useCustomConn: bool, priority: MessagePriority
 ): Future[void] =
   let queuedMsg = QueuedMessage(data: msg, useCustomConn: useCustomConn)
-  if p.rpcmessagequeue.mediumPriorityQueue.len >= p.maxMediumPriorityQueueLen:
-    when defined(pubsubpeer_queue_metrics):
-      libp2p_pubsub_medium_priority_queue_drops.inc()
-    trace "medium priority queue full, dropping message", p
-  else:
+  case priority
+  of MessagePriority.Medium:
     p.rpcmessagequeue.mediumPriorityQueue.addLast(queuedMsg)
     when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_medium_priority_queue_size.inc(labelValues = [$p.peerId])
-    p.rpcmessagequeue.dataAvailableEvent.fire()
-
-  return newFutureCompleted[void]()
-
-proc sendLowPriorityMessage(
-    p: PubSubPeer, msg: seq[byte], useCustomConn: bool
-): Future[void] =
-  let queuedMsg = QueuedMessage(data: msg, useCustomConn: useCustomConn)
-  if p.rpcmessagequeue.lowPriorityQueue.len >= p.maxLowPriorityQueueLen:
-    when defined(pubsubpeer_queue_metrics):
-      libp2p_pubsub_low_priority_queue_drops.inc()
-    trace "low priority queue full, dropping message", p
-  else:
+  of MessagePriority.Low:
     p.rpcmessagequeue.lowPriorityQueue.addLast(queuedMsg)
     when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_low_priority_queue_size.inc(labelValues = [$p.peerId])
-    p.rpcmessagequeue.dataAvailableEvent.fire()
+  of MessagePriority.High:
+    raiseAssert "high-priority messages are not enqueued"
+  p.rpcmessagequeue.dataAvailableEvent.fire()
 
+  return newFutureCompleted[void]()
+
+proc dropNonHighPriorityMessage(
+    p: PubSubPeer, slowPeerPenaltyDelta: float64, priority: MessagePriority
+): Future[void] =
+  p.slowPeerPenalty += slowPeerPenaltyDelta
+  case priority
+  of MessagePriority.Medium:
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_pubsub_medium_priority_queue_drops.inc()
+    trace "medium priority queue full, dropping message", p
+  of MessagePriority.Low:
+    when defined(pubsubpeer_queue_metrics):
+      libp2p_pubsub_low_priority_queue_drops.inc()
+    trace "low priority queue full, dropping message", p
+  of MessagePriority.High:
+    raiseAssert "high-priority messages are not dropped via queue overflow scoring"
   return newFutureCompleted[void]()
 
 proc sendEncoded*(
@@ -519,13 +572,6 @@ proc sendEncoded*(
 
   p.clearSendPriorityQueue()
 
-  # When all queues are empty, any priority message is sent immediately
-  # to reduce latency (no need to go through the background task).
-  let emptyQueues =
-    p.rpcmessagequeue.sendPriorityQueue.len == 0 and
-    p.rpcmessagequeue.mediumPriorityQueue.len == 0 and
-    p.rpcmessagequeue.lowPriorityQueue.len == 0
-
   if msg.len <= 0:
     debug "empty message, skipping", p, payload = shortLog(msg)
     newFutureCompleted[void]()
@@ -533,12 +579,23 @@ proc sendEncoded*(
     info "trying to send a msg too big for pubsub",
       maxSize = p.maxMessageSize, msgSize = msg.len
     newFutureCompleted[void]()
-  elif priority == MessagePriority.High or emptyQueues:
-    p.sendHighPriorityMessage(msg, useCustomConn)
-  elif priority == MessagePriority.Medium:
-    p.sendMediumPriorityMessage(msg, useCustomConn)
-  else: # Low
-    p.sendLowPriorityMessage(msg, useCustomConn)
+  else:
+    let action = determineQueueAction(
+      priority, p.rpcmessagequeue, p.maxHighPriorityQueueLen,
+      p.maxMediumPriorityQueueLen, p.maxLowPriorityQueueLen,
+    )
+
+    case action.priority
+    of High:
+      if action.send:
+        p.sendHighPriorityMessage(msg, useCustomConn)
+      else:
+        p.disconnectPeer()
+    of Medium, Low:
+      if action.send:
+        p.enqueueNonHighPriorityMessage(msg, useCustomConn, action.priority)
+      else:
+        p.dropNonHighPriorityMessage(action.slowPeerPenaltyDelta, action.priority)
 
 iterator splitRPCMsg(
     peer: PubSubPeer, rpcMsg: RPCMsg, maxSize: int, anonymize: bool
@@ -633,12 +690,13 @@ proc sendNonHighPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).
       await p.rpcmessagequeue.dataAvailableEvent.wait()
       p.rpcmessagequeue.dataAvailableEvent.clear()
 
-    # Dequeue messages by priority
-    let (msg, priority) =
+    var priority = MessagePriority.Low
+    let msg =
       if p.rpcmessagequeue.mediumPriorityQueue.len != 0:
-        (p.rpcmessagequeue.mediumPriorityQueue.popFirst(), MessagePriority.Medium)
+        priority = MessagePriority.Medium
+        p.rpcmessagequeue.mediumPriorityQueue.popFirst()
       elif p.rpcmessagequeue.lowPriorityQueue.len != 0:
-        (p.rpcmessagequeue.lowPriorityQueue.popFirst(), MessagePriority.Low)
+        p.rpcmessagequeue.lowPriorityQueue.popFirst()
       else:
         continue
 

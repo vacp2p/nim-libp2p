@@ -273,6 +273,157 @@ suite "GossipSub Scoring":
       round(peers[1].behaviourPenalty, 1) == 1.0 # 2.0 * 0.5
       round(peers[2].behaviourPenalty, 1) == 0.0
 
+  asyncTest "Slow peer penalty scoring":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(3, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let
+      slowPeerPenaltyWeight = -1.0
+      slowPeerPenaltyThreshold = 1.0
+      slowPeerPenaltyDecay = 0.5
+      initialPenalties = [4.0, 2.0, 1.0]
+      expectedScores = [
+        (initialPenalties[0] - slowPeerPenaltyThreshold) * slowPeerPenaltyWeight,
+        (initialPenalties[1] - slowPeerPenaltyThreshold) * slowPeerPenaltyWeight,
+        0.0,
+      ]
+      expectedDecayedPenalties = [
+        initialPenalties[0] * slowPeerPenaltyDecay,
+        initialPenalties[1] * slowPeerPenaltyDecay,
+        initialPenalties[2] * slowPeerPenaltyDecay,
+      ]
+
+    gossipSub.parameters.slowPeerPenaltyWeight = slowPeerPenaltyWeight
+    gossipSub.parameters.slowPeerPenaltyThreshold = slowPeerPenaltyThreshold
+    gossipSub.parameters.slowPeerPenaltyDecay = slowPeerPenaltyDecay
+
+    peers[0].slowPeerPenalty = initialPenalties[0]
+    peers[1].slowPeerPenalty = initialPenalties[1]
+    peers[2].slowPeerPenalty = initialPenalties[2]
+
+    gossipSub.updateScores()
+
+    check:
+      peers[0].score == expectedScores[0]
+      peers[1].score == expectedScores[1]
+      peers[2].score == expectedScores[2]
+
+    check:
+      peers[0].slowPeerPenalty == expectedDecayedPenalties[0]
+      peers[1].slowPeerPenalty == expectedDecayedPenalties[1]
+      peers[2].slowPeerPenalty == expectedDecayedPenalties[2]
+
+  asyncTest "Slow peer penalty decay is independent from behaviourPenalty":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let
+      slowPeerPenaltyWeight = -0.5
+      slowPeerPenaltyThreshold = 1.0
+      slowPeerPenaltyDecay = 0.5
+      behaviourPenaltyWeight = -1.0
+      behaviourPenaltyDecay = 0.25
+      initialSlowPeerPenalty = 5.0
+      initialBehaviourPenalty = 2.0
+      expectedScore =
+        ((initialSlowPeerPenalty - slowPeerPenaltyThreshold) * slowPeerPenaltyWeight) +
+        (initialBehaviourPenalty * initialBehaviourPenalty * behaviourPenaltyWeight)
+      expectedSlowPeerPenalty = initialSlowPeerPenalty * slowPeerPenaltyDecay
+      expectedBehaviourPenalty = initialBehaviourPenalty * behaviourPenaltyDecay
+
+    gossipSub.parameters.slowPeerPenaltyWeight = slowPeerPenaltyWeight
+    gossipSub.parameters.slowPeerPenaltyThreshold = slowPeerPenaltyThreshold
+    gossipSub.parameters.slowPeerPenaltyDecay = slowPeerPenaltyDecay
+    gossipSub.parameters.behaviourPenaltyWeight = behaviourPenaltyWeight
+    gossipSub.parameters.behaviourPenaltyDecay = behaviourPenaltyDecay
+
+    peers[0].slowPeerPenalty = initialSlowPeerPenalty
+    peers[0].behaviourPenalty = initialBehaviourPenalty
+
+    gossipSub.updateScores()
+
+    check:
+      peers[0].score == expectedScore
+      peers[0].slowPeerPenalty == expectedSlowPeerPenalty
+      peers[0].behaviourPenalty == expectedBehaviourPenalty
+
+  asyncTest "Slow peer penalty is retained in peer stats":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let
+      slowPeerPenaltyWeight = -1.0
+      slowPeerPenaltyDecay = 0.5
+      initialPenalty = 4.0
+      expectedRetainedPenalty = initialPenalty * slowPeerPenaltyDecay
+
+    gossipSub.parameters.slowPeerPenaltyWeight = slowPeerPenaltyWeight
+    gossipSub.parameters.slowPeerPenaltyDecay = slowPeerPenaltyDecay
+
+    peers[0].slowPeerPenalty = initialPenalty
+
+    gossipSub.updateScores()
+
+    gossipSub.withPeerStats(peers[0].peerId) do(stats: var PeerStats):
+      check:
+        stats.slowPeerPenalty == expectedRetainedPenalty
+
+  asyncTest "Default slow peer penalty settings apply a mild penalty above threshold":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let
+      defaultWeight = gossipSub.parameters.slowPeerPenaltyWeight
+      defaultThreshold = gossipSub.parameters.slowPeerPenaltyThreshold
+      slowPeerPenaltyDecay = 0.5
+      initialPenalty = 4.0
+      expectedScore = (initialPenalty - defaultThreshold) * defaultWeight
+      expectedDecayedPenalty = initialPenalty * slowPeerPenaltyDecay
+
+    check:
+      defaultWeight == -0.05
+      defaultThreshold == 2.0
+
+    gossipSub.parameters.slowPeerPenaltyDecay = slowPeerPenaltyDecay
+
+    peers[0].slowPeerPenalty = initialPenalty
+
+    gossipSub.updateScores()
+
+    check:
+      peers[0].score == expectedScore
+      peers[0].slowPeerPenalty == expectedDecayedPenalty
+
+  asyncTest "Slow peer penalty can still be disabled with zero weight":
+    let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
+    defer:
+      await teardownGossipSub(gossipSub, conns)
+
+    let
+      slowPeerPenaltyWeight = 0.0
+      slowPeerPenaltyThreshold = 0.0
+      slowPeerPenaltyDecay = 0.5
+      initialPenalty = 4.0
+      expectedScore =
+        (initialPenalty - slowPeerPenaltyThreshold) * slowPeerPenaltyWeight
+      expectedDecayedPenalty = initialPenalty * slowPeerPenaltyDecay
+
+    gossipSub.parameters.slowPeerPenaltyWeight = slowPeerPenaltyWeight
+    gossipSub.parameters.slowPeerPenaltyThreshold = slowPeerPenaltyThreshold
+    gossipSub.parameters.slowPeerPenaltyDecay = slowPeerPenaltyDecay
+
+    peers[0].slowPeerPenalty = initialPenalty
+
+    gossipSub.updateScores()
+
+    check:
+      peers[0].score == expectedScore
+      peers[0].slowPeerPenalty == expectedDecayedPenalty
+
   asyncTest "Colocation factor scoring":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(5, topic)
     defer:
