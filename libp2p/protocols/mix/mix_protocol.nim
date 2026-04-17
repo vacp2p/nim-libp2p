@@ -10,7 +10,7 @@ import
     delay_strategy, pool,
   ]
 import ../protocol
-import ../../utils/[sequninit, future]
+import ../../utils/[sequninit]
 import ../../stream/[connection, lpstream]
 import ../../[switch, multicodec, peerinfo, varint]
 import ../../peerstore
@@ -54,6 +54,9 @@ type MixProtocol* = ref object of LPProtocol
   connPool: Table[PeerId, Connection]
   spamProtection: Opt[SpamProtection]
   delayStrategy: DelayStrategy
+  ongoingMixMessages: seq[Future[void]]
+    ## Tracks all in-flight handleMixMessages futures so they can be
+    ## cancelled on stop and waited for during teardown.
 
 proc hasDestReadBehavior*(mixProto: MixProtocol, codec: string): bool =
   return mixProto.destReadBehavior.hasKey(codec)
@@ -413,6 +416,36 @@ proc proofSize(sp: Opt[SpamProtection]): int =
     return 0
   return sp.get().proofSize
 
+proc runMixMessage(
+    mixProto: MixProtocol,
+    fromPeerId: PeerId,
+    receivedBytes: sink seq[byte],
+    metadataBytes: sink seq[byte],
+) {.async: (raises: []).} =
+  try:
+    await mixProto.handleMixMessages(fromPeerId, receivedBytes, metadataBytes)
+  except CancelledError:
+    trace "Handling mix message cancelled", fromPeerId
+  except LPStreamError as e:
+    error "Error handling mix message", fromPeerId, err = e.msg
+
+proc spawnMixMessage(
+    mixProto: MixProtocol,
+    fromPeerId: PeerId,
+    receivedBytes: sink seq[byte],
+    metadataBytes: sink seq[byte],
+) =
+  ## Spawns a handleMixMessages task, tracks its future in `ongoingMixMessages`,
+  ## and removes it from the list when it finishes.
+  if not mixProto.started:
+    return
+  let fut = runMixMessage(mixProto, fromPeerId, receivedBytes, metadataBytes)
+  mixProto.ongoingMixMessages.add(fut)
+  fut.addCallback(
+    proc(_: pointer) {.gcsafe, raises: [].} =
+      mixProto.ongoingMixMessages.keepItIf(not it.finished)
+  )
+
 proc handleMixNodeConnection(
     mixProto: MixProtocol, conn: Connection
 ) {.async: (raises: [LPStreamError, CancelledError]).} =
@@ -428,7 +461,7 @@ proc handleMixNodeConnection(
     # Calculate maximum wire packet size including spam protection proof
     let maxWireSize = PacketSize + mixProto.spamProtection.proofSize()
     let receivedBytes = await conn.readLp(maxWireSize)
-    asyncSpawn mixProto.handleMixMessages(conn.peerId, receivedBytes, metadataBytes)
+    mixProto.spawnMixMessage(conn.peerId, receivedBytes, metadataBytes)
 
 proc getMaxMessageSizeForCodec*(
     codec: string, numberOfSurbs: uint8 = 0
@@ -800,11 +833,19 @@ proc reply(
   if sendRes.isErr:
     error "could not send reply", peerId, multiAddr, err = sendRes.error
 
-method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: [], raw: true).} =
-  ## Stop the MixProtocol background tasks.
+method stop*(mixProto: MixProtocol): Future[void] {.async: (raises: []).} =
+  ## Stop the MixProtocol background tasks and cancels all in-flight handleMixMessages futures.
+  ## 
+
   mixProto.started = false
-  mixProto.tagManager.stopSoon()
-  newFutureCompleted[void]()
+
+  await mixProto.tagManager.stop()
+
+  # Snapshot the list and clear it before cancelling.
+  let pending = mixProto.ongoingMixMessages
+  mixProto.ongoingMixMessages = @[]
+  if pending.len > 0:
+    await noCancel allFutures(pending.mapIt(it.cancelAndWait()))
 
 proc init*(
     mixProto: MixProtocol,

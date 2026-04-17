@@ -14,6 +14,7 @@ import
   switch,
   peerid,
   peerinfo,
+  peeraddrpolicy,
   stream/connection,
   multiaddress,
   crypto/crypto,
@@ -42,8 +43,8 @@ import
 import services/wildcardresolverservice
 
 export
-  switch, peerid, peerinfo, connection, multiaddress, crypto, errors, TLSPrivateKey,
-  TLSCertificate, TLSFlags, ServerFlags
+  switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
+  TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -96,6 +97,7 @@ type
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
+    addressPolicy: PeerAddressPolicy
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -118,6 +120,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     rdv: Opt.none(RendezVous),
     kad: Opt.none(KadInfo),
     enableWildcardResolver: true,
+    addressPolicy: defaultAddressPolicy,
   )
 
 proc withPrivateKey*(
@@ -259,16 +262,31 @@ proc withMaxConnections*(
 ): SwitchBuilder {.public.} =
   ## Maximum concurrent connections of the switch. You should either use this, or
   ## `withMaxIn <#withMaxIn,SwitchBuilder,int>`_ & `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
+  doAssert maxConnections > 0, "`maxConnections` must be greater than 0"
   b.maxConnections = maxConnections
   b
 
-proc withMaxIn*(b: SwitchBuilder, maxIn: int): SwitchBuilder {.public.} =
+proc withMaxIn*(
+    b: SwitchBuilder, maxIn: int
+): SwitchBuilder {.public, deprecated: "Use withMaxInOut() instead".} =
   ## Maximum concurrent incoming connections. Should be used with `withMaxOut<#withMaxOut,SwitchBuilder,int>`_
   b.maxIn = maxIn
   b
 
-proc withMaxOut*(b: SwitchBuilder, maxOut: int): SwitchBuilder {.public.} =
+proc withMaxOut*(
+    b: SwitchBuilder, maxOut: int
+): SwitchBuilder {.public, deprecated: "Use withMaxInOut() instead".} =
   ## Maximum concurrent outgoing connections. Should be used with `withMaxIn<#withMaxIn,SwitchBuilder,int>`_
+  b.maxOut = maxOut
+  b
+
+proc withMaxInOut*(
+    b: SwitchBuilder, maxIn: int, maxOut: int
+): SwitchBuilder {.public.} =
+  ## Maximum concurrent incoming and outgoing connections.
+  doAssert maxIn > 0, "`maxIn` must be greater than 0"
+  doAssert maxOut > 0, "`maxOut` must be greater than 0"
+  b.maxIn = maxIn
   b.maxOut = maxOut
   b
 
@@ -369,6 +387,22 @@ proc withObservedAddrManager*(
   b.observedAddrManager = observedAddrManager
   b
 
+proc withAddressPolicy*(
+    b: SwitchBuilder, addressPolicy: PeerAddressPolicy
+): SwitchBuilder {.public.} =
+  ## Applies a single address visibility policy across local address
+  ## announcements and all discovery/storage paths configured by the builder.
+  b.addressPolicy = addressPolicy
+  b
+
+proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder {.public.} =
+  ## Filter private (RFC1918/link-local) addresses from all peer address
+  ## announcements and incoming peer address records. When enabled:
+  ## - Our node will not announce private addresses to the network
+  ## - Private addresses received from other peers are discarded
+  ## Circuit relay and DNS addresses are never filtered.
+  b.withAddressPolicy(publicRoutableAddressPolicy)
+
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
@@ -385,7 +419,11 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     secureManagerInstances.add(Noise.new(b.rng, seckey).Secure)
 
   let peerInfo = PeerInfo.new(
-    seckey, b.addresses, protoVersion = b.protoVersion, agentVersion = b.agentVersion
+    seckey,
+    b.addresses,
+    protoVersion = b.protoVersion,
+    agentVersion = b.agentVersion,
+    addressPolicy = b.addressPolicy,
   )
 
   let identify =
@@ -394,11 +432,19 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     else:
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
-  let
-    connManager =
-      ConnManager.new(b.maxConnsPerPeer, b.maxConnections, b.maxIn, b.maxOut)
-    ms = MultistreamSelect.new()
-    muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
+  var connManager: ConnManager
+  if b.maxIn > 0 or b.maxOut > 0:
+    if b.maxIn > 0 and b.maxOut > 0:
+      connManager = ConnManager.newMaxInOut(b.maxIn, b.maxOut, b.maxConnsPerPeer)
+    else:
+      raiseAssert "withMaxIn() should be paired with withMaxOut()"
+  elif b.maxConnections > 0:
+    connManager = ConnManager.newMaxTotal(b.maxConnections, b.maxConnsPerPeer)
+  else:
+    connManager = ConnManager.newMaxTotal()
+
+  let ms = MultistreamSelect.new()
+  let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
 
   b.autotls.withValue(autotlsService):
     b.services.add(autotlsService)
@@ -442,6 +488,8 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
   b.hpService.withValue(hpservice):
     b.services.add(hpservice)
 
+  peerStore.addressPolicy = b.addressPolicy
+
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -477,6 +525,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     switch.mount(rdvService)
 
   b.kad.withValue(kadInfo):
+    kadInfo.config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
       switch, bootstrapNodes = kadInfo.bootstrapNodes, config = kadInfo.config
     )

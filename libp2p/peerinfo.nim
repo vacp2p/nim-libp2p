@@ -6,9 +6,17 @@
 
 import std/sequtils
 import pkg/[chronos, chronicles, results]
-import peerid, multiaddress, multicodec, crypto/crypto, routing_record, errors, utility
+import
+  peerid,
+  multiaddress,
+  multicodec,
+  crypto/crypto,
+  routing_record,
+  peeraddrpolicy,
+  errors,
+  utility
 
-export peerid, multiaddress, crypto, routing_record, errors, results
+export peerid, multiaddress, crypto, routing_record, peeraddrpolicy, errors, results
 
 ## Our local peer info
 
@@ -27,6 +35,8 @@ type
     ## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.
     addressMappers*: seq[AddressMapper]
     ## contains a list of procs that can be used to resolve the listen addresses into dialable addresses.
+    addressPolicy*: PeerAddressPolicy
+    ## applied after address mappers
     protocols*: seq[string]
     protoVersion*: string
     agentVersion*: string
@@ -52,12 +62,13 @@ proc expandAddrs*(
   var addrs = p.listenAddrs
   for mapper in p.addressMappers:
     addrs = await mapper(addrs)
-  addrs
+  p.addressPolicy.filterAddrs(addrs)
 
 proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
   p.addrs = p.listenAddrs
   for mapper in p.addressMappers:
     p.addrs = await mapper(p.addrs)
+  p.addrs = p.addressPolicy.filterAddrs(p.addrs)
 
   p.signedPeerRecord = SignedPeerRecord.init(
     p.privateKey, PeerRecord.init(p.peerId, p.addrs)
@@ -99,6 +110,7 @@ proc new*(
     protoVersion: string = "",
     agentVersion: string = "",
     addressMappers = newSeq[AddressMapper](),
+    addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
 ): PeerInfo {.raises: [LPError].} =
   let pubkey =
     try:
@@ -119,6 +131,7 @@ proc new*(
     listenAddrs: @listenAddrs,
     protocols: @protocols,
     addressMappers: addressMappers,
+    addressPolicy: addressPolicy,
   )
 
   return peerInfo
