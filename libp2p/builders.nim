@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## This module contains a Switch Building helper.
 runnableExamples:
@@ -98,6 +98,7 @@ type
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
+    watermarkCfg: Opt[WatermarkConfig]
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -121,6 +122,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     kad: Opt.none(KadInfo),
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
+    watermarkCfg: Opt.none(WatermarkConfig),
   )
 
 proc withPrivateKey*(
@@ -296,6 +298,27 @@ proc withMaxConnsPerPeer*(
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
+proc withWatermark*(
+    b: SwitchBuilder,
+    lowWater: int,
+    highWater: int,
+    gracePeriod: Duration = 1.minutes,
+    silencePeriod: Duration = 10.seconds,
+): SwitchBuilder {.public.} =
+  ## Enable hi/lo watermark connection management.
+  ## When connected peers exceed `highWater`, the connection manager trims
+  ## down to `lowWater`, skipping peers within `gracePeriod` and protected peers.
+  ## Takes priority over `withMaxConnections`/`withMaxIn`/`withMaxOut`.
+  b.watermarkCfg = Opt.some(
+    WatermarkConfig(
+      lowWater: lowWater,
+      highWater: highWater,
+      gracePeriod: gracePeriod,
+      silencePeriod: silencePeriod,
+    )
+  )
+  b
+
 proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder {.public.} =
   b.peerStoreCapacity = Opt.some(capacity)
   b
@@ -433,7 +456,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
   var connManager: ConnManager
-  if b.maxIn > 0 or b.maxOut > 0:
+  if b.watermarkCfg.isSome():
+    connManager = ConnManager.newWatermark(b.watermarkCfg.get(), b.maxConnsPerPeer)
+  elif b.maxIn > 0 or b.maxOut > 0:
     if b.maxIn > 0 and b.maxOut > 0:
       connManager = ConnManager.newMaxInOut(b.maxIn, b.maxOut, b.maxConnsPerPeer)
     else:

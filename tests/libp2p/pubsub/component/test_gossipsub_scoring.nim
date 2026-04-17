@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -145,6 +145,10 @@ suite "GossipSub Component - Scoring":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
+    checkUntilTimeout:
+      nodes[0].peers[nodes[1].switch.peerInfo.peerId] in
+        nodes[0].mesh.getOrDefault(topic)
+
     let msg = RPCMsg.withControl(
       ControlMessage.withPrune(
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))]
@@ -194,6 +198,10 @@ suite "GossipSub Component - Scoring":
 
     nodes[0].addValidator(topic, execValidator)
     nodes[1].addValidator(topic, execValidator)
+
+    checkUntilTimeout:
+      nodes[0].peers[nodes[1].switch.peerInfo.peerId] in
+        nodes[0].mesh.getOrDefault(topic)
 
     let msg = RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](40)))
     nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)

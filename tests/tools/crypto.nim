@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import chronos/streams/tlsstream, stew/byteutils
 import ../../libp2p/[crypto/crypto, transports/tls/certificate]
