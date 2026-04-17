@@ -337,9 +337,11 @@ proc publishPartial*(
     let nodeSubOpt = ext.config.nodeTopicOpts(topic)
 
     # publish partial message to peer if ...
-    if peerSubOpt.requestsPartial and
-        (nodeSubOpt.supportsSendingPartial or nodeSubOpt.requestsPartial):
-      # 1) peer has requested partial messages for this topic
+    if peerSubOpt.requestsPartial:
+      # 1) peer has requested partial messages for this topic.
+      # this node's own subscription is intentionally not checked: calling
+      # publishPartial is itself an explicit assertion that the node has parts
+      # to push (e.g. fanout publisher that never subscribed to the topic).
       if ext.publishPartialToPeer(topic, pm, groupState, p, true):
         publishedToCount.inc
     elif nodeSubOpt.requestsPartial and
