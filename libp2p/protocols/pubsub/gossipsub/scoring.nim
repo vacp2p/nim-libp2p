@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
@@ -47,6 +47,11 @@ declareGauge(
 )
 declareGauge(
   libp2p_gossipsub_peers_score_appScore,
+  "Detailed gossipsub scoring metric",
+  labels = ["agent"],
+)
+declareGauge(
+  libp2p_gossipsub_peers_score_slowPeerPenalty,
   "Detailed gossipsub scoring metric",
   labels = ["agent"],
 )
@@ -257,6 +262,16 @@ proc updateScores*(g: GossipSub) = # avoid async
       appScore = peer.appScore,
       appSpecificWeight = g.parameters.appSpecificWeight
 
+    if peer.slowPeerPenalty > g.parameters.slowPeerPenaltyThreshold:
+      let excess = peer.slowPeerPenalty - g.parameters.slowPeerPenaltyThreshold
+      scoreAcc += excess * g.parameters.slowPeerPenaltyWeight
+      trace "slowPeerPenalty",
+        peer,
+        scoreAcc,
+        slowPeerPenalty = peer.slowPeerPenalty,
+        slowPeerPenaltyThreshold = g.parameters.slowPeerPenaltyThreshold,
+        slowPeerPenaltyWeight = g.parameters.slowPeerPenaltyWeight
+
     # The value of the parameter is the square of the counter and is mixed with a negative weight.
     scoreAcc +=
       peer.behaviourPenalty * peer.behaviourPenalty * g.parameters.behaviourPenaltyWeight
@@ -276,12 +291,20 @@ proc updateScores*(g: GossipSub) = # avoid async
     # Score metrics
     let agent = peer.getAgent()
     libp2p_gossipsub_peers_score_appScore.inc(peer.appScore, labelValues = [agent])
+    libp2p_gossipsub_peers_score_slowPeerPenalty.inc(
+      peer.slowPeerPenalty, labelValues = [agent]
+    )
     libp2p_gossipsub_peers_score_behaviourPenalty.inc(
       peer.behaviourPenalty, labelValues = [agent]
     )
     libp2p_gossipsub_peers_score_colocationFactor.inc(
       colocationFactor, labelValues = [agent]
     )
+
+    # decay slowPeerPenalty
+    peer.slowPeerPenalty *= g.parameters.slowPeerPenaltyDecay
+    if peer.slowPeerPenalty < g.parameters.decayToZero:
+      peer.slowPeerPenalty = 0
 
     # decay behaviourPenalty
     peer.behaviourPenalty *= g.parameters.behaviourPenaltyDecay
@@ -293,6 +316,7 @@ proc updateScores*(g: GossipSub) = # avoid async
     # copy into stats the score to keep until expired
     stats.score = peer.score
     stats.appScore = peer.appScore
+    stats.slowPeerPenalty = peer.slowPeerPenalty
     stats.behaviourPenalty = peer.behaviourPenalty
     stats.expire = now + g.parameters.retainScore # refresh expiration
 
