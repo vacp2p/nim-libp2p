@@ -132,8 +132,10 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # At capacity, occupancy = 100.0
-    check w.inFloatSecs >=
+    # Allow 1 ns tolerance: float->ns truncation can lose a sub-nanosecond fraction
+    let expectedSecs =
       discoConfig.advertExpiry.inFloatSecs * 100.0 * discoConfig.safetyParam
+    check w.inFloatSecs >= expectedSecs - 1e-9
 
   test "waitingTime formula includes safety parameter":
     let registrar = Registrar.new()
