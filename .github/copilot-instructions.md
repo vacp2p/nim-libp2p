@@ -348,7 +348,7 @@ The test runner (`libp2p.nimble`) always compiles with:
   (see `libp2p/protocols/pubsub/rpc/protobuf.nim`)
 
 ### Code Formatting
-- After making any code changes, run `nph` on all modified files. if nph produces changes, include them in the same change or PR
+- After making any code changes, run `nph` on all modified files. If `nph` produces changes, include them in the same change or PR.
 
 ---
 
