@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## This module implements constant-time ECDSA and ECDHE for NIST elliptic
 ## curves secp256r1, secp384r1 and secp521r1.
