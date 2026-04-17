@@ -113,6 +113,173 @@ suite "GossipSub Component - Extensions":
       receiverFirstOutgoing.get().control.get().extensions.isSome()
       receiverFirstOutgoing.get().subscriptions.len == 0
 
+  asyncTest "Extensions re-negotiated after disconnect/reconnect with correct ordering":
+    const topic = "foobar"
+
+    var negotiatedPeers: seq[PeerId]
+    proc onNegotiated(peer: PeerId) {.gcsafe, raises: [].} =
+      negotiatedPeers.add(peer)
+
+    # Track all outgoing messages per (sender, receiver) pair in send order.
+    var outgoingMsgs: Table[string, seq[RPCMsg]]
+
+    proc key(sender, receiver: PeerId): string =
+      $sender & "->" & $receiver
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          testExtensionConfig =
+            Opt.some(TestExtensionConfig(onNegotiated: onNegotiated)),
+        )
+        .toGossipSub()
+
+    let
+      peerId0 = nodes[0].peerInfo.peerId
+      peerId1 = nodes[1].peerInfo.peerId
+      k0to1 = key(peerId0, peerId1)
+      k1to0 = key(peerId1, peerId0)
+
+    # Observe all outgoing messages from both nodes.
+    nodes[0].addObserver(
+      PubSubObserver(
+        onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+          let k = key(peerId0, peer.peerId)
+          outgoingMsgs.mgetOrPut(k, @[]).add(msg)
+      )
+    )
+    nodes[1].addObserver(
+      PubSubObserver(
+        onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+          let k = key(peerId1, peer.peerId)
+          outgoingMsgs.mgetOrPut(k, @[]).add(msg)
+      )
+    )
+
+    startAndDeferStop(nodes)
+
+    # Subscribe before connecting — the scenario that triggers the original bug.
+    nodes.subscribeAllNodes(topic, voidTopicHandler)
+
+    # First connection
+    await connect(nodes[1], nodes[0])
+
+    # Wait for both sides to have sent at least extensions.
+    checkUntilTimeout:
+      outgoingMsgs.getOrDefault(k0to1).len >= 1
+      outgoingMsgs.getOrDefault(k1to0).len >= 1
+
+    # Both sides: first message is extensions control, not subscriptions.
+    check:
+      outgoingMsgs[k0to1][0].control.isSome()
+      outgoingMsgs[k0to1][0].control.get().extensions.isSome()
+      outgoingMsgs[k0to1][0].subscriptions.len == 0
+      outgoingMsgs[k1to0][0].control.isSome()
+      outgoingMsgs[k1to0][0].control.get().extensions.isSome()
+      outgoingMsgs[k1to0][0].subscriptions.len == 0
+
+    # Both peers should have negotiated.
+    checkUntilTimeout:
+      negotiatedPeers.len == 2
+
+    # Disconnect from both sides to ensure clean state
+    outgoingMsgs.clear()
+    await nodes[1].switch.disconnect(peerId0)
+    await nodes[0].switch.disconnect(peerId1)
+
+    checkUntilTimeout:
+      not nodes[1].switch.isConnected(peerId0) and
+        not nodes[0].switch.isConnected(peerId1)
+
+    # Reconnect: node 1 dials node 0
+    await connect(nodes[1], nodes[0])
+
+    checkUntilTimeout:
+      outgoingMsgs.getOrDefault(k1to0).len >= 1
+      outgoingMsgs.getOrDefault(k0to1).len >= 1
+
+    # Both sides: first message is extensions control, not subscriptions.
+    check:
+      outgoingMsgs[k1to0][0].control.isSome()
+      outgoingMsgs[k1to0][0].control.get().extensions.isSome()
+      outgoingMsgs[k1to0][0].subscriptions.len == 0
+      outgoingMsgs[k0to1][0].control.isSome()
+      outgoingMsgs[k0to1][0].control.get().extensions.isSome()
+      outgoingMsgs[k0to1][0].subscriptions.len == 0
+
+    # Extensions must have been re-negotiated (new callbacks fired).
+    checkUntilTimeout:
+      negotiatedPeers.len == 4
+
+  asyncTest "No extensions control sent when node has no extensions configured":
+    const topic = "foobar"
+    var outgoingMsgs: seq[RPCMsg]
+
+    let nodes = generateNodes(2, gossip = true).toGossipSub()
+
+    let remotePeerId = nodes[0].peerInfo.peerId
+    nodes[1].addObserver(
+      PubSubObserver(
+        onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+          if peer.peerId == remotePeerId:
+            outgoingMsgs.add(msg)
+      )
+    )
+
+    startAndDeferStop(nodes)
+    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    await connect(nodes[1], nodes[0])
+
+    # Wait for subscriptions to propagate.
+    waitSubscribeStar(nodes, topic)
+
+    # None of the sent messages should contain extensions control.
+    check:
+      outgoingMsgs.len >= 1
+
+    for msg in outgoingMsgs:
+      if msg.control.isSome():
+        check msg.control.get().extensions.isNone()
+
+  asyncTest "Extensions control sent exactly once per peer per connection":
+    # Guard: hasControlBeenSent returns true after first send => no duplicates.
+    const topic = "foobar"
+
+    proc onNegotiated(_: PeerId) {.gcsafe, raises: [].} =
+      discard
+
+    var extControlCount: int = 0
+
+    let nodes = generateNodes(
+        2,
+        gossip = true,
+        testExtensionConfig = Opt.some(TestExtensionConfig(onNegotiated: onNegotiated)),
+      )
+      .toGossipSub()
+
+    let remotePeerId = nodes[0].peerInfo.peerId
+    nodes[1].addObserver(
+      PubSubObserver(
+        onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
+          if peer.peerId == remotePeerId and msg.control.isSome():
+            if msg.control.get().extensions.isSome():
+              extControlCount.inc
+      )
+    )
+
+    startAndDeferStop(nodes)
+    nodes.subscribeAllNodes(topic, voidTopicHandler)
+    await connect(nodes[1], nodes[0])
+
+    waitSubscribeStar(nodes, topic)
+
+    # Wait a few heartbeats to ensure no late duplicates arrive.
+    await sleepAsync(500.milliseconds)
+
+    check extControlCount == 1
+
   asyncTest "Partial Message Extension":
     const topic = "logos-partial"
     const groupId = "group-id-1".toBytes
