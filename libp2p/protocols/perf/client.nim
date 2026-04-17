@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## `Perf <https://github.com/libp2p/specs/blob/master/perf/perf.md>`_ protocol specification
 

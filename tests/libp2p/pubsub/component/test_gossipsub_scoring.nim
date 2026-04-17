@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -241,6 +241,33 @@ suite "GossipSub Component - Scoring":
     # Without directPeers, this would fail
     checkUntilTimeout:
       handlerFut.finished() == true
+
+  asyncTest "Slow peer penalty can prune a peer on heartbeat":
+    let nodes = generateNodes(
+        2,
+        gossip = true,
+        decayInterval = 20.milliseconds,
+        heartbeatInterval = TEST_GOSSIPSUB_HEARTBEAT_INTERVAL,
+      )
+      .toGossipSub()
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+
+    nodes[0].subscribe(topic, voidTopicHandler)
+    nodes[1].subscribe(topic, voidTopicHandler)
+    waitSubscribeStar(nodes, topic)
+
+    nodes[0].parameters.slowPeerPenaltyWeight = -10.0
+    nodes[0].parameters.slowPeerPenaltyThreshold = 0.0
+    nodes[0].parameters.slowPeerPenaltyDecay = 0.9
+
+    let peer = nodes[0].getPeerByPeerId(topic, nodes[1].peerInfo.peerId)
+    peer.slowPeerPenalty = 2.0
+
+    checkUntilTimeout:
+      nodes[0].getPeerScore(peer.peerId) < 0.0
+      not nodes[0].mesh.hasPeerId(topic, peer.peerId)
 
   asyncTest "Peers disconnections mechanics":
     const numberOfNodes = 10

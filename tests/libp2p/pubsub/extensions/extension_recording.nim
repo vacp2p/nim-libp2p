@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import ../../../../libp2p/peerid
 import ../../../../libp2p/protocols/pubsub/[gossipsub/extensions_types, rpc/messages]

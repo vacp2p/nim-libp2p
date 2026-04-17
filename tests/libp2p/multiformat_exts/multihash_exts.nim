@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 proc coder1(data: openArray[byte], output: var openArray[byte]) =
   let n = min(data.len, output.len)
