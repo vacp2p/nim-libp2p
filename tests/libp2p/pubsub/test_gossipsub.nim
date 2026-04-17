@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -27,6 +27,7 @@ suite "GossipSub":
       peerStats = PeerStats(
         score: gossipSub.parameters.graylistThreshold - 1.0,
         appScore: 10.0,
+        slowPeerPenalty: 3.0,
         behaviourPenalty: 5.0,
       )
     defer:
@@ -48,6 +49,7 @@ suite "GossipSub":
     check:
       peer.score == peerStats.score
       peer.appScore == peerStats.appScore
+      peer.slowPeerPenalty == peerStats.slowPeerPenalty
       peer.behaviourPenalty == peerStats.behaviourPenalty
 
     # And peer budgets are set to default values

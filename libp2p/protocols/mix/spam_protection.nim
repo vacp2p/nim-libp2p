@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## This module defines the spam protection interface for the Mix Protocol
 ## as specified in section 9.6 of the MIX protocol specification.

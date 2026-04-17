@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -243,6 +243,76 @@ suite "GossipSubParams validation":
   test "behaviourPenaltyDecay succeeds when between 0 and 1":
     var params = newDefaultValidParams()
     params.behaviourPenaltyDecay = 0.5
+    check params.validateParameters().isOk()
+
+  test "slowPeerPenaltyWeight fails when positive":
+    const errorMessage =
+      "gossipsub: slowPeerPenaltyWeight parameter error, Must be negative or 0"
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyWeight = 0.1
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "slowPeerPenaltyWeight succeeds when zero":
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyWeight = 0.0
+    check params.validateParameters().isOk()
+
+  test "slowPeerPenaltyWeight succeeds when negative":
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyWeight = -0.0001
+    check params.validateParameters().isOk()
+
+  test "slowPeerPenaltyThreshold fails when negative":
+    const errorMessage =
+      "gossipsub: slowPeerPenaltyThreshold parameter error, Must be positive or 0"
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyThreshold = -0.1
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "slowPeerPenaltyThreshold succeeds when zero":
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyThreshold = 0.0
+    check params.validateParameters().isOk()
+
+  test "slowPeerPenaltyThreshold succeeds when positive":
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyThreshold = 1.0
+    check params.validateParameters().isOk()
+
+  test "slowPeerPenaltyDecay fails when negative":
+    const errorMessage =
+      "gossipsub: slowPeerPenaltyDecay parameter error, Must be between 0 and 1 (exclusive)"
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyDecay = -0.1
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "slowPeerPenaltyDecay fails when zero":
+    const errorMessage =
+      "gossipsub: slowPeerPenaltyDecay parameter error, Must be between 0 and 1 (exclusive)"
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyDecay = 0.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "slowPeerPenaltyDecay fails when equal to 1":
+    const errorMessage =
+      "gossipsub: slowPeerPenaltyDecay parameter error, Must be between 0 and 1 (exclusive)"
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyDecay = 1.0
+    let res = params.validateParameters()
+    check res.isErr()
+    check res.error == errorMessage
+
+  test "slowPeerPenaltyDecay succeeds when between 0 and 1":
+    var params = newDefaultValidParams()
+    params.slowPeerPenaltyDecay = 0.5
     check params.validateParameters().isOk()
 
   test "maxHighPriorityQueueLen fails when zero":
