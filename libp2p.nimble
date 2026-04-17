@@ -5,7 +5,7 @@ version = "1.15.3"
 author = "Status Research & Development GmbH"
 description = "LibP2P implementation"
 license = "MIT"
-skipDirs = @["cbind", "examples", "interop", "performance", "tests", "tools"]
+skipDirs = @["cbind", "examples", "interop", "performance", "simulation", "tests", "tools"]
 
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.7",
