@@ -145,6 +145,10 @@ suite "GossipSub Component - Scoring":
     subscribeAllNodes(nodes, topic, voidTopicHandler)
     waitSubscribeStar(nodes, topic)
 
+    checkUntilTimeout:
+      nodes[0].peers[nodes[1].switch.peerInfo.peerId] in
+        nodes[0].mesh.getOrDefault(topic)
+
     let msg = RPCMsg.withControl(
       ControlMessage.withPrune(
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](33)))]
