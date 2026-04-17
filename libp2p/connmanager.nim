@@ -108,7 +108,7 @@ proc newMaxTotal*(
   ## direction draws from the same semaphore, so the combined total never
   ## exceeds `maxConnections`.
   doAssert maxConnections > 0, "`maxConnections` must be greater than 0"
-  
+
   let sema = newAsyncSemaphore(maxConnections)
   C(
     muxerStore: MuxerStore.new(),
