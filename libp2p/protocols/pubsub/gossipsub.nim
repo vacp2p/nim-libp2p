@@ -90,6 +90,9 @@ proc init*(
     appSpecificWeight = 0.0,
     ipColocationFactorWeight = 0.0,
     ipColocationFactorThreshold = 1.0,
+    slowPeerPenaltyWeight = -0.05,
+    slowPeerPenaltyThreshold = 2.0,
+    slowPeerPenaltyDecay = 0.2,
     behaviourPenaltyWeight = -1.0,
     behaviourPenaltyDecay = 0.999,
     directPeers = initTable[PeerId, seq[MultiAddress]](),
@@ -155,6 +158,9 @@ proc init*(
     appSpecificWeight: appSpecificWeight,
     ipColocationFactorWeight: ipColocationFactorWeight,
     ipColocationFactorThreshold: ipColocationFactorThreshold,
+    slowPeerPenaltyWeight: slowPeerPenaltyWeight,
+    slowPeerPenaltyThreshold: slowPeerPenaltyThreshold,
+    slowPeerPenaltyDecay: slowPeerPenaltyDecay,
     behaviourPenaltyWeight: behaviourPenaltyWeight,
     behaviourPenaltyDecay: behaviourPenaltyDecay,
     directPeers: directPeers,
@@ -198,6 +204,14 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: ipColocationFactorWeight parameter error, Must be negative or 0")
   elif parameters.ipColocationFactorThreshold < 1.0:
     err("gossipsub: ipColocationFactorThreshold parameter error, Must be at least 1")
+  elif parameters.slowPeerPenaltyWeight > 0:
+    err("gossipsub: slowPeerPenaltyWeight parameter error, Must be negative or 0")
+  elif parameters.slowPeerPenaltyThreshold < 0:
+    err("gossipsub: slowPeerPenaltyThreshold parameter error, Must be positive or 0")
+  elif parameters.slowPeerPenaltyDecay <= 0 or parameters.slowPeerPenaltyDecay >= 1:
+    err(
+      "gossipsub: slowPeerPenaltyDecay parameter error, Must be between 0 and 1 (exclusive)"
+    )
   elif parameters.behaviourPenaltyWeight >= 0:
     err("gossipsub: behaviourPenaltyWeight parameter error, Must be negative")
   elif parameters.behaviourPenaltyDecay < 0 or parameters.behaviourPenaltyDecay >= 1:
@@ -301,6 +315,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
     # from a previous connection
     peer.score = stats.score
     peer.appScore = stats.appScore
+    peer.slowPeerPenalty = stats.slowPeerPenalty
     peer.behaviourPenalty = stats.behaviourPenalty
 
     # Check if the score is below the threshold and disconnect the peer if necessary
