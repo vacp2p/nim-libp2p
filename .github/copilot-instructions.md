@@ -347,6 +347,9 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Must use protobuf field numbers `> 0x200000` to force ≥4-byte tags
   (see `libp2p/protocols/pubsub/rpc/protobuf.nim`)
 
+### Code Formatting
+- After making any code changes, run `nph` on all modified files. if nph produces changes, include them in the same change or PR
+
 ---
 
 ## Source Module Guide
