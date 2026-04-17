@@ -73,14 +73,13 @@ proc subscribe(
   ext.onHandleRPC(
     peerId,
     RPCMsg(
-      subscriptions:
-        @[
-          SubOpts(
-            topic: topic,
-            subscribe: subscribe,
-            requestsPartial: Opt.some(isPartialTopic(topic)),
-          )
-        ]
+      subscriptions: @[
+        SubOpts(
+          topic: topic,
+          subscribe: subscribe,
+          requestsPartial: Opt.some(isPartialTopic(topic)),
+        )
+      ]
     ),
   )
 
@@ -274,10 +273,9 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # - node A: fulfills request sending message only to node B (this is where second test, this test, ends)
     const topic = "logos-partial"
     var cr = CallbackRecorder(
-      publishToPeers:
-        @[peerId]
-          # note: this is list of peers that we publish to by default, 
-          # but in this test this list is ignored because test is publishing to selected peers.
+      publishToPeers: @[peerId]
+        # note: this is list of peers that we publish to by default, 
+        # but in this test this list is ignored because test is publishing to selected peers.
     )
     var ext = PartialMessageExtension.new(cr.config())
     let selectedPeerId = PeerId.random(rng).get()
