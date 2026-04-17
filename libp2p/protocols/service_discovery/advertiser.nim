@@ -13,10 +13,14 @@ import ./[types, routing_table_manager, service_discovery_metrics]
 logScope:
   topics = "service-disco advertiser"
 
+type RegistrationResponse* = object
+  status*: kademlia_protobuf.RegistrationStatus
+  ticket*: Opt[Ticket]
+  closerPeers*: seq[PeerId]
+
 proc clear*(a: Advertiser) =
-  for t in a.running:
-    if not t.fut.finished:
-      t.fut.cancelSoon()
+  for task in a.running:
+    task.fut.cancelSoon()
   a.running.clear()
   cd_advertiser_pending_actions.set(0)
 
@@ -26,9 +30,7 @@ proc sendRegister*(
     serviceId: ServiceId,
     ad: seq[byte],
     ticket: Opt[Ticket] = Opt.none(Ticket),
-): Future[
-    Result[(kademlia_protobuf.RegistrationStatus, Opt[Ticket], seq[PeerId]), string]
-] {.async: (raises: [CancelledError]).} =
+): Future[Result[RegistrationResponse, string]] {.async: (raises: [CancelledError]).} =
   let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
     return err("no address found for peer: " & $peerId)
@@ -75,12 +77,7 @@ proc sendRegister*(
   let reply = Message.decode(replyBuf).valueOr:
     return err("failed to decode register message response: " & $error)
 
-  var closerPeers: seq[PeerId] = @[]
-  for peer in reply.closerPeers:
-    let pid = PeerId.init(peer.id).valueOr:
-      error "failed to decode peer id", error
-      continue
-    closerPeers.add(pid)
+  let closerPeers = reply.closerPeers.toPeerIds()
 
   let registerMsg = reply.register.valueOr:
     return err("register reply not found")
@@ -88,7 +85,11 @@ proc sendRegister*(
     return err("register reply status not found")
 
   cd_register_responses.inc(labelValues = [$status])
-  return ok((status, registerMsg.ticket, closerPeers))
+  return ok(
+    RegistrationResponse(
+      status: status, ticket: registerMsg.ticket, closerPeers: closerPeers
+    )
+  )
 
 proc startAdvertising*(
     disco: ServiceDiscovery,
@@ -127,20 +128,19 @@ proc startAdvertising*(
   var currentTicket = ticket
 
   while true:
-    let (status, newTicketOpt, closerPeers) = (
+    let response = (
       await disco.sendRegister(registrar, serviceId, addBuff, currentTicket)
     ).valueOr:
       error "failed to register ad", error
       return
-
-    for pid in closerPeers:
+    for pid in response.closerPeers:
       disco.rtManager.insertPeer(serviceId, pid.toKey())
 
-    case status
+    case response.status
     of kademlia_protobuf.RegistrationStatus.Confirmed:
       await sleepAsync(disco.discoConfig.advertExpiry)
     of kademlia_protobuf.RegistrationStatus.Wait:
-      let newTicket = newTicketOpt.valueOr:
+      let newTicket = response.ticket.valueOr:
         error "no ticket to retry with"
         return
       currentTicket = Opt.some(newTicket)
