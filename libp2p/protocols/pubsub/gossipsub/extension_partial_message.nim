@@ -335,10 +335,17 @@ proc publishPartial*(
 
     let peerSubOpt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(p, topic))
     let nodeSubOpt = ext.config.nodeTopicOpts(topic)
+    let explicitPeerState = groupState.peerState.getOrDefault(p)
+    let explicitPeerRequestedPartial =
+      peers.len > 0 and explicitPeerState != nil and
+      explicitPeerState.receivedPartsMetadata.isSome()
 
     # publish partial message to peer if ...
-    if peerSubOpt.requestsPartial:
+    if peerSubOpt.requestsPartial or explicitPeerRequestedPartial:
       # 1) peer has requested partial messages for this topic.
+      # explicitly selected peers are also treated as requesters when they have
+      # already sent partial metadata for this group, even if they are not
+      # subscribed on the topic (e.g. fanout publishers replying out-of-mesh).
       # this node's own subscription is intentionally not checked: calling
       # publishPartial is itself an explicit assertion that the node has parts
       # to push (e.g. fanout publisher that never subscribed to the topic).

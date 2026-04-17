@@ -71,7 +71,13 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
 
     doAssert runner.node != nil, "runner.node must be set before RPC processing"
 
-    asyncSpawn runner.node.publishPartial(rpc.topicID, pm)
+    if rpc.partialMessage.len == 0 and rpc.partsMetadata.len > 0:
+      # Metadata-only partial RPCs are explicit feedback to the sender about what
+      # parts we still have or need. Reply directly so fanout publishers that are
+      # not subscribed to the topic still receive the request.
+      asyncSpawn runner.node.publishPartial(rpc.topicID, pm, @[peer])
+    else:
+      asyncSpawn runner.node.publishPartial(rpc.topicID, pm)
 
   PartialMessageExtensionConfig(
     unionPartsMetadata: interopUnionPartsMetadata,
