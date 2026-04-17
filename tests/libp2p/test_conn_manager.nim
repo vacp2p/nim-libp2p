@@ -438,7 +438,7 @@ proc connectPeers(connMngr: ConnManager, count: int): Future[seq[PeerId]] {.asyn
 
   return peers
 
-suite "Watermark Connection Manager":
+suite "Connection Manager Watermark":
   teardown:
     checkTrackers()
 
