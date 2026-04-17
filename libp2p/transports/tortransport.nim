@@ -255,13 +255,13 @@ method start*(
   var onion3Addrs: seq[MultiAddress]
   for ma in addrs:
     if not handlesStart(ma):
-      raise (ref TransportStartError)(msg: "unsupported address: " & $ma)
+      raise newException(TransportStartError, "unsupported address: " & $ma)
 
     try:
       listenAddrs.add(ma[0 .. 1].tryGet())
       onion3Addrs.add(ma[multiCodec("onion3")].tryGet())
     except ResultError[string]:
-      raise (ref TransportStartError)(msg: "invalid tor address: " & $ma)
+      raise newException(TransportStartError, "invalid tor address: " & $ma)
 
   if listenAddrs.len == 0:
     raise newException(TransportStartError, "no addr was provided.")
