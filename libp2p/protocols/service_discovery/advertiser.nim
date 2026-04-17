@@ -154,7 +154,7 @@ proc addProvidedService*(
     disco: ServiceDiscovery,
     service: ServiceInfo,
     add: Opt[seq[byte]] = Opt.none(seq[byte]),
-) {.async: (raises: [CancelledError]).} =
+) =
   let serviceId = service.id.hashServiceId()
 
   if not disco.rtManager.addService(
@@ -193,14 +193,13 @@ proc removeProvidedService*(
 ) {.async: (raises: [CancelledError]).} =
   let serviceId = service.id.hashServiceId()
 
-  var toRemove: seq[AdvertiseTask] = @[]
-  for t in disco.advertiser.running:
-    if t.serviceId == serviceId:
-      if not t.fut.finished:
-        await t.fut.cancelAndWait()
-      toRemove.add(t)
-  for t in toRemove:
-    disco.advertiser.running.excl(t)
+  var toRemove: HashSet[AdvertiseTask]
+
+  for t in disco.advertiser.running.filterIt(it.serviceId == serviceId):
+    await t.fut.cancelAndWait()
+    toRemove.incl(t)
+
+  disco.advertiser.running.excl(toRemove)
   cd_advertiser_pending_actions.set(disco.advertiser.running.len.float64)
 
   disco.rtManager.removeService(serviceId, Provided)

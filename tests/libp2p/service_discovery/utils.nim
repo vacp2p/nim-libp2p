@@ -147,7 +147,7 @@ proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:
     discard disco.rtable.insert(makePeerId())
 
-proc populateAdvTable*(disco: ServiceDiscovery, serviceId: ServiceId) {.async.} =
+proc populateAdvTable*(disco: ServiceDiscovery, serviceId: ServiceId) =
   for i in 0 ..< disco.discoConfig.kRegister:
     discard disco.rtable.insert(makePeerId())
   discard disco.rtManager.addService(
