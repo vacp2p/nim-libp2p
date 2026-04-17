@@ -55,10 +55,10 @@ suite "GossipSub Component - Extensions":
     # If node has pre-existing subscriptions on a dial,
     # then it sends the subscriptions control message before extensions control message on a newly opened stream,
     # which violates the protocol contract.
-    const topic = "logos-extensions-ordering"
-    var
-      dialerFirstOutgoing = Opt.none(RPCMsg)
-      receiverFirstOutgoing = Opt.none(RPCMsg)
+    const topic = "foobar"
+    let
+      dialerFirstMsgFut = newFuture[RPCMsg]("dialerFirstMsg")
+      receiverFirstMsgFut = newFuture[RPCMsg]("receiverFirstMsg")
 
     proc onNegotiated(_: PeerId) {.gcsafe, raises: [].} =
       discard
@@ -80,15 +80,15 @@ suite "GossipSub Component - Extensions":
     nodes[1].addObserver(
       PubSubObserver(
         onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
-          if peer.peerId == receiverPeerId and dialerFirstOutgoing.isNone:
-            dialerFirstOutgoing = Opt.some(msg)
+          if peer.peerId == receiverPeerId and not dialerFirstMsgFut.finished:
+            dialerFirstMsgFut.complete(msg)
       )
     )
     nodes[0].addObserver(
       PubSubObserver(
         onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
-          if peer.peerId == dialerPeerId and receiverFirstOutgoing.isNone:
-            receiverFirstOutgoing = Opt.some(msg)
+          if peer.peerId == dialerPeerId and not receiverFirstMsgFut.finished:
+            receiverFirstMsgFut.complete(msg)
       )
     )
 
@@ -99,19 +99,20 @@ suite "GossipSub Component - Extensions":
 
     await connect(nodes[1], nodes[0])
 
-    checkUntilTimeout:
-      dialerFirstOutgoing.isSome() and receiverFirstOutgoing.isSome()
+    let
+      dialerFirstMsg = await dialerFirstMsgFut
+      receiverFirstMsg = await receiverFirstMsgFut
 
     # First message must be extensions control, no subscriptions.
     check:
       # Dialer side
-      dialerFirstOutgoing.get().control.isSome()
-      dialerFirstOutgoing.get().control.get().extensions.isSome()
-      dialerFirstOutgoing.get().subscriptions.len == 0
+      dialerFirstMsg.control.isSome()
+      dialerFirstMsg.control.get().extensions.isSome()
+      dialerFirstMsg.subscriptions.len == 0
       # Receiver side
-      receiverFirstOutgoing.get().control.isSome()
-      receiverFirstOutgoing.get().control.get().extensions.isSome()
-      receiverFirstOutgoing.get().subscriptions.len == 0
+      receiverFirstMsg.control.isSome()
+      receiverFirstMsg.control.get().extensions.isSome()
+      receiverFirstMsg.subscriptions.len == 0
 
   asyncTest "Extensions re-negotiated after disconnect/reconnect with correct ordering":
     const topic = "foobar"
@@ -119,12 +120,6 @@ suite "GossipSub Component - Extensions":
     var negotiatedPeers: seq[PeerId]
     proc onNegotiated(peer: PeerId) {.gcsafe, raises: [].} =
       negotiatedPeers.add(peer)
-
-    # Track all outgoing messages per (sender, receiver) pair in send order.
-    var outgoingMsgs: Table[string, seq[RPCMsg]]
-
-    proc key(sender, receiver: PeerId): string =
-      $sender & "->" & $receiver
 
     let
       numberOfNodes = 2
@@ -139,22 +134,23 @@ suite "GossipSub Component - Extensions":
     let
       peerId0 = nodes[0].peerInfo.peerId
       peerId1 = nodes[1].peerInfo.peerId
-      k0to1 = key(peerId0, peerId1)
-      k1to0 = key(peerId1, peerId0)
+
+    # Track all outgoing messages per (sender, receiver) pair in send order.
+    let
+      outgoingMsgs0to1 = newAsyncQueue[RPCMsg]()
+      outgoingMsgs1to0 = newAsyncQueue[RPCMsg]()
 
     # Observe all outgoing messages from both nodes.
     nodes[0].addObserver(
       PubSubObserver(
         onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
-          let k = key(peerId0, peer.peerId)
-          outgoingMsgs.mgetOrPut(k, @[]).add(msg)
+          discard outgoingMsgs0to1.put(msg)
       )
     )
     nodes[1].addObserver(
       PubSubObserver(
         onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
-          let k = key(peerId1, peer.peerId)
-          outgoingMsgs.mgetOrPut(k, @[]).add(msg)
+          discard outgoingMsgs1to0.put(msg)
       )
     )
 
@@ -166,51 +162,50 @@ suite "GossipSub Component - Extensions":
     # First connection
     await connect(nodes[1], nodes[0])
 
-    # Wait for both sides to have sent at least extensions.
-    checkUntilTimeout:
-      outgoingMsgs.getOrDefault(k0to1).len >= 1
-      outgoingMsgs.getOrDefault(k1to0).len >= 1
+    # Wait for both sides to have sent first message.
+    let firstMessage0to1 = await outgoingMsgs0to1.get.wait(1.seconds)
+    let firstMessage1to0 = await outgoingMsgs1to0.get.wait(1.seconds)
 
     # Both sides: first message is extensions control, not subscriptions.
     check:
-      outgoingMsgs[k0to1][0].control.isSome()
-      outgoingMsgs[k0to1][0].control.get().extensions.isSome()
-      outgoingMsgs[k0to1][0].subscriptions.len == 0
-      outgoingMsgs[k1to0][0].control.isSome()
-      outgoingMsgs[k1to0][0].control.get().extensions.isSome()
-      outgoingMsgs[k1to0][0].subscriptions.len == 0
+      firstMessage0to1.control.isSome()
+      firstMessage0to1.control.get().extensions.isSome()
+      firstMessage0to1.subscriptions.len == 0
+      firstMessage1to0.control.isSome()
+      firstMessage1to0.control.get().extensions.isSome()
+      firstMessage1to0.subscriptions.len == 0
 
     # Both peers should have negotiated.
-    checkUntilTimeout:
+    check:
       negotiatedPeers.len == 2
 
-    # Disconnect from both sides to ensure clean state
-    outgoingMsgs.clear()
+    # Disconnect from both sides to ensure clean state.
+    outgoingMsgs0to1.clear()
+    outgoingMsgs1to0.clear()
     await nodes[1].switch.disconnect(peerId0)
     await nodes[0].switch.disconnect(peerId1)
 
     checkUntilTimeout:
-      not nodes[1].switch.isConnected(peerId0) and
-        not nodes[0].switch.isConnected(peerId1)
+      not nodes[1].switch.isConnected(peerId0)
+      not nodes[0].switch.isConnected(peerId1)
 
-    # Reconnect: node 1 dials node 0
+    # Reconnect
     await connect(nodes[1], nodes[0])
 
-    checkUntilTimeout:
-      outgoingMsgs.getOrDefault(k1to0).len >= 1
-      outgoingMsgs.getOrDefault(k0to1).len >= 1
+    let secondMessage0to1 = await outgoingMsgs0to1.get.wait(1.seconds)
+    let secondMessage1to0 = await outgoingMsgs1to0.get.wait(1.seconds)
 
     # Both sides: first message is extensions control, not subscriptions.
     check:
-      outgoingMsgs[k1to0][0].control.isSome()
-      outgoingMsgs[k1to0][0].control.get().extensions.isSome()
-      outgoingMsgs[k1to0][0].subscriptions.len == 0
-      outgoingMsgs[k0to1][0].control.isSome()
-      outgoingMsgs[k0to1][0].control.get().extensions.isSome()
-      outgoingMsgs[k0to1][0].subscriptions.len == 0
+      secondMessage0to1.control.isSome()
+      secondMessage0to1.control.get().extensions.isSome()
+      secondMessage0to1.subscriptions.len == 0
+      secondMessage1to0.control.isSome()
+      secondMessage1to0.control.get().extensions.isSome()
+      secondMessage1to0.subscriptions.len == 0
 
     # Extensions must have been re-negotiated (new callbacks fired).
-    checkUntilTimeout:
+    check:
       negotiatedPeers.len == 4
 
   asyncTest "No extensions control sent when node has no extensions configured":
@@ -244,7 +239,7 @@ suite "GossipSub Component - Extensions":
         check msg.control.get().extensions.isNone()
 
   asyncTest "Extensions control sent exactly once per peer per connection":
-    # Guard: hasControlBeenSent returns true after first send => no duplicates.
+    # Guard: isControlSent returns true after first send => no duplicates.
     const topic = "foobar"
 
     proc onNegotiated(_: PeerId) {.gcsafe, raises: [].} =
@@ -275,8 +270,8 @@ suite "GossipSub Component - Extensions":
 
     waitSubscribeStar(nodes, topic)
 
-    # Wait a few heartbeats to ensure no late duplicates arrive.
-    await nodes[1].waitForHeartbeatByEvent(5)
+    # wait some time before asserting that only one extensions control message is received
+    await sleepAsync(500.milliseconds)
 
     check extControlCount == 1
 

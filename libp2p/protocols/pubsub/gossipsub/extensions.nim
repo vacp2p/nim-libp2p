@@ -137,7 +137,7 @@ proc heartbeat*(state: ExtensionsState) =
 
   state.onHeartbeat()
 
-proc hasControlBeenSent*(state: ExtensionsState, peerId: PeerId): bool =
+proc isControlSent*(state: ExtensionsState, peerId: PeerId): bool =
   peerId in state.sentExtensions
 
 proc addPeer*(state: ExtensionsState, peerId: PeerId) =
@@ -145,7 +145,7 @@ proc addPeer*(state: ExtensionsState, peerId: PeerId) =
   # extensions control message and mark the peer as sent from our side.
 
   # when node has received control extensions from peer then extensions have negotiated
-  if peerId notin state.sentExtensions and peerId in state.peerExtensions:
+  if not state.isControlSent(peerId) and peerId in state.peerExtensions:
     state.onNegotiated(peerId)
 
   state.sentExtensions.incl(peerId)

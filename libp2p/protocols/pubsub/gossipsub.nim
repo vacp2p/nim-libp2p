@@ -290,7 +290,7 @@ proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
   if not gossipExtensionsSupported(peer.codec):
     return
 
-  if g.extensionsState.hasControlBeenSent(peer.peerId):
+  if g.extensionsState.isControlSent(peer.peerId):
     return
 
   g.extensionsState.addPeer(peer.peerId)

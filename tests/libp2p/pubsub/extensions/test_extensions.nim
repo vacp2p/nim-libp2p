@@ -109,28 +109,28 @@ suite "GossipSub Extensions :: State":
 
       check reportedPeers[].len == 0
 
-  test "hasControlBeenSent tracks addPeer and removePeer":
+  test "isControlSent tracks addPeer and removePeer":
     var state = ExtensionsState.new()
     let pid = PeerId.random(rng).get()
 
     # initially false
-    check not state.hasControlBeenSent(pid)
+    check not state.isControlSent(pid)
 
     # true after addPeer
     state.addPeer(pid)
-    check state.hasControlBeenSent(pid)
+    check state.isControlSent(pid)
 
     # calling addPeer again doesn't change anything
     state.addPeer(pid)
-    check state.hasControlBeenSent(pid)
+    check state.isControlSent(pid)
 
     # cleared after removePeer
     state.removePeer(pid)
-    check not state.hasControlBeenSent(pid)
+    check not state.isControlSent(pid)
 
     # can be re-added after remove (reconnection)
     state.addPeer(pid)
-    check state.hasControlBeenSent(pid)
+    check state.isControlSent(pid)
 
   test "addPeer called twice does not trigger duplicate onNegotiated":
     var ext = RecordingExtension()
