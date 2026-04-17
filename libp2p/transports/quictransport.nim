@@ -118,7 +118,9 @@ method write*(
     when defined(libp2p_agents_metrics):
       stream.trackPeerIdentity()
       if stream.tracked:
-        libp2p_peers_traffic_write.inc(bytes.len.int64, labelValues = [stream.shortAgent])
+        libp2p_peers_traffic_write.inc(
+          bytes.len.int64, labelValues = [stream.shortAgent]
+        )
   except StreamError:
     raise newLPStreamEOFError()
 
