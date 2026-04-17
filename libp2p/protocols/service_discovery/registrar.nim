@@ -137,10 +137,7 @@ func secsAsDuration(secs: float64): chronos.Duration =
   ## Convert a float64 number of seconds to a chronos Duration.
   ## Nanosecond precision is used to preserve sub-second waiting times,
   ## which matter when safetyParam is very small (e.g. the default 1e-7).
-  ## round() is used instead of truncation to avoid off-by-one errors on
-  ## i386, where x87 extended-precision intermediates can place the result
-  ## just below the true nanosecond boundary.
-  nanoseconds(int64(round(secs * 1_000_000_000)))
+  nanoseconds(int64(secs * 1_000_000_000))
 
 proc waitingTime*(
     registrar: Registrar,

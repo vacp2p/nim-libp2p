@@ -199,6 +199,10 @@ suite "GossipSub Component - Scoring":
     nodes[0].addValidator(topic, execValidator)
     nodes[1].addValidator(topic, execValidator)
 
+    checkUntilTimeout:
+      nodes[0].peers[nodes[1].switch.peerInfo.peerId] in
+        nodes[0].mesh.getOrDefault(topic)
+
     let msg = RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](40)))
     nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)
 
