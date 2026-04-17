@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, algorithm, stew/byteutils, sequtils
+import chronos, algorithm, stew/byteutils, sequtils, tables
 import
   ../../../../libp2p/protocols/pubsub/[
     gossipsub,
@@ -52,7 +52,7 @@ suite "GossipSub Component - Extensions":
         negotiatedPeersSorted == nodesPeerIdSorted
 
   asyncTest "Extensions control is sent before subscriptions on stream open":
-    # If node has pre-existing subsciptions on a dial,
+    # If node has pre-existing subscriptions on a dial,
     # then it sends the subscriptions control message before extensions control message on a newly opened stream,
     # which violates the protocol contract.
     const topic = "logos-extensions-ordering"
@@ -276,7 +276,7 @@ suite "GossipSub Component - Extensions":
     waitSubscribeStar(nodes, topic)
 
     # Wait a few heartbeats to ensure no late duplicates arrive.
-    await sleepAsync(500.milliseconds)
+    await nodes[1].waitForHeartbeatByEvent(5)
 
     check extControlCount == 1
 
