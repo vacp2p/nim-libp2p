@@ -255,15 +255,16 @@ method start*(
   var onion3Addrs: seq[MultiAddress]
   for ma in addrs:
     if not handlesStart(ma):
-      raise (ref TransportStartError)(msg: "Unsupported address: " & $ma)
+      raise (ref TransportStartError)(msg: "unsupported address: " & $ma)
 
-    let listenAddress = ma[0 .. 1].tryGet()
-    listenAddrs.add(listenAddress)
-    let onion3 = ma[multiCodec("onion3")].tryGet()
-    onion3Addrs.add(onion3)
+    try:
+      listenAddrs.add(ma[0 .. 1].tryGet())
+      onion3Addrs.add(ma[multiCodec("onion3")].tryGet())
+    except ResultError[string]:
+      raise (ref TransportStartError)(msg: "invalid tor address: " & $ma)
 
   if listenAddrs.len == 0:
-    raise newException(TransportStartError, "No addr was provided.")
+    raise newException(TransportStartError, "no addr was provided.")
 
   await procCall Transport(self).start(onion3Addrs)
   await self.tcpTransport.start(listenAddrs)
