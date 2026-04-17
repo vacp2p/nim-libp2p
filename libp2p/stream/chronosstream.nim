@@ -23,11 +23,6 @@ type ChronosStream* = ref object of Connection
   when defined(libp2p_agents_metrics):
     tracked: bool
 
-when defined(libp2p_agents_metrics):
-  declareGauge libp2p_peers_identity, "peers identities", labels = ["agent"]
-  declareCounter libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"]
-  declareCounter libp2p_peers_traffic_write, "outgoing traffic", labels = ["agent"]
-
 func shortLog*(conn: ChronosStream): auto =
   try:
     if conn == nil:
