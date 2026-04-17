@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## To enable dump of all incoming and outgoing unencrypted messages you need
 ## to compile project with ``-d:libp2p_dump`` compile-time option. When this
