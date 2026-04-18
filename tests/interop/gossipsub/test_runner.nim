@@ -156,6 +156,15 @@ suite "GossipSub Interop - Script runner - Component":
     const groupId = 42'u64
     let key = makeKey(topic, groupId)
 
+    # Node 0 subscribes to the topic and adds parts 0-3
+    runner0.node.subscribe(
+      topic, nil, requestsPartial = true, supportsSendingPartial = true
+    )
+
+    let pm0 = InteropPartialMessage.new(groupId)
+    pm0.fillParts(InteropPartsMetadata.init(0b00001111))
+    runner0.messages[key] = pm0
+
     # Build a script for node 1
     let script = @[
       ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
@@ -178,16 +187,6 @@ suite "GossipSub Interop - Script runner - Component":
     ]
 
     await runner1.runScript(script)
-
-    # Node 0 subscribes to the topic and adds partial message
-    runner0.node.subscribe(
-      topic, nil, requestsPartial = true, supportsSendingPartial = true
-    )
-
-    # Node 0 adds parts 0-3
-    let pm0 = InteropPartialMessage.new(groupId)
-    pm0.fillParts(InteropPartsMetadata.init(0b00001111))
-    runner0.messages[key] = pm0
 
     # Assert both nodes receive full messages
     checkUntilTimeout:
