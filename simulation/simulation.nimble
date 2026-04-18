@@ -8,4 +8,4 @@ license = "MIT"
 
 # Only simulation-specific deps here.
 # Parent libp2p deps (chronos, stew, etc.) are resolved via config.nims --path
-requires "redis"
+requires "redis == 0.5.0"

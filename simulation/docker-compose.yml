@@ -62,6 +62,8 @@ services:
       dockerfile: simulation/Dockerfile
     image: nim-libp2p/simulation:latest
     networks: [monitor]
+    # Local docker compose may ignore deploy.replicas; use `--scale simulation=N`
+    # when starting the stack to control the number of node containers.
     deploy:
       replicas: ${NUM_LIBP2P_NODES:-10}
     command: []

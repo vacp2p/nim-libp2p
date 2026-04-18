@@ -5,9 +5,9 @@ FROM nimlang/nim:2.2.6-ubuntu-regular AS build
 WORKDIR /node
 COPY . .
 
-# Install root libp2p deps, then simulation-only dep (redis)
+# Install root libp2p deps, then the simulation-specific pinned deps.
 RUN nimble install -y --depsOnly && \
-    nimble install -y redis
+    cd simulation && nimble install -y --depsOnly
 
 RUN cd simulation && nim c \
     -d:chronicles_sinks=json \
