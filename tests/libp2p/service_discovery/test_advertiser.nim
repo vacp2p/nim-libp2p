@@ -10,9 +10,6 @@ import ../../tools/unittest
 import ./utils
 
 # ===========================================================================
-# Advertiser - addProvidedService
-# ===========================================================================
-
 suite "Advertiser - addProvidedService":
   teardown:
     checkTrackers()
@@ -78,9 +75,6 @@ suite "Advertiser - addProvidedService":
     check disco.advertiser.running.len() == 3
 
 # ===========================================================================
-# Advertiser - removeProvidedService
-# ===========================================================================
-
 suite "Advertiser - removeProvidedService":
   teardown:
     checkTrackers()
@@ -125,9 +119,6 @@ suite "Advertiser - removeProvidedService":
     check disco.rtManager.hasService(s2.id.hashServiceId())
 
 # ===========================================================================
-# start/stopAdvertising
-# ===========================================================================
-
 suite "Advertiser - startAdvertising / stopAdvertising":
   teardown:
     checkTrackers()

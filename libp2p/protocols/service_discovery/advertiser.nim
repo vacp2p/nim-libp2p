@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sets, times, sequtils]
+import std/[sets, sequtils]
 import chronos, chronicles, results
 import
   ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]
@@ -108,11 +108,12 @@ proc startAdvertising*(
       add.get()
     else:
       let peerInfo = disco.switch.peerInfo
+      inc(disco.advertiser.seqNo)
       let extRecord = SignedExtendedPeerRecord.init(
         peerInfo.privateKey,
         ExtendedPeerRecord(
           peerId: peerInfo.peerId,
-          seqNo: getTime().toUnix().uint64,
+          seqNo: disco.advertiser.seqNo,
           addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
           services: disco.services.toSeq(),
         ),
