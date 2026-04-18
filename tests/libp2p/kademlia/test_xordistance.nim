@@ -37,11 +37,10 @@ suite "KadDHT XOR Distance":
     check leadingZeros(d) == 10
 
   test "xorDistance of identical keys is zero":
-    let k =
-      @[
-        1'u8, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6,
-        7, 8, 9, 0, 1, 2,
-      ]
+    let k = @[
+      1'u8, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6,
+      7, 8, 9, 0, 1, 2,
+    ]
     let dist = xorDistance(k, k, Opt.none(XorDHasher))
     check:
       leadingZeros(dist) == IdLength * 8

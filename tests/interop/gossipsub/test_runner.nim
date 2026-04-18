@@ -37,24 +37,21 @@ suite "GossipSub Interop - Script runner - Component":
     )
 
     # Build a script for node 0
-    let script =
-      @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-        ScriptInstruction(kind: Connect, connectTo: @[1]),
-        ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false),
-        ScriptInstruction(kind: WaitUntil, elapsed: 2.seconds),
-        ScriptInstruction(
-          kind: Publish,
-          publishMessageID: 99,
-          messageSizeBytes: 512,
-          publishTopicID: topic,
-        ),
-        ScriptInstruction(
-          kind: SetTopicValidationDelay,
-          validationTopicID: topic,
-          delay: 300.milliseconds,
-        ),
-      ]
+    let script = @[
+      ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+      ScriptInstruction(kind: Connect, connectTo: @[1]),
+      ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false),
+      ScriptInstruction(kind: WaitUntil, elapsed: 2.seconds),
+      ScriptInstruction(
+        kind: Publish,
+        publishMessageID: 99,
+        messageSizeBytes: 512,
+        publishTopicID: topic,
+      ),
+      ScriptInstruction(
+        kind: SetTopicValidationDelay, validationTopicID: topic, delay: 300.milliseconds
+      ),
+    ]
 
     var stream = newStringStream()
     let runner = newScriptRunner(
@@ -84,12 +81,11 @@ suite "GossipSub Interop - Script runner - Component":
     let inner = new ScriptInstruction
     inner[] = ScriptInstruction(kind: Connect, connectTo: @[1])
 
-    let script =
-      @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-        # This should be skipped (node 5 != node 0)
-        ScriptInstruction(kind: IfNodeIDEquals, nodeID: 5, inner: inner),
-      ]
+    let script = @[
+      ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+      # This should be skipped (node 5 != node 0)
+      ScriptInstruction(kind: IfNodeIDEquals, nodeID: 5, inner: inner),
+    ]
 
     var stream = newStringStream()
     let runner = newScriptRunner(
@@ -170,26 +166,25 @@ suite "GossipSub Interop - Script runner - Component":
     runner0.messages[key] = pm0
 
     # Build a script for node 1
-    let script =
-      @[
-        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-        ScriptInstruction(kind: Connect, connectTo: @[0]),
-        ScriptInstruction(kind: WaitUntil, elapsed: 1.seconds),
-        ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: true),
-        ScriptInstruction(kind: WaitUntil, elapsed: 5.seconds),
-        ScriptInstruction(
-          kind: AddPartialMessage,
-          addTopicID: topic,
-          groupID: groupId,
-          partsBitmap: 0b11110000,
-        ),
-        ScriptInstruction(
-          kind: PublishPartial,
-          publishPartialTopicID: topic,
-          publishPartialGroupID: groupId,
-          publishToNodeIDs: @[0],
-        ),
-      ]
+    let script = @[
+      ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+      ScriptInstruction(kind: Connect, connectTo: @[0]),
+      ScriptInstruction(kind: WaitUntil, elapsed: 1.seconds),
+      ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: true),
+      ScriptInstruction(kind: WaitUntil, elapsed: 5.seconds),
+      ScriptInstruction(
+        kind: AddPartialMessage,
+        addTopicID: topic,
+        groupID: groupId,
+        partsBitmap: 0b11110000,
+      ),
+      ScriptInstruction(
+        kind: PublishPartial,
+        publishPartialTopicID: topic,
+        publishPartialGroupID: groupId,
+        publishToNodeIDs: @[0],
+      ),
+    ]
 
     await runner1.runScript(script)
 

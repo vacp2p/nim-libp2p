@@ -19,8 +19,7 @@ const
   ## is the version of Nimbus as a string.
   GitRevision = staticExec("git rev-parse --short HEAD").replace("\n") # remove CR
 
-  PBCapParserUsage =
-    """
+  PBCapParserUsage = """
 
 USAGE:
   pbcap_parser <command> <filename>
