@@ -66,13 +66,13 @@ proc fillCache*(registrar: Registrar, n: int, now: uint64) =
 
 proc createSwitch*(): Switch =
   SwitchBuilder
-  .new()
-  .withRng(rng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .build()
+    .new()
+    .withRng(rng())
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
 
 proc makeMockDiscovery*(
     discoConfig: ServiceDiscoveryConfig =

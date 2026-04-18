@@ -93,7 +93,7 @@ nim c -r tests/tools/test_multiaddress.nim
 
 ### Code Formatting
 ```sh
-nimble install nph@v0.6.1   # Install formatter (once)
+nimble install nph@v0.7.0   # Install formatter (once)
 nimble format               # Format all code
 ```
 

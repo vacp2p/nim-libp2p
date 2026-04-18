@@ -6,14 +6,9 @@
 
 import chronos, chronos/apps/http/httpclient, uri, base64, times
 import
-  ../../../libp2p/
-    [
-      stream/connection,
-      upgrademngrs/upgrade,
-      peeridauth/mockclient,
-      wire,
-      crypto/crypto,
-    ]
+  ../../../libp2p/[
+    stream/connection, upgrademngrs/upgrade, peeridauth/mockclient, wire, crypto/crypto
+  ]
 import ../../tools/[unittest, crypto]
 
 suite "PeerID Auth Client":

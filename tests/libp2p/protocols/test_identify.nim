@@ -46,11 +46,10 @@ suite "Identify":
       conn {.threadvar.}: Connection
 
     asyncSetup:
-      ma =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
-          MultiAddress.init("/ip6/::/tcp/0").get(),
-        ]
+      ma = @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
+        MultiAddress.init("/ip6/::/tcp/0").get(),
+      ]
       remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
       remotePeerInfo =
         PeerInfo.new(remoteSecKey, ma, ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
@@ -165,11 +164,10 @@ suite "Identify":
       conn {.threadvar.}: Connection
 
     asyncSetup:
-      let ma =
-        @[
-          MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
-          MultiAddress.init("/ip6/::/tcp/0").get(),
-        ]
+      let ma = @[
+        MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
+        MultiAddress.init("/ip6/::/tcp/0").get(),
+      ]
       switch1 = newStandardSwitch(sendSignedPeerRecord = true, addrs = ma)
       switch2 = newStandardSwitch(sendSignedPeerRecord = true, addrs = ma)
 
