@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -51,8 +51,7 @@ suite "Message":
   test "defaultMsgIdProvider success":
     let
       seqno = 11'u64
-      pkHex =
-        """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
+      pkHex = """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(crypto.fromHex(stripSpaces(pkHex))).expect(
@@ -70,8 +69,7 @@ suite "Message":
   test "defaultMsgIdProvider error - no source peer id":
     let
       seqno = 11'u64
-      pkHex =
-        """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
+      pkHex = """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(crypto.fromHex(stripSpaces(pkHex))).expect(
@@ -89,8 +87,7 @@ suite "Message":
 
   test "defaultMsgIdProvider error - no source seqno":
     let
-      pkHex =
-        """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
+      pkHex = """08011240B9EA7F0357B5C1247E4FCB5AD09C46818ECB07318CA84711875F4C6C
         E6B946186A4EB44E0D714B2A2D48263D75CF52D30BEF9D9AE2A9FEB7DAF1775F
         E731065A"""
       seckey = PrivateKey.init(crypto.fromHex(stripSpaces(pkHex))).expect(
@@ -160,16 +157,15 @@ suite "Message":
     )
 
     let rpcMsg = RPCMsg(
-      subscriptions:
-        @[
-          SubOpts(
-            subscribe: true,
-            topic: "a".repeat(12),
-            requestsPartial: Opt.some(true),
-            supportsSendingPartial: Opt.some(true),
-          ), # 1 + 12 + 1 + 1 = 15 bytes
-          SubOpts(subscribe: false, topic: "b".repeat(14)), # 1 + 14 = 15 bytes
-        ],
+      subscriptions: @[
+        SubOpts(
+          subscribe: true,
+          topic: "a".repeat(12),
+          requestsPartial: Opt.some(true),
+          supportsSendingPartial: Opt.some(true),
+        ), # 1 + 12 + 1 + 1 = 15 bytes
+        SubOpts(subscribe: false, topic: "b".repeat(14)), # 1 + 14 = 15 bytes
+      ],
       messages: @[msg, msg], # 16 * 2 = 32 bytes
       control: Opt.some(control), # 12 + 3 + 3 + 17 + 3 = 38 bytes
       partialMessageExtension: Opt.some(partialMessageExtensionRPC), # 4 bytes
@@ -193,12 +189,11 @@ suite "Message":
       )
     )
     #data encoded using protoc cmd tool
-    let expectedEncoded: seq[byte] =
-      @[
-        26, 45, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 123, 18, 3, 10, 1,
-        123, 26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111, 111, 98,
-        97, 114, 24, 10, 42, 3, 10, 1, 123,
-      ]
+    let expectedEncoded: seq[byte] = @[
+      26, 45, 10, 11, 10, 6, 102, 111, 111, 98, 97, 114, 18, 1, 123, 18, 3, 10, 1, 123,
+      26, 8, 10, 6, 102, 111, 111, 98, 97, 114, 34, 10, 10, 6, 102, 111, 111, 98, 97,
+      114, 24, 10, 42, 3, 10, 1, 123,
+    ]
 
     let actualEncoded = encodeRpcMsg(message, true)
     check:

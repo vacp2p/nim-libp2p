@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, sets
+import chronos, results, sets, tables
 import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -32,12 +32,11 @@ proc createDummyData(): (
 
     delay: seq[Delay] = @[NoDelay, NoDelay, NoDelay]
 
-    hops =
-      @[
-        Hop.init(newSeq[byte](AddrSize)),
-        Hop.init(newSeq[byte](AddrSize)),
-        Hop.init(newSeq[byte](AddrSize)),
-      ]
+    hops = @[
+      Hop.init(newSeq[byte](AddrSize)),
+      Hop.init(newSeq[byte](AddrSize)),
+      Hop.init(newSeq[byte](AddrSize)),
+    ]
 
     message = newSeq[byte](MessageSize)
     dest = Hop.init(newSeq[byte](AddrSize))

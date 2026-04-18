@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -344,7 +344,7 @@ suite "Mplex":
       await chann.close()
       check await chann.reset()
       # this would hang
-      .withTimeout(100.millis)
+        .withTimeout(100.millis)
 
       check await allFuturesRaising(readerFut, writerFut).withTimeout(100.millis)
 

@@ -6,8 +6,7 @@ import strformat, strutils, stew/byteutils, chronos, libp2p
 
 const DefaultAddr = "/ip4/127.0.0.1/tcp/0"
 
-const Help =
-  """
+const Help = """
   Commands: /[?|help|connect|disconnect|exit]
   help: Prints this help
   connect: dials a remote peer

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import algorithm
 import json
@@ -27,9 +27,9 @@ proc extractStats(scenario: JsonNode): Stats =
 proc getJsonResults*(jsons: seq[JsonNode]): seq[Table[string, Stats]] =
   jsons.mapIt(
     it["results"]
-    .getElems(@[])
-    .mapIt(it.extractStats())
-    .mapIt((it.scenarioName, it)).toTable
+      .getElems(@[])
+      .mapIt(it.extractStats())
+      .mapIt((it.scenarioName, it)).toTable
   )
 
 proc aggregateResults*(

@@ -56,6 +56,9 @@ proc add*(s: MuxerStore, muxer: Muxer): bool =
     s.muxed[peerId] = @[muxer]
     return true
 
+proc getPeers*(s: MuxerStore): seq[PeerId] =
+  return s.muxed.keys().toSeq()
+
 proc getPeers*(s: MuxerStore, dir: Direction): seq[PeerId] =
   var peers = newSeqOfCap[PeerId](s.muxed.len)
   for peerId, mux in s.muxed:
