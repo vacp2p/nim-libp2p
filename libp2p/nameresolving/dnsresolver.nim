@@ -88,8 +88,8 @@ proc getDnsResponse(
     except Exception as exc:
       # Nim 1.6: parseResponse can has a raises: [Exception, ..] because of
       # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
-      # it can't actually raise though
-      raiseAssert "Exception parsing DN response: " & exc.msg
+      # Let's raise as an IOError
+      raise newException(IOError, "Exception parsing DNS response: " & exc.msg)
   finally:
     await sock.closeWait()
 
