@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 # Thread Request Dispatcher
 #
@@ -202,11 +202,7 @@ proc handleGetProvidersRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      providersRes[].providers,
-      providersRes[].providersLen,
-      nil,
-      0,
+      RET_OK.cint, providersRes[].providers, providersRes[].providersLen, nil, 0,
       request[].userData,
     )
 
@@ -228,11 +224,7 @@ proc handleRandomRecordsRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      recordsRes[].records,
-      recordsRes[].recordsLen,
-      nil,
-      0,
+      RET_OK.cint, recordsRes[].records, recordsRes[].recordsLen, nil, 0,
       request[].userData,
     )
 
@@ -262,12 +254,7 @@ proc handleReservationRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      rsvp[].addrs,
-      rsvp[].addrsLen,
-      rsvp[].expireTime,
-      nil,
-      0,
+      RET_OK.cint, rsvp[].addrs, rsvp[].addrsLen, rsvp[].expireTime, nil, 0,
       request[].userData,
     )
 

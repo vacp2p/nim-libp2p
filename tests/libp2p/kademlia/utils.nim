@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 {.used.}
 
 import algorithm, chronos, chronicles, results, sequtils, sets, tables
@@ -35,13 +35,13 @@ method select*(
 
 proc createSwitch*(): Switch =
   SwitchBuilder
-  .new()
-  .withRng(rng)
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .build()
+    .new()
+    .withRng(rng)
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
 
 proc testKadConfig*(
     validator: EntryValidator = PermissiveValidator(),
@@ -197,12 +197,12 @@ proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =
   peers
-  .mapIt((it, xorDistance(it, targetKey, hasher)))
-  .sorted(
-    proc(a, b: auto): int =
-      cmp(a[1], b[1])
-  )
-  .mapIt(it[0])
+    .mapIt((it, xorDistance(it, targetKey, hasher)))
+    .sorted(
+      proc(a, b: auto): int =
+        cmp(a[1], b[1])
+    )
+    .mapIt(it[0])
 
 proc addRandomPeers*(
     state: var LookupState, count: int, target: Key, hasher: Opt[XorDHasher]

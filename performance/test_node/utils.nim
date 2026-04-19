@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import algorithm
 import chronos
@@ -266,15 +266,14 @@ proc writeResultsToJson*(outputPath: string, scenario: string, stats: Stats) =
     except:
       discard
 
-  let newResult =
-    %*{
-      "scenarioName": scenario,
-      "totalSent": stats.totalSent,
-      "totalReceived": stats.totalReceived,
-      "minLatencyMs": formatLatencyMs(stats.latency.minLatencyMs),
-      "maxLatencyMs": formatLatencyMs(stats.latency.maxLatencyMs),
-      "avgLatencyMs": formatLatencyMs(stats.latency.avgLatencyMs),
-    }
+  let newResult = %*{
+    "scenarioName": scenario,
+    "totalSent": stats.totalSent,
+    "totalReceived": stats.totalReceived,
+    "minLatencyMs": formatLatencyMs(stats.latency.minLatencyMs),
+    "maxLatencyMs": formatLatencyMs(stats.latency.maxLatencyMs),
+    "avgLatencyMs": formatLatencyMs(stats.latency.avgLatencyMs),
+  }
   resultsArr.add(newResult)
 
   let json = %*{"results": resultsArr}

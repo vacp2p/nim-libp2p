@@ -90,7 +90,7 @@ nim c -r tests/tools/test_multiaddress.nim
 
 nim-libp2p uses [nph](https://github.com/arnetheduck/nph) to format code.
 
-Do `nimble install nph@v0.6.1` once to install nph, then `nimble format` (or `nph ./. *.nim`) to format code.
+Do `nimble install nph@v0.7.0` once to install nph, then `nimble format` (or `nph ./. *.nim`) to format code.
 
 ## Logs
 

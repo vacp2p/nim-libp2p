@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## WebSocket & WebSocket Secure transport implementation
 
@@ -7,7 +7,7 @@
 
 import std/[sequtils]
 import results
-import chronos, chronicles
+import chronos, chronicles, metrics
 import
   transport,
   ../autotls/service,
@@ -34,6 +34,8 @@ const
 type
   WsStream = ref object of Connection
     session: WSSession
+    when defined(libp2p_agents_metrics):
+      tracked: bool
 
   WsTransportError* = object of transport.TransportError
 
@@ -78,6 +80,17 @@ template mapExceptions(body: untyped): untyped =
   except CatchableError:
     raise newLPStreamEOFError()
 
+when defined(libp2p_agents_metrics):
+  proc trackPeerIdentity(s: WsStream) =
+    if not s.tracked and s.shortAgent.len > 0:
+      libp2p_peers_identity.inc(labelValues = [s.shortAgent])
+      s.tracked = true
+
+  proc untrackPeerIdentity(s: WsStream) =
+    if s.tracked:
+      libp2p_peers_identity.dec(labelValues = [s.shortAgent])
+      s.tracked = false
+
 method readOnce*(
     s: WsStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -86,6 +99,11 @@ method readOnce*(
   if res == 0 and s.session.readyState == ReadyState.Closed:
     raise newLPStreamEOFError()
   s.activity = true # reset activity flag
+  libp2p_network_bytes.inc(res.int64, labelValues = ["in"])
+  when defined(libp2p_agents_metrics):
+    s.trackPeerIdentity()
+    if s.tracked:
+      libp2p_peers_traffic_read.inc(res.int64, labelValues = [s.shortAgent])
   return res
 
 method write*(
@@ -93,12 +111,19 @@ method write*(
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   mapExceptions(await s.session.send(msg, Opcode.Binary))
   s.activity = true # reset activity flag
+  libp2p_network_bytes.inc(msg.len.int64, labelValues = ["out"])
+  when defined(libp2p_agents_metrics):
+    s.trackPeerIdentity()
+    if s.tracked:
+      libp2p_peers_traffic_write.inc(msg.len.int64, labelValues = [s.shortAgent])
 
 method closeImpl*(s: WsStream): Future[void] {.async: (raises: []).} =
   try:
     await s.session.close()
   except CatchableError:
     discard
+  when defined(libp2p_agents_metrics):
+    s.untrackPeerIdentity()
   await procCall Connection(s).closeImpl()
 
 method getWrapped*(s: WsStream): Connection =

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
@@ -152,18 +152,18 @@ method post*(
     self: PeerIDAuthClient, uri: Uri, payload: string, authHeader: string
 ): Future[PeerIDAuthResponse] {.async: (raises: [HttpError, CancelledError]), base.} =
   let rawResponse = await HttpClientRequestRef
-  .post(
-    self.session,
-    $uri,
-    body = payload,
-    headers = [
-      ("Content-Type", "application/json"),
-      ("User-Agent", NimLibp2pUserAgent),
-      ("Authorization", authHeader),
-    ],
-  )
-  .get()
-  .send()
+    .post(
+      self.session,
+      $uri,
+      body = payload,
+      headers = [
+        ("Content-Type", "application/json"),
+        ("User-Agent", NimLibp2pUserAgent),
+        ("Authorization", authHeader),
+      ],
+    )
+    .get()
+    .send()
 
   PeerIDAuthResponse(
     status: rawResponse.status,

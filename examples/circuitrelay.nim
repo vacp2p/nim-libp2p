@@ -13,14 +13,14 @@ import libp2p, libp2p/protocols/connectivity/relay/[relay, client]
 # Helper to create a circuit relay node
 proc createCircuitRelaySwitch(r: Relay): Switch =
   SwitchBuilder
-  .new()
-  .withRng(newRng())
-  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-  .withTcpTransport()
-  .withMplex()
-  .withNoise()
-  .withCircuitRelay(r)
-  .build()
+    .new()
+    .withRng(newRng())
+    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .withCircuitRelay(r)
+    .build()
 
 proc main() {.async.} =
   # Create a custom protocol

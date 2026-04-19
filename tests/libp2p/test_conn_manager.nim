@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -410,5 +410,134 @@ suite "Connection Manager":
     await allFuturesRaising(muxs.mapIt(it.close()))
 
     check await incomingSlot.withTimeout(10.millis)
+
+    await connMngr.close()
+
+proc newWatermark*(
+    C: type ConnManager,
+    lowWater: int,
+    highWater: int,
+    gracePeriod: Duration = 0.seconds,
+    silencePeriod: Duration = 0.seconds,
+): C =
+  return ConnManager.newWatermark(
+    WatermarkConfig(
+      lowWater: lowWater,
+      highWater: highWater,
+      gracePeriod: gracePeriod,
+      silencePeriod: silencePeriod,
+    )
+  )
+
+proc connectPeers(connMngr: ConnManager, count: int): Future[seq[PeerId]] {.async.} =
+  var peers: seq[PeerId]
+  for i in 0 ..< count:
+    let peerId = PeerId.random.tryGet()
+    peers.add(peerId)
+    await connMngr.storeMuxer(getMuxer(peerId))
+
+  return peers
+
+suite "Connection Manager Watermark":
+  teardown:
+    checkTrackers()
+
+  asyncTest "trim fires when peer count exceeds highWater":
+    const peersToConnect = 5
+    const lowWater = 2
+    const highWater = peersToConnect - 1 # connect 1 peer above high water
+    let connMngr = ConnManager.newWatermark(lowWater, highWater)
+
+    # connect peers - one over the highWater
+    discard await connectPeers(connMngr, peersToConnect)
+
+    check connMngr.getConnections().len == lowWater # lowWater
+
+    await connMngr.close()
+
+  asyncTest "grace period protects newly connected peers":
+    # long grace period - newly connected peers must not be pruned
+    const peersToConnect = 5
+    const lowWater = 1
+    const highWater = peersToConnect - 3
+    let connMngr = ConnManager.newWatermark(lowWater, highWater, gracePeriod = 1.hours)
+
+    discard await connectPeers(connMngr, peersToConnect)
+
+    # all peers are within grace period - none should be pruned
+    check connMngr.getConnections().len == peersToConnect
+
+    await connMngr.close()
+
+  asyncTest "protected peers survive trim":
+    const peersToConnect = 3
+    const lowWater = 1
+    const highWater = peersToConnect
+    let connMngr = ConnManager.newWatermark(lowWater, highWater)
+
+    let peers = await connectPeers(connMngr, peersToConnect)
+
+    # protect the first two peers before the trim-triggering store
+    connMngr.protect(peers[0], "important")
+    connMngr.protect(peers[1], "important")
+
+    # adding extra peer, triggering trim
+    await connMngr.storeMuxer(getMuxer(PeerId.random.tryGet()))
+
+    # protected peers must still be connected
+    check connMngr.contains(peers[0])
+    check connMngr.contains(peers[1])
+
+    await connMngr.close()
+
+  asyncTest "unprotect removes tag and allows trimming":
+    let connMngr = ConnManager.newWatermark(1, 3)
+
+    let peerId = PeerId.random.tryGet()
+    await connMngr.storeMuxer(getMuxer(peerId))
+
+    connMngr.protect(peerId, "tag-a")
+    connMngr.protect(peerId, "tag-b")
+
+    check connMngr.isProtected(peerId)
+    check connMngr.unprotect(peerId, "tag-a") == true # still protected via tag-b
+    check connMngr.unprotect(peerId, "tag-b") == false # no longer protected
+    check not connMngr.isProtected(peerId)
+
+    await connMngr.close()
+
+  asyncTest "silence period throttles back-to-back trims":
+    const peersToConnect = 3
+    const highWater = peersToConnect - 1
+    let connMngr = ConnManager.newWatermark(1, highWater, silencePeriod = 1.hours)
+
+    # connect first batch of peers - should cause trim after last peer
+    discard await connectPeers(connMngr, peersToConnect)
+
+    let connectedPeers = connMngr.getConnections().len
+
+    # connect second batch of peers.
+    # silence period prevents a second trim,
+    # adding more peers should not immediately trigger another trim
+    discard await connectPeers(connMngr, peersToConnect)
+
+    # silence period still active - count should be >= before
+    check connMngr.getConnections().len == connectedPeers + peersToConnect
+
+    await connMngr.close()
+
+  asyncTest "getIncomingSlot does not block in watermark mode":
+    let connMngr = ConnManager.newWatermark(1, 5)
+
+    # should return immediately without semaphore blocking
+    check await connMngr.getIncomingSlot().withTimeout(10.millis)
+
+    await connMngr.close()
+
+  asyncTest "getOutgoingSlot does not raise in watermark mode":
+    let connMngr = ConnManager.newWatermark(1, 5)
+
+    for i in 0 ..< 10:
+      discard connMngr.getOutgoingSlot()
 
     await connMngr.close()

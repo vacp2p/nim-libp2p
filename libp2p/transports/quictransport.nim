@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[hashes, sets, sequtils]
 import chronos, chronicles, metrics, results
@@ -39,6 +39,8 @@ type
   QuicSession* = ref object of P2PConnection
     connection: QuicConnection
     streams: HashSet[QuicStream]
+    when defined(libp2p_agents_metrics):
+      tracked: bool
 
 func hash*(s: QuicStream): Hash =
   cast[pointer](s).hash
@@ -72,6 +74,17 @@ proc new(
 method getWrapped*(self: QuicStream): P2PConnection =
   self
 
+when defined(libp2p_agents_metrics):
+  proc trackPeerIdentity(s: QuicSession) =
+    if not s.tracked and s.shortAgent.len > 0:
+      libp2p_peers_identity.inc(labelValues = [s.shortAgent])
+      s.tracked = true
+
+  proc untrackPeerIdentity(s: QuicSession) =
+    if s.tracked:
+      libp2p_peers_identity.dec(labelValues = [s.shortAgent])
+      s.tracked = false
+
 method readOnce*(
     stream: QuicStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
@@ -90,6 +103,10 @@ method readOnce*(
 
   stream.activity = true
   libp2p_network_bytes.inc(readLen.int64, labelValues = ["in"])
+  when defined(libp2p_agents_metrics):
+    stream.session.trackPeerIdentity()
+    if stream.session.tracked:
+      libp2p_peers_traffic_read.inc(readLen.int64, labelValues = [stream.shortAgent])
   return readLen
 
 method write*(
@@ -98,6 +115,12 @@ method write*(
   try:
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
+    when defined(libp2p_agents_metrics):
+      stream.session.trackPeerIdentity()
+      if stream.session.tracked:
+        libp2p_peers_traffic_write.inc(
+          bytes.len.int64, labelValues = [stream.shortAgent]
+        )
   except StreamError:
     raise newLPStreamEOFError()
 
@@ -125,6 +148,8 @@ method close*(session: QuicSession) {.async: (raises: []).} =
   session.streams.clear()
   await noCancel allFutures(streams.mapIt(it.close()))
   session.connection.close()
+  when defined(libp2p_agents_metrics):
+    session.untrackPeerIdentity()
   await procCall P2PConnection(session).close()
 
 proc getStream(

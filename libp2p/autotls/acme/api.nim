@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import json, uri
 from times import DateTime, parse
@@ -262,9 +262,9 @@ when defined(libp2p_autotls_support):
       async: (raises: [ACMEError, HttpError, CancelledError]), base
   .} =
     let rawResponse = await HttpClientRequestRef
-    .post(self.session, $uri, body = payload, headers = ACMEHttpHeaders)
-    .get()
-    .send()
+      .post(self.session, $uri, body = payload, headers = ACMEHttpHeaders)
+      .get()
+      .send()
     let body = await rawResponse.getResponseBody()
     HTTPResponse(body: body, headers: rawResponse.headers)
 
@@ -530,9 +530,9 @@ when defined(libp2p_autotls_support):
 
     handleError("downloadCertificate"):
       let rawResponse = await HttpClientRequestRef
-      .get(self.session, orderResponse.certificate)
-      .get()
-      .send()
+        .get(self.session, orderResponse.certificate)
+        .get()
+        .send()
       ACMECertificateResponse(
         rawCertificate: bytesToString(await rawResponse.getBodyBytes()),
         certificateExpiry: parse(orderResponse.expires, "yyyy-MM-dd'T'HH:mm:ss'Z'"),

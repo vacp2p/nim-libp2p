@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
@@ -97,6 +97,7 @@ type
     # the following are copies from PubSubPeer, in order to restore them on re-connection
     score*: float64 # a copy of the score to keep in case the peer is disconnected
     appScore*: float64 # application specific score
+    slowPeerPenalty*: float64 # penalty from repeated medium/low queue overflow drops
     behaviourPenalty*: float64 # the eventual penalty score
 
   GossipSubParams* {.public.} = object
@@ -137,6 +138,9 @@ type
     appSpecificWeight*: float64
     ipColocationFactorWeight*: float64
     ipColocationFactorThreshold*: float64
+    slowPeerPenaltyWeight*: float64
+    slowPeerPenaltyThreshold*: float64
+    slowPeerPenaltyDecay*: float64
     behaviourPenaltyWeight*: float64
     behaviourPenaltyDecay*: float64
 

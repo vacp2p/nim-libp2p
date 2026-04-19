@@ -95,10 +95,10 @@ func medianValue(vals: seq[float]): float =
 
 func medianDownloadRate(ext: PreambleExtension, peers: seq[PeerId]): float =
   peers
-  .filterIt(ext.peerState.hasKey(it))
-  .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
-  .sorted()
-  .medianValue()
+    .filterIt(ext.peerState.hasKey(it))
+    .mapIt(ext.peerState.getOrDefault(it).bandwidthTracking.download.value())
+    .sorted()
+    .medianValue()
 
 proc handlePreamble*(ext: PreambleExtension, peerId: PeerId, preambles: seq[Preamble]) =
   let startTime = Moment.now()

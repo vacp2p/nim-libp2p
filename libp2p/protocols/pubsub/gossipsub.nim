@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## Gossip based publishing
 
@@ -90,6 +90,9 @@ proc init*(
     appSpecificWeight = 0.0,
     ipColocationFactorWeight = 0.0,
     ipColocationFactorThreshold = 1.0,
+    slowPeerPenaltyWeight = -0.05,
+    slowPeerPenaltyThreshold = 2.0,
+    slowPeerPenaltyDecay = 0.2,
     behaviourPenaltyWeight = -1.0,
     behaviourPenaltyDecay = 0.999,
     directPeers = initTable[PeerId, seq[MultiAddress]](),
@@ -155,6 +158,9 @@ proc init*(
     appSpecificWeight: appSpecificWeight,
     ipColocationFactorWeight: ipColocationFactorWeight,
     ipColocationFactorThreshold: ipColocationFactorThreshold,
+    slowPeerPenaltyWeight: slowPeerPenaltyWeight,
+    slowPeerPenaltyThreshold: slowPeerPenaltyThreshold,
+    slowPeerPenaltyDecay: slowPeerPenaltyDecay,
     behaviourPenaltyWeight: behaviourPenaltyWeight,
     behaviourPenaltyDecay: behaviourPenaltyDecay,
     directPeers: directPeers,
@@ -198,6 +204,14 @@ proc validateParameters*(parameters: GossipSubParams): Result[void, cstring] =
     err("gossipsub: ipColocationFactorWeight parameter error, Must be negative or 0")
   elif parameters.ipColocationFactorThreshold < 1.0:
     err("gossipsub: ipColocationFactorThreshold parameter error, Must be at least 1")
+  elif parameters.slowPeerPenaltyWeight > 0:
+    err("gossipsub: slowPeerPenaltyWeight parameter error, Must be negative or 0")
+  elif parameters.slowPeerPenaltyThreshold < 0:
+    err("gossipsub: slowPeerPenaltyThreshold parameter error, Must be positive or 0")
+  elif parameters.slowPeerPenaltyDecay <= 0 or parameters.slowPeerPenaltyDecay >= 1:
+    err(
+      "gossipsub: slowPeerPenaltyDecay parameter error, Must be between 0 and 1 (exclusive)"
+    )
   elif parameters.behaviourPenaltyWeight >= 0:
     err("gossipsub: behaviourPenaltyWeight parameter error, Must be negative")
   elif parameters.behaviourPenaltyDecay < 0 or parameters.behaviourPenaltyDecay >= 1:
@@ -270,30 +284,23 @@ proc usesExtensions(g: GossipSub): bool =
     g.parameters.preambleExtensionConfig.isSome()
 
 proc sendExtensionsControl(g: GossipSub, peer: PubSubPeer) =
-  proc send() =
-    g.extensionsState.addPeer(peer.peerId)
-    g.send(
-      peer,
-      RPCMsg.withControl(
-        ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
-      ),
-      MessagePriority.High, # must be the first message on the stream
-    )
+  # Called from StreamOpened where codec is always set from the negotiated connection.
+  doAssert peer.codec != "", "sendExtensionsControl requires codec to be negotiated"
 
-  # before extensions control is sent, node needs to known if peer actually supports
-  # version of gossipsub that supports extensions (in general). 
-  # only then node should send extensions control message.
+  if not gossipExtensionsSupported(peer.codec):
+    return
 
-  # it's very likely that codecs will not be set at this point as connection was 
-  # not established and details of negotiated protocol (codecs) are not known.
-  # in this case node needs to wait for connection to be established or 
-  # more precisely for codecs to be initialized.
-  proc sendAfterCodecInitialized(): Future[void] {.async: (raises: [CancelledError]).} =
-    await peer.codecInitializedFut
-    if gossipExtensionsSupported(peer.codec):
-      send()
+  if g.extensionsState.isControlSent(peer.peerId):
+    return
 
-  asyncSpawn sendAfterCodecInitialized()
+  g.extensionsState.addPeer(peer.peerId)
+  g.send(
+    peer,
+    RPCMsg.withControl(
+      ControlMessage.withExtensions(g.extensionsState.makeControlExtensions())
+    ),
+    MessagePriority.High, # must be the first message on the stream
+  )
 
 method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
   g.withPeerStats(peer.peerId) do(stats: var PeerStats):
@@ -301,6 +308,7 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
     # from a previous connection
     peer.score = stats.score
     peer.appScore = stats.appScore
+    peer.slowPeerPenalty = stats.slowPeerPenalty
     peer.behaviourPenalty = stats.behaviourPenalty
 
     # Check if the score is below the threshold and disconnect the peer if necessary
@@ -308,17 +316,13 @@ method onNewPeer*(g: GossipSub, peer: PubSubPeer) =
 
   peer.iHaveBudget = IHavePeerBudget
 
-  if g.usesExtensions():
-    # if gossipsub uses extensions it must send 
-    # extensions control message as first message on the stream
-    g.sendExtensionsControl(peer)
-
 method onPubSubPeerEvent*(
     p: GossipSub, peer: PubSubPeer, event: PubSubPeerEvent
 ) {.gcsafe.} =
   case event.kind
   of PubSubPeerEventKind.StreamOpened:
-    discard
+    if p.usesExtensions():
+      p.sendExtensionsControl(peer)
   of PubSubPeerEventKind.StreamClosed:
     # If a send stream is lost, it's better to remove peer from the mesh -
     # if it gets reestablished, the peer will be readded to the mesh, and if it
