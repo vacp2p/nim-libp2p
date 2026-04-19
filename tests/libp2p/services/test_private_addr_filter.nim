@@ -45,12 +45,11 @@ suite "PeerStore addressPolicy":
     peerStore.updatePeerInfo(
       IdentifyInfo(
         peerId: peerId,
-        addrs:
-          @[
-            ma("/ip4/192.168.1.5/tcp/4001"),
-            ma("/ip4/1.1.1.1/tcp/4001"),
-            ma("/ip4/10.0.0.1/tcp/4001"),
-          ],
+        addrs: @[
+          ma("/ip4/192.168.1.5/tcp/4001"),
+          ma("/ip4/1.1.1.1/tcp/4001"),
+          ma("/ip4/10.0.0.1/tcp/4001"),
+        ],
       )
     )
 

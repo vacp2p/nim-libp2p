@@ -31,18 +31,16 @@ const
   addressIP4 = "/ip4/127.0.0.1/tcp/0"
   addressIP6 = "/ip6/::/tcp/0"
   validWireAddresses = @["/ip4/127.0.0.1/tcp/1234", "/ip6/::1/tcp/1234"]
-  validNonWireAddresses =
-    @[
-      "/dns/example.com/tcp/1234", "/dns4/example.com/tcp/1234",
-      "/dns6/example.com/tcp/1234",
-    ]
-  invalidAddresses =
-    @[
-      "/ip4/127.0.0.1/udp/1234", # UDP instead of TCP
-      "/ip4/127.0.0.1/tcp/1234/ws", # TCP with ws (should be handled by WsTransport)
-      "/ip4/127.0.0.1/tcp/1234/wss", # TCP with wss (should be handled by WsTransport)
-      "/ip4/127.0.0.1", # Missing port
-    ]
+  validNonWireAddresses = @[
+    "/dns/example.com/tcp/1234", "/dns4/example.com/tcp/1234",
+    "/dns6/example.com/tcp/1234",
+  ]
+  invalidAddresses = @[
+    "/ip4/127.0.0.1/udp/1234", # UDP instead of TCP
+    "/ip4/127.0.0.1/tcp/1234/ws", # TCP with ws (should be handled by WsTransport)
+    "/ip4/127.0.0.1/tcp/1234/wss", # TCP with wss (should be handled by WsTransport)
+    "/ip4/127.0.0.1", # Missing port
+  ]
 
 suite "TCP transport":
   teardown:

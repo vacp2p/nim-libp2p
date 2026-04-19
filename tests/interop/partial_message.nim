@@ -33,11 +33,10 @@ proc partialMessageInteropTest*(
   #     the parts metadata that nim peer expects. other peer must know what to send in advance.
 
   let
-    keyBytes =
-      @[
-        8.byte, 2, 18, 32, 222, 176, 113, 24, 159, 196, 204, 239, 181, 76, 141, 249, 59,
-        226, 244, 36, 1, 145, 17, 142, 4, 151, 172, 69, 65, 12, 254, 222, 161, 39, 7, 73,
-      ]
+    keyBytes = @[
+      8.byte, 2, 18, 32, 222, 176, 113, 24, 159, 196, 204, 239, 181, 76, 141, 249, 59,
+      226, 244, 36, 1, 145, 17, 142, 4, 151, 172, 69, 65, 12, 254, 222, 161, 39, 7, 73,
+    ]
     key = PrivateKey.init(keyBytes).expect("should have a private key")
 
   var switch = SwitchBuilder
