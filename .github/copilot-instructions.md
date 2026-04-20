@@ -246,7 +246,7 @@ The test runner (`libp2p.nimble`) always compiles with:
   - Do not use primitive types (`float`, `int`, etc.) for storing or passing durations. Replace them with `chronos.Duration`.
 - Avoid tuples in public interfaces
   - Public APIs must not expose tuples.
-  - Instead, define a named type (e.g., class, struct, or record) with clear property names to ensure readability and maintainability.
+  - Instead, define a named type (e.g., struct) with clear property names to ensure readability and maintainability.
   - Exception: Tuples may be used only in functions that are internal to a single file and invoked in one place. They must never leak into shared or public APIs.
 
 #### Exceptions
