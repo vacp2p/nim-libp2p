@@ -322,29 +322,41 @@ proc publishPartial*(
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
   groupState.lastPublishedMetadata = pm.partsMetadata()
 
-  var publishedToCount: int = 0
-  let publishToPeers =
+  var peersToTry =
     if peers.len > 0:
       peers
     else:
-      ext.config.publishToPeers(topic)
-  for _, p in publishToPeers:
+      var publishTargets = ext.config.publishToPeers(topic)
+      # Extend this node's current publish targets
+      # with peers that already exchanged metadata for this group.
+      # This preserves replies to a remote peer acting as an unsubscribed
+      # fanout publisher.
+      for p in groupState.peerState.keys:
+        if p notin publishTargets:
+          publishTargets.add(p)
+      publishTargets
+
+  var publishedToCount: int = 0
+  for p in peersToTry:
     if not ext.config.isSupported(p):
-      # peer needs to support this extension
       continue
 
     let peerSubOpt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(p, topic))
-    let nodeSubOpt = ext.config.nodeTopicOpts(topic)
-
-    # publish partial message to peer if ...
-    if peerSubOpt.requestsPartial and
-        (nodeSubOpt.supportsSendingPartial or nodeSubOpt.requestsPartial):
-      # 1) peer has requested partial messages for this topic
+    if peerSubOpt.requestsPartial:
+      # If the peer requests partials, publish to it without checking this
+      # node's own topic opts. A node may publish partials as a fanout
+      # publisher without being subscribed to the topic.
       if ext.publishPartialToPeer(topic, pm, groupState, p, true):
         publishedToCount.inc
-    elif nodeSubOpt.requestsPartial and
-        (peerSubOpt.supportsSendingPartial or peerSubOpt.requestsPartial):
-      # 2) this node has requested partial messages and peer (other node) supports sending it
+      continue
+
+    # If this node requests partials, send metadata to peers that either
+    # advertised partial support for the topic or already have per-group
+    # state. peerHasState covers peers that already sent metadata for this
+    # group without ever sending a subscription RPC.
+    let nodeRequestsPartial = ext.config.nodeTopicOpts(topic).requestsPartial
+    let peerHasState = groupState.peerState.hasKey(p)
+    if nodeRequestsPartial and (peerSubOpt.supportsSendingPartial or peerHasState):
       if ext.publishPartialToPeer(topic, pm, groupState, p, false):
         publishedToCount.inc
 
