@@ -154,6 +154,7 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   if not disco.started:
     return
 
+  disco.advertiser.clear()
   disco.selfSignedPeerRecordLoop.cancelSoon()
   disco.selfSignedPeerRecordLoop = nil
 
