@@ -5,7 +5,7 @@ import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./service_discovery/[random_find, types, routing_table_manager]
+import ./service_discovery/[random_find, types, routing_table_manager, advertiser]
 
 export random_find, types
 
@@ -84,6 +84,7 @@ proc new*(
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     rtManager: ServiceRoutingTableManager.new(),
+    advertiser: Advertiser.new(),
     registrar: Registrar.new(),
     services: toHashSet(services),
     discoConfig: discoConfig,
@@ -153,6 +154,7 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   if not disco.started:
     return
 
+  disco.advertiser.clear()
   disco.selfSignedPeerRecordLoop.cancelSoon()
   disco.selfSignedPeerRecordLoop = nil
 
