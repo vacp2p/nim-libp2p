@@ -5,7 +5,7 @@ import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./service_discovery/[random_find, types, routing_table_manager]
+import ./service_discovery/[random_find, types, routing_table_manager, advertiser]
 
 export random_find, types
 

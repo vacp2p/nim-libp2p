@@ -129,11 +129,14 @@ proc startAdvertising*(
   var currentTicket = ticket
 
   while true:
-    let response = (
+    let responseResult =
       await disco.sendRegister(registrar, serviceId, addBuff, currentTicket)
-    ).valueOr:
-      error "failed to register ad", error
-      return
+    if responseResult.isErr:
+      error "failed to register ad", error = responseResult.error
+      await sleepAsync(chronos.seconds(30))
+      continue
+
+    let response = responseResult.unsafeGet()
     for pid in response.closerPeers:
       disco.rtManager.insertPeer(serviceId, pid.toKey())
 
@@ -141,15 +144,22 @@ proc startAdvertising*(
     of kademlia_protobuf.RegistrationStatus.Confirmed:
       await sleepAsync(disco.discoConfig.advertExpiry)
     of kademlia_protobuf.RegistrationStatus.Wait:
-      let newTicket = response.ticket.valueOr:
+      if response.ticket.isNone:
         error "no ticket to retry with"
-        return
+        await sleepAsync(disco.discoConfig.occupancyExp)
+        continue
+
+      let newTicket = response.ticket.unsafeGet()
       currentTicket = Opt.some(newTicket)
       let waitSecs =
         min(disco.discoConfig.advertExpiry.seconds.uint32, newTicket.tWaitFor)
+
       await sleepAsync(chronos.seconds(int(waitSecs)))
     of kademlia_protobuf.RegistrationStatus.Rejected:
-      break
+      # Deliberate rejection; respect it for a full advertisement period before retrying,
+      # as the registrar's capacity or our position in the keyspace may have changed.
+      currentTicket = Opt.none(Ticket)
+      await sleepAsync(disco.discoConfig.advertExpiry)
 
 proc addProvidedService*(
     disco: ServiceDiscovery,
