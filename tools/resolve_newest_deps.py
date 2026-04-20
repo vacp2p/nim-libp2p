@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 
 
 GITHUB_API = "https://api.github.com"
-TIMEOUT = 10
+TIMEOUT = 20
 
 NIMBLE_LOCK_SOURCES = [
     {
