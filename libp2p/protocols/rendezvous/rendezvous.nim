@@ -165,7 +165,9 @@ proc save*[E](
         rdv.registered[index].expiration = rdv.expiredDT
     rdv.registered.add(
       RegisteredData(
-        peerId: peerId, expiration: Moment.now() + r.ttl.valueOr(rdv.minTTL).int64.seconds, data: r
+        peerId: peerId,
+        expiration: Moment.now() + r.ttl.valueOr(rdv.minTTL).int64.seconds,
+        data: r,
       )
     )
     rdv.namespaces[nsSalted].add(rdv.registered.high)
@@ -385,7 +387,11 @@ proc requestPeer[E](
   defer:
     await conn.close()
 
-  let disns = if ns.isSome(): pbSome(ns.get()) else: pbNone(default(string))
+  let disns =
+    if ns.isSome():
+      pbSome(ns.get())
+    else:
+      pbNone(default(string))
   var d = Discover(ns: disns, limit: pbSome(limit))
   d.cookie =
     if ns.isSome():

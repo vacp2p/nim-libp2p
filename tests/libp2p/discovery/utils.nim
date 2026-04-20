@@ -125,12 +125,9 @@ proc prepareRegisterMessage*(
   )
 
 proc prepareDiscoverMessage*(
-    ns = pbNone(""),
-    limit = pbNone(0'u64),
-    cookie = pbNone(default(seq[byte])),
+    ns = pbNone(""), limit = pbNone(0'u64), cookie = pbNone(default(seq[byte]))
 ): Message =
   Message(
     msgType: pbSome(MsgTypeDiscover),
-    discover:
-      pbSome(Discover(ns: ns, limit: limit, cookie: cookie)),
+    discover: pbSome(Discover(ns: ns, limit: limit, cookie: cookie)),
   )
