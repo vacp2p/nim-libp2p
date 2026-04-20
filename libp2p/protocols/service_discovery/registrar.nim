@@ -398,6 +398,12 @@ proc acceptAdvertisement*(
   if shouldUpdateMetrics:
     disco.registrar.updateRegistrarMetrics()
 
+proc tInitOrDefault(ticket: Opt[Ticket], default: uint64): uint64 =
+  ticket.withValue(t):
+    return t.tInit
+  else:
+    default
+
 proc handleRegister*(
     disco: ServiceDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
@@ -435,12 +441,7 @@ proc handleRegister*(
 
     var ticket = Ticket(
       advertisement: regMsg.advertisement,
-      tInit: regMsg.ticket
-        .map(
-          proc(t: Ticket): uint64 {.raises: [].} =
-            t.tInit
-        )
-        .get(now),
+      tInit: regMsg.ticket.tInitOrDefault(now),
       tMod: now,
       tWaitFor: uint32(min(tWait, float64(uint32.high))),
     )
