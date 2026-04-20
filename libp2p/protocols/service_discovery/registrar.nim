@@ -411,9 +411,10 @@ proc handleRegister*(
     return
 
   let now = getTime().toUnix().uint64
-  var tWait = disco.registrar.waitingTime(
-    disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
-  ).seconds.float64
+  var tWait =
+    disco.registrar.waitingTime(
+      disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
+    ).nanoseconds.float64 / 1_000_000_000.0
   tWait = disco.processRetryTicket(regMsg, ad, tWait, now)
 
   if tWait <= 0:
