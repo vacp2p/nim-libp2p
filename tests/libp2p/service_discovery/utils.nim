@@ -66,13 +66,13 @@ proc fillCache*(registrar: Registrar, n: int, now: uint64) =
 
 proc createSwitch*(): Switch =
   SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
+  .new()
+  .withRng(rng())
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .build()
 
 proc makeMockDiscovery*(
     discoConfig: ServiceDiscoveryConfig =
@@ -154,3 +154,13 @@ proc populateAdvTable*(disco: ServiceDiscovery, serviceId: ServiceId) =
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
+
+proc populateSearchTable*(
+    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId]
+) =
+  discard disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+  for peer in peers:
+    disco.rtManager.insertPeer(serviceId, peer.toKey())
