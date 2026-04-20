@@ -322,7 +322,7 @@ proc publishPartial*(
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
   groupState.lastPublishedMetadata = pm.partsMetadata()
 
-  var peersToTry =
+  var publishToPeers =
     if peers.len > 0:
       peers
     else:
@@ -337,7 +337,7 @@ proc publishPartial*(
       publishTargets
 
   var publishedToCount: int = 0
-  for p in peersToTry:
+  for p in publishToPeers:
     if not ext.config.isSupported(p):
       continue
 
