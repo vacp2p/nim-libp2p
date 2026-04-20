@@ -119,6 +119,7 @@ jobs:
             exit 1
           fi
           echo "=== Installing resolved newest dependencies ==="
+          echo "nimble install -y $DEPS"
           nimble install -y $DEPS
 
       - name: Run tests

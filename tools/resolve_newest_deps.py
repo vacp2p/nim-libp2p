@@ -12,12 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional
 from urllib.parse import quote
-
-try:
-    import requests
-except ImportError:
-    print("ERROR: Python package 'requests' is required", file=sys.stderr)
-    sys.exit(1)
+from urllib.request import Request, urlopen
 
 
 GITHUB_API = "https://api.github.com"
@@ -59,10 +54,10 @@ def get_headers() -> Dict[str, str]:
     return headers
 
 
-def github_get(url: str) -> requests.Response:
-    response = requests.get(url, headers=get_headers(), timeout=TIMEOUT)
-    response.raise_for_status()
-    return response
+def github_get_json(url: str) -> object:
+    request = Request(url, headers=get_headers())
+    with urlopen(request, timeout=TIMEOUT) as response:
+        return json.loads(response.read().decode("utf-8"))
 
 
 def normalize_url(url: str) -> str:
@@ -103,7 +98,7 @@ def fetch_github_file(repo: str, ref: str, filepath: str) -> str:
     encoded_path = quote(filepath)
     encoded_ref = quote(ref, safe="")
     url = f"{GITHUB_API}/repos/{repo}/contents/{encoded_path}?ref={encoded_ref}"
-    data = github_get(url).json()
+    data = github_get_json(url)
     if data.get("encoding") != "base64" or "content" not in data:
         raise ValueError(f"{repo}:{filepath}: unexpected GitHub contents response")
     return base64.b64decode(data["content"]).decode("utf-8")
@@ -148,7 +143,7 @@ def fetch_submodule_deps(repo: str, ref: str) -> Dict[str, Candidate]:
 
     encoded_ref = quote(ref, safe="")
     tree_url = f"{GITHUB_API}/repos/{repo}/git/trees/{encoded_ref}?recursive=1"
-    tree = github_get(tree_url).json()
+    tree = github_get_json(tree_url)
 
     path_to_sha = {}
     for entry in tree.get("tree", []):
@@ -175,7 +170,7 @@ def owner_repo_from_url(url: str) -> Optional[str]:
 def get_commit_date(owner_repo: str, sha: str) -> datetime:
     encoded_sha = quote(sha, safe="")
     url = f"{GITHUB_API}/repos/{owner_repo}/commits/{encoded_sha}"
-    data = github_get(url).json()
+    data = github_get_json(url)
     date_str = data["commit"]["committer"]["date"]
     return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
 
