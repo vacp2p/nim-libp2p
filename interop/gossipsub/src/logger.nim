@@ -12,13 +12,12 @@ proc logJSON*(
 ) {.raises: [].} =
   ## Write a structured JSON log line to the given stream.
   try:
-    var obj =
-      %*{
-        "time": now().format("yyyy-MM-dd'T'HH:mm:ss'.'ffffffzzz"),
-        "level": "INFO",
-        "msg": msg,
-        "service": "gossipsub",
-      }
+    var obj = %*{
+      "time": now().format("yyyy-MM-dd'T'HH:mm:ss'.'ffffffzzz"),
+      "level": "INFO",
+      "msg": msg,
+      "service": "gossipsub",
+    }
     for (key, val) in fields:
       obj[key] = %val
     stream.writeLine($obj)

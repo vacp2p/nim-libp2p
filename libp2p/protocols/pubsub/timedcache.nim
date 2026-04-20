@@ -93,11 +93,7 @@ func put*[K](cache: var TimedCache[K], key: K, now = Moment.now()): bool =
 
   let
     previous = cache.del(key) # Refresh existing item
-    addedAt =
-      if previous.isSome():
-        previous[].addedAt
-      else:
-        now
+    addedAt = if previous.isSome(): previous[].addedAt else: now
 
   let node = TimedEntry[K](key: key, addedAt: addedAt, expiresAt: now + cache.timeout)
   if cache.head == nil:

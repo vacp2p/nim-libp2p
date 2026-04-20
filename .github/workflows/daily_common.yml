@@ -20,11 +20,11 @@ on:
 
 jobs:
   delete_cache:
-    name: Delete github action's branch cache
+    name: Delete github action cache
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: snnaplab/delete-branch-cache-action@v1
+      - uses: toshimaru/delete-action-cache@main
 
   test:
     needs: delete_cache

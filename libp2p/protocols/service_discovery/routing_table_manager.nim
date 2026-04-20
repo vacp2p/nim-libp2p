@@ -5,21 +5,10 @@ import std/[tables, sequtils]
 import chronos, chronicles, results
 import ../kademlia
 import ../kademlia/[types, routing_table]
-import ./types
-import ./service_discovery_metrics
+import ./[types, service_discovery_metrics]
 
 logScope:
   topics = "service-disco service-routing-tables"
-
-type
-  ServiceStatus* = enum
-    Interest = 0
-    Provided = 1
-    Both = 2
-
-  ServiceRoutingTableManager* = ref object
-    tables*: Table[ServiceId, RoutingTable]
-    serviceStatus*: Table[ServiceId, ServiceStatus]
 
 proc updateServiceTablesMetrics(manager: ServiceRoutingTableManager) {.raises: [].} =
   cd_service_tables_count.set(manager.tables.len.float64)

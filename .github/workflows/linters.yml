@@ -21,7 +21,7 @@ jobs:
       - name: Check NPH formatting
         uses: arnetheduck/nph-action@v1
         with:
-          version: 0.6.1
+          version: 0.7.0
           options: "./. *.nim*"
           fail: true
           suggest: true

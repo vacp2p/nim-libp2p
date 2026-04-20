@@ -90,13 +90,12 @@ suite "KadDHT Protobuffers":
       decoded == peer
 
   test "peer with multiple multiaddresses":
-    let maddrs =
-      @[
-        MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get(),
-        MultiAddress.init("/ip4/192.168.1.1/tcp/4001").get(),
-        MultiAddress.init("/ip6/::1/tcp/9000").get(),
-        MultiAddress.init("/dns4/example.com/tcp/443").get(),
-      ]
+    let maddrs = @[
+      MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get(),
+      MultiAddress.init("/ip4/192.168.1.1/tcp/4001").get(),
+      MultiAddress.init("/ip6/::1/tcp/9000").get(),
+      MultiAddress.init("/dns4/example.com/tcp/443").get(),
+    ]
     let peer = Peer(id: @[1'u8, 2, 3, 4, 5], addrs: maddrs, connection: canConnect)
     let encoded = peer.encode()
     let decoded = Peer.decode(initProtoBuffer(encoded.buffer)).get()
