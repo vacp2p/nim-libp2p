@@ -73,14 +73,12 @@ proc sendGetAds(
   return
     ok((getAdsMsg.advertisements.validAds(serviceId), reply.closerPeers.toPeerIds()))
 
-proc peersToQuery(bucket: Bucket, kLookup: int): seq[PeerId] =
-  var peerIds: seq[PeerId]
-  for i in 0 ..< min(kLookup, bucket.peers.len):
-    let peerId = bucket.peers[i].nodeId.toPeerId().valueOr:
-      error "cannot convert key to peer id", error
-      continue
-    peerIds.add(peerId)
-  return peerIds
+proc peersToQuery(disco: ServiceDiscovery, bucket: Bucket): seq[PeerId] =
+  let peersToPick = min(disco.discoConfig.kLookup, bucket.peers.len)
+  disco.rng.pick(bucket.peers, peersToPick).withValue(picked):
+    return picked.toPeerIds()
+  else:
+    return @[]
 
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
@@ -106,9 +104,7 @@ proc lookup*(
     if bucket.peers.len == 0:
       continue
 
-    disco.rng.shuffle(bucket.peers)
-
-    for peerId in bucket.peersToQuery(disco.discoConfig.kLookup):
+    for peerId in disco.peersToQuery(bucket):
       let (ads, closerPeers) = (await sendGetAds(disco, peerId, serviceId)).valueOr:
         error "failed to get ads", error
         continue
