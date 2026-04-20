@@ -104,10 +104,22 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Install dependencies (latest)
+      - name: Install dependencies (newest used across projects)
         if: ${{ inputs.pinned_deps == false }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          nimble install -y --depsOnly
+          if ! DEPS=$(python3 tools/resolve_newest_deps.py .pinned 2>"$RUNNER_TEMP/resolve_deps.log"); then
+            cat "$RUNNER_TEMP/resolve_deps.log"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/resolve_deps.log"
+          if [ -z "$DEPS" ]; then
+            echo "ERROR: dependency resolver produced no output" >&2
+            exit 1
+          fi
+          echo "=== Installing resolved newest dependencies ==="
+          nimble install -y $DEPS
 
       - name: Run tests
         run: |
