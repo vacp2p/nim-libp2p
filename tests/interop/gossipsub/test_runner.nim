@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, streams, sequtils, strutils
+import chronos, streams, sequtils, strutils, tables
 import ../../../libp2p/[multiaddress, protocols/pubsub/gossipsub, switch]
 import
   ../../../interop/gossipsub/src/[node, instructions, runner, interop_partial_message]
@@ -37,21 +37,24 @@ suite "GossipSub Interop - Script runner - Component":
     )
 
     # Build a script for node 0
-    let script = @[
-      ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-      ScriptInstruction(kind: Connect, connectTo: @[1]),
-      ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false),
-      ScriptInstruction(kind: WaitUntil, elapsed: 2.seconds),
-      ScriptInstruction(
-        kind: Publish,
-        publishMessageID: 99,
-        messageSizeBytes: 512,
-        publishTopicID: topic,
-      ),
-      ScriptInstruction(
-        kind: SetTopicValidationDelay, validationTopicID: topic, delay: 300.milliseconds
-      ),
-    ]
+    let script =
+      @[
+        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+        ScriptInstruction(kind: Connect, connectTo: @[1]),
+        ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false),
+        ScriptInstruction(kind: WaitUntil, elapsed: 2.seconds),
+        ScriptInstruction(
+          kind: Publish,
+          publishMessageID: 99,
+          messageSizeBytes: 512,
+          publishTopicID: topic,
+        ),
+        ScriptInstruction(
+          kind: SetTopicValidationDelay,
+          validationTopicID: topic,
+          delay: 300.milliseconds,
+        ),
+      ]
 
     var stream = newStringStream()
     let runner = newScriptRunner(
@@ -81,11 +84,12 @@ suite "GossipSub Interop - Script runner - Component":
     let inner = new ScriptInstruction
     inner[] = ScriptInstruction(kind: Connect, connectTo: @[1])
 
-    let script = @[
-      ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-      # This should be skipped (node 5 != node 0)
-      ScriptInstruction(kind: IfNodeIDEquals, nodeID: 5, inner: inner),
-    ]
+    let script =
+      @[
+        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+        # This should be skipped (node 5 != node 0)
+        ScriptInstruction(kind: IfNodeIDEquals, nodeID: 5, inner: inner),
+      ]
 
     var stream = newStringStream()
     let runner = newScriptRunner(
@@ -166,30 +170,100 @@ suite "GossipSub Interop - Script runner - Component":
     runner0.messages[key] = pm0
 
     # Build a script for node 1
-    let script = @[
-      ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
-      ScriptInstruction(kind: Connect, connectTo: @[0]),
-      ScriptInstruction(kind: WaitUntil, elapsed: 1.seconds),
-      ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: true),
-      ScriptInstruction(kind: WaitUntil, elapsed: 5.seconds),
-      ScriptInstruction(
-        kind: AddPartialMessage,
-        addTopicID: topic,
-        groupID: groupId,
-        partsBitmap: 0b11110000,
-      ),
-      ScriptInstruction(
-        kind: PublishPartial,
-        publishPartialTopicID: topic,
-        publishPartialGroupID: groupId,
-        publishToNodeIDs: @[0],
-      ),
-    ]
+    let script =
+      @[
+        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+        ScriptInstruction(kind: Connect, connectTo: @[0]),
+        ScriptInstruction(kind: WaitUntil, elapsed: 1.seconds),
+        ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: true),
+        ScriptInstruction(kind: WaitUntil, elapsed: 5.seconds),
+        ScriptInstruction(
+          kind: AddPartialMessage,
+          addTopicID: topic,
+          groupID: groupId,
+          partsBitmap: 0b11110000,
+        ),
+        ScriptInstruction(
+          kind: PublishPartial,
+          publishPartialTopicID: topic,
+          publishPartialGroupID: groupId,
+          publishToNodeIDs: @[0],
+        ),
+      ]
 
     await runner1.runScript(script)
 
     # Assert both nodes receive full messages
     checkUntilTimeout:
+      runner0.messages[key].isComplete()
+      runner1.messages[key].isComplete()
+      logStream0.data.contains("All parts received")
+      logStream1.data.contains("All parts received")
+
+  asyncTest "fanout scenario":
+    let logStream0 = newStringStream()
+    let logStream1 = newStringStream()
+
+    let runner0 = newScriptRunner(
+      nodeId = 0,
+      logStream = logStream0,
+      listenAddr = localhost,
+      enablePartialMessages = true,
+    )
+    let runner1 = newScriptRunner(
+      nodeId = 1,
+      logStream = logStream1,
+      listenAddr = localhost,
+      enablePartialMessages = true,
+    )
+
+    await allFutures(@[runner0, runner1].mapIt(it.start()))
+    defer:
+      await allFutures(@[runner0, runner1].mapIt(it.stop()))
+
+    runner0.setResolveAddr(
+      proc(id: int): MultiAddress {.gcsafe.} =
+        runner1.node.getAddr()
+    )
+
+    const topic = "foobar"
+    const groupId = 77'u64
+    let key = makeKey(topic, groupId)
+
+    # Node 0 has the message and is not subscribed, publishes to 1 explicitely
+    let node0Script =
+      @[
+        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+        ScriptInstruction(kind: Connect, connectTo: @[1]),
+        ScriptInstruction(kind: WaitUntil, elapsed: 3.seconds),
+        ScriptInstruction(
+          kind: AddPartialMessage,
+          addTopicID: topic,
+          groupID: groupId,
+          partsBitmap: 0b11111111,
+        ),
+        ScriptInstruction(
+          kind: PublishPartial,
+          publishPartialTopicID: topic,
+          publishPartialGroupID: groupId,
+          publishToNodeIDs: @[1],
+        ),
+        ScriptInstruction(kind: WaitUntil, elapsed: 6.seconds),
+      ]
+
+    # Node 1 supports partials and is subscribed
+    let node1Script =
+      @[
+        ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
+        ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: true),
+        ScriptInstruction(kind: WaitUntil, elapsed: 6.seconds),
+      ]
+
+    await allFutures(@[runner0.runScript(node0Script), runner1.runScript(node1Script)])
+
+    checkUntilTimeout:
+      key in runner0.messages
+      key in runner1.messages
       runner0.messages[key].isComplete()
       runner1.messages[key].isComplete()
       logStream0.data.contains("All parts received")

@@ -362,6 +362,72 @@ suite "GossipSub Component - Extensions":
           partsMetadata: MyPartsMetadata.have(toSeq(pmData.data.keys)),
         )
 
+  asyncTest "Partial Message Extension - fanout publisher":
+    # Fanout pattern: publisher node is not subscribed to the topic but
+    # pushes partial messages to peers via an explicit peer list.
+    const topic = "logos-partial"
+    const groupId = "group-id-1".toBytes
+
+    proc validateRPC(
+        rpc: PartialMessageExtensionRPC
+    ): Result[void, string] {.gcsafe, raises: [].} =
+      checkLen(rpc.partsMetadata)
+      return ok()
+
+    var incomingRPC: Table[PeerId, seq[PartialMessageExtensionRPC]]
+    proc onIncomingRPC(
+        peer: PeerId, rpc: PartialMessageExtensionRPC
+    ) {.gcsafe, raises: [].} =
+      incomingRPC.mgetOrPut(peer, newSeq[PartialMessageExtensionRPC]()).add(rpc)
+
+    let
+      numberOfNodes = 2
+      nodes = generateNodes(
+          numberOfNodes,
+          gossip = true,
+          partialMessageExtensionConfig = Opt.some(
+            PartialMessageExtensionConfig(
+              unionPartsMetadata: my_partial_message.unionPartsMetadata,
+              validateRPC: validateRPC,
+              onIncomingRPC: onIncomingRPC,
+              heartbeatsTillEviction: 100,
+            )
+          ),
+        )
+        .toGossipSub()
+
+    startAndDeferStop(nodes)
+
+    await connect(nodes[0], nodes[1])
+
+    # Only node 1 subscribes (requesting partials). Node 0 does not subscribe.
+    nodes[1].subscribe(topic, voidTopicHandler, requestsPartial = true)
+
+    # Wait for node 0 to learn node 1 is subscribed to the topic with partial.
+    checkUntilTimeout:
+      nodes[0].gossipsub.getOrDefault(topic).len == 1
+
+    # Node 0 publishes parts via the explicit peer list.
+    let pmData = MyPartialMessage(
+      groupID: groupId,
+      data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
+    )
+    await nodes[0].publishPartial(topic, pmData)
+
+    # Node 1 should receive the announcement even though node 0 never subscribed.
+    # Peer has not yet expressed what it wants, so only parts metadata is sent
+    # on this first publish.
+    checkUntilTimeout:
+      incomingRPC.getOrDefault(nodes[0].peerInfo.peerId, @[]).len == 1
+
+    check:
+      incomingRPC[nodes[0].peerInfo.peerId][0] ==
+        PartialMessageExtensionRPC(
+          topicID: topic,
+          groupID: groupId,
+          partsMetadata: MyPartsMetadata.have(toSeq(pmData.data.keys)),
+        )
+
   asyncTest "PingPong Extension":
     let
       numberOfNodes = 2
