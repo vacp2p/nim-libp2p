@@ -129,12 +129,12 @@ proc lookup*(
       completedBatch = await rpcBatch.collectCompleted(disco.config.timeout)
 
     for res in completedBatch:
-      res.withValue(val):
-        for nodeId in val.closerPeers:
+      res.withValue(response):
+        for nodeId in response.closerPeers:
           disco.rtManager.insertPeer(serviceId, nodeId.toKey())
         let remaining = disco.discoConfig.fLookup - found.len
         if remaining > 0:
-          found.add(val.ads[0 ..< min(remaining, val.ads.len)])
+          found.add(response.ads[0 ..< min(remaining, response.ads.len)])
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)

@@ -465,20 +465,11 @@ proc handleGetAds*(
   let serviceId = msg.key
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
-  var adBytes: seq[seq[byte]]
-  for ad in ads:
-    if adBytes.len >= disco.discoConfig.fReturn:
-      break
-    let encoded = ad.encode().valueOr:
-      error "failed to encode advertisement", error
-      continue
-    adBytes.add(encoded)
-
-  let closerPeers = disco.findClosestPeers(serviceId)
   let response = Message(
     msgType: MessageType.getAds,
-    getAds: Opt.some(GetAdsMessage(advertisements: adBytes)),
-    closerPeers: closerPeers,
+    getAds:
+      Opt.some(GetAdsMessage(advertisements: ads.encode(disco.discoConfig.fReturn))),
+    closerPeers: disco.findClosestPeers(serviceId),
   )
   let bytes = response.encode().buffer
 
