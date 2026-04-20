@@ -165,7 +165,7 @@ proc save*[E](
         rdv.registered[index].expiration = rdv.expiredDT
     rdv.registered.add(
       RegisteredData(
-        peerId: peerId, expiration: Moment.now() + r.ttl.valueOf(rdv.minTTL).int64.seconds, data: r
+        peerId: peerId, expiration: Moment.now() + r.ttl.valueOr(rdv.minTTL).int64.seconds, data: r
       )
     )
     rdv.namespaces[nsSalted].add(rdv.registered.high)
@@ -452,7 +452,7 @@ proc request*[E](
       for r in registrations:
         if limit == 0:
           break
-        let ttl = r.ttl.valueOf(rdv.maxTTL + 1)
+        let ttl = r.ttl.valueOr(rdv.maxTTL + 1)
         if ttl > rdv.maxTTL:
           continue
         let
