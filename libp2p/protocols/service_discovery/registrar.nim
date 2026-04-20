@@ -216,7 +216,9 @@ proc updateLowerBounds*(
       registrar.boundIp[ipKey] = w + float64(now)
       registrar.timestampIp[ipKey] = now
 
-proc validateRegisterMessage*(regMsg: RegisterMessage): Opt[Advertisement] =
+proc validateRegisterMessage*(
+    regMsg: RegisterMessage, serviceId: ServiceId
+): Opt[Advertisement] =
   ## Validate a REGISTER message and decode/verify the advertisement.
   ## Returns Opt.none if the message is invalid.
   if regMsg.advertisement.len == 0:
@@ -224,6 +226,10 @@ proc validateRegisterMessage*(regMsg: RegisterMessage): Opt[Advertisement] =
 
   let ad = Advertisement.decode(regMsg.advertisement).valueOr:
     error "invalid advertisement received", error
+    return Opt.none(Advertisement)
+
+  if not ad.advertisesService(serviceId):
+    error "advertisement does not advertise the requested service", serviceId
     return Opt.none(Advertisement)
 
   return Opt.some(ad)
@@ -401,7 +407,7 @@ proc handleRegister*(
   let regMsg = msg.register.valueOr:
     return
 
-  let ad = validateRegisterMessage(regMsg).valueOr:
+  let ad = validateRegisterMessage(regMsg, serviceId).valueOr:
     await sendRegisterResponse(
       conn, kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
     )
@@ -428,15 +434,14 @@ proc handleRegister*(
   else:
     disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-    let tInit =
-      if regMsg.ticket.isSome:
-        regMsg.ticket.unsafeGet().tInit
-      else:
-        now
-
     var ticket = Ticket(
       advertisement: regMsg.advertisement,
-      tInit: tInit,
+      tInit: regMsg.ticket
+        .map(
+          proc(t: Ticket): uint64 {.raises: [].} =
+            t.tInit
+        )
+        .get(now),
       tMod: now,
       tWaitFor: uint32(min(tWait, float64(uint32.high))),
     )
@@ -461,20 +466,11 @@ proc handleGetAds*(
   let serviceId = msg.key
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
-  var adBytes: seq[seq[byte]]
-  for ad in ads:
-    if adBytes.len >= disco.discoConfig.fReturn:
-      break
-    let encoded = ad.encode().valueOr:
-      error "failed to encode advertisement", error
-      continue
-    adBytes.add(encoded)
-
-  let closerPeers = disco.findClosestPeers(serviceId)
   let response = Message(
     msgType: MessageType.getAds,
-    getAds: Opt.some(GetAdsMessage(advertisements: adBytes)),
-    closerPeers: closerPeers,
+    getAds:
+      Opt.some(GetAdsMessage(advertisements: ads.encode(disco.discoConfig.fReturn))),
+    closerPeers: disco.findClosestPeers(serviceId),
   )
   let bytes = response.encode().buffer
 

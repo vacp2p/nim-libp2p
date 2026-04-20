@@ -1,14 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+import std/sequtils
 import chronos, chronicles, results
-import ../../[peerid, switch, multiaddress, extended_peer_record]
+import ../../[peerid, switch, multiaddress, extended_peer_record, utility]
 import ../kademlia
 import ../kademlia/[types, protobuf as kademlia_protobuf]
 import ./[types, routing_table_manager, service_discovery_metrics]
 
 logScope:
   topics = "service-disco discoverer"
+
+type GetAdsResult = object
+  ads: seq[Advertisement]
+  closerPeers: seq[PeerId]
 
 proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
   var validAds: seq[Advertisement] = @[]
@@ -24,19 +29,18 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
     validAds.add(ad)
   return validAds
 
-proc sendGetAds(
+proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId
-): Future[Result[(seq[Advertisement], seq[PeerId]), string]] {.
-    async: (raises: [CancelledError])
-.} =
+): Future[Opt[GetAdsResult]] {.async: (raises: [CancelledError]), gcsafe.} =
   let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
-    return ok((@[], @[]))
+    return Opt.none(GetAdsResult)
 
   let connRes = catch:
     await disco.switch.dial(peerId, addrs, disco.codec)
   let conn = connRes.valueOr:
-    return err("dialing peer failed: " & error.msg)
+    error "dialing peer failed", error = error.msg
+    return Opt.none(GetAdsResult)
   defer:
     await conn.close()
 
@@ -55,9 +59,11 @@ proc sendGetAds(
       await conn.readLp(MaxMsgSize)
 
   if writeRes.isErr:
-    return err("connection writing failed: " & writeRes.error.msg)
+    error "connection writing failed", error = writeRes.error.msg
+    return Opt.none(GetAdsResult)
   let replyBuf = readRes.valueOr:
-    return err("connection reading failed: " & readRes.error.msg)
+    error "connection reading failed", error = readRes.error.msg
+    return Opt.none(GetAdsResult)
 
   cd_messages_received.inc(labelValues = [$MessageType.getAds])
   cd_message_bytes_received.inc(
@@ -65,22 +71,33 @@ proc sendGetAds(
   )
 
   let reply = Message.decode(replyBuf).valueOr:
-    return err("failed to decode message response: " & $error)
+    error "failed to decode message response", error = $error
+    return Opt.none(GetAdsResult)
 
   let getAdsMsg = reply.getAds.valueOr:
-    return err("get ads message response not found")
+    error "get ads message response not found"
+    return Opt.none(GetAdsResult)
 
-  return
-    ok((getAdsMsg.advertisements.validAds(serviceId), reply.closerPeers.toPeerIds()))
-
-proc peersToQuery(bucket: Bucket, kLookup: int): seq[PeerId] =
-  var peerIds: seq[PeerId]
-  for i in 0 ..< min(kLookup, bucket.peers.len):
-    let peerId = bucket.peers[i].nodeId.toPeerId().valueOr:
-      error "cannot convert key to peer id", error
+  var closerPeerInfos: seq[PeerInfo]
+  for peer in reply.closerPeers:
+    let pid = PeerId.init(peer.id).valueOr:
       continue
-    peerIds.add(peerId)
-  return peerIds
+    closerPeerInfos.add(PeerInfo(peerId: pid, addrs: peer.addrs))
+  disco.updatePeers(closerPeerInfos)
+
+  return Opt.some(
+    GetAdsResult(
+      ads: getAdsMsg.advertisements.validAds(serviceId),
+      closerPeers: closerPeerInfos.mapIt(it.peerId),
+    )
+  )
+
+proc peersToQuery(disco: ServiceDiscovery, bucket: Bucket): seq[PeerId] =
+  let peersToPick = min(disco.discoConfig.kLookup, bucket.peers.len)
+  disco.rng.pick(bucket.peers, peersToPick).withValue(picked):
+    return picked.toPeerIds()
+  else:
+    return @[]
 
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
@@ -98,30 +115,26 @@ proc lookup*(
 
   var found = newSeqOfCap[Advertisement](disco.discoConfig.fLookup)
 
-  for bucketIdx in 0 ..< searchTable.buckets.len:
-    if found.len >= disco.discoConfig.fLookup: # done
+  for bucket in searchTable.buckets:
+    if found.len >= disco.discoConfig.fLookup:
       break
 
-    var bucket = searchTable.buckets[bucketIdx]
     if bucket.peers.len == 0:
       continue
 
-    disco.rng.shuffle(bucket.peers)
+    let peers = disco.peersToQuery(bucket)
 
-    for peerId in bucket.peersToQuery(disco.discoConfig.kLookup):
-      let (ads, closerPeers) = (await sendGetAds(disco, peerId, serviceId)).valueOr:
-        error "failed to get ads", error
-        continue
+    let
+      rpcBatch = peers.mapIt(dispatchGetAds(disco, it, serviceId))
+      completedBatch = await rpcBatch.collectCompleted(disco.config.timeout)
 
-      for nodeId in closerPeers:
-        disco.rtManager.insertPeer(serviceId, nodeId.toKey())
-
-      let remaining = disco.discoConfig.fLookup - found.len
-      if remaining > 0:
-        found.add(ads[0 ..< min(remaining, ads.len)])
-      else:
-        # done
-        break
+    for res in completedBatch:
+      res.withValue(response):
+        for nodeId in response.closerPeers:
+          disco.rtManager.insertPeer(serviceId, nodeId.toKey())
+        let remaining = disco.discoConfig.fLookup - found.len
+        if remaining > 0:
+          found.add(response.ads[0 ..< min(remaining, response.ads.len)])
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)

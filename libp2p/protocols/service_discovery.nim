@@ -51,6 +51,16 @@ proc maintainSelfSignedPeerRecord(
   heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
     await disco.refreshSelfSignedPeerRecord()
 
+proc maintainRegistrar(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
+  heartbeat "prune expired advertisements", disco.discoConfig.advertExpiry:
+    disco.registrar.pruneExpiredAds(disco.discoConfig.advertExpiry.seconds.uint64)
+
+proc maintainServiceTables(
+    disco: ServiceDiscovery
+) {.async: (raises: [CancelledError]).} =
+  heartbeat "refresh service routing tables", disco.config.bucketRefreshTime:
+    await disco.rtManager.refreshAllTables(disco)
+
 proc startAdvertising*(disco: ServiceDiscovery, service: ServiceInfo): bool =
   ## Include this service in the set of services this node provides.
 
@@ -147,6 +157,8 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
   await procCall start(KadDHT(disco))
 
   disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
+  disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
+  disco.refreshServiceTablesLoop = disco.maintainServiceTables()
 
   info "Service Discovery started"
 
@@ -157,5 +169,11 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   disco.advertiser.clear()
   disco.selfSignedPeerRecordLoop.cancelSoon()
   disco.selfSignedPeerRecordLoop = nil
+
+  disco.pruneExpiredAdsLoop.cancelSoon()
+  disco.pruneExpiredAdsLoop = nil
+
+  disco.refreshServiceTablesLoop.cancelSoon()
+  disco.refreshServiceTablesLoop = nil
 
   await procCall stop(KadDHT(disco))
