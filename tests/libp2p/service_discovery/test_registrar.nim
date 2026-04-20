@@ -107,10 +107,11 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     )
 
     let ad = makeAdvertisement(
-      addrs = @[
-        makeMultiAddress("10.0.0.1"), # Different subnet – low score
-        makeMultiAddress("192.168.1.50"), # Same subnet – high score
-      ]
+      addrs =
+        @[
+          makeMultiAddress("10.0.0.1"), # Different subnet – low score
+          makeMultiAddress("192.168.1.50"), # Same subnet – high score
+        ]
     )
     let now = getTime().toUnix().uint64
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
@@ -676,7 +677,7 @@ suite "Service Discovery Registrar - Register Message Validation":
       ticket: Opt.none(Ticket),
     )
 
-    check validateRegisterMessage(regMsg).isNone()
+    check validateRegisterMessage(regMsg, makeServiceId()).isNone()
 
   test "validateRegisterMessage rejects malformed advertisement bytes":
     let regMsg = kadprotobuf.RegisterMessage(
@@ -685,10 +686,12 @@ suite "Service Discovery Registrar - Register Message Validation":
       ticket: Opt.none(Ticket),
     )
 
-    check validateRegisterMessage(regMsg).isNone()
+    check validateRegisterMessage(regMsg, makeServiceId()).isNone()
 
   test "validateRegisterMessage accepts decodable advertisement":
-    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
+    let serviceStr = $1
+    let serviceId = hashServiceId(serviceStr)
+    let ad = makeAdvertisement(serviceStr, addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
     let regMsg = kadprotobuf.RegisterMessage(
@@ -697,7 +700,7 @@ suite "Service Discovery Registrar - Register Message Validation":
       ticket: Opt.none(Ticket),
     )
 
-    let decoded = validateRegisterMessage(regMsg)
+    let decoded = validateRegisterMessage(regMsg, serviceId)
 
     check decoded.isSome()
     check decoded.get().data.peerId == ad.data.peerId

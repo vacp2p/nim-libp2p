@@ -433,15 +433,14 @@ proc handleRegister*(
   else:
     disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-    let tInit =
-      if regMsg.ticket.isSome:
-        regMsg.ticket.unsafeGet().tInit
-      else:
-        now
-
     var ticket = Ticket(
       advertisement: regMsg.advertisement,
-      tInit: tInit,
+      tInit: regMsg.ticket
+        .map(
+          proc(t: Ticket): uint64 {.raises: [].} =
+            t.tInit
+        )
+        .get(now),
       tMod: now,
       tWaitFor: uint32(min(tWait, float64(uint32.high))),
     )

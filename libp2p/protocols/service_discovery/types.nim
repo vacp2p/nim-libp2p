@@ -82,6 +82,8 @@ type
       # can't use name "config", clashes with KadDHT's config
     xprPublishing*: bool
     selfSignedPeerRecordLoop*: Future[void]
+    pruneExpiredAdsLoop*: Future[void]
+    refreshServiceTablesLoop*: Future[void]
 
 proc new*(
     T: typedesc[ServiceDiscoveryConfig],
