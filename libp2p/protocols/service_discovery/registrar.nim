@@ -216,7 +216,9 @@ proc updateLowerBounds*(
       registrar.boundIp[ipKey] = w + float64(now)
       registrar.timestampIp[ipKey] = now
 
-proc validateRegisterMessage*(regMsg: RegisterMessage): Opt[Advertisement] =
+proc validateRegisterMessage*(
+    regMsg: RegisterMessage, serviceId: ServiceId
+): Opt[Advertisement] =
   ## Validate a REGISTER message and decode/verify the advertisement.
   ## Returns Opt.none if the message is invalid.
   if regMsg.advertisement.len == 0:
@@ -224,6 +226,10 @@ proc validateRegisterMessage*(regMsg: RegisterMessage): Opt[Advertisement] =
 
   let ad = Advertisement.decode(regMsg.advertisement).valueOr:
     error "invalid advertisement received", error
+    return Opt.none(Advertisement)
+
+  if not ad.advertisesService(serviceId):
+    error "advertisement does not advertise the requested service", serviceId
     return Opt.none(Advertisement)
 
   return Opt.some(ad)
@@ -401,7 +407,7 @@ proc handleRegister*(
   let regMsg = msg.register.valueOr:
     return
 
-  let ad = validateRegisterMessage(regMsg).valueOr:
+  let ad = validateRegisterMessage(regMsg, serviceId).valueOr:
     await sendRegisterResponse(
       conn, kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
     )
