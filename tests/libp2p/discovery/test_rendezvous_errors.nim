@@ -52,7 +52,7 @@ suite "RendezVous Errors":
             "A".repeat(300), node.switch.peerInfo.signedPeerRecord.encode().get, 2.hours
           )
       ),
-      ResponseStatus.InvalidNamespace,
+      ResponseInvalidNamespace,
     ),
     (
       "Register - Invalid Signed Peer Record",
@@ -61,7 +61,7 @@ suite "RendezVous Errors":
           # Malformed SPR - empty bytes will fail validation
           prepareRegisterMessage("namespace", newSeq[byte](), 2.hours)
       ),
-      ResponseStatus.InvalidSignedPeerRecord,
+      ResponseInvalidSignedPeerRecord,
     ),
     (
       "Register - Invalid TTL",
@@ -71,24 +71,23 @@ suite "RendezVous Errors":
             "namespace", node.switch.peerInfo.signedPeerRecord.encode().get, 73.hours
           )
       ),
-      ResponseStatus.InvalidTTL,
+      ResponseInvalidTTL,
     ),
     (
       "Discover - Invalid Namespace",
       (
         proc(node: RendezVous): Message =
-          prepareDiscoverMessage(ns = Opt.some("A".repeat(300)))
+          prepareDiscoverMessage(ns = pbSome("A".repeat(300)))
       ),
-      ResponseStatus.InvalidNamespace,
+      ResponseInvalidNamespace,
     ),
     (
       "Discover - Invalid Cookie",
       (
         proc(node: RendezVous): Message =
-          # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
-          prepareDiscoverMessage(cookie = Opt.some(newSeq[byte]()))
+          prepareDiscoverMessage(cookie = pbSome(newSeq[byte]()))
       ),
-      ResponseStatus.InvalidCookie,
+      ResponseInvalidCookie,
     ),
   ]
 

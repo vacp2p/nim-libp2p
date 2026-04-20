@@ -163,14 +163,9 @@ proc save*[E](
         if update == false:
           return
         rdv.registered[index].expiration = rdv.expiredDT
-    let ttl =
-      if r.ttl.isSome():
-        r.ttl.get()
-      else:
-        rdv.minTTL
     rdv.registered.add(
       RegisteredData(
-        peerId: peerId, expiration: Moment.now() + ttl.int64.seconds, data: r
+        peerId: peerId, expiration: Moment.now() + r.ttl.valueOf(rdv.minTTL).int64.seconds, data: r
       )
     )
     rdv.namespaces[nsSalted].add(rdv.registered.high)
@@ -185,11 +180,7 @@ proc register*[E](
   libp2p_rendezvous_register.inc()
   if r.ns.get().len < MinimumNamespaceLen or r.ns.get().len > MaximumNamespaceLen:
     return conn.sendRegisterResponseError(ResponseInvalidNamespace)
-  let ttl =
-    if r.ttl.isSome():
-      r.ttl.get()
-    else:
-      rdv.minTTL
+  let ttl = r.ttl.valueOr(rdv.minTTL)
   if ttl < rdv.minTTL or ttl > rdv.maxTTL:
     return conn.sendRegisterResponseError(ResponseInvalidTTL)
   let pr = rdv.peerRecordValidator(peerRecord, r.signedPeerRecord.get(), conn.peerId)
@@ -235,12 +226,15 @@ proc discover*[E](
     if d.cookie.isSome():
       try:
         Protobuf.decode(d.cookie.get(), Cookie)
-      except CatchableError:
+      except SerializationError:
         await conn.sendDiscoverResponseError(ResponseInvalidCookie)
         return
     else:
       # Start from the current lowest index (inclusive)
       Cookie(offset: pbSome(rdv.registered.low().uint64))
+  if cookie.offset.isNone():
+    await conn.sendDiscoverResponseError(ResponseInvalidCookie)
+    return
   if d.ns.isSome() and cookie.ns.isSome() and cookie.ns.get() != d.ns.get():
     # Namespace changed: start from the beginning of that namespace
     cookie = Cookie(offset: pbSome(rdv.registered.low().uint64))
@@ -458,11 +452,7 @@ proc request*[E](
       for r in registrations:
         if limit == 0:
           break
-        let ttl =
-          if r.ttl.isSome:
-            r.ttl.get()
-          else:
-            rdv.maxTTL + 1
+        let ttl = r.ttl.valueOf(rdv.maxTTL + 1)
         if ttl > rdv.maxTTL:
           continue
         let
@@ -475,12 +465,8 @@ proc request*[E](
               s[pr.peerId]
             except exceptions.KeyError:
               raiseAssert "checked with hasKey"
-          let rSavedTtl =
-            if rSaved.ttl.isSome:
-              rSaved.ttl.get()
-            else:
-              rdv.maxTTL
-          if (prSaved.seqNo == pr.seqNo and rSavedTtl < ttl) or prSaved.seqNo < pr.seqNo:
+          if (prSaved.seqNo == pr.seqNo and rSaved.ttl.valueOr(rdv.maxTTL) < ttl) or
+              prSaved.seqNo < pr.seqNo:
             s[pr.peerId] = (pr, r)
         else:
           s[pr.peerId] = (pr, r)
