@@ -31,6 +31,13 @@ SUBMODULE_SOURCES = [
     {"repo": "codex-storage/nim-codex", "ref": "master"},
 ]
 
+SOURCE_LABELS = {
+    "pinned": ".pinned",
+    "logos-messaging/logos-delivery": "logos-delivery",
+    "status-im/nimbus-eth2": "nimbus-eth2",
+    "codex-storage/nim-codex": "nim-codex",
+}
+
 
 @dataclass(frozen=True)
 class Candidate:
@@ -176,7 +183,9 @@ def get_commit_date(owner_repo: str, sha: str) -> datetime:
 
 
 def candidate_label(candidates: Iterable[Candidate]) -> str:
-    return ", ".join(candidate.source for candidate in candidates)
+    return ", ".join(
+        SOURCE_LABELS.get(candidate.source, candidate.source) for candidate in candidates
+    )
 
 
 def pick_newest(
@@ -295,6 +304,7 @@ def resolve(pinned_path: str) -> List[str]:
             log(f"Resolving {dep['name']} ({len(sha_map)} versions)...")
             sha = pick_newest(sha_map, dep["url"])
             log(f"  -> picked {sha[:12]}")
+        log(f"Using {dep['name']}: {sha[:12]} from {candidate_label(sha_map[sha])}")
         result.append(f"{dep['url']}@#{sha}")
     return result
 
