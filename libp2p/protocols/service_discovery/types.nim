@@ -59,6 +59,7 @@ type
 
   Advertiser* = ref object
     running*: HashSet[AdvertiseTask]
+    seqNo*: uint64
 
   ServiceDiscoveryConfig* = object
     kRegister*: int
@@ -73,6 +74,7 @@ type
     bucketsCount*: int
 
   ServiceDiscovery* = ref object of KadDHT
+    advertiser*: Advertiser
     registrar*: Registrar
     rtManager*: ServiceRoutingTableManager
     services*: HashSet[ServiceInfo]
@@ -136,7 +138,7 @@ proc new*(T: typedesc[Registrar]): T =
   )
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(running: initHashSet[AdvertiseTask]())
+  T(running: initHashSet[AdvertiseTask](), seqNo: getTime().toUnix().uint64)
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
