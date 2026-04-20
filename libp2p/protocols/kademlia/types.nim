@@ -13,7 +13,7 @@ const
 
   DefaultMaxBuckets* = 256
   DefaultTimeout* = 5.seconds
-  DefaultBucketRefreshTime* = 10.minutes
+  DefaultBucketRefreshTime* = 5.minutes
   DefaultBucketStaleTime* = 30.minutes
     # peer not seen for this duration marks bucket stale
   DefaultRetries* = 5

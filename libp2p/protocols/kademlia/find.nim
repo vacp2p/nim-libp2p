@@ -67,11 +67,11 @@ proc lookupPeersLog*(state: LookupState): seq[LookupPeerLog] {.raises: [].} =
     if result == 0: result = cmp(a.pid, b.pid)
   )
 
-func keyShortLog*(k: Key): string {.raises: [].} =
+func keyFullLog*(k: Key): string {.raises: [].} =
   ## Prefer PeerId if `k` happens to be a valid PeerId byte form; otherwise hex.
   let pidRes = PeerId.init(k)
   if pidRes.isOk():
-    pidRes.get().shortLog()
+    $pidRes.get()
   else:
     "key_not_valid"
 
@@ -290,7 +290,7 @@ method findNode*(
 
   let state = await kad.iterativeLookup(target, dispatchFind, ignoreReply, stop)
   let duration = (getTime() - start).inMilliseconds()
-  let target_id = keyShortLog(target)
+  let target_id = keyFullLog(target)
   info "Lookup finished", target = target_id, duration_ms = duration, peers = state.lookupPeersLog()
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
