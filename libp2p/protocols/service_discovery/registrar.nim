@@ -391,3 +391,96 @@ proc acceptAdvertisement*(
 
   if shouldUpdateMetrics:
     disco.registrar.updateRegistrarMetrics()
+
+proc handleRegister*(
+    disco: ServiceDiscovery, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let serviceId = msg.key
+  let closerPeers = disco.findClosestPeers(serviceId)
+
+  let regMsg = msg.register.valueOr:
+    return
+
+  let ad = validateRegisterMessage(regMsg).valueOr:
+    await sendRegisterResponse(
+      conn, kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
+    )
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+    return
+
+  let now = getTime().toUnix().uint64
+  var tWait = disco.registrar.waitingTime(
+    disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
+  ).seconds.float64
+  tWait = disco.processRetryTicket(regMsg, ad, tWait, now)
+
+  if tWait <= 0:
+    disco.acceptAdvertisement(serviceId, ad)
+    await sendRegisterResponse(
+      conn, kademlia_protobuf.RegistrationStatus.Confirmed, closerPeers
+    )
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Confirmed]
+    )
+  else:
+    disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
+
+    let tInit =
+      if regMsg.ticket.isSome:
+        regMsg.ticket.unsafeGet().tInit
+      else:
+        now
+
+    var ticket = Ticket(
+      advertisement: regMsg.advertisement,
+      tInit: tInit,
+      tMod: now,
+      tWaitFor: uint32(min(tWait, float64(uint32.high))),
+    )
+    if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
+      error "failed to sign ticket"
+      await sendRegisterResponse(
+        conn, kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
+      )
+      cd_register_requests.inc(
+        labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+      )
+      return
+
+    await sendRegisterResponse(
+      conn, kademlia_protobuf.RegistrationStatus.Wait, closerPeers, Opt.some(ticket)
+    )
+    cd_register_requests.inc(labelValues = [$kademlia_protobuf.RegistrationStatus.Wait])
+
+proc handleGetAds*(
+    disco: ServiceDiscovery, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  let serviceId = msg.key
+  let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
+
+  var adBytes: seq[seq[byte]]
+  for ad in ads:
+    if adBytes.len >= disco.discoConfig.fReturn:
+      break
+    let encoded = ad.encode().valueOr:
+      error "failed to encode advertisement", error
+      continue
+    adBytes.add(encoded)
+
+  let closerPeers = disco.findClosestPeers(serviceId)
+  let response = Message(
+    msgType: MessageType.getAds,
+    getAds: Opt.some(GetAdsMessage(advertisements: adBytes)),
+    closerPeers: closerPeers,
+  )
+  let bytes = response.encode().buffer
+
+  cd_messages_sent.inc(labelValues = [$MessageType.getAds])
+  cd_message_bytes_sent.inc(bytes.len.float64, labelValues = [$MessageType.getAds])
+
+  let writeRes = catch:
+    await conn.writeLp(bytes)
+  if writeRes.isErr:
+    error "failed to send getAds response", err = writeRes.error.msg

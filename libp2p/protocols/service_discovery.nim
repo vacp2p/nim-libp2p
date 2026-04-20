@@ -5,9 +5,11 @@ import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./service_discovery/[random_find, types, routing_table_manager, advertiser]
+import
+  ./service_discovery/
+    [random_find, types, routing_table_manager, advertiser, registrar, discoverer]
 
-export random_find, types
+export random_find, types, discoverer
 
 logScope:
   topics = "service-discovery"
@@ -131,11 +133,9 @@ proc new*(
       of MessageType.ping:
         await disco.handlePing(conn, msg)
       of MessageType.getAds:
-        trace "Unimplemented"
-        return
+        await disco.handleGetAds(conn, msg)
       of MessageType.register:
-        trace "Unimplemented"
-        return
+        await disco.handleRegister(conn, msg)
 
   return disco
 

@@ -70,12 +70,7 @@ proc sendGetAds(
 
     validAds.add(ad)
 
-  for peer in reply.closerPeers:
-    let peerId = PeerId.init(peer.id).valueOr:
-      error "failed to decode peer id", error
-      continue
-
-    peerIds.add(peerId)
+  let peerIds = reply.closerPeers.toPeerIds()
 
   return ok((validAds, peerIds))
 
@@ -90,8 +85,7 @@ proc lookup*(
     Interest,
   )
 
-  let searchTableOpt = disco.rtManager.getTable(serviceId)
-  let searchTable = searchTableOpt.valueOr:
+  let searchTable = disco.rtManager.getTable(serviceId).valueOr:
     return err("service table not found for service id: " & $serviceId)
 
   var found = newSeqOfCap[Advertisement](disco.discoConfig.fLookup)
