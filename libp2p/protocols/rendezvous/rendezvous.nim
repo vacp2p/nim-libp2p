@@ -607,7 +607,7 @@ proc new*(
       of MsgTypeUnregister:
         rdv.unregister(conn, msg.unregister.get())
       of MsgTypeDiscover:
-        debugEcho "QWE ", repr msg.discover.isSome
+        debugEcho "QWE ", repr(msg.discover.isSome), byteutils.toHex(buf)
         await rdv.discover(conn, msg.discover.get())
       of MsgTypeDiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
