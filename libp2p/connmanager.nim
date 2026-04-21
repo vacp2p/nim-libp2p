@@ -636,9 +636,10 @@ proc applyDecay(c: ConnManager) =
     c.decayingTags.del(peerId)
 
 proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
-  while true:
+  while c.decayingTags.len > 0:
     await sleepAsync(c.scoringConfig.decayResolution)
     c.applyDecay()
+  c.decayLoopFut = nil
 
 proc tagPeerDecaying*(
     c: ConnManager,
