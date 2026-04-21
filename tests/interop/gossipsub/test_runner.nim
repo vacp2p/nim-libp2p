@@ -225,7 +225,7 @@ suite "GossipSub Interop - Script runner - Component":
     const groupId = 77'u64
     let key = makeKey(topic, groupId)
 
-    # Node 0 has the message and is not subscribed, publishes to 1 explicitely
+    # Node 0 has the message and is not subscribed, publishes to 1 explicitly
     let node0Script = @[
       ScriptInstruction(kind: InitGossipSub, gossipSubParams: GossipSubParams.init()),
       ScriptInstruction(kind: Connect, connectTo: @[1]),

@@ -364,7 +364,7 @@ suite "GossipSub Component - Extensions":
 
   asyncTest "Partial Message Extension - fanout publisher":
     # Fanout pattern: publisher node is not subscribed to the topic but
-    # pushes partial messages to peers via an explicit peer list.
+    # pushes partial messages to peers via broadcast publish.
     const topic = "logos-partial"
     const groupId = "group-id-1".toBytes
 
@@ -407,7 +407,7 @@ suite "GossipSub Component - Extensions":
     checkUntilTimeout:
       nodes[0].gossipsub.getOrDefault(topic).len == 1
 
-    # Node 0 publishes parts via the explicit peer list.
+    # Node 0 publishes parts via broadcast publish.
     let pmData = MyPartialMessage(
       groupID: groupId,
       data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,

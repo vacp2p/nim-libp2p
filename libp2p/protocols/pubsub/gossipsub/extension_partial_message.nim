@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import tables, chronicles, results
+import tables, sets, chronicles, results
 import ../../../utils/tablekey
 import ../../../[peerid]
 import ../rpc/messages
@@ -331,10 +331,13 @@ proc publishPartial*(
       # with peers that already exchanged metadata for this group.
       # This preserves replies to a remote peer acting as an unsubscribed
       # fanout publisher.
+      var seen = publishTargets.toHashSet()
       for p in groupState.peerState.keys:
-        if p notin publishTargets:
+        if not seen.containsOrIncl(p):
           publishTargets.add(p)
       publishTargets
+
+  let nodeRequestsPartial = ext.config.nodeTopicOpts(topic).requestsPartial
 
   var publishedToCount: int = 0
   for p in publishToPeers:
@@ -354,7 +357,6 @@ proc publishPartial*(
     # advertised partial support for the topic or already have per-group
     # state. peerHasState covers peers that already sent metadata for this
     # group without ever sending a subscription RPC.
-    let nodeRequestsPartial = ext.config.nodeTopicOpts(topic).requestsPartial
     let peerHasState = groupState.peerState.hasKey(p)
     if nodeRequestsPartial and (peerSubOpt.supportsSendingPartial or peerHasState):
       if ext.publishPartialToPeer(topic, pm, groupState, p, false):
