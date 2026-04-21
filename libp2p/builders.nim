@@ -99,6 +99,7 @@ type
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
     watermarkCfg: Opt[WatermarkConfig]
+    scoringConfig: ScoringConfig
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -123,6 +124,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
     watermarkCfg: Opt.none(WatermarkConfig),
+    scoringConfig: ScoringConfig(),
   )
 
 proc withPrivateKey*(
@@ -317,6 +319,13 @@ proc withWatermark*(
       silencePeriod: silencePeriod,
     )
   )
+  b
+
+proc withScoring*(
+    b: SwitchBuilder, scoringConfig: ScoringConfig = ScoringConfig(),
+): SwitchBuilder {.public.} =
+  ## Configure connection scoring parameters.
+  b.scoringConfig = scoringConfig
   b
 
 proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder {.public.} =
@@ -668,4 +677,4 @@ proc newStandardSwitch*(
     sendSignedPeerRecord = sendSignedPeerRecord,
     peerStoreCapacity = peerStoreCapacity,
   )
-    .build()
+  .build()

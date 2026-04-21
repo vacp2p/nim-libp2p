@@ -419,6 +419,8 @@ proc newWatermark*(
     highWater: int,
     gracePeriod: Duration = 0.seconds,
     silencePeriod: Duration = 0.seconds,
+    outboundBonus: int = 0,
+    decayResolution = 1.minutes,
 ): C =
   return ConnManager.newWatermark(
     WatermarkConfig(
@@ -426,7 +428,11 @@ proc newWatermark*(
       highWater: highWater,
       gracePeriod: gracePeriod,
       silencePeriod: silencePeriod,
-    )
+    ),
+    scoringConfig = ScoringConfig(
+      outboundBonus: outboundBonus, 
+      decayResolution: decayResolution,
+    ),
   )
 
 proc connectPeers(connMngr: ConnManager, count: int): Future[seq[PeerId]] {.async.} =
@@ -492,7 +498,7 @@ suite "Connection Manager Watermark":
 
   asyncTest "unprotect removes tag and allows trimming":
     let connMngr = ConnManager.newWatermark(1, 3)
-
+    
     let peerId = PeerId.random.tryGet()
     await connMngr.storeMuxer(getMuxer(peerId))
 
@@ -541,3 +547,108 @@ suite "Connection Manager Watermark":
       discard connMngr.getOutgoingSlot()
 
     await connMngr.close()
+
+suite "Connection Manager Scoring":
+  teardown:
+    checkTrackers()
+
+  const tag = "logos-conn"
+  let peerId = PeerId.random.tryGet()
+
+  asyncTest "peerScore returns 0 for unknown peer":
+    let cm = ConnManager.newWatermark(1, 2)
+    check cm.peerScore(peerId) == 0
+    await cm.close()
+
+  asyncTest "static tag contributes to peer score":
+    let cm = ConnManager.newWatermark(1, 2)
+    await cm.storeMuxer(getMuxer(peerId))
+    cm.tagPeer(peerId, "🌞", 50)
+    check cm.peerScore(peerId) == 50
+    cm.tagPeer(peerId, "🕶️", 30)
+    check cm.peerScore(peerId) == 80
+    await cm.close()
+
+  asyncTest "untagPeer removes score contribution":
+    let cm = ConnManager.newWatermark(1, 2)
+    await cm.storeMuxer(getMuxer(peerId))
+    cm.tagPeer(peerId, tag, 50)
+    cm.untagPeer(peerId, tag)
+    check cm.peerScore(peerId) == 0
+    await cm.close()
+
+  asyncTest "outbound connection gets outboundBonus":
+    const outboundBonus = 2345432
+    let cm = ConnManager.newWatermark(1, 2, outboundBonus = outboundBonus)
+    await cm.storeMuxer(getMuxer(peerId, Direction.Out))
+    check cm.peerScore(peerId) == outboundBonus
+    await cm.close()
+
+  asyncTest "inbound connection gets no outboundBonus":
+    let cm = ConnManager.newWatermark(1, 2)
+    await cm.storeMuxer(getMuxer(peerId, Direction.In))
+    check cm.peerScore(peerId) == 0
+    await cm.close()
+
+  asyncTest "decaying tag contributes initial value to score":
+    let cm = ConnManager.newWatermark(1, 2)
+    await cm.storeMuxer(getMuxer(peerId))
+    cm.tagPeerDecaying(peerId, tag, 100, 1.hours, decayLinear(0.5))
+    check cm.peerScore(peerId) == 100
+    await cm.close()
+
+  asyncTest "decaying tag value decreases over interval":
+    let cm = ConnManager.newWatermark(1, 2, decayResolution = 20.millis)
+    await cm.storeMuxer(getMuxer(peerId))
+    cm.tagPeerDecaying(peerId, tag, 100, 20.millis, decayFixed(30))
+    await sleepAsync(150.millis)
+    check cm.peerScore(peerId) < 100
+    await cm.close()
+
+  asyncTest "decaying tag auto-removed when value hits zero":
+    let cm = ConnManager.newWatermark(1, 2, decayResolution = 20.millis)
+    await cm.storeMuxer(getMuxer(peerId))
+    cm.tagPeerDecaying(peerId, tag, 10, 20.millis, decayFixed(15))
+    await sleepAsync(150.millis)
+    check cm.peerScore(peerId) == 0
+    await cm.close()
+
+  asyncTest "bumpDecayingTag increases tag value":
+    let cm = ConnManager.newWatermark(1, 2)
+    await cm.storeMuxer(getMuxer(peerId))
+    cm.tagPeerDecaying(peerId, tag, 50, 1.hours, decayNone())
+    cm.bumpDecayingTag(peerId, tag, 25)
+    check cm.peerScore(peerId) == 75
+    await cm.close()
+
+  asyncTest "removeDecayingTag removes tag immediately":
+    let cm = ConnManager.newWatermark(1, 2)
+    await cm.storeMuxer(getMuxer(peerId))
+    cm.tagPeerDecaying(peerId, tag, 50, 1.hours, decayNone())
+    cm.removeDecayingTag(peerId, tag)
+    check cm.peerScore(peerId) == 0
+    await cm.close()
+
+  asyncTest "watermark trim prunes lowest-score peer first":
+    let cm = ConnManager.newWatermark(1, 2)
+    let highScorePeer = PeerId.random.tryGet()
+    let lowScorePeer1 = PeerId.random.tryGet()
+    await cm.storeMuxer(getMuxer(highScorePeer))
+    cm.tagPeer(highScorePeer, "destacado", 500)
+    await cm.storeMuxer(getMuxer(lowScorePeer1))
+    # store a third peer to trigger trim (count=3 > highWater=2)
+    await cm.storeMuxer(getMuxer(PeerId.random.tryGet()))
+    check cm.contains(highScorePeer)
+    check cm.getConnections().len == 1
+    await cm.close()
+
+  asyncTest "outbound peer survives watermark trim over inbound peers":
+    let cm = ConnManager.newWatermark(1, 2, outboundBonus = 500 )
+    let outboundPeer = PeerId.random.tryGet()
+    await cm.storeMuxer(getMuxer(outboundPeer, Direction.Out))
+    await cm.storeMuxer(getMuxer(PeerId.random.tryGet(), Direction.In))
+    # add one more over the high water to trigger the trim
+    await cm.storeMuxer(getMuxer(PeerId.random.tryGet(), Direction.In))
+    check cm.contains(outboundPeer)
+    check cm.getConnections().len == 1
+    await cm.close()

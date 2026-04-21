@@ -22,6 +22,22 @@ const
   connectionsUnlimited = high(int)
 
 type
+  DecayFn* = proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].}
+    ## Decay function applied to an ephemeral tag on each tick interval.
+    ## Returns the new value; returning ≤0 removes the tag.
+
+  DecayingTagValue* = object
+    value*: int
+    lastTick*: Moment
+    interval*: Duration
+    decayFn*: DecayFn
+
+  ScoringConfig* = object ## Configuration for connection scoring parameters.
+    outboundBonus*: int = 100
+      ## `outboundBonus` is added to the score of every peer with an outbound
+    decayResolution*: Duration = 1.minutes
+      ## `decayResolution` controls how often ephemeral tag decay functions are applied
+
   WatermarkConfig* = object
     ## Configuration for hi/lo watermark connection management.
     ## When peer count exceeds `highWater`, a trim cycle runs until
@@ -90,10 +106,32 @@ type
     protectedPeers: Table[PeerId, HashSet[string]]
     trimFut: Future[void]
     lastTrim: Moment
+    scoringConfig: ScoringConfig
+    staticTags: Table[PeerId, Table[string, int]]
+    decayingTags: Table[PeerId, Table[string, DecayingTagValue]]
+    decayLoopFut: Future[void]
 
   ConnectionSlot* = object
     connManager: ConnManager
     direction: Direction
+
+proc decayLinear*(coef: float): DecayFn =
+  ## Returns a DecayFn that multiplies the tag value by `coef` on each tick.
+  ## The tag is removed when the value drops to 0 or below.
+  ## Example: decayLinear(0.9) reduces by 10% per interval.
+  return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
+    int(float(value) * coef)
+
+proc decayFixed*(amount: int): DecayFn =
+  ## Returns a DecayFn that subtracts `amount` from the tag value on each tick.
+  ## The tag is removed when the value drops to 0 or below.
+  return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
+    value - amount
+
+proc decayNone*(): DecayFn =
+  ## Returns a DecayFn that never decays the value (permanent ephemeral tag).
+  return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
+    value
 
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
@@ -144,6 +182,7 @@ proc newWatermark*(
     C: type ConnManager,
     watermark: WatermarkConfig,
     maxConnsPerPeer = MaxConnectionsPerPeer,
+    scoringConfig = ScoringConfig(),
 ): ConnManager =
   ## Creates a `ConnManager` in hi/lo watermark mode.
   ## When the number of connected peers exceeds `highWater`, a trim cycle
@@ -159,6 +198,7 @@ proc newWatermark*(
     maxConnectionsIn: connectionsUnlimited,
     maxConnectionsOut: connectionsUnlimited,
     maxConnsPerPeer: maxConnsPerPeer,
+    scoringConfig: scoringConfig,
   )
 
 proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
@@ -549,33 +589,115 @@ proc isProtected*(c: ConnManager, peerId: PeerId): bool =
     return tags[].len > 0
   return false
 
+proc tagPeer*(c: ConnManager, peerId: PeerId, tag: string, value: int) =
+  ## Set a static tag on `peerId`. Tags accumulate additively into the peer score.
+  c.staticTags.mgetOrPut(peerId, initTable[string, int]())[tag] = value
+
+proc untagPeer*(c: ConnManager, peerId: PeerId, tag: string) =
+  ## Remove a static tag from `peerId`.
+  c.staticTags.withValue(peerId, tags):
+    tags[].del(tag)
+    if tags[].len == 0:
+      c.staticTags.del(peerId)
+
+proc peerScore*(c: ConnManager, peerId: PeerId): int =
+  ## Returns the total score for `peerId`:
+  ##   outboundBonus (if peer has an outbound connection)
+  ##   + sum of all static tag values
+  ##   + sum of all current decaying tag values
+  if not c.selectMuxer(peerId, Direction.Out).isNil:
+    result += c.scoringConfig.outboundBonus
+  c.staticTags.withValue(peerId, tags):
+    for _, v in tags[]:
+      result += v
+  c.decayingTags.withValue(peerId, tags):
+    for _, tag in tags[]:
+      result += tag.value
+
+proc applyDecay(c: ConnManager) =
+  let now = Moment.now()
+  var peersToRemove: seq[PeerId]
+  for peerId in toSeq(c.decayingTags.keys):
+    var toRemove: seq[string]
+    c.decayingTags.withValue(peerId, innerTable):
+      for name, tag in innerTable[].mpairs():
+        if now >= tag.lastTick + tag.interval:
+          tag.value = tag.decayFn(tag.value, now - tag.lastTick)
+          tag.lastTick = now
+          if tag.value <= 0:
+            toRemove.add(name)
+      for name in toRemove:
+        innerTable[].del(name)
+      if innerTable[].len == 0:
+        peersToRemove.add(peerId)
+  for peerId in peersToRemove:
+    c.decayingTags.del(peerId)
+
+proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
+  while true:
+    await sleepAsync(c.scoringConfig.decayResolution)
+    c.applyDecay()
+
+proc tagPeerDecaying*(
+    c: ConnManager,
+    peerId: PeerId,
+    tag: string,
+    value: int,
+    interval: Duration,
+    decayFn: DecayFn,
+) =
+  ## Attach an ephemeral tag to `peerId` with an initial `value`.
+  ## The tag's value is updated by `decayFn` every `interval`. When the value
+  ## drops to ≤0 the tag is removed automatically.
+  let now = Moment.now()
+  c.decayingTags.mgetOrPut(peerId, initTable[string, DecayingTagValue]())[tag] =
+    DecayingTagValue(value: value, lastTick: now, interval: interval, decayFn: decayFn)
+  if c.decayLoopFut.isNil or c.decayLoopFut.finished:
+    c.decayLoopFut = c.runDecayLoop()
+
+proc bumpDecayingTag*(c: ConnManager, peerId: PeerId, tag: string, delta: int) =
+  ## Add `delta` to an existing decaying tag value. Clamps to 0 from below.
+  c.decayingTags.withValue(peerId, tags):
+    tags[].withValue(tag, t):
+      t[].value = max(0, t[].value + delta)
+
+proc removeDecayingTag*(c: ConnManager, peerId: PeerId, tag: string) =
+  ## Immediately remove a decaying tag from `peerId`.
+  c.decayingTags.withValue(peerId, tags):
+    tags[].del(tag)
+    if tags[].len == 0:
+      c.decayingTags.del(peerId)
+
 proc trimConnections(c: ConnManager) {.async: (raises: []).} =
   ## Closes peers until the total peer count is at or below `lowWater`.
   ## Skips peers within the grace period and peers that are protected.
-  ## Prunes the oldest eligible connections first.
+  ## Prunes lowest-scoring peers first; uses connection age as a tiebreaker.
   libp2p_connmgr_trim_total.inc()
   let wm = c.watermark.get()
   let now = Moment.now()
 
-  var candidates: seq[(Moment, PeerId)]
+  var candidates: seq[(int, Moment, PeerId)]
   for peerId in c.muxerStore.getPeers():
     let connTime = c.connectedAt.getOrDefault(peerId, now)
     if now - connTime < wm.gracePeriod:
       continue
     if c.isProtected(peerId):
       continue
-    candidates.add((connTime, peerId))
+    candidates.add((c.peerScore(peerId), connTime, peerId))
 
   candidates.sort(
-    proc(a, b: (Moment, PeerId)): int =
-      a[0].cmp(b[0])
+    proc(a, b: (int, Moment, PeerId)): int =
+      if a[0] != b[0]:
+        cmp(a[0], b[0])
+      else:
+        a[1].cmp(b[1])
   )
 
   # initiate all drops concurrently and await them together.
   # this frees peer state immediately while letting the underlying
   # connection close futures run in parallel.
   var dropFuts: seq[Future[void]]
-  for (_, peerId) in candidates:
+  for (_, _, peerId) in candidates:
     if c.muxerStore.countPeers() <= wm.lowWater:
       break
     dropFuts.add(c.dropPeer(peerId))
@@ -606,6 +728,9 @@ proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
 
   trace "Closing ConnManager"
   c.closed = true
+
+  if not c.decayLoopFut.isNil:
+    await c.decayLoopFut.cancelAndWait()
 
   if not c.trimFut.isNil:
     await c.trimFut.cancelAndWait()
