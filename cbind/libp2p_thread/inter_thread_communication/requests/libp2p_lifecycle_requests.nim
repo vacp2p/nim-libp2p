@@ -399,7 +399,7 @@ proc createShared*(
 
   return ret
 
-proc destroyShared(self: ptr LifecycleRequest) =
+proc destroyShared*(self: ptr LifecycleRequest) =
   # TODO: Free any newly added fields here if you change the object structure
   # TODO: Deallocate parameters of GC'd types from the shared memory
   if not self[].config.dnsResolver.isNil():

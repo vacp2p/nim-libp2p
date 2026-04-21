@@ -64,6 +64,33 @@ proc createShared*(
   ret[].userData = userData
   return ret
 
+proc destroyUnprocessedRequest*(request: ptr LibP2PThreadRequest) =
+  ## Free a request that never reached its processor.
+  ##
+  ## Once `process` starts, ownership of reqContent belongs to the typed request
+  ## processor and this helper must not be used.
+  if request.isNil():
+    return
+
+  if not request[].reqContent.isNil():
+    case request[].reqType
+    of RequestType.LIFECYCLE:
+      destroyShared(cast[ptr LifecycleRequest](request[].reqContent))
+    of RequestType.PEER_MANAGER:
+      destroyShared(cast[ptr PeerManagementRequest](request[].reqContent))
+    of RequestType.PUBSUB:
+      destroyShared(cast[ptr PubSubRequest](request[].reqContent))
+    of RequestType.KADEMLIA:
+      destroyShared(cast[ptr KademliaRequest](request[].reqContent))
+    of RequestType.STREAM:
+      destroyShared(cast[ptr StreamRequest](request[].reqContent))
+    of RequestType.RELAY:
+      destroyShared(cast[ptr RelayRequest](request[].reqContent))
+    of RequestType.PROTOCOL:
+      destroyShared(cast[ptr ProtocolRequest](request[].reqContent))
+
+  deallocShared(request)
+
 # Handles responses of type Result[string, string] or Result[void, string]
 # Converts the result into a C callback invocation with either RET_OK or RET_ERR
 proc handleRes[T](res: Result[T, string], request: ptr LibP2PThreadRequest) =

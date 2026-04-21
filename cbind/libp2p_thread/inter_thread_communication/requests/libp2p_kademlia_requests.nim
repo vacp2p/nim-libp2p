@@ -81,7 +81,7 @@ proc createShared*(
   ret[].quorumOverride = quorumOverride
   return ret
 
-proc destroyShared(self: ptr KademliaRequest) =
+proc destroyShared*(self: ptr KademliaRequest) =
   deallocShared(self[].peerId)
   deallocSharedSeq(self[].key)
   deallocSharedSeq(self[].value)

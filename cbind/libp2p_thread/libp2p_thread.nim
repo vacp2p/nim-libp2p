@@ -128,8 +128,8 @@ proc sendRequestInternal(
   # worker would block waiting for a request that only the blocked worker can
   # receive. Schedule the request directly on the current Chronos loop instead.
   if ctx.workerThreadId.load == getThreadId():
-    if ctx.libp2p.isNil():
-      deallocShared(req)
+    if ctx.libp2p.isNil() or ctx.libp2p[].isNil():
+      destroyUnprocessedRequest(req)
       return err("libp2p thread state is not initialized")
 
     asyncSpawn LibP2PThreadRequest.process(req, ctx.libp2p)
@@ -146,22 +146,22 @@ proc sendRequestInternal(
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
     let msg = "Couldn't send a request to the libp2p thread: " & $req[]
-    deallocShared(req)
+    destroyUnprocessedRequest(req)
     return err(msg)
 
   let fireSyncRes = ctx.reqSignal.fireSync()
   if fireSyncRes.isErr():
     let msg = "failed fireSync: " & $fireSyncRes.error
-    deallocShared(req)
+    destroyUnprocessedRequest(req)
     return err(msg)
 
   if fireSyncRes.get() == false:
-    deallocShared(req)
+    destroyUnprocessedRequest(req)
     return err("Couldn't fireSync in time")
 
   let res = ctx.reqReceivedSignal.waitSync()
   if res.isErr():
-    deallocShared(req)
+    destroyUnprocessedRequest(req)
     return err("Couldn't receive reqReceivedSignal signal")
 
   # Notice that in case of "ok", the deallocShared(req) is performed by the LibP2P Thread in the

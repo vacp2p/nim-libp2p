@@ -47,7 +47,7 @@ proc createShared*(
   ret[].timeout = timeout
   ret
 
-proc destroyShared(self: ptr PubSubRequest) =
+proc destroyShared*(self: ptr PubSubRequest) =
   deallocShared(self[].topic)
   deallocSharedSeq(self[].topics)
   deallocSharedSeq(self[].data)

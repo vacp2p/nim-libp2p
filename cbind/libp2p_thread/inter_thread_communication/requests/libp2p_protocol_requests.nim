@@ -33,7 +33,7 @@ proc createShared*(
   ret[].protocolUserData = protocolUserData
   ret
 
-proc destroyShared(self: ptr ProtocolRequest) =
+proc destroyShared*(self: ptr ProtocolRequest) =
   deallocShared(self[].proto)
   deallocShared(self)
 
@@ -52,8 +52,7 @@ proc processMount*(
 
   let proto = $self[].proto
   let peerInfo = libp2p[].switch.peerInfo
-  let mountedInSwitch = not peerInfo.isNil() and proto in peerInfo.protocols
-  if libp2p[].customProtocols.hasKey(proto) or mountedInSwitch:
+  if libp2p[].customProtocols.hasKey(proto) or proto in peerInfo.protocols:
     return err("protocol already mounted: " & proto)
 
   let
@@ -75,15 +74,25 @@ proc processMount*(
     libp2p[].connections[stream] = conn
     libp2p[].streamReleaseWaiters[stream] = releaseWaiter
 
-    foreignThreadGc:
-      let protoPtr =
-        if selectedProto.len > 0:
-          cast[ptr cchar](unsafeAddr selectedProto[0])
-        else:
-          cast[ptr cchar](nil)
-      handler(ctx, stream, protoPtr, cast[csize_t](selectedProto.len), protocolUserData)
+    try:
+      foreignThreadGc:
+        let protoPtr =
+          if selectedProto.len > 0:
+            cast[ptr cchar](unsafeAddr selectedProto[0])
+          else:
+            cast[ptr cchar](nil)
+        handler(
+          ctx, stream, protoPtr, cast[csize_t](selectedProto.len), protocolUserData
+        )
 
-    await releaseWaiter
+      await releaseWaiter
+    finally:
+      if libp2p[].streamReleaseWaiters.hasKey(stream):
+        libp2p[].streamReleaseWaiters.del(stream)
+
+      if libp2p[].connections.hasKey(stream):
+        libp2p[].connections.del(stream)
+        deallocShared(stream)
 
   let mountedProtocol = LPProtocol.new(codecs = @[proto], handler = handle)
   await mountedProtocol.start()
@@ -99,6 +108,4 @@ proc processMount*(
 proc process*(
     self: ptr ProtocolRequest, libp2p: ptr LibP2P
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
-  case self[].operation
-  of ProtocolMsgType.MOUNT:
-    await self.processMount(libp2p)
+  await self.processMount(libp2p)

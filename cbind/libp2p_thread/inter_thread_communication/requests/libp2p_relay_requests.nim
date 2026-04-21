@@ -28,7 +28,7 @@ proc createShared*(
   ret[].multiaddrs = allocSharedSeqFromCArray(multiaddrs, multiaddrsLen.int)
   ret
 
-proc destroyShared(self: ptr RelayRequest) =
+proc destroyShared*(self: ptr RelayRequest) =
   deallocShared(self[].peerId)
   deallocSharedSeq(self[].multiaddrs)
   deallocShared(self)
