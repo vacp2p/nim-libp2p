@@ -404,6 +404,7 @@ proc requestPeer[E](
         pbNone(default(seq[byte]))
     else:
       pbNone(default(seq[byte]))
+  debugEcho "ZXC ", repr d.cookie
   await conn.writeLp(
     Protobuf.encode(Message(msgType: pbSome(MsgTypeDiscover), discover: pbSome(d)))
   )
@@ -425,6 +426,7 @@ proc requestPeer[E](
     trace "Cannot discover", ns, status = resp.status, text = resp.text
     return @[]
   if resp.cookie.isSome:
+    debugEcho "ZXC2 ", repr(resp.cookie), byteutils.toHex(buf)
     if ns.isSome:
       let namespace = ns.get()
       if resp.cookie.get().len < 1000 and
@@ -605,7 +607,7 @@ proc new*(
       of MsgTypeUnregister:
         rdv.unregister(conn, msg.unregister.get())
       of MsgTypeDiscover:
-        debugEcho "QWE ", repr msg.discover.get()
+        debugEcho "QWE ", repr msg.discover.isSome
         await rdv.discover(conn, msg.discover.get())
       of MsgTypeDiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
