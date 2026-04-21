@@ -58,7 +58,7 @@ type
     CommandNotSupported = (7, "Command Not Supported")
     AddressTypeNotSupported = (8, "Address Type Not Supported")
 
-  TransportStartError* = object of transport.TransportError
+  TransportStartError* = transport.TransportStartError
 
   Socks5Error* = object of CatchableError
   Socks5AuthFailedError* = object of Socks5Error
@@ -253,24 +253,21 @@ method start*(
 
   var listenAddrs: seq[MultiAddress]
   var onion3Addrs: seq[MultiAddress]
-  for i, ma in addrs:
+  for ma in addrs:
     if not handlesStart(ma):
-      warn "Invalid address detected, skipping!", address = ma
-      continue
+      raise newException(TransportStartError, "unsupported address: " & $ma)
 
-    let listenAddress = ma[0 .. 1].tryGet()
-    listenAddrs.add(listenAddress)
-    let onion3 = ma[multiCodec("onion3")].tryGet()
-    onion3Addrs.add(onion3)
+    try:
+      listenAddrs.add(ma[0 .. 1].tryGet())
+      onion3Addrs.add(ma[multiCodec("onion3")].tryGet())
+    except ResultError[string]:
+      raise newException(TransportStartError, "invalid tor address: " & $ma)
 
-  if len(listenAddrs) != 0 and len(onion3Addrs) != 0:
-    await procCall Transport(self).start(onion3Addrs)
-    await self.tcpTransport.start(listenAddrs)
-  else:
-    raise newException(
-      TransportStartError,
-      "Tor Transport couldn't start, no supported addr was provided.",
-    )
+  if listenAddrs.len == 0:
+    raise newException(TransportStartError, "no address was provided.")
+
+  await procCall Transport(self).start(onion3Addrs)
+  await self.tcpTransport.start(listenAddrs)
 
 method accept*(
     self: TorTransport
