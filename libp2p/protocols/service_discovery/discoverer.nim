@@ -30,7 +30,7 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
   return validAds
 
 proc dispatchGetAds(
-    disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId
+    disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId, limit: int
 ): Future[Opt[GetAdsResult]] {.async: (raises: [CancelledError]), gcsafe.} =
   let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
@@ -44,7 +44,11 @@ proc dispatchGetAds(
   defer:
     await conn.close()
 
-  let msg = Message(msgType: MessageType.getAds, key: serviceId)
+  let msg = Message(
+    msgType: MessageType.getAds,
+    key: serviceId,
+    getAds: Opt.some(GetAdsMessage(limit: limit.uint32)),
+  )
   let encodedMsg = msg.encode().buffer
 
   cd_messages_sent.inc(labelValues = [$MessageType.getAds])
@@ -133,7 +137,7 @@ proc collectBucketAds(
 ): Future[seq[Advertisement]] {.async: (raises: [CancelledError]).} =
   var found = newSeqOfCap[Advertisement](limit)
   var pending: seq[Future[Opt[GetAdsResult]]] =
-    peers.mapIt(Future[Opt[GetAdsResult]](dispatchGetAds(disco, it, serviceId)))
+    peers.mapIt(Future[Opt[GetAdsResult]](dispatchGetAds(disco, it, serviceId, limit)))
   defer:
     for fut in pending:
       if not fut.finished():

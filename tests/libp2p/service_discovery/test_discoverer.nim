@@ -2,10 +2,10 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results
+import chronos, results, std/sequtils
 import ../../../libp2p/peerid
 import ../../../libp2p/protocols/service_discovery/[discoverer, types]
-import ../../tools/unittest
+import ../../tools/[unittest, lifecycle]
 import ./utils
 
 suite "Discoverer - lookup":
@@ -55,20 +55,39 @@ suite "Discoverer - lookup":
     check disco.rtManager.hasService(sid2)
     check disco.rtManager.count() == 2
 
-  asyncTest "kRegister cap: result length never exceeds kRegister":
-    let kRegister = 5
-    let disco = makeMockDiscovery(
-      discoConfig = ServiceDiscoveryConfig.new(kRegister = kRegister, bucketsCount = 16)
+  asyncTest "fLookup cap: result does not exceed fLookup and is non-empty":
+    let fLookup = 2
+    let svcName = "cap-test-svc"
+    let serviceId = hashServiceId(svcName)
+
+    # Seeker with fLookup = 2; protocol not mounted since it only dials out
+    let seeker = makeMockDiscovery(
+      discoConfig =
+        ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16, fLookup = fLookup)
     )
-    let serviceId = makeServiceId()
+    # Responders have the protocol mounted so they can answer getAds
+    let responders = setupDiscos(3, ExtEntryValidator(), ExtEntrySelector())
 
-    var peers = newSeq[PeerId](kRegister + 2)
-    for i in 0 ..< peers.len:
-      peers[i] = makePeerId()
+    let allNodes = @[seeker] & responders
+    await startNodes(allNodes)
+    defer:
+      await stopNodes(allNodes)
 
-    populateSearchTable(disco, serviceId, peers)
+    # Populate each responder's cache and wire addresses into seeker's peerstore.
+    # connect() also inserts responders into seeker's main rtable; lookup() seeds
+    # the service table from that table via addService(), so no separate
+    # populateSearchTable call is needed.
+    for r in responders:
+      r.registrar.cache[serviceId] =
+        @[
+          makeAdvertisement(svcName),
+          makeAdvertisement(svcName),
+          makeAdvertisement(svcName),
+        ]
+      await connect(seeker, r)
 
-    let res = await disco.lookup(serviceId)
+    let res = await seeker.lookup(serviceId)
 
     check res.isOk()
-    check res.get().len <= kRegister
+    check res.get().len > 0
+    check res.get().len <= fLookup

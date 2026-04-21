@@ -467,10 +467,14 @@ proc handleGetAds*(
   let serviceId = msg.key
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
+  var cap = disco.discoConfig.fReturn
+  msg.getAds.withValue(getAdsMsg):
+    if getAdsMsg.limit > 0:
+      cap = min(disco.discoConfig.fReturn, getAdsMsg.limit.int)
+
   let response = Message(
     msgType: MessageType.getAds,
-    getAds:
-      Opt.some(GetAdsMessage(advertisements: ads.encode(disco.discoConfig.fReturn))),
+    getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
     closerPeers: disco.findClosestPeers(serviceId),
   )
   let bytes = response.encode().buffer
