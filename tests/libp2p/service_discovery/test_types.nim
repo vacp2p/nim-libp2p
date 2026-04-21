@@ -5,7 +5,7 @@
 
 import ../../../libp2p/[extended_peer_record]
 import ../../../libp2p/protocols/service_discovery/types
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest]
 import ./utils
 
 suite "seq[Advertisement] encode":
@@ -32,12 +32,13 @@ suite "seq[Advertisement] encode":
     check encoded.len == 3
 
   test "fReturn cap limits output count":
-    let ads = @[
-      makeAdvertisement("a"),
-      makeAdvertisement("b"),
-      makeAdvertisement("c"),
-      makeAdvertisement("d"),
-    ]
+    let ads =
+      @[
+        makeAdvertisement("a"),
+        makeAdvertisement("b"),
+        makeAdvertisement("c"),
+        makeAdvertisement("d"),
+      ]
     check ads.encode(2).len == 2
 
   test "encoded advertisements decode back correctly":
