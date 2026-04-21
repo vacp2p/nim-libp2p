@@ -78,12 +78,11 @@ suite "Discoverer - lookup":
     # the service table from that table via addService(), so no separate
     # populateSearchTable call is needed.
     for r in responders:
-      r.registrar.cache[serviceId] =
-        @[
-          makeAdvertisement(svcName),
-          makeAdvertisement(svcName),
-          makeAdvertisement(svcName),
-        ]
+      r.registrar.cache[serviceId] = @[
+        makeAdvertisement(svcName),
+        makeAdvertisement(svcName),
+        makeAdvertisement(svcName),
+      ]
       await connect(seeker, r)
 
     let res = await seeker.lookup(serviceId)
