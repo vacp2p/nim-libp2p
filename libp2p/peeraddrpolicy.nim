@@ -23,3 +23,8 @@ const publicRoutableAddressPolicy* = proc(
     ma: MultiAddress
 ): bool {.gcsafe, raises: [].} =
   not isFilterablePrivateMA(ma)
+
+const localNoPrivateAddressPolicy* = proc(
+    ma: MultiAddress
+): bool {.gcsafe, raises: [].} =
+  not isFilterableNonLoopbackPrivateMA(ma)

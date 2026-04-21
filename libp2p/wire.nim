@@ -170,3 +170,25 @@ proc isFilterablePrivateMA*(ma: MultiAddress): bool =
   if ma.contains(multiCodec("p2p-circuit")).get(false):
     return false
   return not isPublicMA(ma)
+
+proc isFilterableNonLoopbackPrivateMA*(ma: MultiAddress): bool =
+  ## Returns true if this address should be filtered out because it is private
+  ## or not globally routable. Circuit relay addresses are never filtered even
+  ## if the relay itself has a private IP, since the relay address may still
+  ## provide connectivity. Looback address are not filtered as well.
+  if ma.contains(multiCodec("p2p-circuit")).get(false):
+    return false
+
+  if DNS.matchPartial(ma):
+    return false
+
+  let hostIP = initTAddress(ma).valueOr:
+    return true
+
+  if hostIP.isGlobal():
+    return false
+
+  if hostIP.isLoopback():
+    return false
+
+  return true
