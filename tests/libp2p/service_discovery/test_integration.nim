@@ -5,7 +5,7 @@
 import std/[times]
 import chronos, results
 import
-  ../../../libp2p/[peerid, switch, crypto/crypto, multiaddress, extended_peer_record]
+  ../../../libp2p/[switch, crypto/crypto]
 import ../../../libp2p/protocols/service_discovery
 import
   ../../../libp2p/protocols/service_discovery/[types, registrar, advertiser, discoverer]
