@@ -5,7 +5,7 @@ import std/sequtils
 import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
-import ../kademlia/[types, protobuf as kademlia_protobuf]
+import ../kademlia/types
 import ./[types, routing_table_manager, service_discovery_metrics]
 
 logScope:
