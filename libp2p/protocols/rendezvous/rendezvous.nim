@@ -217,18 +217,9 @@ proc discover*[E](
   if d.ns.get().len > MaximumNamespaceLen:
     await conn.sendDiscoverResponseError(ResponseInvalidNamespace)
     return
-  var limit = min(
-    DiscoverLimit,
-    if d.limit.isSome():
-      d.limit.get()
-    else:
-      DiscoverLimit,
-  )
-  # @[8, 5, 18, 3, 102, 111, 111]]]
-  # @[8, 10, 18, 3, 98, 97, 114]]]
+  var limit = min(DiscoverLimit, d.limit.valueOr(DiscoverLimit))
   var cookie =
     if d.cookie.isSome():
-      debugEcho "ASd ", byteutils.toHex(d.cookie.get())
       try:
         Protobuf.decode(d.cookie.get(), Cookie)
       except SerializationError:
@@ -261,7 +252,7 @@ proc discover*[E](
         max(cookie.offset.get().int, rdv.registered.offset) .. rdv.registered.high()
       )
   if namespaces.len() == 0:
-    await conn.sendDiscoverResponse(@[], Cookie())
+    await conn.sendDiscoverResponse(@[], Cookie(offset: pbSome(0'u64)))
     return
   var nextOffset = cookie.offset.get()
   let n = Moment.now()
@@ -404,7 +395,6 @@ proc requestPeer[E](
         pbNone(default(seq[byte]))
     else:
       pbNone(default(seq[byte]))
-  debugEcho "ZXC ", repr(d.cookie), byteutils.toHex(Protobuf.encode(Message(msgType: pbSome(MsgTypeDiscover), discover: pbSome(d))))
   await conn.writeLp(
     Protobuf.encode(Message(msgType: pbSome(MsgTypeDiscover), discover: pbSome(d)))
   )
@@ -426,7 +416,6 @@ proc requestPeer[E](
     trace "Cannot discover", ns, status = resp.status, text = resp.text
     return @[]
   if resp.cookie.isSome:
-    debugEcho "ZXC2 ", repr(resp.cookie), byteutils.toHex(buf)
     if ns.isSome:
       let namespace = ns.get()
       if resp.cookie.get().len < 1000 and
@@ -607,7 +596,6 @@ proc new*(
       of MsgTypeUnregister:
         rdv.unregister(conn, msg.unregister.get())
       of MsgTypeDiscover:
-        debugEcho "QWE ", repr(msg.discover.isSome), byteutils.toHex(buf)
         await rdv.discover(conn, msg.discover.get())
       of MsgTypeDiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
