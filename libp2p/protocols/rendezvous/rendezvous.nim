@@ -224,8 +224,11 @@ proc discover*[E](
     else:
       DiscoverLimit,
   )
+  # @[8, 5, 18, 3, 102, 111, 111]]]
+  # @[8, 10, 18, 3, 98, 97, 114]]]
   var cookie =
     if d.cookie.isSome():
+      debugEcho "ASd ", byteutils.toHex(d.cookie.get())
       try:
         Protobuf.decode(d.cookie.get(), Cookie)
       except SerializationError:
@@ -602,6 +605,7 @@ proc new*(
       of MsgTypeUnregister:
         rdv.unregister(conn, msg.unregister.get())
       of MsgTypeDiscover:
+        debugEcho "QWE ", repr msg.discover.get()
         await rdv.discover(conn, msg.discover.get())
       of MsgTypeDiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
