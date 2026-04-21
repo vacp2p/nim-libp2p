@@ -605,14 +605,16 @@ proc peerScore*(c: ConnManager, peerId: PeerId): int =
   ##   outboundBonus (if peer has an outbound connection)
   ##   + sum of all static tag values
   ##   + sum of all current decaying tag values
+  var score = 0
   if not c.selectMuxer(peerId, Direction.Out).isNil:
-    result += c.scoringConfig.outboundBonus
+    score += c.scoringConfig.outboundBonus
   c.staticTags.withValue(peerId, tags):
     for _, v in tags[]:
-      result += v
+      score += v
   c.decayingTags.withValue(peerId, tags):
     for _, tag in tags[]:
-      result += tag.value
+      score += tag.value
+  return score
 
 proc applyDecay(c: ConnManager) =
   let now = Moment.now()
