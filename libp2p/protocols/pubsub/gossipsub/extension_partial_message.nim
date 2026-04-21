@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import tables, sets, chronicles, results
+import tables, sets, sequtils, chronicles, results
 import ../../../utils/tablekey
 import ../../../[peerid]
 import ../rpc/messages
@@ -135,6 +135,9 @@ template getGroupState(
 
 template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   gs.peerState.mgetOrPut(peerId, PeerGroupState())
+
+template hasPeer(gs: GroupState, peerId: PeerId): bool =
+  gs.peerState.hasKey(peerId)
 
 proc unionWithSentPartsMetadata(
     ext: PartialMessageExtension,
@@ -322,20 +325,18 @@ proc publishPartial*(
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
   groupState.lastPublishedMetadata = pm.partsMetadata()
 
-  var publishToPeers =
+  let publishToPeers =
     if peers.len > 0:
       peers
     else:
-      var publishTargets = ext.config.publishToPeers(topic)
       # Extend this node's current publish targets
       # with peers that already exchanged metadata for this group.
       # This preserves replies to a remote peer acting as an unsubscribed
       # fanout publisher.
-      var seen = publishTargets.toHashSet()
+      var targets = ext.config.publishToPeers(topic).toHashSet()
       for p in groupState.peerState.keys:
-        if not seen.containsOrIncl(p):
-          publishTargets.add(p)
-      publishTargets
+        targets.incl(p)
+      targets.toSeq()
 
   let nodeRequestsPartial = ext.config.nodeTopicOpts(topic).requestsPartial
 
@@ -355,10 +356,10 @@ proc publishPartial*(
 
     # If this node requests partials, send metadata to peers that either
     # advertised partial support for the topic or already have per-group
-    # state. peerHasState covers peers that already sent metadata for this
-    # group without ever sending a subscription RPC.
-    let peerHasState = groupState.peerState.hasKey(p)
-    if nodeRequestsPartial and (peerSubOpt.supportsSendingPartial or peerHasState):
+    # state. The hasPeer check covers peers that already sent metadata for
+    # this group without ever sending a subscription RPC.
+    if nodeRequestsPartial and
+        (peerSubOpt.supportsSendingPartial or groupState.hasPeer(p)):
       if ext.publishPartialToPeer(topic, pm, groupState, p, false):
         publishedToCount.inc
 

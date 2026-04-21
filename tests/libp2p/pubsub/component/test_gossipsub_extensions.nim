@@ -374,11 +374,11 @@ suite "GossipSub Component - Extensions":
       checkLen(rpc.partsMetadata)
       return ok()
 
-    var incomingRPC: Table[PeerId, seq[PartialMessageExtensionRPC]]
+    let incomingRPC = newAsyncQueue[(PeerId, PartialMessageExtensionRPC)]()
     proc onIncomingRPC(
         peer: PeerId, rpc: PartialMessageExtensionRPC
     ) {.gcsafe, raises: [].} =
-      incomingRPC.mgetOrPut(peer, newSeq[PartialMessageExtensionRPC]()).add(rpc)
+      discard incomingRPC.put((peer, rpc))
 
     let
       numberOfNodes = 2
@@ -417,11 +417,10 @@ suite "GossipSub Component - Extensions":
     # Node 1 should receive the announcement even though node 0 never subscribed.
     # Peer has not yet expressed what it wants, so only parts metadata is sent
     # on this first publish.
-    checkUntilTimeout:
-      incomingRPC.getOrDefault(nodes[0].peerInfo.peerId, @[]).len == 1
-
+    let (fromPeer, rpc) = await incomingRPC.get.wait(3.seconds)
     check:
-      incomingRPC[nodes[0].peerInfo.peerId][0] ==
+      fromPeer == nodes[0].peerInfo.peerId
+      rpc ==
         PartialMessageExtensionRPC(
           topicID: topic,
           groupID: groupId,
