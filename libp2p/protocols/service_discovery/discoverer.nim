@@ -55,12 +55,14 @@ proc dispatchGetAds(
   cd_message_duration_ms.time(labelValues = [$MessageType.getAds]):
     writeRes = catch:
       await conn.writeLp(encodedMsg)
-    readRes = catch:
-      await conn.readLp(MaxMsgSize)
 
   if writeRes.isErr:
     error "connection writing failed", error = writeRes.error.msg
     return Opt.none(GetAdsResult)
+
+  cd_message_duration_ms.time(labelValues = [$MessageType.getAds]):
+    readRes = catch:
+      await conn.readLp(MaxMsgSize)
   let replyBuf = readRes.valueOr:
     error "connection reading failed", error = readRes.error.msg
     return Opt.none(GetAdsResult)
