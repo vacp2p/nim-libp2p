@@ -56,7 +56,7 @@ suite "processRetryTicket":
     var ticket = Ticket(
       advertisement: @[0xAA'u8], tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
     )
-    discard ticket.sign(key)
+    check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
       advertisement: @[0xBB'u8],
       status: Opt.none(kad_protobuf.RegistrationStatus),
@@ -73,7 +73,7 @@ suite "processRetryTicket":
     var ticket = Ticket(
       advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
     )
-    discard ticket.sign(wrongKey)
+    check ticket.sign(wrongKey).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
       advertisement: adBytes,
       status: Opt.none(kad_protobuf.RegistrationStatus),
@@ -92,7 +92,7 @@ suite "processRetryTicket":
     var ticket = Ticket(
       advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
     )
-    discard ticket.sign(key)
+    check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
       advertisement: adBytes,
       status: Opt.none(kad_protobuf.RegistrationStatus),
@@ -110,7 +110,7 @@ suite "processRetryTicket":
     var ticket = Ticket(
       advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 100, signature: @[]
     )
-    discard ticket.sign(key)
+    check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
       advertisement: adBytes,
       status: Opt.none(kad_protobuf.RegistrationStatus),
@@ -128,7 +128,7 @@ suite "processRetryTicket":
     var ticket = Ticket(
       advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
     )
-    discard ticket.sign(key)
+    check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
       advertisement: adBytes,
       status: Opt.none(kad_protobuf.RegistrationStatus),
@@ -149,7 +149,7 @@ suite "processRetryTicket":
     var ticket = Ticket(
       advertisement: adBytes, tInit: 1000, tMod: 1100, tWaitFor: 100, signature: @[]
     )
-    discard ticket.sign(key)
+    check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
       advertisement: adBytes,
       status: Opt.none(kad_protobuf.RegistrationStatus),
@@ -170,7 +170,7 @@ suite "processRetryTicket":
     var ticket = Ticket(
       advertisement: adBytes, tInit: 1000, tMod: 1900, tWaitFor: 100, signature: @[]
     )
-    discard ticket.sign(key)
+    check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
       advertisement: adBytes,
       status: Opt.none(kad_protobuf.RegistrationStatus),
@@ -200,37 +200,40 @@ suite "Integration - handleRegister":
     check regResp.get().status == kad_protobuf.RegistrationStatus.Wait
     check regResp.get().ticket.isSome()
 
-  asyncTest "REGISTER with wrong-key ticket returns Rejected":
+  asyncTest "REGISTER with malformed advertisement bytes returns Rejected":
     let registrarNode = setupDiscoNode()
     let advertiserNode = setupDiscoNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
     let serviceId = makeServiceId()
-    let adBytes = @[1'u8, 2, 3, 4] # malformed — validateRegisterMessage rejects
-    let wrongKey = PrivateKey.random(rng[]).get()
-    var ticket = Ticket(
-      advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
-    )
-    discard ticket.sign(wrongKey)
+    let adBytes =
+      @[1'u8, 2, 3, 4]
+        # malformed — validateRegisterMessage rejects before ticket check
 
     let regResp = await advertiserNode.sendRegister(
-      registrarNode.switch.peerInfo.peerId, serviceId, adBytes, Opt.some(ticket)
+      registrarNode.switch.peerInfo.peerId, serviceId, adBytes
     )
     check regResp.isOk()
     check regResp.get().status == kad_protobuf.RegistrationStatus.Rejected
 
-  asyncTest "REGISTER with out-of-window ticket returns Rejected":
+  asyncTest "REGISTER with out-of-window ticket ignores ticket and returns Wait":
     let registrarNode = setupDiscoNode()
     let advertiserNode = setupDiscoNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
-    let serviceId = makeServiceId()
-    let adBytes = @[1'u8, 2, 3, 4] # malformed — validateRegisterMessage rejects
+    let serviceName = "out-of-window-service"
+    let serviceId = serviceName.hashServiceId()
+    let adBytes = makeAdvertisement(
+        serviceName, advertiserNode.switch.peerInfo.privateKey
+      )
+      .encode()
+      .get()
     let registrarKey = registrarNode.switch.peerInfo.privateKey
     let now = getTime().toUnix().uint64
-    # Window was [now-1000 .. now-999]; we are well past it
+    # window = [tMod+tWaitFor .. tMod+tWaitFor+registrationWindow(1s)] = [now-1000 .. now-999]
+    # now is well past the window, so processRetryTicket ignores the ticket
     var ticket = Ticket(
       advertisement: adBytes,
       tInit: now - 1000,
@@ -238,13 +241,13 @@ suite "Integration - handleRegister":
       tWaitFor: 0,
       signature: @[],
     )
-    discard ticket.sign(registrarKey)
+    check ticket.sign(registrarKey).isOk()
 
     let regResp = await advertiserNode.sendRegister(
       registrarNode.switch.peerInfo.peerId, serviceId, adBytes, Opt.some(ticket)
     )
     check regResp.isOk()
-    check regResp.get().status == kad_protobuf.RegistrationStatus.Rejected
+    check regResp.get().status == kad_protobuf.RegistrationStatus.Wait
 
   asyncTest "REGISTER with safetyParam=0 returns Confirmed on first attempt":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
