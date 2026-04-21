@@ -26,15 +26,15 @@ type
     ## Decay function applied to an ephemeral tag on each tick interval.
     ## Returns the new value; returning ≤0 removes the tag.
 
-  DecayingTagValue* = object
-    value*: int
-    lastTick*: Moment
-    interval*: Duration
-    decayFn*: DecayFn
+  DecayingTagValue = object
+    value: int
+    lastTick: Moment
+    interval: Duration
+    decayFn: DecayFn
 
   ScoringConfig* = object ## Configuration for connection scoring parameters.
     outboundBonus*: int = 100
-      ## `outboundBonus` is added to the score of every peer with an outbound
+      ## `outboundBonus` is added to the score of every peer with an outbound connection
     decayResolution*: Duration = 1.minutes
       ## `decayResolution` controls how often ephemeral tag decay functions are applied
 
@@ -192,6 +192,7 @@ proc newWatermark*(
   ## Use `silencePeriod` to throttle back-to-back trim cycles.
   doAssert watermark.lowWater > 0, "lowWater must be > 0"
   doAssert watermark.highWater > watermark.lowWater, "highWater must be > lowWater"
+  doAssert scoringConfig.decayResolution > 0.seconds, "decayResolution must be > 0"
   C(
     muxerStore: MuxerStore.new(),
     watermark: Opt.some(watermark),

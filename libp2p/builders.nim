@@ -466,7 +466,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
 
   var connManager: ConnManager
   if b.watermarkCfg.isSome():
-    connManager = ConnManager.newWatermark(b.watermarkCfg.get(), b.maxConnsPerPeer)
+    connManager = ConnManager.newWatermark(b.watermarkCfg.get(), b.maxConnsPerPeer, b.scoringConfig)
   elif b.maxIn > 0 or b.maxOut > 0:
     if b.maxIn > 0 and b.maxOut > 0:
       connManager = ConnManager.newMaxInOut(b.maxIn, b.maxOut, b.maxConnsPerPeer)
