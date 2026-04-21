@@ -5,9 +5,11 @@ import chronos, chronicles, results, sets, sequtils, std/times
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
-import ./service_discovery/[random_find, types, routing_table_manager, advertiser]
+import
+  ./service_discovery/
+    [random_find, types, routing_table_manager, advertiser, registrar, discoverer]
 
-export random_find, types
+export random_find, types, discoverer
 
 logScope:
   topics = "service-discovery"
@@ -48,6 +50,16 @@ proc maintainSelfSignedPeerRecord(
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "refresh self signed peer record", disco.config.bucketRefreshTime:
     await disco.refreshSelfSignedPeerRecord()
+
+proc maintainRegistrar(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
+  heartbeat "prune expired advertisements", disco.discoConfig.advertExpiry:
+    disco.registrar.pruneExpiredAds(disco.discoConfig.advertExpiry.seconds.uint64)
+
+proc maintainServiceTables(
+    disco: ServiceDiscovery
+) {.async: (raises: [CancelledError]).} =
+  heartbeat "refresh service routing tables", disco.config.bucketRefreshTime:
+    await disco.rtManager.refreshAllTables(disco)
 
 proc startAdvertising*(disco: ServiceDiscovery, service: ServiceInfo): bool =
   ## Include this service in the set of services this node provides.
@@ -131,11 +143,9 @@ proc new*(
       of MessageType.ping:
         await disco.handlePing(conn, msg)
       of MessageType.getAds:
-        trace "Unimplemented"
-        return
+        await disco.handleGetAds(conn, msg)
       of MessageType.register:
-        trace "Unimplemented"
-        return
+        await disco.handleRegister(conn, msg)
 
   return disco
 
@@ -147,6 +157,8 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
   await procCall start(KadDHT(disco))
 
   disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
+  disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
+  disco.refreshServiceTablesLoop = disco.maintainServiceTables()
 
   info "Service Discovery started"
 
@@ -157,5 +169,11 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
   disco.advertiser.clear()
   disco.selfSignedPeerRecordLoop.cancelSoon()
   disco.selfSignedPeerRecordLoop = nil
+
+  disco.pruneExpiredAdsLoop.cancelSoon()
+  disco.pruneExpiredAdsLoop = nil
+
+  disco.refreshServiceTablesLoop.cancelSoon()
+  disco.refreshServiceTablesLoop = nil
 
   await procCall stop(KadDHT(disco))

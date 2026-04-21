@@ -24,7 +24,7 @@ proc newPoWSpamProtection*(difficulty: int = 2): PoWSpamProtection =
 
 method generateProof*(
     self: PoWSpamProtection, bindingData: seq[byte]
-): Result[seq[byte], string] =
+): Result[ProofResult, string] =
   # Simplified PoW: find nonce where last byte of hash has 'difficulty' leading zeros
   let bindingBytes = bindingData
   var nonce: uint64 = 0
@@ -49,16 +49,19 @@ method generateProof*(
     # Check if hash meets difficulty (leading zeros in binary representation)
     if (hash and byte((1 shl self.difficulty) - 1)) == 0:
       return ok(
-        @[
-          byte(nonce shr 56),
-          byte(nonce shr 48),
-          byte(nonce shr 40),
-          byte(nonce shr 32),
-          byte(nonce shr 24),
-          byte(nonce shr 16),
-          byte(nonce shr 8),
-          byte(nonce),
-        ]
+        ProofResult(
+          proof: @[
+            byte(nonce shr 56),
+            byte(nonce shr 48),
+            byte(nonce shr 40),
+            byte(nonce shr 32),
+            byte(nonce shr 24),
+            byte(nonce shr 16),
+            byte(nonce shr 8),
+            byte(nonce),
+          ],
+          token: @[],
+        )
       )
     nonce += 1
 
@@ -105,16 +108,19 @@ proc newRateLimitSpamProtection*(
 
 method generateProof*(
     self: RateLimitSpamProtection, bindingData: seq[byte]
-): Result[seq[byte], string] =
+): Result[ProofResult, string] =
   # Generate timestamp-based proof
   let timestamp = 12345 # Simplified timestamp
   ok(
-    @[
-      byte(timestamp shr 24),
-      byte(timestamp shr 16),
-      byte(timestamp shr 8),
-      byte(timestamp),
-    ]
+    ProofResult(
+      proof: @[
+        byte(timestamp shr 24),
+        byte(timestamp shr 16),
+        byte(timestamp shr 8),
+        byte(timestamp),
+      ],
+      token: @[],
+    )
   )
 
 method verifyProof*(

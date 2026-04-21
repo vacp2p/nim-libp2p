@@ -203,6 +203,15 @@ proc new*(
 
   return pm
 
+proc toPeerIds*(entries: seq[NodeEntry]): seq[PeerId] =
+  var peerIds = newSeqOfCap[PeerId](entries.len)
+  for e in entries:
+    let peerId = e.nodeId.toPeerId().valueOr:
+      error "cannot convert key to peer id", error
+      continue
+    peerIds.add(peerId)
+  return peerIds
+
 ## Currently a string, because for some reason, that's what is chosen at the protobuf level
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
 type TimeStamp* = string

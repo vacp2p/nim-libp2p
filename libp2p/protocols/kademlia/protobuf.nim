@@ -62,6 +62,7 @@ type
   # Field 22 in the main Message
   GetAdsMessage* {.public.} = object
     advertisements*: seq[seq[byte]] # field 1 - List of encoded advertisements
+    limit*: uint32 # field 2 - Max ads requested (0 = use server default)
 
   Message* {.public.} = object
     msgType*: MessageType
@@ -121,6 +122,8 @@ proc encode*(getAdsMsg: GetAdsMessage): ProtoBuffer {.raises: [], gcsafe.} =
   var pb = initProtoBuffer()
   for ad in getAdsMsg.advertisements:
     pb.write(1, ad)
+  if getAdsMsg.limit > 0:
+    pb.write(2, getAdsMsg.limit)
   pb.finish()
   return pb
 
@@ -221,9 +224,10 @@ proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
   return ok(regMsg)
 
 proc decode*(T: type GetAdsMessage, pb: ProtoBuffer): ProtoResult[T] =
-  var getAdsMsg = GetAdsMessage(advertisements: @[])
+  var getAdsMsg = GetAdsMessage(advertisements: @[], limit: 0)
 
   discard ?pb.getRepeatedField(1, getAdsMsg.advertisements)
+  discard ?pb.getField(2, getAdsMsg.limit)
 
   return ok(getAdsMsg)
 
