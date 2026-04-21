@@ -113,6 +113,21 @@ proc insert*(rtable: var RoutingTable, nodeId: Key): bool =
 proc insert*(rtable: var RoutingTable, peerId: PeerId): bool =
   insert(rtable, peerId.toKey())
 
+proc remove*(rtable: var RoutingTable, nodeId: Key): bool =
+  let idx = bucketIndex(rtable.selfId, nodeId, rtable.config.hasher)
+  if idx < rtable.buckets.len:
+    var bucket = rtable.buckets[idx]
+    let keyx = peerIndexInBucket(bucket, nodeId)
+    if keyx.isSome:
+      bucket.peers.delete(keyx.unsafeValue)
+      rtable.buckets[idx] = bucket
+      updateRoutingTableMetrics(rtable)
+      return true
+  return false
+
+proc remove*(rtable: var RoutingTable, peerId: PeerId): bool =
+  remove(rtable, peerId.toKey())
+
 proc findClosest*(rtable: RoutingTable, targetId: Key, count: int): seq[Key] =
   var allNodes: seq[Key] = @[]
 

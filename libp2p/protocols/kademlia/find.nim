@@ -253,9 +253,16 @@ proc iterativeLookup*(
 
     for (fut, peerId) in zip(rpcBatch, toQuery):
       if not fut.finished():
+        fut.cancel()
+        state.responded[peerId] = RespondedStatus.Failed
+        discard kad.rtable.remove(peerId)
         continue
-      state.responded[peerId] =
-        if fut.failed(): RespondedStatus.Failed else: RespondedStatus.Success
+      
+      if fut.failed():
+        state.responded[peerId] = RespondedStatus.Failed
+        discard kad.rtable.remove(peerId)
+      else:
+        state.responded[peerId] = RespondedStatus.Success
 
     for (peerId, msg) in completedRPCBatch:
       msg.withValue(reply):
