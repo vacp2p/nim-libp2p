@@ -14,6 +14,7 @@ import
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
     libp2p_kademlia_requests, libp2p_stream_requests, libp2p_relay_requests,
+    libp2p_protocol_requests,
   ],
   ../../../libp2p
 
@@ -24,6 +25,7 @@ type RequestType* {.pure.} = enum
   KADEMLIA
   STREAM
   RELAY
+  PROTOCOL
 
 type CallbackKind* {.pure.} = enum
   DEFAULT
@@ -268,6 +270,13 @@ proc processRelay(
   of RelayMsgType.RELAY_RESERVE:
     handleReservationRes(await req.processReserve(libp2p), request)
 
+proc processProtocol(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  handleRes(
+    await cast[ptr ProtocolRequest](request[].reqContent).process(libp2p), request
+  )
+
 proc processLifecycle(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
@@ -389,6 +398,8 @@ proc process*(
     await processStream(request, libp2p)
   of RequestType.RELAY:
     await processRelay(request, libp2p)
+  of RequestType.PROTOCOL:
+    await processProtocol(request, libp2p)
 
 # String representation of the request type
 proc `$`*(self: LibP2PThreadRequest): string =

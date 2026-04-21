@@ -30,6 +30,8 @@ type LibP2PContext* = object
   eventCallback*: pointer
   eventUserData*: pointer
   running: Atomic[bool] # Used to stop the LibP2P thread loop
+  workerThreadId: Atomic[int] # Used to detect re-entrant calls from callbacks.
+  libp2p*: ptr LibP2P
 
 proc runLibP2P(ctx: ptr LibP2PContext) {.async: (raises: [CancelledError]).} =
   ## Main async loop of the LibP2P thread, processes incoming requests
@@ -38,6 +40,7 @@ proc runLibP2P(ctx: ptr LibP2PContext) {.async: (raises: [CancelledError]).} =
   # and attends library user requests
 
   var libp2p: LibP2P
+  ctx.libp2p = addr libp2p
 
   while true:
     try:
@@ -67,6 +70,10 @@ proc run(ctx: ptr LibP2PContext) {.thread.} =
   ## Thread entrypoint wrapper to start the async runLibP2P loop
 
   # Launch libp2p worker
+  # C protocol handlers and stream callbacks run on this same worker thread.
+  # Remembering its OS thread id lets sendRequestInternal avoid queueing work
+  # back to the worker and then waiting for the worker to receive itself.
+  ctx.workerThreadId.store(getThreadId())
   waitFor runLibP2P(ctx)
 
 proc createLibP2PThread*(): Result[ptr LibP2PContext, string] =
@@ -114,6 +121,20 @@ proc destroyLibP2PThread*(ctx: ptr LibP2PContext): Result[void, string] =
 proc sendRequestInternal(
     ctx: ptr LibP2PContext, req: ptr LibP2PThreadRequest
 ): Result[void, string] =
+  # Normal C callers enqueue requests from another thread and wait until the
+  # worker receives them. Custom protocol handlers are different: they are
+  # invoked by libp2p on the worker thread, and are expected to call
+  # libp2p_stream_* from their callbacks. If we used the queue path here, the
+  # worker would block waiting for a request that only the blocked worker can
+  # receive. Schedule the request directly on the current Chronos loop instead.
+  if ctx.workerThreadId.load == getThreadId():
+    if ctx.libp2p.isNil():
+      deallocShared(req)
+      return err("libp2p thread state is not initialized")
+
+    asyncSpawn LibP2PThreadRequest.process(req, ctx.libp2p)
+    return ok()
+
   # This lock is only necessary while we use a SP Channel and while the signalling
   # between threads assumes that there aren't concurrent requests.
   # Rearchitecting the signaling + migrating to a MP Channel will allow us to receive

@@ -16,6 +16,7 @@ import
   ./libp2p_thread/inter_thread_communication/requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
     libp2p_kademlia_requests, libp2p_stream_requests, libp2p_relay_requests,
+    libp2p_protocol_requests,
   ],
   ../libp2p,
   ../libp2p/crypto/crypto,
@@ -472,6 +473,36 @@ proc libp2p_dial(
     let msg = "libp2p error: " & $error
     callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
     return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_mount_protocol(
+    ctx: ptr LibP2PContext,
+    proto: cstring,
+    handler: Libp2pProtocolHandler,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc, cdecl.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if proto.isNil():
+    failWithMsg(callback, userData, "proto is nil")
+  if proto[0] == '\0':
+    failWithMsg(callback, userData, "proto is empty")
+  if handler.isNil():
+    failWithMsg(callback, userData, "handler is nil")
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.PROTOCOL,
+    ProtocolRequest.createShared(
+      ProtocolMsgType.MOUNT, cast[pointer](ctx), proto, handler, userData
+    ),
+    callback,
+    userData,
+  ).isOkOr:
+    failWithMsg(callback, userData, "libp2p error: " & $error)
 
   return RET_OK.cint
 
