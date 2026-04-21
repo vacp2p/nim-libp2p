@@ -3,7 +3,7 @@
 
 import std/sequtils
 import chronos, chronicles, results
-import ../../[peerid, switch, multiaddress, extended_peer_record, utility]
+import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
 import ../kademlia/[types, protobuf as kademlia_protobuf]
 import ./[types, routing_table_manager, service_discovery_metrics]
@@ -99,6 +99,67 @@ proc peersToQuery(disco: ServiceDiscovery, bucket: Bucket): seq[PeerId] =
   else:
     return @[]
 
+proc insertCloserPeers(
+    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId]
+) =
+  for nodeId in peers:
+    disco.rtManager.insertPeer(serviceId, nodeId.toKey())
+
+proc processResponse(
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    response: GetAdsResult,
+    found: var seq[Advertisement],
+    limit: int,
+) =
+  disco.insertCloserPeers(serviceId, response.closerPeers)
+  let remaining = limit - found.len
+  if remaining > 0:
+    found.add(response.ads[0 ..< min(remaining, response.ads.len)])
+
+proc drainCompletedPeers(
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    pending: seq[Future[Opt[GetAdsResult]]],
+) =
+  for fut in pending.filterIt(it.completed()):
+    fut.value().withValue(response):
+      disco.insertCloserPeers(serviceId, response.closerPeers)
+
+proc collectBucketAds(
+    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int
+): Future[seq[Advertisement]] {.async: (raises: [CancelledError]).} =
+  var found = newSeqOfCap[Advertisement](limit)
+  var pending: seq[Future[Opt[GetAdsResult]]] =
+    peers.mapIt(Future[Opt[GetAdsResult]](dispatchGetAds(disco, it, serviceId)))
+  defer:
+    for fut in pending:
+      if not fut.finished():
+        fut.cancelSoon()
+
+  let deadline = Moment.fromNow(disco.config.timeout)
+  for _ in 0 ..< pending.len:
+    let timeLeft = deadline - Moment.now()
+    if timeLeft <= ZeroDuration:
+      break
+
+    let wrapper = one(pending)
+    if not (await wrapper.withTimeout(timeLeft)):
+      break
+
+    let completedFut = wrapper.value()
+    pending.del(pending.find(completedFut))
+
+    if completedFut.completed():
+      completedFut.value().withValue(response):
+        disco.processResponse(serviceId, response, found, limit)
+
+    if found.len >= limit:
+      disco.drainCompletedPeers(serviceId, pending)
+      break
+
+  return found
+
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
@@ -122,19 +183,10 @@ proc lookup*(
     if bucket.peers.len == 0:
       continue
 
-    let peers = disco.peersToQuery(bucket)
-
-    let
-      rpcBatch = peers.mapIt(dispatchGetAds(disco, it, serviceId))
-      completedBatch = await rpcBatch.collectCompleted(disco.config.timeout)
-
-    for res in completedBatch:
-      res.withValue(response):
-        for nodeId in response.closerPeers:
-          disco.rtManager.insertPeer(serviceId, nodeId.toKey())
-        let remaining = disco.discoConfig.fLookup - found.len
-        if remaining > 0:
-          found.add(response.ads[0 ..< min(remaining, response.ads.len)])
+    let remaining = disco.discoConfig.fLookup - found.len
+    found.add(
+      await disco.collectBucketAds(serviceId, disco.peersToQuery(bucket), remaining)
+    )
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)
