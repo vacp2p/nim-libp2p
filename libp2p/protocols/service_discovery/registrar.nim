@@ -398,6 +398,12 @@ proc acceptAdvertisement*(
   if shouldUpdateMetrics:
     disco.registrar.updateRegistrarMetrics()
 
+proc tInitOrDefault(ticket: Opt[Ticket], default: uint64): uint64 =
+  ticket.withValue(t):
+    return t.tInit
+  else:
+    default
+
 proc handleRegister*(
     disco: ServiceDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
@@ -436,12 +442,7 @@ proc handleRegister*(
 
     var ticket = Ticket(
       advertisement: regMsg.advertisement,
-      tInit: regMsg.ticket
-        .map(
-          proc(t: Ticket): uint64 {.raises: [].} =
-            t.tInit
-        )
-        .get(now),
+      tInit: regMsg.ticket.tInitOrDefault(now),
       tMod: now,
       tWaitFor: uint32(min(tWait, float64(uint32.high))),
     )
@@ -466,10 +467,14 @@ proc handleGetAds*(
   let serviceId = msg.key
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
+  var cap = disco.discoConfig.fReturn
+  msg.getAds.withValue(getAdsMsg):
+    if getAdsMsg.limit > 0:
+      cap = min(disco.discoConfig.fReturn, getAdsMsg.limit.int)
+
   let response = Message(
     msgType: MessageType.getAds,
-    getAds:
-      Opt.some(GetAdsMessage(advertisements: ads.encode(disco.discoConfig.fReturn))),
+    getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
     closerPeers: disco.findClosestPeers(serviceId),
   )
   let bytes = response.encode().buffer

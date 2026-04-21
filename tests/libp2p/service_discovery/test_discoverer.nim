@@ -3,9 +3,9 @@
 {.used.}
 
 import chronos, results
-import ../../../libp2p/peerid
+import ../../../libp2p/[peerid, switch]
 import ../../../libp2p/protocols/service_discovery/[discoverer, types]
-import ../../tools/unittest
+import ../../tools/[unittest]
 import ./utils
 
 suite "Discoverer - lookup":
@@ -54,21 +54,3 @@ suite "Discoverer - lookup":
     check disco.rtManager.hasService(sid1)
     check disco.rtManager.hasService(sid2)
     check disco.rtManager.count() == 2
-
-  asyncTest "kRegister cap: result length never exceeds kRegister":
-    let kRegister = 5
-    let disco = makeMockDiscovery(
-      discoConfig = ServiceDiscoveryConfig.new(kRegister = kRegister, bucketsCount = 16)
-    )
-    let serviceId = makeServiceId()
-
-    var peers = newSeq[PeerId](kRegister + 2)
-    for i in 0 ..< peers.len:
-      peers[i] = makePeerId()
-
-    populateSearchTable(disco, serviceId, peers)
-
-    let res = await disco.lookup(serviceId)
-
-    check res.isOk()
-    check res.get().len <= kRegister

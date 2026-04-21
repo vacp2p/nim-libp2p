@@ -323,6 +323,113 @@ suite "GossipSub Extensions :: Partial Message Extension":
     check ext.publishPartial(topic, pm, peers = @[selectedPeerId]) == 0
     check cr.sentRPC.len == 1
 
+  test "publish partial message: selected peer without subscription can receive explicit metadata reply":
+    const topic = "logos-partial"
+    var cr = CallbackRecorder()
+    var ext = PartialMessageExtension.new(cr.config())
+    let publisherPeerId = PeerId.random(rng).get()
+
+    # publisher sent metadata for this group but is not subscribed to the topic
+    ext.handlePartialMessage(
+      publisherPeerId,
+      PartialMessageExtensionRPC(
+        topicID: topic,
+        groupID: groupId,
+        partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+      ),
+    )
+
+    # local node can still send an explicit metadata reply to that peer
+    let pm = MyPartialMessage(
+      groupId: groupId, data: initTable[Chunk, seq[byte]](), want: @[1, 2]
+    )
+
+    check ext.publishPartial(topic, pm, peers = @[publisherPeerId]) == 1
+    check:
+      cr.sentRPC.len == 1
+      cr.sentRPC[0] ==
+        PeerRPC(
+          peerId: publisherPeerId,
+          rpc: PartialMessageExtensionRPC(
+            groupID: groupId,
+            topicID: topic,
+            partsMetadata: MyPartsMetadata.want(@[1, 2]),
+            partialMessage: @[],
+          ),
+        )
+
+  test "publish partial message: fanout publisher":
+    # fanout usecase when application publishes parts on a topic it has not
+    # subscribed to.
+    const topic = "logos-partial"
+    var cr = CallbackRecorder(publishToPeers: @[peerId])
+    var config = cr.config()
+    # override nodeTopicOpts to mimic a non-subscribed publisher: both flags false
+    config.nodeTopicOpts = proc(topic: string): TopicOpts {.gcsafe, raises: [].} =
+      TopicOpts()
+    var ext = PartialMessageExtension.new(config)
+
+    # peer subscribes with partial capability
+    ext.subscribe(peerId, topic, true)
+
+    # application/user is publishing message with parts [1, 2, 3]
+    let pm = MyPartialMessage(
+      groupId: groupId,
+      data: {1: "one".toBytes, 2: "two".toBytes, 3: "three".toBytes}.toTable,
+    )
+    check ext.publishPartial(topic, pm, peers = @[peerId]) == 1
+      # should publish to peer even though node is not subscribed
+
+    # peer should receive parts metadata announcing what publisher has
+    check:
+      cr.sentRPC.len == 1
+      cr.sentRPC[0] ==
+        PeerRPC(
+          peerId: peerId,
+          rpc: PartialMessageExtensionRPC(
+            groupID: groupId,
+            topicID: topic,
+            partsMetadata: MyPartsMetadata.have(@[1, 2, 3]),
+            partialMessage: @[],
+          ),
+        )
+
+  test "publish partial message: broadcast reaches publish targets and peers with group state":
+    # broadcast publish (no explicit peers) should reach the union of:
+    #   - default publish targets returned by publishToPeers, and
+    #   - peers that already have per-group state for this topic.
+    # the stateOnlyPeer is intentionally not subscribed, it is reached
+    # only through groupState.peerState.keys and receives metadata-only.
+    const topic = "logos-partial"
+    let publishTargetPeerId = PeerId.random(rng).get()
+    let stateOnlyPeerId = PeerId.random(rng).get()
+    var cr = CallbackRecorder(publishToPeers: @[publishTargetPeerId])
+    var ext = PartialMessageExtension.new(cr.config())
+
+    ext.subscribe(publishTargetPeerId, topic, true)
+    ext.handlePartialMessage(
+      stateOnlyPeerId,
+      PartialMessageExtensionRPC(
+        topicID: topic, groupID: groupId, partsMetadata: MyPartsMetadata.want(@[1])
+      ),
+    )
+
+    let pm = MyPartialMessage(groupId: groupId, data: {1: "one".toBytes}.toTable)
+    check ext.publishPartial(topic, pm) == 2 # both peers reached
+    check cr.sentRPC.len == 2
+
+    let publishTargetRPC = cr.sentRPC.filterIt(it.peerId == publishTargetPeerId)
+    let stateOnlyRPC = cr.sentRPC.filterIt(it.peerId == stateOnlyPeerId)
+    check:
+      publishTargetRPC.len == 1
+      publishTargetRPC[0].rpc.partialMessage.len == 0
+        # default publish target has sent no group metadata, gets announcement only
+      publishTargetRPC[0].rpc.partsMetadata == MyPartsMetadata.have(@[1])
+      stateOnlyRPC.len == 1
+      stateOnlyRPC[0].rpc.partialMessage.len == 0
+        # reached via peerState.keys fallback, not subscribed, so metadata-only
+      stateOnlyRPC[0].rpc.partsMetadata == MyPartsMetadata.have(@[1])
+
   test "publish parts metadata":
     const topic = "logos-partial"
     var cr = CallbackRecorder(publishToPeers: @[peerId])
