@@ -26,8 +26,40 @@ jobs:
     steps:
       - uses: toshimaru/delete-action-cache@main
 
+  resolve_deps:
+    name: Resolve newest dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      deps: ${{ steps.resolve.outputs.deps }}
+    steps:
+      - name: Checkout
+        if: ${{ inputs.pinned_deps == false }}
+        uses: actions/checkout@v4
+
+      - name: Resolve dependencies
+        id: resolve
+        if: ${{ inputs.pinned_deps == false }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if ! DEPS=$(python3 tools/resolve_newest_deps.py .pinned 2>"$RUNNER_TEMP/resolve_deps.log"); then
+            cat "$RUNNER_TEMP/resolve_deps.log"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/resolve_deps.log"
+          if [ -z "$DEPS" ]; then
+            echo "ERROR: dependency resolver produced no output" >&2
+            exit 1
+          fi
+          printf 'deps=%s\n' "$DEPS" >> "$GITHUB_OUTPUT"
+
+      - name: Skip dependency resolution
+        if: ${{ inputs.pinned_deps }}
+        run: |
+          echo "Pinned dependencies requested; skipping newest dependency resolution."
+
   test:
-    needs: delete_cache
+    needs: [delete_cache, resolve_deps]
     env:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
     timeout-minutes: 55
@@ -104,10 +136,18 @@ jobs:
         run: |
           nimble install_pinned
 
-      - name: Install dependencies (latest)
+      - name: Install dependencies (newest used across projects)
         if: ${{ inputs.pinned_deps == false }}
+        env:
+          DEPS: ${{ needs.resolve_deps.outputs.deps }}
         run: |
-          nimble install -y --depsOnly
+          if [ -z "$DEPS" ]; then
+            echo "ERROR: dependency resolver produced no output for this workflow run" >&2
+            exit 1
+          fi
+          echo "=== Installing resolved newest dependencies ==="
+          echo "nimble install -y $DEPS"
+          nimble install -y $DEPS
 
       - name: Run tests
         run: |
