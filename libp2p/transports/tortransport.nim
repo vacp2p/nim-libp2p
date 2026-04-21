@@ -264,7 +264,7 @@ method start*(
       raise newException(TransportStartError, "invalid tor address: " & $ma)
 
   if listenAddrs.len == 0:
-    raise newException(TransportStartError, "no addr was provided.")
+    raise newException(TransportStartError, "no address was provided.")
 
   await procCall Transport(self).start(onion3Addrs)
   await self.tcpTransport.start(listenAddrs)
