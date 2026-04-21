@@ -404,7 +404,7 @@ proc requestPeer[E](
         pbNone(default(seq[byte]))
     else:
       pbNone(default(seq[byte]))
-  debugEcho "ZXC ", repr d.cookie
+  debugEcho "ZXC ", repr(d.cookie), byteutils.toHex(Protobuf.encode(Message(msgType: pbSome(MsgTypeDiscover), discover: pbSome(d))))
   await conn.writeLp(
     Protobuf.encode(Message(msgType: pbSome(MsgTypeDiscover), discover: pbSome(d)))
   )
