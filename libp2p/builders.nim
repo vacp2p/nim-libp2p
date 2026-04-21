@@ -322,7 +322,7 @@ proc withWatermark*(
   b
 
 proc withScoring*(
-    b: SwitchBuilder, scoringConfig: ScoringConfig = ScoringConfig(),
+    b: SwitchBuilder, scoringConfig: ScoringConfig = ScoringConfig()
 ): SwitchBuilder {.public.} =
   ## Configure connection scoring parameters.
   b.scoringConfig = scoringConfig
@@ -677,4 +677,4 @@ proc newStandardSwitch*(
     sendSignedPeerRecord = sendSignedPeerRecord,
     peerStoreCapacity = peerStoreCapacity,
   )
-  .build()
+    .build()
