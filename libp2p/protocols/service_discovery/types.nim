@@ -127,6 +127,7 @@ proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: []
       error "failed to encode advertisement", error
       continue
     adBytes.add(encoded)
+  adBytes
 
 proc hashServiceId*(serviceStr: string): ServiceId =
   let digest = sha256.digest(serviceStr)
