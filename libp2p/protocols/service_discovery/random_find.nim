@@ -69,13 +69,8 @@ proc randomRecords*(
 
   return records.toSeq()
 
-proc filterByServices*(
-    records: seq[ExtendedPeerRecord], services: HashSet[ServiceInfo]
-): seq[ExtendedPeerRecord] =
-  records.filterIt(it.services.anyIt(services.contains(it)))
-
-proc lookup*(
-    disco: ServiceDiscovery, service: ServiceInfo
+proc random_lookup*(
+    disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
   let records = await disco.randomRecords()
 

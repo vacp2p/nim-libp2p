@@ -97,28 +97,20 @@ proc startAdvertising*(
     registrar: PeerId,
     bucketIdx: int,
     ticket: Opt[Ticket],
-    add: Opt[seq[byte]],
+    advert: Opt[seq[byte]],
 ) {.async: (raises: [CancelledError]).} =
+  doAssert not disco.clientMode, "not supported in client mode"
+
   if not disco.rtManager.hasService(serviceId):
     error "no service routing table found", serviceId
     return
 
-  let addBuff =
-    if add.isSome:
-      add.get()
+  let advertBuff =
+    if advert.isSome:
+      advert.get()
     else:
-      let peerInfo = disco.switch.peerInfo
-      inc(disco.advertiser.seqNo)
-      let extRecord = SignedExtendedPeerRecord.init(
-        peerInfo.privateKey,
-        ExtendedPeerRecord(
-          peerId: peerInfo.peerId,
-          seqNo: disco.advertiser.seqNo,
-          addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-          services: disco.services.toSeq(),
-        ),
-      ).valueOr:
-        error "failed to create extended peer record", error
+      let extRecord = disco.record().valueOr:
+        error "failed create extended peer record", error
         return
       extRecord.encode().valueOr:
         error "failed to encode advertisement", error
@@ -129,14 +121,12 @@ proc startAdvertising*(
   var currentTicket = ticket
 
   while true:
-    let responseResult =
-      await disco.sendRegister(registrar, serviceId, addBuff, currentTicket)
-    if responseResult.isErr:
-      error "failed to register ad", error = responseResult.error
-      await sleepAsync(chronos.seconds(30))
-      continue
+    let response = (
+      await disco.sendRegister(registrar, serviceId, advertBuff, currentTicket)
+    ).valueOr:
+      error "failed to register ad", error
+      return
 
-    let response = responseResult.unsafeGet()
     for pid in response.closerPeers:
       disco.rtManager.insertPeer(serviceId, pid.toKey())
 
@@ -144,28 +134,27 @@ proc startAdvertising*(
     of kademlia_protobuf.RegistrationStatus.Confirmed:
       await sleepAsync(disco.discoConfig.advertExpiry)
     of kademlia_protobuf.RegistrationStatus.Wait:
-      if response.ticket.isNone:
+      let newTicket = newTicketOpt.valueOr:
         error "no ticket to retry with"
-        await sleepAsync(disco.discoConfig.occupancyExp)
-        continue
+        return
 
-      let newTicket = response.ticket.unsafeGet()
       currentTicket = Opt.some(newTicket)
+
       let waitSecs =
         min(disco.discoConfig.advertExpiry.seconds.uint32, newTicket.tWaitFor)
 
       await sleepAsync(chronos.seconds(int(waitSecs)))
     of kademlia_protobuf.RegistrationStatus.Rejected:
-      # Deliberate rejection; respect it for a full advertisement period before retrying,
-      # as the registrar's capacity or our position in the keyspace may have changed.
-      currentTicket = Opt.none(Ticket)
-      await sleepAsync(disco.discoConfig.advertExpiry)
+      # Don't reschedule - this registrar rejected us
+      break
 
 proc addProvidedService*(
     disco: ServiceDiscovery,
     service: ServiceInfo,
-    add: Opt[seq[byte]] = Opt.none(seq[byte]),
+    advert: Opt[seq[byte]] = Opt.none(seq[byte]),
 ) =
+  doAssert not disco.clientMode, "not supported in client mode"
+
   let serviceId = service.id.hashServiceId()
 
   if not disco.rtManager.addService(
@@ -194,14 +183,17 @@ proc addProvidedService*(
         error "cannot convert key to peer id", error
         continue
 
-      let fut =
-        disco.startAdvertising(serviceId, registrar, bucketIdx, Opt.none(Ticket), add)
+      let fut = disco.startAdvertising(
+        serviceId, registrar, bucketIdx, Opt.none(Ticket), advert
+      )
       disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
       cd_advertiser_pending_actions.inc()
 
 proc removeProvidedService*(
     disco: ServiceDiscovery, service: ServiceInfo
 ) {.async: (raises: [CancelledError]).} =
+  doAssert not disco.clientMode, "not supported in client mode"
+
   let serviceId = service.id.hashServiceId()
 
   var toRemove: HashSet[AdvertiseTask]

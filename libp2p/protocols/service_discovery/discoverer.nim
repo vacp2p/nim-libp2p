@@ -44,11 +44,7 @@ proc dispatchGetAds(
   defer:
     await conn.close()
 
-  let msg = Message(
-    msgType: MessageType.getAds,
-    key: serviceId,
-    getAds: Opt.some(GetAdsMessage(limit: limit.uint32)),
-  )
+  let msg = Message(msgType: MessageType.getAds, key: serviceId)
   let encodedMsg = msg.encode().buffer
 
   cd_messages_sent.inc(labelValues = [$MessageType.getAds])
@@ -84,17 +80,17 @@ proc dispatchGetAds(
     error "get ads message response not found"
     return Opt.none(GetAdsResult)
 
-  var closerPeerInfos: seq[PeerInfo]
+  var peerIds: seq[PeerId]
   for peer in reply.closerPeers:
-    let pid = PeerId.init(peer.id).valueOr:
+    let peerId = PeerId.init(peer.id).valueOr:
+      error "failed to decode peer id", error
       continue
-    closerPeerInfos.add(PeerInfo(peerId: pid, addrs: peer.addrs))
-  disco.updatePeers(closerPeerInfos)
+
+    peerIds.add(peerId)
 
   return Opt.some(
     GetAdsResult(
-      ads: getAdsMsg.advertisements.validAds(serviceId),
-      closerPeers: closerPeerInfos.mapIt(it.peerId),
+      ads: getAdsMsg.advertisements.validAds(serviceId), closerPeers: peerIds
     )
   )
 
@@ -197,3 +193,24 @@ proc lookup*(
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)
+
+proc addServiceInterest*(
+    disco: ServiceDiscovery, service: ServiceInfo
+) {.async: (raises: [CancelledError]).} =
+  ## Add this service to this node's set of interests.
+
+  let serviceId = service.id.hashServiceId()
+
+  discard disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+
+proc removeServiceInterest*(
+    disco: ServiceDiscovery, service: ServiceInfo
+) {.async: (raises: [CancelledError]).} =
+  ## Remove this service from this node's set of interests.
+
+  let serviceId = service.id.hashServiceId()
+
+  disco.rtManager.removeService(serviceId, Interest)
