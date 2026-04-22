@@ -207,9 +207,8 @@ suite "Integration - handleRegister":
     await connect(registrarNode, advertiserNode)
 
     let serviceId = makeServiceId()
-    let adBytes =
-      @[1'u8, 2, 3, 4]
-        # malformed — validateRegisterMessage rejects before ticket check
+    let adBytes = @[1'u8, 2, 3, 4]
+      # malformed — validateRegisterMessage rejects before ticket check
 
     let regResp = await advertiserNode.sendRegister(
       registrarNode.switch.peerInfo.peerId, serviceId, adBytes
