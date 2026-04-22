@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sets, sequtils]
+import std/[sets]
 import chronos, chronicles, results
 import
   ../../[peerid, switch, multihash, cid, multicodec, multiaddress, extended_peer_record]

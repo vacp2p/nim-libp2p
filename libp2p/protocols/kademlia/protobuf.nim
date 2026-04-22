@@ -222,10 +222,9 @@ proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
   return ok(regMsg)
 
 proc decode*(T: type GetAdsMessage, pb: ProtoBuffer): ProtoResult[T] =
-  var getAdsMsg = GetAdsMessage(advertisements: @[], limit: 0)
+  var getAdsMsg = GetAdsMessage(advertisements: @[])
 
   discard ?pb.getRepeatedField(1, getAdsMsg.advertisements)
-  discard ?pb.getField(2, getAdsMsg.limit)
 
   return ok(getAdsMsg)
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results, sets, sequtils, std/times
+import chronos, chronicles, results, sets
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
@@ -13,24 +13,6 @@ export random_find, types, discoverer
 
 logScope:
   topics = "service-discovery"
-
-proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] =
-  let
-    peerInfo: PeerInfo = disco.switch.peerInfo
-    services: seq[ServiceInfo] = disco.services.toSeq()
-
-  let extPeerRecord = SignedExtendedPeerRecord.init(
-    peerInfo.privateKey,
-    ExtendedPeerRecord(
-      peerId: peerInfo.peerId,
-      seqNo: getTime().toUnix().uint64,
-      addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-      services: services,
-    ),
-  ).valueOr:
-    return err("Failed to create signed peer record: " & $error)
-
-  return ok(extPeerRecord)
 
 proc refreshSelfSignedPeerRecord(
     disco: ServiceDiscovery
