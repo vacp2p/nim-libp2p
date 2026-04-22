@@ -22,9 +22,14 @@ proc filterAddrs*(
 const publicRoutableAddressPolicy* = proc(
     ma: MultiAddress
 ): bool {.gcsafe, raises: [].} =
-  not isFilterablePrivateMA(ma)
+  ## Returns true if this address should be filtered out because it is private
+  ## or not globally routable. Circuit relay addresses are never filtered even
+  ## if the relay itself has a private IP, since the relay address may still
+  ## provide connectivity.
 
-const localNoPrivateAddressPolicy* = proc(
-    ma: MultiAddress
-): bool {.gcsafe, raises: [].} =
-  not isFilterableNonLoopbackPrivateMA(ma)
+  isCircuitRelayMA(ma) or isPublicMA(ma)
+
+const noPrivateAddressPolicy* = proc(ma: MultiAddress): bool {.gcsafe, raises: [].} =
+  ## Returns true for addr that are either public, circuit-relay or loopback
+
+  isCircuitRelayMA(ma) or isPublicMA(ma) or isLoopbackMA(ma)
