@@ -182,7 +182,8 @@ proc lookup*(
 
   var found = newSeqOfCap[Advertisement](disco.discoConfig.fLookup)
 
-  for bucket in searchTable.buckets:
+  let buckets = searchTable.buckets
+  for bucket in buckets:
     if found.len >= disco.discoConfig.fLookup:
       break
 
