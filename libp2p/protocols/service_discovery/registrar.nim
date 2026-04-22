@@ -408,8 +408,7 @@ proc handleRegister*(
     disco: ServiceDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   let serviceId = msg.key
-  let closerPeers = disco.findClosestPeers(serviceId) # findClosestPeers doesn't exist!!!
-
+  let closerPeers = disco.findClosestPeers(serviceId)
   let regMsg = msg.register.valueOr:
     return
 
@@ -476,7 +475,7 @@ proc handleGetAds*(
   let response = Message(
     msgType: MessageType.getAds,
     getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
-    closerPeers: disco.findClosestPeers(serviceId), # findClosestPeers doesn't exist!!!
+    closerPeers: disco.findClosestPeers(serviceId),
   )
   let bytes = response.encode().buffer
 

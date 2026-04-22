@@ -80,17 +80,10 @@ proc dispatchGetAds(
     error "get ads message response not found"
     return Opt.none(GetAdsResult)
 
-  var peerIds: seq[PeerId]
-  for peer in reply.closerPeers:
-    let peerId = PeerId.init(peer.id).valueOr:
-      error "failed to decode peer id", error
-      continue
-
-    peerIds.add(peerId)
-
   return Opt.some(
     GetAdsResult(
-      ads: getAdsMsg.advertisements.validAds(serviceId), closerPeers: peerIds
+      ads: getAdsMsg.advertisements.validAds(serviceId),
+      closerPeers: reply.closerPeers.toPeerIds(),
     )
   )
 

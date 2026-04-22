@@ -105,16 +105,13 @@ proc startAdvertising*(
     error "no service routing table found", serviceId
     return
 
-  let advertBuff =
-    if advert.isSome:
-      advert.get()
-    else:
-      let extRecord = disco.record().valueOr:
-        error "failed create extended peer record", error
-        return
-      extRecord.encode().valueOr:
-        error "failed to encode advertisement", error
-        return
+  let advertBuff = advert.valueOr:
+    let extRecord = disco.record().valueOr:
+      error "failed create extended peer record", error
+      return
+    extRecord.encode().valueOr:
+      error "failed to encode advertisement", error
+      return
 
   cd_advertiser_actions_executed.inc()
 
@@ -134,7 +131,7 @@ proc startAdvertising*(
     of kademlia_protobuf.RegistrationStatus.Confirmed:
       await sleepAsync(disco.discoConfig.advertExpiry)
     of kademlia_protobuf.RegistrationStatus.Wait:
-      let newTicket = newTicketOpt.valueOr:
+      let newTicket = response.ticket.valueOr:
         error "no ticket to retry with"
         return
 

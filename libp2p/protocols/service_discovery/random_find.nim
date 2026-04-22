@@ -69,7 +69,7 @@ proc randomRecords*(
 
   return records.toSeq()
 
-proc random_lookup*(
+proc lookupRandom*(
     disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
   let records = await disco.randomRecords()
