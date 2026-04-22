@@ -179,7 +179,7 @@ suite "processRetryTicket":
     let tResult = disco.processRetryTicket(regMsg, ad, 100.0, 2000)
     check tResult <= 0.0
 
-suite "Integration - handleRegister":
+suite "Component - handleRegister":
   teardown:
     checkTrackers()
 
@@ -207,8 +207,9 @@ suite "Integration - handleRegister":
     await connect(registrarNode, advertiserNode)
 
     let serviceId = makeServiceId()
-    let adBytes = @[1'u8, 2, 3, 4]
-      # malformed — validateRegisterMessage rejects before ticket check
+    let adBytes =
+      @[1'u8, 2, 3, 4]
+        # malformed — validateRegisterMessage rejects before ticket check
 
     let regResp = await advertiserNode.sendRegister(
       registrarNode.switch.peerInfo.peerId, serviceId, adBytes
@@ -265,7 +266,7 @@ suite "Integration - handleRegister":
     check regResp.isOk()
     check regResp.get().status == kad_protobuf.RegistrationStatus.Confirmed
 
-suite "Integration - handleGetAds":
+suite "Component - handleGetAds":
   teardown:
     checkTrackers()
 
@@ -329,7 +330,7 @@ suite "Integration - handleGetAds":
     check found.isOk()
     check found.get().len <= 2
 
-suite "Integration - end-to-end":
+suite "Component - end-to-end":
   teardown:
     checkTrackers()
 
