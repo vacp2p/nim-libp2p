@@ -187,27 +187,6 @@ proc lookup*(
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)
 
-proc addServiceInterest*(
-    disco: ServiceDiscovery, service: ServiceInfo
-) {.async: (raises: [CancelledError]).} =
-  ## Add this service to this node's set of interests.
-
-  let serviceId = service.id.hashServiceId()
-
-  discard disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-
-proc removeServiceInterest*(
-    disco: ServiceDiscovery, service: ServiceInfo
-) {.async: (raises: [CancelledError]).} =
-  ## Remove this service from this node's set of interests.
-
-  let serviceId = service.id.hashServiceId()
-
-  disco.rtManager.removeService(serviceId, Interest)
-
 proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
   let serviceId = service.id.hashServiceId()
   let added = disco.rtManager.addService(
