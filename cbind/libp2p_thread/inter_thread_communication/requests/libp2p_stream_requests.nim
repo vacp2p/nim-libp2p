@@ -77,7 +77,7 @@ proc createShared*(
   ret[].maxSize = maxSize
   ret
 
-proc destroyShared(self: ptr StreamRequest) =
+proc destroyShared*(self: ptr StreamRequest) =
   deallocShared(self[].peerId)
   deallocShared(self[].multiaddr)
   deallocShared(self[].proto)
@@ -301,6 +301,18 @@ proc processRelease*(
 
   if not libp2p[].connections.hasKey(handle):
     return err("unknown connection handle")
+
+  # For incoming custom-protocol streams, release completes the Nim protocol
+  # handler that has been waiting for C to finish its callback chain.
+  if libp2p[].streamReleaseWaiters.hasKey(handle):
+    let releaseWaiter =
+      try:
+        libp2p[].streamReleaseWaiters[handle]
+      except KeyError:
+        raiseAssert "checked with hasKey"
+    libp2p[].streamReleaseWaiters.del(handle)
+    if not releaseWaiter.finished:
+      releaseWaiter.complete()
 
   libp2p[].connections.del(handle)
   deallocShared(handle)
