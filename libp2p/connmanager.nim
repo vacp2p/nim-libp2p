@@ -619,22 +619,19 @@ proc peerScore*(c: ConnManager, peerId: PeerId): int =
 
 proc applyDecay(c: ConnManager) =
   let now = Moment.now()
-  var peersToRemove: seq[PeerId]
-  for peerId in toSeq(c.decayingTags.keys):
-    var toRemove: seq[string]
+  for peerId in c.decayingTags.keys.toSeq():
     c.decayingTags.withValue(peerId, innerTable):
+      var tagsToRemove: seq[string]
       for name, tag in innerTable[].mpairs():
         if now >= tag.lastTick + tag.interval:
           tag.value = tag.decayFn(tag.value, now - tag.lastTick)
           tag.lastTick = now
           if tag.value <= 0:
-            toRemove.add(name)
-      for name in toRemove:
+            tagsToRemove.add(name)
+      for name in tagsToRemove:
         innerTable[].del(name)
       if innerTable[].len == 0:
-        peersToRemove.add(peerId)
-  for peerId in peersToRemove:
-    c.decayingTags.del(peerId)
+        c.decayingTags.del(peerId)
 
 proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
   while c.decayingTags.len > 0:
