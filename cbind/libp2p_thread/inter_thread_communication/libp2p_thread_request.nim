@@ -14,6 +14,7 @@ import
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
     libp2p_kademlia_requests, libp2p_stream_requests, libp2p_relay_requests,
+    libp2p_protocol_requests,
   ],
   ../../../libp2p
 
@@ -24,6 +25,7 @@ type RequestType* {.pure.} = enum
   KADEMLIA
   STREAM
   RELAY
+  PROTOCOL
 
 type CallbackKind* {.pure.} = enum
   DEFAULT
@@ -61,6 +63,33 @@ proc createShared*(
   ret[].callback = callback
   ret[].userData = userData
   return ret
+
+proc destroyUnprocessedRequest*(request: ptr LibP2PThreadRequest) =
+  ## Free a request that never reached its processor.
+  ##
+  ## Once `process` starts, ownership of reqContent belongs to the typed request
+  ## processor and this helper must not be used.
+  if request.isNil():
+    return
+
+  if not request[].reqContent.isNil():
+    case request[].reqType
+    of RequestType.LIFECYCLE:
+      destroyShared(cast[ptr LifecycleRequest](request[].reqContent))
+    of RequestType.PEER_MANAGER:
+      destroyShared(cast[ptr PeerManagementRequest](request[].reqContent))
+    of RequestType.PUBSUB:
+      destroyShared(cast[ptr PubSubRequest](request[].reqContent))
+    of RequestType.KADEMLIA:
+      destroyShared(cast[ptr KademliaRequest](request[].reqContent))
+    of RequestType.STREAM:
+      destroyShared(cast[ptr StreamRequest](request[].reqContent))
+    of RequestType.RELAY:
+      destroyShared(cast[ptr RelayRequest](request[].reqContent))
+    of RequestType.PROTOCOL:
+      destroyShared(cast[ptr ProtocolRequest](request[].reqContent))
+
+  deallocShared(request)
 
 # Handles responses of type Result[string, string] or Result[void, string]
 # Converts the result into a C callback invocation with either RET_OK or RET_ERR
@@ -268,6 +297,13 @@ proc processRelay(
   of RelayMsgType.RELAY_RESERVE:
     handleReservationRes(await req.processReserve(libp2p), request)
 
+proc processProtocol(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  handleRes(
+    await cast[ptr ProtocolRequest](request[].reqContent).process(libp2p), request
+  )
+
 proc processLifecycle(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
@@ -389,6 +425,8 @@ proc process*(
     await processStream(request, libp2p)
   of RequestType.RELAY:
     await processRelay(request, libp2p)
+  of RequestType.PROTOCOL:
+    await processProtocol(request, libp2p)
 
 # String representation of the request type
 proc `$`*(self: LibP2PThreadRequest): string =

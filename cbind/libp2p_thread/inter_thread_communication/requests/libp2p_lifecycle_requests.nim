@@ -17,6 +17,7 @@ import ../../../../libp2p/crypto/secp
 import ../../../../libp2p/nameresolving/[dnsresolver, nameresolver]
 import ../../../../libp2p/protocols/pubsub/gossipsub
 import ../../../../libp2p/protocols/kademlia
+import ../../../../libp2p/protocols/protocol
 import ../../../../libp2p/protocols/service_discovery
 import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/mix
@@ -285,6 +286,9 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     relayClient: relayClientOpt,
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
+    streamReleaseWaiters:
+      initTable[ptr Libp2pStream, Future[void].Raising([CancelledError])](),
+    customProtocols: initTable[string, LPProtocol](),
   )
 
   mountProtocols(ret, config)
@@ -395,7 +399,7 @@ proc createShared*(
 
   return ret
 
-proc destroyShared(self: ptr LifecycleRequest) =
+proc destroyShared*(self: ptr LifecycleRequest) =
   # TODO: Free any newly added fields here if you change the object structure
   # TODO: Deallocate parameters of GC'd types from the shared memory
   if not self[].config.dnsResolver.isNil():

@@ -99,6 +99,7 @@ type
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
     watermarkCfg: Opt[WatermarkConfig]
+    scoringConfig: ScoringConfig
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -123,6 +124,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
     watermarkCfg: Opt.none(WatermarkConfig),
+    scoringConfig: ScoringConfig(),
   )
 
 proc withPrivateKey*(
@@ -319,6 +321,13 @@ proc withWatermark*(
   )
   b
 
+proc withScoring*(
+    b: SwitchBuilder, scoringConfig: ScoringConfig = ScoringConfig()
+): SwitchBuilder {.public.} =
+  ## Configure connection scoring parameters.
+  b.scoringConfig = scoringConfig
+  b
+
 proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder {.public.} =
   b.peerStoreCapacity = Opt.some(capacity)
   b
@@ -456,8 +465,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
   var connManager: ConnManager
-  if b.watermarkCfg.isSome():
-    connManager = ConnManager.newWatermark(b.watermarkCfg.get(), b.maxConnsPerPeer)
+  if b.watermarkCfg.isSome:
+    connManager =
+      ConnManager.newWatermark(b.watermarkCfg.get(), b.maxConnsPerPeer, b.scoringConfig)
   elif b.maxIn > 0 or b.maxOut > 0:
     if b.maxIn > 0 and b.maxOut > 0:
       connManager = ConnManager.newMaxInOut(b.maxIn, b.maxOut, b.maxConnsPerPeer)

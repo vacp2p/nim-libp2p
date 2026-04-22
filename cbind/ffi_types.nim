@@ -108,6 +108,14 @@ type ConnectionCallback* = proc(
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 
+type Libp2pProtocolHandler* = proc(
+  ctx: pointer,
+  stream: ptr Libp2pStream,
+  proto: ptr cchar,
+  protoLen: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
 type PubsubTopicHandler* = proc(
   topic: cstring, data: ptr byte, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
