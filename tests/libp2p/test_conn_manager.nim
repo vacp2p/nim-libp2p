@@ -550,7 +550,7 @@ suite "Connection Manager Scoring":
   teardown:
     checkTrackers()
 
-  const tag = "logos-conn"
+  const tag = "λ"
   let peerId = PeerId.random.tryGet()
 
   asyncTest "peerScore returns 0 for unknown peer":
