@@ -8,6 +8,7 @@ import
     peerid,
     protocols/pubsub/gossipsub,
     protocols/pubsub/gossipsub/extension_partial_message,
+    protocols/pubsub/pubsubpeer,
     protocols/pubsub/rpc/messages,
     switch,
     utils/tablekey,
@@ -37,6 +38,21 @@ proc makeKey*(topicId: string, groupId: uint64): string =
 proc makeKey(topicId: string, groupId: seq[byte]): string =
   makeKey(topicId, fromBytesBE(uint64, groupId.toOpenArray(0, GroupIdLen - 1)))
 
+proc addReceivedMessageLogger(runner: ScriptRunner) =
+  let logStream = runner.logStream
+
+  runner.node.addObserver(
+    PubSubObserver(
+      onRecv: proc(peer: PubSubPeer, rpc: var RPCMsg) {.gcsafe, raises: [].} =
+        for msg in rpc.messages:
+          if msg.topic notin runner.node.topics or msg.data.len < 8:
+            continue
+
+          let msgId = extractMsgId(msg.data)
+          logReceivedMessage(logStream, $msgId, msg.topic)
+    )
+  )
+
 proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConfig =
   ## Create a PartialMessageExtensionConfig wired to this runner.
   ## runner.node must be set after node creation but before any RPC processing.
@@ -53,6 +69,9 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
       warn "Incoming RPC has invalid groupID length", len = rpc.groupID.len
       return
 
+    let groupId = fromBytesBE(uint64, rpc.groupID)
+    logReceivedPartialMessage(runner.logStream, rpc.topicID, groupId, peer)
+
     let key = makeKey(rpc.topicID, rpc.groupID)
     let pm =
       runner.messages.mgetOrPut(key, InteropPartialMessage.fromBytes(rpc.groupID))
@@ -66,8 +85,7 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
 
       if pm.partsMetadata() != before:
         if pm.isComplete():
-          let gid = fromBytesBE(uint64, pm.groupIdBytes)
-          logAllPartsReceived(runner.logStream, gid)
+          logAllPartsReceived(runner.logStream, groupId)
 
     doAssert runner.node != nil, "runner.node must be set before RPC processing"
 
@@ -97,6 +115,7 @@ proc newScriptRunner*(
     else:
       Opt.none(PartialMessageExtensionConfig)
   runner.node = createNode(nodeId, listenAddr, gossipSubParams, pmConfig)
+  runner.addReceivedMessageLogger()
   runner
 
 proc start*(runner: ScriptRunner) {.async.} =
@@ -137,15 +156,8 @@ proc executeWaitUntil(runner: ScriptRunner, elapsed: Duration) {.async.} =
 proc executeSubscribeToTopic(
     runner: ScriptRunner, topicId: string, partial: bool
 ) {.async.} =
-  let logStream = runner.logStream
-
-  proc topicHandler(topic: string, data: seq[byte]) {.async.} =
-    if data.len >= 8:
-      let msgId = extractMsgId(data)
-      logReceivedMessage(logStream, $msgId, topic)
-
   runner.node.subscribe(
-    topicId, topicHandler, requestsPartial = partial, supportsSendingPartial = partial
+    topicId, nil, requestsPartial = partial, supportsSendingPartial = partial
   )
 
 proc executePublish(
