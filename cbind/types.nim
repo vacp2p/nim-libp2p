@@ -2,8 +2,10 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/tables
+import chronos
 import results
 import ../libp2p
+import ../libp2p/protocols/protocol
 import ../libp2p/protocols/pubsub/gossipsub
 import ../libp2p/protocols/kademlia
 import ../libp2p/protocols/mix
@@ -31,3 +33,5 @@ type LibP2P* = ref object
   relayClient*: Opt[RelayClient]
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
   connections*: Table[ptr Libp2pStream, Connection]
+  streamReleaseWaiters*: Table[ptr Libp2pStream, Future[void].Raising([CancelledError])]
+  customProtocols*: Table[string, LPProtocol]
