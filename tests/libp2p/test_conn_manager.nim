@@ -429,10 +429,8 @@ proc newWatermark*(
       gracePeriod: gracePeriod,
       silencePeriod: silencePeriod,
     ),
-    scoringConfig = ScoringConfig(
-      outboundBonus: outboundBonus, 
-      decayResolution: decayResolution,
-    ),
+    scoringConfig =
+      ScoringConfig(outboundBonus: outboundBonus, decayResolution: decayResolution),
   )
 
 proc connectPeers(connMngr: ConnManager, count: int): Future[seq[PeerId]] {.async.} =
@@ -643,7 +641,7 @@ suite "Connection Manager Scoring":
     await cm.close()
 
   asyncTest "outbound peer survives watermark trim over inbound peers":
-    let cm = ConnManager.newWatermark(1, 2, outboundBonus = 500 )
+    let cm = ConnManager.newWatermark(1, 2, outboundBonus = 500)
     let outboundPeer = PeerId.random.tryGet()
     await cm.storeMuxer(getMuxer(outboundPeer, Direction.Out))
     await cm.storeMuxer(getMuxer(PeerId.random.tryGet(), Direction.In))
