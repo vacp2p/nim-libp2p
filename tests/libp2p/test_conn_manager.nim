@@ -599,16 +599,16 @@ suite "Connection Manager Scoring":
     let cm = ConnManager.newWatermark(1, 2, decayResolution = 20.millis)
     await cm.storeMuxer(getMuxer(peerId))
     cm.tagPeerDecaying(peerId, tag, 100, 20.millis, decayFixed(30))
-    await sleepAsync(150.millis)
-    check cm.peerScore(peerId) < 100
+    checkUntilTimeout:
+      cm.peerScore(peerId) < 100
     await cm.close()
 
   asyncTest "decaying tag auto-removed when value hits zero":
     let cm = ConnManager.newWatermark(1, 2, decayResolution = 20.millis)
     await cm.storeMuxer(getMuxer(peerId))
     cm.tagPeerDecaying(peerId, tag, 10, 20.millis, decayFixed(15))
-    await sleepAsync(150.millis)
-    check cm.peerScore(peerId) == 0
+    checkUntilTimeout:
+      cm.peerScore(peerId) == 0
     await cm.close()
 
   asyncTest "bumpDecayingTag increases tag value":

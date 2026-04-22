@@ -650,6 +650,9 @@ proc tagPeerDecaying*(
   ## Attach an ephemeral tag to `peerId` with an initial `value`.
   ## The tag's value is updated by `decayFn` every `interval`. When the value
   ## drops to ≤0 the tag is removed automatically.
+  doAssert interval > 0.seconds
+  doAssert not decayFn.isNil
+
   let now = Moment.now()
   c.decayingTags.mgetOrPut(peerId, initTable[string, DecayingTagValue]())[tag] =
     DecayingTagValue(value: value, lastTick: now, interval: interval, decayFn: decayFn)
