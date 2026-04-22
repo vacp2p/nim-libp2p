@@ -9,10 +9,10 @@ import multiaddress, routing_record, wire
 type PeerAddressPolicy* = proc(ma: MultiAddress): bool {.gcsafe, raises: [].}
 
 const defaultAddressPolicy* = proc(ma: MultiAddress): bool {.gcsafe, raises: [].} =
-  true
+  false
 
 proc accepts*(policy: PeerAddressPolicy, ma: MultiAddress): bool =
-  policy(ma)
+  not policy(ma)
 
 proc filterAddrs*(
     policy: PeerAddressPolicy, addrs: openArray[MultiAddress]
