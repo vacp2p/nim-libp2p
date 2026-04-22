@@ -6,8 +6,7 @@
 {.push raises: [].}
 
 import std/[sequtils]
-import results
-import chronos, chronicles, metrics
+import chronos, chronicles, results, metrics
 import
   transport,
   ../autotls/service,
@@ -152,10 +151,14 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   ## listen on the transport
   ##
+  trace "Starting WS transport"
 
   if self.running:
     warn "WS transport already running"
     return
+
+  let addrsTa = self.toTransportAddress(addrs).valueOr:
+    raise newException(TransportStartError, $error)
 
   when defined(libp2p_autotls_support):
     if not self.secure and self.autotls.isSome():
@@ -175,7 +178,6 @@ method start*(
         except TLSStreamProtocolError as exc:
           raise newException(LPError, exc.msg, exc)
 
-  trace "Starting WS transport"
   await procCall Transport(self).start(addrs)
 
   self.wsserver = WSServer.new(factories = self.factories, rng = self.rng)
@@ -191,10 +193,9 @@ method start*(
       else:
         false
 
-    let address = ma.initTAddress().tryGet()
-
     let httpserver =
       try:
+        let address = addrsTa[i]
         if isWss:
           TlsHttpServer.create(
             address = address,

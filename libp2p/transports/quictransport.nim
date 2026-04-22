@@ -347,12 +347,15 @@ method start*(
 ) {.async: (raises: [LPError, transport.TransportError, CancelledError]).} =
   doAssert self.listeners.len == 0, "start() already called"
 
+  let addrsTa = self.toTransportAddress(addrs).valueOr:
+    raise newException(TransportStartError, $error)
+
   var listenMAs: seq[MultiAddress]
   var initialized = false
   try:
     let server = QuicServer.new(self.makeConfig())
-    for maAddr in addrs:
-      let listener = server.listen(initTAddress(maAddr).tryGet)
+    for ta in addrsTa:
+      let listener = server.listen(ta)
       self.listeners.add(listener)
       listenMAs.add(toMultiAddress(listener.localAddress()))
     initialized = true
