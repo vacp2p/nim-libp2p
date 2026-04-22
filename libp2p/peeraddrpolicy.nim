@@ -31,6 +31,6 @@ const publicRoutableAddressPolicy* = proc(
 
 const noPrivateAddressPolicy* = proc(ma: MultiAddress): bool {.gcsafe, raises: [].} =
   ## Returns if this address should be filtered out because they are
-  ## either public, circuit-relay or loopback
+  ## neither public, circuit-relay or loopback
 
   isCircuitRelayMA(ma) or isPublicMA(ma) or isLoopbackMA(ma)
