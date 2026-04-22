@@ -496,7 +496,7 @@ suite "Connection Manager Watermark":
 
   asyncTest "unprotect removes tag and allows trimming":
     let connMngr = ConnManager.newWatermark(1, 3)
-    
+
     let peerId = PeerId.random.tryGet()
     await connMngr.storeMuxer(getMuxer(peerId))
 
