@@ -154,3 +154,13 @@ proc populateAdvTable*(disco: ServiceDiscovery, serviceId: ServiceId) =
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
+
+proc populateSearchTable*(
+    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId]
+) =
+  discard disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+  for peer in peers:
+    disco.rtManager.insertPeer(serviceId, peer.toKey())
