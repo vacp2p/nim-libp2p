@@ -70,6 +70,10 @@ proc createNode*(
     .build()
 
   var params = gossipSubParams
+  params.behaviourPenaltyWeight = -0.000001
+  params.behaviourPenaltyDecay = 0.0
+  params.disconnectBadPeers = false
+  params.disconnectPeerAboveRateLimit = false
   partialMessageConfig.withValue(pmConfig):
     params.partialMessageExtensionConfig = Opt.some(pmConfig)
 

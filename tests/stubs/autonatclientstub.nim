@@ -18,10 +18,7 @@ type
     expectedDials: int
     finished*: Future[void]
 
-  Answer* = enum
-    Reachable
-    NotReachable
-    Unknown
+  Answer* = NetworkReachability
 
 proc new*(T: typedesc[AutonatClientStub], expectedDials: int): T =
   return T(dials: 0, expectedDials: expectedDials, finished: newFuture[void]())
@@ -39,9 +36,9 @@ method dialMe*(
   if self.dials == self.expectedDials:
     self.finished.complete()
   case self.answer
-  of Reachable:
+  of NetworkReachability.Reachable:
     return MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
-  of NotReachable:
+  of NetworkReachability.NotReachable:
     raise newException(AutonatUnreachableError, "")
-  of Unknown:
+  of NetworkReachability.Unknown:
     raise newException(AutonatError, "")

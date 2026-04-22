@@ -3,8 +3,15 @@
 
 {.used.}
 
-import chronos, streams, sequtils, strutils, tables
-import ../../../libp2p/[multiaddress, protocols/pubsub/gossipsub, switch]
+import chronos, streams, sequtils, strutils, tables, stew/endians2
+import
+  ../../../libp2p/[
+    multiaddress,
+    protocols/pubsub/gossipsub,
+    protocols/pubsub/pubsubpeer,
+    protocols/pubsub/rpc/messages,
+    switch,
+  ]
 import
   ../../../interop/gossipsub/src/[node, instructions, runner, interop_partial_message]
 import ../../tools/[unittest]
@@ -192,6 +199,8 @@ suite "GossipSub Interop - Script runner - Component":
     checkUntilTimeout:
       runner0.messages[key].isComplete()
       runner1.messages[key].isComplete()
+      logStream0.data.contains("Received Partial Message")
+      logStream1.data.contains("Received Partial Message")
       logStream0.data.contains("All parts received")
       logStream1.data.contains("All parts received")
 
@@ -261,3 +270,40 @@ suite "GossipSub Interop - Script runner - Component":
       runner1.messages[key].isComplete()
       logStream0.data.contains("All parts received")
       logStream1.data.contains("All parts received")
+
+  asyncTest "received message logs include duplicates once per inbound rpc":
+    let sender = createNode(0, localhost)
+    let receiverLog = newStringStream()
+    let receiver =
+      newScriptRunner(nodeId = 1, logStream = receiverLog, listenAddr = localhost)
+
+    await sender.switch.start()
+    await receiver.start()
+    defer:
+      await receiver.stop()
+      await sender.switch.stop()
+
+    await sender.switch.connect(
+      receiver.node.peerInfo.peerId, @[receiver.node.getAddr()]
+    )
+
+    checkUntilTimeout:
+      receiver.node.peerInfo.peerId in sender.peers
+
+    const topic = "foobar"
+    await receiver.executeInstruction(
+      ScriptInstruction(kind: SubscribeToTopic, topicID: topic, partial: false)
+    )
+
+    var data = newSeq[byte](sizeof(uint64))
+    data[0 ..< sizeof(uint64)] = toBytesBE(123'u64)
+
+    let duplicateRpc = RPCMsg.withMessages(Message(topic: topic, data: data))
+    let peer = sender.peers[receiver.node.peerInfo.peerId]
+
+    sender.broadcast(@[peer], duplicateRpc, MessagePriority.High)
+    sender.broadcast(@[peer], duplicateRpc, MessagePriority.High)
+
+    checkUntilTimeout:
+      receiverLog.data.count(""""msg":"Received Message"""") == 2
+      receiverLog.data.count(""""id":"123"""") == 2
