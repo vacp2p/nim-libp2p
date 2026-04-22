@@ -207,3 +207,24 @@ proc removeServiceInterest*(
   let serviceId = service.id.hashServiceId()
 
   disco.rtManager.removeService(serviceId, Interest)
+
+proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  let serviceId = service.id.hashServiceId()
+  let added = disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+  return not added
+
+proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  let serviceId = service.id.hashServiceId()
+  let status = disco.rtManager.serviceStatus.getOrDefault(serviceId)
+  if status in {Interest, Both}:
+    disco.rtManager.removeService(serviceId, Interest)
+    return false
+  return true
+
+proc lookup*(
+    disco: ServiceDiscovery, service: ServiceInfo
+): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
+  return await disco.lookup(service.id.hashServiceId())
