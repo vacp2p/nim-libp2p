@@ -298,8 +298,12 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#initTAddress%2CMultiAddress" title="initTAddress(ma: MultiAddress): MaResult[TransportAddress]">initTAddress(ma: MultiAddress): MaResult[TransportAddress]</a></li>
 
 </ul>
-<ul class="simple nested-toc-section">isFilterablePrivateMA
-  <li><a class="reference" href="#isFilterablePrivateMA%2CMultiAddress" title="isFilterablePrivateMA(ma: MultiAddress): bool">isFilterablePrivateMA(ma: MultiAddress): bool</a></li>
+<ul class="simple nested-toc-section">isCircuitRelayMA
+  <li><a class="reference" href="#isCircuitRelayMA%2CMultiAddress" title="isCircuitRelayMA(ma: MultiAddress): bool">isCircuitRelayMA(ma: MultiAddress): bool</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">isLoopbackMA
+  <li><a class="reference" href="#isLoopbackMA%2CMultiAddress" title="isLoopbackMA(ma: MultiAddress): bool">isLoopbackMA(ma: MultiAddress): bool</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">isPublicMA
@@ -533,15 +537,29 @@ Create new TCP stream server which bounds to <tt class="docutils literal"><span 
 </div>
 
 </div>
-<div id="isFilterablePrivateMA-procs-all">
-  <div id="isFilterablePrivateMA,MultiAddress" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#isFilterablePrivateMA%2CMultiAddress"><span class="Identifier">isFilterablePrivateMA</span></a><span class="Other">(</span><span class="Identifier">ma</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
-    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="isCircuitRelayMA-procs-all">
+  <div id="isCircuitRelayMA,MultiAddress" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#isCircuitRelayMA%2CMultiAddress"><span class="Identifier">isCircuitRelayMA</span></a><span class="Other">(</span><span class="Identifier">ma</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
-Returns true if this address should be filtered out because it is private or not globally routable. Circuit relay addresses are never filtered even if the relay itself has a private IP, since the relay address may still provide connectivity.
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/wire.nim#L165" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/wire.nim#L165" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/wire.nim#L166" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/wire.nim#L166" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="isLoopbackMA-procs-all">
+  <div id="isLoopbackMA,MultiAddress" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#isLoopbackMA%2CMultiAddress"><span class="Identifier">isLoopbackMA</span></a><span class="Other">(</span><span class="Identifier">ma</span><span class="Other">:</span> <a href="multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/wire.nim#L170" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/wire.nim#L170" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -577,7 +595,7 @@ Returns true if this address should be filtered out because it is private or not
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-22 18:09:13 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-22 19:27:40 UTC</small>
       </div>
     </div>
   </div>
