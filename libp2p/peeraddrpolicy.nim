@@ -17,12 +17,12 @@ proc accepts*(policy: PeerAddressPolicy, ma: MultiAddress): bool =
 proc filterAddrs*(
     policy: PeerAddressPolicy, addrs: openArray[MultiAddress]
 ): seq[MultiAddress] =
-  addrs.filterIt(policy(it))
+  addrs.filterIt(not policy(it))
 
 const publicRoutableAddressPolicy* = proc(
     ma: MultiAddress
 ): bool {.gcsafe, raises: [].} =
-  ## Returns true if this address should be filtered out because it is private
+  ## Returns if this address should be filtered out because it is private
   ## or not globally routable. Circuit relay addresses are never filtered even
   ## if the relay itself has a private IP, since the relay address may still
   ## provide connectivity.
@@ -30,6 +30,7 @@ const publicRoutableAddressPolicy* = proc(
   isCircuitRelayMA(ma) or isPublicMA(ma)
 
 const noPrivateAddressPolicy* = proc(ma: MultiAddress): bool {.gcsafe, raises: [].} =
-  ## Returns true for addr that are either public, circuit-relay or loopback
+  ## Returns if this address should be filtered out because they are
+  ## either public, circuit-relay or loopback
 
   isCircuitRelayMA(ma) or isPublicMA(ma) or isLoopbackMA(ma)
