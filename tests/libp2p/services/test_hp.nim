@@ -165,7 +165,7 @@ suite "Hole Punching":
   proc holePunchingTest(
       initiatorConnectStub: connectStubType,
       rcvConnectStub: connectStubType,
-      answer: Answer,
+      answer: NetworkReachability,
   ) {.async.} =
     # There's no check in this test cause it can't test hole punching locally. It exists just to be sure the rest of
     # the code works properly.

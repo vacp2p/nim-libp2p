@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[sequtils, sets, times, tables, hashes]
-import chronos, results, stew/byteutils
+import chronicles, chronos, results, stew/byteutils
 import nimcrypto/sha2
 import
   ../../[
@@ -82,6 +82,8 @@ type
       # can't use name "config", clashes with KadDHT's config
     xprPublishing*: bool
     selfSignedPeerRecordLoop*: Future[void]
+    pruneExpiredAdsLoop*: Future[void]
+    refreshServiceTablesLoop*: Future[void]
 
 proc new*(
     T: typedesc[ServiceDiscoveryConfig],
@@ -115,6 +117,17 @@ proc hash*(t: AdvertiseTask): Hash =
 
 proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
   (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
+
+proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: [].} =
+  var adBytes: seq[seq[byte]]
+  for ad in ads:
+    if adBytes.len >= fReturn:
+      break
+    let encoded = ad.encode().valueOr:
+      error "failed to encode advertisement", error
+      continue
+    adBytes.add(encoded)
+  adBytes
 
 proc hashServiceId*(serviceStr: string): ServiceId =
   let digest = sha256.digest(serviceStr)

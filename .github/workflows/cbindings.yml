@@ -17,7 +17,9 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-
+    env:
+      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      
     defaults:
       run:
         shell: bash
