@@ -153,13 +153,17 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
     return
 
   disco.advertiser.clear()
-  disco.selfSignedPeerRecordLoop.cancelSoon()
-  disco.selfSignedPeerRecordLoop = nil
 
-  disco.pruneExpiredAdsLoop.cancelSoon()
-  disco.pruneExpiredAdsLoop = nil
+  if not disco.selfSignedPeerRecordLoop.isNil():
+    disco.selfSignedPeerRecordLoop.cancelSoon()
+    disco.selfSignedPeerRecordLoop = nil
 
-  disco.refreshServiceTablesLoop.cancelSoon()
-  disco.refreshServiceTablesLoop = nil
+  if not disco.pruneExpiredAdsLoop.isNil():
+    disco.pruneExpiredAdsLoop.cancelSoon()
+    disco.pruneExpiredAdsLoop = nil
+
+  if not disco.refreshServiceTablesLoop.isNil():
+    disco.refreshServiceTablesLoop.cancelSoon()
+    disco.refreshServiceTablesLoop = nil
 
   await procCall stop(KadDHT(disco))
