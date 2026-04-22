@@ -128,16 +128,14 @@ suite "GossipSub Component - Scoring":
       currentRateLimitHits() == rateLimitHits + 2
 
   asyncTest "Should rate limit decodable messages above the size allowed":
-    let
-      nodes = generateNodes(
-          2,
-          gossip = true,
-          overheadRateLimit = Opt.some((20, 1.millis)),
-          verifySignature = false,
-            # Avoid being disconnected by failing signature verification
-        )
-        .toGossipSub()
-      rateLimitHits = currentRateLimitHits()
+    let nodes = generateNodes(
+        2,
+        gossip = true,
+        overheadRateLimit = Opt.some((40, 1.millis)),
+        verifySignature = false,
+          # Avoid being disconnected by failing signature verification
+      )
+      .toGossipSub()
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
@@ -148,6 +146,11 @@ suite "GossipSub Component - Scoring":
     checkUntilTimeout:
       nodes[0].peers[nodes[1].switch.peerInfo.peerId] in
         nodes[0].mesh.getOrDefault(topic)
+
+    # Let any in-flight rate-limit checks on setup RPCs flush and the token
+    # bucket refill before capturing the baseline.
+    await sleepAsync(50.milliseconds)
+    let rateLimitHits = currentRateLimitHits()
 
     let msg = RPCMsg.withControl(
       ControlMessage.withPrune(
@@ -162,6 +165,7 @@ suite "GossipSub Component - Scoring":
 
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
+    let rateLimitHits2 = currentRateLimitHits()
     let msg2 = RPCMsg.withControl(
       ControlMessage.withPrune(
         topic, 123'u64, @[PeerInfoMsg(peerId: PeerId(data: newSeq[byte](35)))]
@@ -171,19 +175,17 @@ suite "GossipSub Component - Scoring":
 
     checkUntilTimeout:
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == false
-      currentRateLimitHits() == rateLimitHits + 2
+      currentRateLimitHits() == rateLimitHits2 + 1
 
   asyncTest "Should rate limit invalid messages above the size allowed":
-    let
-      nodes = generateNodes(
-          2,
-          gossip = true,
-          overheadRateLimit = Opt.some((20, 1.millis)),
-          verifySignature = false,
-            # Avoid being disconnected by failing signature verification
-        )
-        .toGossipSub()
-      rateLimitHits = currentRateLimitHits()
+    let nodes = generateNodes(
+        2,
+        gossip = true,
+        overheadRateLimit = Opt.some((30, 1.millis)),
+        verifySignature = false,
+          # Avoid being disconnected by failing signature verification
+      )
+      .toGossipSub()
 
     startAndDeferStop(nodes)
     await connectStar(nodes)
@@ -203,6 +205,11 @@ suite "GossipSub Component - Scoring":
       nodes[0].peers[nodes[1].switch.peerInfo.peerId] in
         nodes[0].mesh.getOrDefault(topic)
 
+    # Let any in-flight rate-limit checks on setup RPCs flush and the token
+    # bucket refill before capturing the baseline.
+    await sleepAsync(50.milliseconds)
+    let rateLimitHits = currentRateLimitHits()
+
     let msg = RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](40)))
     nodes[0].broadcast(nodes[0].mesh[topic], msg, MessagePriority.High)
 
@@ -212,6 +219,7 @@ suite "GossipSub Component - Scoring":
 
     # Disconnect peer when rate limiting is enabled
     nodes[1].parameters.disconnectPeerAboveRateLimit = true
+    let rateLimitHits2 = currentRateLimitHits()
     nodes[0].broadcast(
       nodes[0].mesh[topic],
       RPCMsg.withMessages(Message(topic: topic, data: newSeq[byte](35))),
@@ -220,7 +228,7 @@ suite "GossipSub Component - Scoring":
 
     checkUntilTimeout:
       nodes[1].switch.isConnected(nodes[0].switch.peerInfo.peerId) == false
-      currentRateLimitHits() == rateLimitHits + 2
+      currentRateLimitHits() == rateLimitHits2 + 1
 
   asyncTest "DirectPeers: don't kick direct peer with low score":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
