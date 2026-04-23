@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results, sets, sequtils, std/times
+import chronos, chronicles, results, sets
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
@@ -17,22 +17,8 @@ logScope:
 proc refreshSelfSignedPeerRecord(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
-  await disco.switch.peerInfo.update()
-
-  let
-    peerInfo: PeerInfo = disco.switch.peerInfo
-    services: seq[ServiceInfo] = disco.services.toSeq()
-
-  let extPeerRecord = SignedExtendedPeerRecord.init(
-    peerInfo.privateKey,
-    ExtendedPeerRecord(
-      peerId: peerInfo.peerId,
-      seqNo: getTime().toUnix().uint64,
-      addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
-      services: services,
-    ),
-  ).valueOr:
-    error "Failed to create signed peer record", error
+  let extPeerRecord = disco.record().valueOr:
+    error "Failed to create signed extended peer record", error
     return
 
   let encodedSR = extPeerRecord.encode().valueOr:
@@ -40,6 +26,8 @@ proc refreshSelfSignedPeerRecord(
     return
 
   let key = disco.switch.peerInfo.peerId.toKey()
+
+  debug "Publishing Signed XPR", xpr = $extPeerRecord
 
   let putRes = await disco.putValue(key, encodedSR)
   if putRes.isErr:
@@ -52,24 +40,16 @@ proc maintainSelfSignedPeerRecord(
     await disco.refreshSelfSignedPeerRecord()
 
 proc maintainRegistrar(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
-  heartbeat "prune expired advertisements", disco.discoConfig.advertExpiry:
+  heartbeat "prune expired advertisements",
+    disco.discoConfig.advertExpiry, sleepFirst = true:
     disco.registrar.pruneExpiredAds(disco.discoConfig.advertExpiry.seconds.uint64)
 
 proc maintainServiceTables(
     disco: ServiceDiscovery
 ) {.async: (raises: [CancelledError]).} =
-  heartbeat "refresh service routing tables", disco.config.bucketRefreshTime:
+  heartbeat "refresh service routing tables",
+    disco.config.bucketRefreshTime, sleepFirst = true:
     await disco.rtManager.refreshAllTables(disco)
-
-proc startAdvertising*(disco: ServiceDiscovery, service: ServiceInfo): bool =
-  ## Include this service in the set of services this node provides.
-
-  return disco.services.containsOrIncl(service)
-
-proc stopAdvertising*(disco: ServiceDiscovery, service: ServiceInfo): bool =
-  ## Exclude this service from the set of services this node provides.
-
-  return disco.services.missingOrExcl(service)
 
 proc new*(
     T: typedesc[ServiceDiscovery],
@@ -96,6 +76,7 @@ proc new*(
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
     rtManager: ServiceRoutingTableManager.new(),
+    clientMode: client,
     advertiser: Advertiser.new(),
     registrar: Registrar.new(),
     services: toHashSet(services),
@@ -156,7 +137,12 @@ method start*(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
 
   await procCall start(KadDHT(disco))
 
-  disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
+  if disco.xprPublishing:
+    disco.selfSignedPeerRecordLoop = disco.maintainSelfSignedPeerRecord()
+
+  for serviceInfo in disco.services:
+    disco.addProvidedService(serviceInfo)
+
   disco.pruneExpiredAdsLoop = disco.maintainRegistrar()
   disco.refreshServiceTablesLoop = disco.maintainServiceTables()
 
@@ -167,13 +153,17 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
     return
 
   disco.advertiser.clear()
-  disco.selfSignedPeerRecordLoop.cancelSoon()
-  disco.selfSignedPeerRecordLoop = nil
 
-  disco.pruneExpiredAdsLoop.cancelSoon()
-  disco.pruneExpiredAdsLoop = nil
+  if not disco.selfSignedPeerRecordLoop.isNil():
+    disco.selfSignedPeerRecordLoop.cancelSoon()
+    disco.selfSignedPeerRecordLoop = nil
 
-  disco.refreshServiceTablesLoop.cancelSoon()
-  disco.refreshServiceTablesLoop = nil
+  if not disco.pruneExpiredAdsLoop.isNil():
+    disco.pruneExpiredAdsLoop.cancelSoon()
+    disco.pruneExpiredAdsLoop = nil
+
+  if not disco.refreshServiceTablesLoop.isNil():
+    disco.refreshServiceTablesLoop.cancelSoon()
+    disco.refreshServiceTablesLoop = nil
 
   await procCall stop(KadDHT(disco))

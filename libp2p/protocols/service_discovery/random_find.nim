@@ -11,7 +11,7 @@ import ./[types]
 logScope:
   topics = "ext-kad-dht random records"
 
-proc randomRecords*(
+proc randomRecords(
     disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
   ## Return all peer records on the path towards a random target ID.
@@ -69,14 +69,7 @@ proc randomRecords*(
 
   return records.toSeq()
 
-proc filterByServices*(
-    records: seq[ExtendedPeerRecord], services: HashSet[ServiceInfo]
-): seq[ExtendedPeerRecord] =
-  records.filterIt(it.services.anyIt(services.contains(it)))
-
-proc lookup*(
-    disco: ServiceDiscovery, service: ServiceInfo
+proc lookupRandom*(
+    disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
-  let records = await disco.randomRecords()
-
-  return records.filterByServices(@[service].toHashSet())
+  return await disco.randomRecords()

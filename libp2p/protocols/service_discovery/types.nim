@@ -84,6 +84,7 @@ type
     selfSignedPeerRecordLoop*: Future[void]
     pruneExpiredAdsLoop*: Future[void]
     refreshServiceTablesLoop*: Future[void]
+    clientMode*: bool
 
 proc new*(
     T: typedesc[ServiceDiscoveryConfig],
@@ -204,3 +205,21 @@ method select*(
     return err("No valid records")
 
   return ok(bestIdx)
+
+proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] =
+  let
+    peerInfo: PeerInfo = disco.switch.peerInfo
+    services: seq[ServiceInfo] = disco.services.toSeq()
+
+  let extPeerRecord = SignedExtendedPeerRecord.init(
+    peerInfo.privateKey,
+    ExtendedPeerRecord(
+      peerId: peerInfo.peerId,
+      seqNo: getTime().toUnix().uint64,
+      addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
+      services: services,
+    ),
+  ).valueOr:
+    return err("Failed to create signed peer record: " & $error)
+
+  return ok(extPeerRecord)

@@ -358,6 +358,6 @@ proc processRandomRecords*(
     return err("ServiceDiscovery is not mounted")
 
   let disco = ServiceDiscovery(kad)
-  let records = await disco.randomRecords()
+  let records = await disco.lookupRandom()
 
   buildRandomRecordsResult(records)

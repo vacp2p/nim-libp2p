@@ -409,7 +409,6 @@ proc handleRegister*(
 ) {.async: (raises: [CancelledError]).} =
   let serviceId = msg.key
   let closerPeers = disco.findClosestPeers(serviceId)
-
   let regMsg = msg.register.valueOr:
     return
 
@@ -464,13 +463,14 @@ proc handleRegister*(
 proc handleGetAds*(
     disco: ServiceDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
+  ## Handle GET_ADS request
+
+  cd_messages_received.inc(labelValues = [$MessageType.getAds])
+
   let serviceId = msg.key
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
-  var cap = disco.discoConfig.fReturn
-  msg.getAds.withValue(getAdsMsg):
-    if getAdsMsg.limit > 0:
-      cap = min(disco.discoConfig.fReturn, getAdsMsg.limit.int)
+  let cap = disco.discoConfig.fReturn
 
   let response = Message(
     msgType: MessageType.getAds,
