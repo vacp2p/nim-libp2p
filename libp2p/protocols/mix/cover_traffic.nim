@@ -155,10 +155,13 @@ proc setCoverPacketSender*(ct: CoverTraffic, sender: SendCoverPacketProc) =
   ct.sendPacket = sender
 
 type ConstantRateCoverTraffic* = ref object of CoverTraffic
-  ## Emits cover packets at a fixed interval of ((1+L)*P)/R seconds.
+  ## Emits cover packets at a fixed interval of ((1+L)*P)/(f*R) seconds,
+  ## where f is the `cover_rate_fraction`.
   ## RECOMMENDED as the default strategy (Mix Cover Traffic spec §7.1).
   emissionInterval: Duration
   epochDuration: Duration
+  coverRateFraction: float
+  precomputeTarget: int
   enablePrecomputation: bool
   precomputeBatchSize: int
   emissionLoop: Future[void]
@@ -173,6 +176,7 @@ proc new*(
     T: typedesc[ConstantRateCoverTraffic],
     totalSlots: int = 100,
     epochDuration: Duration = 60.seconds,
+    coverRateFraction: float = 0.7,
     enablePrecomputation: bool = false,
     precomputeBatchSize: int = 0,
     useInternalEpochTimer: bool = true,
@@ -180,25 +184,45 @@ proc new*(
   ## Parameters:
   ##   totalSlots: R (rate limit budget per epoch)
   ##   epochDuration: P (epoch duration)
+  ##   coverRateFraction: f ∈ (0.0, 1.0], scales the cover emission rate
+  ##     relative to the maximum safe rate R / ((1+L) * P).
+  ##     Default (0.7) reserves ~30% headroom for forwarding variance.
   ##   enablePrecomputation: whether to pre-build cover packets in batches
-  ##   precomputeBatchSize: packets per batch (0 = auto: R / (1+L) / 10)
+  ##   precomputeBatchSize: packets per batch (0 = auto: f * R / (1+L) / 10)
   ##   useInternalEpochTimer: false when SpamProtection provides OnEpochChange
   doAssert totalSlots > 0, "totalSlots (R) must be positive"
   doAssert epochDuration > Duration.default, "epochDuration (P) must be positive"
+  doAssert coverRateFraction > 0.0 and coverRateFraction <= 1.0,
+    "coverRateFraction (f) must be in (0.0, 1.0]"
 
+  # Effective cover budget after `cover_rate_fraction` scaling: floor(f * R).
+  # Clamped to at least 1 so very small f values don't produce a zero divisor.
+  let scaledSlots = max(1, (totalSlots.float * coverRateFraction).int)
+
+  # Time between consecutive cover emissions:
+  # 1 / emissionRate = ((1 + L) * P) / (f * R).
+  # Lower bound of 1 ms guards against overly tight scheduling for large R.
   let emissionInterval =
-    max(1.milliseconds, epochDuration * (1 + PathLength) div totalSlots)
-  let targetCount = totalSlots div (1 + PathLength)
+    max(1.milliseconds, epochDuration * (1 + PathLength) div scaledSlots)
+
+  # Expected cover emissions per epoch at equilibrium: (f * R) / (1 + L).
+  # The remaining slots in R are consumed by forwarding and local origination.
+  let precomputeTarget = max(1, scaledSlots div (1 + PathLength))
+
+  # Default batch size = 10% of precomputeTarget (at least 1), so pre-computation
+  # spreads across ~10 batches per epoch.
   let batchSize =
     if precomputeBatchSize > 0:
       precomputeBatchSize
     else:
-      max(1, targetCount div 10)
+      max(1, precomputeTarget div 10)
 
   T(
     slotPool: SlotPool.new(totalSlots),
     emissionInterval: emissionInterval,
     epochDuration: epochDuration,
+    coverRateFraction: coverRateFraction,
+    precomputeTarget: precomputeTarget,
     enablePrecomputation: enablePrecomputation,
     precomputeBatchSize: batchSize,
     emissionEpochEvent: newAsyncEvent(),
@@ -293,7 +317,7 @@ proc runPrecomputeLoop(
   ## can be reclaimed if the packet is discarded before sending.
   while ct.running:
     let currentEpoch = ct.slotPool.epoch
-    let targetCount = ct.slotPool.totalSlots div (1 + PathLength)
+    let targetCount = ct.precomputeTarget
     var built = 0
 
     while built + ct.slotPool.queuedCount < targetCount and ct.running:
@@ -400,6 +424,9 @@ func emissionInterval*(ct: ConstantRateCoverTraffic): Duration =
 
 func precomputeBatchSize*(ct: ConstantRateCoverTraffic): int =
   ct.precomputeBatchSize
+
+func coverRateFraction*(ct: ConstantRateCoverTraffic): float =
+  ct.coverRateFraction
 
 func isRunning*(ct: ConstantRateCoverTraffic): bool =
   ct.running
