@@ -159,12 +159,6 @@ proc new*(
   let hasInOut = maxIn > 0 and maxOut > 0
   let hasTotal = maxConnections > 0
 
-  if hasWatermark:
-    watermark.withValue(wm):
-      doAssert wm.lowWater > 0, "lowWater must be > 0"
-      doAssert wm.highWater > wm.lowWater, "highWater must be > lowWater"
-    doAssert scoringConfig.decayResolution > 0.seconds, "decayResolution must be > 0"
-
   var inSema, outSema: AsyncSemaphore
   var maxInArg, maxOutArg: int
 

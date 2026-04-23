@@ -312,6 +312,8 @@ proc withWatermark*(
   ## down to `lowWater`, skipping peers within `gracePeriod` and protected peers.
   ## Can be combined with `withMaxConnections`/`withMaxInOut` to apply both
   ## a hard semaphore cap and active trimming simultaneously.
+  doAssert lowWater > 0, "lowWater must be > 0"
+  doAssert highWater > lowWater, "highWater must be > lowWater"
   b.watermarkCfg = Opt.some(
     WatermarkConfig(
       lowWater: lowWater,
@@ -326,6 +328,7 @@ proc withScoring*(
     b: SwitchBuilder, scoringConfig: ScoringConfig = ScoringConfig()
 ): SwitchBuilder {.public.} =
   ## Configure connection scoring parameters.
+  doAssert scoringConfig.decayResolution > 0.seconds, "decayResolution must be > 0"
   b.scoringConfig = scoringConfig
   b
 
