@@ -173,4 +173,3 @@ proc lookup*(
     disco: ServiceDiscovery, service: ServiceInfo
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
   return await disco.lookup(service.id.hashServiceId())
-
