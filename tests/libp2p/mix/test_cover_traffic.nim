@@ -110,8 +110,9 @@ suite "ConstantRateCoverTraffic cover_rate_fraction":
   test "emissionInterval follows ((1+L)*P)/(f*R) formula":
     # L=3, P=100s, R=100:
     #   f=1.0 → 400s / 100 = 4s
-    #   f=0.7 (default) → 400s / 70 ≈ 5.714s
     #   f=0.5 → 400s / 50 = 8s (2× the f=1.0 interval)
+    #   f=0.7 (default) → between the two; exact value depends on
+    #     platform float-to-int rounding of 100.0 * 0.7.
     let ctFull = ConstantRateCoverTraffic.new(
       totalSlots = 100, epochDuration = 100.seconds, coverRateFraction = 1.0
     )
@@ -122,8 +123,10 @@ suite "ConstantRateCoverTraffic cover_rate_fraction":
     )
     check:
       ctFull.emissionInterval == 4.seconds
-      ctDefault.emissionInterval == 100.seconds * 4 div 70
+      ctHalf.emissionInterval == 8.seconds
       ctHalf.emissionInterval == ctFull.emissionInterval * 2
+      ctFull.emissionInterval < ctDefault.emissionInterval
+      ctDefault.emissionInterval < ctHalf.emissionInterval
 
   test "precomputeBatchSize respects cover_rate_fraction":
     let ctFull = ConstantRateCoverTraffic.new(

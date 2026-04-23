@@ -98,9 +98,6 @@ proc claimSlot*(pool: SlotPool): ClaimResult =
 func totalSlots*(pool: SlotPool): int {.inline.} =
   pool.totalSlots
 
-proc updateTotalSlots*(pool: SlotPool, r: int) =
-  pool.totalSlots = r
-
 proc addPacket*(pool: SlotPool, pkt: CoverPacket) =
   pool.coverQueue.addLast(pkt)
 
@@ -156,8 +153,9 @@ proc setCoverPacketSender*(ct: CoverTraffic, sender: SendCoverPacketProc) =
   ct.sendPacket = sender
 
 type ConstantRateCoverTraffic* = ref object of CoverTraffic
-  ## Emits cover packets at a fixed interval of ((1+L)*P)/(f*R) seconds,
-  ## where f is the `cover_rate_fraction`.
+  ## Emits cover packets at a fixed interval derived from
+  ## `scaledSlots = max(1, floor(f * R))`, giving `((1 + L) * P) / scaledSlots`
+  ## seconds (with a 1 ms lower bound), where f is the `cover_rate_fraction`.
   ## RECOMMENDED as the default strategy (Mix Cover Traffic spec §7.1).
   emissionInterval: Duration
   epochDuration: Duration
@@ -200,14 +198,17 @@ proc new*(
   # Clamped to at least 1 so very small f values don't produce a zero divisor.
   let scaledSlots = max(1, (totalSlots.float * coverRateFraction).int)
 
-  # Time between consecutive cover emissions:
-  # 1 / emissionRate = ((1 + L) * P) / (f * R).
-  # Lower bound of 1 ms guards against overly tight scheduling for large R.
+  # Time between consecutive cover emissions: ((1 + L) * P) / scaledSlots,
+  # clamped to at least 1 ms to guard against overly tight scheduling for large R.
+  # Approximates the continuous rate ((1 + L) * P) / (f * R); differs when
+  # floor(f * R) < 1 or when f * R is non-integer.
   let emissionInterval =
     max(1.milliseconds, epochDuration * (1 + PathLength) div scaledSlots)
 
-  # Expected cover emissions per epoch at equilibrium: (f * R) / (1 + L).
-  # The remaining slots in R are consumed by forwarding and local origination.
+  # Expected cover emissions per epoch at equilibrium: scaledSlots / (1 + L),
+  # clamped to at least 1 packet. The remaining slots in R are consumed by
+  # forwarding and local origination. Approximates (f * R) / (1 + L) with
+  # integer floor applied at each step.
   let precomputeTarget = max(1, scaledSlots div (1 + PathLength))
 
   # Default batch size = 10% of precomputeTarget (at least 1), so pre-computation
