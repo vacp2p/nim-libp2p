@@ -319,7 +319,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track total incoming connection limits":
-    let connMngr = newMaxTotal(maxConnections = 3)
+    let connMngr = newMaxTotal(3)
 
     for i in 0 ..< 3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
@@ -330,7 +330,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track total outgoing connection limits":
-    let connMngr = newMaxTotal(maxConnections = 3)
+    let connMngr = newMaxTotal(3)
 
     for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()
@@ -342,7 +342,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track both incoming and outgoing total connections limits - fail on incoming":
-    let connMngr = newMaxTotal(maxConnections = 3)
+    let connMngr = newMaxTotal(3)
 
     for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot()
@@ -353,7 +353,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "track both incoming and outgoing total connections limits - fail on outgoing":
-    let connMngr = newMaxTotal(maxConnections = 3)
+    let connMngr = newMaxTotal(3)
 
     for i in 0 ..< 3:
       check await connMngr.getIncomingSlot().withTimeout(10.millis)
@@ -414,7 +414,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "allow force dial":
-    let connMngr = newMaxTotal(maxConnections = 2)
+    let connMngr = newMaxTotal(2)
 
     for i in 0 ..< 3:
       discard connMngr.getOutgoingSlot(true)
@@ -426,7 +426,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "release slot on connection end":
-    let connMngr = newMaxTotal(maxConnections = 3)
+    let connMngr = newMaxTotal(3)
 
     var muxs: seq[Muxer]
     for i in 0 ..< 3:
