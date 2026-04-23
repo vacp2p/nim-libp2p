@@ -109,11 +109,10 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     )
 
     let ad = makeAdvertisement(
-      addrs =
-        @[
-          makeMultiAddress("10.0.0.1"), # Different subnet – low score
-          makeMultiAddress("192.168.1.50"), # Same subnet – high score
-        ]
+      addrs = @[
+        makeMultiAddress("10.0.0.1"), # Different subnet – low score
+        makeMultiAddress("192.168.1.50"), # Same subnet – high score
+      ]
     )
     let now = getTime().toUnix().uint64
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
