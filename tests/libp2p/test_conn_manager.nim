@@ -691,7 +691,7 @@ suite "Connection Manager: watermark with connection limiting":
     # trim fired but found no unprotected candidates, all 3 peers still connected
     check connMngr.getConnections().len == maxConns
 
-    # all connection slots should be used, getting slot incoming slot must block
+    # all connection slots should be used, getting incoming slot must block
     check not (await connMngr.getIncomingSlot().withTimeout(50.millis))
 
     # getting outgoing slot must raise (all slots are used)
