@@ -54,3 +54,91 @@ suite "Discoverer - lookup":
     check disco.rtManager.hasService(sid1)
     check disco.rtManager.hasService(sid2)
     check disco.rtManager.count() == 2
+
+  asyncTest "lookup by ServiceInfo hashes to same table as lookup by ServiceId":
+    let disco = makeMockDiscovery()
+    let service = makeServiceInfo("my-service")
+    let serviceId = service.id.hashServiceId()
+
+    let res = await disco.lookup(service)
+
+    check res.isOk()
+    check disco.rtManager.hasService(serviceId)
+
+suite "Discoverer - startDiscovering":
+  teardown:
+    checkTrackers()
+
+  test "registers an Interest routing table":
+    let disco = makeMockDiscovery()
+    let service = makeServiceInfo()
+
+    let wasAlreadyTracked = disco.startDiscovering(service)
+
+    check not wasAlreadyTracked
+    check disco.rtManager.hasService(service.id.hashServiceId())
+
+  test "returns true when called again for the same service":
+    let disco = makeMockDiscovery()
+    let service = makeServiceInfo()
+
+    discard disco.startDiscovering(service)
+    let wasAlreadyTracked = disco.startDiscovering(service)
+
+    check wasAlreadyTracked
+
+  test "distinct services get independent tables":
+    let disco = makeMockDiscovery()
+    let s1 = makeServiceInfo("svc-1")
+    let s2 = makeServiceInfo("svc-2")
+
+    discard disco.startDiscovering(s1)
+    discard disco.startDiscovering(s2)
+
+    check disco.rtManager.hasService(s1.id.hashServiceId())
+    check disco.rtManager.hasService(s2.id.hashServiceId())
+    check disco.rtManager.count() == 2
+
+suite "Discoverer - stopDiscovering":
+  teardown:
+    checkTrackers()
+
+  test "returns true when service was never tracked":
+    let disco = makeMockDiscovery()
+    let service = makeServiceInfo()
+
+    let notRemoved = disco.stopDiscovering(service)
+
+    check notRemoved
+
+  test "removes Interest and returns false when service was tracked":
+    let disco = makeMockDiscovery()
+    let service = makeServiceInfo()
+
+    discard disco.startDiscovering(service)
+    let notRemoved = disco.stopDiscovering(service)
+
+    check not notRemoved
+    check not disco.rtManager.hasService(service.id.hashServiceId())
+
+  test "second stop on same service returns true (already gone)":
+    let disco = makeMockDiscovery()
+    let service = makeServiceInfo()
+
+    discard disco.startDiscovering(service)
+    discard disco.stopDiscovering(service)
+    let notRemoved = disco.stopDiscovering(service)
+
+    check notRemoved
+
+  test "stop does not affect a different service":
+    let disco = makeMockDiscovery()
+    let s1 = makeServiceInfo("svc-1")
+    let s2 = makeServiceInfo("svc-2")
+
+    discard disco.startDiscovering(s1)
+    discard disco.startDiscovering(s2)
+    discard disco.stopDiscovering(s1)
+
+    check not disco.rtManager.hasService(s1.id.hashServiceId())
+    check disco.rtManager.hasService(s2.id.hashServiceId())
