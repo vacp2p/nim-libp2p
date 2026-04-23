@@ -11,7 +11,6 @@ import
 
 export random_find, types, discoverer, advertiser
 
-
 logScope:
   topics = "service-discovery"
 
