@@ -20,15 +20,12 @@ method newStream*(
   Connection.new(m.peerId, Direction.Out)
 
 proc newMaxTotal(
-    maxConnections = MaxConnections,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
+    maxConnections = MaxConnections, maxConnsPerPeer = MaxConnectionsPerPeer
 ): ConnManager =
   ConnManager.new(maxConnections = maxConnections, maxConnsPerPeer = maxConnsPerPeer)
 
 proc newMaxInOut(
-    maxIn: int,
-    maxOut: int,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
+    maxIn: int, maxOut: int, maxConnsPerPeer = MaxConnectionsPerPeer
 ): ConnManager =
   ConnManager.new(maxIn = maxIn, maxOut = maxOut, maxConnsPerPeer = maxConnsPerPeer)
 
@@ -46,10 +43,8 @@ proc newWatermark*(
     gracePeriod: gracePeriod,
     silencePeriod: silencePeriod,
   )
-  let scCfg = ScoringConfig(
-    outboundBonus: outboundBonus, 
-    decayResolution: decayResolution,
-  )
+  let scCfg =
+    ScoringConfig(outboundBonus: outboundBonus, decayResolution: decayResolution)
   ConnManager.new(watermark = Opt.some(wtCfg), scoringConfig = scCfg)
 
 proc connectPeers(connMngr: ConnManager, count: int): Future[seq[PeerId]] {.async.} =
@@ -677,10 +672,7 @@ suite "Connection Manager: watermark with connection limiting":
       maxConnections = maxConns,
       watermark = Opt.some(
         WatermarkConfig(
-          lowWater: 1,
-          highWater: 2,
-          gracePeriod: 0.seconds,
-          silencePeriod: 0.seconds,
+          lowWater: 1, highWater: 2, gracePeriod: 0.seconds, silencePeriod: 0.seconds
         )
       ),
     )
