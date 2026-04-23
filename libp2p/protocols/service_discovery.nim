@@ -167,3 +167,24 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
     disco.refreshServiceTablesLoop = nil
 
   await procCall stop(KadDHT(disco))
+
+proc lookup*(
+    disco: ServiceDiscovery, service: ServiceInfo
+): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
+  return await disco.lookup(service.id.hashServiceId())
+
+proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  let serviceId = service.id.hashServiceId()
+  let added = disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+  return added
+
+proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  let serviceId = service.id.hashServiceId()
+  disco.rtManager.serviceStatus.withValue(serviceId, status):
+    if status[] in {Interest, Both}:
+      disco.rtManager.removeService(serviceId, Interest)
+      return false
+  return true

@@ -5,6 +5,7 @@
 import chronos, results
 import ../../../libp2p/[peerid, switch]
 import ../../../libp2p/protocols/service_discovery/[discoverer, types]
+import ../../../libp2p/protocols/service_discovery
 import ../../tools/[unittest]
 import ./utils
 
@@ -73,19 +74,19 @@ suite "Discoverer - startDiscovering":
     let disco = makeMockDiscovery()
     let service = makeServiceInfo()
 
-    let wasAlreadyTracked = disco.startDiscovering(service)
+    let added = disco.startDiscovering(service)
 
-    check not wasAlreadyTracked
+    check added
     check disco.rtManager.hasService(service.id.hashServiceId())
 
-  test "returns true when called again for the same service":
+  test "returns false when called again for the same service":
     let disco = makeMockDiscovery()
     let service = makeServiceInfo()
 
     discard disco.startDiscovering(service)
-    let wasAlreadyTracked = disco.startDiscovering(service)
+    let added = disco.startDiscovering(service)
 
-    check wasAlreadyTracked
+    check not added
 
   test "distinct services get independent tables":
     let disco = makeMockDiscovery()

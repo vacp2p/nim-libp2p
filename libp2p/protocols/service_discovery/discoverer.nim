@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, tables]
+import std/sequtils
 import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
@@ -155,22 +155,6 @@ proc collectBucketAds(
 
   return found
 
-proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
-  let serviceId = service.id.hashServiceId()
-  let added = disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-  return added
-
-proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
-  let serviceId = service.id.hashServiceId()
-  disco.rtManager.serviceStatus.withValue(serviceId, status):
-    if status[] in {Interest, Both}:
-      disco.rtManager.removeService(serviceId, Interest)
-      return false
-  return true
-
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
@@ -202,8 +186,3 @@ proc lookup*(
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)
-
-proc lookup*(
-    disco: ServiceDiscovery, service: ServiceInfo
-): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
-  return await disco.lookup(service.id.hashServiceId())
