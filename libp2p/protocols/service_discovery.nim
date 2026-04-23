@@ -9,7 +9,8 @@ import
   ./service_discovery/
     [random_find, types, routing_table_manager, advertiser, registrar, discoverer]
 
-export random_find, types, discoverer
+export random_find, types, discoverer, advertiser
+
 
 logScope:
   topics = "service-discovery"
@@ -173,21 +174,3 @@ proc lookup*(
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
   return await disco.lookup(service.id.hashServiceId())
 
-proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
-  ## Add this service to this node's set of interests
-  ## and start discovering.
-
-  let serviceId = service.id.hashServiceId()
-
-  return disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-
-proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo) =
-  ## Remove this service from this node's set of interests
-  ## and stop discovering.
-
-  let serviceId = service.id.hashServiceId()
-
-  disco.rtManager.removeService(serviceId, Interest)

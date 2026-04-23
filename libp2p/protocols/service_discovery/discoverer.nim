@@ -157,6 +157,16 @@ proc collectBucketAds(
 
   return found
 
+proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  let serviceId = service.id.hashServiceId()
+  disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+
+proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo) =
+  disco.rtManager.removeService(service.id.hashServiceId(), Interest)
+
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
