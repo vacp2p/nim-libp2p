@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results, sets
+import chronos, chronicles, results, sets, tables
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
@@ -183,8 +183,8 @@ proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
 
 proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
   let serviceId = service.id.hashServiceId()
-  disco.rtManager.serviceStatus.withValue(serviceId, status):
-    if status[] in {Interest, Both}:
-      disco.rtManager.removeService(serviceId, Interest)
-      return false
+  let status = disco.rtManager.serviceStatus.getOrDefault(serviceId, Provided)
+  if status in {Interest, Both}:
+    disco.rtManager.removeService(serviceId, Interest)
+    return false
   return true
