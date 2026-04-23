@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, results, sets, tables
+import chronos, chronicles, results, sets
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
@@ -174,17 +174,20 @@ proc lookup*(
   return await disco.lookup(service.id.hashServiceId())
 
 proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  ## Add this service to this node's set of interests
+  ## and start discovering.
+
   let serviceId = service.id.hashServiceId()
-  let added = disco.rtManager.addService(
+
+  return disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-  return added
 
-proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo) =
+  ## Remove this service from this node's set of interests
+  ## and stop discovering.
+
   let serviceId = service.id.hashServiceId()
-  let status = disco.rtManager.serviceStatus.getOrDefault(serviceId, Provided)
-  if status in {Interest, Both}:
-    disco.rtManager.removeService(serviceId, Interest)
-    return false
-  return true
+
+  disco.rtManager.removeService(serviceId, Interest)

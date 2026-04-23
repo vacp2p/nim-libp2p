@@ -2,11 +2,11 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results
+import chronos, results, tables
 import ../../../libp2p/[peerid, switch]
-import ../../../libp2p/protocols/service_discovery/[discoverer, types]
+import ../../../libp2p/protocols/service_discovery/[discoverer, advertiser, types]
 import ../../../libp2p/protocols/service_discovery
-import ../../tools/[unittest]
+import ../../tools/[unittest, lifecycle]
 import ./utils
 
 suite "Discoverer - lookup":
@@ -66,7 +66,7 @@ suite "Discoverer - lookup":
     check res.isOk()
     check disco.rtManager.hasService(serviceId)
 
-suite "Discoverer - startDiscovering":
+suite "Discoverer - start/stop discovering":
   teardown:
     checkTrackers()
 
@@ -100,46 +100,53 @@ suite "Discoverer - startDiscovering":
     check disco.rtManager.hasService(s2.id.hashServiceId())
     check disco.rtManager.count() == 2
 
-suite "Discoverer - stopDiscovering":
-  teardown:
-    checkTrackers()
-
-  test "returns true when service was never tracked":
-    let disco = makeMockDiscovery()
-    let service = makeServiceInfo()
-
-    let notRemoved = disco.stopDiscovering(service)
-
-    check notRemoved
-
   test "removes Interest and returns false when service was tracked":
     let disco = makeMockDiscovery()
     let service = makeServiceInfo()
 
-    discard disco.startDiscovering(service)
-    let notRemoved = disco.stopDiscovering(service)
+    check disco.startDiscovering(service)
+    disco.stopDiscovering(service)
 
-    check not notRemoved
     check not disco.rtManager.hasService(service.id.hashServiceId())
-
-  test "second stop on same service returns true (already gone)":
-    let disco = makeMockDiscovery()
-    let service = makeServiceInfo()
-
-    discard disco.startDiscovering(service)
-    discard disco.stopDiscovering(service)
-    let notRemoved = disco.stopDiscovering(service)
-
-    check notRemoved
 
   test "stop does not affect a different service":
     let disco = makeMockDiscovery()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
-    discard disco.startDiscovering(s1)
-    discard disco.startDiscovering(s2)
-    discard disco.stopDiscovering(s1)
+    check disco.startDiscovering(s1)
+    check disco.startDiscovering(s2)
+    disco.stopDiscovering(s1)
 
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
+
+  asyncTest "startDiscovering sends messages and finds registered peer":
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    let registrarNode = makeMockDiscovery(conf)
+    let advertiserNode = makeMockDiscovery(conf)
+    let discovererNode = makeMockDiscovery(conf)
+    registrarNode.switch.mount(registrarNode)
+    advertiserNode.switch.mount(advertiserNode)
+    discovererNode.switch.mount(discovererNode)
+    startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
+
+    await connect(registrarNode, advertiserNode)
+    await connect(registrarNode, discovererNode)
+
+    let service = makeServiceInfo("start-disco-e2e-service")
+    let serviceId = service.id.hashServiceId()
+
+    advertiserNode.addProvidedService(service)
+    checkUntilTimeout:
+      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len == 1
+
+    check discovererNode.startDiscovering(service)
+
+    let found = await discovererNode.lookup(service)
+    check found.isOk()
+    check found.get().len >= 1
+    check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
+
+    discovererNode.stopDiscovering(service)
+    check not discovererNode.rtManager.hasService(serviceId)
