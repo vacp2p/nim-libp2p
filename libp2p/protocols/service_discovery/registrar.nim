@@ -187,7 +187,12 @@ proc waitingTime*(
       if ipLowerBound > w:
         w = ipLowerBound
 
-  return ceil(max(0.0, w))
+  # Bound & Quantize W
+  w = max(0.0, w)
+  w = min(w, float64(uint32.high))
+  w = ceil(w)
+
+  return w
 
 proc updateLowerBounds*(
     registrar: Registrar,
