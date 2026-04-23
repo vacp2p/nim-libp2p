@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/sequtils
+import std/[sequtils, tables]
 import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
