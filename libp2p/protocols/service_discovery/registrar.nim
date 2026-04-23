@@ -146,7 +146,7 @@ proc waitingTime*(
     advertCacheCap: uint64,
     serviceId: ServiceId,
     now: uint64,
-): float64 =
+): chronos.Duration =
   doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
   let c = registrar.cacheTimestamps.len.uint64
   let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
@@ -192,7 +192,7 @@ proc waitingTime*(
   w = min(w, float64(uint32.high))
   w = ceil(w)
 
-  return w
+  return w.secsAsDuration()
 
 proc updateLowerBounds*(
     registrar: Registrar,
@@ -427,9 +427,10 @@ proc handleRegister*(
     return
 
   let now = getTime().toUnix().uint64
-  var tWait = disco.registrar.waitingTime(
-    disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
-  )
+  var tWait =
+    disco.registrar.waitingTime(
+      disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
+    ).nanoseconds.float64 / 1_000_000_000.0
   tWait = disco.processRetryTicket(regMsg, ad, tWait, now)
 
   if tWait <= 0:
