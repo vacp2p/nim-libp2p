@@ -146,7 +146,7 @@ proc waitingTime*(
     advertCacheCap: uint64,
     serviceId: ServiceId,
     now: uint64,
-): chronos.Duration =
+): float64 =
   doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
   let c = registrar.cacheTimestamps.len.uint64
   let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
@@ -187,7 +187,7 @@ proc waitingTime*(
       if ipLowerBound > w:
         w = ipLowerBound
 
-  return secsAsDuration(max(0.0, w))
+  return ceil(max(0.0, w))
 
 proc updateLowerBounds*(
     registrar: Registrar,
@@ -422,10 +422,9 @@ proc handleRegister*(
     return
 
   let now = getTime().toUnix().uint64
-  var tWait =
-    disco.registrar.waitingTime(
-      disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
-    ).nanoseconds.float64 / 1_000_000_000.0
+  var tWait = disco.registrar.waitingTime(
+    disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
+  )
   tWait = disco.processRetryTicket(regMsg, ad, tWait, now)
 
   if tWait <= 0:
@@ -443,7 +442,7 @@ proc handleRegister*(
       advertisement: regMsg.advertisement,
       tInit: regMsg.ticket.tInitOrDefault(now),
       tMod: now,
-      tWaitFor: uint32(min(tWait, float64(uint32.high))),
+      tWaitFor: uint32(tWait),
     )
     if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
       error "failed to sign ticket"
