@@ -10,7 +10,7 @@ import
   ]
 import ../../protobuf/minprotobuf
 import ../../utils/iptree
-import ../kademlia/types
+import ../kademlia/[types, protobuf]
 
 const
   DefaultSelfSPRRereshTime* = 10.minutes
@@ -223,3 +223,16 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
     return err("Failed to create signed peer record: " & $error)
 
   return ok(extPeerRecord)
+
+proc toPeerInfos*(peers: seq[Peer]): seq[PeerInfo] =
+  var peerInfos: seq[PeerInfo]
+
+  for p in peers:
+    let pid = PeerId.init(p.id).valueOr:
+      continue
+
+    let peerInfo = PeerInfo(peerId: pid, addrs: p.addrs)
+
+    peerInfos.add(peerInfo)
+
+  return peerInfos

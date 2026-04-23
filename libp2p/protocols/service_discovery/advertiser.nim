@@ -16,7 +16,7 @@ logScope:
 type RegistrationResponse* = object
   status*: kademlia_protobuf.RegistrationStatus
   ticket*: Opt[Ticket]
-  closerPeers*: seq[PeerId]
+  closerPeers*: seq[PeerInfo]
 
 proc clear*(a: Advertiser) =
   for task in a.running:
@@ -77,14 +77,15 @@ proc sendRegister*(
   let reply = Message.decode(replyBuf).valueOr:
     return err("failed to decode register message response: " & $error)
 
-  let closerPeers = reply.closerPeers.toPeerIds()
-
   let registerMsg = reply.register.valueOr:
     return err("register reply not found")
   let status = registerMsg.status.valueOr:
     return err("register reply status not found")
 
   cd_register_responses.inc(labelValues = [$status])
+
+  let closerPeers = reply.closerPeers.toPeerInfos()
+
   return ok(
     RegistrationResponse(
       status: status, ticket: registerMsg.ticket, closerPeers: closerPeers
@@ -124,8 +125,10 @@ proc startAdvertising*(
       error "failed to register ad", error
       return
 
-    for pid in response.closerPeers:
-      disco.rtManager.insertPeer(serviceId, pid.toKey())
+    disco.updatePeers(response.closerPeers)
+
+    for p in response.closerPeers:
+      disco.rtManager.insertPeer(serviceId, p.peerId.toKey())
 
     case response.status
     of kademlia_protobuf.RegistrationStatus.Confirmed:

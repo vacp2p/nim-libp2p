@@ -13,7 +13,7 @@ logScope:
 
 type GetAdsResult = object
   ads: seq[Advertisement]
-  closerPeers: seq[PeerId]
+  closerPeers: seq[PeerInfo]
 
 proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
   var validAds: seq[Advertisement] = @[]
@@ -83,7 +83,7 @@ proc dispatchGetAds(
   return Opt.some(
     GetAdsResult(
       ads: getAdsMsg.advertisements.validAds(serviceId),
-      closerPeers: reply.closerPeers.toPeerIds(),
+      closerPeers: reply.closerPeers.toPeerInfos(),
     )
   )
 
@@ -107,7 +107,9 @@ proc processResponse(
     found: var seq[Advertisement],
     limit: int,
 ) =
-  disco.insertCloserPeers(serviceId, response.closerPeers)
+  disco.updatePeers(response.closerPeers)
+
+  disco.insertCloserPeers(serviceId, response.closerPeers.mapIt(it.peerId))
   let remaining = limit - found.len
   if remaining > 0:
     found.add(response.ads[0 ..< min(remaining, response.ads.len)])
@@ -119,7 +121,7 @@ proc drainCompletedPeers(
 ) =
   for fut in pending.filterIt(it.completed()):
     fut.value().withValue(response):
-      disco.insertCloserPeers(serviceId, response.closerPeers)
+      disco.insertCloserPeers(serviceId, response.closerPeers.mapIt(it.peerId))
 
 proc collectBucketAds(
     disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int
