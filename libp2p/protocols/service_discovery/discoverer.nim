@@ -159,8 +159,11 @@ proc collectBucketAds(
 
 proc startDiscovering*(disco: ServiceDiscovery, serviceId: string): bool =
   disco.rtManager.addService(
-    serviceId.hashServiceId(), disco.rtable, disco.config.replication,
-    disco.discoConfig.bucketsCount, Interest,
+    serviceId.hashServiceId(),
+    disco.rtable,
+    disco.config.replication,
+    disco.discoConfig.bucketsCount,
+    Interest,
   )
 
 proc stopDiscovering*(disco: ServiceDiscovery, serviceId: string) =
