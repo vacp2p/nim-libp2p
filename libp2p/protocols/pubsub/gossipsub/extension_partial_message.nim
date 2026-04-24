@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
-import tables, chronicles, results
+import tables, sets, sequtils, chronicles, results
 import ../../../utils/tablekey
 import ../../../[peerid]
 import ../rpc/messages
@@ -135,6 +135,9 @@ template getGroupState(
 
 template getPeerState(gs: GroupState, peerId: PeerId): PeerGroupState =
   gs.peerState.mgetOrPut(peerId, PeerGroupState())
+
+template hasPeer(gs: GroupState, peerId: PeerId): bool =
+  gs.peerState.hasKey(peerId)
 
 proc unionWithSentPartsMetadata(
     ext: PartialMessageExtension,
@@ -322,29 +325,41 @@ proc publishPartial*(
   groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
   groupState.lastPublishedMetadata = pm.partsMetadata()
 
-  var publishedToCount: int = 0
   let publishToPeers =
     if peers.len > 0:
       peers
     else:
-      ext.config.publishToPeers(topic)
-  for _, p in publishToPeers:
+      # Extend this node's current publish targets
+      # with peers that already exchanged metadata for this group.
+      # This preserves replies to a remote peer acting as an unsubscribed
+      # fanout publisher.
+      var targets = ext.config.publishToPeers(topic).toHashSet()
+      for p in groupState.peerState.keys:
+        targets.incl(p)
+      targets.toSeq()
+
+  let nodeRequestsPartial = ext.config.nodeTopicOpts(topic).requestsPartial
+
+  var publishedToCount: int = 0
+  for p in publishToPeers:
     if not ext.config.isSupported(p):
-      # peer needs to support this extension
       continue
 
     let peerSubOpt = ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(p, topic))
-    let nodeSubOpt = ext.config.nodeTopicOpts(topic)
-
-    # publish partial message to peer if ...
-    if peerSubOpt.requestsPartial and
-        (nodeSubOpt.supportsSendingPartial or nodeSubOpt.requestsPartial):
-      # 1) peer has requested partial messages for this topic
+    if peerSubOpt.requestsPartial:
+      # If the peer requests partials, publish to it without checking this
+      # node's own topic opts. A node may publish partials as a fanout
+      # publisher without being subscribed to the topic.
       if ext.publishPartialToPeer(topic, pm, groupState, p, true):
         publishedToCount.inc
-    elif nodeSubOpt.requestsPartial and
-        (peerSubOpt.supportsSendingPartial or peerSubOpt.requestsPartial):
-      # 2) this node has requested partial messages and peer (other node) supports sending it
+      continue
+
+    # If this node requests partials, send metadata to peers that either
+    # advertised partial support for the topic or already have per-group
+    # state. The hasPeer check covers peers that already sent metadata for
+    # this group without ever sending a subscription RPC.
+    if nodeRequestsPartial and
+        (peerSubOpt.supportsSendingPartial or groupState.hasPeer(p)):
       if ext.publishPartialToPeer(topic, pm, groupState, p, false):
         publishedToCount.inc
 

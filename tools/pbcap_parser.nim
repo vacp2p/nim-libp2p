@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[os, strutils, times]
 import chronicles
@@ -19,8 +19,7 @@ const
   ## is the version of Nimbus as a string.
   GitRevision = staticExec("git rev-parse --short HEAD").replace("\n") # remove CR
 
-  PBCapParserUsage =
-    """
+  PBCapParserUsage = """
 
 USAGE:
   pbcap_parser <command> <filename>

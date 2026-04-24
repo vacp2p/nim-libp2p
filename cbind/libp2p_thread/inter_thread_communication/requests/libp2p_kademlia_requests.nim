@@ -81,7 +81,7 @@ proc createShared*(
   ret[].quorumOverride = quorumOverride
   return ret
 
-proc destroyShared(self: ptr KademliaRequest) =
+proc destroyShared*(self: ptr KademliaRequest) =
   deallocShared(self[].peerId)
   deallocSharedSeq(self[].key)
   deallocSharedSeq(self[].value)
@@ -199,7 +199,7 @@ proc buildProvidersResult(
 
   ok(resPtr)
 
-proc buildRandomRecordsResult(
+proc buildRandomRecordsResult*(
     records: seq[ExtendedPeerRecord]
 ): Result[ptr RandomRecordsResult, string] =
   let resPtr = cast[ptr RandomRecordsResult](createShared(RandomRecordsResult, 1))
@@ -358,6 +358,6 @@ proc processRandomRecords*(
     return err("ServiceDiscovery is not mounted")
 
   let disco = ServiceDiscovery(kad)
-  let records = await disco.randomRecords()
+  let records = await disco.lookupRandom()
 
   buildRandomRecordsResult(records)

@@ -1,18 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
 import chronos
 import
-  ../../../libp2p/
-    [
-      builders,
-      switch,
-      protocols/perf/client,
-      protocols/perf/server,
-      protocols/perf/core,
-    ]
+  ../../../libp2p/[
+    builders, switch, protocols/perf/client, protocols/perf/server, protocols/perf/core
+  ]
 import ../../tools/[unittest, crypto]
 
 proc createSwitch(

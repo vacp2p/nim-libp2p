@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
@@ -153,7 +153,6 @@ type
     getConn*: GetConn # callback to establish a new send connection
     onEvent*: OnEvent # Connectivity updates for peer
     codec*: string # the protocol that this peer joined from
-    codecInitializedFut*: Future[void].Raising([CancelledError])
     sendConn*: Connection # cached send connection
     connectedFut: Future[void]
     address*: Opt[MultiAddress]
@@ -370,8 +369,6 @@ proc connectOnce(
     if p.codec == "":
       # if codec was not know, it can be retrieved from newly established connection
       p.codec = newConn.protocol
-    if not p.codecInitializedFut.completed and p.codec != "":
-      p.codecInitializedFut.complete()
 
     p.connectedFut.complete()
     if p.onEvent != nil:
@@ -767,7 +764,6 @@ proc new*(
     getConn: getConn,
     onEvent: onEvent,
     codec: codec,
-    codecInitializedFut: Future[void].Raising([CancelledError])(),
     peerId: peerId,
     connectedFut: newFuture[void](),
     maxMessageSize: maxMessageSize,
@@ -781,8 +777,5 @@ proc new*(
   response.sentIHaves.addFirst(default(HashSet[MessageId]))
   response.iDontWants.addFirst(default(HashSet[SaltedId]))
   response.startSendNonHighPriorityTask()
-
-  if response.codec != "":
-    response.codecInitializedFut.complete()
 
   response

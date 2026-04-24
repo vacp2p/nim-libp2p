@@ -47,5 +47,7 @@ task examples, "Build and run C bindings examples":
   buildCBindings "static", ""
   exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a -pthread"
   exec "g++ -I. -o ../build/mix ./examples/mix.c ../build/libp2p.a -pthread"
+  exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a -pthread"
   exec "../build/cbindings"
   exec "../build/mix"
+  exec "../build/echo"

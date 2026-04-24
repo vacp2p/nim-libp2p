@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## TCP transport implementation
 
 {.push raises: [].}
 
 import std/[sequtils]
-import chronos, chronicles
+import chronos, chronicles, results
 import
   ./transport,
   ../wire,
@@ -118,27 +118,24 @@ method start*(
 
   self.flags.incl(ServerFlags.ReusePort)
 
+  let addrsTa = self.toTransportAddress(addrs).valueOr:
+    raise newException(TransportStartError, $error)
+
   var supported: seq[MultiAddress]
   var initialized = false
   try:
-    for i, ma in addrs:
-      if not self.handles(ma):
-        trace "Invalid address detected, skipping!", address = ma
-        continue
-
-      let
-        ta = initTAddress(ma).expect("valid address per handles check above")
-        server =
-          try:
-            createStreamServer(ta, flags = self.flags)
-          except common.TransportError as exc:
-            raise (ref TcpTransportError)(
-              msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
-            )
+    for i, ta in addrsTa:
+      let server =
+        try:
+          createStreamServer(ta, flags = self.flags)
+        except common.TransportError as exc:
+          raise (ref TcpTransportError)(
+            msg: "transport error in TcpTransport start:" & exc.msg, parent: exc
+          )
 
       self.servers &= server
 
-      trace "Listening on", address = ma
+      trace "Listening on", address = addrs[i]
       supported.add(
         MultiAddress.init(server.sock.getLocalAddress()).expect(
           "Can init from local address"

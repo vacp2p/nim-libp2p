@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/[json, sequtils]
 import chronos, results
@@ -51,7 +51,7 @@ proc createShared*(
   ret[].direction = direction
   return ret
 
-proc destroyShared(self: ptr PeerManagementRequest) =
+proc destroyShared*(self: ptr PeerManagementRequest) =
   deallocShared(self[].peerId)
   deallocSharedSeq(self[].multiaddrs)
   deallocShared(self)

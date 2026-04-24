@@ -121,6 +121,7 @@ proc encode*(getAdsMsg: GetAdsMessage): ProtoBuffer {.raises: [], gcsafe.} =
   var pb = initProtoBuffer()
   for ad in getAdsMsg.advertisements:
     pb.write(1, ad)
+
   pb.finish()
   return pb
 
@@ -221,7 +222,7 @@ proc decode*(T: type RegisterMessage, pb: ProtoBuffer): ProtoResult[T] =
   return ok(regMsg)
 
 proc decode*(T: type GetAdsMessage, pb: ProtoBuffer): ProtoResult[T] =
-  var getAdsMsg = GetAdsMessage(advertisements: @[])
+  var getAdsMsg = GetAdsMessage()
 
   discard ?pb.getRepeatedField(1, getAdsMsg.advertisements)
 

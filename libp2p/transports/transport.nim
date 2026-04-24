@@ -1,18 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 ##
 
 {.push raises: [].}
 
 import sequtils
-import chronos, chronicles
+import chronos, chronicles, results
 import
   ../stream/connection,
   ../multiaddress,
   ../multicodec,
   ../muxers/muxer,
   ../upgrademngrs/upgrade,
-  ../protocols/connectivity/autonat/types
+  ../protocols/connectivity/autonat/types,
+  ../wire
 
 export types.NetworkReachability
 
@@ -23,6 +24,7 @@ type
   TransportError* = object of LPError
   TransportInvalidAddrError* = object of TransportError
   TransportClosedError* = object of TransportError
+  TransportStartError* = object of TransportError
   TransportDialError* = object of TransportError
 
   Transport* = ref object of RootObj
@@ -121,3 +123,19 @@ template safeClose*(stream: untyped) =
       await noCancel stream.close()
     except CatchableError as e:
       trace "Error closing", description = e.msg
+
+proc toTransportAddress*(
+    self: Transport, addrsMa: seq[MultiAddress]
+): Result[seq[TransportAddress], string] =
+  var addrsTa = newSeq[TransportAddress](addrsMa.len)
+  for i, maAddr in addrsMa:
+    if not self.handles(maAddr):
+      return err("unsupported address: " & $maAddr)
+
+    addrsTa[i] = initTAddress(maAddr).valueOr:
+      return err("cannot use non-wire address: " & $maAddr & ". " & error)
+
+  if addrsTa.len == 0:
+    return err("no addr was provided.")
+
+  return ok(addrsTa)

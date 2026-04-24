@@ -25,7 +25,7 @@ suite "Service discovery - FindRandom":
 
     await connectStar(discos)
 
-    let records = await discos[1].randomRecords()
+    let records = await discos[1].lookupRandom()
 
     check records.len == 4
     let peerIds = discos.mapIt(it.switch.peerInfo.peerId)

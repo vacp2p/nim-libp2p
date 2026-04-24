@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -29,12 +29,11 @@ const
   addressIP6 = "/ip6/::1/udp/1234/quic-v1"
   validWireAddresses = @["/ip4/127.0.0.1/udp/1234/quic-v1", "/ip6/::1/udp/1234/quic-v1"]
   validNonWireAddresses = @["/dns/example.com/udp/1234/quic-v1"]
-  invalidAddresses =
-    @[
-      "/ip4/127.0.0.1/udp/1234", # UDP without quic-v1
-      "/ip4/127.0.0.1/tcp/1234/quic-v1", # Wrong transport (TCP instead of UDP)
-      "/ip4/127.0.0.1/udp/1234/quic", # Legacy quic (not quic-v1)
-    ]
+  invalidAddresses = @[
+    "/ip4/127.0.0.1/udp/1234", # UDP without quic-v1
+    "/ip4/127.0.0.1/tcp/1234/quic-v1", # Wrong transport (TCP instead of UDP)
+    "/ip4/127.0.0.1/udp/1234/quic", # Legacy quic (not quic-v1)
+  ]
 
 suite "Quic transport":
   teardown:

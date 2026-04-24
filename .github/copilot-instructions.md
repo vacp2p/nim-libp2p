@@ -93,7 +93,7 @@ nim c -r tests/tools/test_multiaddress.nim
 
 ### Code Formatting
 ```sh
-nimble install nph@v0.6.1   # Install formatter (once)
+nimble install nph@v0.7.0   # Install formatter (once)
 nimble format               # Format all code
 ```
 
@@ -157,7 +157,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 
 ## Key Dependencies
 
-- **chronos** (`>= 4.0.4`) — Async I/O framework (core dependency, used everywhere)
+- **chronos** (`>= 4.2.2`) — Async I/O framework (core dependency, used everywhere)
 - **chronicles** (`>= 0.11.0`) — Structured logging
 - **stew** (`>= 0.4.2`) — Utility library
 - **results** — Result/Option types for error handling
@@ -184,8 +184,10 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Async procedures return `Future[T]` or `Future[void]`
 - Manually created `Futures` should specify the exceptions they raise: `Future[someType].Raising([ListOfExceptionsHere]).init()`
 - `init()` procedure should always be called with identifier of future that explains purpose of future or where it was created. For example `init("Stream.readOnce")`
-- `cancel()` procedure of `Future` type is deprecated, code should ether call `cancelSoon()` for non blocking call or `cancelAndWait()` for blocking call till future is canceled.
+- `cancel()` procedure of `Future` type is deprecated, code should either call `cancelSoon()` for non-blocking call or `cancelAndWait()` for blocking call until the future is canceled/has been canceled.
 - Give suggestions if  `cancelSoon()` or `cancelAndWait()` should be called.
+- Do not use `asyncSpawn` unless the future reference is explicitly tracked. Running a future with `asyncSpawn` without tracking its reference risks the future being freed/deallocated when it becomes unreferenced.
+- Usage of `AsyncLock` must always be documented. Provide a clear explanation of why the lock is required in that context. This ensures that locking decisions are transparent, justified, and maintainable.
 
 ### Avoid `sleepAsync`
 - `sleepAsync` should be avoided when is used to fix race condition, or to wait on condition, becasue it is always source of flakyness.
@@ -236,6 +238,16 @@ The test runner (`libp2p.nimble`) always compiles with:
   - Symbols marked with `{.used.}`
   - Symbols required by an interface, callback, or external API
   - Compile‑time only symbols used via `static`, `when`, or macro expansion
+
+#### Leverage the Type System
+- Enforce strong typing: Always prefer explicit, well-defined types over loosely typed or primitive representations.
+- Use `chronos.Duration` for durations
+  - All duration values must be represented using `chronos.Duration`.
+  - Do not use primitive types (`float`, `int`, etc.) for storing or passing durations. Replace them with `chronos.Duration`.
+- Avoid tuples in public interfaces
+  - Public APIs must not expose tuples.
+  - Instead, define a named type (e.g., object) with clear field names to ensure readability and maintainability.
+  - Exception: Tuples may be used only in functions that are internal to a single file and invoked in one place. They must never leak into shared or public APIs.
 
 #### Exceptions
 - For new or significantly modified public `*` functions, add an explicit `{.raises.}` annotation; existing public APIs may not yet follow this consistently.
@@ -347,6 +359,9 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Must use protobuf field numbers `> 0x200000` to force ≥4-byte tags
   (see `libp2p/protocols/pubsub/rpc/protobuf.nim`)
 
+### Code Formatting
+- After making any code changes, run `nph` on all modified files. If `nph` produces changes, include them in the same change or PR.
+
 ---
 
 ## Source Module Guide
@@ -392,13 +407,16 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `dcutr/` — Direct Connection Upgrade Through Relay (hole punching)
 - `relay/` — Circuit Relay v1/v2
 
+### Identify (`protocols/`)
+- `identify.nim` — Identify and Identify Push protocols (peer metadata exchange)
+
 ### Performance (`protocols/perf/`)
 - `core.nim`, `client.nim`, `server.nim` — libp2p perf protocol for measuring throughput between peers
 
 ### Discovery (`protocols/`)
 - `kademlia.nim` + `kademlia/` — Kademlia DHT
-- `kad_disco.nim` + `kademlia_discovery/` — Kademlia-based peer discovery
-- `rendezvous.nim` — Rendezvous server protocol
+- `rendezvous.nim` + `rendezvous/` — Rendezvous server protocol
+- `service_discovery.nim` + `service_discovery/` — Service discovery (random find, routing table manager)
 
 ### Privacy (`protocols/mix/`)
 - Sphinx mix network for privacy-preserving message routing
@@ -470,6 +488,7 @@ nimble examples      # Build and run C examples
 |----------|-------------|
 | `ci.yml` | Main CI: Linux (amd64/i386), macOS (arm64), Windows; Nim v2.0.16 & v2.2.6 |
 | `daily_amd64.yml` / `daily_i386.yml` | Extended daily tests |
+| `daily_ci_report.yml` | Daily CI failure reporting: opens/updates GitHub issues for failed daily CI runs |
 | `daily_common.yml` | Shared steps/config reused by daily workflows |
 | `daily_nimbus.yml` | Nimbus-specific test matrix |
 | `daily_tests_no_flags.yml` | Tests without experimental flags |

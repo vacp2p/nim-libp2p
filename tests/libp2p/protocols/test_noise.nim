@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -70,7 +70,7 @@ proc createSwitch(
         [Secure(PlainText.new())]
       else:
         [Secure(Noise.new(rng, privateKey, outgoing = outgoing))]
-    connManager = ConnManager.newMaxTotal()
+    connManager = ConnManager.new()
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(muxers, secureManagers, ms)
     transports = @[Transport(TcpTransport.new(upgrade = muxedUpgrade))]

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -107,6 +107,14 @@ proc newService(
       )
   (AutonatV2Service.new(rng, client = client, config = config), client)
 
+const AutonatV2ReachabilityConfidenceMetric =
+  "libp2p_autonat_v2_reachability_confidence"
+
+proc reachabilityConfidence(reachability: NetworkReachability): float64 =
+  libp2p_autonat_v2_reachability_confidence.valueByName(
+    AutonatV2ReachabilityConfidenceMetric, [$reachability]
+  )
+
 suite "AutonatV2 Service":
   teardown:
     checkTrackers()
@@ -137,7 +145,7 @@ suite "AutonatV2 Service":
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
+    check reachabilityConfidence(Reachable) == 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -152,7 +160,7 @@ suite "AutonatV2 Service":
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check reachabilityConfidence(NotReachable) == 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -200,7 +208,7 @@ suite "AutonatV2 Service":
     await reachableObserved
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 0.3
+    check reachabilityConfidence(Reachable) == 0.3
 
     await client.finished
 
@@ -235,7 +243,7 @@ suite "AutonatV2 Service":
     await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
 
     await switch.stop()
     await switches.stopAll()
@@ -273,12 +281,12 @@ suite "AutonatV2 Service":
     await awaiter
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check reachabilityConfidence(NotReachable) == 0.3
 
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
-    check libp2p_autonat_v2_reachability_confidence.value(["NotReachable"]) == 0.3
+    check reachabilityConfidence(NotReachable) == 0.3
 
     await switch.stop()
     await switches.stopAll()
@@ -333,7 +341,7 @@ suite "AutonatV2 Service":
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
     await awaiter
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "Must work when peers ask each other at the same time with max 1 conn per peer":
@@ -396,7 +404,7 @@ suite "AutonatV2 Service":
 
     check service1.networkReachability == NetworkReachability.Reachable
     check service2.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
 
     await allFuturesRaising(switch1.stop(), switch2.stop(), switch3.stop())
 
@@ -447,7 +455,7 @@ suite "AutonatV2 Service":
     await awaiter1
 
     check service1.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
 
     # Make sure remote peer can't create a connection to us
     check switch1.connManager.connCount(switch2.peerInfo.peerId) == 1
@@ -494,7 +502,7 @@ suite "AutonatV2 Service":
     await sleepAsync(100.millis)
 
     check service.networkReachability == NetworkReachability.Reachable
-    check libp2p_autonat_v2_reachability_confidence.value(["Reachable"]) == 1
+    check reachabilityConfidence(Reachable) == 1
 
     await switch.stop()
     await switches.stopAll()

@@ -1,21 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
 import results
 import chronos, chronicles
 import
-  ../../../../libp2p/
-    [
-      switch,
-      muxers/muxer,
-      dialer,
-      multiaddress,
-      multicodec,
-      peerid,
-      protobuf/minprotobuf,
-    ],
+  ../../../../libp2p/[
+    switch, muxers/muxer, dialer, multiaddress, multicodec, peerid, protobuf/minprotobuf
+  ],
   ../../protocol,
   ./types,
   ./server

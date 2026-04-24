@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 # FFI Types and Utilities
 #
@@ -105,6 +105,14 @@ type ConnectionCallback* = proc(
   conn: ptr Libp2pStream,
   msg: ptr cchar,
   len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
+type Libp2pProtocolHandler* = proc(
+  ctx: pointer,
+  stream: ptr Libp2pStream,
+  proto: ptr cchar,
+  protoLen: csize_t,
   userData: pointer,
 ) {.cdecl, gcsafe, raises: [].}
 

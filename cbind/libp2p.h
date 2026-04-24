@@ -252,6 +252,14 @@ typedef void (*PeersCallback)(int callerRet, const char **peerIds,
 typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
                                    const char *msg, size_t len, void *userData);
 
+// Protocol handlers run on the libp2p worker thread. They must not block while
+// waiting for libp2p callbacks. Use the asynchronous libp2p_stream_* APIs and
+// release the stream with libp2p_stream_release when the handler is done.
+typedef void (*Libp2pProtocolHandler)(libp2p_ctx_t *ctx,
+                                      libp2p_stream_t *stream,
+                                      const char *proto, size_t protoLen,
+                                      void *userData);
+
 // providers is only valid during the callback; copy if needed.
 typedef void (*GetProvidersCallback)(int callerRet,
                                      const Libp2pPeerInfo *providers,
@@ -355,6 +363,12 @@ int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir,
 
 int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
                 ConnectionCallback callback, void *userData);
+
+// Mounts a custom protocol handler. The handler receives incoming streams for
+// proto and must eventually call libp2p_stream_release on each stream.
+int libp2p_mount_protocol(libp2p_ctx_t *ctx, const char *proto,
+                          Libp2pProtocolHandler handler,
+                          Libp2pCallback callback, void *userData);
 
 // Read callbacks receive a buffer that is freed immediately after the callback.
 int libp2p_stream_readExactly(libp2p_ctx_t *ctx, libp2p_stream_t *conn,

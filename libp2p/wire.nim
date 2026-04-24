@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
@@ -160,13 +160,15 @@ proc isPublicMA*(ma: MultiAddress): bool =
 
   let hostIP = initTAddress(ma).valueOr:
     return false
+
   return hostIP.isGlobal()
 
-proc isFilterablePrivateMA*(ma: MultiAddress): bool =
-  ## Returns true if this address should be filtered out because it is private
-  ## or not globally routable. Circuit relay addresses are never filtered even
-  ## if the relay itself has a private IP, since the relay address may still
-  ## provide connectivity.
+proc isCircuitRelayMA*(ma: MultiAddress): bool =
   if ma.contains(multiCodec("p2p-circuit")).get(false):
+    return true
+
+proc isLoopbackMA*(ma: MultiAddress): bool =
+  let hostIP = initTAddress(ma).valueOr:
     return false
-  return not isPublicMA(ma)
+
+  return hostIP.isLoopback()

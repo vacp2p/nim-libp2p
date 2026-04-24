@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 import std/tables
 import chronos, results
@@ -47,7 +47,7 @@ proc createShared*(
   ret[].timeout = timeout
   ret
 
-proc destroyShared(self: ptr PubSubRequest) =
+proc destroyShared*(self: ptr PubSubRequest) =
   deallocShared(self[].topic)
   deallocSharedSeq(self[].topics)
   deallocSharedSeq(self[].data)

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -79,11 +79,10 @@ template connectionTransportTest*(
       await server.stop()
 
     asyncTest "should allow multiple local addresses":
-      let addrs =
-        @[
-          MultiAddress.init(ma1).tryGet(),
-          MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet(),
-        ]
+      let addrs = @[
+        MultiAddress.init(ma1).tryGet(),
+        MultiAddress.init(if ma2 == "": ma1 else: ma2).tryGet(),
+      ]
 
       proc serverHandler(server: Transport) {.async.} =
         while true:

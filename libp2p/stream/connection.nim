@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
 
@@ -54,6 +54,12 @@ chronicles.formatIt(Connection):
   shortLog(it)
 
 declarePublicCounter libp2p_network_bytes, "total traffic", labels = ["direction"]
+
+when defined(libp2p_agents_metrics):
+  declarePublicGauge libp2p_peers_identity, "peers identities", labels = ["agent"]
+  declarePublicCounter libp2p_peers_traffic_read, "incoming traffic", labels = ["agent"]
+  declarePublicCounter libp2p_peers_traffic_write,
+    "outgoing traffic", labels = ["agent"]
 
 method initStream*(s: Connection) =
   if s.objName.len == 0:

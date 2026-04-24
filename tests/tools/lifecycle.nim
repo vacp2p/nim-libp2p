@@ -9,6 +9,8 @@ import ./futures
 
 proc startNodes*[T](nodes: seq[T]) {.async.} =
   await allFuturesRaising(nodes.mapIt(it.switch.start()))
+  when compiles(nodes[0].start()):
+    await allFuturesRaising(nodes.mapIt(it.start()))
 
 proc stopNodes*[T](nodes: seq[T]) {.async.} =
   when compiles(nodes[0].stop()):

@@ -12,13 +12,12 @@ proc logJSON*(
 ) {.raises: [].} =
   ## Write a structured JSON log line to the given stream.
   try:
-    var obj =
-      %*{
-        "time": now().format("yyyy-MM-dd'T'HH:mm:ss'.'ffffffzzz"),
-        "level": "INFO",
-        "msg": msg,
-        "service": "gossipsub",
-      }
+    var obj = %*{
+      "time": now().format("yyyy-MM-dd'T'HH:mm:ss'.'ffffffzzz"),
+      "level": "INFO",
+      "msg": msg,
+      "service": "gossipsub",
+    }
     for (key, val) in fields:
       obj[key] = %val
     stream.writeLine($obj)
@@ -35,6 +34,16 @@ proc logPeerId*(stream: Stream, peerId: PeerId, nodeId: int) {.raises: [].} =
 proc logReceivedMessage*(stream: Stream, msgId: string, topic: string) {.raises: [].} =
   ## Log a received message event.
   logJSON(stream, "Received Message", {"id": msgId, "topic": topic})
+
+proc logReceivedPartialMessage*(
+    stream: Stream, topic: string, groupId: uint64, fromPeer: PeerId
+) {.raises: [].} =
+  ## Log a received partial message event.
+  logJSON(
+    stream,
+    "Received Partial Message",
+    {"topic": topic, "group_id": $groupId, "from": $fromPeer},
+  )
 
 proc logAllPartsReceived*(stream: Stream, groupId: uint64) {.raises: [].} =
   ## Log that all parts of a partial message have been received.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 ## This module contains a Switch Building helper.
 runnableExamples:
@@ -98,6 +98,8 @@ type
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
+    watermarkCfg: Opt[WatermarkConfig]
+    scoringConfig: ScoringConfig
 
 proc new*(T: type[SwitchBuilder]): T {.public.} =
   ## Creates a SwitchBuilder
@@ -109,7 +111,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     privKey: Opt.none(PrivateKey),
     addresses: @[address],
     secureManagers: @[],
-    maxConnections: MaxConnections,
+    maxConnections: -1,
     maxIn: -1,
     maxOut: -1,
     maxConnsPerPeer: MaxConnectionsPerPeer,
@@ -121,6 +123,8 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     kad: Opt.none(KadInfo),
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
+    watermarkCfg: Opt.none(WatermarkConfig),
+    scoringConfig: ScoringConfig(),
   )
 
 proc withPrivateKey*(
@@ -296,6 +300,38 @@ proc withMaxConnsPerPeer*(
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
+proc withWatermark*(
+    b: SwitchBuilder,
+    lowWater: int,
+    highWater: int,
+    gracePeriod: Duration = 1.minutes,
+    silencePeriod: Duration = 10.seconds,
+): SwitchBuilder {.public.} =
+  ## Enable hi/lo watermark connection management.
+  ## When connected peers exceed `highWater`, the connection manager trims
+  ## down to `lowWater`, skipping peers within `gracePeriod` and protected peers.
+  ## Can be combined with `withMaxConnections`/`withMaxInOut` to apply both
+  ## a hard semaphore cap and active trimming simultaneously.
+  doAssert lowWater > 0, "lowWater must be > 0"
+  doAssert highWater > lowWater, "highWater must be > lowWater"
+  b.watermarkCfg = Opt.some(
+    WatermarkConfig(
+      lowWater: lowWater,
+      highWater: highWater,
+      gracePeriod: gracePeriod,
+      silencePeriod: silencePeriod,
+    )
+  )
+  b
+
+proc withScoring*(
+    b: SwitchBuilder, scoringConfig: ScoringConfig = ScoringConfig()
+): SwitchBuilder {.public.} =
+  ## Configure connection scoring parameters.
+  doAssert scoringConfig.decayResolution > 0.seconds, "decayResolution must be > 0"
+  b.scoringConfig = scoringConfig
+  b
+
 proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder {.public.} =
   b.peerStoreCapacity = Opt.some(capacity)
   b
@@ -432,16 +468,23 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
     else:
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
-  var connManager: ConnManager
-  if b.maxIn > 0 or b.maxOut > 0:
-    if b.maxIn > 0 and b.maxOut > 0:
-      connManager = ConnManager.newMaxInOut(b.maxIn, b.maxOut, b.maxConnsPerPeer)
-    else:
-      raiseAssert "withMaxIn() should be paired with withMaxOut()"
+  var maxConnections, maxIn, maxOut = 0
+  if b.maxIn > 0 and b.maxOut > 0:
+    maxIn = b.maxIn
+    maxOut = b.maxOut
+  elif b.maxIn > 0 or b.maxOut > 0:
+    raiseAssert "withMaxIn() should be paired with withMaxOut()"
   elif b.maxConnections > 0:
-    connManager = ConnManager.newMaxTotal(b.maxConnections, b.maxConnsPerPeer)
-  else:
-    connManager = ConnManager.newMaxTotal()
+    maxConnections = b.maxConnections
+
+  let connManager = ConnManager.new(
+    maxConnections = maxConnections,
+    maxIn = maxIn,
+    maxOut = maxOut,
+    maxConnsPerPeer = b.maxConnsPerPeer,
+    watermark = b.watermarkCfg,
+    scoringConfig = b.scoringConfig,
+  )
 
   let ms = MultistreamSelect.new()
   let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
@@ -643,4 +686,4 @@ proc newStandardSwitch*(
     sendSignedPeerRecord = sendSignedPeerRecord,
     peerStoreCapacity = peerStoreCapacity,
   )
-  .build()
+    .build()

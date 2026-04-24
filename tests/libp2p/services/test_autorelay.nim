@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright (c) Status Research & Development GmbH 
+# Copyright (c) Status Research & Development GmbH
 
 {.used.}
 
@@ -33,11 +33,11 @@ proc buildRelayMA(switchRelay: Switch, switchClient: Switch): seq[MultiAddress] 
   for i in 0 ..< switchRelay.peerInfo.addrs.len():
     result.add(
       MultiAddress
-      .init(
-        $switchRelay.peerInfo.addrs[i] & "/p2p/" & $switchRelay.peerInfo.peerId &
-          "/p2p-circuit"
-      )
-      .get()
+        .init(
+          $switchRelay.peerInfo.addrs[i] & "/p2p/" & $switchRelay.peerInfo.peerId &
+            "/p2p-circuit"
+        )
+        .get()
     )
 
 suite "Autorelay":
