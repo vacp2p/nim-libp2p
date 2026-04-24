@@ -196,7 +196,7 @@ suite "Connection Manager":
   asyncTest "expect connection from peer":
     # FIXME This should be 1 instead of 0, it will get fixed soon
     let connMngr = newMaxTotal(maxConnsPerPeer = 0)
-    let peerId = PeerId.random.tryGet()
+    let peerId = PeerId.random(rng).tryGet()
 
     await connMngr.storeMuxer(makeMuxer(peerId))
 
@@ -213,7 +213,7 @@ suite "Connection Manager":
     await waitedConn1.cancelAndWait()
     let
       waitedConn2 = connMngr.expectConnection(peerId, In)
-      waitedConn3 = connMngr.expectConnection(PeerId.random.tryGet(), In)
+      waitedConn3 = connMngr.expectConnection(PeerId.random(rng).tryGet(), In)
       conn = makeMuxer(peerId)
     await connMngr.storeMuxer(conn)
     check (await waitedConn2) == conn
