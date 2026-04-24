@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles, redis, strformat, sequtils
+import chronos, chronicles, os, sequtils, strformat, tables
 import
   ../../libp2p/[
     builders,
     switch,
     multicodec,
+    observedaddrmanager,
     services/hpservice,
     services/autorelayservice,
     protocols/connectivity/relay/client,
@@ -15,10 +16,73 @@ import
     protocols/ping,
   ]
 import ../../tests/stubs/autonatclientstub
-import ./lib
+import ../unified_testing
 
 logScope:
   topics = "hp interop peer"
+
+type Config = object
+  isDialer: bool
+  bindIp: string
+  redisAddr: string
+  testKey: string
+  transport: string
+  secureChannel: string
+  muxer: string
+
+proc readConfig(): Config =
+  let isDialer = getEnv("IS_DIALER") == "true"
+  let bindIp =
+    if isDialer:
+      getEnv("DIALER_IP", "0.0.0.0")
+    else:
+      getEnv("LISTENER_IP", "0.0.0.0")
+
+  let config = Config(
+    isDialer: isDialer,
+    bindIp: bindIp,
+    redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
+    testKey: getEnv("TEST_KEY"),
+    transport: getEnv("TRANSPORT", "tcp"),
+    secureChannel: getEnv("SECURE_CHANNEL", "noise"),
+    muxer: getEnv("MUXER", "mplex"),
+  )
+  info "Test configuration", config
+
+  config
+
+proc createSwitch(
+    bindIp: string,
+    transport: string,
+    secureChannel: string,
+    muxer: string,
+    relayClient: Relay = nil,
+    hpService: Service = nil,
+): Switch =
+  let rng = newRng()
+  var builder = SwitchBuilder
+    .new()
+    .withRng(rng)
+    .withObservedAddrManager(ObservedAddrManager.new(maxSize = 1, minCount = 1))
+    .withAutonat()
+
+  builder.addTransport(transport, bindIp, tcpFlags = {ServerFlags.TcpNoDelay})
+  builder.addSecureChannel(secureChannel)
+  builder.addMuxer(muxer)
+
+  if hpService != nil:
+    builder = builder.withServices(@[hpService])
+
+  if relayClient != nil:
+    builder = builder.withCircuitRelay(relayClient)
+
+  let s = builder.build()
+  s.mount(Ping.new(rng = rng))
+  return s
+
+proc isDirectlyConnected(switch: Switch, peerId: PeerId): bool =
+  let conns = switch.connManager.getConnections()
+  peerId in conns and conns[peerId].anyIt(not isRelayed(it.connection))
 
 proc main() {.async.} =
   # Read test configuration
@@ -46,7 +110,7 @@ proc main() {.async.} =
 
   await allFutures(switch.start(), auxSwitch.start())
   defer:
-    # Timeout the stop to avoid hanging on mplex teardown 
+    # Timeout the stop to avoid hanging on mplex teardown
     discard await allFutures(switch.stop(), auxSwitch.stop()).withTimeout(5.seconds)
 
   # Connect to aux switch for AutoNAT stub to report NotReachable
@@ -60,7 +124,7 @@ proc main() {.async.} =
   info "AutoNAT reports NotReachable"
 
   # Get relay multiaddr from Redis (set by Rust relay)
-  let redisClient = setupRedis(config)
+  let redisClient = setupRedis(config.redisAddr)
   let relayAddr = await redisClient.pollGet(&"{config.testKey}_relay_multiaddr")
   info "Got relay address", relayAddr
 
@@ -130,17 +194,5 @@ proc main() {.async.} =
     # Wait to be killed (docker-compose will stop us after dialer exits)
     await sleepAsync(5.minutes)
 
-try:
-  proc mainAsync(): Future[string] {.async.} =
-    # mainAsync wraps main and returns some value, as otherwise
-    # 'waitFor(fut)' has no type (or is ambiguous)
-    await main()
-    return "done"
-
-  discard waitFor(mainAsync().wait(4.minutes))
-except AsyncTimeoutError as e:
-  error "Program execution timed out", description = e.msg
-  quit(-1)
-except CatchableError as e:
-  error "Unexpected error", description = e.msg
-  quit(-1)
+runMain(4.minutes):
+  await main()
