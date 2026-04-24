@@ -74,7 +74,7 @@ suite "Discoverer - start/stop discovering":
     let disco = makeMockDiscovery()
     let service = makeServiceInfo()
 
-    let added = disco.startDiscovering(service)
+    let added = disco.startDiscovering(service.id)
 
     check added
     check disco.rtManager.hasService(service.id.hashServiceId())
@@ -83,8 +83,8 @@ suite "Discoverer - start/stop discovering":
     let disco = makeMockDiscovery()
     let service = makeServiceInfo()
 
-    discard disco.startDiscovering(service)
-    let added = disco.startDiscovering(service)
+    discard disco.startDiscovering(service.id)
+    let added = disco.startDiscovering(service.id)
 
     check not added
 
@@ -93,8 +93,8 @@ suite "Discoverer - start/stop discovering":
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
-    discard disco.startDiscovering(s1)
-    discard disco.startDiscovering(s2)
+    discard disco.startDiscovering(s1.id)
+    discard disco.startDiscovering(s2.id)
 
     check disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
@@ -104,8 +104,8 @@ suite "Discoverer - start/stop discovering":
     let disco = makeMockDiscovery()
     let service = makeServiceInfo()
 
-    check disco.startDiscovering(service)
-    disco.stopDiscovering(service)
+    check disco.startDiscovering(service.id)
+    disco.stopDiscovering(service.id)
 
     check not disco.rtManager.hasService(service.id.hashServiceId())
 
@@ -114,9 +114,9 @@ suite "Discoverer - start/stop discovering":
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
-    check disco.startDiscovering(s1)
-    check disco.startDiscovering(s2)
-    disco.stopDiscovering(s1)
+    check disco.startDiscovering(s1.id)
+    check disco.startDiscovering(s2.id)
+    disco.stopDiscovering(s1.id)
 
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
@@ -141,12 +141,12 @@ suite "Discoverer - start/stop discovering":
     checkUntilTimeout:
       registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len == 1
 
-    check discovererNode.startDiscovering(service)
+    check discovererNode.startDiscovering(service.id)
 
     let found = await discovererNode.lookup(service)
     check found.isOk()
     check found.get().len >= 1
     check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
 
-    discovererNode.stopDiscovering(service)
+    discovererNode.stopDiscovering(service.id)
     check not discovererNode.rtManager.hasService(serviceId)
