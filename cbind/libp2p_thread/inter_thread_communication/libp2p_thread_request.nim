@@ -234,11 +234,7 @@ proc handleGetProvidersRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      providersRes[].providers,
-      providersRes[].providersLen,
-      nil,
-      0,
+      RET_OK.cint, providersRes[].providers, providersRes[].providersLen, nil, 0,
       request[].userData,
     )
 
