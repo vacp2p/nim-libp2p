@@ -3,7 +3,7 @@
 
 ## Shared helpers for libp2p unified-testing interop binaries.
 
-import std/[os, sequtils, strutils]
+import std/[os, sequtils, strformat, strutils]
 import chronos, chronicles, redis
 import ../libp2p/[builders, transports/wstransport]
 
@@ -88,6 +88,12 @@ proc pollGet*(
 
 proc toMs*(duration: Duration): float =
   float(duration.microseconds()) / 1_000.0
+
+proc printLatencyYaml*(handshakePlusOneRttMs, pingRttMs: float) =
+  echo "latency:"
+  echo &"  handshake_plus_one_rtt: {handshakePlusOneRttMs:.2f}"
+  echo &"  ping_rtt: {pingRttMs:.2f}"
+  echo "  unit: ms"
 
 # ---------- switch builder dispatch ----------
 

@@ -178,13 +178,7 @@ proc main() {.async.} =
     let pingDelay = await Ping.new().ping(channel)
     let pingRttMs = pingDelay.toMs()
 
-    let handshakePlusOneRtt = dcutrElapsed.toMs() + pingRttMs
-
-    # Output YAML to stdout
-    echo "latency:"
-    echo &"  handshake_plus_one_rtt: {handshakePlusOneRtt:.2f}"
-    echo &"  ping_rtt: {pingRttMs:.2f}"
-    echo "  unit: ms"
+    printLatencyYaml(dcutrElapsed.toMs() + pingRttMs, pingRttMs)
   else:
     # Listener: publish peer ID to Redis and wait
     let listenerPeerId = $switch.peerInfo.peerId
