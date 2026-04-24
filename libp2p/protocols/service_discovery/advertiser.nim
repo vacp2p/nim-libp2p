@@ -132,7 +132,7 @@ proc advertiseToRegistrar*(
 
     case response.status
     of kademlia_protobuf.RegistrationStatus.Confirmed:
-      await sleepAsync(disco.discoConfig.advertExpiry)
+      await sleepAsync(toChronos(disco.discoConfig.advertExpiry))
     of kademlia_protobuf.RegistrationStatus.Wait:
       let newTicket = response.ticket.valueOr:
         error "no ticket to retry with"
@@ -140,8 +140,7 @@ proc advertiseToRegistrar*(
 
       currentTicket = Opt.some(newTicket)
 
-      let waitSecs =
-        min(disco.discoConfig.advertExpiry.seconds.uint32, newTicket.tWaitFor)
+      let waitSecs = min(disco.discoConfig.advertExpiry.uint32, newTicket.tWaitFor)
 
       await sleepAsync(chronos.seconds(int(waitSecs)))
     of kademlia_protobuf.RegistrationStatus.Rejected:

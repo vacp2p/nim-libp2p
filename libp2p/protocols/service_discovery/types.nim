@@ -23,9 +23,9 @@ const
   Default_F_return* = 10
   Default_E* = 900.0
   Default_C*: uint64 = 1_000
-  Default_P_occ* = chronos.seconds(10)
+  Default_P_occ* = 10.0
   Default_G* = 1e-7
-  Default_Delta* = chronos.seconds(1)
+  Default_Delta* = 1.0
   Default_M_buckets* = 16
 
 type
@@ -46,12 +46,12 @@ type
 
   Registrar* = ref object
     cache*: OrderedTable[ServiceId, seq[Advertisement]]
-    cacheTimestamps*: Table[AdvertisementKey, uint64]
+    cacheTimestamps*: Table[AdvertisementKey, Time]
     ipTree*: IpTree
-    boundService*: Table[ServiceId, float64]
-    timestampService*: Table[ServiceId, uint64]
-    boundIp*: Table[string, float64]
-    timestampIp*: Table[string, uint64]
+    boundService*: Table[ServiceId, Time]
+    timestampService*: Table[ServiceId, Time]
+    boundIp*: Table[string, Time]
+    timestampIp*: Table[string, Time]
 
   AdvertiseTask* = ref object
     fut*: Future[void]
@@ -66,11 +66,11 @@ type
     kLookup*: int
     fLookup*: int
     fReturn*: int
-    advertExpiry*: chronos.Duration
+    advertExpiry*: float64
     advertCacheCap*: uint64
-    occupancyExp*: chronos.Duration
+    occupancyExp*: float64
     safetyParam*: float64
-    registrationWindow*: chronos.Duration
+    registrationWindow*: float64
     bucketsCount*: int
 
   ServiceDiscovery* = ref object of KadDHT
@@ -92,7 +92,7 @@ proc new*(
     kLookup = Default_K_lookup,
     fLookup = Default_F_lookup,
     fReturn = Default_F_return,
-    advertExpiry: chronos.Duration = chronos.seconds(int(Default_E)),
+    advertExpiry = Default_E,
     advertCacheCap = Default_C,
     occupancyExp = Default_P_occ,
     safetyParam = Default_G,
@@ -143,12 +143,12 @@ proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
 proc new*(T: typedesc[Registrar]): T =
   T(
     cache: initOrderedTable[ServiceId, seq[Advertisement]](),
-    cacheTimestamps: initTable[AdvertisementKey, uint64](),
+    cacheTimestamps: initTable[AdvertisementKey, Time](),
     ipTree: IpTree.new(),
-    boundService: initTable[ServiceId, float64](),
-    timestampService: initTable[ServiceId, uint64](),
-    boundIp: initTable[string, float64](),
-    timestampIp: initTable[string, uint64](),
+    boundService: initTable[ServiceId, Time](),
+    timestampService: initTable[ServiceId, Time](),
+    boundIp: initTable[string, Time](),
+    timestampIp: initTable[string, Time](),
   )
 
 proc new*(T: typedesc[Advertiser]): T =
@@ -236,3 +236,6 @@ proc toPeerInfos*(peers: seq[Peer]): seq[PeerInfo] =
     peerInfos.add(peerInfo)
 
   return peerInfos
+
+func toChronos*(secs: float64): chronos.Duration =
+  chronos.nanoseconds(int64(secs * 1_000_000_000))
