@@ -1,0 +1,11 @@
+FROM nimlang/nim:latest
+WORKDIR /app
+COPY reproduce_emfile.nim .
+COPY config.nims .
+COPY libp2p.nimble .
+
+# We need to install the dependencies of the project
+# Wait, we can just install chronos
+RUN nimble install -y chronos
+
+CMD ["nim", "c", "-r", "-d:release", "reproduce_emfile.nim"]
