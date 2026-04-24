@@ -193,7 +193,7 @@ proc random*(t: typedesc[PeerId], rng = newRng()): Result[PeerId, cstring] =
   PeerId.init(randomKey).orError(cstring("failed to generate random key"))
 
 proc random*(
-    t: typedesc[PeerId], count: int, rng = newRng()
+    t: typedesc[PeerId], count: int, rng: ref HmacDrbgContext
 ): Result[seq[PeerId], cstring] =
   ## Create `count` peer ids with random public keys.
   var peers = newSeqOfCap[PeerId](count)
