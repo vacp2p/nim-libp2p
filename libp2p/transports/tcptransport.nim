@@ -243,6 +243,7 @@ method accept*(
       await finished
     except TransportTooManyError as exc:
       debug "Too many files opened", description = exc.msg
+      await sleepAsync(100.milliseconds)
       return nil
     except TransportAbortedError as exc:
       debug "Connection aborted", description = exc.msg

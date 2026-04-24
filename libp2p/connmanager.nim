@@ -410,6 +410,14 @@ proc getIncomingSlot*(
   await c.inSema.acquire()
   return ConnectionSlot(connManager: c, direction: In)
 
+proc tryGetIncomingSlot*(
+    c: ConnManager
+): ConnectionSlot {.raises: [TooManyConnectionsError].} =
+  if not c.inSema.tryAcquire():
+    trace "Too many incoming connections"
+    raise newTooManyConnectionsError()
+  return ConnectionSlot(connManager: c, direction: In)
+
 proc getOutgoingSlot*(
     c: ConnManager, forceDial = false
 ): ConnectionSlot {.raises: [TooManyConnectionsError].} =

@@ -270,18 +270,12 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
     var conn: Connection
     try:
       debug "About to accept incoming connection"
-      # remember to always release the slot when
-      # the upgrade succeeds or fails, this is
-      # currently done by the `upgradeMonitor`
-      let slot = await s.connManager.getIncomingSlot()
       conn =
         try:
           await transport.accept()
         except CancelledError as exc:
-          slot.release()
           raise exc
         except CatchableError as exc:
-          slot.release()
           raise
             newException(CatchableError, "failed to accept connection: " & exc.msg, exc)
       if isNil(conn):
@@ -289,12 +283,29 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # file-handle limit (or another non-fatal error),
         # we can get one on the next try
         debug "Unable to get a connection"
-        slot.release()
         try:
           upgrades.release()
         except AsyncSemaphoreError:
           raiseAssert "semaphore released without acquire"
         continue
+
+      # We have pulled the connection from the OS backlog.
+      # Now check if we have a connection slot. If we don't, immediately
+      # close the connection so the remote peer doesn't hang.
+      # remember to always release the slot when
+      # the upgrade succeeds or fails, this is
+      # currently done by the `upgradeMonitor`
+      let slot =
+        try:
+          s.connManager.tryGetIncomingSlot()
+        except TooManyConnectionsError:
+          debug "Node reached MaxConnections, immediately rejecting connection"
+          await conn.close()
+          try:
+            upgrades.release()
+          except AsyncSemaphoreError:
+            raiseAssert "semaphore released without acquire"
+          continue
 
       slot.trackConnection(conn)
 
