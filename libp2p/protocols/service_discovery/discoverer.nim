@@ -157,15 +157,14 @@ proc collectBucketAds(
 
   return found
 
-proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
-  let serviceId = service.id.hashServiceId()
+proc startDiscovering*(disco: ServiceDiscovery, serviceId: string): bool =
   disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
+    serviceId.hashServiceId(), disco.rtable, disco.config.replication,
+    disco.discoConfig.bucketsCount, Interest,
   )
 
-proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo) =
-  disco.rtManager.removeService(service.id.hashServiceId(), Interest)
+proc stopDiscovering*(disco: ServiceDiscovery, serviceId: string) =
+  disco.rtManager.removeService(serviceId.hashServiceId(), Interest)
 
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
