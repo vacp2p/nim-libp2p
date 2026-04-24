@@ -157,6 +157,16 @@ proc collectBucketAds(
 
   return found
 
+proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  let serviceId = service.id.hashServiceId()
+  disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+
+proc stopDiscovering*(disco: ServiceDiscovery, service: ServiceInfo) =
+  disco.rtManager.removeService(service.id.hashServiceId(), Interest)
+
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
@@ -188,24 +198,3 @@ proc lookup*(
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)
-
-proc addServiceInterest*(
-    disco: ServiceDiscovery, service: ServiceInfo
-) {.async: (raises: [CancelledError]).} =
-  ## Add this service to this node's set of interests.
-
-  let serviceId = service.id.hashServiceId()
-
-  discard disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-
-proc removeServiceInterest*(
-    disco: ServiceDiscovery, service: ServiceInfo
-) {.async: (raises: [CancelledError]).} =
-  ## Remove this service from this node's set of interests.
-
-  let serviceId = service.id.hashServiceId()
-
-  disco.rtManager.removeService(serviceId, Interest)

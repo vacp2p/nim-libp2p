@@ -92,7 +92,7 @@ proc sendRegister*(
     )
   )
 
-proc startAdvertising*(
+proc advertiseToRegistrar*(
     disco: ServiceDiscovery,
     serviceId: ServiceId,
     registrar: PeerId,
@@ -183,7 +183,7 @@ proc addProvidedService*(
         error "cannot convert key to peer id", error
         continue
 
-      let fut = disco.startAdvertising(
+      let fut = disco.advertiseToRegistrar(
         serviceId, registrar, bucketIdx, Opt.none(Ticket), advert
       )
       disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
@@ -208,3 +208,15 @@ proc removeProvidedService*(
   disco.rtManager.removeService(serviceId, Provided)
   disco.services.excl(service)
   cd_advertiser_services_removed.inc()
+
+proc startAdvertising*(
+    disco: ServiceDiscovery,
+    service: ServiceInfo,
+    advert: Opt[seq[byte]] = Opt.none(seq[byte]),
+) =
+  disco.addProvidedService(service, advert = advert)
+
+proc stopAdvertising*(
+    disco: ServiceDiscovery, service: ServiceInfo
+) {.async: (raises: [CancelledError]).} =
+  await disco.removeProvidedService(service)
