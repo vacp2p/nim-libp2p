@@ -4,7 +4,7 @@
 ## This tutorial demonstrates the six ways to configure the connection
 ## manager through `SwitchBuilder` as an API showcase.  
 ## The connection manager controls how many simultaneous connections a switch accepts, 
-## and can optionally trim idle peers via watermark logic.
+## and can optionally trim low-scoring peers via watermark logic.
 ##
 ## You'll find all configuration options in the `withMaxConnections`,
 ## `withMaxInOut`, and `withWatermark` builder methods.
