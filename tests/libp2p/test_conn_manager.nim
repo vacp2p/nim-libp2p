@@ -47,7 +47,7 @@ proc newWatermark*(
     ScoringConfig(outboundBonus: outboundBonus, decayResolution: decayResolution)
   ConnManager.new(watermark = Opt.some(wtCfg), scoringConfig = scCfg)
 
-proc storeMuxers(connMngr: ConnManager, count: int): Future[seq[PeerId]] {.async.} =
+proc storeMuxers(connMngr: ConnManager, count: uint): Future[seq[PeerId]] {.async.} =
   let peers = PeerId.random(count, rng).tryGet()
   await allFuturesRaising(peers.mapIt(connMngr.storeMuxer(makeMuxer(it))))
   return peers
