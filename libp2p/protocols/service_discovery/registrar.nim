@@ -187,7 +187,12 @@ proc waitingTime*(
       if ipLowerBound > w:
         w = ipLowerBound
 
-  return secsAsDuration(max(0.0, w))
+  # Bound & Quantize W
+  w = max(0.0, w)
+  w = min(w, float64(uint32.high))
+  w = ceil(w)
+
+  return w.secsAsDuration()
 
 proc updateLowerBounds*(
     registrar: Registrar,
@@ -443,7 +448,7 @@ proc handleRegister*(
       advertisement: regMsg.advertisement,
       tInit: regMsg.ticket.tInitOrDefault(now),
       tMod: now,
-      tWaitFor: uint32(min(tWait, float64(uint32.high))),
+      tWaitFor: uint32(tWait),
     )
     if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
       error "failed to sign ticket"
