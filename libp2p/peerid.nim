@@ -192,6 +192,15 @@ proc random*(t: typedesc[PeerId], rng = newRng()): Result[PeerId, cstring] =
   let randomKey = PrivateKey.random(Secp256k1, rng[])[]
   PeerId.init(randomKey).orError(cstring("failed to generate random key"))
 
+proc random*(
+    t: typedesc[PeerId], count: int, rng = newRng()
+): Result[seq[PeerId], cstring] =
+  ## Create `count` peer ids with random public keys.
+  var peers = newSeqOfCap[PeerId](count)
+  for _ in 0 ..< count:
+    peers.add(?PeerId.random(rng))
+  ok(peers)
+
 func match*(pid: PeerId, pubkey: PublicKey): bool =
   ## Returns ``true`` if ``pid`` matches public key ``pubkey``.
   PeerId.init(pubkey) == Result[PeerId, cstring].ok(pid)
