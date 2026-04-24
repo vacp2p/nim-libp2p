@@ -59,7 +59,7 @@ proc makeAdvertisement*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-proc fillCache*(registrar: Registrar, n: int, now: uint64) =
+proc fillCache*(registrar: Registrar, n: int, now: Time) =
   for i in 0 ..< n:
     let ad = makeAdvertisement($i)
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
@@ -99,7 +99,7 @@ proc makeDisco*(
   var config = ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
   config.fReturn = fReturn
   if advertExpiry >= 0:
-    config.advertExpiry = chronos.seconds(int(advertExpiry))
+    config.advertExpiry = advertExpiry
   if safetyParam >= 0:
     config.safetyParam = safetyParam
   makeMockDiscovery(config)
