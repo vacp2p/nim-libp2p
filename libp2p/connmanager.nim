@@ -52,12 +52,12 @@ type
 
   ConnEventKind* {.pure.} = enum
     Connected
-      # A connection was made and securely upgraded - there may be
-      # more than one concurrent connection thus more than one upgrade
-      # event per peer.
+      ## A connection was made and securely upgraded - there may be
+      ## more than one concurrent connection thus more than one upgrade
+      ## event per peer.
     Disconnected
-      # Peer disconnected - this event is fired once per upgrade
-      # when the associated connection is terminated.
+      ## Peer disconnected - this event is fired once per upgrade
+      ## when the associated connection is terminated.
 
   ConnEvent* = object
     case kind*: ConnEventKind
@@ -100,7 +100,6 @@ type
     readyPeers: HashSet[PeerId]
     expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
-    # watermark mode fields — only populated when constructed via newWatermark
     watermark: Opt[WatermarkConfig]
     connectedAt: Table[PeerId, Moment]
     protectedPeers: Table[PeerId, HashSet[string]]
@@ -251,7 +250,6 @@ proc addConnEventHandler*(
     c: ConnManager, handler: ConnEventHandler, kind: ConnEventKind
 ) =
   ## Add peer event handler - handlers must not raise exceptions!
-  ##
   if handler.isNil:
     return
   c.connEvents[kind].incl(handler)
@@ -283,8 +281,6 @@ proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
 ) =
   ## Add peer event handler - handlers must not raise exceptions!
-  ##
-
   if handler.isNil:
     return
   c.peerEvents[kind].incl(handler)
@@ -387,14 +383,10 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer =
   ## Select a connection for the provided peer and direction
-  ##
   return c.muxerStore.selectMuxer(peerId, dir)
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
-  ## Select a connection for the provided giving priority
-  ## to outgoing connections
-  ##
-
+  ## Select a connection for the provided peer, giving priority to outgoing connections.
   var mux = c.selectMuxer(peerId, Direction.Out)
   if mux.isNil:
     mux = c.selectMuxer(peerId, Direction.In)
@@ -408,7 +400,6 @@ proc storeMuxer*(
     c: ConnManager, muxer: Muxer
 ) {.async: (raises: [CancelledError, LPError]).} =
   ## store the connection and muxer
-  ##
 
   if muxer.isNil:
     raise newException(LPError, "muxer cannot be nil")
@@ -454,7 +445,7 @@ proc storeMuxer*(
   )
 
   # this notifies that peer is ready once the Connected events have been started
-  # but before waiting for them to be completed, avoiding deadlocks where a 
+  # but before waiting for them to be completed, avoiding deadlocks where a
   # connected handler would need inbound streams to progress.
   c.notifyPeerReady(peerId)
   await connectedEvent
@@ -523,16 +514,14 @@ proc getStream*(
     c: ConnManager, muxer: Muxer
 ): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed muxer
-  ##
-
   if not muxer.isNil:
     return await muxer.newStream()
+  return nil
 
 proc getStream*(
     c: ConnManager, peerId: PeerId
 ): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed peer from any connection
-  ##
 
   return await c.getStream(c.selectMuxer(peerId))
 
@@ -540,13 +529,12 @@ proc getStream*(
     c: ConnManager, peerId: PeerId, dir: Direction
 ): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed peer from a connection with `dir`
-  ##
 
   return await c.getStream(c.selectMuxer(peerId, dir))
 
 proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError]).} =
   ## drop connections and cleanup resources for peer
-  ##
+
   trace "Dropping peer", peerId
 
   let muxers = c.muxerStore.remove(peerId)
@@ -716,10 +704,7 @@ proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
     c.trimFut = c.trimConnections()
 
 proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
-  ## cleanup resources for the connection
-  ## manager
-  ##
-
+  ## Cleanup resources for the connection manager.
   trace "Closing ConnManager"
   c.closed = true
 
