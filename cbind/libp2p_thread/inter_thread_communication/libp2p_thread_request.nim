@@ -286,12 +286,7 @@ proc handleReservationRes(
 
   foreignThreadGc:
     cb(
-      RET_OK.cint,
-      rsvp[].addrs,
-      rsvp[].addrsLen,
-      rsvp[].expireTime,
-      nil,
-      0,
+      RET_OK.cint, rsvp[].addrs, rsvp[].addrsLen, rsvp[].expireTime, nil, 0,
       request[].userData,
     )
 
