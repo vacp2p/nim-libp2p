@@ -273,5 +273,7 @@ suite "FloodSub Component":
 
     check (await nodes[0].publish(topic, bigMessage)) > 0
 
-    checkUntilTimeout:
+    # Large message transfer (19MB over QUIC) can take longer than the default 30s timeout,
+    # especially on slow CI machines (e.g. Windows runners).
+    checkUntilTimeoutCustom(120.seconds, 500.milliseconds):
       messageReceived == 1
