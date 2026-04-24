@@ -2,7 +2,7 @@
 ## # Connection Manager Configuration
 ##
 ## This tutorial demonstrates the six ways to configure the connection
-## manager through `SwitchBuilder` as a API showcase.  
+## manager through `SwitchBuilder` as an API showcase.  
 ## The connection manager controls how many simultaneous connections a switch accepts, 
 ## and can optionally trim idle peers via watermark logic.
 ##
@@ -12,7 +12,7 @@ import chronos
 
 import libp2p
 
-## Helper used to create `SwitchBuilder` with basic options shared in all scenarions.
+## Helper used to create `SwitchBuilder` with basic options shared in all scenarios.
 proc createBaseBuilder(): SwitchBuilder =
   return SwitchBuilder
     .new()
