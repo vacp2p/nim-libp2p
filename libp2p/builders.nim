@@ -608,12 +608,17 @@ proc newStandardSwitchBuilder*(
     .new()
     .withRng(rng)
     .withSignedPeerRecord(sendSignedPeerRecord)
-    .withMaxConnections(maxConnections)
-    .withMaxIn(maxIn)
-    .withMaxOut(maxOut)
-    .withMaxConnsPerPeer(maxConnsPerPeer)
     .withPeerStore(capacity = peerStoreCapacity)
     .withNoise()
+
+  if maxConnections > 0:
+    b = b.withMaxConnections(maxConnections)
+
+  if maxIn > 0 and maxOut > 0:
+    b = b.withMaxInOut(maxIn, maxOut)
+
+  if maxConnsPerPeer > 0:
+    b = b.withMaxConnsPerPeer(maxConnsPerPeer)
 
   privKey.withValue(pkey):
     b = b.withPrivateKey(pkey)
