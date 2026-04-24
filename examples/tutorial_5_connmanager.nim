@@ -52,8 +52,8 @@ proc main() {.async.} =
   ## ### 2. `.withMaxConnections(100)` — raise the shared cap
   ##
   ## Both incoming and outgoing connections share one semaphore of size 100.
-  ## The 101st connection attempt raises `TooManyConnectionsError` on the
-  ## dialing side (outgoing) or blocks until a slot is released (incoming).
+  ## The 101st connection attempt raises error on the dialing side (outgoing) or 
+  ## blocks until a slot is released (incoming).
   block:
     let switch = createBaseBuilder().withMaxConnections(100).build()
     await switch.start()
