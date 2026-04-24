@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times]
+import std/[times, math]
 import chronos, chronicles, results
 import
   ../../../libp2p/[
@@ -35,7 +35,9 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
 
     # With empty cache: c = 0, occupancy = 1.0, c_s = 0, ipSim = 0
     # w = advertExpiry * 1.0 * (0 + 0 + safetyParam)
-    let expected = discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam
+    let expected =
+      ceil(discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam)
+
     check abs(w.inFloatSecs - expected) < 0.001
 
   test "waitingTime increases with cache occupancy":
@@ -614,10 +616,13 @@ suite "Service Discovery Registrar - Configuration Variations":
     let now = getTime().toUnix().uint64
     let serviceId = makeServiceId()
 
-    let discoConfig1 = ServiceDiscoveryConfig.new(advertExpiry = chronos.seconds(100))
+    let discoConfig1 =
+      ServiceDiscoveryConfig.new(safetyParam = 1.0, advertExpiry = chronos.seconds(100))
     let w1 = registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
 
-    let discoConfig2 = ServiceDiscoveryConfig.new(advertExpiry = chronos.seconds(2000))
+    let discoConfig2 = ServiceDiscoveryConfig.new(
+      safetyParam = 1.0, advertExpiry = chronos.seconds(10000)
+    )
     let w2 = registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
 
     check w2 > w1
