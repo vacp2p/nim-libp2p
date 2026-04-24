@@ -42,7 +42,7 @@ jobs:
         nim:
           - ref: v2.0.16
             memory_management: refc
-          - ref: v2.2.6
+          - ref: v2.2.10
             memory_management: refc
         include:
           - platform:

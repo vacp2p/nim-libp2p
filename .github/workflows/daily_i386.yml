@@ -16,7 +16,7 @@ jobs:
     with:
       nim: "[
           {'ref': 'v2.0.16', 'memory_management': 'refc'},
-          {'ref': 'v2.2.6', 'memory_management': 'refc'},
+          {'ref': 'v2.2.10', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
       configuration: "[
@@ -29,7 +29,7 @@ jobs:
       pinned_deps: true
       nim: "[
           {'ref': 'v2.0.16', 'memory_management': 'refc'},
-          {'ref': 'v2.2.6', 'memory_management': 'refc'},
+          {'ref': 'v2.2.10', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
       configuration: "[
