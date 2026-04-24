@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/protocols/identify</h1>
       <div class="row">
@@ -280,7 +283,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="Identify" class="tohide">
-<dt><pre><a href="identify.html#Identify"><span class="Identifier">Identify</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="protocol.html#LPProtocol"><span class="Identifier">LPProtocol</span></a>
+<dt><pre><a href="#Identify"><span class="Identifier">Identify</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="protocol.html#LPProtocol"><span class="Identifier">LPProtocol</span></a>
   <span class="Identifier">peerInfo</span><span class="Operator">*</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a>
   <span class="Identifier">sendSignedPeerRecord</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">bool</span>
   <span class="Identifier">observedAddrManager</span><span class="Operator">*</span><span class="Other">:</span> <a href="../observedaddrmanager.html#ObservedAddrManager"><span class="Identifier">ObservedAddrManager</span></a></pre></dt>
@@ -293,7 +296,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentifyError" class="tohide">
-<dt><pre><a href="identify.html#IdentifyError"><span class="Identifier">IdentifyError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a></pre></dt>
+<dt><pre><a href="#IdentifyError"><span class="Identifier">IdentifyError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a></pre></dt>
 <dd>
 
 
@@ -303,7 +306,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentifyInfo" class="tohide">
-<dt><pre><a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">object</span>
+<dt><pre><a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">object</span>
   <span class="Identifier">pubkey</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../crypto/crypto.html#PublicKey"><span class="Identifier">PublicKey</span></a><span class="Other">]</span>
   <span class="Identifier">peerId</span><span class="Operator">*</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
   <span class="Identifier">addrs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>
@@ -321,7 +324,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentifyNoPubKeyError" class="tohide">
-<dt><pre><a href="identify.html#IdentifyNoPubKeyError"><span class="Identifier">IdentifyNoPubKeyError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="identify.html#IdentifyError"><span class="Identifier">IdentifyError</span></a></pre></dt>
+<dt><pre><a href="#IdentifyNoPubKeyError"><span class="Identifier">IdentifyNoPubKeyError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="#IdentifyError"><span class="Identifier">IdentifyError</span></a></pre></dt>
 <dd>
 
 
@@ -331,7 +334,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentifyPush" class="tohide">
-<dt><pre><a href="identify.html#IdentifyPush"><span class="Identifier">IdentifyPush</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="protocol.html#LPProtocol"><span class="Identifier">LPProtocol</span></a></pre></dt>
+<dt><pre><a href="#IdentifyPush"><span class="Identifier">IdentifyPush</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="protocol.html#LPProtocol"><span class="Identifier">LPProtocol</span></a></pre></dt>
 <dd>
 
 
@@ -341,7 +344,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentifyPushHandler" class="tohide">
-<dt><pre><a href="identify.html#IdentifyPushHandler"><span class="Identifier">IdentifyPushHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">newInfo</span><span class="Other">:</span> <a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+<dt><pre><a href="#IdentifyPushHandler"><span class="Identifier">IdentifyPushHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">newInfo</span><span class="Other">:</span> <a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
@@ -352,7 +355,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentityInvalidMsgError" class="tohide">
-<dt><pre><a href="identify.html#IdentityInvalidMsgError"><span class="Identifier">IdentityInvalidMsgError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="identify.html#IdentifyError"><span class="Identifier">IdentifyError</span></a></pre></dt>
+<dt><pre><a href="#IdentityInvalidMsgError"><span class="Identifier">IdentityInvalidMsgError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="#IdentifyError"><span class="Identifier">IdentifyError</span></a></pre></dt>
 <dd>
 
 
@@ -362,7 +365,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentityNoMatchError" class="tohide">
-<dt><pre><a href="identify.html#IdentityNoMatchError"><span class="Identifier">IdentityNoMatchError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="identify.html#IdentifyError"><span class="Identifier">IdentifyError</span></a></pre></dt>
+<dt><pre><a href="#IdentityNoMatchError"><span class="Identifier">IdentityNoMatchError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="#IdentifyError"><span class="Identifier">IdentifyError</span></a></pre></dt>
 <dd>
 
 
@@ -378,7 +381,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#10">Consts</a></h1>
   <dl class="item">
     <div id="AgentVersion" class="tohide">
-<dt><pre><a href="identify.html#AgentVersion"><span class="Identifier">AgentVersion</span></a> <span class="Other">=</span> <span class="StringLit">&quot;nim-libp2p/0.0.1&quot;</span></pre></dt>
+<dt><pre><a href="#AgentVersion"><span class="Identifier">AgentVersion</span></a> <span class="Other">=</span> <span class="StringLit">&quot;nim-libp2p/0.0.1&quot;</span></pre></dt>
 <dd>
 
 
@@ -388,7 +391,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentifyCodec" class="tohide">
-<dt><pre><a href="identify.html#IdentifyCodec"><span class="Identifier">IdentifyCodec</span></a> <span class="Other">=</span> <span class="StringLit">&quot;/ipfs/id/1.0.0&quot;</span></pre></dt>
+<dt><pre><a href="#IdentifyCodec"><span class="Identifier">IdentifyCodec</span></a> <span class="Other">=</span> <span class="StringLit">&quot;/ipfs/id/1.0.0&quot;</span></pre></dt>
 <dd>
 
 
@@ -398,7 +401,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="IdentifyPushCodec" class="tohide">
-<dt><pre><a href="identify.html#IdentifyPushCodec"><span class="Identifier">IdentifyPushCodec</span></a> <span class="Other">=</span> <span class="StringLit">&quot;/ipfs/id/push/1.0.0&quot;</span></pre></dt>
+<dt><pre><a href="#IdentifyPushCodec"><span class="Identifier">IdentifyPushCodec</span></a> <span class="Other">=</span> <span class="StringLit">&quot;/ipfs/id/push/1.0.0&quot;</span></pre></dt>
 <dd>
 
 
@@ -408,7 +411,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="ProtoVersion" class="tohide">
-<dt><pre><a href="identify.html#ProtoVersion"><span class="Identifier">ProtoVersion</span></a> <span class="Other">=</span> <span class="StringLit">&quot;ipfs/0.1.0&quot;</span></pre></dt>
+<dt><pre><a href="#ProtoVersion"><span class="Identifier">ProtoVersion</span></a> <span class="Other">=</span> <span class="StringLit">&quot;ipfs/0.1.0&quot;</span></pre></dt>
 <dd>
 
 
@@ -425,7 +428,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <dl class="item">
     <div id="decodeMsg-procs-all">
   <div id="decodeMsg,seq[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#decodeMsg%2Cseq%5Bbyte%5D"><span class="Identifier">decodeMsg</span></a><span class="Other">(</span><span class="Identifier">buf</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#decodeMsg%2Cseq%5Bbyte%5D"><span class="Identifier">decodeMsg</span></a><span class="Other">(</span><span class="Identifier">buf</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">,</span> <span class="Identifier">WriteIOEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -439,8 +442,8 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="identify-procs-all">
   <div id="identify,Identify,Connection,PeerId" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#identify%2CIdentify%2CConnection%2CPeerId"><span class="Identifier">identify</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="identify.html#Identify"><span class="Identifier">Identify</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">remotePeerId</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">,</span> <span class="Other">(</span><a href="identify.html#IdentityInvalidMsgError"><span class="Identifier">IdentityInvalidMsgError</span></a><span class="Other">,</span> <a href="identify.html#IdentityNoMatchError"><span class="Identifier">IdentityNoMatchError</span></a><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#identify%2CIdentify%2CConnection%2CPeerId"><span class="Identifier">identify</span></a><span class="Other">(</span><span class="Identifier">self</span><span class="Other">:</span> <a href="#Identify"><span class="Identifier">Identify</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">;</span> <span class="Identifier">remotePeerId</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">,</span> <span class="Other">(</span><a href="#IdentityInvalidMsgError"><span class="Identifier">IdentityInvalidMsgError</span></a><span class="Other">,</span> <a href="#IdentityNoMatchError"><span class="Identifier">IdentityNoMatchError</span></a><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">,</span>
                    <span class="Identifier">CancelledError</span><span class="Other">)</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span>
                                       <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
                                       <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
@@ -456,7 +459,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="init-procs-all">
   <div id="init,IdentifyPush" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CIdentifyPush"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="identify.html#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CIdentifyPush"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -469,7 +472,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="new-procs-all">
   <div id="new,typedesc[Identify],PeerInfo" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="identify.html#Identify"><span class="Identifier">Identify</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BIdentify%5D%2CPeerInfo"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#Identify"><span class="Identifier">Identify</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span>
          <span class="Identifier">sendSignedPeerRecord</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">;</span>
          <span class="Identifier">observedAddrManager</span> <span class="Other">=</span> <a href="../observedaddrmanager.html#ObservedAddrManager"><span class="Identifier">ObservedAddrManager</span></a><span class="Other">.</span><span class="Identifier">new</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
@@ -481,7 +484,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="new,typedesc[IdentifyPush],IdentifyPushHandler" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BIdentifyPush%5D%2CIdentifyPushHandler"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="identify.html#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">handler</span><span class="Other">:</span> <a href="identify.html#IdentifyPushHandler"><span class="Identifier">IdentifyPushHandler</span></a> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BIdentifyPush%5D%2CIdentifyPushHandler"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">handler</span><span class="Other">:</span> <a href="#IdentifyPushHandler"><span class="Identifier">IdentifyPushHandler</span></a> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
     <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -495,7 +498,7 @@ Create a IdentifyPush protocol. <tt class="docutils literal"><span class="pre"><
 </div>
 <div id="push-procs-all">
   <div id="push,IdentifyPush,PeerInfo,Connection" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#push%2CIdentifyPush%2CPeerInfo%2CConnection"><span class="Identifier">push</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="identify.html#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#push%2CIdentifyPush%2CPeerInfo%2CConnection"><span class="Identifier">push</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
     <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
     <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
@@ -516,7 +519,7 @@ Send new <tt class="docutils literal"><span class="pre"><span class="Identifier"
   <dl class="item">
     <div id="init-methods-all">
   <div id="init.e,Identify" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#init.e%2CIdentify"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="identify.html#Identify"><span class="Identifier">Identify</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">method</span> <a href="#init.e%2CIdentify"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="#Identify"><span class="Identifier">Identify</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -536,7 +539,7 @@ Send new <tt class="docutils literal"><span class="pre"><span class="Identifier"
     <div id="chroniclesExpandItIMPL-templates-all">
   <div id="chroniclesExpandItIMPL.t,auto,staticstring,IdentifyInfo" class="tohide">
 <dt><pre><span class="Keyword">template</span> <a href="#chroniclesExpandItIMPL.t%2Cauto%2Cstaticstring%2CIdentifyInfo"><span class="Identifier">chroniclesExpandItIMPL</span></a><span class="Other">(</span><span class="Identifier">record</span><span class="Other">:</span> <span class="Identifier">auto</span><span class="Other">;</span> <span class="Identifier">it_name</span><span class="Other">:</span> <span class="Identifier">static</span> <span class="Identifier">string</span><span class="Other">;</span>
-                                <span class="Identifier">it</span><span class="Other">:</span> <a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">)</span> {..}</pre></dt>
+                                <span class="Identifier">it</span><span class="Other">:</span> <a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">)</span> {..}</pre></dt>
 <dd>
 
 
@@ -547,12 +550,12 @@ Send new <tt class="docutils literal"><span class="pre"><span class="Identifier"
 </div>
 <div id="chroniclesExpandItIMPL.t,RecordType,staticstring,IdentifyInfo,auto" class="tohide">
 <dt><pre><span class="Keyword">template</span> <a href="#chroniclesExpandItIMPL.t%2CRecordType%2Cstaticstring%2CIdentifyInfo%2Cauto"><span class="Identifier">chroniclesExpandItIMPL</span></a><span class="Other">[</span><span class="Identifier">RecordType</span><span class="Other">:</span> <span class="Keyword">tuple</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">record</span><span class="Other">:</span> <span class="Identifier">RecordType</span><span class="Other">;</span>
-    <span class="Identifier">it_name</span><span class="Other">:</span> <span class="Identifier">static</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">it</span><span class="Other">:</span> <a href="identify.html#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">;</span> <span class="Identifier">enabled</span><span class="Other">:</span> <span class="Identifier">auto</span><span class="Other">)</span> {..}</pre></dt>
+    <span class="Identifier">it_name</span><span class="Other">:</span> <span class="Identifier">static</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">it</span><span class="Other">:</span> <a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">;</span> <span class="Identifier">enabled</span><span class="Other">:</span> <span class="Identifier">auto</span><span class="Other">)</span> {..}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/nimbledeps/pkgs2/chronicles-0.12.3-3dab9aabf9c8bd53cfc4b6ecd956b90e5988defd/chronicles/formats.nim#L77" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/nimbledeps/pkgs2/chronicles-0.12.3-3dab9aabf9c8bd53cfc4b6ecd956b90e5988defd/chronicles/formats.nim#L77" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/../../../.nimble/pkgs2/chronicles-0.12.2-02febb20d088120b2836d3306cfa21f434f88f65/chronicles/formats.nim#L77" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/../../../.nimble/pkgs2/chronicles-0.12.2-02febb20d088120b2836d3306cfa21f434f88f65/chronicles/formats.nim#L77" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -574,7 +577,7 @@ Send new <tt class="docutils literal"><span class="pre"><span class="Identifier"
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:34 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:56 UTC</small>
       </div>
     </div>
   </div>

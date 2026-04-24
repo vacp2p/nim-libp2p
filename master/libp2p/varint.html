@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/varint</h1>
       <div class="row">
@@ -261,7 +264,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="hint" class="tohide">
-<dt><pre><a href="varint.html#hint"><span class="Identifier">hint</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int</span></pre></dt>
+<dt><pre><a href="#hint"><span class="Identifier">hint</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int</span></pre></dt>
 <dd>
 
 Signed integer types which will be encoded using simple cast.
@@ -271,7 +274,7 @@ Signed integer types which will be encoded using simple cast.
 </dd>
 </div>
 <div id="hint32" class="tohide">
-<dt><pre><a href="varint.html#hint32"><span class="Identifier">hint32</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int32</span></pre></dt>
+<dt><pre><a href="#hint32"><span class="Identifier">hint32</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int32</span></pre></dt>
 <dd>
 
 
@@ -281,7 +284,7 @@ Signed integer types which will be encoded using simple cast.
 </dd>
 </div>
 <div id="hint64" class="tohide">
-<dt><pre><a href="varint.html#hint64"><span class="Identifier">hint64</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int64</span></pre></dt>
+<dt><pre><a href="#hint64"><span class="Identifier">hint64</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int64</span></pre></dt>
 <dd>
 
 
@@ -291,7 +294,7 @@ Signed integer types which will be encoded using simple cast.
 </dd>
 </div>
 <div id="LP" class="tohide">
-<dt><pre><a href="varint.html#LP"><span class="Identifier">LP</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
+<dt><pre><a href="#LP"><span class="Identifier">LP</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
 <dd>
 
 Use this type to specify LibP2P varint encoding
@@ -301,7 +304,7 @@ Use this type to specify LibP2P varint encoding
 </dd>
 </div>
 <div id="LPSomeUVarint" class="tohide">
-<dt><pre><a href="varint.html#LPSomeUVarint"><span class="Identifier">LPSomeUVarint</span></a> <span class="Other">=</span> <span class="Identifier">uint</span> <span class="Operator">|</span> <span class="Identifier">uint64</span> <span class="Operator">|</span> <span class="Identifier">uint32</span> <span class="Operator">|</span> <span class="Identifier">uint16</span> <span class="Operator">|</span> <span class="Identifier">uint8</span></pre></dt>
+<dt><pre><a href="#LPSomeUVarint"><span class="Identifier">LPSomeUVarint</span></a> <span class="Other">=</span> <span class="Identifier">uint</span> <span class="Operator">|</span> <span class="Identifier">uint64</span> <span class="Operator">|</span> <span class="Identifier">uint32</span> <span class="Operator">|</span> <span class="Identifier">uint16</span> <span class="Operator">|</span> <span class="Identifier">uint8</span></pre></dt>
 <dd>
 
 
@@ -311,7 +314,7 @@ Use this type to specify LibP2P varint encoding
 </dd>
 </div>
 <div id="LPSomeVarint" class="tohide">
-<dt><pre><a href="varint.html#LPSomeVarint"><span class="Identifier">LPSomeVarint</span></a> <span class="Other">=</span> <a href="varint.html#LPSomeUVarint"><span class="Identifier">LPSomeUVarint</span></a></pre></dt>
+<dt><pre><a href="#LPSomeVarint"><span class="Identifier">LPSomeVarint</span></a> <span class="Other">=</span> <a href="#LPSomeUVarint"><span class="Identifier">LPSomeUVarint</span></a></pre></dt>
 <dd>
 
 
@@ -321,7 +324,7 @@ Use this type to specify LibP2P varint encoding
 </dd>
 </div>
 <div id="PB" class="tohide">
-<dt><pre><a href="varint.html#PB"><span class="Identifier">PB</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
+<dt><pre><a href="#PB"><span class="Identifier">PB</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
 <dd>
 
 Use this type to specify Google ProtoBuf's varint encoding
@@ -331,7 +334,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="PBSomeSVarint" class="tohide">
-<dt><pre><a href="varint.html#PBSomeSVarint"><span class="Identifier">PBSomeSVarint</span></a> <span class="Other">=</span> <a href="varint.html#hint"><span class="Identifier">hint</span></a> <span class="Operator">|</span> <a href="varint.html#hint64"><span class="Identifier">hint64</span></a> <span class="Operator">|</span> <a href="varint.html#hint32"><span class="Identifier">hint32</span></a></pre></dt>
+<dt><pre><a href="#PBSomeSVarint"><span class="Identifier">PBSomeSVarint</span></a> <span class="Other">=</span> <a href="#hint"><span class="Identifier">hint</span></a> <span class="Operator">|</span> <a href="#hint64"><span class="Identifier">hint64</span></a> <span class="Operator">|</span> <a href="#hint32"><span class="Identifier">hint32</span></a></pre></dt>
 <dd>
 
 
@@ -341,7 +344,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="PBSomeUVarint" class="tohide">
-<dt><pre><a href="varint.html#PBSomeUVarint"><span class="Identifier">PBSomeUVarint</span></a> <span class="Other">=</span> <span class="Identifier">uint</span> <span class="Operator">|</span> <span class="Identifier">uint64</span> <span class="Operator">|</span> <span class="Identifier">uint32</span></pre></dt>
+<dt><pre><a href="#PBSomeUVarint"><span class="Identifier">PBSomeUVarint</span></a> <span class="Other">=</span> <span class="Identifier">uint</span> <span class="Operator">|</span> <span class="Identifier">uint64</span> <span class="Operator">|</span> <span class="Identifier">uint32</span></pre></dt>
 <dd>
 
 
@@ -351,7 +354,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="PBSomeVarint" class="tohide">
-<dt><pre><a href="varint.html#PBSomeVarint"><span class="Identifier">PBSomeVarint</span></a> <span class="Other">=</span> <a href="varint.html#PBSomeUVarint"><span class="Identifier">PBSomeUVarint</span></a> <span class="Operator">|</span> <a href="varint.html#PBSomeSVarint"><span class="Identifier">PBSomeSVarint</span></a> <span class="Operator">|</span> <a href="varint.html#PBZigVarint"><span class="Identifier">PBZigVarint</span></a></pre></dt>
+<dt><pre><a href="#PBSomeVarint"><span class="Identifier">PBSomeVarint</span></a> <span class="Other">=</span> <a href="#PBSomeUVarint"><span class="Identifier">PBSomeUVarint</span></a> <span class="Operator">|</span> <a href="#PBSomeSVarint"><span class="Identifier">PBSomeSVarint</span></a> <span class="Operator">|</span> <a href="#PBZigVarint"><span class="Identifier">PBZigVarint</span></a></pre></dt>
 <dd>
 
 
@@ -361,7 +364,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="PBZigVarint" class="tohide">
-<dt><pre><a href="varint.html#PBZigVarint"><span class="Identifier">PBZigVarint</span></a> <span class="Other">=</span> <a href="varint.html#zint"><span class="Identifier">zint</span></a> <span class="Operator">|</span> <a href="varint.html#zint64"><span class="Identifier">zint64</span></a> <span class="Operator">|</span> <a href="varint.html#zint32"><span class="Identifier">zint32</span></a></pre></dt>
+<dt><pre><a href="#PBZigVarint"><span class="Identifier">PBZigVarint</span></a> <span class="Other">=</span> <a href="#zint"><span class="Identifier">zint</span></a> <span class="Operator">|</span> <a href="#zint64"><span class="Identifier">zint64</span></a> <span class="Operator">|</span> <a href="#zint32"><span class="Identifier">zint32</span></a></pre></dt>
 <dd>
 
 
@@ -371,7 +374,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="SomeUVarint" class="tohide">
-<dt><pre><a href="varint.html#SomeUVarint"><span class="Identifier">SomeUVarint</span></a> <span class="Other">=</span> <a href="varint.html#PBSomeUVarint"><span class="Identifier">PBSomeUVarint</span></a> <span class="Operator">|</span> <a href="varint.html#LPSomeUVarint"><span class="Identifier">LPSomeUVarint</span></a></pre></dt>
+<dt><pre><a href="#SomeUVarint"><span class="Identifier">SomeUVarint</span></a> <span class="Other">=</span> <a href="#PBSomeUVarint"><span class="Identifier">PBSomeUVarint</span></a> <span class="Operator">|</span> <a href="#LPSomeUVarint"><span class="Identifier">LPSomeUVarint</span></a></pre></dt>
 <dd>
 
 
@@ -381,7 +384,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="SomeVarint" class="tohide">
-<dt><pre><a href="varint.html#SomeVarint"><span class="Identifier">SomeVarint</span></a> <span class="Other">=</span> <a href="varint.html#PBSomeVarint"><span class="Identifier">PBSomeVarint</span></a> <span class="Operator">|</span> <a href="varint.html#LPSomeVarint"><span class="Identifier">LPSomeVarint</span></a></pre></dt>
+<dt><pre><a href="#SomeVarint"><span class="Identifier">SomeVarint</span></a> <span class="Other">=</span> <a href="#PBSomeVarint"><span class="Identifier">PBSomeVarint</span></a> <span class="Operator">|</span> <a href="#LPSomeVarint"><span class="Identifier">LPSomeVarint</span></a></pre></dt>
 <dd>
 
 
@@ -391,7 +394,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="VarintError" class="tohide">
-<dt><pre><a href="varint.html#VarintError"><span class="Identifier">VarintError</span></a> {.<span class="Identifier">pure</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#VarintError"><span class="Identifier">VarintError</span></a> {.<span class="Identifier">pure</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">Error</span><span class="Other">,</span> <span class="Identifier">Overflow</span><span class="Other">,</span> <span class="Identifier">Incomplete</span><span class="Other">,</span> <span class="Identifier">Overlong</span><span class="Other">,</span> <span class="Identifier">Overrun</span></pre></dt>
 <dd>
 
@@ -402,7 +405,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="VarintResult" class="tohide">
-<dt><pre><a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <a href="varint.html#VarintError"><span class="Identifier">VarintError</span></a><span class="Other">]</span></pre></dt>
+<dt><pre><a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <a href="#VarintError"><span class="Identifier">VarintError</span></a><span class="Other">]</span></pre></dt>
 <dd>
 
 
@@ -412,7 +415,7 @@ Use this type to specify Google ProtoBuf's varint encoding
 </dd>
 </div>
 <div id="zint" class="tohide">
-<dt><pre><a href="varint.html#zint"><span class="Identifier">zint</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int</span></pre></dt>
+<dt><pre><a href="#zint"><span class="Identifier">zint</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int</span></pre></dt>
 <dd>
 
 Signed integer types which will be encoded using zigzag encoding.
@@ -422,7 +425,7 @@ Signed integer types which will be encoded using zigzag encoding.
 </dd>
 </div>
 <div id="zint32" class="tohide">
-<dt><pre><a href="varint.html#zint32"><span class="Identifier">zint32</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int32</span></pre></dt>
+<dt><pre><a href="#zint32"><span class="Identifier">zint32</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int32</span></pre></dt>
 <dd>
 
 
@@ -432,7 +435,7 @@ Signed integer types which will be encoded using zigzag encoding.
 </dd>
 </div>
 <div id="zint64" class="tohide">
-<dt><pre><a href="varint.html#zint64"><span class="Identifier">zint64</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int64</span></pre></dt>
+<dt><pre><a href="#zint64"><span class="Identifier">zint64</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">int64</span></pre></dt>
 <dd>
 
 
@@ -449,7 +452,7 @@ Signed integer types which will be encoded using zigzag encoding.
   <dl class="item">
     <div id="encodeVarint-procs-all">
   <div id="encodeVarint,typedesc[LP],LPSomeVarint" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#encodeVarint%2Ctypedesc%5BLP%5D%2CLPSomeVarint"><span class="Identifier">encodeVarint</span></a><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="varint.html#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="varint.html#LPSomeVarint"><span class="Identifier">LPSomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#encodeVarint%2Ctypedesc%5BLP%5D%2CLPSomeVarint"><span class="Identifier">encodeVarint</span></a><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="#LPSomeVarint"><span class="Identifier">LPSomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
     <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -460,7 +463,7 @@ Encode integer to LibP2P <tt class="docutils literal"><span class="pre"><span cl
 </dd>
 </div>
 <div id="encodeVarint,typedesc[PB],PBSomeVarint" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#encodeVarint%2Ctypedesc%5BPB%5D%2CPBSomeVarint"><span class="Identifier">encodeVarint</span></a><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="varint.html#PB"><span class="Identifier">PB</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="varint.html#PBSomeVarint"><span class="Identifier">PBSomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#encodeVarint%2Ctypedesc%5BPB%5D%2CPBSomeVarint"><span class="Identifier">encodeVarint</span></a><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#PB"><span class="Identifier">PB</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="#PBSomeVarint"><span class="Identifier">PBSomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
     <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -475,7 +478,7 @@ Encode integer to Google ProtoBuf's <tt class="docutils literal"><span class="pr
 <div id="getSVarint-procs-all">
   <div id="getSVarint,openArray[byte],int," class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#getSVarint%2CopenArray%5Bbyte%5D%2Cint%2C"><span class="Identifier">getSVarint</span></a><span class="Other">(</span><span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">outsize</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span>
-                <span class="Identifier">outval</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Other">(</span><a href="varint.html#PBZigVarint"><span class="Identifier">PBZigVarint</span></a> <span class="Operator">|</span> <a href="varint.html#PBSomeSVarint"><span class="Identifier">PBSomeSVarint</span></a><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+                <span class="Identifier">outval</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Other">(</span><a href="#PBZigVarint"><span class="Identifier">PBZigVarint</span></a> <span class="Operator">|</span> <a href="#PBSomeSVarint"><span class="Identifier">PBSomeSVarint</span></a><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
     <span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -495,8 +498,8 @@ Encode integer to Google ProtoBuf's <tt class="docutils literal"><span class="pr
 </div>
 <div id="getUVarint-procs-all">
   <div id="getUVarint,typedesc[T],openArray[byte],int,SomeUVarint" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getUVarint%2Ctypedesc%5BT%5D%2CopenArray%5Bbyte%5D%2Cint%2CSomeUVarint"><span class="Identifier">getUVarint</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="varint.html#PB"><span class="Identifier">PB</span></a> <span class="Operator">|</span> <a href="varint.html#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
-                            <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">outval</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="varint.html#SomeUVarint"><span class="Identifier">SomeUVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getUVarint%2Ctypedesc%5BT%5D%2CopenArray%5Bbyte%5D%2Cint%2CSomeUVarint"><span class="Identifier">getUVarint</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#PB"><span class="Identifier">PB</span></a> <span class="Operator">|</span> <a href="#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
+                            <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">outval</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SomeUVarint"><span class="Identifier">SomeUVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
     <span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -516,8 +519,8 @@ Encode integer to Google ProtoBuf's <tt class="docutils literal"><span class="pr
 </div>
 <div id="getVarint-procs-all">
   <div id="getVarint,typedesc[T],openArray[byte],int,SomeVarint" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getVarint%2Ctypedesc%5BT%5D%2CopenArray%5Bbyte%5D%2Cint%2CSomeVarint"><span class="Identifier">getVarint</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="varint.html#PB"><span class="Identifier">PB</span></a> <span class="Operator">|</span> <a href="varint.html#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
-                           <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="varint.html#SomeVarint"><span class="Identifier">SomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getVarint%2Ctypedesc%5BT%5D%2CopenArray%5Bbyte%5D%2Cint%2CSomeVarint"><span class="Identifier">getVarint</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#PB"><span class="Identifier">PB</span></a> <span class="Operator">|</span> <a href="#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
+                           <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SomeVarint"><span class="Identifier">SomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
     <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -532,7 +535,7 @@ Encode integer to Google ProtoBuf's <tt class="docutils literal"><span class="pr
 <div id="putSVarint-procs-all">
   <div id="putSVarint,openArray[byte],int," class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#putSVarint%2CopenArray%5Bbyte%5D%2Cint%2C"><span class="Identifier">putSVarint</span></a><span class="Other">(</span><span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">outsize</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span>
-                <span class="Identifier">outval</span><span class="Other">:</span> <span class="Other">(</span><a href="varint.html#PBZigVarint"><span class="Identifier">PBZigVarint</span></a> <span class="Operator">|</span> <a href="varint.html#PBSomeSVarint"><span class="Identifier">PBSomeSVarint</span></a><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+                <span class="Identifier">outval</span><span class="Other">:</span> <span class="Other">(</span><a href="#PBZigVarint"><span class="Identifier">PBZigVarint</span></a> <span class="Operator">|</span> <a href="#PBSomeSVarint"><span class="Identifier">PBSomeSVarint</span></a><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
     <span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -550,8 +553,8 @@ Encode integer to Google ProtoBuf's <tt class="docutils literal"><span class="pr
 </div>
 <div id="putUVarint-procs-all">
   <div id="putUVarint,typedesc[T],openArray[byte],int,SomeUVarint" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#putUVarint%2Ctypedesc%5BT%5D%2CopenArray%5Bbyte%5D%2Cint%2CSomeUVarint"><span class="Identifier">putUVarint</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="varint.html#PB"><span class="Identifier">PB</span></a> <span class="Operator">|</span> <a href="varint.html#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
-                            <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">outval</span><span class="Other">:</span> <a href="varint.html#SomeUVarint"><span class="Identifier">SomeUVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#putUVarint%2Ctypedesc%5BT%5D%2CopenArray%5Bbyte%5D%2Cint%2CSomeUVarint"><span class="Identifier">putUVarint</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#PB"><span class="Identifier">PB</span></a> <span class="Operator">|</span> <a href="#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
+                            <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">outval</span><span class="Other">:</span> <a href="#SomeUVarint"><span class="Identifier">SomeUVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
     <span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -570,8 +573,8 @@ Encode integer to Google ProtoBuf's <tt class="docutils literal"><span class="pr
 </div>
 <div id="putVarint-procs-all">
   <div id="putVarint,typedesc[T],openArray[byte],int,SomeVarint" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#putVarint%2Ctypedesc%5BT%5D%2CopenArray%5Bbyte%5D%2Cint%2CSomeVarint"><span class="Identifier">putVarint</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="varint.html#PB"><span class="Identifier">PB</span></a> <span class="Operator">|</span> <a href="varint.html#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
-                           <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="varint.html#SomeVarint"><span class="Identifier">SomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="varint.html#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#putVarint%2Ctypedesc%5BT%5D%2CopenArray%5Bbyte%5D%2Cint%2CSomeVarint"><span class="Identifier">putVarint</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#PB"><span class="Identifier">PB</span></a> <span class="Operator">|</span> <a href="#LP"><span class="Identifier">LP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">pbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span>
+                           <span class="Identifier">nbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="#SomeVarint"><span class="Identifier">SomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#VarintResult"><span class="Identifier">VarintResult</span></a><span class="Other">[</span>
     <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -585,7 +588,7 @@ Encode integer to Google ProtoBuf's <tt class="docutils literal"><span class="pr
 </div>
 <div id="vsizeof-procs-all">
   <div id="vsizeof,SomeVarint" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#vsizeof%2CSomeVarint"><span class="Identifier">vsizeof</span></a><span class="Other">(</span><span class="Identifier">x</span><span class="Other">:</span> <a href="varint.html#SomeVarint"><span class="Identifier">SomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#vsizeof%2CSomeVarint"><span class="Identifier">vsizeof</span></a><span class="Other">(</span><span class="Identifier">x</span><span class="Other">:</span> <a href="#SomeVarint"><span class="Identifier">SomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Returns number of bytes required to encode integer <tt class="docutils literal"><span class="pre">x</span></tt> as varint.
@@ -604,7 +607,7 @@ Returns number of bytes required to encode integer <tt class="docutils literal">
   <dl class="item">
     <div id="toBytes-templates-all">
   <div id="toBytes.t,typedesc[PB],PBSomeVarint" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#toBytes.t%2Ctypedesc%5BPB%5D%2CPBSomeVarint"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="varint.html#PB"><span class="Identifier">PB</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="varint.html#PBSomeVarint"><span class="Identifier">PBSomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#toBytes.t%2Ctypedesc%5BPB%5D%2CPBSomeVarint"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">vtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#PB"><span class="Identifier">PB</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="#PBSomeVarint"><span class="Identifier">PBSomeVarint</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {..}</pre></dt>
 <dd>
 
 
@@ -625,7 +628,7 @@ Returns number of bytes required to encode integer <tt class="docutils literal">
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:30 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:51 UTC</small>
       </div>
     </div>
   </div>

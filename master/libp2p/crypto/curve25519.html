@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/crypto/curve25519</h1>
       <div class="row">
@@ -215,7 +218,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="Curve25519" class="tohide">
-<dt><pre><a href="curve25519.html#Curve25519"><span class="Identifier">Curve25519</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
+<dt><pre><a href="#Curve25519"><span class="Identifier">Curve25519</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
 <dd>
 
 
@@ -225,7 +228,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="Curve25519Error" class="tohide">
-<dt><pre><a href="curve25519.html#Curve25519Error"><span class="Identifier">Curve25519Error</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#Curve25519Error"><span class="Identifier">Curve25519Error</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">Curver25519GenError</span></pre></dt>
 <dd>
 
@@ -236,7 +239,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="Curve25519Key" class="tohide">
-<dt><pre><a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a> <span class="Other">=</span> <span class="Identifier">array</span><span class="Other">[</span><span class="Identifier">Curve25519KeySize</span><span class="Other">,</span> <span class="Identifier">byte</span><span class="Other">]</span></pre></dt>
+<dt><pre><a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a> <span class="Other">=</span> <span class="Identifier">array</span><span class="Other">[</span><span class="Identifier">Curve25519KeySize</span><span class="Other">,</span> <span class="Identifier">byte</span><span class="Other">]</span></pre></dt>
 <dd>
 
 
@@ -252,7 +255,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#10">Consts</a></h1>
   <dl class="item">
     <div id="Curve25519KeySize" class="tohide">
-<dt><pre><a href="curve25519.html#Curve25519KeySize"><span class="Identifier">Curve25519KeySize</span></a> <span class="Other">=</span> <span class="DecNumber">32</span></pre></dt>
+<dt><pre><a href="#Curve25519KeySize"><span class="Identifier">Curve25519KeySize</span></a> <span class="Other">=</span> <span class="DecNumber">32</span></pre></dt>
 <dd>
 
 
@@ -269,7 +272,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <dl class="item">
     <div id="getBytes-procs-all">
   <div id="getBytes,Curve25519Key" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CCurve25519Key"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CCurve25519Key"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -282,7 +285,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="intoCurve25519Key-procs-all">
   <div id="intoCurve25519Key,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#intoCurve25519Key%2CopenArray%5Bbyte%5D"><span class="Identifier">intoCurve25519Key</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#intoCurve25519Key%2CopenArray%5Bbyte%5D"><span class="Identifier">intoCurve25519Key</span></a><span class="Other">(</span><span class="Identifier">s</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -296,8 +299,8 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="mul-procs-all">
   <div id="mul,type[Curve25519],Curve25519Key,Curve25519Key" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#mul%2Ctype%5BCurve25519%5D%2CCurve25519Key%2CCurve25519Key"><span class="Identifier">mul</span></a><span class="Other">(</span><span class="Operator">_</span><span class="Other">:</span> <span class="Identifier">type</span><span class="Other">[</span><a href="curve25519.html#Curve25519"><span class="Identifier">Curve25519</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">point</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">;</span>
-         <span class="Identifier">multiplier</span><span class="Other">:</span> <a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#mul%2Ctype%5BCurve25519%5D%2CCurve25519Key%2CCurve25519Key"><span class="Identifier">mul</span></a><span class="Other">(</span><span class="Operator">_</span><span class="Other">:</span> <span class="Identifier">type</span><span class="Other">[</span><a href="#Curve25519"><span class="Identifier">Curve25519</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">point</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">;</span>
+         <span class="Identifier">multiplier</span><span class="Other">:</span> <a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -310,7 +313,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="public-procs-all">
   <div id="public,Curve25519Key" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#public%2CCurve25519Key"><span class="Identifier">public</span></a><span class="Other">(</span><span class="Identifier">private</span><span class="Other">:</span> <a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">)</span><span class="Other">:</span> <a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#public%2CCurve25519Key"><span class="Identifier">public</span></a><span class="Other">(</span><span class="Identifier">private</span><span class="Other">:</span> <a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -324,7 +327,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="random-procs-all">
   <div id="random,type[Curve25519Key],HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctype%5BCurve25519Key%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Operator">_</span><span class="Other">:</span> <span class="Identifier">type</span><span class="Other">[</span><a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="curve25519.html#Curve25519Key"><span class="Identifier">Curve25519Key</span></a> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctype%5BCurve25519Key%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Operator">_</span><span class="Other">:</span> <span class="Identifier">type</span><span class="Other">[</span><a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="#Curve25519Key"><span class="Identifier">Curve25519Key</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -346,7 +349,7 @@ window.addEventListener("DOMContentLoaded", main2);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:34 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:56 UTC</small>
       </div>
     </div>
   </div>

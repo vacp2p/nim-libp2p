@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/muxers/muxer</h1>
       <div class="row">
@@ -256,8 +259,8 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="Muxer" class="tohide">
-<dt><pre><a href="muxer.html#Muxer"><span class="Identifier">Muxer</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">RootObj</span>
-  <span class="Identifier">streamHandler</span><span class="Operator">*</span><span class="Other">:</span> <a href="muxer.html#StreamHandler"><span class="Identifier">StreamHandler</span></a>
+<dt><pre><a href="#Muxer"><span class="Identifier">Muxer</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <span class="Identifier">RootObj</span>
+  <span class="Identifier">streamHandler</span><span class="Operator">*</span><span class="Other">:</span> <a href="#StreamHandler"><span class="Identifier">StreamHandler</span></a>
   <span class="Identifier">handler</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span><span class="Other">.</span><span class="Identifier">Raising</span><span class="Other">(</span><span class="Other">[</span><span class="Other">]</span><span class="Other">)</span>
   <span class="Identifier">connection</span><span class="Operator">*</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a></pre></dt>
 <dd>
@@ -269,7 +272,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="MuxerConstructor" class="tohide">
-<dt><pre><a href="muxer.html#MuxerConstructor"><span class="Identifier">MuxerConstructor</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <a href="muxer.html#Muxer"><span class="Identifier">Muxer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">closure</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><a href="#MuxerConstructor"><span class="Identifier">MuxerConstructor</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#Muxer"><span class="Identifier">Muxer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> </span><span class="Identifier">closure</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -279,7 +282,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="MuxerError" class="tohide">
-<dt><pre><a href="muxer.html#MuxerError"><span class="Identifier">MuxerError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a></pre></dt>
+<dt><pre><a href="#MuxerError"><span class="Identifier">MuxerError</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="../errors.html#LPError"><span class="Identifier">LPError</span></a></pre></dt>
 <dd>
 
 
@@ -289,7 +292,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="MuxerHandler" class="tohide">
-<dt><pre><a href="muxer.html#MuxerHandler"><span class="Identifier">MuxerHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">muxer</span><span class="Other">:</span> <span class="Identifier">Muxer</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
+<dt><pre><a href="#MuxerHandler"><span class="Identifier">MuxerHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">muxer</span><span class="Other">:</span> <span class="Identifier">Muxer</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
@@ -299,8 +302,8 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="MuxerProvider" class="tohide">
-<dt><pre><a href="muxer.html#MuxerProvider"><span class="Identifier">MuxerProvider</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">newMuxer</span><span class="Operator">*</span><span class="Other">:</span> <a href="muxer.html#MuxerConstructor"><span class="Identifier">MuxerConstructor</span></a>
+<dt><pre><a href="#MuxerProvider"><span class="Identifier">MuxerProvider</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">newMuxer</span><span class="Operator">*</span><span class="Other">:</span> <a href="#MuxerConstructor"><span class="Identifier">MuxerConstructor</span></a>
   <span class="Identifier">codec</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">string</span></pre></dt>
 <dd>
 
@@ -311,7 +314,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="StreamHandler" class="tohide">
-<dt><pre><a href="muxer.html#StreamHandler"><span class="Identifier">StreamHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <span class="Identifier">Connection</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
+<dt><pre><a href="#StreamHandler"><span class="Identifier">StreamHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">conn</span><span class="Other">:</span> <span class="Identifier">Connection</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">async</span><span class="Other">:</span> <span class="Other">(</span><span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span><span class="Other">)</span>.}</pre></dt>
 <dd>
 
 
@@ -321,7 +324,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="TooManyChannels" class="tohide">
-<dt><pre><a href="muxer.html#TooManyChannels"><span class="Identifier">TooManyChannels</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="muxer.html#MuxerError"><span class="Identifier">MuxerError</span></a></pre></dt>
+<dt><pre><a href="#TooManyChannels"><span class="Identifier">TooManyChannels</span></a> <span class="Other">=</span> <span class="Keyword">object</span> <span class="Keyword">of</span> <a href="#MuxerError"><span class="Identifier">MuxerError</span></a></pre></dt>
 <dd>
 
 
@@ -337,7 +340,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#10">Consts</a></h1>
   <dl class="item">
     <div id="DefaultChanTimeout" class="tohide">
-<dt><pre><a href="muxer.html#DefaultChanTimeout"><span class="Identifier">DefaultChanTimeout</span></a> <span class="Other">=</span> <span class="Other">(</span><span class="Identifier">value</span><span class="Other">:</span> <span class="DecNumber">300000000000</span><span class="Other">)</span></pre></dt>
+<dt><pre><a href="#DefaultChanTimeout"><span class="Identifier">DefaultChanTimeout</span></a> <span class="Other">=</span> <span class="Other">(</span><span class="Identifier">value</span><span class="Other">:</span> <span class="DecNumber">300000000000</span><span class="Other">)</span></pre></dt>
 <dd>
 
 
@@ -354,7 +357,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <dl class="item">
     <div id="new-procs-all">
   <div id="new,typedesc[MuxerProvider],MuxerConstructor,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BMuxerProvider%5D%2CMuxerConstructor%2Cstring"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="muxer.html#MuxerProvider"><span class="Identifier">MuxerProvider</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">creator</span><span class="Other">:</span> <a href="muxer.html#MuxerConstructor"><span class="Identifier">MuxerConstructor</span></a><span class="Other">;</span> <span class="Identifier">codec</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BMuxerProvider%5D%2CMuxerConstructor%2Cstring"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#MuxerProvider"><span class="Identifier">MuxerProvider</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">creator</span><span class="Other">:</span> <a href="#MuxerConstructor"><span class="Identifier">MuxerConstructor</span></a><span class="Other">;</span> <span class="Identifier">codec</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -368,7 +371,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="shortLog-procs-all">
   <div id="shortLog,Muxer" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#shortLog%2CMuxer"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#shortLog%2CMuxer"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -387,7 +390,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <dl class="item">
     <div id="close-methods-all">
   <div id="close.e,Muxer" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#close.e%2CMuxer"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">method</span> <a href="#close.e%2CMuxer"><span class="Identifier">close</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
@@ -402,7 +405,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="getStreams-methods-all">
   <div id="getStreams.e,Muxer" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#getStreams.e%2CMuxer"><span class="Identifier">getStreams</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">method</span> <a href="#getStreams.e%2CMuxer"><span class="Identifier">getStreams</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -416,7 +419,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="handle-methods-all">
   <div id="handle.e,Muxer" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#handle.e%2CMuxer"><span class="Identifier">handle</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">method</span> <a href="#handle.e%2CMuxer"><span class="Identifier">handle</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
@@ -431,8 +434,8 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="newStream-methods-all">
   <div id="newStream.e,Muxer,string,bool" class="tohide">
-<dt><pre><span class="Keyword">method</span> <a href="#newStream.e%2CMuxer%2Cstring%2Cbool"><span class="Identifier">newStream</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">;</span> <span class="Identifier">name</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">;</span> <span class="Identifier">lazy</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">,</span> <a href="muxer.html#MuxerError"><span class="Identifier">MuxerError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">method</span> <a href="#newStream.e%2CMuxer%2Cstring%2Cbool"><span class="Identifier">newStream</span></a><span class="Other">(</span><span class="Identifier">m</span><span class="Other">:</span> <a href="#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">;</span> <span class="Identifier">name</span><span class="Other">:</span> <span class="Identifier">string</span> <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span><span class="Other">;</span> <span class="Identifier">lazy</span><span class="Other">:</span> <span class="Identifier">bool</span> <span class="Other">=</span> <span class="Identifier">false</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
+    <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">,</span> <a href="#MuxerError"><span class="Identifier">MuxerError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">base</span><span class="Other">,</span>
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -452,7 +455,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <dl class="item">
     <div id="chroniclesFormatItIMPL-templates-all">
   <div id="chroniclesFormatItIMPL.t,Muxer" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#chroniclesFormatItIMPL.t%2CMuxer"><span class="Identifier">chroniclesFormatItIMPL</span></a><span class="Other">(</span><span class="Identifier">it</span><span class="Other">:</span> <a href="muxer.html#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#chroniclesFormatItIMPL.t%2CMuxer"><span class="Identifier">chroniclesFormatItIMPL</span></a><span class="Other">(</span><span class="Identifier">it</span><span class="Other">:</span> <a href="#Muxer"><span class="Identifier">Muxer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">auto</span> {..}</pre></dt>
 <dd>
 
 
@@ -473,7 +476,7 @@ window.addEventListener("DOMContentLoaded", main2);
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:34 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:55 UTC</small>
       </div>
     </div>
   </div>

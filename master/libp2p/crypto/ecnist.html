@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/crypto/ecnist</h1>
       <div class="row">
@@ -359,7 +362,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="EcCurveKind" class="tohide">
-<dt><pre><a href="ecnist.html#EcCurveKind"><span class="Identifier">EcCurveKind</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#EcCurveKind"><span class="Identifier">EcCurveKind</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">Secp256r1</span> <span class="Other">=</span> <span class="DecNumber">23</span><span class="Other">,</span> <span class="Identifier">Secp384r1</span> <span class="Other">=</span> <span class="DecNumber">24</span><span class="Other">,</span> <span class="Identifier">Secp521r1</span> <span class="Other">=</span> <span class="DecNumber">25</span></pre></dt>
 <dd>
 
@@ -370,7 +373,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="ECDHEScheme" class="tohide">
-<dt><pre><a href="ecnist.html#ECDHEScheme"><span class="Identifier">ECDHEScheme</span></a> <span class="Other">=</span> <a href="ecnist.html#EcCurveKind"><span class="Identifier">EcCurveKind</span></a></pre></dt>
+<dt><pre><a href="#ECDHEScheme"><span class="Identifier">ECDHEScheme</span></a> <span class="Other">=</span> <a href="#EcCurveKind"><span class="Identifier">EcCurveKind</span></a></pre></dt>
 <dd>
 
 
@@ -380,7 +383,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="EcError" class="tohide">
-<dt><pre><a href="ecnist.html#EcError"><span class="Identifier">EcError</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#EcError"><span class="Identifier">EcError</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">EcRngError</span><span class="Other">,</span> <span class="Identifier">EcKeyGenError</span><span class="Other">,</span> <span class="Identifier">EcPublicKeyError</span><span class="Other">,</span> <span class="Identifier">EcKeyIncorrectError</span><span class="Other">,</span>
   <span class="Identifier">EcSignatureError</span><span class="Other">,</span> <span class="Identifier">EcInsufficientTargetSize</span></pre></dt>
 <dd>
@@ -392,9 +395,9 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="EcKeyPair" class="tohide">
-<dt><pre><a href="ecnist.html#EcKeyPair"><span class="Identifier">EcKeyPair</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">seckey</span><span class="Operator">*</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a>
-  <span class="Identifier">pubkey</span><span class="Operator">*</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a></pre></dt>
+<dt><pre><a href="#EcKeyPair"><span class="Identifier">EcKeyPair</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">seckey</span><span class="Operator">*</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a>
+  <span class="Identifier">pubkey</span><span class="Operator">*</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a></pre></dt>
 <dd>
 
 
@@ -404,7 +407,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="EcPKI" class="tohide">
-<dt><pre><a href="ecnist.html#EcPKI"><span class="Identifier">EcPKI</span></a> <span class="Other">=</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a> <span class="Operator">|</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a> <span class="Operator">|</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a></pre></dt>
+<dt><pre><a href="#EcPKI"><span class="Identifier">EcPKI</span></a> <span class="Other">=</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a> <span class="Operator">|</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a> <span class="Operator">|</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a></pre></dt>
 <dd>
 
 
@@ -414,7 +417,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="EcPrivateKey" class="tohide">
-<dt><pre><a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+<dt><pre><a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">buffer</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">array</span><span class="Other">[</span><span class="Identifier">EC_KBUF_PRIV_MAX_SIZE</span><span class="Other">,</span> <span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">key</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">ec</span><span class="Other">.</span><span class="Identifier">EcPrivateKey</span></pre></dt>
 <dd>
@@ -426,7 +429,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="EcPublicKey" class="tohide">
-<dt><pre><a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+<dt><pre><a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">buffer</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">array</span><span class="Other">[</span><span class="Identifier">EC_KBUF_PUB_MAX_SIZE</span><span class="Other">,</span> <span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">key</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">ec</span><span class="Other">.</span><span class="Identifier">EcPublicKey</span></pre></dt>
 <dd>
@@ -438,7 +441,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="EcResult" class="tohide">
-<dt><pre><a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <a href="ecnist.html#EcError"><span class="Identifier">EcError</span></a><span class="Other">]</span></pre></dt>
+<dt><pre><a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <a href="#EcError"><span class="Identifier">EcError</span></a><span class="Other">]</span></pre></dt>
 <dd>
 
 
@@ -448,7 +451,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="EcSignature" class="tohide">
-<dt><pre><a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+<dt><pre><a href="#EcSignature"><span class="Identifier">EcSignature</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">buffer</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span></pre></dt>
 <dd>
 
@@ -465,7 +468,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#10">Consts</a></h1>
   <dl class="item">
     <div id="EcSupportedCurvesCint" class="tohide">
-<dt><pre><a href="ecnist.html#EcSupportedCurvesCint"><span class="Identifier">EcSupportedCurvesCint</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">23</span><span class="Other">,</span> <span class="DecNumber">24</span><span class="Other">,</span> <span class="DecNumber">25</span><span class="Other">]</span></pre></dt>
+<dt><pre><a href="#EcSupportedCurvesCint"><span class="Identifier">EcSupportedCurvesCint</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">23</span><span class="Other">,</span> <span class="DecNumber">24</span><span class="Other">,</span> <span class="DecNumber">25</span><span class="Other">]</span></pre></dt>
 <dd>
 
 
@@ -475,7 +478,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="PubKey256Length" class="tohide">
-<dt><pre><a href="ecnist.html#PubKey256Length"><span class="Identifier">PubKey256Length</span></a> <span class="Other">=</span> <span class="DecNumber">65</span></pre></dt>
+<dt><pre><a href="#PubKey256Length"><span class="Identifier">PubKey256Length</span></a> <span class="Other">=</span> <span class="DecNumber">65</span></pre></dt>
 <dd>
 
 
@@ -485,7 +488,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="PubKey384Length" class="tohide">
-<dt><pre><a href="ecnist.html#PubKey384Length"><span class="Identifier">PubKey384Length</span></a> <span class="Other">=</span> <span class="DecNumber">97</span></pre></dt>
+<dt><pre><a href="#PubKey384Length"><span class="Identifier">PubKey384Length</span></a> <span class="Other">=</span> <span class="DecNumber">97</span></pre></dt>
 <dd>
 
 
@@ -495,7 +498,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="PubKey521Length" class="tohide">
-<dt><pre><a href="ecnist.html#PubKey521Length"><span class="Identifier">PubKey521Length</span></a> <span class="Other">=</span> <span class="DecNumber">133</span></pre></dt>
+<dt><pre><a href="#PubKey521Length"><span class="Identifier">PubKey521Length</span></a> <span class="Other">=</span> <span class="DecNumber">133</span></pre></dt>
 <dd>
 
 
@@ -505,7 +508,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="SecKey256Length" class="tohide">
-<dt><pre><a href="ecnist.html#SecKey256Length"><span class="Identifier">SecKey256Length</span></a> <span class="Other">=</span> <span class="DecNumber">32</span></pre></dt>
+<dt><pre><a href="#SecKey256Length"><span class="Identifier">SecKey256Length</span></a> <span class="Other">=</span> <span class="DecNumber">32</span></pre></dt>
 <dd>
 
 
@@ -515,7 +518,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="SecKey384Length" class="tohide">
-<dt><pre><a href="ecnist.html#SecKey384Length"><span class="Identifier">SecKey384Length</span></a> <span class="Other">=</span> <span class="DecNumber">48</span></pre></dt>
+<dt><pre><a href="#SecKey384Length"><span class="Identifier">SecKey384Length</span></a> <span class="Other">=</span> <span class="DecNumber">48</span></pre></dt>
 <dd>
 
 
@@ -525,7 +528,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="SecKey521Length" class="tohide">
-<dt><pre><a href="ecnist.html#SecKey521Length"><span class="Identifier">SecKey521Length</span></a> <span class="Other">=</span> <span class="DecNumber">66</span></pre></dt>
+<dt><pre><a href="#SecKey521Length"><span class="Identifier">SecKey521Length</span></a> <span class="Other">=</span> <span class="DecNumber">66</span></pre></dt>
 <dd>
 
 
@@ -535,7 +538,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="Secret256Length" class="tohide">
-<dt><pre><a href="ecnist.html#Secret256Length"><span class="Identifier">Secret256Length</span></a> <span class="Other">=</span> <span class="DecNumber">32</span></pre></dt>
+<dt><pre><a href="#Secret256Length"><span class="Identifier">Secret256Length</span></a> <span class="Other">=</span> <span class="DecNumber">32</span></pre></dt>
 <dd>
 
 
@@ -545,7 +548,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="Secret384Length" class="tohide">
-<dt><pre><a href="ecnist.html#Secret384Length"><span class="Identifier">Secret384Length</span></a> <span class="Other">=</span> <span class="DecNumber">48</span></pre></dt>
+<dt><pre><a href="#Secret384Length"><span class="Identifier">Secret384Length</span></a> <span class="Other">=</span> <span class="DecNumber">48</span></pre></dt>
 <dd>
 
 
@@ -555,7 +558,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="Secret521Length" class="tohide">
-<dt><pre><a href="ecnist.html#Secret521Length"><span class="Identifier">Secret521Length</span></a> <span class="Other">=</span> <span class="DecNumber">66</span></pre></dt>
+<dt><pre><a href="#Secret521Length"><span class="Identifier">Secret521Length</span></a> <span class="Other">=</span> <span class="DecNumber">66</span></pre></dt>
 <dd>
 
 
@@ -565,7 +568,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="Sig256Length" class="tohide">
-<dt><pre><a href="ecnist.html#Sig256Length"><span class="Identifier">Sig256Length</span></a> <span class="Other">=</span> <span class="DecNumber">64</span></pre></dt>
+<dt><pre><a href="#Sig256Length"><span class="Identifier">Sig256Length</span></a> <span class="Other">=</span> <span class="DecNumber">64</span></pre></dt>
 <dd>
 
 
@@ -575,7 +578,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="Sig384Length" class="tohide">
-<dt><pre><a href="ecnist.html#Sig384Length"><span class="Identifier">Sig384Length</span></a> <span class="Other">=</span> <span class="DecNumber">96</span></pre></dt>
+<dt><pre><a href="#Sig384Length"><span class="Identifier">Sig384Length</span></a> <span class="Other">=</span> <span class="DecNumber">96</span></pre></dt>
 <dd>
 
 
@@ -585,7 +588,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="Sig521Length" class="tohide">
-<dt><pre><a href="ecnist.html#Sig521Length"><span class="Identifier">Sig521Length</span></a> <span class="Other">=</span> <span class="DecNumber">132</span></pre></dt>
+<dt><pre><a href="#Sig521Length"><span class="Identifier">Sig521Length</span></a> <span class="Other">=</span> <span class="DecNumber">132</span></pre></dt>
 <dd>
 
 
@@ -602,7 +605,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <dl class="item">
     <div id="$-procs-all">
   <div id="$,EcPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CEcPublicKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CEcPublicKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Return string representation of EC public key.
@@ -612,7 +615,7 @@ Return string representation of EC public key.
 </dd>
 </div>
 <div id="$,EcPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CEcPrivateKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CEcPrivateKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Return string representation of EC private key.
@@ -622,7 +625,7 @@ Return string representation of EC private key.
 </dd>
 </div>
 <div id="$,EcSignature" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CEcSignature"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CEcSignature"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Return hexadecimal string representation of EC signature.
@@ -635,7 +638,7 @@ Return hexadecimal string representation of EC signature.
 </div>
 <div id="==-procs-all">
   <div id="==,EcSignature,EcSignature" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CEcSignature%2CEcSignature"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CEcSignature%2CEcSignature"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Return <tt class="docutils literal"><span class="pre">true</span></tt> if both signatures <tt class="docutils literal"><span class="pre">sig1</span></tt> and <tt class="docutils literal"><span class="pre">sig2</span></tt> are equal.
@@ -645,7 +648,7 @@ Return <tt class="docutils literal"><span class="pre">true</span></tt> if both s
 </dd>
 </div>
 <div id="==,EcPublicKey,EcPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CEcPublicKey%2CEcPublicKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">pubkey1</span><span class="Other">,</span> <span class="Identifier">pubkey2</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CEcPublicKey%2CEcPublicKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">pubkey1</span><span class="Other">,</span> <span class="Identifier">pubkey2</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -656,7 +659,7 @@ Returns <tt class="docutils literal"><span class="pre">true</span></tt> if both 
 </dd>
 </div>
 <div id="==,EcPrivateKey,EcPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CEcPrivateKey%2CEcPrivateKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">seckey1</span><span class="Other">,</span> <span class="Identifier">seckey2</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CEcPrivateKey%2CEcPrivateKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">seckey1</span><span class="Other">,</span> <span class="Identifier">seckey2</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -670,7 +673,7 @@ Returns <tt class="docutils literal"><span class="pre">true</span></tt> if both 
 </div>
 <div id="clear-procs-all">
   <div id="clear,T" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#clear%2CT"><span class="Identifier">clear</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="ecnist.html#EcPKI"><span class="Identifier">EcPKI</span></a> <span class="Operator">|</span> <a href="ecnist.html#EcKeyPair"><span class="Identifier">EcKeyPair</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pki</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#clear%2CT"><span class="Identifier">clear</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#EcPKI"><span class="Identifier">EcPKI</span></a> <span class="Operator">|</span> <a href="#EcKeyPair"><span class="Identifier">EcKeyPair</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pki</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Wipe and clear EC <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> object.
@@ -683,7 +686,7 @@ Wipe and clear EC <tt class="docutils literal"><span class="pre"><span class="Id
 </div>
 <div id="copy-procs-all">
   <div id="copy,T,T" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#copy%2CT%2CT"><span class="Identifier">copy</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="ecnist.html#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">dst</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">;</span> <span class="Identifier">src</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#copy%2CT%2CT"><span class="Identifier">copy</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">dst</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">;</span> <span class="Identifier">src</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Copy EC <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> <tt class="docutils literal"><span class="pre">src</span></tt> to <tt class="docutils literal"><span class="pre">dst</span></tt>.</p>
@@ -695,7 +698,7 @@ Wipe and clear EC <tt class="docutils literal"><span class="pre"><span class="Id
 </dd>
 </div>
 <div id="copy,T" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#copy%2CT"><span class="Identifier">copy</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="ecnist.html#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">src</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#copy%2CT"><span class="Identifier">copy</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">src</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Returns copy of EC <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> object <tt class="docutils literal"><span class="pre">src</span></tt>.
@@ -708,8 +711,8 @@ Returns copy of EC <tt class="docutils literal"><span class="pre"><span class="I
 </div>
 <div id="ephemeral-procs-all">
   <div id="ephemeral,EcCurveKind,HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#ephemeral%2CEcCurveKind%2CHmacDrbgContext"><span class="Identifier">ephemeral</span></a><span class="Other">(</span><span class="Identifier">scheme</span><span class="Other">:</span> <a href="ecnist.html#ECDHEScheme"><span class="Identifier">ECDHEScheme</span></a><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
-    <a href="ecnist.html#EcKeyPair"><span class="Identifier">EcKeyPair</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#ephemeral%2CEcCurveKind%2CHmacDrbgContext"><span class="Identifier">ephemeral</span></a><span class="Other">(</span><span class="Identifier">scheme</span><span class="Other">:</span> <a href="#ECDHEScheme"><span class="Identifier">ECDHEScheme</span></a><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
+    <a href="#EcKeyPair"><span class="Identifier">EcKeyPair</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Generate ephemeral keys used to perform ECDHE.
@@ -719,7 +722,7 @@ Generate ephemeral keys used to perform ECDHE.
 </dd>
 </div>
 <div id="ephemeral,string,HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#ephemeral%2Cstring%2CHmacDrbgContext"><span class="Identifier">ephemeral</span></a><span class="Other">(</span><span class="Identifier">scheme</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="ecnist.html#EcKeyPair"><span class="Identifier">EcKeyPair</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#ephemeral%2Cstring%2CHmacDrbgContext"><span class="Identifier">ephemeral</span></a><span class="Other">(</span><span class="Identifier">scheme</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="#EcKeyPair"><span class="Identifier">EcKeyPair</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -735,7 +738,7 @@ Generate ephemeral keys used to perform ECDHE.
 </div>
 <div id="getBytes-procs-all">
   <div id="getBytes,EcPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CEcPublicKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CEcPublicKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -746,7 +749,7 @@ Serialize EC public key <tt class="docutils literal"><span class="pre">pubkey</s
 </dd>
 </div>
 <div id="getBytes,EcPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CEcPrivateKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CEcPrivateKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -757,7 +760,7 @@ Serialize EC private key <tt class="docutils literal"><span class="pre">seckey</
 </dd>
 </div>
 <div id="getBytes,EcSignature" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CEcSignature"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CEcSignature"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -771,7 +774,7 @@ Serialize EC signature <tt class="docutils literal"><span class="pre">sig</span>
 </div>
 <div id="getPublicKey-procs-all">
   <div id="getPublicKey,EcPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getPublicKey%2CEcPrivateKey"><span class="Identifier">getPublicKey</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getPublicKey%2CEcPrivateKey"><span class="Identifier">getPublicKey</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -785,7 +788,7 @@ Calculate and return EC public key from private key <tt class="docutils literal"
 </div>
 <div id="getRawBytes-procs-all">
   <div id="getRawBytes,EcPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getRawBytes%2CEcPublicKey"><span class="Identifier">getRawBytes</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getRawBytes%2CEcPublicKey"><span class="Identifier">getRawBytes</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -796,7 +799,7 @@ Serialize EC public key <tt class="docutils literal"><span class="pre">pubkey</s
 </dd>
 </div>
 <div id="getRawBytes,EcPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getRawBytes%2CEcPrivateKey"><span class="Identifier">getRawBytes</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getRawBytes%2CEcPrivateKey"><span class="Identifier">getRawBytes</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -807,7 +810,7 @@ Serialize EC private key <tt class="docutils literal"><span class="pre">seckey</
 </dd>
 </div>
 <div id="getRawBytes,EcSignature" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getRawBytes%2CEcSignature"><span class="Identifier">getRawBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getRawBytes%2CEcSignature"><span class="Identifier">getRawBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -821,7 +824,7 @@ Serialize EC signature <tt class="docutils literal"><span class="pre">sig</span>
 </div>
 <div id="getSecret-procs-all">
   <div id="getSecret,EcPublicKey,EcPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getSecret%2CEcPublicKey%2CEcPrivateKey"><span class="Identifier">getSecret</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#getSecret%2CEcPublicKey%2CEcPrivateKey"><span class="Identifier">getSecret</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -837,7 +840,7 @@ Serialize EC signature <tt class="docutils literal"><span class="pre">sig</span>
 </div>
 <div id="init-procs-all">
   <div id="init,EcPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -850,7 +853,7 @@ Serialize EC signature <tt class="docutils literal"><span class="pre">sig</span>
 </dd>
 </div>
 <div id="init,EcPublicKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CEcPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CEcPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span>
     <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -863,7 +866,7 @@ Serialize EC signature <tt class="docutils literal"><span class="pre">sig</span>
 </dd>
 </div>
 <div id="init,EcSignature,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CEcSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CEcSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -876,8 +879,8 @@ Serialize EC signature <tt class="docutils literal"><span class="pre">sig</span>
 </dd>
 </div>
 <div id="init,typedesc[EcPrivateKey],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BEcPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
-    <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BEcPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
+    <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize EC private key from ASN.1 DER binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -887,7 +890,7 @@ Initialize EC private key from ASN.1 DER binary representation <tt class="docuti
 </dd>
 </div>
 <div id="init,typedesc[EcPublicKey],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BEcPublicKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BEcPublicKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -898,7 +901,7 @@ Initialize EC public key from ASN.1 DER binary representation <tt class="docutil
 </dd>
 </div>
 <div id="init,typedesc[EcSignature],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BEcSignature%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BEcSignature%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -909,7 +912,7 @@ Initialize EC signature from raw binary representation <tt class="docutils liter
 </dd>
 </div>
 <div id="init,T,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CT%2Cstring"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="ecnist.html#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sospk</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CT%2Cstring"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sospk</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
     <span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -922,7 +925,7 @@ Initialize EC signature from raw binary representation <tt class="docutils liter
 </dd>
 </div>
 <div id="init,typedesc[T],string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BT%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="ecnist.html#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BT%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -935,7 +938,7 @@ Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identi
 </div>
 <div id="initRaw-procs-all">
   <div id="initRaw,EcPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -949,7 +952,7 @@ Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identi
 </dd>
 </div>
 <div id="initRaw,EcPublicKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2CEcPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2CEcPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -963,7 +966,7 @@ Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identi
 </dd>
 </div>
 <div id="initRaw,EcSignature,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2CEcSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2CEcSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -977,8 +980,8 @@ Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identi
 </dd>
 </div>
 <div id="initRaw,typedesc[EcPrivateKey],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2Ctypedesc%5BEcPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
-    <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2Ctypedesc%5BEcPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
+    <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize EC private key from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -988,8 +991,8 @@ Initialize EC private key from raw binary representation <tt class="docutils lit
 </dd>
 </div>
 <div id="initRaw,typedesc[EcPublicKey],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2Ctypedesc%5BEcPublicKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
-    <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2Ctypedesc%5BEcPublicKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
+    <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize EC public key from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -999,8 +1002,8 @@ Initialize EC public key from raw binary representation <tt class="docutils lite
 </dd>
 </div>
 <div id="initRaw,typedesc[EcSignature],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2Ctypedesc%5BEcSignature%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
-    <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2Ctypedesc%5BEcSignature%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">initRaw</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
+    <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize EC signature from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -1010,7 +1013,7 @@ Initialize EC signature from raw binary representation <tt class="docutils liter
 </dd>
 </div>
 <div id="initRaw,T,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2CT%2Cstring"><span class="Identifier">initRaw</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="ecnist.html#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sospk</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2CT%2Cstring"><span class="Identifier">initRaw</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sospk</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> <tt class="docutils literal"><span class="pre">sospk</span></tt> from raw hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
@@ -1022,7 +1025,7 @@ Initialize EC signature from raw binary representation <tt class="docutils liter
 </dd>
 </div>
 <div id="initRaw,typedesc[T],string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2Ctypedesc%5BT%5D%2Cstring"><span class="Identifier">initRaw</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="ecnist.html#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#initRaw%2Ctypedesc%5BT%5D%2Cstring"><span class="Identifier">initRaw</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#EcPKI"><span class="Identifier">EcPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> from raw hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -1035,7 +1038,7 @@ Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identi
 </div>
 <div id="random-procs-all">
   <div id="random,typedesc[EcKeyPair],EcCurveKind,HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BEcKeyPair%5D%2CEcCurveKind%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ecnist.html#EcKeyPair"><span class="Identifier">EcKeyPair</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">kind</span><span class="Other">:</span> <a href="ecnist.html#EcCurveKind"><span class="Identifier">EcCurveKind</span></a><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BEcKeyPair%5D%2CEcCurveKind%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#EcKeyPair"><span class="Identifier">EcKeyPair</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">kind</span><span class="Other">:</span> <a href="#EcCurveKind"><span class="Identifier">EcCurveKind</span></a><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
     <span class="Identifier">T</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1048,8 +1051,8 @@ Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identi
 </dd>
 </div>
 <div id="random,typedesc[EcPrivateKey],EcCurveKind,HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BEcPrivateKey%5D%2CEcCurveKind%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">kind</span><span class="Other">:</span> <a href="ecnist.html#EcCurveKind"><span class="Identifier">EcCurveKind</span></a><span class="Other">;</span>
-            <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BEcPrivateKey%5D%2CEcCurveKind%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">kind</span><span class="Other">:</span> <a href="#EcCurveKind"><span class="Identifier">EcCurveKind</span></a><span class="Other">;</span>
+            <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Generate new random EC private key using BearSSL's HMAC-SHA256-DRBG algorithm.</p>
@@ -1064,7 +1067,7 @@ Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identi
 </div>
 <div id="scalarMul-procs-all">
   <div id="scalarMul,EcPublicKey,EcPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#scalarMul%2CEcPublicKey%2CEcPrivateKey"><span class="Identifier">scalarMul</span></a><span class="Other">(</span><span class="Identifier">pub</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">sec</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#scalarMul%2CEcPublicKey%2CEcPrivateKey"><span class="Identifier">scalarMul</span></a><span class="Other">(</span><span class="Identifier">pub</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">sec</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1080,8 +1083,8 @@ Initialize EC <tt class="docutils literal"><span class="pre"><span class="Identi
 </div>
 <div id="sign-procs-all">
   <div id="sign,EcPrivateKey,openArray[T]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#sign%2CEcPrivateKey%2CopenArray%5BT%5D"><span class="Identifier">sign</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
-    <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#sign%2CEcPrivateKey%2CopenArray%5BT%5D"><span class="Identifier">sign</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span>
+    <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Get ECDSA signature of data <tt class="docutils literal"><span class="pre">message</span></tt> using private key <tt class="docutils literal"><span class="pre">seckey</span></tt>.
@@ -1094,7 +1097,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </div>
 <div id="toBytes-procs-all">
   <div id="toBytes,EcPublicKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CEcPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">target</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CEcPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">target</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1107,7 +1110,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </dd>
 </div>
 <div id="toBytes,EcPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">target</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">target</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1122,7 +1125,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </dd>
 </div>
 <div id="toBytes,EcSignature,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CEcSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CEcSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1138,7 +1141,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </div>
 <div id="toRawBytes-procs-all">
   <div id="toRawBytes,EcPublicKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toRawBytes%2CEcPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toRawBytes</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toRawBytes%2CEcPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toRawBytes</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1151,7 +1154,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </dd>
 </div>
 <div id="toRawBytes,EcPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toRawBytes%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toRawBytes</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="ecnist.html#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toRawBytes%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toRawBytes</span></a><span class="Other">(</span><span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#EcResult"><span class="Identifier">EcResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1164,7 +1167,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </dd>
 </div>
 <div id="toRawBytes,EcSignature,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toRawBytes%2CEcSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">toRawBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#toRawBytes%2CEcSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">toRawBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -1180,7 +1183,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </div>
 <div id="toSecret-procs-all">
   <div id="toSecret,EcPublicKey,EcPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toSecret%2CEcPublicKey%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toSecret</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">seckey</span><span class="Other">:</span> <a href="ecnist.html#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#toSecret%2CEcPublicKey%2CEcPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toSecret</span></a><span class="Other">(</span><span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">;</span> <span class="Identifier">seckey</span><span class="Other">:</span> <a href="#EcPrivateKey"><span class="Identifier">EcPrivateKey</span></a><span class="Other">;</span>
               <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
@@ -1198,8 +1201,8 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </div>
 <div id="verify-procs-all">
   <div id="verify,EcSignature,openArray[T],EcPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#verify%2CEcSignature%2CopenArray%5BT%5D%2CEcPublicKey"><span class="Identifier">verify</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="ecnist.html#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span>
-                            <span class="Identifier">pubkey</span><span class="Other">:</span> <a href="ecnist.html#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#verify%2CEcSignature%2CopenArray%5BT%5D%2CEcPublicKey"><span class="Identifier">verify</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#EcSignature"><span class="Identifier">EcSignature</span></a><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span>
+                            <span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#EcPublicKey"><span class="Identifier">EcPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Verify ECDSA signature <tt class="docutils literal"><span class="pre">sig</span></tt> using public key <tt class="docutils literal"><span class="pre">pubkey</span></tt> and data <tt class="docutils literal"><span class="pre">message</span></tt>.</p>
@@ -1220,7 +1223,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
   <dl class="item">
     <div id="getPrivateKeyLength-templates-all">
   <div id="getPrivateKeyLength.t,EcCurveKind" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#getPrivateKeyLength.t%2CEcCurveKind"><span class="Identifier">getPrivateKeyLength</span></a><span class="Other">(</span><span class="Identifier">curve</span><span class="Other">:</span> <a href="ecnist.html#EcCurveKind"><span class="Identifier">EcCurveKind</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#getPrivateKeyLength.t%2CEcCurveKind"><span class="Identifier">getPrivateKeyLength</span></a><span class="Other">(</span><span class="Identifier">curve</span><span class="Other">:</span> <a href="#EcCurveKind"><span class="Identifier">EcCurveKind</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {..}</pre></dt>
 <dd>
 
 
@@ -1233,7 +1236,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
 </div>
 <div id="getPublicKeyLength-templates-all">
   <div id="getPublicKeyLength.t,EcCurveKind" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#getPublicKeyLength.t%2CEcCurveKind"><span class="Identifier">getPublicKeyLength</span></a><span class="Other">(</span><span class="Identifier">curve</span><span class="Other">:</span> <a href="ecnist.html#EcCurveKind"><span class="Identifier">EcCurveKind</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#getPublicKeyLength.t%2CEcCurveKind"><span class="Identifier">getPublicKeyLength</span></a><span class="Other">(</span><span class="Identifier">curve</span><span class="Other">:</span> <a href="#EcCurveKind"><span class="Identifier">EcCurveKind</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {..}</pre></dt>
 <dd>
 
 
@@ -1260,7 +1263,7 @@ Get ECDSA signature of data <tt class="docutils literal"><span class="pre">messa
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:32 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:54 UTC</small>
       </div>
     </div>
   </div>

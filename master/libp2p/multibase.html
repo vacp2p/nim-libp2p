@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/multibase</h1>
       <div class="row">
@@ -231,7 +234,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="MultiBase" class="tohide">
-<dt><pre><a href="multibase.html#MultiBase"><span class="Identifier">MultiBase</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
+<dt><pre><a href="#MultiBase"><span class="Identifier">MultiBase</span></a> <span class="Other">=</span> <span class="Keyword">object</span></pre></dt>
 <dd>
 
 
@@ -241,7 +244,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="MultiBaseStatus" class="tohide">
-<dt><pre><a href="multibase.html#MultiBaseStatus"><span class="Identifier">MultiBaseStatus</span></a> {.<span class="Identifier">pure</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#MultiBaseStatus"><span class="Identifier">MultiBaseStatus</span></a> {.<span class="Identifier">pure</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">Error</span><span class="Other">,</span> <span class="Identifier">Success</span><span class="Other">,</span> <span class="Identifier">Overrun</span><span class="Other">,</span> <span class="Identifier">Incorrect</span><span class="Other">,</span> <span class="Identifier">BadCodec</span><span class="Other">,</span> <span class="Identifier">NotSupported</span></pre></dt>
 <dd>
 
@@ -258,7 +261,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#10">Consts</a></h1>
   <dl class="item">
     <div id="libp2p_multibase_exts" class="tohide">
-<dt><pre><a href="multibase.html#libp2p_multibase_exts"><span class="Identifier">libp2p_multibase_exts</span></a> {.<span class="Identifier">strdefine</span>.} <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span></pre></dt>
+<dt><pre><a href="#libp2p_multibase_exts"><span class="Identifier">libp2p_multibase_exts</span></a> {.<span class="Identifier">strdefine</span>.} <span class="Other">=</span> <span class="StringLit">&quot;&quot;</span></pre></dt>
 <dd>
 
 
@@ -275,7 +278,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <dl class="item">
     <div id="decode-procs-all">
   <div id="decode,typedesc[MultiBase],openArray[char]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#decode%2Ctypedesc%5BMultiBase%5D%2CopenArray%5Bchar%5D"><span class="Identifier">decode</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multibase.html#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">inbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">char</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#decode%2Ctypedesc%5BMultiBase%5D%2CopenArray%5Bchar%5D"><span class="Identifier">decode</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">inbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">char</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span>
     <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">string</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -286,8 +289,8 @@ Decode MultiBase encoded array <tt class="docutils literal"><span class="pre">in
 </dd>
 </div>
 <div id="decode,typedesc[MultiBase],openArray[char],openArray[byte],int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#decode%2Ctypedesc%5BMultiBase%5D%2CopenArray%5Bchar%5D%2CopenArray%5Bbyte%5D%2Cint"><span class="Identifier">decode</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multibase.html#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">inbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">char</span><span class="Other">]</span><span class="Other">;</span>
-            <span class="Identifier">outbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="multibase.html#MultiBaseStatus"><span class="Identifier">MultiBaseStatus</span></a> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#decode%2Ctypedesc%5BMultiBase%5D%2CopenArray%5Bchar%5D%2CopenArray%5Bbyte%5D%2Cint"><span class="Identifier">decode</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">inbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">char</span><span class="Other">]</span><span class="Other">;</span>
+            <span class="Identifier">outbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="#MultiBaseStatus"><span class="Identifier">MultiBaseStatus</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -305,7 +308,7 @@ Decode MultiBase encoded array <tt class="docutils literal"><span class="pre">in
 </div>
 <div id="decodedLength-procs-all">
   <div id="decodedLength,typedesc[MultiBase],char,int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#decodedLength%2Ctypedesc%5BMultiBase%5D%2Cchar%2Cint"><span class="Identifier">decodedLength</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multibase.html#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">encoding</span><span class="Other">:</span> <span class="Identifier">char</span><span class="Other">;</span> <span class="Identifier">length</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#decodedLength%2Ctypedesc%5BMultiBase%5D%2Cchar%2Cint"><span class="Identifier">decodedLength</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">encoding</span><span class="Other">:</span> <span class="Identifier">char</span><span class="Other">;</span> <span class="Identifier">length</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -319,7 +322,7 @@ Return estimated size of buffer to store MultiBase decoded value with encoding c
 </div>
 <div id="encode-procs-all">
   <div id="encode,typedesc[MultiBase],string,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#encode%2Ctypedesc%5BMultiBase%5D%2Cstring%2CopenArray%5Bbyte%5D"><span class="Identifier">encode</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multibase.html#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">encoding</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#encode%2Ctypedesc%5BMultiBase%5D%2Cstring%2CopenArray%5Bbyte%5D"><span class="Identifier">encode</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">encoding</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span>
             <span class="Identifier">inbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">string</span><span class="Other">,</span> <span class="Identifier">string</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -330,9 +333,9 @@ Encode array <tt class="docutils literal"><span class="pre">inbytes</span></tt> 
 </dd>
 </div>
 <div id="encode,typedesc[MultiBase],string,openArray[byte],openArray[char],int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#encode%2Ctypedesc%5BMultiBase%5D%2Cstring%2CopenArray%5Bbyte%5D%2CopenArray%5Bchar%5D%2Cint"><span class="Identifier">encode</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multibase.html#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">encoding</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#encode%2Ctypedesc%5BMultiBase%5D%2Cstring%2CopenArray%5Bbyte%5D%2CopenArray%5Bchar%5D%2Cint"><span class="Identifier">encode</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">encoding</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span>
             <span class="Identifier">inbytes</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">outbytes</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">char</span><span class="Other">]</span><span class="Other">;</span>
-            <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="multibase.html#MultiBaseStatus"><span class="Identifier">MultiBaseStatus</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+            <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="#MultiBaseStatus"><span class="Identifier">MultiBaseStatus</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Encode array <tt class="docutils literal"><span class="pre">inbytes</span></tt> using MultiBase encoding scheme <tt class="docutils literal"><span class="pre">encoding</span></tt> and store encoded value to <tt class="docutils literal"><span class="pre">outbytes</span></tt>.</p>
@@ -350,7 +353,7 @@ Encode array <tt class="docutils literal"><span class="pre">inbytes</span></tt> 
 </div>
 <div id="encodedLength-procs-all">
   <div id="encodedLength,typedesc[MultiBase],string,int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#encodedLength%2Ctypedesc%5BMultiBase%5D%2Cstring%2Cint"><span class="Identifier">encodedLength</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="multibase.html#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">encoding</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">length</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#encodedLength%2Ctypedesc%5BMultiBase%5D%2Cstring%2Cint"><span class="Identifier">encodedLength</span></a><span class="Other">(</span><span class="Identifier">mbtype</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#MultiBase"><span class="Identifier">MultiBase</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">encoding</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">;</span> <span class="Identifier">length</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -374,7 +377,7 @@ Encode array <tt class="docutils literal"><span class="pre">inbytes</span></tt> 
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:33 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:55 UTC</small>
       </div>
     </div>
   </div>

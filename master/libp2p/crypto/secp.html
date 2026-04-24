@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/crypto/secp</h1>
       <div class="row">
@@ -282,7 +285,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="SkKeyPair" class="tohide">
-<dt><pre><a href="secp.html#SkKeyPair"><span class="Identifier">SkKeyPair</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">secp256k1</span><span class="Other">.</span><span class="Identifier">SkKeyPair</span></pre></dt>
+<dt><pre><a href="#SkKeyPair"><span class="Identifier">SkKeyPair</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">secp256k1</span><span class="Other">.</span><span class="Identifier">SkKeyPair</span></pre></dt>
 <dd>
 
 
@@ -292,7 +295,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="SkPrivateKey" class="tohide">
-<dt><pre><a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">secp256k1</span><span class="Other">.</span><span class="Identifier">SkSecretKey</span></pre></dt>
+<dt><pre><a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">secp256k1</span><span class="Other">.</span><span class="Identifier">SkSecretKey</span></pre></dt>
 <dd>
 
 
@@ -302,7 +305,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="SkPublicKey" class="tohide">
-<dt><pre><a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">secp256k1</span><span class="Other">.</span><span class="Identifier">SkPublicKey</span></pre></dt>
+<dt><pre><a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">secp256k1</span><span class="Other">.</span><span class="Identifier">SkPublicKey</span></pre></dt>
 <dd>
 
 
@@ -312,7 +315,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="SkSignature" class="tohide">
-<dt><pre><a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">secp256k1</span><span class="Other">.</span><span class="Identifier">SkSignature</span></pre></dt>
+<dt><pre><a href="#SkSignature"><span class="Identifier">SkSignature</span></a> <span class="Other">=</span> <span class="Keyword">distinct</span> <span class="Identifier">secp256k1</span><span class="Other">.</span><span class="Identifier">SkSignature</span></pre></dt>
 <dd>
 
 
@@ -328,7 +331,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#10">Consts</a></h1>
   <dl class="item">
     <div id="SkRawPrivateKeySize" class="tohide">
-<dt><pre><a href="secp.html#SkRawPrivateKeySize"><span class="Identifier">SkRawPrivateKeySize</span></a> <span class="Other">=</span> <span class="DecNumber">32</span></pre></dt>
+<dt><pre><a href="#SkRawPrivateKeySize"><span class="Identifier">SkRawPrivateKeySize</span></a> <span class="Other">=</span> <span class="DecNumber">32</span></pre></dt>
 <dd>
 
 Size of private key in octets (bytes)
@@ -338,7 +341,7 @@ Size of private key in octets (bytes)
 </dd>
 </div>
 <div id="SkRawPublicKeySize" class="tohide">
-<dt><pre><a href="secp.html#SkRawPublicKeySize"><span class="Identifier">SkRawPublicKeySize</span></a> <span class="Other">=</span> <span class="DecNumber">33</span></pre></dt>
+<dt><pre><a href="#SkRawPublicKeySize"><span class="Identifier">SkRawPublicKeySize</span></a> <span class="Other">=</span> <span class="DecNumber">33</span></pre></dt>
 <dd>
 
 Size of public key in octets (bytes)
@@ -348,7 +351,7 @@ Size of public key in octets (bytes)
 </dd>
 </div>
 <div id="SkRawSignatureSize" class="tohide">
-<dt><pre><a href="secp.html#SkRawSignatureSize"><span class="Identifier">SkRawSignatureSize</span></a> <span class="Other">=</span> <span class="DecNumber">65</span></pre></dt>
+<dt><pre><a href="#SkRawSignatureSize"><span class="Identifier">SkRawSignatureSize</span></a> <span class="Other">=</span> <span class="DecNumber">65</span></pre></dt>
 <dd>
 
 Size of signature in octets (bytes)
@@ -365,7 +368,7 @@ Size of signature in octets (bytes)
   <dl class="item">
     <div id="$-procs-all">
   <div id="$,SkKeyPair" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#%24%2CSkKeyPair"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#%24%2CSkKeyPair"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -375,7 +378,7 @@ Size of signature in octets (bytes)
 </dd>
 </div>
 <div id="$,SkPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#%24%2CSkPrivateKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#%24%2CSkPrivateKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -385,7 +388,7 @@ Size of signature in octets (bytes)
 </dd>
 </div>
 <div id="$,SkPublicKey" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#%24%2CSkPublicKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#%24%2CSkPublicKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -395,7 +398,7 @@ Size of signature in octets (bytes)
 </dd>
 </div>
 <div id="$,SkSignature" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#%24%2CSkSignature"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#%24%2CSkSignature"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -408,7 +411,7 @@ Size of signature in octets (bytes)
 </div>
 <div id="==-procs-all">
   <div id="==,SkKeyPair,SkKeyPair" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#%3D%3D%2CSkKeyPair%2CSkKeyPair"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="secp.html#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#%3D%3D%2CSkKeyPair%2CSkKeyPair"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -418,7 +421,7 @@ Size of signature in octets (bytes)
 </dd>
 </div>
 <div id="==,SkPrivateKey,SkPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#%3D%3D%2CSkPrivateKey%2CSkPrivateKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#%3D%3D%2CSkPrivateKey%2CSkPrivateKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -428,7 +431,7 @@ Size of signature in octets (bytes)
 </dd>
 </div>
 <div id="==,SkPublicKey,SkPublicKey" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#%3D%3D%2CSkPublicKey%2CSkPublicKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#%3D%3D%2CSkPublicKey%2CSkPublicKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -438,7 +441,7 @@ Size of signature in octets (bytes)
 </dd>
 </div>
 <div id="==,SkSignature,SkSignature" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#%3D%3D%2CSkSignature%2CSkSignature"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#%3D%3D%2CSkSignature%2CSkSignature"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -451,7 +454,7 @@ Size of signature in octets (bytes)
 </div>
 <div id="clear-procs-all">
   <div id="clear,SkPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">func</span> <a href="#clear%2CSkPrivateKey"><span class="Identifier">clear</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">func</span> <a href="#clear%2CSkPrivateKey"><span class="Identifier">clear</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -464,7 +467,7 @@ Size of signature in octets (bytes)
 </div>
 <div id="getBytes-procs-all">
   <div id="getBytes,SkPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CSkPrivateKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CSkPrivateKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -475,7 +478,7 @@ Serialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class="
 </dd>
 </div>
 <div id="getBytes,SkPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CSkPublicKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CSkPublicKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -486,7 +489,7 @@ Serialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class="
 </dd>
 </div>
 <div id="getBytes,SkSignature" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CSkSignature"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CSkSignature"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -500,7 +503,7 @@ Serialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class="
 </div>
 <div id="getPublicKey-procs-all">
   <div id="getPublicKey,SkPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getPublicKey%2CSkPrivateKey"><span class="Identifier">getPublicKey</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getPublicKey%2CSkPrivateKey"><span class="Identifier">getPublicKey</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -514,7 +517,7 @@ Calculate and return Secp256k1 <tt class="docutils literal"><span class="pre"><s
 </div>
 <div id="init-procs-all">
   <div id="init,SkPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -525,7 +528,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,SkPrivateKey,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkPrivateKey%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkPrivateKey%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -536,7 +539,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,SkPublicKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -547,7 +550,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,SkPublicKey,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkPublicKey%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkPublicKey%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -558,7 +561,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,SkSignature,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -569,7 +572,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,SkSignature,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkSignature%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CSkSignature%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -580,8 +583,8 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,typedesc[SkPrivateKey],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span>
-    <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span>
+    <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt> from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt>.</p>
@@ -593,7 +596,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,typedesc[SkPrivateKey],string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkPrivateKey%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkPrivateKey%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -606,7 +609,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,typedesc[SkPublicKey],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkPublicKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkPublicKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -619,7 +622,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,typedesc[SkPublicKey],string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkPublicKey%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkPublicKey%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -632,7 +635,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,typedesc[SkSignature],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkSignature%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkSignature%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -645,7 +648,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="init,typedesc[SkSignature],string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkSignature%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BSkSignature%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -661,7 +664,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </div>
 <div id="random-procs-all">
   <div id="random,typedesc[SkKeyPair],HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BSkKeyPair%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="secp.html#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="secp.html#SkKeyPair"><span class="Identifier">SkKeyPair</span></a> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BSkKeyPair%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="#SkKeyPair"><span class="Identifier">SkKeyPair</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -672,7 +675,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </dd>
 </div>
 <div id="random,typedesc[SkPrivateKey],HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BSkPrivateKey%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BSkPrivateKey%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -686,7 +689,7 @@ Initialize Secp256k1 <tt class="docutils literal"><span class="pre"><span class=
 </div>
 <div id="sign-procs-all">
   <div id="sign,SkPrivateKey,openArray[T]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#sign%2CSkPrivateKey%2CopenArray%5BT%5D"><span class="Identifier">sign</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#sign%2CSkPrivateKey%2CopenArray%5BT%5D"><span class="Identifier">sign</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#SkSignature"><span class="Identifier">SkSignature</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -700,7 +703,7 @@ Sign message <tt class="docutils literal"><span class="pre"><span class="Identif
 </div>
 <div id="toBytes-procs-all">
   <div id="toBytes,SkPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CSkPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CSkPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -713,7 +716,7 @@ Sign message <tt class="docutils literal"><span class="pre"><span class="Identif
 </dd>
 </div>
 <div id="toBytes,SkPublicKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CSkPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CSkPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">SkResult</span><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -726,7 +729,7 @@ Sign message <tt class="docutils literal"><span class="pre"><span class="Identif
 </dd>
 </div>
 <div id="toBytes,SkSignature,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CSkSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CSkSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -742,8 +745,8 @@ Sign message <tt class="docutils literal"><span class="pre"><span class="Identif
 </div>
 <div id="verify-procs-all">
   <div id="verify,SkSignature,openArray[T],SkPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#verify%2CSkSignature%2CopenArray%5BT%5D%2CSkPublicKey"><span class="Identifier">verify</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="secp.html#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span>
-                            <span class="Identifier">key</span><span class="Other">:</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#verify%2CSkSignature%2CopenArray%5BT%5D%2CSkPublicKey"><span class="Identifier">verify</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#SkSignature"><span class="Identifier">SkSignature</span></a><span class="Other">;</span> <span class="Identifier">msg</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span>
+                            <span class="Identifier">key</span><span class="Other">:</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -762,7 +765,7 @@ Sign message <tt class="docutils literal"><span class="pre"><span class="Identif
   <dl class="item">
     <div id="pubkey-templates-all">
   <div id="pubkey.t,SkKeyPair" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#pubkey.t%2CSkKeyPair"><span class="Identifier">pubkey</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <a href="secp.html#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <a href="secp.html#SkPublicKey"><span class="Identifier">SkPublicKey</span></a> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#pubkey.t%2CSkKeyPair"><span class="Identifier">pubkey</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <a href="#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#SkPublicKey"><span class="Identifier">SkPublicKey</span></a> {..}</pre></dt>
 <dd>
 
 
@@ -775,7 +778,7 @@ Sign message <tt class="docutils literal"><span class="pre"><span class="Identif
 </div>
 <div id="seckey-templates-all">
   <div id="seckey.t,SkKeyPair" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#seckey.t%2CSkKeyPair"><span class="Identifier">seckey</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <a href="secp.html#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <a href="secp.html#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#seckey.t%2CSkKeyPair"><span class="Identifier">seckey</span></a><span class="Other">(</span><span class="Identifier">v</span><span class="Other">:</span> <a href="#SkKeyPair"><span class="Identifier">SkKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#SkPrivateKey"><span class="Identifier">SkPrivateKey</span></a> {..}</pre></dt>
 <dd>
 
 
@@ -796,7 +799,7 @@ Sign message <tt class="docutils literal"><span class="pre"><span class="Identif
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:32 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:54 UTC</small>
       </div>
     </div>
   </div>

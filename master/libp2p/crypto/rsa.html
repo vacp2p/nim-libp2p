@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/crypto/rsa</h1>
       <div class="row">
@@ -318,7 +321,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="RsaError" class="tohide">
-<dt><pre><a href="rsa.html#RsaError"><span class="Identifier">RsaError</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#RsaError"><span class="Identifier">RsaError</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">RsaGenError</span><span class="Other">,</span> <span class="Identifier">RsaKeyIncorrectError</span><span class="Other">,</span> <span class="Identifier">RsaSignatureError</span><span class="Other">,</span> <span class="Identifier">RsaLowSecurityError</span></pre></dt>
 <dd>
 
@@ -329,7 +332,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="RsaKeyPair" class="tohide">
-<dt><pre><a href="rsa.html#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a> <span class="Other">=</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a></pre></dt>
+<dt><pre><a href="#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a> <span class="Other">=</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a></pre></dt>
 <dd>
 
 
@@ -339,7 +342,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="RsaKP" class="tohide">
-<dt><pre><a href="rsa.html#RsaKP"><span class="Identifier">RsaKP</span></a> <span class="Other">=</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a> <span class="Operator">|</span> <a href="rsa.html#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a></pre></dt>
+<dt><pre><a href="#RsaKP"><span class="Identifier">RsaKP</span></a> <span class="Other">=</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a> <span class="Operator">|</span> <a href="#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a></pre></dt>
 <dd>
 
 
@@ -349,7 +352,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="RsaPKI" class="tohide">
-<dt><pre><a href="rsa.html#RsaPKI"><span class="Identifier">RsaPKI</span></a> <span class="Other">=</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a> <span class="Operator">|</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a> <span class="Operator">|</span> <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a></pre></dt>
+<dt><pre><a href="#RsaPKI"><span class="Identifier">RsaPKI</span></a> <span class="Other">=</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a> <span class="Operator">|</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a> <span class="Operator">|</span> <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a></pre></dt>
 <dd>
 
 
@@ -359,7 +362,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="RsaPrivateKey" class="tohide">
-<dt><pre><a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+<dt><pre><a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">buffer</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">seck</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">rsa</span><span class="Other">.</span><span class="Identifier">RsaPrivateKey</span>
   <span class="Identifier">pubk</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">rsa</span><span class="Other">.</span><span class="Identifier">RsaPublicKey</span>
@@ -374,7 +377,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="RsaPublicKey" class="tohide">
-<dt><pre><a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+<dt><pre><a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">buffer</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">key</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">rsa</span><span class="Other">.</span><span class="Identifier">RsaPublicKey</span></pre></dt>
 <dd>
@@ -386,7 +389,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="RsaResult" class="tohide">
-<dt><pre><a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <a href="rsa.html#RsaError"><span class="Identifier">RsaError</span></a><span class="Other">]</span></pre></dt>
+<dt><pre><a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <a href="#RsaError"><span class="Identifier">RsaError</span></a><span class="Other">]</span></pre></dt>
 <dd>
 
 
@@ -396,7 +399,7 @@ window.addEventListener("DOMContentLoaded", main2);
 </dd>
 </div>
 <div id="RsaSignature" class="tohide">
-<dt><pre><a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
+<dt><pre><a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a> <span class="Other">=</span> <span class="Keyword">ref</span> <span class="Keyword">object</span>
   <span class="Identifier">buffer</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span></pre></dt>
 <dd>
 
@@ -413,7 +416,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#10">Consts</a></h1>
   <dl class="item">
     <div id="DefaultKeySize" class="tohide">
-<dt><pre><a href="rsa.html#DefaultKeySize"><span class="Identifier">DefaultKeySize</span></a> <span class="Other">=</span> <span class="DecNumber">3072</span></pre></dt>
+<dt><pre><a href="#DefaultKeySize"><span class="Identifier">DefaultKeySize</span></a> <span class="Other">=</span> <span class="DecNumber">3072</span></pre></dt>
 <dd>
 
 Default RSA key size in bits.
@@ -423,7 +426,7 @@ Default RSA key size in bits.
 </dd>
 </div>
 <div id="DefaultPublicExponent" class="tohide">
-<dt><pre><a href="rsa.html#DefaultPublicExponent"><span class="Identifier">DefaultPublicExponent</span></a> <span class="Other">=</span> <span class="DecNumber">65537'u32</span></pre></dt>
+<dt><pre><a href="#DefaultPublicExponent"><span class="Identifier">DefaultPublicExponent</span></a> <span class="Other">=</span> <span class="DecNumber">65537'u32</span></pre></dt>
 <dd>
 
 Default value for RSA public exponent. <a class="reference external" href="https://golang.org/src/crypto/rsa/rsa.go#226">https://golang.org/src/crypto/rsa/rsa.go#226</a>
@@ -433,7 +436,7 @@ Default value for RSA public exponent. <a class="reference external" href="https
 </dd>
 </div>
 <div id="MinKeySize" class="tohide">
-<dt><pre><a href="rsa.html#MinKeySize"><span class="Identifier">MinKeySize</span></a> <span class="Other">=</span> <span class="DecNumber">2048</span></pre></dt>
+<dt><pre><a href="#MinKeySize"><span class="Identifier">MinKeySize</span></a> <span class="Other">=</span> <span class="DecNumber">2048</span></pre></dt>
 <dd>
 
 Minimal allowed RSA key size in bits. <a class="reference external" href="https://github.com/libp2p/go-libp2p-core/blob/master/crypto/rsa_common.go#L13">https://github.com/libp2p/go-libp2p-core/blob/master/crypto/rsa_common.go#L13</a>
@@ -443,7 +446,7 @@ Minimal allowed RSA key size in bits. <a class="reference external" href="https:
 </dd>
 </div>
 <div id="RsaOidSha1" class="tohide">
-<dt><pre><a href="rsa.html#RsaOidSha1"><span class="Identifier">RsaOidSha1</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">5'u</span><span class="Other">,</span> <span class="DecNumber">0x0000002B</span><span class="Other">,</span> <span class="DecNumber">0x0000000E</span><span class="Other">,</span> <span class="DecNumber">0x00000003</span><span class="Other">,</span> <span class="DecNumber">0x00000002</span><span class="Other">,</span> <span class="DecNumber">0x0000001A</span><span class="Other">]</span></pre></dt>
+<dt><pre><a href="#RsaOidSha1"><span class="Identifier">RsaOidSha1</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">5'u</span><span class="Other">,</span> <span class="DecNumber">0x0000002B</span><span class="Other">,</span> <span class="DecNumber">0x0000000E</span><span class="Other">,</span> <span class="DecNumber">0x00000003</span><span class="Other">,</span> <span class="DecNumber">0x00000002</span><span class="Other">,</span> <span class="DecNumber">0x0000001A</span><span class="Other">]</span></pre></dt>
 <dd>
 
 RSA PKCS#1.5 SHA-1 hash object identifier.
@@ -453,7 +456,7 @@ RSA PKCS#1.5 SHA-1 hash object identifier.
 </dd>
 </div>
 <div id="RsaOidSha224" class="tohide">
-<dt><pre><a href="rsa.html#RsaOidSha224"><span class="Identifier">RsaOidSha224</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">9'u</span><span class="Other">,</span> <span class="DecNumber">0x00000060</span><span class="Other">,</span> <span class="DecNumber">0x00000086</span><span class="Other">,</span> <span class="DecNumber">0x00000048</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">,</span> <span class="DecNumber">0x00000065</span><span class="Other">,</span>
+<dt><pre><a href="#RsaOidSha224"><span class="Identifier">RsaOidSha224</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">9'u</span><span class="Other">,</span> <span class="DecNumber">0x00000060</span><span class="Other">,</span> <span class="DecNumber">0x00000086</span><span class="Other">,</span> <span class="DecNumber">0x00000048</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">,</span> <span class="DecNumber">0x00000065</span><span class="Other">,</span>
                 <span class="DecNumber">0x00000003</span><span class="Other">,</span> <span class="DecNumber">0x00000004</span><span class="Other">,</span> <span class="DecNumber">0x00000002</span><span class="Other">,</span> <span class="DecNumber">0x00000004</span><span class="Other">]</span></pre></dt>
 <dd>
 
@@ -464,7 +467,7 @@ RSA PKCS#1.5 SHA-224 hash object identifier.
 </dd>
 </div>
 <div id="RsaOidSha256" class="tohide">
-<dt><pre><a href="rsa.html#RsaOidSha256"><span class="Identifier">RsaOidSha256</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">9'u</span><span class="Other">,</span> <span class="DecNumber">0x00000060</span><span class="Other">,</span> <span class="DecNumber">0x00000086</span><span class="Other">,</span> <span class="DecNumber">0x00000048</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">,</span> <span class="DecNumber">0x00000065</span><span class="Other">,</span>
+<dt><pre><a href="#RsaOidSha256"><span class="Identifier">RsaOidSha256</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">9'u</span><span class="Other">,</span> <span class="DecNumber">0x00000060</span><span class="Other">,</span> <span class="DecNumber">0x00000086</span><span class="Other">,</span> <span class="DecNumber">0x00000048</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">,</span> <span class="DecNumber">0x00000065</span><span class="Other">,</span>
                 <span class="DecNumber">0x00000003</span><span class="Other">,</span> <span class="DecNumber">0x00000004</span><span class="Other">,</span> <span class="DecNumber">0x00000002</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">]</span></pre></dt>
 <dd>
 
@@ -475,7 +478,7 @@ RSA PKCS#1.5 SHA-256 hash object identifier.
 </dd>
 </div>
 <div id="RsaOidSha384" class="tohide">
-<dt><pre><a href="rsa.html#RsaOidSha384"><span class="Identifier">RsaOidSha384</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">9'u</span><span class="Other">,</span> <span class="DecNumber">0x00000060</span><span class="Other">,</span> <span class="DecNumber">0x00000086</span><span class="Other">,</span> <span class="DecNumber">0x00000048</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">,</span> <span class="DecNumber">0x00000065</span><span class="Other">,</span>
+<dt><pre><a href="#RsaOidSha384"><span class="Identifier">RsaOidSha384</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">9'u</span><span class="Other">,</span> <span class="DecNumber">0x00000060</span><span class="Other">,</span> <span class="DecNumber">0x00000086</span><span class="Other">,</span> <span class="DecNumber">0x00000048</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">,</span> <span class="DecNumber">0x00000065</span><span class="Other">,</span>
                 <span class="DecNumber">0x00000003</span><span class="Other">,</span> <span class="DecNumber">0x00000004</span><span class="Other">,</span> <span class="DecNumber">0x00000002</span><span class="Other">,</span> <span class="DecNumber">0x00000002</span><span class="Other">]</span></pre></dt>
 <dd>
 
@@ -486,7 +489,7 @@ RSA PKCS#1.5 SHA-384 hash object identifier.
 </dd>
 </div>
 <div id="RsaOidSha512" class="tohide">
-<dt><pre><a href="rsa.html#RsaOidSha512"><span class="Identifier">RsaOidSha512</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">9'u</span><span class="Other">,</span> <span class="DecNumber">0x00000060</span><span class="Other">,</span> <span class="DecNumber">0x00000086</span><span class="Other">,</span> <span class="DecNumber">0x00000048</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">,</span> <span class="DecNumber">0x00000065</span><span class="Other">,</span>
+<dt><pre><a href="#RsaOidSha512"><span class="Identifier">RsaOidSha512</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">9'u</span><span class="Other">,</span> <span class="DecNumber">0x00000060</span><span class="Other">,</span> <span class="DecNumber">0x00000086</span><span class="Other">,</span> <span class="DecNumber">0x00000048</span><span class="Other">,</span> <span class="DecNumber">0x00000001</span><span class="Other">,</span> <span class="DecNumber">0x00000065</span><span class="Other">,</span>
                 <span class="DecNumber">0x00000003</span><span class="Other">,</span> <span class="DecNumber">0x00000004</span><span class="Other">,</span> <span class="DecNumber">0x00000002</span><span class="Other">,</span> <span class="DecNumber">0x00000003</span><span class="Other">]</span></pre></dt>
 <dd>
 
@@ -504,7 +507,7 @@ RSA PKCS#1.5 SHA-512 hash object identifier.
   <dl class="item">
     <div id="$-procs-all">
   <div id="$,RsaPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CRsaPrivateKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CRsaPrivateKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Return string representation of RSA private key.
@@ -514,7 +517,7 @@ Return string representation of RSA private key.
 </dd>
 </div>
 <div id="$,RsaPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CRsaPublicKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CRsaPublicKey"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Return string representation of RSA public key.
@@ -524,7 +527,7 @@ Return string representation of RSA public key.
 </dd>
 </div>
 <div id="$,RsaSignature" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CRsaSignature"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%24%2CRsaSignature"><span class="Identifier">`$`</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Return string representation of RSA signature.
@@ -537,7 +540,7 @@ Return string representation of RSA signature.
 </div>
 <div id="==-procs-all">
   <div id="==,RsaPrivateKey,RsaPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CRsaPrivateKey%2CRsaPrivateKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CRsaPrivateKey%2CRsaPrivateKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Compare two RSA private keys for equality.</p>
@@ -549,7 +552,7 @@ Return string representation of RSA signature.
 </dd>
 </div>
 <div id="==,RsaPublicKey,RsaPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CRsaPublicKey%2CRsaPublicKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CRsaPublicKey%2CRsaPublicKey"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Compare two RSA public keys for equality.
@@ -559,7 +562,7 @@ Compare two RSA public keys for equality.
 </dd>
 </div>
 <div id="==,RsaSignature,RsaSignature" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CRsaSignature%2CRsaSignature"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#%3D%3D%2CRsaSignature%2CRsaSignature"><span class="Identifier">`==`</span></a><span class="Other">(</span><span class="Identifier">a</span><span class="Other">,</span> <span class="Identifier">b</span><span class="Other">:</span> <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Compare two RSA signatures for equality.
@@ -572,7 +575,7 @@ Compare two RSA signatures for equality.
 </div>
 <div id="clear-procs-all">
   <div id="clear,T" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#clear%2CT"><span class="Identifier">clear</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="rsa.html#RsaPKI"><span class="Identifier">RsaPKI</span></a> <span class="Operator">|</span> <a href="rsa.html#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pki</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#clear%2CT"><span class="Identifier">clear</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#RsaPKI"><span class="Identifier">RsaPKI</span></a> <span class="Operator">|</span> <a href="#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pki</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Wipe and clear EC private key, public key or scalar object.
@@ -585,7 +588,7 @@ Wipe and clear EC private key, public key or scalar object.
 </div>
 <div id="copy-procs-all">
   <div id="copy,T" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#copy%2CT"><span class="Identifier">copy</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="rsa.html#RsaPKI"><span class="Identifier">RsaPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#copy%2CT"><span class="Identifier">copy</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#RsaPKI"><span class="Identifier">RsaPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Create copy of RSA private key, public key or signature.
@@ -598,7 +601,7 @@ Create copy of RSA private key, public key or signature.
 </div>
 <div id="getBytes-procs-all">
   <div id="getBytes,RsaPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CRsaPrivateKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CRsaPrivateKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -609,7 +612,7 @@ Serialize RSA private key <tt class="docutils literal"><span class="pre">key</sp
 </dd>
 </div>
 <div id="getBytes,RsaPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CRsaPublicKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CRsaPublicKey"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -620,7 +623,7 @@ Serialize RSA public key <tt class="docutils literal"><span class="pre">key</spa
 </dd>
 </div>
 <div id="getBytes,RsaSignature" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CRsaSignature"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getBytes%2CRsaSignature"><span class="Identifier">getBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -634,7 +637,7 @@ Serialize RSA signature <tt class="docutils literal"><span class="pre">sig</span
 </div>
 <div id="getPublicKey-procs-all">
   <div id="getPublicKey,RsaPrivateKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getPublicKey%2CRsaPrivateKey"><span class="Identifier">getPublicKey</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getPublicKey%2CRsaPrivateKey"><span class="Identifier">getPublicKey</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -648,7 +651,7 @@ Get RSA public key from RSA private key.
 </div>
 <div id="init-procs-all">
   <div id="init,RsaPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CRsaPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CRsaPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -661,7 +664,7 @@ Get RSA public key from RSA private key.
 </dd>
 </div>
 <div id="init,RsaPublicKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CRsaPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CRsaPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -674,7 +677,7 @@ Get RSA public key from RSA private key.
 </dd>
 </div>
 <div id="init,RsaSignature,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CRsaSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CRsaSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -687,8 +690,8 @@ Get RSA public key from RSA private key.
 </dd>
 </div>
 <div id="init,typedesc[RsaPrivateKey],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BRsaPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
-    <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BRsaPrivateKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
+    <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize RSA private key from ASN.1 DER binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -698,8 +701,8 @@ Initialize RSA private key from ASN.1 DER binary representation <tt class="docut
 </dd>
 </div>
 <div id="init,typedesc[RsaPublicKey],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BRsaPublicKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
-    <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BRsaPublicKey%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
+    <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize RSA public key from ASN.1 DER binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -709,8 +712,8 @@ Initialize RSA public key from ASN.1 DER binary representation <tt class="docuti
 </dd>
 </div>
 <div id="init,typedesc[RsaSignature],openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BRsaSignature%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
-    <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BRsaSignature%5D%2CopenArray%5Bbyte%5D"><span class="Identifier">init</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
+    <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize RSA signature from raw binary representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -720,7 +723,7 @@ Initialize RSA signature from raw binary representation <tt class="docutils lite
 </dd>
 </div>
 <div id="init,T,string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2CT%2Cstring"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="rsa.html#RsaPKI"><span class="Identifier">RsaPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sospk</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2CT%2Cstring"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#RsaPKI"><span class="Identifier">RsaPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sospk</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">,</span> <a href="minasn1.html#Asn1Error"><span class="Identifier">Asn1Error</span></a><span class="Other">]</span> {.
     <span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -733,7 +736,7 @@ Initialize RSA signature from raw binary representation <tt class="docutils lite
 </dd>
 </div>
 <div id="init,typedesc[T],string" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BT%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="rsa.html#RsaPKI"><span class="Identifier">RsaPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#init%2Ctypedesc%5BT%5D%2Cstring"><span class="Identifier">init</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#RsaPKI"><span class="Identifier">RsaPKI</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">string</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Initialize RSA <tt class="docutils literal"><span class="pre"><span class="Identifier">private</span> <span class="Identifier">key</span></span></tt>, <tt class="docutils literal"><span class="pre"><span class="Identifier">public</span> <span class="Identifier">key</span></span></tt> or <tt class="docutils literal"><span class="pre"><span class="Identifier">signature</span></span></tt> from hexadecimal string representation <tt class="docutils literal"><span class="pre">data</span></tt> and return constructed object.
@@ -746,7 +749,7 @@ Initialize RSA <tt class="docutils literal"><span class="pre"><span class="Ident
 </div>
 <div id="pubkey-procs-all">
   <div id="pubkey,RsaKeyPair" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#pubkey%2CRsaKeyPair"><span class="Identifier">pubkey</span></a><span class="Other">(</span><span class="Identifier">pair</span><span class="Other">:</span> <a href="rsa.html#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#pubkey%2CRsaKeyPair"><span class="Identifier">pubkey</span></a><span class="Other">(</span><span class="Identifier">pair</span><span class="Other">:</span> <a href="#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -760,8 +763,8 @@ Get RSA public key from pair <tt class="docutils literal"><span class="pre">pair
 </div>
 <div id="random-procs-all">
   <div id="random,typedesc[T],HmacDrbgContext" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BT%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="rsa.html#RsaKP"><span class="Identifier">RsaKP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">;</span>
-                      <span class="Identifier">bits</span> <span class="Other">=</span> <span class="Identifier">DefaultKeySize</span><span class="Other">;</span> <span class="Identifier">pubexp</span> <span class="Other">=</span> <span class="Identifier">DefaultPublicExponent</span><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BT%5D%2CHmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#RsaKP"><span class="Identifier">RsaKP</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">;</span>
+                      <span class="Identifier">bits</span> <span class="Other">=</span> <span class="Identifier">DefaultKeySize</span><span class="Other">;</span> <span class="Identifier">pubexp</span> <span class="Other">=</span> <span class="Identifier">DefaultPublicExponent</span><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
     <span class="Identifier">T</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -778,7 +781,7 @@ Get RSA public key from pair <tt class="docutils literal"><span class="pre">pair
 </div>
 <div id="seckey-procs-all">
   <div id="seckey,RsaKeyPair" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#seckey%2CRsaKeyPair"><span class="Identifier">seckey</span></a><span class="Other">(</span><span class="Identifier">pair</span><span class="Other">:</span> <a href="rsa.html#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#seckey%2CRsaKeyPair"><span class="Identifier">seckey</span></a><span class="Other">(</span><span class="Identifier">pair</span><span class="Other">:</span> <a href="#RsaKeyPair"><span class="Identifier">RsaKeyPair</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -792,8 +795,8 @@ Get RSA private key from pair <tt class="docutils literal"><span class="pre">pai
 </div>
 <div id="sign-procs-all">
   <div id="sign,RsaPrivateKey,openArray[T]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#sign%2CRsaPrivateKey%2CopenArray%5BT%5D"><span class="Identifier">sign</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
-    <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#sign%2CRsaPrivateKey%2CopenArray%5BT%5D"><span class="Identifier">sign</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span>
+    <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Get RSA PKCS1.5 signature of data <tt class="docutils literal"><span class="pre">message</span></tt> using SHA256 and private key <tt class="docutils literal"><span class="pre">key</span></tt>.
@@ -806,7 +809,7 @@ Get RSA PKCS1.5 signature of data <tt class="docutils literal"><span class="pre"
 </div>
 <div id="toBytes-procs-all">
   <div id="toBytes,RsaPrivateKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CRsaPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="rsa.html#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CRsaPrivateKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#RsaPrivateKey"><span class="Identifier">RsaPrivateKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -819,7 +822,7 @@ Get RSA PKCS1.5 signature of data <tt class="docutils literal"><span class="pre"
 </dd>
 </div>
 <div id="toBytes,RsaPublicKey,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CRsaPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CRsaPublicKey%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">key</span><span class="Other">:</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -832,7 +835,7 @@ Get RSA PKCS1.5 signature of data <tt class="docutils literal"><span class="pre"
 </dd>
 </div>
 <div id="toBytes,RsaSignature,openArray[byte]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CRsaSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="rsa.html#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#toBytes%2CRsaSignature%2CopenArray%5Bbyte%5D"><span class="Identifier">toBytes</span></a><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">;</span> <span class="Identifier">data</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#RsaResult"><span class="Identifier">RsaResult</span></a><span class="Other">[</span><span class="Identifier">int</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -848,8 +851,8 @@ Get RSA PKCS1.5 signature of data <tt class="docutils literal"><span class="pre"
 </div>
 <div id="verify-procs-all">
   <div id="verify,RsaSignature,openArray[T],RsaPublicKey" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#verify%2CRsaSignature%2CopenArray%5BT%5D%2CRsaPublicKey"><span class="Identifier">verify</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="rsa.html#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span>
-                            <span class="Identifier">pubkey</span><span class="Other">:</span> <a href="rsa.html#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#verify%2CRsaSignature%2CopenArray%5BT%5D%2CRsaPublicKey"><span class="Identifier">verify</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">sig</span><span class="Other">:</span> <a href="#RsaSignature"><span class="Identifier">RsaSignature</span></a><span class="Other">;</span> <span class="Identifier">message</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span>
+                            <span class="Identifier">pubkey</span><span class="Other">:</span> <a href="#RsaPublicKey"><span class="Identifier">RsaPublicKey</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 <p>Verify RSA signature <tt class="docutils literal"><span class="pre">sig</span></tt> using public key <tt class="docutils literal"><span class="pre">pubkey</span></tt> and data <tt class="docutils literal"><span class="pre">message</span></tt>.</p>
@@ -897,7 +900,7 @@ Get RSA PKCS1.5 signature of data <tt class="docutils literal"><span class="pre"
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:32 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:52 UTC</small>
       </div>
     </div>
   </div>

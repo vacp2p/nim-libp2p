@@ -16,13 +16,16 @@
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA3XAAAN1wFCKJt4AAAAB3RJTUUH4QQQEwksSS9ZWwAAAk1JREFUWMPtll2ITVEUx39nn/O7Y5qR8f05wtCUUr6ZIS++8pEnkZInPImneaCQ5METNdOkeFBKUhMPRIkHKfEuUZSUlGlKPN2TrgfncpvmnntnmlEyq1Z7t89/rf9a6+y99oZxGZf/XeIq61EdtgKXgdXA0xrYAvBjOIF1AI9zvjcC74BSpndrJPkBWDScTF8Aa4E3wDlgHbASaANmVqlcCnwHvgDvgVfAJ+AikAAvgfVZwLnSVZHZaOuKoQi3ZOMi4NkYkpe1p4J7A8BpYAD49hfIy/oqG0+hLomiKP2L5L+1ubn5115S+3OAn4EnwBlgMzCjyt6ZAnQCJ4A7wOs88iRJHvw50HoujuPBoCKwHWiosy8MdfZnAdcHk8dxXFJ3VQbQlCTJvRBCGdRbD4M6uc5glpY3eAihpN5S5w12diSEcCCEcKUO4ljdr15T76ur1FDDLIQQ3qv71EdDOe3Kxj3leRXyk+pxdWnFWod6Wt2bY3de3aSuUHcPBVimHs7mK9WrmeOF6lR1o9qnzskh2ar2qm1qizpfXaPeVGdlmGN5pb09qMxz1Xb1kLqgzn1RyH7JUXW52lr5e/Kqi9qpto7V1atuUzfnARrV7jEib1T76gG2qxdGmXyiekkt1GswPTtek0aBfJp6YySGBfWg2tPQ0FAYgf1stUfdmdcjarbYJEniKIq6gY/Aw+zWHAC+p2labGpqiorFYgGYCEzN7oQdQClN07O1/EfDyGgC0ALMBdYAi4FyK+4H3gLPsxfR1zRNi+NP7nH5J+QntnXe5B5mpfQAAAAASUVORK5CYII=">
 
 <!-- CSS -->
-<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.8">
+<link rel="stylesheet" type="text/css" href="../../nimdoc.out.css?v=2.2.10">
 
 <!-- JS -->
-<script type="text/javascript" src="../../dochack.js?v=2.2.8"></script>
+<script type="text/javascript" src="../../dochack.js?v=2.2.10"></script>
 </head>
 <body>
   <div class="document" id="documentId">
+    <input type="checkbox" id="nav-toggle" hidden>
+    <label for="nav-toggle" id="nav-burger">&#9776;</label>
+    <label for="nav-toggle" id="nav-overlay"></label>
     <div class="container">
       <h1 class="title">libp2p/protobuf/minprotobuf</h1>
       <div class="row">
@@ -344,7 +347,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <h1><a class="toc-backref" href="#7">Types</a></h1>
   <dl class="item">
     <div id="ProtoBuffer" class="tohide">
-<dt><pre><a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+<dt><pre><a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
   <span class="Identifier">buffer</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span>
   <span class="Identifier">offset</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
   <span class="Identifier">length</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span></pre></dt>
@@ -357,7 +360,7 @@ Protobuf's message representation object
 </dd>
 </div>
 <div id="ProtoError" class="tohide">
-<dt><pre><a href="minprotobuf.html#ProtoError"><span class="Identifier">ProtoError</span></a> {.<span class="Identifier">pure</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#ProtoError"><span class="Identifier">ProtoError</span></a> {.<span class="Identifier">pure</span>.} <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">VarintDecode</span><span class="Other">,</span> <span class="Identifier">MessageIncomplete</span><span class="Other">,</span> <span class="Identifier">BufferOverflow</span><span class="Other">,</span> <span class="Identifier">BadWireType</span><span class="Other">,</span> <span class="Identifier">IncorrectBlob</span><span class="Other">,</span>
   <span class="Identifier">RequiredFieldMissing</span></pre></dt>
 <dd>
@@ -369,9 +372,9 @@ Protobuf's message representation object
 </dd>
 </div>
 <div id="ProtoField" class="tohide">
-<dt><pre><a href="minprotobuf.html#ProtoField"><span class="Identifier">ProtoField</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+<dt><pre><a href="#ProtoField"><span class="Identifier">ProtoField</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
   <span class="Identifier">index</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">int</span>
-  <span class="Keyword">case</span> <span class="Identifier">kind</span><span class="Operator">*</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoFieldKind"><span class="Identifier">ProtoFieldKind</span></a>
+  <span class="Keyword">case</span> <span class="Identifier">kind</span><span class="Operator">*</span><span class="Other">:</span> <a href="#ProtoFieldKind"><span class="Identifier">ProtoFieldKind</span></a>
   <span class="Keyword">of</span> <span class="Identifier">Varint</span><span class="Other">:</span>
     <span class="Identifier">vint</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">uint64</span>
   <span class="Keyword">of</span> <span class="Identifier">Fixed64</span><span class="Other">:</span>
@@ -391,7 +394,7 @@ Protobuf's message field representation object
 </dd>
 </div>
 <div id="ProtoFieldKind" class="tohide">
-<dt><pre><a href="minprotobuf.html#ProtoFieldKind"><span class="Identifier">ProtoFieldKind</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#ProtoFieldKind"><span class="Identifier">ProtoFieldKind</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">Varint</span><span class="Other">,</span> <span class="Identifier">Fixed64</span><span class="Other">,</span> <span class="Identifier">Length</span><span class="Other">,</span> <span class="Identifier">StartGroup</span><span class="Other">,</span> <span class="Identifier">EndGroup</span><span class="Other">,</span> <span class="Identifier">Fixed32</span></pre></dt>
 <dd>
 
@@ -402,7 +405,7 @@ Protobuf's field types enum
 </dd>
 </div>
 <div id="ProtoFlags" class="tohide">
-<dt><pre><a href="minprotobuf.html#ProtoFlags"><span class="Identifier">ProtoFlags</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
+<dt><pre><a href="#ProtoFlags"><span class="Identifier">ProtoFlags</span></a> <span class="Other">=</span> <span class="Keyword">enum</span>
   <span class="Identifier">WithVarintLength</span><span class="Other">,</span> <span class="Identifier">WithUint32BeLength</span><span class="Other">,</span> <span class="Identifier">WithUint32LeLength</span></pre></dt>
 <dd>
 
@@ -413,8 +416,8 @@ Protobuf's encoding types
 </dd>
 </div>
 <div id="ProtoHeader" class="tohide">
-<dt><pre><a href="minprotobuf.html#ProtoHeader"><span class="Identifier">ProtoHeader</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
-  <span class="Identifier">wire</span><span class="Operator">*</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoFieldKind"><span class="Identifier">ProtoFieldKind</span></a>
+<dt><pre><a href="#ProtoHeader"><span class="Identifier">ProtoHeader</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
+  <span class="Identifier">wire</span><span class="Operator">*</span><span class="Other">:</span> <a href="#ProtoFieldKind"><span class="Identifier">ProtoFieldKind</span></a>
   <span class="Identifier">index</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">uint64</span></pre></dt>
 <dd>
 
@@ -425,7 +428,7 @@ Protobuf's encoding types
 </dd>
 </div>
 <div id="ProtoResult" class="tohide">
-<dt><pre><a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <a href="minprotobuf.html#ProtoError"><span class="Identifier">ProtoError</span></a><span class="Other">]</span></pre></dt>
+<dt><pre><a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span> <span class="Other">=</span> <span class="Identifier">Result</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">,</span> <a href="#ProtoError"><span class="Identifier">ProtoError</span></a><span class="Other">]</span></pre></dt>
 <dd>
 
 
@@ -435,7 +438,7 @@ Protobuf's encoding types
 </dd>
 </div>
 <div id="ProtoScalar" class="tohide">
-<dt><pre><a href="minprotobuf.html#ProtoScalar"><span class="Identifier">ProtoScalar</span></a> <span class="Other">=</span> <span class="Identifier">uint</span> <span class="Operator">|</span> <span class="Identifier">uint32</span> <span class="Operator">|</span> <span class="Identifier">uint64</span> <span class="Operator">|</span> <a href="../varint.html#zint"><span class="Identifier">zint</span></a> <span class="Operator">|</span> <a href="../varint.html#zint32"><span class="Identifier">zint32</span></a> <span class="Operator">|</span> <a href="../varint.html#zint64"><span class="Identifier">zint64</span></a> <span class="Operator">|</span> <a href="../varint.html#hint"><span class="Identifier">hint</span></a> <span class="Operator">|</span> <a href="../varint.html#hint32"><span class="Identifier">hint32</span></a> <span class="Operator">|</span>
+<dt><pre><a href="#ProtoScalar"><span class="Identifier">ProtoScalar</span></a> <span class="Other">=</span> <span class="Identifier">uint</span> <span class="Operator">|</span> <span class="Identifier">uint32</span> <span class="Operator">|</span> <span class="Identifier">uint64</span> <span class="Operator">|</span> <a href="../varint.html#zint"><span class="Identifier">zint</span></a> <span class="Operator">|</span> <a href="../varint.html#zint32"><span class="Identifier">zint32</span></a> <span class="Operator">|</span> <a href="../varint.html#zint64"><span class="Identifier">zint64</span></a> <span class="Operator">|</span> <a href="../varint.html#hint"><span class="Identifier">hint</span></a> <span class="Operator">|</span> <a href="../varint.html#hint32"><span class="Identifier">hint32</span></a> <span class="Operator">|</span>
     <a href="../varint.html#hint64"><span class="Identifier">hint64</span></a> <span class="Operator">|</span>
     <span class="Identifier">float32</span> <span class="Operator">|</span>
     <span class="Identifier">float64</span></pre></dt>
@@ -454,7 +457,7 @@ Protobuf's encoding types
   <h1><a class="toc-backref" href="#10">Consts</a></h1>
   <dl class="item">
     <div id="SupportedWireTypes" class="tohide">
-<dt><pre><a href="minprotobuf.html#SupportedWireTypes"><span class="Identifier">SupportedWireTypes</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">0</span><span class="Other">,</span> <span class="DecNumber">1</span><span class="Other">,</span> <span class="DecNumber">2</span><span class="Other">,</span> <span class="DecNumber">5</span><span class="Other">]</span></pre></dt>
+<dt><pre><a href="#SupportedWireTypes"><span class="Identifier">SupportedWireTypes</span></a> <span class="Other">=</span> <span class="Other">[</span><span class="DecNumber">0</span><span class="Other">,</span> <span class="DecNumber">1</span><span class="Other">,</span> <span class="DecNumber">2</span><span class="Other">,</span> <span class="DecNumber">5</span><span class="Other">]</span></pre></dt>
 <dd>
 
 
@@ -471,7 +474,7 @@ Protobuf's encoding types
   <dl class="item">
     <div id="finish-procs-all">
   <div id="finish,ProtoBuffer" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#finish%2CProtoBuffer"><span class="Identifier">finish</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#finish%2CProtoBuffer"><span class="Identifier">finish</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</span></tt> for writing to stream.
@@ -484,7 +487,7 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </div>
 <div id="getField-procs-all">
   <div id="getField,ProtoBuffer,int,bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2Cbool"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">bool</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2Cbool"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">bool</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
     <span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -495,7 +498,7 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </dd>
 </div>
 <div id="getField,ProtoBuffer,int,Opt[bool]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2COpt%5Bbool%5D"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2COpt%5Bbool%5D"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
     <span class="Identifier">bool</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -506,7 +509,7 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </dd>
 </div>
 <div id="getField,ProtoBuffer,int,ProtoBuffer" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CProtoBuffer"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CProtoBuffer"><span class="Identifier">getField</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
     <span class="Identifier">bool</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -517,8 +520,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </dd>
 </div>
 <div id="getField,ProtoBuffer,int,openArray[T],int" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CopenArray%5BT%5D%2Cint"><span class="Identifier">getField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
-                              <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CopenArray%5BT%5D%2Cint"><span class="Identifier">getField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+                              <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">outlen</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">int</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
     <span class="Identifier">bool</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -529,7 +532,7 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </dd>
 </div>
 <div id="getField,ProtoBuffer,int,T" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CT"><span class="Identifier">getField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CT"><span class="Identifier">getField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
     <span class="Identifier">bool</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -540,8 +543,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </dd>
 </div>
 <div id="getField,ProtoBuffer,int,T_2" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CT_2"><span class="Identifier">getField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> <span class="Operator">|</span> <span class="Identifier">string</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
-                                     <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#getField%2CProtoBuffer%2Cint%2CT_2"><span class="Identifier">getField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> <span class="Operator">|</span> <span class="Identifier">string</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+                                     <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -555,8 +558,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </div>
 <div id="getPackedRepeatedField-procs-all">
   <div id="getPackedRepeatedField,ProtoBuffer,int,seq[T]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getPackedRepeatedField%2CProtoBuffer%2Cint%2Cseq%5BT%5D"><span class="Identifier">getPackedRepeatedField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
-    <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#getPackedRepeatedField%2CProtoBuffer%2Cint%2Cseq%5BT%5D"><span class="Identifier">getPackedRepeatedField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+    <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -569,8 +572,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </div>
 <div id="getRepeatedField-procs-all">
   <div id="getRepeatedField,ProtoBuffer,int,seq[T]_2" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getRepeatedField%2CProtoBuffer%2Cint%2Cseq%5BT%5D_2"><span class="Identifier">getRepeatedField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
-                                      <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#getRepeatedField%2CProtoBuffer%2Cint%2Cseq%5BT%5D_2"><span class="Identifier">getRepeatedField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+                                      <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -581,8 +584,8 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </dd>
 </div>
 <div id="getRepeatedField,ProtoBuffer,int,seq[T]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getRepeatedField%2CProtoBuffer%2Cint%2Cseq%5BT%5D"><span class="Identifier">getRepeatedField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> <span class="Operator">|</span> <span class="Identifier">string</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
-    <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#getRepeatedField%2CProtoBuffer%2Cint%2Cseq%5BT%5D"><span class="Identifier">getRepeatedField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span> <span class="Operator">|</span> <span class="Identifier">string</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+    <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
@@ -595,7 +598,7 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </div>
 <div id="getRequiredField-procs-all">
   <div id="getRequiredField,ProtoBuffer,int,T" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getRequiredField%2CProtoBuffer%2Cint%2CT"><span class="Identifier">getRequiredField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getRequiredField%2CProtoBuffer%2Cint%2CT"><span class="Identifier">getRequiredField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">T</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
     <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -609,7 +612,7 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 </div>
 <div id="getRequiredRepeatedField-procs-all">
   <div id="getRequiredRepeatedField,ProtoBuffer,int,seq[T]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#getRequiredRepeatedField%2CProtoBuffer%2Cint%2Cseq%5BT%5D"><span class="Identifier">getRequiredRepeatedField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#getRequiredRepeatedField%2CProtoBuffer%2Cint%2Cseq%5BT%5D"><span class="Identifier">getRequiredRepeatedField</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">output</span><span class="Other">:</span> <span class="Keyword">var</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoResult"><span class="Identifier">ProtoResult</span></a><span class="Other">[</span>
     <span class="Identifier">void</span><span class="Other">]</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -624,7 +627,7 @@ Prepare protobuf's buffer <tt class="docutils literal"><span class="pre">pb</spa
 <div id="initProtoBuffer-procs-all">
   <div id="initProtoBuffer,openArray[byte],int,set[ProtoFlags]" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#initProtoBuffer%2CopenArray%5Bbyte%5D%2Cint%2Cset%5BProtoFlags%5D"><span class="Identifier">initProtoBuffer</span></a><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">offset</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">;</span>
-                     <span class="Identifier">options</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><a href="minprotobuf.html#ProtoFlags"><span class="Identifier">ProtoFlags</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+                     <span class="Identifier">options</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><a href="#ProtoFlags"><span class="Identifier">ProtoFlags</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -635,7 +638,7 @@ Initialize ProtoBuffer with copy of <tt class="docutils literal"><span class="pr
 </dd>
 </div>
 <div id="initProtoBuffer,seq[byte],int,set[ProtoFlags]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initProtoBuffer%2Cseq%5Bbyte%5D%2Cint%2Cset%5BProtoFlags%5D"><span class="Identifier">initProtoBuffer</span></a><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">offset</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">;</span> <span class="Identifier">options</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><a href="minprotobuf.html#ProtoFlags"><span class="Identifier">ProtoFlags</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#initProtoBuffer%2Cseq%5Bbyte%5D%2Cint%2Cset%5BProtoFlags%5D"><span class="Identifier">initProtoBuffer</span></a><span class="Other">(</span><span class="Identifier">data</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><span class="Identifier">byte</span><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">offset</span> <span class="Other">=</span> <span class="DecNumber">0</span><span class="Other">;</span> <span class="Identifier">options</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><a href="#ProtoFlags"><span class="Identifier">ProtoFlags</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -646,7 +649,7 @@ Initialize ProtoBuffer with shallow copy of <tt class="docutils literal"><span c
 </dd>
 </div>
 <div id="initProtoBuffer,set[ProtoFlags]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#initProtoBuffer%2Cset%5BProtoFlags%5D"><span class="Identifier">initProtoBuffer</span></a><span class="Other">(</span><span class="Identifier">options</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><a href="minprotobuf.html#ProtoFlags"><span class="Identifier">ProtoFlags</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">)</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#initProtoBuffer%2Cset%5BProtoFlags%5D"><span class="Identifier">initProtoBuffer</span></a><span class="Other">(</span><span class="Identifier">options</span><span class="Other">:</span> <span class="Identifier">set</span><span class="Other">[</span><a href="#ProtoFlags"><span class="Identifier">ProtoFlags</span></a><span class="Other">]</span> <span class="Other">=</span> <span class="Other">{</span><span class="Other">}</span><span class="Other">)</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -660,7 +663,7 @@ Initialize ProtoBuffer with new sequence of capacity <tt class="docutils literal
 </div>
 <div id="vsizeof-procs-all">
   <div id="vsizeof,ProtoField" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#vsizeof%2CProtoField"><span class="Identifier">vsizeof</span></a><span class="Other">(</span><span class="Identifier">field</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoField"><span class="Identifier">ProtoField</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dt><pre><span class="Keyword">proc</span> <a href="#vsizeof%2CProtoField"><span class="Identifier">vsizeof</span></a><span class="Other">(</span><span class="Identifier">field</span><span class="Other">:</span> <a href="#ProtoField"><span class="Identifier">ProtoField</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {.<span class="Identifier">inline</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Returns number of bytes required to store protobuf's field <tt class="docutils literal"><span class="pre">field</span></tt>.
@@ -673,7 +676,7 @@ Returns number of bytes required to store protobuf's field <tt class="docutils l
 </div>
 <div id="write-procs-all">
   <div id="write,ProtoBuffer,int,bool" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2Cbool"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2Cbool"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">bool</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -684,7 +687,7 @@ Returns number of bytes required to store protobuf's field <tt class="docutils l
 </dd>
 </div>
 <div id="write,ProtoBuffer,int,Opt[bool]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2COpt%5Bbool%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2COpt%5Bbool%5D"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><span class="Identifier">bool</span><span class="Other">]</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
     <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -695,7 +698,7 @@ Returns number of bytes required to store protobuf's field <tt class="docutils l
 </dd>
 </div>
 <div id="write,ProtoBuffer,int,ProtoBuffer" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CProtoBuffer"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span> {.<span class="Identifier">inline</span><span class="Other">,</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CProtoBuffer"><span class="Identifier">write</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span> {.<span class="Identifier">inline</span><span class="Other">,</span>
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -706,7 +709,7 @@ Encode Protobuf's sub-message <tt class="docutils literal"><span class="pre">val
 </dd>
 </div>
 <div id="write,ProtoBuffer,int,openArray[T]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CopenArray%5BT%5D"><span class="Identifier">write</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CopenArray%5BT%5D"><span class="Identifier">write</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">byte</span> <span class="Operator">|</span> <span class="Identifier">char</span><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -717,7 +720,7 @@ Encode Protobuf's sub-message <tt class="docutils literal"><span class="pre">val
 </dd>
 </div>
 <div id="write,ProtoBuffer,int,T" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CT"><span class="Identifier">write</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span> {.
+<dt><pre><span class="Keyword">proc</span> <a href="#write%2CProtoBuffer%2Cint%2CT"><span class="Identifier">write</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">T</span><span class="Other">)</span> {.
     <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -731,7 +734,7 @@ Encode Protobuf's sub-message <tt class="docutils literal"><span class="pre">val
 </div>
 <div id="writePacked-procs-all">
   <div id="writePacked,ProtoBuffer,int,openArray[T]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#writePacked%2CProtoBuffer%2Cint%2CopenArray%5BT%5D"><span class="Identifier">writePacked</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
+<dt><pre><span class="Keyword">proc</span> <a href="#writePacked%2CProtoBuffer%2Cint%2CopenArray%5BT%5D"><span class="Identifier">writePacked</span></a><span class="Other">[</span><span class="Identifier">T</span><span class="Other">:</span> <a href="#ProtoScalar"><span class="Identifier">ProtoScalar</span></a><span class="Other">]</span><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <span class="Keyword">var</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">field</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span>
                                  <span class="Identifier">value</span><span class="Other">:</span> <span class="Identifier">openArray</span><span class="Other">[</span><span class="Identifier">T</span><span class="Other">]</span><span class="Other">)</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
@@ -764,7 +767,7 @@ Encode Protobuf's sub-message <tt class="docutils literal"><span class="pre">val
 </div>
 <div id="getLen-templates-all">
   <div id="getLen.t,ProtoBuffer" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#getLen.t%2CProtoBuffer"><span class="Identifier">getLen</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#getLen.t%2CProtoBuffer"><span class="Identifier">getLen</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">int</span> {..}</pre></dt>
 <dd>
 
 
@@ -777,7 +780,7 @@ Encode Protobuf's sub-message <tt class="docutils literal"><span class="pre">val
 </div>
 <div id="getProtoHeader-templates-all">
   <div id="getProtoHeader.t,ProtoField" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#getProtoHeader.t%2CProtoField"><span class="Identifier">getProtoHeader</span></a><span class="Other">(</span><span class="Identifier">field</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoField"><span class="Identifier">ProtoField</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">uint64</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#getProtoHeader.t%2CProtoField"><span class="Identifier">getProtoHeader</span></a><span class="Other">(</span><span class="Identifier">field</span><span class="Other">:</span> <a href="#ProtoField"><span class="Identifier">ProtoField</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">uint64</span> {..}</pre></dt>
 <dd>
 
 Get protobuf's field header integer for <tt class="docutils literal"><span class="pre">field</span></tt>.
@@ -787,7 +790,7 @@ Get protobuf's field header integer for <tt class="docutils literal"><span class
 </dd>
 </div>
 <div id="getProtoHeader.t,int,ProtoFieldKind" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#getProtoHeader.t%2Cint%2CProtoFieldKind"><span class="Identifier">getProtoHeader</span></a><span class="Other">(</span><span class="Identifier">index</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">wire</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoFieldKind"><span class="Identifier">ProtoFieldKind</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">uint64</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#getProtoHeader.t%2Cint%2CProtoFieldKind"><span class="Identifier">getProtoHeader</span></a><span class="Other">(</span><span class="Identifier">index</span><span class="Other">:</span> <span class="Identifier">int</span><span class="Other">;</span> <span class="Identifier">wire</span><span class="Other">:</span> <a href="#ProtoFieldKind"><span class="Identifier">ProtoFieldKind</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">uint64</span> {..}</pre></dt>
 <dd>
 
 Get protobuf's field header integer for <tt class="docutils literal"><span class="pre">index</span></tt> and <tt class="docutils literal"><span class="pre">wire</span></tt>.
@@ -800,7 +803,7 @@ Get protobuf's field header integer for <tt class="docutils literal"><span class
 </div>
 <div id="getPtr-templates-all">
   <div id="getPtr.t,ProtoBuffer" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#getPtr.t%2CProtoBuffer"><span class="Identifier">getPtr</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">pointer</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#getPtr.t%2CProtoBuffer"><span class="Identifier">getPtr</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">pointer</span> {..}</pre></dt>
 <dd>
 
 
@@ -813,7 +816,7 @@ Get protobuf's field header integer for <tt class="docutils literal"><span class
 </div>
 <div id="isEmpty-templates-all">
   <div id="isEmpty.t,ProtoBuffer" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#isEmpty.t%2CProtoBuffer"><span class="Identifier">isEmpty</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#isEmpty.t%2CProtoBuffer"><span class="Identifier">isEmpty</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {..}</pre></dt>
 <dd>
 
 
@@ -826,7 +829,7 @@ Get protobuf's field header integer for <tt class="docutils literal"><span class
 </div>
 <div id="isEnough-templates-all">
   <div id="isEnough.t,ProtoBuffer,uint64" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#isEnough.t%2CProtoBuffer%2Cuint64"><span class="Identifier">isEnough</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">length</span><span class="Other">:</span> <span class="Identifier">uint64</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#isEnough.t%2CProtoBuffer%2Cuint64"><span class="Identifier">isEnough</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">;</span> <span class="Identifier">length</span><span class="Other">:</span> <span class="Identifier">uint64</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">bool</span> {..}</pre></dt>
 <dd>
 
 
@@ -852,7 +855,7 @@ Get protobuf's field header integer for <tt class="docutils literal"><span class
 </div>
 <div id="toOpenArray-templates-all">
   <div id="toOpenArray.t,ProtoBuffer" class="tohide">
-<dt><pre><span class="Keyword">template</span> <a href="#toOpenArray.t%2CProtoBuffer"><span class="Identifier">toOpenArray</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="minprotobuf.html#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">untyped</span> {..}</pre></dt>
+<dt><pre><span class="Keyword">template</span> <a href="#toOpenArray.t%2CProtoBuffer"><span class="Identifier">toOpenArray</span></a><span class="Other">(</span><span class="Identifier">pb</span><span class="Other">:</span> <a href="#ProtoBuffer"><span class="Identifier">ProtoBuffer</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">untyped</span> {..}</pre></dt>
 <dd>
 
 
@@ -879,7 +882,7 @@ Get protobuf's field header integer for <tt class="docutils literal"><span class
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-23 17:37:32 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-24 11:34:52 UTC</small>
       </div>
     </div>
   </div>
