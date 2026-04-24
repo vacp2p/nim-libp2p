@@ -136,69 +136,56 @@ proc decayNone*(): DecayFn =
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
   result = newException(TooManyConnectionsError, "Too many connections")
 
-proc newMaxTotal*(
-    C: type ConnManager,
-    maxConnections = MaxConnections,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
+proc new*(
+    T: type ConnManager,
+    maxConnections: int = 0,
+    maxIn: int = 0,
+    maxOut: int = 0,
+    maxConnsPerPeer: int = MaxConnectionsPerPeer,
+    watermark: Opt[WatermarkConfig] = Opt.none(WatermarkConfig),
+    scoringConfig: ScoringConfig = ScoringConfig(),
 ): ConnManager =
-  ## Creates a `ConnManager` where incoming and outgoing connections share a
-  ## single pool capped at `maxConnections`. Acquiring a slot for either
-  ## direction draws from the same semaphore, so the combined total never
-  ## exceeds `maxConnections`.
-  doAssert maxConnections > 0, "`maxConnections` must be greater than 0"
+  ## Creates a `ConnManager`.
+  ##
+  ## By default (no arguments), a shared semaphore caps connections at
+  ## `MaxConnections`. Pass `maxConnections` for a custom shared cap, or
+  ## `maxIn`/`maxOut` for independent per-direction caps.
+  ##
+  ## When `watermark` is provided without explicit connection limits the
+  ## semaphore is omitted and hi/lo trimming is the only guard.  When both
+  ## are provided the semaphore blocks new connections hard while trimming
+  ## also prunes existing ones.
+  let hasWatermark = watermark.isSome
+  let hasInOut = maxIn > 0 and maxOut > 0
+  let hasTotal = maxConnections > 0
 
-  let sema = newAsyncSemaphore(maxConnections)
-  C(
+  var inSema, outSema: AsyncSemaphore
+  var maxInArg, maxOutArg: int
+
+  if hasInOut:
+    inSema = newAsyncSemaphore(maxIn)
+    outSema = newAsyncSemaphore(maxOut)
+    maxInArg = maxIn
+    maxOutArg = maxOut
+  elif hasTotal or not hasWatermark:
+    let cap = if hasTotal: maxConnections else: MaxConnections
+    let sema = newAsyncSemaphore(cap)
+    inSema = sema
+    outSema = sema
+    maxInArg = cap
+    maxOutArg = cap
+  else:
+    maxInArg = connectionsUnlimited
+    maxOutArg = connectionsUnlimited
+
+  T(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer: maxConnsPerPeer,
-    maxConnectionsIn: maxConnections,
-    maxConnectionsOut: maxConnections,
-    inSema: sema,
-    outSema: sema,
-  )
-
-proc newMaxInOut*(
-    C: type ConnManager,
-    maxIn: int,
-    maxOut: int,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
-): ConnManager =
-  ## Creates a `ConnManager` where incoming and outgoing connections are limited
-  ## independently: at most `maxIn` inbound and `maxOut` outbound connections
-  ## may be open concurrently, each tracked by its own semaphore.
-  doAssert maxIn > 0 and maxOut > 0,
-    "ConnManager.newMaxInOut requires maxIn > 0 and maxOut > 0"
-
-  C(
-    muxerStore: MuxerStore.new(),
-    maxConnsPerPeer: maxConnsPerPeer,
-    maxConnectionsIn: maxIn,
-    maxConnectionsOut: maxOut,
-    inSema: newAsyncSemaphore(maxIn),
-    outSema: newAsyncSemaphore(maxOut),
-  )
-
-proc newWatermark*(
-    C: type ConnManager,
-    watermark: WatermarkConfig,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
-    scoringConfig = ScoringConfig(),
-): ConnManager =
-  ## Creates a `ConnManager` in hi/lo watermark mode.
-  ## When the number of connected peers exceeds `highWater`, a trim cycle
-  ## closes the oldest peers first until the count drops to `lowWater`.
-  ## Peers connected within `gracePeriod` and peers marked with `protect`
-  ## are exempt from trimming.
-  ## Use `silencePeriod` to throttle back-to-back trim cycles.
-  doAssert watermark.lowWater > 0, "lowWater must be > 0"
-  doAssert watermark.highWater > watermark.lowWater, "highWater must be > lowWater"
-  doAssert scoringConfig.decayResolution > 0.seconds, "decayResolution must be > 0"
-  C(
-    muxerStore: MuxerStore.new(),
-    watermark: Opt.some(watermark),
-    maxConnectionsIn: connectionsUnlimited,
-    maxConnectionsOut: connectionsUnlimited,
-    maxConnsPerPeer: maxConnsPerPeer,
+    maxConnectionsIn: maxInArg,
+    maxConnectionsOut: maxOutArg,
+    inSema: inSema,
+    outSema: outSema,
+    watermark: watermark,
     scoringConfig: scoringConfig,
   )
 
@@ -482,14 +469,14 @@ proc storeMuxer*(
 proc getIncomingSlot*(
     c: ConnManager
 ): Future[ConnectionSlot] {.async: (raises: [CancelledError]).} =
-  if c.watermark.isNone:
+  if c.inSema != nil:
     await c.inSema.acquire()
   return ConnectionSlot(connManager: c, direction: In)
 
 proc getOutgoingSlot*(
     c: ConnManager, forceDial = false
 ): ConnectionSlot {.raises: [TooManyConnectionsError].} =
-  if c.watermark.isNone:
+  if c.outSema != nil:
     if forceDial:
       # force dial by not blocking/waiting on acquire and
       # still calling acquire to track this connection.
@@ -503,15 +490,17 @@ func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
   return if dir == In: c.inSema else: c.outSema
 
 proc availableSlots*(c: ConnManager, dir: Direction): int =
-  if c.watermark.isSome:
-    return connectionsUnlimited # unlimited slots in watermark mode
-  return semaphore(c, dir).availableSlots
+  let sema = semaphore(c, dir)
+  if sema == nil:
+    return connectionsUnlimited
+  return sema.availableSlots
 
 proc release*(cs: ConnectionSlot) =
-  if cs.connManager.watermark.isSome:
-    return # no semaphore in watermark mode
+  let sema = semaphore(cs.connManager, cs.direction)
+  if sema == nil:
+    return
   try:
-    semaphore(cs.connManager, cs.direction).release()
+    sema.release()
   except AsyncSemaphoreError:
     raiseAssert "semaphore released without acquire"
 
