@@ -59,7 +59,7 @@ proc main() {.async.} =
   block:
     let switch = createBaseBuilder().withMaxConnections(100).build()
 
-    await connectPeer(switch, "2. .withMaxConnections(10)", "(shared limit: 100)")
+    await connectPeer(switch, "2. .withMaxConnections(100)", "(shared limit: 100)")
 
   ## ### 3. `.withMaxInOut(30, 20)` — independent per-direction caps
   ##
@@ -147,7 +147,7 @@ proc main() {.async.} =
 
 waitFor(main())
 
-## Running this program with `nim c -r -d:chronicles_log_level=error tutorial_5_connmanager.nim` produces
+## Running this program with `nim c -p:../ -d:chronicles_log_level=error -r tutorial_5_connmanager.nim` produces
 ## one line per scenario, each showing `connected = 1`, confirming that each
 ## configuration accepts connections normally under its limit.
 ##
