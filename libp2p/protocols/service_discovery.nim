@@ -9,7 +9,7 @@ import
   ./service_discovery/
     [random_find, types, routing_table_manager, advertiser, registrar, discoverer]
 
-export random_find, types, discoverer
+export random_find, types, discoverer, advertiser
 
 logScope:
   topics = "service-discovery"
@@ -167,3 +167,8 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
     disco.refreshServiceTablesLoop = nil
 
   await procCall stop(KadDHT(disco))
+
+proc lookup*(
+    disco: ServiceDiscovery, service: ServiceInfo
+): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
+  return await disco.lookup(service.id.hashServiceId())

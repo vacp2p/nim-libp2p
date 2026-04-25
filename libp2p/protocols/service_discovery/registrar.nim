@@ -206,7 +206,7 @@ proc updateLowerBounds*(
   let boundServiceVal = registrar.boundService.getOrDefault(serviceId, 0.0)
 
   if w > boundServiceVal - elapsedService.float64:
-    registrar.boundService[serviceId] = w + now.float64
+    registrar.boundService[serviceId] = w
     registrar.timestampService[serviceId] = now
 
   for addressInfo in ad.data.addresses:
@@ -218,7 +218,7 @@ proc updateLowerBounds*(
     let boundIpVal = registrar.boundIp.getOrDefault(ipKey, 0.0)
 
     if w > (boundIpVal - elapsedIp):
-      registrar.boundIp[ipKey] = w + float64(now)
+      registrar.boundIp[ipKey] = w
       registrar.timestampIp[ipKey] = now
 
 proc validateRegisterMessage*(

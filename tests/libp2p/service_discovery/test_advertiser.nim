@@ -90,7 +90,7 @@ suite "Advertiser - removeProvidedService":
     disco.addProvidedService(s1)
     disco.addProvidedService(s2)
 
-    await disco.removeProvidedService(s1)
+    await disco.removeProvidedService(s1.id)
 
     check:
       not disco.rtManager.hasService(sid1)
@@ -101,7 +101,7 @@ suite "Advertiser - removeProvidedService":
     let disco = makeMockDiscovery()
     let service = makeServiceInfo()
 
-    await disco.removeProvidedService(service)
+    await disco.removeProvidedService(service.id)
     check not disco.rtManager.hasService(service.id.hashServiceId())
 
   asyncTest "removing one service leaves others intact":
@@ -113,7 +113,7 @@ suite "Advertiser - removeProvidedService":
     disco.addProvidedService(s1)
     disco.addProvidedService(s2)
 
-    await disco.removeProvidedService(s1)
+    await disco.removeProvidedService(s1.id)
 
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
