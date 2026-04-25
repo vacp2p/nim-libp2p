@@ -30,7 +30,7 @@ proc connectPeer(switch: Switch, name: string, description: string) {.async.} =
   await peer.connect(switch.peerInfo.peerId, switch.peerInfo.addrs)
 
   let count = switch.connectedPeers(In).len
-  echo fmt"{name:<50} connected = {count}", "\t", description
+  echo fmt"{name:<60} connected = {count}", "\t", description
 
   await allFutures(switch.stop(), peer.stop())
 
