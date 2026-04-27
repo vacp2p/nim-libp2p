@@ -14,7 +14,7 @@ import
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
     libp2p_kademlia_requests, libp2p_service_discovery_requests, libp2p_stream_requests,
-    libp2p_relay_requests, libp2p_protocol_requests,
+    libp2p_relay_requests, libp2p_protocol_requests, libp2p_peerstore_requests,
   ],
   ../../../libp2p
 
@@ -27,6 +27,7 @@ type RequestType* {.pure.} = enum
   STREAM
   RELAY
   PROTOCOL
+  PEERSTORE
 
 type CallbackKind* {.pure.} = enum
   DEFAULT
@@ -91,6 +92,8 @@ proc destroyUnprocessedRequest*(request: ptr LibP2PThreadRequest) =
       destroyShared(cast[ptr RelayRequest](request[].reqContent))
     of RequestType.PROTOCOL:
       destroyShared(cast[ptr ProtocolRequest](request[].reqContent))
+    of RequestType.PEERSTORE:
+      destroyShared(cast[ptr PeerStoreRequest](request[].reqContent))
 
   deallocShared(request)
 
@@ -292,6 +295,37 @@ proc handleReservationRes(
 
   deallocReservationResult(rsvp)
 
+proc handlePeerStoreEntryRes(
+    res: Result[ptr Libp2pPeerStoreEntry, string], request: ptr LibP2PThreadRequest
+) =
+  defer:
+    deallocShared(request)
+
+  let cb = cast[PeerStoreEntryCallback](request[].callback)
+
+  let entry = res.valueOr:
+    foreignThreadGc:
+      let msg = $error
+      cb(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+    return
+
+  foreignThreadGc:
+    cb(RET_OK.cint, entry, nil, 0, request[].userData)
+
+  deallocPeerStoreEntry(entry)
+
+proc processPeerStore(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  let req = cast[ptr PeerStoreRequest](request[].reqContent)
+  case req[].operation
+  of PS_GET_PEERS:
+    handleConnectedPeersRes(await req.processGetPeers(libp2p), request)
+  of PS_GET_PEER_INFO:
+    handlePeerStoreEntryRes(await req.processGetPeerInfo(libp2p), request)
+  else:
+    handleRes(await req.process(libp2p), request)
+
 proc processRelay(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
@@ -442,6 +476,8 @@ proc process*(
     await processRelay(request, libp2p)
   of RequestType.PROTOCOL:
     await processProtocol(request, libp2p)
+  of RequestType.PEERSTORE:
+    await processPeerStore(request, libp2p)
 
 # String representation of the request type
 proc `$`*(self: LibP2PThreadRequest): string =
