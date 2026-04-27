@@ -193,7 +193,7 @@ suite "Connection Manager":
     let connMngr = newMaxTotal(maxConnsPerPeer = 1)
 
     let muxs = @[makeMuxer(peerId), makeMuxer(peerId)]
-    
+
     await connMngr.storeMuxer(muxs[1])
     expect TooManyConnectionsError:
       await connMngr.storeMuxer(muxs[1])
