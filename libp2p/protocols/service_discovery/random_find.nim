@@ -35,6 +35,13 @@ proc randomRecords(
 
   var buffers: seq[seq[byte]]
   while not findNodeFut.finished or not queue.empty():
+    if queue.empty():
+      # findNodeFut is still running but the queue is temporarily empty.
+      # Wait for it to finish — it may enqueue more peers, or once done we know none will come.
+      let waitRes = catch:
+        await findNodeFut
+      discard waitRes
+      continue
     let (peerId, _) = await queue.popFirst()
 
     let res = catch:
