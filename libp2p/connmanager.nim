@@ -132,9 +132,6 @@ proc decayNone*(): DecayFn =
   return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
     value
 
-proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
-  result = newException(TooManyConnectionsError, "Too many connections")
-
 proc new*(
     T: type ConnManager,
     maxConnections: int = -1,
@@ -183,8 +180,7 @@ proc new*(
   T(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer:
-      if maxConnsPerPeer >= 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
-      # issue#2328 must never be 0
+      if maxConnsPerPeer > 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
     maxConnectionsIn: maxInArg,
     maxConnectionsOut: maxOutArg,
     inSema: inSema,
@@ -427,7 +423,7 @@ proc storeMuxer*(
       debug "Too many connections for peer",
         conns = c.muxerStore.count(peerId), peerId, dir
 
-      raise newTooManyConnectionsError()
+      raise newException(TooManyConnectionsError, "Per peer connections limit reached")
 
   let isNewPeer = c.muxerStore.count(peerId) == 0
 
@@ -479,7 +475,8 @@ proc getOutgoingSlot*(
       discard c.outSema.acquire()
     elif not c.outSema.tryAcquire():
       trace "Too many outgoing connections"
-      raise newTooManyConnectionsError()
+      raise newException(TooManyConnectionsError, "Outgoing connections limit reached")
+    
   return ConnectionSlot(connManager: c, direction: Out)
 
 func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
