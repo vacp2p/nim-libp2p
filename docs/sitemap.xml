@@ -24,4 +24,8 @@
          <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_4_gossipsub/</loc>
          <lastmod>2026-04-27</lastmod>
     </url>
+    <url>
+         <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_5_connmanager/</loc>
+         <lastmod>2026-04-27</lastmod>
+    </url>
 </urlset>
