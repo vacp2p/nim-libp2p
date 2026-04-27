@@ -47,3 +47,17 @@ suite "Service discovery - FindRandom":
     # No peers are connected, so the routing table is empty and findNode returns
     # without adding anything to the queue.  This must complete, not hang.
     check await discos[0].lookupRandom().withTimeout(5.seconds)
+
+  asyncTest "lookupRandom can be cancelled while suspended on the queue-empty event":
+    # Regression: without the popFirstFut cancel guard, cancelling randomRecords
+    # while it awaits wakeEvent.wait() leaves popFirstFut attached to the queue
+    # as an orphaned getter. That getter silently consumes the next peer enqueued
+    # by the still-running findNodeFut, leaking transport resources that are
+    # caught by teardown checkTrackers.
+    let discos = setupDiscos(3, ExtEntryValidator(), ExtEntrySelector())
+    startAndDeferStop(discos)
+    await connectStar(discos)
+
+    let fut = discos[0].lookupRandom()
+    await sleepAsync(1.millis)
+    await fut.cancelAndWait()

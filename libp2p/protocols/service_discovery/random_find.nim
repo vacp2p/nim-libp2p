@@ -50,7 +50,11 @@ proc randomRecords(
           proc(_: pointer) {.gcsafe, raises: [].} =
             wakeEvent.fire()
         )
-        await wakeEvent.wait()
+        try:
+          await wakeEvent.wait()
+        except CancelledError as e:
+          await popFirstFut.cancelAndWait()
+          raise e
         if popFirstFut.completed:
           let (peerId, _) = await popFirstFut
           peerId
