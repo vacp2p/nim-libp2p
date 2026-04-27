@@ -181,7 +181,8 @@ proc new*(
   T(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer:
-      if maxConnsPerPeer > 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
+      if maxConnsPerPeer >= 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
+      # issue#2328 must never be 0
     maxConnectionsIn: maxInArg,
     maxConnectionsOut: maxOutArg,
     inSema: inSema,

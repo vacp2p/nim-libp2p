@@ -617,7 +617,7 @@ proc newStandardSwitchBuilder*(
   if maxIn > 0 and maxOut > 0:
     b = b.withMaxInOut(maxIn, maxOut)
 
-  if maxConnsPerPeer > 0:
+  if maxConnsPerPeer >= 0: # issue#2328 must never be 0
     b = b.withMaxConnsPerPeer(maxConnsPerPeer)
 
   privKey.withValue(pkey):
