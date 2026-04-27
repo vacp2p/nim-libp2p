@@ -35,15 +35,23 @@ proc randomRecords(
 
   var buffers: seq[seq[byte]]
   while not findNodeFut.finished or not queue.empty():
-    if queue.empty():
-      # findNodeFut is still running but the queue is temporarily empty.
-      # Wait for it to finish — it may enqueue more peers, or once done we know none will come.
-      let waitRes = catch:
-        await findNodeFut
-      discard waitRes
-      continue
-    let (peerId, _) = await queue.popFirst()
+    let peerId =
+      if queue.empty():
+        # The queue is temporarily empty while findNodeFut may still enqueue
+        # more peers. Wait for whichever happens first: a new queued peer or
+        # completion of findNodeFut.
+        let popFirstFut = queue.popFirst()
+        await one(popFirstFut, findNodeFut)
 
+        if popFirstFut.finished:
+          let (peerId, _) = popFirstFut.read()
+          peerId
+        else:
+          await popFirstFut.cancelAndWait()
+          continue
+      else:
+        let (peerId, _) = await queue.popFirst()
+        peerId
     let res = catch:
       await disco.dispatchGetVal(peerId, peerId.toKey())
     let msgOpt = res.valueOr:
