@@ -17,9 +17,9 @@ declareCounter(
 )
 
 const
-  MaxConnections* = 50
-  MaxConnectionsPerPeer* = 1
-  connectionsUnlimited = high(int)
+  DefaultMaxConnections = 50
+  DefaultMaxConnectionsPerPeer = 1
+  ConnectionsUnlimited = high(int)
 
 type
   DecayFn* = proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].}
@@ -52,12 +52,12 @@ type
 
   ConnEventKind* {.pure.} = enum
     Connected
-      # A connection was made and securely upgraded - there may be
-      # more than one concurrent connection thus more than one upgrade
-      # event per peer.
+      ## A connection was made and securely upgraded - there may be
+      ## more than one concurrent connection thus more than one upgrade
+      ## event per peer.
     Disconnected
-      # Peer disconnected - this event is fired once per upgrade
-      # when the associated connection is terminated.
+      ## Peer disconnected - this event is fired once per upgrade
+      ## when the associated connection is terminated.
 
   ConnEvent* = object
     case kind*: ConnEventKind
@@ -89,7 +89,7 @@ type
   ConnManager* = ref object of RootObj
     closed: bool
     muxerStore: MuxerStore
-    maxConnsPerPeer: int = MaxConnectionsPerPeer
+    maxConnsPerPeer: int
     maxConnectionsIn: int
     maxConnectionsOut: int
     inSema: AsyncSemaphore
@@ -100,7 +100,6 @@ type
     readyPeers: HashSet[PeerId]
     expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
-    # watermark mode fields — only populated when constructed via newWatermark
     watermark: Opt[WatermarkConfig]
     connectedAt: Table[PeerId, Moment]
     protectedPeers: Table[PeerId, HashSet[string]]
@@ -138,18 +137,21 @@ proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
 
 proc new*(
     T: type ConnManager,
-    maxConnections: int = 0,
-    maxIn: int = 0,
-    maxOut: int = 0,
-    maxConnsPerPeer: int = MaxConnectionsPerPeer,
+    maxConnections: int = -1,
+    maxIn: int = -1,
+    maxOut: int = -1,
+    maxConnsPerPeer: int = -1,
     watermark: Opt[WatermarkConfig] = Opt.none(WatermarkConfig),
     scoringConfig: ScoringConfig = ScoringConfig(),
 ): ConnManager =
   ## Creates a `ConnManager`.
   ##
-  ## By default (no arguments), a shared semaphore caps connections at
-  ## `MaxConnections`. Pass `maxConnections` for a custom shared cap, or
-  ## `maxIn`/`maxOut` for independent per-direction caps.
+  ## Parameters `maxConnections`, `maxIn`, `maxOut`, and `maxConnsPerPeer`
+  ## accept `-1` to mean "use the default value".
+  ## 
+  ## By default (no arguments), total connections are capped at `DefaultMaxConnections`.
+  ## Pass `maxConnections` for a custom total cap, or `maxIn`/`maxOut` for
+  ## independent per-direction caps.
   ##
   ## When `watermark` is provided without explicit connection limits the
   ## semaphore is omitted and hi/lo trimming is the only guard.  When both
@@ -168,19 +170,21 @@ proc new*(
     maxInArg = maxIn
     maxOutArg = maxOut
   elif hasTotal or not hasWatermark:
-    let cap = if hasTotal: maxConnections else: MaxConnections
+    let cap = if hasTotal: maxConnections else: DefaultMaxConnections
     let sema = newAsyncSemaphore(cap)
     inSema = sema
     outSema = sema
     maxInArg = cap
     maxOutArg = cap
   else:
-    maxInArg = connectionsUnlimited
-    maxOutArg = connectionsUnlimited
+    maxInArg = ConnectionsUnlimited
+    maxOutArg = ConnectionsUnlimited
 
   T(
     muxerStore: MuxerStore.new(),
-    maxConnsPerPeer: maxConnsPerPeer,
+    maxConnsPerPeer:
+      if maxConnsPerPeer >= 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
+      # issue#2328 must never be 0
     maxConnectionsIn: maxInArg,
     maxConnectionsOut: maxOutArg,
     inSema: inSema,
@@ -250,7 +254,6 @@ proc addConnEventHandler*(
     c: ConnManager, handler: ConnEventHandler, kind: ConnEventKind
 ) =
   ## Add peer event handler - handlers must not raise exceptions!
-  ##
   if handler.isNil:
     return
   c.connEvents[kind].incl(handler)
@@ -282,8 +285,6 @@ proc addPeerEventHandler*(
     c: ConnManager, handler: PeerEventHandler, kind: PeerEventKind
 ) =
   ## Add peer event handler - handlers must not raise exceptions!
-  ##
-
   if handler.isNil:
     return
   c.peerEvents[kind].incl(handler)
@@ -386,14 +387,10 @@ proc onClose(c: ConnManager, mux: Muxer) {.async: (raises: []).} =
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId, dir: Direction): Muxer =
   ## Select a connection for the provided peer and direction
-  ##
   return c.muxerStore.selectMuxer(peerId, dir)
 
 proc selectMuxer*(c: ConnManager, peerId: PeerId): Muxer =
-  ## Select a connection for the provided giving priority
-  ## to outgoing connections
-  ##
-
+  ## Select a connection for the provided peer, giving priority to outgoing connections.
   var mux = c.selectMuxer(peerId, Direction.Out)
   if mux.isNil:
     mux = c.selectMuxer(peerId, Direction.In)
@@ -407,7 +404,6 @@ proc storeMuxer*(
     c: ConnManager, muxer: Muxer
 ) {.async: (raises: [CancelledError, LPError]).} =
   ## store the connection and muxer
-  ##
 
   if muxer.isNil:
     raise newException(LPError, "muxer cannot be nil")
@@ -453,7 +449,7 @@ proc storeMuxer*(
   )
 
   # this notifies that peer is ready once the Connected events have been started
-  # but before waiting for them to be completed, avoiding deadlocks where a 
+  # but before waiting for them to be completed, avoiding deadlocks where a
   # connected handler would need inbound streams to progress.
   c.notifyPeerReady(peerId)
   await connectedEvent
@@ -492,7 +488,7 @@ func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
 proc availableSlots*(c: ConnManager, dir: Direction): int =
   let sema = semaphore(c, dir)
   if sema == nil:
-    return connectionsUnlimited
+    return ConnectionsUnlimited
   return sema.availableSlots
 
 proc release*(cs: ConnectionSlot) =
@@ -522,16 +518,14 @@ proc getStream*(
     c: ConnManager, muxer: Muxer
 ): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed muxer
-  ##
-
   if not muxer.isNil:
     return await muxer.newStream()
+  return nil
 
 proc getStream*(
     c: ConnManager, peerId: PeerId
 ): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed peer from any connection
-  ##
 
   return await c.getStream(c.selectMuxer(peerId))
 
@@ -539,13 +533,12 @@ proc getStream*(
     c: ConnManager, peerId: PeerId, dir: Direction
 ): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed peer from a connection with `dir`
-  ##
 
   return await c.getStream(c.selectMuxer(peerId, dir))
 
 proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError]).} =
   ## drop connections and cleanup resources for peer
-  ##
+
   trace "Dropping peer", peerId
 
   let muxers = c.muxerStore.remove(peerId)
@@ -715,10 +708,7 @@ proc triggerTrim(c: ConnManager) {.gcsafe, raises: [].} =
     c.trimFut = c.trimConnections()
 
 proc close*(c: ConnManager) {.async: (raises: [CancelledError]).} =
-  ## cleanup resources for the connection
-  ## manager
-  ##
-
+  ## Cleanup resources for the connection manager.
   trace "Closing ConnManager"
   c.closed = true
 

@@ -114,7 +114,7 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     maxConnections: -1,
     maxIn: -1,
     maxOut: -1,
-    maxConnsPerPeer: MaxConnectionsPerPeer,
+    maxConnsPerPeer: -1,
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
     autotls: Opt.none(AutotlsService),
@@ -595,10 +595,10 @@ proc newStandardSwitchBuilder*(
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
-    maxConnections = MaxConnections,
+    maxConnections = -1,
     maxIn = -1,
     maxOut = -1,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
+    maxConnsPerPeer = -1,
     nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
     peerStoreCapacity = 1000,
@@ -608,12 +608,17 @@ proc newStandardSwitchBuilder*(
     .new()
     .withRng(rng)
     .withSignedPeerRecord(sendSignedPeerRecord)
-    .withMaxConnections(maxConnections)
-    .withMaxIn(maxIn)
-    .withMaxOut(maxOut)
-    .withMaxConnsPerPeer(maxConnsPerPeer)
     .withPeerStore(capacity = peerStoreCapacity)
     .withNoise()
+
+  if maxConnections > 0:
+    b = b.withMaxConnections(maxConnections)
+
+  if maxIn > 0 and maxOut > 0:
+    b = b.withMaxInOut(maxIn, maxOut)
+
+  if maxConnsPerPeer >= 0: # issue#2328 must never be 0
+    b = b.withMaxConnsPerPeer(maxConnsPerPeer)
 
   privKey.withValue(pkey):
     b = b.withPrivateKey(pkey)
@@ -660,10 +665,10 @@ proc newStandardSwitch*(
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
-    maxConnections = MaxConnections,
+    maxConnections = -1,
     maxIn = -1,
     maxOut = -1,
-    maxConnsPerPeer = MaxConnectionsPerPeer,
+    maxConnsPerPeer = -1,
     nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
     peerStoreCapacity = 1000,

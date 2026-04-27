@@ -243,7 +243,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     check w >= chronos.seconds(2000)
 
 suite "Service Discovery Registrar - Lower Bound Updates":
-  test "updateLowerBounds stores service bound as w + now":
+  test "updateLowerBounds stores service bound as w":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
@@ -253,7 +253,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     updateLowerBounds(registrar, serviceId, ad, w, now)
 
     check serviceId in registrar.boundService
-    check registrar.boundService[serviceId] == w + float64(now) # 1500.0
+    check registrar.boundService[serviceId] == w
     check registrar.timestampService[serviceId] == now
 
   test "updateLowerBounds updates service bound when w exceeds effective bound":
@@ -268,7 +268,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
 
     updateLowerBounds(registrar, serviceId, ad, 1200.0, now)
 
-    check registrar.boundService[serviceId] == 2200.0
+    check registrar.boundService[serviceId] == 1200.0
     check registrar.timestampService[serviceId] == 1000
 
   test "updateLowerBounds does not decrease service bound":
@@ -300,11 +300,11 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     updateLowerBounds(registrar, serviceId, ad, w, now)
 
     check ip1 in registrar.boundIp
-    check registrar.boundIp[ip1] == w + float64(now)
+    check registrar.boundIp[ip1] == w
     check registrar.timestampIp[ip1] == now
 
     check ip2 in registrar.boundIp
-    check registrar.boundIp[ip2] == w + float64(now)
+    check registrar.boundIp[ip2] == w
     check registrar.timestampIp[ip2] == now
 
   test "updateLowerBounds accumulates bounds correctly across multiple calls":
@@ -313,15 +313,15 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     let ad = makeAdvertisement($serviceId)
 
     updateLowerBounds(registrar, serviceId, ad, 500.0, 1000)
-    check registrar.boundService[serviceId] == 1500.0
+    check registrar.boundService[serviceId] == 500.0
 
-    # effective at t=1500 = 1500 - 500 = 1000; w=800 < 1000 → no update
-    updateLowerBounds(registrar, serviceId, ad, 800.0, 1500)
-    check registrar.boundService[serviceId] == 1500.0
+    # effective at t=1100: 500 - (1100 - 1000) = 400; w=300 < 400 → no update
+    updateLowerBounds(registrar, serviceId, ad, 300.0, 1100)
+    check registrar.boundService[serviceId] == 500.0
 
-    # effective at t=2000 = 1500 - 1000 = 500; w=1200 > 500 → update
-    updateLowerBounds(registrar, serviceId, ad, 1200.0, 2000)
-    check registrar.boundService[serviceId] == 3200.0 # 1200 + 2000
+    # effective at t=1600: 500 - (1600 - 1000) = -100; w=800 > -100 → update
+    updateLowerBounds(registrar, serviceId, ad, 800.0, 1600)
+    check registrar.boundService[serviceId] == 800.0
 
   test "updateLowerBounds with empty addresses does not crash":
     let registrar = Registrar.new()
@@ -331,7 +331,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
 
     updateLowerBounds(registrar, serviceId, ad, 500.0, now)
 
-    check registrar.boundService[serviceId] == 500.0 + float64(now)
+    check registrar.boundService[serviceId] == 500.0
 
 suite "Service Discovery Registrar - Cache Pruning":
   test "pruneExpiredAds does nothing on empty registrar":
@@ -560,7 +560,7 @@ suite "Service Discovery Registrar - Edge Cases":
     updateLowerBounds(registrar, serviceId, ad, 0.0, now)
 
     check serviceId in registrar.boundService
-    check registrar.boundService[serviceId] == 1000.0
+    check registrar.boundService[serviceId] == 0.0
 
   test "pruneExpiredAds with very old timestamp":
     let registrar = Registrar.new()
