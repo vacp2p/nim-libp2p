@@ -38,17 +38,25 @@ proc randomRecords(
     let peerId =
       if queue.empty():
         # The queue is temporarily empty while findNodeFut may still enqueue
-        # more peers. Wait for whichever happens first: a new queued peer or
-        # completion of findNodeFut.
+        # more peers. Use an event to wake up when either a peer is enqueued
+        # OR findNodeFut finishes, so we react to whichever comes first.
         let popFirstFut = queue.popFirst()
-        await one(popFirstFut, findNodeFut)
-
-        if popFirstFut.finished:
-          let (peerId, _) = popFirstFut.read()
+        let wakeEvent = newAsyncEvent()
+        popFirstFut.addCallback(
+          proc(_: pointer) {.gcsafe, raises: [].} =
+            wakeEvent.fire()
+        )
+        findNodeFut.addCallback(
+          proc(_: pointer) {.gcsafe, raises: [].} =
+            wakeEvent.fire()
+        )
+        await wakeEvent.wait()
+        if popFirstFut.completed:
+          let (peerId, _) = await popFirstFut
           peerId
         else:
           await popFirstFut.cancelAndWait()
-          continue
+          break
       else:
         let (peerId, _) = await queue.popFirst()
         peerId
