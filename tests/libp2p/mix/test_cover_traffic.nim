@@ -106,6 +106,60 @@ suite "SlotPool":
       pool.nonCoverClaimed == 2
       pool.coverClaimed == 1
 
+suite "ConstantRateCoverTraffic cover_rate_fraction":
+  test "emissionInterval follows ((1+L)*P)/(f*R) formula":
+    # L=3, P=100s, R=100:
+    #   f=1.0 → 400s / 100 = 4s
+    #   f=0.5 → 400s / 50 = 8s (2× the f=1.0 interval)
+    #   f=0.7 (default) → between the two; exact value depends on
+    #     platform float-to-int rounding of 100.0 * 0.7.
+    let ctFull = ConstantRateCoverTraffic.new(
+      totalSlots = 100, epochDuration = 100.seconds, coverRateFraction = 1.0
+    )
+    let ctDefault =
+      ConstantRateCoverTraffic.new(totalSlots = 100, epochDuration = 100.seconds)
+    let ctHalf = ConstantRateCoverTraffic.new(
+      totalSlots = 100, epochDuration = 100.seconds, coverRateFraction = 0.5
+    )
+    check:
+      ctFull.emissionInterval == 4.seconds
+      ctHalf.emissionInterval == 8.seconds
+      ctHalf.emissionInterval == ctFull.emissionInterval * 2
+      ctFull.emissionInterval < ctDefault.emissionInterval
+      ctDefault.emissionInterval < ctHalf.emissionInterval
+
+  test "precomputeBatchSize respects cover_rate_fraction":
+    let ctFull = ConstantRateCoverTraffic.new(
+      totalSlots = 100,
+      epochDuration = 60.seconds,
+      coverRateFraction = 1.0,
+      enablePrecomputation = true,
+    )
+    let ctDefault = ConstantRateCoverTraffic.new(
+      totalSlots = 100, epochDuration = 60.seconds, enablePrecomputation = true
+    )
+    check ctFull.precomputeBatchSize >= ctDefault.precomputeBatchSize
+
+  test "cover_rate_fraction range validation":
+    # Valid boundary and interior values
+    check ConstantRateCoverTraffic.new(totalSlots = 10, coverRateFraction = 1.0).coverRateFraction ==
+      1.0
+    check ConstantRateCoverTraffic.new(totalSlots = 10, coverRateFraction = 0.5).coverRateFraction ==
+      0.5
+    # Invalid: <= 0 or > 1 must be rejected
+    for invalid in [0.0, -0.1, 1.01, 2.0]:
+      expect AssertionDefect:
+        discard
+          ConstantRateCoverTraffic.new(totalSlots = 10, coverRateFraction = invalid)
+
+  test "small cover_rate_fraction still yields at least 1 slot":
+    # With R=10 and f=0.05, f*R = 0.5 → rounds to 0, clamp to 1
+    let ct = ConstantRateCoverTraffic.new(
+      totalSlots = 10, epochDuration = 4.seconds, coverRateFraction = 0.05
+    )
+    # emissionInterval = 4s * 4 / 1 = 16s
+    check ct.emissionInterval == 16.seconds
+
 suite "ConstantRateCoverTraffic":
   test "emission sends packet and claims slot":
     let sentPackets = new seq[seq[byte]]
