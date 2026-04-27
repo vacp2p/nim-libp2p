@@ -197,7 +197,7 @@ suite "Connection Manager":
 
     let muxs = @[makeMuxer(peerId), makeMuxer(peerId)]
 
-    await connMngr.storeMuxer(muxs[0])  
+    await connMngr.storeMuxer(muxs[0])
     expect TooManyConnectionsError:
       await connMngr.storeMuxer(muxs[1])
 

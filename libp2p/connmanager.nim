@@ -476,7 +476,7 @@ proc getOutgoingSlot*(
     elif not c.outSema.tryAcquire():
       trace "Too many outgoing connections"
       raise newException(TooManyConnectionsError, "Outgoing connections limit reached")
-    
+
   return ConnectionSlot(connManager: c, direction: Out)
 
 func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
