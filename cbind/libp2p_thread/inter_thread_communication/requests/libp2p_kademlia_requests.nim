@@ -199,7 +199,7 @@ proc buildProvidersResult(
 
   ok(resPtr)
 
-proc buildRandomRecordsResult(
+proc buildRandomRecordsResult*(
     records: seq[ExtendedPeerRecord]
 ): Result[ptr RandomRecordsResult, string] =
   let resPtr = cast[ptr RandomRecordsResult](createShared(RandomRecordsResult, 1))
