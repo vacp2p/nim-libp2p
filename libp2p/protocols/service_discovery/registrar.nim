@@ -167,9 +167,9 @@ proc waitingTime*(
   if serviceId in registrar.timestampService:
     let elapsedDuration =
       now - registrar.timestampService.getOrDefault(serviceId, Moment())
-    let prevBoundTime = registrar.boundService.getOrDefault(serviceId, Moment())
-    let lowerBound = prevBoundTime - elapsedDuration
-    if lowerBound > now + waitDuration:
+    let prevBoundTimestamp = registrar.boundService.getOrDefault(serviceId, Moment())
+    let lowerBound = prevBoundTimestamp - elapsedDuration
+    if lowerBound > now and waitDuration < lowerBound - now:
       waitDuration = lowerBound - now
 
   for addressInfo in ad.data.addresses:
@@ -179,9 +179,9 @@ proc waitingTime*(
     let ipKey = $ip
     if ipKey in registrar.timestampIp:
       let elapsedDuration = now - registrar.timestampIp.getOrDefault(ipKey, Moment())
-      let prevBoundTime = registrar.boundIp.getOrDefault(ipKey, Moment())
-      let lowerBound = prevBoundTime - elapsedDuration
-      if lowerBound > now + waitDuration:
+      let prevBoundTimestamp = registrar.boundIp.getOrDefault(ipKey, Moment())
+      let lowerBound = prevBoundTimestamp - elapsedDuration
+      if lowerBound > now and waitDuration < lowerBound - now:
         waitDuration = lowerBound - now
 
   return waitDuration
@@ -193,12 +193,12 @@ proc updateLowerBounds*(
     waitDuration: Duration,
     now: Moment,
 ) =
-  let elapsedDuration =
-    now - registrar.timestampService.getOrDefault(serviceId, Moment())
-  let prevBoundTime = registrar.boundService.getOrDefault(serviceId, Moment())
-  let lowerBound = prevBoundTime - elapsedDuration
+  let prevTimestamp = registrar.timestampService.getOrDefault(serviceId, Moment())
+  let prevBoundTimestamp = registrar.boundService.getOrDefault(serviceId, Moment())
+  let prevWait = prevBoundTimestamp - prevTimestamp
+  let elapsedDuration = now - prevTimestamp
 
-  if now + waitDuration > lowerBound:
+  if waitDuration >= prevWait - elapsedDuration:
     registrar.boundService[serviceId] = now + waitDuration
     registrar.timestampService[serviceId] = now
 
@@ -207,11 +207,12 @@ proc updateLowerBounds*(
       continue
 
     let ipKey = $ip
-    let elapsedDuration = now - registrar.timestampIp.getOrDefault(ipKey, Moment())
-    let prevBoundTime = registrar.boundIp.getOrDefault(ipKey, Moment())
-    let lowerBound = prevBoundTime - elapsedDuration
+    let prevTimestamp = registrar.timestampService.getOrDefault(serviceId, Moment())
+    let prevBoundTimestamp = registrar.boundService.getOrDefault(serviceId, Moment())
+    let prevWait = prevBoundTimestamp - prevTimestamp
+    let elapsedDuration = now - prevTimestamp
 
-    if (now + waitDuration) > lowerBound:
+    if waitDuration >= prevWait - elapsedDuration:
       registrar.boundIp[ipKey] = now + waitDuration
       registrar.timestampIp[ipKey] = now
 

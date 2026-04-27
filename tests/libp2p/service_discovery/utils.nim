@@ -2,7 +2,8 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, sequtils]
+import std/sequtils
+from std/times import getTime, toUnix
 import chronos, chronicles, results
 import
   ../../../libp2p/
@@ -59,7 +60,7 @@ proc makeAdvertisement*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-proc fillCache*(registrar: Registrar, n: int, now: Time) =
+proc fillCache*(registrar: Registrar, n: int, now: Moment) =
   for i in 0 ..< n:
     let ad = makeAdvertisement($i)
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now

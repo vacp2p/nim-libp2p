@@ -2,7 +2,8 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, tables]
+from std/times import getTime, toUnix
+import std/tables
 import chronos, results
 import ../../../libp2p/[switch, crypto/crypto]
 import ../../../libp2p/protocols/service_discovery
@@ -46,8 +47,9 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.none(Ticket),
     )
-    let tResult = disco.processRetryTicket(regMsg, ad, 900.0, 1000)
-    check abs(tResult - 900.0) < 0.001
+    let tWait = seconds(900)
+    let tResult = disco.processRetryTicket(regMsg, ad, tWait)
+    check tResult == tWait
 
   test "mismatched advertisement bytes returns t_wait":
     let disco = makeMockDiscovery()
@@ -62,8 +64,9 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tResult = disco.processRetryTicket(regMsg, ad, 900.0, 1001)
-    check abs(tResult - 900.0) < 0.001
+    let tWait = seconds(900)
+    let tResult = disco.processRetryTicket(regMsg, ad, tWait)
+    check tResult == tWait
 
   test "invalid ticket signature returns t_wait":
     let disco = makeMockDiscovery()
@@ -79,18 +82,23 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tResult = disco.processRetryTicket(regMsg, ad, 900.0, 1001)
-    check abs(tResult - 900.0) < 0.001
+    let tWait = seconds(900)
+    let tResult = disco.processRetryTicket(regMsg, ad, tWait)
+    check tResult == tWait
 
   test "expired ticket (window very far in past) returns t_wait":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
-    # window = [tMod+tWaitFor .. tMod+tWaitFor+delta] = [1000..1001]
-    # now = 1_000_000 is far past the window
+    # window = [tMod+tWaitFor .. tMod+tWaitFor+delta]; tMod far in the past → outside
+    let nowUnix = getTime().toUnix()
     var ticket = Ticket(
-      advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
+      advertisement: adBytes,
+      tInit: 1000,
+      tMod: (nowUnix - 100_000).uint64,
+      tWaitFor: 0,
+      signature: @[],
     )
     check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
@@ -98,17 +106,23 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tResult = disco.processRetryTicket(regMsg, ad, 900.0, 1_000_000)
-    check abs(tResult - 900.0) < 0.001
+    let tWait = seconds(900)
+    let tResult = disco.processRetryTicket(regMsg, ad, tWait)
+    check tResult == tWait
 
   test "retry before window start returns t_wait":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
-    # windowStart = tMod + tWaitFor = 1000 + 100 = 1100; now = 1050 < 1100
+    # windowStart = now + 100 (in the future)
+    let nowUnix = getTime().toUnix()
     var ticket = Ticket(
-      advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 100, signature: @[]
+      advertisement: adBytes,
+      tInit: (nowUnix - 1000).uint64,
+      tMod: nowUnix.uint64,
+      tWaitFor: 100,
+      signature: @[],
     )
     check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
@@ -116,17 +130,23 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tResult = disco.processRetryTicket(regMsg, ad, 900.0, 1050)
-    check abs(tResult - 900.0) < 0.001
+    let tWait = seconds(900)
+    let tResult = disco.processRetryTicket(regMsg, ad, tWait)
+    check tResult == tWait
 
   test "retry after window end returns t_wait":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
-    # window = [1000..1001] (delta=1s); now = 1005 > windowEnd
+    # windowStart = now - 100, windowEnd = now - 99; now > windowEnd → outside
+    let nowUnix = getTime().toUnix()
     var ticket = Ticket(
-      advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
+      advertisement: adBytes,
+      tInit: (nowUnix - 1000).uint64,
+      tMod: (nowUnix - 100).uint64,
+      tWaitFor: 0,
+      signature: @[],
     )
     check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
@@ -134,20 +154,25 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tResult = disco.processRetryTicket(regMsg, ad, 900.0, 1005)
-    check abs(tResult - 900.0) < 0.001
+    let tWait = seconds(900)
+    let tResult = disco.processRetryTicket(regMsg, ad, tWait)
+    check tResult == tWait
 
   test "valid retry within window returns t_remaining":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
-    # windowStart = tMod + tWaitFor = 1100 + 100 = 1200; window = [1200..1201]
-    # now = 1200 → inside window
-    # totalWaitSoFar = now - tInit = 1200 - 1000 = 200
-    # t_remaining = 900 - 200 = 700
+    # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
+    # totalWaitSoFar = now - (now - 200) = 200 ± 1
+    # t_remaining = 900 - 200 = 700 ± 1
+    let nowUnix = getTime().toUnix()
     var ticket = Ticket(
-      advertisement: adBytes, tInit: 1000, tMod: 1100, tWaitFor: 100, signature: @[]
+      advertisement: adBytes,
+      tInit: (nowUnix - 200).uint64,
+      tMod: nowUnix.uint64,
+      tWaitFor: 0,
+      signature: @[],
     )
     check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
@@ -155,20 +180,24 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tResult = disco.processRetryTicket(regMsg, ad, 900.0, 1200)
-    check abs(tResult - 700.0) < 0.001
+    let tWait = seconds(900)
+    let tResult = disco.processRetryTicket(regMsg, ad, tWait)
+    check abs(seconds(tResult) - 700) <= 1
 
   test "valid retry with sufficient elapsed returns <= 0":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
-    # windowStart = tMod + tWaitFor = 1900 + 100 = 2000; window = [2000..2001]
-    # now = 2000 → inside window
-    # totalWaitSoFar = now - tInit = 2000 - 1000 = 1000
-    # t_remaining = 100 - 1000 = -900 <= 0
+    # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
+    # totalWaitSoFar = now - (now - 1000) = 1000 ± 1; tWait = 100 → negative
+    let nowUnix = getTime().toUnix()
     var ticket = Ticket(
-      advertisement: adBytes, tInit: 1000, tMod: 1900, tWaitFor: 100, signature: @[]
+      advertisement: adBytes,
+      tInit: (nowUnix - 1000).uint64,
+      tMod: nowUnix.uint64,
+      tWaitFor: 0,
+      signature: @[],
     )
     check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
@@ -176,8 +205,9 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tResult = disco.processRetryTicket(regMsg, ad, 100.0, 2000)
-    check tResult <= 0.0
+    let tWait = seconds(100)
+    let tResult = disco.processRetryTicket(regMsg, ad, tWait)
+    check tResult <= ZeroDuration
 
 suite "Component - handleRegister":
   teardown:
