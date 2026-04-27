@@ -40,7 +40,7 @@ jobs:
             cpu: amd64
             cc: gcc
         nim:
-          - ref: v2.0.16
+          - ref: v2.2.4
             memory_management: refc
           - ref: v2.2.10
             memory_management: refc

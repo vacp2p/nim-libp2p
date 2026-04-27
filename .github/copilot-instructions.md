@@ -486,7 +486,7 @@ nimble examples      # Build and run C examples
 
 | Workflow | Description |
 |----------|-------------|
-| `ci.yml` | Main CI: Linux (amd64/i386), macOS (arm64), Windows; Nim v2.0.16 & v2.2.10 |
+| `ci.yml` | Main CI: Linux (amd64/i386), macOS (arm64), Windows; Nim v2.2.4 & v2.2.10 |
 | `daily_amd64.yml` / `daily_i386.yml` | Extended daily tests |
 | `daily_ci_report.yml` | Daily CI failure reporting: opens/updates GitHub issues for failed daily CI runs |
 | `daily_common.yml` | Shared steps/config reused by daily workflows |

@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/daily_common.yml
     with:
       nim: "[
-          {'ref': 'v2.0.16', 'memory_management': 'refc'},
+          {'ref': 'v2.2.4', 'memory_management': 'refc'},
           {'ref': 'v2.2.10', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
@@ -28,7 +28,7 @@ jobs:
     with:
       pinned_deps: true
       nim: "[
-          {'ref': 'v2.0.16', 'memory_management': 'refc'},
+          {'ref': 'v2.2.4', 'memory_management': 'refc'},
           {'ref': 'v2.2.10', 'memory_management': 'refc'},
           {'ref': 'devel', 'memory_management': 'refc'},
         ]"
