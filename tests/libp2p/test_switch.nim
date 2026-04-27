@@ -499,7 +499,7 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events only once per peer":
-    let switch1 = newStandardSwitch()
+    let switch1 = newStandardSwitch(maxConnsPerPeer = 2)
 
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()

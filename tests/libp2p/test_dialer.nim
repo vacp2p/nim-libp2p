@@ -13,8 +13,8 @@ suite "Dialer":
 
   asyncTest "Connect forces a new connection":
     let
-      src = newStandardSwitch()
-      dst = newStandardSwitch()
+      src = newStandardSwitch(maxConnsPerPeer = 2)
+      dst = newStandardSwitch(maxConnsPerPeer = 2)
 
     await dst.start()
 
