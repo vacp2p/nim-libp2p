@@ -115,7 +115,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get conn with direction":
-    let connMngr = newMaxTotal(maxConnsPerPeer = 1)
+    let connMngr = newMaxTotal(maxConnsPerPeer = 2)
 
     let mux1 = makeMuxer(peerId, Direction.Out)
     let mux2 = makeMuxer(peerId)
@@ -176,13 +176,13 @@ suite "Connection Manager":
     await connection.close()
 
   asyncTest "should raise on too many connections when peer limit is reached":
-    let connMngr = newMaxTotal(maxConnsPerPeer = 1)
+    let connMngr = newMaxTotal(maxConnsPerPeer = 2)
 
     await connMngr.storeMuxer(makeMuxer(peerId))
 
     let muxs = @[makeMuxer(peerId), makeMuxer(peerId)]
 
-    await connMngr.storeMuxer(muxs[0])  
+    await connMngr.storeMuxer(muxs[0])
     expect TooManyConnectionsError:
       await connMngr.storeMuxer(muxs[1])
 
@@ -190,7 +190,7 @@ suite "Connection Manager":
     await allFuturesRaising(muxs.mapIt(it.close()))
 
   asyncTest "expect connection from peer":
-    let connMngr = newMaxTotal(maxConnsPerPeer = 1)
+    let connMngr = newMaxTotal(maxConnsPerPeer = 2)
     let peerId = PeerId.random(rng).tryGet()
 
     await connMngr.storeMuxer(makeMuxer(peerId))
@@ -272,7 +272,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "drop connections for peer":
-    let connMngr = newMaxTotal()
+    let connMngr = newMaxTotal(maxConnsPerPeer = 2)
 
     for i in 0 ..< 2:
       let dir = if i mod 2 == 0: Direction.In else: Direction.Out

@@ -414,7 +414,7 @@ proc storeMuxer*(
     peerId = muxer.connection.peerId
     dir = muxer.connection.dir
 
-  if c.muxerStore.count(peerId) > c.maxConnsPerPeer:
+  if c.muxerStore.count(peerId) >= c.maxConnsPerPeer:
     let key = (peerId, dir)
     let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
