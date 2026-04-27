@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, math, times]
+import std/[tables, math]
+from std/times import getTime, toUnix
 import chronos, chronicles, results
 import
   ../../[
@@ -52,22 +53,22 @@ proc removeAd*(ipTree: IpTree, ad: Advertisement) {.raises: [].} =
   for ip in ad.data.addresses.filterIPv4():
     ipTree.removeIp(ip)
 
-proc isExpired(now, ts: Time, expiry: times.Duration): bool {.inline.} =
+proc isExpired(now, ts: Moment, expiry: Duration): bool {.inline.} =
   now - ts > expiry
 
 proc pruneAdsForService(
     registrar: Registrar,
     serviceId: ServiceId,
     ads: var seq[Advertisement],
-    now: Time,
-    advertExpiry: times.Duration,
+    now: Moment,
+    advertExpiry: Duration,
     expiredCount: var int,
 ) =
   var i = 0
   while i < ads.len:
     let ad = ads[i]
     let key = ad.toAdvertisementKey()
-    let ts = registrar.cacheTimestamps.getOrDefault(key, fromUnix(0))
+    let ts = registrar.cacheTimestamps.getOrDefault(key, Moment())
 
     if isExpired(now, ts, advertExpiry):
       registrar.ipTree.removeAd(ad)
@@ -87,10 +88,10 @@ proc pruneEmptyServices(registrar: Registrar) =
     registrar.cache.del(sid)
 
 proc pruneExpiredEntries[K](
-    timestamps: var Table[K, Time],
-    bounds: var Table[K, Time],
-    now: Time,
-    expiry: times.Duration,
+    timestamps: var Table[K, Moment],
+    bounds: var Table[K, Moment],
+    now: Moment,
+    expiry: Duration,
 ) =
   var toRemove: seq[K] = @[]
 
@@ -102,8 +103,8 @@ proc pruneExpiredEntries[K](
     timestamps.del(k)
     bounds.del(k)
 
-proc pruneExpiredAds*(registrar: Registrar, advertExpiry: times.Duration) =
-  let now = getTime()
+proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
+  let now = Moment.now()
 
   var expiredCount = 0
 
@@ -133,8 +134,8 @@ proc waitingTime*(
     ad: Advertisement,
     advertCacheCap: uint64,
     serviceId: ServiceId,
-    now: Time,
-): times.Duration =
+    now: Moment,
+): Duration =
   doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
   let c = registrar.cacheTimestamps.len.uint64
   let c_s = registrar.cache.getOrDefault(serviceId, @[]).len
@@ -161,12 +162,12 @@ proc waitingTime*(
   w = min(w, float64(uint32.high))
   w = ceil(w)
 
-  var waitDuration = initDuration(seconds = w.int64)
+  var waitDuration = chronos.seconds(w.int64)
 
   if serviceId in registrar.timestampService:
     let elapsedDuration =
-      now - registrar.timestampService.getOrDefault(serviceId, fromUnix(0))
-    let prevBoundTime = registrar.boundService.getOrDefault(serviceId, fromUnix(0))
+      now - registrar.timestampService.getOrDefault(serviceId, Moment())
+    let prevBoundTime = registrar.boundService.getOrDefault(serviceId, Moment())
     let lowerBound = prevBoundTime - elapsedDuration
     if lowerBound > now + waitDuration:
       waitDuration = lowerBound - now
@@ -177,8 +178,8 @@ proc waitingTime*(
 
     let ipKey = $ip
     if ipKey in registrar.timestampIp:
-      let elapsedDuration = now - registrar.timestampIp.getOrDefault(ipKey, fromUnix(0))
-      let prevBoundTime = registrar.boundIp.getOrDefault(ipKey, fromUnix(0))
+      let elapsedDuration = now - registrar.timestampIp.getOrDefault(ipKey, Moment())
+      let prevBoundTime = registrar.boundIp.getOrDefault(ipKey, Moment())
       let lowerBound = prevBoundTime - elapsedDuration
       if lowerBound > now + waitDuration:
         waitDuration = lowerBound - now
@@ -189,12 +190,12 @@ proc updateLowerBounds*(
     registrar: Registrar,
     serviceId: ServiceId,
     ad: Advertisement,
-    waitDuration: times.Duration,
-    now: Time,
+    waitDuration: Duration,
+    now: Moment,
 ) =
   let elapsedDuration =
-    now - registrar.timestampService.getOrDefault(serviceId, fromUnix(0))
-  let prevBoundTime = registrar.boundService.getOrDefault(serviceId, fromUnix(0))
+    now - registrar.timestampService.getOrDefault(serviceId, Moment())
+  let prevBoundTime = registrar.boundService.getOrDefault(serviceId, Moment())
   let lowerBound = prevBoundTime - elapsedDuration
 
   if now + waitDuration > lowerBound:
@@ -206,8 +207,8 @@ proc updateLowerBounds*(
       continue
 
     let ipKey = $ip
-    let elapsedDuration = now - registrar.timestampIp.getOrDefault(ipKey, fromUnix(0))
-    let prevBoundTime = registrar.boundIp.getOrDefault(ipKey, fromUnix(0))
+    let elapsedDuration = now - registrar.timestampIp.getOrDefault(ipKey, Moment())
+    let prevBoundTime = registrar.boundIp.getOrDefault(ipKey, Moment())
     let lowerBound = prevBoundTime - elapsedDuration
 
     if (now + waitDuration) > lowerBound:
@@ -236,9 +237,8 @@ proc processRetryTicket*(
     disco: ServiceDiscovery,
     regMsg: RegisterMessage,
     ad: Advertisement,
-    t_wait: times.Duration,
-    now: Time,
-): times.Duration {.raises: [].} =
+    t_wait: Duration,
+): Duration {.raises: [].} =
   ## Process a retry ticket if present.
   ## Returns t_wait unchanged when there is no ticket or the ticket is invalid/expired/outside window.
   ## Returns t_wait - totalWaitSoFar when the ticket is valid and the retry is within the window;
@@ -256,15 +256,13 @@ proc processRetryTicket*(
   if not ticketMsg.verify(registrarPubKey):
     return t_wait
 
-  let windowStart =
-    fromUnix(int64(ticketMsg.tMod)) + initDuration(seconds = int64(ticketMsg.tWaitFor))
+  let nowUnix = getTime().toUnix()
+  let windowStartUnix = int64(ticketMsg.tMod) + int64(ticketMsg.tWaitFor)
   let delta = disco.discoConfig.registrationWindow
-  let windowEnd = windowStart + initDuration(seconds = int64(delta))
+  let windowEndUnix = windowStartUnix + int64(delta)
 
-  let ticketTInit = fromUnix(int64(ticketMsg.tInit))
-
-  if now >= windowStart and now <= windowEnd:
-    let totalWaitSoFar = now - ticketTInit
+  if nowUnix >= windowStartUnix and nowUnix <= windowEndUnix:
+    let totalWaitSoFar = chronos.seconds(nowUnix - int64(ticketMsg.tInit))
     return t_wait - totalWaitSoFar
 
   return t_wait
@@ -296,12 +294,14 @@ proc findAdIdx*(ads: seq[Advertisement], peerId: PeerId): int =
 
 proc findOldestKey(disco: ServiceDiscovery): AdvertisementKey =
   var oldestKey: AdvertisementKey
-  var oldestTime = fromUnix(high(int64))
+  var oldestTime: Moment
+  var first = true
 
   for k, t in disco.registrar.cacheTimestamps:
-    if t < oldestTime:
+    if first or t < oldestTime:
       oldestTime = t
       oldestKey = k
+      first = false
 
   return oldestKey
 
@@ -336,7 +336,7 @@ proc updateExistingAd*(
     ads: var seq[Advertisement],
     idx: int,
     ad: Advertisement,
-    now: Time,
+    now: Moment,
 ): bool =
   ## Update an advertisement that already exists in the cache for this peer.
   ## - Same seqNo: refreshes the timestamp (no structural change).
@@ -362,7 +362,7 @@ proc insertNewAd*(
     serviceId: ServiceId,
     ads: var seq[Advertisement],
     ad: Advertisement,
-    now: Time,
+    now: Moment,
 ): bool =
   ## Insert a brand-new advertisement into the cache.
   ## Evicts the globally oldest entry first if the cache is at capacity.
@@ -377,7 +377,7 @@ proc insertNewAd*(
 proc acceptAdvertisement*(
     disco: ServiceDiscovery, serviceId: ServiceId, ad: Advertisement
 ) =
-  let now = getTime()
+  let now = Moment.now()
 
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
@@ -422,13 +422,13 @@ proc handleRegister*(
     )
     return
 
-  let now = getTime()
+  let now = Moment.now()
   var tWait = disco.registrar.waitingTime(
     disco.discoConfig, ad, disco.discoConfig.advertCacheCap, serviceId, now
   )
-  tWait = disco.processRetryTicket(regMsg, ad, tWait, now)
+  tWait = disco.processRetryTicket(regMsg, ad, tWait)
 
-  if tWait <= times.DurationZero:
+  if tWait <= ZeroDuration:
     disco.acceptAdvertisement(serviceId, ad)
     await sendRegisterResponse(
       conn, kademlia_protobuf.RegistrationStatus.Confirmed, closerPeers
@@ -439,11 +439,12 @@ proc handleRegister*(
   else:
     disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
+    let nowUnix = getTime().toUnix()
     var ticket = Ticket(
       advertisement: regMsg.advertisement,
-      tInit: regMsg.ticket.tInitOrDefault(now.toUnix().uint64),
-      tMod: now.toUnix().uint64,
-      tWaitFor: tWait.inSeconds().uint32,
+      tInit: regMsg.ticket.tInitOrDefault(nowUnix.uint64),
+      tMod: nowUnix.uint64,
+      tWaitFor: tWait.seconds.uint32,
     )
     if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
       error "failed to sign ticket"

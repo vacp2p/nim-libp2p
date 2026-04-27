@@ -46,12 +46,12 @@ type
 
   Registrar* = ref object
     cache*: OrderedTable[ServiceId, seq[Advertisement]]
-    cacheTimestamps*: Table[AdvertisementKey, Time]
+    cacheTimestamps*: Table[AdvertisementKey, Moment]
     ipTree*: IpTree
-    boundService*: Table[ServiceId, Time]
-    timestampService*: Table[ServiceId, Time]
-    boundIp*: Table[string, Time]
-    timestampIp*: Table[string, Time]
+    boundService*: Table[ServiceId, Moment]
+    timestampService*: Table[ServiceId, Moment]
+    boundIp*: Table[string, Moment]
+    timestampIp*: Table[string, Moment]
 
   AdvertiseTask* = ref object
     fut*: Future[void]
@@ -143,12 +143,12 @@ proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
 proc new*(T: typedesc[Registrar]): T =
   T(
     cache: initOrderedTable[ServiceId, seq[Advertisement]](),
-    cacheTimestamps: initTable[AdvertisementKey, Time](),
+    cacheTimestamps: initTable[AdvertisementKey, Moment](),
     ipTree: IpTree.new(),
-    boundService: initTable[ServiceId, Time](),
-    timestampService: initTable[ServiceId, Time](),
-    boundIp: initTable[string, Time](),
-    timestampIp: initTable[string, Time](),
+    boundService: initTable[ServiceId, Moment](),
+    timestampService: initTable[ServiceId, Moment](),
+    boundIp: initTable[string, Moment](),
+    timestampIp: initTable[string, Moment](),
   )
 
 proc new*(T: typedesc[Advertiser]): T =

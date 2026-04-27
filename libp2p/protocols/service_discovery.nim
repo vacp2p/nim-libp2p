@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/times
 import chronos, chronicles, results, sets
 import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
@@ -44,7 +43,7 @@ proc maintainRegistrar(disco: ServiceDiscovery) {.async: (raises: [CancelledErro
   heartbeat "prune expired advertisements",
     toChronos(disco.discoConfig.advertExpiry), sleepFirst = true:
     disco.registrar.pruneExpiredAds(
-      initDuration(seconds = disco.discoConfig.advertExpiry.int64)
+      toChronos(disco.discoConfig.advertExpiry)
     )
 
 proc maintainServiceTables(
