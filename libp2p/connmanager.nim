@@ -18,7 +18,7 @@ declareCounter(
 
 const
   DefaultMaxConnections = 50
-  DefaultMaxConnectionsPerPeer = 1
+  DefaultMaxConnectionsPerPeer = 2
   ConnectionsUnlimited = high(int)
 
 type
