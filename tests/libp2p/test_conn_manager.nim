@@ -190,14 +190,11 @@ suite "Connection Manager":
     await allFuturesRaising(muxs.mapIt(it.close()))
 
   asyncTest "expect connection from peer":
-    let connMngr = newMaxTotal(maxConnsPerPeer = 2)
-    let peerId = PeerId.random(rng).tryGet()
-
-    await connMngr.storeMuxer(makeMuxer(peerId))
+    let connMngr = newMaxTotal(maxConnsPerPeer = 1)
 
     let muxs = @[makeMuxer(peerId), makeMuxer(peerId)]
-
-    await connMngr.storeMuxer(muxs[0])
+    
+    await connMngr.storeMuxer(muxs[1])
     expect TooManyConnectionsError:
       await connMngr.storeMuxer(muxs[1])
 
