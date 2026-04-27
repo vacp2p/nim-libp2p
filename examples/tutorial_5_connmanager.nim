@@ -78,7 +78,7 @@ proc main() {.async.} =
   ##
   ## No semaphore is created — the switch **never blocks** an incoming
   ## connection based on count alone.  Instead, once the connected-peer count
-  ## reaches the **high-water mark** (20), the connection manager
+  ## exceeds the **high-water mark** (20), the connection manager
   ## asynchronously trims down to the **low-water mark** (10) by closing
   ## the lowest-scoring peers.  Peers within the grace period (default 1 min)
   ## and protected peers are skipped during trimming.
