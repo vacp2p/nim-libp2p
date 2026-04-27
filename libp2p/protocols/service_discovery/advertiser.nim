@@ -92,7 +92,7 @@ proc sendRegister*(
     )
   )
 
-proc startAdvertising*(
+proc advertiseToRegistrar*(
     disco: ServiceDiscovery,
     serviceId: ServiceId,
     registrar: PeerId,
@@ -183,28 +183,43 @@ proc addProvidedService*(
         error "cannot convert key to peer id", error
         continue
 
-      let fut = disco.startAdvertising(
+      let fut = disco.advertiseToRegistrar(
         serviceId, registrar, bucketIdx, Opt.none(Ticket), advert
       )
       disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
       cd_advertiser_pending_actions.inc()
 
 proc removeProvidedService*(
-    disco: ServiceDiscovery, service: ServiceInfo
+    disco: ServiceDiscovery, serviceId: string
 ) {.async: (raises: [CancelledError]).} =
   doAssert not disco.clientMode, "not supported in client mode"
 
-  let serviceId = service.id.hashServiceId()
+  let sid = serviceId.hashServiceId()
 
   var toRemove: HashSet[AdvertiseTask]
 
-  for t in disco.advertiser.running.filterIt(it.serviceId == serviceId):
+  for t in disco.advertiser.running.filterIt(it.serviceId == sid):
     await t.fut.cancelAndWait()
     toRemove.incl(t)
 
   disco.advertiser.running.excl(toRemove)
   cd_advertiser_pending_actions.set(disco.advertiser.running.len.float64)
 
-  disco.rtManager.removeService(serviceId, Provided)
-  disco.services.excl(service)
+  disco.rtManager.removeService(sid, Provided)
+  for s in disco.services:
+    if s.id == serviceId:
+      disco.services.excl(s)
+      break
   cd_advertiser_services_removed.inc()
+
+proc startAdvertising*(
+    disco: ServiceDiscovery,
+    service: ServiceInfo,
+    advert: Opt[seq[byte]] = Opt.none(seq[byte]),
+) =
+  disco.addProvidedService(service, advert = advert)
+
+proc stopAdvertising*(
+    disco: ServiceDiscovery, serviceId: string
+) {.async: (raises: [CancelledError]).} =
+  await disco.removeProvidedService(serviceId)

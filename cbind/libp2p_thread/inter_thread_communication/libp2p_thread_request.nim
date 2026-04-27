@@ -13,8 +13,8 @@ import
   ../../[ffi_types, types, alloc],
   ./requests/[
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
-    libp2p_kademlia_requests, libp2p_stream_requests, libp2p_relay_requests,
-    libp2p_protocol_requests,
+    libp2p_kademlia_requests, libp2p_service_discovery_requests, libp2p_stream_requests,
+    libp2p_relay_requests, libp2p_protocol_requests,
   ],
   ../../../libp2p
 
@@ -23,6 +23,7 @@ type RequestType* {.pure.} = enum
   PEER_MANAGER
   PUBSUB
   KADEMLIA
+  SERVICE_DISCOVERY
   STREAM
   RELAY
   PROTOCOL
@@ -82,6 +83,8 @@ proc destroyUnprocessedRequest*(request: ptr LibP2PThreadRequest) =
       destroyShared(cast[ptr PubSubRequest](request[].reqContent))
     of RequestType.KADEMLIA:
       destroyShared(cast[ptr KademliaRequest](request[].reqContent))
+    of RequestType.SERVICE_DISCOVERY:
+      destroyShared(cast[ptr ServiceDiscoveryRequest](request[].reqContent))
     of RequestType.STREAM:
       destroyShared(cast[ptr StreamRequest](request[].reqContent))
     of RequestType.RELAY:
@@ -347,6 +350,16 @@ proc processPubSub(
     await cast[ptr PubSubRequest](request[].reqContent).process(libp2p), request
   )
 
+proc processServiceDiscovery(
+    request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
+) {.async: (raises: [CancelledError]).} =
+  let req = cast[ptr ServiceDiscoveryRequest](request[].reqContent)
+  case request[].callbackKind
+  of CallbackKind.RANDOM_RECORDS:
+    handleRandomRecordsRes(await req.processLookup(libp2p.kad), request)
+  else:
+    handleRes(await req.process(libp2p.kad), request)
+
 proc processKademlia(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
 ) {.async: (raises: [CancelledError]).} =
@@ -421,6 +434,8 @@ proc process*(
     await processPubSub(request, libp2p)
   of RequestType.KADEMLIA:
     await processKademlia(request, libp2p)
+  of RequestType.SERVICE_DISCOVERY:
+    await processServiceDiscovery(request, libp2p)
   of RequestType.STREAM:
     await processStream(request, libp2p)
   of RequestType.RELAY:
