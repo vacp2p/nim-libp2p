@@ -140,15 +140,18 @@ proc new*(
     maxConnections: int = -1,
     maxIn: int = -1,
     maxOut: int = -1,
-    maxConnsPerPeer: int = DefaultMaxConnectionsPerPeer,
+    maxConnsPerPeer: int = -1,
     watermark: Opt[WatermarkConfig] = Opt.none(WatermarkConfig),
     scoringConfig: ScoringConfig = ScoringConfig(),
 ): ConnManager =
   ## Creates a `ConnManager`.
   ##
-  ## By default (no arguments), a shared semaphore caps connections at
-  ## `DefaultMaxConnections`. Pass `maxConnections` for a custom shared cap, or
-  ## `maxIn`/`maxOut` for independent per-direction caps.
+  ## Parameters `maxConnections`, `maxIn`, `maxOut`, and `maxConnsPerPeer`
+  ## accept `-1` to mean "use the default value".
+  ## 
+  ## By default (no arguments), total connections are capped at `DefaultMaxConnections`.
+  ## Pass `maxConnections` for a custom total cap, or `maxIn`/`maxOut` for
+  ## independent per-direction caps.
   ##
   ## When `watermark` is provided without explicit connection limits the
   ## semaphore is omitted and hi/lo trimming is the only guard.  When both
