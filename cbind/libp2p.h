@@ -461,6 +461,44 @@ int libp2p_kad_get_providers(libp2p_ctx_t *ctx, const char *cid,
 int libp2p_kad_random_records(libp2p_ctx_t *ctx, RandomRecordsCallback callback,
                               void *userData);
 
+// === Service Discovery APIs ===
+
+int libp2p_service_disco_start(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                               void *userData);
+
+int libp2p_service_disco_stop(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                              void *userData);
+
+int libp2p_service_disco_start_advertising(libp2p_ctx_t *ctx,
+                                           const char *serviceId,
+                                           const uint8_t *serviceData,
+                                           size_t serviceDataLen,
+                                           Libp2pCallback callback,
+                                           void *userData);
+
+int libp2p_service_disco_stop_advertising(libp2p_ctx_t *ctx,
+                                          const char *serviceId,
+                                          Libp2pCallback callback,
+                                          void *userData);
+
+int libp2p_service_disco_start_discovering(libp2p_ctx_t *ctx,
+                                           const char *serviceId,
+                                           Libp2pCallback callback,
+                                           void *userData);
+
+int libp2p_service_disco_stop_discovering(libp2p_ctx_t *ctx,
+                                          const char *serviceId,
+                                          Libp2pCallback callback,
+                                          void *userData);
+
+int libp2p_service_disco_lookup(libp2p_ctx_t *ctx, const char *serviceId,
+                                const uint8_t *serviceData, size_t serviceDataLen,
+                                RandomRecordsCallback callback, void *userData);
+
+int libp2p_service_disco_random_lookup(libp2p_ctx_t *ctx,
+                                       RandomRecordsCallback callback,
+                                       void *userData);
+
 // === Mix APIs ===
 
 void libp2p_mix_generate_priv_key(libp2p_curve25519_key_t *outKey);
