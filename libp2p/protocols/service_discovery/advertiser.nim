@@ -170,6 +170,7 @@ proc addProvidedService*(
     error "service not found", serviceId
     return
 
+  var tasksSpawned = false
   for bucketIdx in 0 ..< advTable.buckets.len:
     let bucket = advTable.buckets[bucketIdx]
     if bucket.peers.len == 0:
@@ -186,6 +187,28 @@ proc addProvidedService*(
       let fut = disco.advertiseToRegistrar(
         serviceId, registrar, bucketIdx, Opt.none(Ticket), advert
       )
+      disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
+      cd_advertiser_pending_actions.inc()
+      tasksSpawned = true
+
+  if not tasksSpawned:
+    # The service routing table is empty because all peers from the main routing
+    # table have a bucket index >= bucketsCount relative to the service ID in XOR
+    # space (probability 1/2^bucketsCount per peer). Fall back to advertising
+    # directly to peers from the main routing table so that the service is always
+    # registered when there are known peers.
+    var mainPeers: seq[NodeEntry]
+    for bucket in disco.rtable.buckets:
+      for peer in bucket.peers:
+        mainPeers.add(peer)
+    disco.rng.shuffle(mainPeers)
+    for i in 0 ..< min(disco.discoConfig.kRegister, mainPeers.len):
+      let registrar = mainPeers[i].nodeId.toPeerId().valueOr:
+        error "cannot convert key to peer id", error
+        continue
+      # bucketIdx 0 is passed but is unused by advertiseToRegistrar
+      let fut =
+        disco.advertiseToRegistrar(serviceId, registrar, 0, Opt.none(Ticket), advert)
       disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
       cd_advertiser_pending_actions.inc()
 
