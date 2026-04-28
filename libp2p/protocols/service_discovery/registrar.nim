@@ -207,8 +207,8 @@ proc updateLowerBounds*(
       continue
 
     let ipKey = $ip
-    let prevTimestamp = registrar.timestampService.getOrDefault(serviceId, Moment())
-    let prevBoundTimestamp = registrar.boundService.getOrDefault(serviceId, Moment())
+    let prevTimestamp = registrar.timestampIp.getOrDefault(ipKey, Moment())
+    let prevBoundTimestamp = registrar.boundIp.getOrDefault(ipKey, Moment())
     let prevWait = prevBoundTimestamp - prevTimestamp
     let elapsedDuration = now - prevTimestamp
 
