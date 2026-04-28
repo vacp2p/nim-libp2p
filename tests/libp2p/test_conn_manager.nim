@@ -405,6 +405,9 @@ suite "Connection Manager":
     await connMngr.close()
 
 suite "Connection Manager maxConnsPerPeer":
+  teardown:
+    checkTrackers()
+
   let peerId = PeerId.random(rng).tryGet()
   const defaultMaxConnsPerPeer = 2
 
@@ -412,7 +415,7 @@ suite "Connection Manager maxConnsPerPeer":
     let connMngr = newMaxTotal(maxConnsPerPeer = maxConnsPerPeer)
 
     # store up to limit
-    for i in 0 ..< numberOfMuxersToConnect:
+    for _ in 0 ..< numberOfMuxersToConnect:
       await connMngr.storeMuxer(makeMuxer(peerId))
 
     check connMngr.connCount(peerId) == numberOfMuxersToConnect
