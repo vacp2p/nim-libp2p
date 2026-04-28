@@ -3,7 +3,7 @@
 
 {.used.}
 
-import results, chronos, std/[sequtils, tables]
+import results, chronos, std/[sequtils, tables, strformat]
 import
   ../../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
 import ../tools/[unittest, compare, futures, crypto]
@@ -174,20 +174,6 @@ suite "Connection Manager":
     await connMngr.close()
     await stream1.close()
     await connection.close()
-
-  asyncTest "should raise on too many connections when peer limit is reached":
-    let connMngr = newMaxTotal(maxConnsPerPeer = 2)
-
-    await connMngr.storeMuxer(makeMuxer(peerId))
-
-    let muxs = @[makeMuxer(peerId), makeMuxer(peerId)]
-
-    await connMngr.storeMuxer(muxs[0])
-    expect TooManyConnectionsError:
-      await connMngr.storeMuxer(muxs[1])
-
-    await connMngr.close()
-    await allFuturesRaising(muxs.mapIt(it.close()))
 
   asyncTest "expect connection from peer":
     let connMngr = newMaxTotal(maxConnsPerPeer = 1)
@@ -417,6 +403,41 @@ suite "Connection Manager":
     check await incomingSlot.withTimeout(10.millis)
 
     await connMngr.close()
+
+suite "Connection Manager maxConnsPerPeer":
+  let peerId = PeerId.random(rng).tryGet()
+  const defaultMaxConnsPerPeer = 2
+
+  proc runTest(maxConnsPerPeer: int, numberOfMuxersToConnect: int) {.async.} =
+    let connMngr = newMaxTotal(maxConnsPerPeer = maxConnsPerPeer)
+
+    # store up to limit
+    for i in 0 ..< numberOfMuxersToConnect:
+      await connMngr.storeMuxer(makeMuxer(peerId))
+
+    check connMngr.connCount(peerId) == numberOfMuxersToConnect
+
+    # add one more to exceed limit
+    expect TooManyConnectionsError:
+      let extraMuxer = makeMuxer(peerId)
+      try:
+        await connMngr.storeMuxer(extraMuxer)
+      finally:
+        await extraMuxer.close()
+
+    check connMngr.connCount(peerId) == numberOfMuxersToConnect
+
+    await connMngr.close()
+
+  asyncTest "maxConnsPerPeer = -1 uses default":
+    await runTest(-1, defaultMaxConnsPerPeer)
+
+  asyncTest "maxConnsPerPeer = 0 uses default":
+    await runTest(0, defaultMaxConnsPerPeer)
+
+  for i in 1 ..< 10:
+    asyncTest fmt"peer limit is reached with {i} muxers":
+      await runTest(i, i)
 
 suite "Connection Manager Watermark":
   teardown:
