@@ -413,19 +413,17 @@ proc storeMuxer*(
   let
     peerId = muxer.connection.peerId
     dir = muxer.connection.dir
+    peerConnsCount = c.muxerStore.count(peerId)
+    isNewPeer = peerConnsCount == 0
 
-  if c.muxerStore.count(peerId) >= c.maxConnsPerPeer:
+  if peerConnsCount >= c.maxConnsPerPeer:
     let key = (peerId, dir)
     let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Too many connections for peer",
-        conns = c.muxerStore.count(peerId), peerId, dir
-
+      debug "Per peer connections limit reached", conns = peerConnsCount, peerId
       raise newException(TooManyConnectionsError, "Per peer connections limit reached")
-
-  let isNewPeer = c.muxerStore.count(peerId) == 0
 
   if not c.muxerStore.add(muxer):
     raise newException(LPError, "muxer already stored")
@@ -474,8 +472,10 @@ proc getOutgoingSlot*(
       # still calling acquire to track this connection.
       discard c.outSema.acquire()
     elif not c.outSema.tryAcquire():
-      trace "Too many outgoing connections"
-      raise newException(TooManyConnectionsError, "Outgoing connections limit reached")
+      trace "Total outgoing connections limit reached"
+      raise newException(
+        TooManyConnectionsError, "Total outgoing connections limit reached"
+      )
 
   return ConnectionSlot(connManager: c, direction: Out)
 
