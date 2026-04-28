@@ -1536,7 +1536,7 @@ proc libp2p_peerstore_add_peer(
     failWithMsg(callback, userData, "at least one address is required")
 
   failIfDataMissing(cast[ptr byte](addrs), addrsLen, callback, userData)
-
+  failIfDataMissing(cast[ptr byte](protos), protosLen, callback, userData)
   handleRequest(
     ctx,
     RequestType.PEERSTORE,
