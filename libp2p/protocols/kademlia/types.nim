@@ -306,6 +306,7 @@ type KadDHTConfig* = ref object
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
   addressPolicy*: PeerAddressPolicy
+  hideConnectionInfo*: bool
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -323,6 +324,7 @@ proc new*(
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
+    hideConnectionInfo: bool = true,
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,
@@ -339,6 +341,7 @@ proc new*(
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
     addressPolicy: addressPolicy,
+    hideConnectionInfo: hideConnectionInfo,
   )
 
 type KadDHT* = ref object of LPProtocol

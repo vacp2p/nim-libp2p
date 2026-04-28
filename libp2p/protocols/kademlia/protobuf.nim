@@ -84,12 +84,13 @@ proc encode*(record: Record): ProtoBuffer {.raises: [].} =
   pb.finish()
   return pb
 
-proc encode*(peer: Peer): ProtoBuffer {.raises: [].} =
+proc encode*(peer: Peer, hideConnection: bool = true): ProtoBuffer {.raises: [].} =
   var pb = initProtoBuffer()
   pb.write(1, peer.id)
   for address in peer.addrs:
     pb.write(2, address.data.buffer)
-  pb.write(3, uint32(ord(peer.connection)))
+  let connType = if hideConnection: ConnectionType.notConnected else: peer.connection
+  pb.write(3, uint32(ord(connType)))
   pb.finish()
   return pb
 
@@ -125,7 +126,9 @@ proc encode*(getAdsMsg: GetAdsMessage): ProtoBuffer {.raises: [], gcsafe.} =
   pb.finish()
   return pb
 
-proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
+proc encode*(
+    msg: Message, hideConnection: bool = true
+): ProtoBuffer {.raises: [], gcsafe.} =
   var pb = initProtoBuffer()
 
   pb.write(1, uint32(ord(msg.msgType)))
@@ -135,10 +138,10 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
   pb.writeOpt(3, msg.record)
 
   for peer in msg.closerPeers:
-    pb.write(8, peer.encode())
+    pb.write(8, peer.encode(hideConnection))
 
   for peer in msg.providerPeers:
-    pb.write(9, peer.encode())
+    pb.write(9, peer.encode(hideConnection))
 
   msg.register.withValue(regMsg):
     pb.write(21, regMsg.encode())
