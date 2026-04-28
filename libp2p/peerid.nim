@@ -121,13 +121,6 @@ func hasPublicKey*(pid: PeerId): bool =
       if mh.mcodec == multiCodec("identity"):
         result = true
 
-proc isAmong*(peerId: PeerId, ids: seq[PeerId]): bool =
-  ## Returns ``true`` if ``peerId``is found in ``ids``. 
-  for id in ids:
-    if id == peerId:
-      return true
-  false
-
 func extractPublicKey*(pid: PeerId, pubkey: var PublicKey): bool =
   ## Returns ``true`` if public key was successfully decoded from PeerId
   ## ``pid``and stored to ``pubkey``.

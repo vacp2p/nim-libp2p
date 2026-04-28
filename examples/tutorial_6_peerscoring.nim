@@ -92,12 +92,12 @@ proc main() {.async.} =
 
     for i in 0 .. 2:
       await connectClient(host, clients[i])
-    echo fmt"1a. before trigger: connected = {connectedIds(host).len}"
+    echo fmt"1a. before trigger: connected = {host.connectedIds().len}"
 
     await sleepAsync(PostStageWait)
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
-    echo fmt"1b. after trigger:  connected = {connectedIds(host).len} (lowWater = {LowWater})"
+    echo fmt"1b. after trigger:  connected = {host.connectedIds().len} (lowWater = {LowWater})"
 
     await allFutures(@[host.stop()] & clients.mapIt(it.stop()))
 
@@ -130,8 +130,8 @@ proc main() {.async.} =
     await sleepAsync(PostStageWait)
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
-    let survived1 = vipId.isAmong(connectedIds(host))
-    echo fmt"2b. first trim:  vip survived = {survived1}, connected = {connectedIds(host).len}"
+    let survived1 = vipId in host.connectedIds()
+    echo fmt"2b. first trim:  vip survived = {survived1}, connected = {host.connectedIds().len}"
 
     let stillProtected = host.connManager.unprotect(vipId, "vip")
     echo fmt"2c. unprotect:   still-protected = {stillProtected}"
@@ -143,8 +143,8 @@ proc main() {.async.} =
     await connectClient(host, clients[4])
     await connectClient(host, clients[5])
     await sleepAsync(TrimWait)
-    let survived2 = vipId.isAmong(connectedIds(host))
-    echo fmt"2d. second trim: vip survived = {survived2}, connected = {connectedIds(host).len}"
+    let survived2 = vipId in host.connectedIds()
+    echo fmt"2d. second trim: vip survived = {survived2}, connected = {host.connectedIds().len}"
 
     await allFutures(@[host.stop()] & clients.mapIt(it.stop()))
 
@@ -182,12 +182,12 @@ proc main() {.async.} =
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
 
-    let conn = connectedIds(host)
-    echo fmt"3. survivors = {conn.len} (lowWater = {LowWater}), " &
-      fmt"vip(100) in = {vip.isAmong(conn)}, " &
-      fmt"plain1(0) in = {plain1.isAmong(conn)}, " &
-      fmt"plain2(0) in = {plain2.isAmong(conn)}, " &
-      fmt"trigger(grace) in = {trigger.isAmong(conn)}"
+    let connectedIds = host.connectedIds()
+    echo fmt"3. survivors = {connectedIds.len} (lowWater = {LowWater}), " &
+      fmt"vip(100) in = {vip in connectedIds}, " &
+      fmt"plain1(0) in = {plain1 in connectedIds}, " &
+      fmt"plain2(0) in = {plain2 in connectedIds}, " &
+      fmt"trigger(grace) in = {trigger in connectedIds}"
     echo fmt"   peerScore(vip) = {host.connManager.peerScore(vip)}"
 
     await allFutures(@[host.stop()] & clients.mapIt(it.stop()))
@@ -238,10 +238,10 @@ proc main() {.async.} =
     # two zero-score peers; p1 survives on score, p4 survives on grace.
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
-    let conn = connectedIds(host)
-    echo fmt"4d. survivors = {conn.len}, " & fmt"p1(100) in = {p1.isAmong(conn)}, " &
-      fmt"p2(0) in = {p2.isAmong(conn)}, " & fmt"p3(0) in = {p3.isAmong(conn)}, " &
-      fmt"p4(grace) in = {p4.isAmong(conn)}"
+    let connectedIds = host.connectedIds()
+    echo fmt"4d. survivors = {connectedIds.len}, " &
+      fmt"p1(100) in = {p1 in connectedIds}, " & fmt"p2(0) in = {p2 in connectedIds}, " &
+      fmt"p3(0) in = {p3 in connectedIds}, " & fmt"p4(grace) in = {p4 in connectedIds}"
     echo fmt"   peerScore(p1) = {host.connManager.peerScore(p1)}"
 
     # `bumpDecayingTag` adds to a *live* tag. Demonstrate it by bumping p1
