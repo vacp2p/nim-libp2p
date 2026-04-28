@@ -133,7 +133,9 @@ suite "AutonatV2 Service":
     let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
@@ -179,7 +181,9 @@ suite "AutonatV2 Service":
     let reachableObserved = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
@@ -231,7 +235,9 @@ suite "AutonatV2 Service":
     let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -261,7 +267,9 @@ suite "AutonatV2 Service":
     let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
@@ -320,7 +328,9 @@ suite "AutonatV2 Service":
     let awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -372,7 +382,9 @@ suite "AutonatV2 Service":
       awaiter2 = newFuture[void]()
 
     proc statusAndConfidenceHandler1(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -380,7 +392,9 @@ suite "AutonatV2 Service":
           awaiter1.complete()
 
     proc statusAndConfidenceHandler2(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -429,7 +443,9 @@ suite "AutonatV2 Service":
     let awaiter1 = newFuture[void]()
 
     proc statusAndConfidenceHandler1(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -476,7 +492,9 @@ suite "AutonatV2 Service":
     var awaiter = newFuture[void]()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
@@ -517,7 +535,9 @@ suite "AutonatV2 Service":
     let switch2 = createSwitch()
 
     proc statusAndConfidenceHandler(
-        networkReachability: NetworkReachability, confidence: Opt[float]
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
     ) {.async: (raises: [CancelledError]).} =
       fail()
 
@@ -531,3 +551,66 @@ suite "AutonatV2 Service":
     await sleepAsync(250.milliseconds)
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
+
+  asyncTest "Handler must receive the dial-back address on Reachable":
+    let
+      (service, _) = newService(NetworkReachability.Reachable)
+      switch = createSwitch(Opt.some(service))
+    var switches = createSwitches(3)
+
+    let awaiter = newFuture[void]()
+    var capturedAddr = Opt.none(MultiAddress)
+
+    proc statusAndConfidenceHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
+          confidence.get() >= 0.3:
+        if not awaiter.finished:
+          capturedAddr = dialBackAddr
+          awaiter.complete()
+
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    await switch.startAndConnect(switches)
+    await awaiter
+
+    check service.networkReachability == NetworkReachability.Reachable
+    check capturedAddr.isSome()
+    check capturedAddr.get() == switch.peerInfo.addrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
+
+  asyncTest "Handler must receive the attempted address on NotReachable":
+    let
+      (service, client) = newService(NetworkReachability.NotReachable)
+      switch = createSwitch(Opt.some(service))
+    var switches = createSwitches(3)
+
+    let awaiter = newFuture[void]()
+    var capturedAddr = Opt.none(MultiAddress)
+
+    proc statusAndConfidenceHandler(
+        networkReachability: NetworkReachability,
+        confidence: Opt[float],
+        dialBackAddr: Opt[MultiAddress],
+    ) {.async: (raises: [CancelledError]).} =
+      if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
+          confidence.get() >= 0.3:
+        if not awaiter.finished:
+          capturedAddr = dialBackAddr
+          awaiter.complete()
+
+    service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
+    await switch.startAndConnect(switches)
+    await awaiter
+    await client.finished
+
+    check service.networkReachability == NetworkReachability.NotReachable
+    check capturedAddr.isSome()
+    check capturedAddr.get() == switch.peerInfo.addrs[0]
+
+    await switch.stop()
+    await switches.stopAll()
