@@ -30,9 +30,9 @@ proc makeServiceInfo*(id: string = "blabla"): ServiceInfo =
 proc makeTicket*(): Ticket =
   Ticket(
     advertisement: @[1'u8, 2, 3, 4],
-    tInit: 1_000_000,
-    tMod: 2_000_000,
-    tWaitFor: 3000,
+    tInit: Moment.init(1_000_000, Second),
+    tMod: Moment.init(2_000_000, Second),
+    tWaitFor: 3000.secs,
     signature: @[],
   )
 
@@ -95,12 +95,12 @@ proc makeMockDiscovery*(
   )
 
 proc makeDisco*(
-    fReturn: int = 3, advertExpiry: float64 = -1, safetyParam: float64 = -1
+    fReturn: int = 3, advertExpiry: int64 = -1, safetyParam: float64 = -1
 ): ServiceDiscovery =
   var config = ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
   config.fReturn = fReturn
   if advertExpiry >= 0:
-    config.advertExpiry = advertExpiry
+    config.advertExpiry = seconds(advertExpiry)
   if safetyParam >= 0:
     config.safetyParam = safetyParam
   makeMockDiscovery(config)

@@ -3,7 +3,6 @@
 {.used.}
 
 import std/math
-from std/times import getTime, toUnix
 import chronos, chronicles, results
 import
   ../../../libp2p/[
@@ -38,7 +37,8 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
 
     # With empty cache: c = 0, occupancy = 1.0, c_s = 0, ipSim = 0
     # w = advertExpiry * 1.0 * (0 + 0 + safetyParam)
-    let expected = ceil(discoConfig.advertExpiry * discoConfig.safetyParam)
+    let expected =
+      ceil(discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam)
 
     check abs(w.inFloatSecs - expected) < 0.001
 
@@ -136,7 +136,8 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
 
     # At capacity, occupancy = 100.0
     # Allow 1 ns tolerance: float->ns truncation can lose a sub-nanosecond fraction
-    let expectedSecs = ceil(discoConfig.advertExpiry * 100.0 * discoConfig.safetyParam)
+    let expectedSecs =
+      ceil(discoConfig.advertExpiry.seconds.float64 * 100.0 * discoConfig.safetyParam)
     check w.inFloatSecs >= expectedSecs - 1e-9
 
   test "waitingTime formula includes safety parameter":
@@ -149,7 +150,8 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # Empty cache, no IP sim: w = advertExpiry * 1.0 * safetyParam
-    let expected = ceil(discoConfig.advertExpiry * discoConfig.safetyParam)
+    let expected =
+      ceil(discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam)
     check abs(w.inFloatSecs - expected) < 1.0
 
 suite "Service Discovery Registrar - Lower Bound Enforcement":
@@ -315,7 +317,7 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     updateLowerBounds(registrar, serviceId, ad, seconds(500), initMoment(1000))
     check registrar.boundService[serviceId] == initMoment(1500)
 
-    updateLowerBounds(registrar, serviceId, ad, seconds (800), initMoment(1500))
+    updateLowerBounds(registrar, serviceId, ad, seconds(800), initMoment(1500))
     check registrar.boundService[serviceId] == initMoment(2300)
 
     updateLowerBounds(registrar, serviceId, ad, seconds(1200), initMoment(2000))
@@ -614,12 +616,11 @@ suite "Service Discovery Registrar - Configuration Variations":
     let now = Moment.now()
     let serviceId = makeServiceId()
 
-    let discoConfig1 =
-      ServiceDiscoveryConfig.new(safetyParam = 1.0, advertExpiry = 100.0)
+    let discoConfig1 = ServiceDiscoveryConfig.new(safetyParam = 1.0, advertExpiry = 100)
     let w1 = registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
 
     let discoConfig2 =
-      ServiceDiscoveryConfig.new(safetyParam = 1.0, advertExpiry = 10000.0)
+      ServiceDiscoveryConfig.new(safetyParam = 1.0, advertExpiry = 10000)
     let w2 = registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
 
     check w2 > w1
@@ -733,7 +734,11 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let otherAdBuf = otherAd.encode().get()
 
     var ticket = Ticket(
-      advertisement: otherAdBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: otherAdBuf,
+      tInit: Moment.init(1_000, Second),
+      tMod: Moment.init(1_100, Second),
+      tWaitFor: 50.secs,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -755,7 +760,11 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let adBuf = ad.encode().get()
 
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: Moment.init(1_000, Second),
+      tMod: Moment.init(1_100, Second),
+      tWaitFor: 50.secs,
+      signature: @[],
     )
     check ticket.sign(otherDisco.switch.peerInfo.privateKey).isOk()
 
@@ -776,12 +785,12 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let adBuf = ad.encode().get()
 
     # Set tMod = now, tWaitFor = 100 → windowStart = now + 100 (in the future)
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: (nowUnix - 1000).uint64,
-      tMod: nowUnix.uint64,
-      tWaitFor: 100,
+      tInit: now - 1000.secs,
+      tMod: now,
+      tWaitFor: 100.secs,
       signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
@@ -804,12 +813,12 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     # Set tMod = now - 100, tWaitFor = 50 → windowStart = now - 50
     # delta = 1s → windowEnd = now - 49; now > windowEnd → outside
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: (nowUnix - 1000).uint64,
-      tMod: (nowUnix - 100).uint64,
-      tWaitFor: 50,
+      tInit: now - 1000.secs,
+      tMod: now,
+      tWaitFor: 50.secs,
       signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
@@ -833,12 +842,12 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     # Set tMod = now, tWaitFor = 0 → windowStart = now
     # delta = 1s → windowEnd = now + 1; now is within window
     # totalWaitSoFar = now - (now - 151) = 151 ± 1
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: (nowUnix - 151).uint64,
-      tMod: nowUnix.uint64,
-      tWaitFor: 0,
+      tInit: now - 151.secs,
+      tMod: now,
+      tWaitFor: 0.secs,
       signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
@@ -862,12 +871,12 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
     # totalWaitSoFar = now - (now - 150) = 150 ± 1; tWait = 100 → negative
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: (nowUnix - 150).uint64,
-      tMod: nowUnix.uint64,
-      tWaitFor: 0,
+      tInit: now - 150.secs,
+      tMod: now,
+      tWaitFor: 0.secs,
       signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
@@ -890,12 +899,12 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
     # totalWaitSoFar = now - (now - 150) = 150 ± 1
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBuf,
-      tInit: (nowUnix - 150).uint64,
-      tMod: nowUnix.uint64,
-      tWaitFor: 0,
+      tInit: now - 150.secs,
+      tMod: now,
+      tWaitFor: 0.secs,
       signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
@@ -1173,7 +1182,7 @@ suite "Service Discovery Registrar - insertNewAd":
     check disco.registrar.ipTree.root.counter > 0
 
   test "inserts ad without eviction when cache is under capacity":
-    let disco = makeDisco(advertExpiry = 900.0)
+    let disco = makeDisco(advertExpiry = 900)
     let serviceId = makeServiceId()
     let existingAd = makeAdvertisement($makeServiceId(99))
     disco.registrar.cacheTimestamps[existingAd.toAdvertisementKey()] = initMoment(1000)

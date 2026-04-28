@@ -21,11 +21,11 @@ const
   Default_K_lookup* = 5
   Default_F_lookup* = 30
   Default_F_return* = 10
-  Default_E* = 900.0
+  Default_E*: int64 = 900
   Default_C*: uint64 = 1_000
   Default_P_occ* = 10.0
   Default_G* = 1e-7
-  Default_Delta* = 1.0
+  Default_Delta*: int32 = 1
   Default_M_buckets* = 16
 
 type
@@ -66,11 +66,11 @@ type
     kLookup*: int
     fLookup*: int
     fReturn*: int
-    advertExpiry*: float64
+    advertExpiry*: timer.Duration
     advertCacheCap*: uint64
     occupancyExp*: float64
     safetyParam*: float64
-    registrationWindow*: float64
+    registrationWindow*: timer.Duration
     bucketsCount*: int
 
   ServiceDiscovery* = ref object of KadDHT
@@ -105,11 +105,11 @@ proc new*(
     kLookup: kLookup,
     fLookup: fLookup,
     fReturn: fReturn,
-    advertExpiry: advertExpiry,
+    advertExpiry: advertExpiry.secs,
     advertCacheCap: advertCacheCap,
     occupancyExp: occupancyExp,
     safetyParam: safetyParam,
-    registrationWindow: registrationWindow,
+    registrationWindow: registrationWindow.secs,
     bucketsCount: bucketsCount,
   )
 
@@ -236,6 +236,3 @@ proc toPeerInfos*(peers: seq[Peer]): seq[PeerInfo] =
     peerInfos.add(peerInfo)
 
   return peerInfos
-
-func toChronos*(secs: float64): chronos.Duration =
-  chronos.nanoseconds(int64(secs * 1_000_000_000))

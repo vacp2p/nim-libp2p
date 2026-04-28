@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, math]
-from std/times import getTime, toUnix
 import chronos, chronicles, results
 import
   ../../[
@@ -153,9 +152,8 @@ proc waitingTime*(
   let ipSim = registrar.ipTree.adScore(ad)
 
   var w: float64 =
-    discoConfig.advertExpiry * occupancy * (
-      serviceSim + ipSim + discoConfig.safetyParam
-    )
+    discoConfig.advertExpiry.seconds.float64 * occupancy *
+    (serviceSim + ipSim + discoConfig.safetyParam)
 
   # Bound & Quantize W
   w = max(0.0, w)
@@ -257,13 +255,12 @@ proc processRetryTicket*(
   if not ticketMsg.verify(registrarPubKey):
     return t_wait
 
-  let nowUnix = getTime().toUnix()
-  let windowStartUnix = int64(ticketMsg.tMod) + int64(ticketMsg.tWaitFor)
-  let delta = disco.discoConfig.registrationWindow
-  let windowEndUnix = windowStartUnix + int64(delta)
+  let now = Moment.now()
+  let windowStart = ticketMsg.tMod + ticketMsg.tWaitFor
+  let windowEnd = windowStart + disco.discoConfig.registrationWindow
 
-  if nowUnix >= windowStartUnix and nowUnix <= windowEndUnix:
-    let totalWaitSoFar = chronos.seconds(nowUnix - int64(ticketMsg.tInit))
+  if now >= windowStart and now <= windowEnd:
+    let totalWaitSoFar = now - ticketMsg.tInit
     return t_wait - totalWaitSoFar
 
   return t_wait
@@ -400,7 +397,7 @@ proc acceptAdvertisement*(
   if shouldUpdateMetrics:
     disco.registrar.updateRegistrarMetrics()
 
-proc tInitOrDefault(ticket: Opt[Ticket], default: uint64): uint64 =
+proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
   ticket.withValue(t):
     return t.tInit
   else:
@@ -440,12 +437,11 @@ proc handleRegister*(
   else:
     disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-    let nowUnix = getTime().toUnix()
     var ticket = Ticket(
       advertisement: regMsg.advertisement,
-      tInit: regMsg.ticket.tInitOrDefault(nowUnix.uint64),
-      tMod: nowUnix.uint64,
-      tWaitFor: tWait.seconds.uint32,
+      tInit: regMsg.ticket.tInitOrDefault(now),
+      tMod: now,
+      tWaitFor: tWait,
     )
     if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
       error "failed to sign ticket"

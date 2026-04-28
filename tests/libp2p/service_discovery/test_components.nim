@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-from std/times import getTime, toUnix
 import std/tables
 import chronos, results
 import ../../../libp2p/[switch, crypto/crypto]
@@ -56,7 +55,11 @@ suite "processRetryTicket":
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     var ticket = Ticket(
-      advertisement: @[0xAA'u8], tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
+      advertisement: @[0xAA'u8],
+      tInit: Moment.init(1_000, Second),
+      tMod: Moment.init(1_000, Second),
+      tWaitFor: 0.secs,
+      signature: @[],
     )
     check ticket.sign(key).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
@@ -74,7 +77,11 @@ suite "processRetryTicket":
     let wrongKey = PrivateKey.random(rng[]).get()
     let adBytes = @[1'u8, 2, 3]
     var ticket = Ticket(
-      advertisement: adBytes, tInit: 1000, tMod: 1000, tWaitFor: 0, signature: @[]
+      advertisement: adBytes,
+      tInit: Moment.init(1_000, Second),
+      tMod: Moment.init(1_000, Second),
+      tWaitFor: 0.secs,
+      signature: @[],
     )
     check ticket.sign(wrongKey).isOk()
     let regMsg = kad_protobuf.RegisterMessage(
@@ -92,12 +99,12 @@ suite "processRetryTicket":
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
     # window = [tMod+tWaitFor .. tMod+tWaitFor+delta]; tMod far in the past → outside
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBytes,
-      tInit: 1000,
-      tMod: (nowUnix - 100_000).uint64,
-      tWaitFor: 0,
+      tInit: Moment.init(1_000, Second),
+      tMod: now - 100_000.secs,
+      tWaitFor: 0.secs,
       signature: @[],
     )
     check ticket.sign(key).isOk()
@@ -116,12 +123,12 @@ suite "processRetryTicket":
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
     # windowStart = now + 100 (in the future)
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBytes,
-      tInit: (nowUnix - 1000).uint64,
-      tMod: nowUnix.uint64,
-      tWaitFor: 100,
+      tInit: now - 1000.secs,
+      tMod: now,
+      tWaitFor: 100.secs,
       signature: @[],
     )
     check ticket.sign(key).isOk()
@@ -140,12 +147,12 @@ suite "processRetryTicket":
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
     # windowStart = now - 100, windowEnd = now - 99; now > windowEnd → outside
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBytes,
-      tInit: (nowUnix - 1000).uint64,
-      tMod: (nowUnix - 100).uint64,
-      tWaitFor: 0,
+      tInit: now - 1000.secs,
+      tMod: now - 100.secs,
+      tWaitFor: 0.secs,
       signature: @[],
     )
     check ticket.sign(key).isOk()
@@ -166,12 +173,12 @@ suite "processRetryTicket":
     # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
     # totalWaitSoFar = now - (now - 200) = 200 ± 1
     # t_remaining = 900 - 200 = 700 ± 1
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBytes,
-      tInit: (nowUnix - 200).uint64,
-      tMod: nowUnix.uint64,
-      tWaitFor: 0,
+      tInit: now - 200.secs,
+      tMod: now,
+      tWaitFor: 0.secs,
       signature: @[],
     )
     check ticket.sign(key).isOk()
@@ -191,12 +198,12 @@ suite "processRetryTicket":
     let adBytes = @[1'u8, 2, 3]
     # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
     # totalWaitSoFar = now - (now - 1000) = 1000 ± 1; tWait = 100 → negative
-    let nowUnix = getTime().toUnix()
+    let now = Moment.now()
     var ticket = Ticket(
       advertisement: adBytes,
-      tInit: (nowUnix - 1000).uint64,
-      tMod: nowUnix.uint64,
-      tWaitFor: 0,
+      tInit: now - 1000.secs,
+      tMod: now,
+      tWaitFor: 0.secs,
       signature: @[],
     )
     check ticket.sign(key).isOk()
@@ -260,14 +267,14 @@ suite "Component - handleRegister":
       .encode()
       .get()
     let registrarKey = registrarNode.switch.peerInfo.privateKey
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     # window = [tMod+tWaitFor .. tMod+tWaitFor+registrationWindow(1s)] = [now-1000 .. now-999]
     # now is well past the window, so processRetryTicket ignores the ticket
     var ticket = Ticket(
       advertisement: adBytes,
-      tInit: now - 1000,
-      tMod: now - 1000,
-      tWaitFor: 0,
+      tInit: now - 1000.secs,
+      tMod: now - 1000.secs,
+      tWaitFor: 0.secs,
       signature: @[],
     )
     check ticket.sign(registrarKey).isOk()
