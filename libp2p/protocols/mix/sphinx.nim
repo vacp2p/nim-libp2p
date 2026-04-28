@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import results, sequtils
-import ./[crypto, curve25519, delay, serialization, tag_manager]
+import ./[crypto, curve25519, delay, lioness, serialization, tag_manager]
 import ../../crypto/crypto
 import ../../utils/sequninit
 
@@ -67,6 +67,20 @@ proc computeAlpha(
 
 proc deriveKeyMaterial(keyName: string, s: seq[byte]): seq[byte] =
   @(keyName.toOpenArrayByte(0, keyName.high)) & s
+
+proc deriveLionessKey(secret: seq[byte]): array[LionessMasterKeyLen, byte] =
+  ## 32-byte LIONESS master derived from a per-hop shared secret.
+  ## Domain-separated from header/MAC keys via the ``"delta_key"`` label.
+  sha256_hash(deriveKeyMaterial("delta_key", secret))
+
+proc deriveLionessIv(secret: seq[byte]): array[LionessIvLen, byte] =
+  ## 12-byte ChaCha20 IV for the LIONESS payload cipher, derived per-hop with
+  ## the ``"delta_iv"`` label — same labeled-SHA-256 pattern used above for
+  ## header ``aes_key``/``iv``/``mac_key``. Truncated from a full SHA-256
+  ## digest.
+  let full = sha256_hash(deriveKeyMaterial("delta_iv", secret))
+  for i in 0 ..< LionessIvLen:
+    result[i] = full[i]
 
 proc computeFillerStrings(s: seq[seq[byte]]): Result[seq[byte], string] =
   var filler: seq[byte] = @[] # Start with an empty filler string
@@ -137,23 +151,22 @@ proc computeBetaGamma(
   return ok((beta: beta, gamma: gamma))
 
 proc computeDelta(s: seq[seq[byte]], msg: Message): Result[seq[byte], string] =
-  let sLen = s.len
-  var delta: seq[byte]
+  ## Encrypt the payload with one LIONESS layer per hop, innermost first. The
+  ## serialized message already carries the k leading-zero integrity tag (see
+  ## ``Message.serialize``); LIONESS's wide-block PRP property propagates any
+  ## tampering across the whole block, so the destination's zero-prefix check
+  ## detects it.
+  var delta = msg.serialize()
 
-  for i in countdown(sLen - 1, 0):
-    # Derive AES key and IV
-    let
-      delta_aes_key = deriveKeyMaterial("delta_aes_key", s[i]).kdf()
-      delta_iv = deriveKeyMaterial("delta_iv", s[i]).kdf()
+  for i in countdown(s.len - 1, 0):
+    var cipher = Lioness.init(deriveLionessKey(s[i]), deriveLionessIv(s[i])).valueOr:
+      return err("LIONESS init failed: " & $error)
+    defer:
+      cipher.clear()
+    if cipher.encrypt(delta).isErr:
+      return err("LIONESS encrypt failed: payload below minimum block size")
 
-    # Compute Delta
-    if i == sLen - 1:
-      let serializedMsg = msg.serialize()
-      delta = aes_ctr(delta_aes_key, delta_iv, serializedMsg)
-    else:
-      delta = aes_ctr(delta_aes_key, delta_iv, delta)
-
-  return ok(delta)
+  ok(delta)
 
 proc createSURB*(
     publicKeys: openArray[FieldElement],
@@ -189,33 +202,44 @@ proc createSURB*(
     )
   )
 
-proc useSURB*(surb: SURB, msg: Message): SphinxPacket =
-  # Derive AES key and IV
-  let
-    delta_aes_key = deriveKeyMaterial("delta_aes_key", surb.key).kdf()
-    delta_iv = deriveKeyMaterial("delta_iv", surb.key).kdf()
+proc useSURB*(surb: SURB, msg: Message): Result[SphinxPacket, string] =
+  var delta = msg.serialize()
+  var cipher = Lioness.init(deriveLionessKey(surb.key), deriveLionessIv(surb.key)).valueOr:
+    return err("LIONESS init failed: " & $error)
+  defer:
+    cipher.clear()
+  if cipher.encrypt(delta).isErr:
+    return err("LIONESS encrypt failed: payload below minimum block size")
 
-  # Compute Delta
-  let serializedMsg = msg.serialize()
-  let delta = aes_ctr(delta_aes_key, delta_iv, serializedMsg)
-
-  return SphinxPacket.init(surb.header, delta)
+  ok(SphinxPacket.init(surb.header, delta))
 
 proc processReply*(
     key: seq[byte], s: seq[seq[byte]], delta_prime: seq[byte]
 ): Result[seq[byte], string] =
+  ## Recover the reply plaintext from ``delta_prime``. Each mix hop along the
+  ## SURB path applied one ``LIONESS_decrypt`` (via ``processSphinxPacket``);
+  ## ``useSURB`` applied one ``LIONESS_encrypt`` with ``surb.key``. To invert,
+  ## reverse the per-hop decrypts (apply ``encrypt`` in reverse path order),
+  ## then decrypt the SURB-key layer.
   var delta = delta_prime[0 ..^ 1]
 
-  var key_prime = key
-  for i in 0 .. s.len:
-    if i != 0:
-      key_prime = s[i - 1]
+  for i in countdown(s.len - 1, 0):
+    var cipher = Lioness.init(deriveLionessKey(s[i]), deriveLionessIv(s[i])).valueOr:
+      return err("LIONESS init failed: " & $error)
+    defer:
+      cipher.clear()
+    if cipher.encrypt(delta).isErr:
+      return err("LIONESS encrypt failed: payload below minimum block size")
 
-    let
-      delta_aes_key = deriveKeyMaterial("delta_aes_key", key_prime).kdf()
-      delta_iv = deriveKeyMaterial("delta_iv", key_prime).kdf()
+  var cipher = Lioness.init(deriveLionessKey(key), deriveLionessIv(key)).valueOr:
+    return err("LIONESS init failed: " & $error)
+  defer:
+    cipher.clear()
+  if cipher.decrypt(delta).isErr:
+    return err("LIONESS decrypt failed: payload below minimum block size")
 
-    delta = aes_ctr(delta_aes_key, delta_iv, delta)
+  if not delta.hasLeadingZeros(k):
+    return err("delta_prime should be all zeros")
 
   let deserializeMsg = Message.deserialize(delta).valueOr:
     return err("Message deserialization error: " & error)
@@ -343,16 +367,20 @@ proc processSphinxPacket*(
   if sharedSecret.isNone:
     tm.addTag(tag)
 
-  # Derive AES key and IV
+  # Derive AES key and IV (header keystream stays AES-CTR; only the payload
+  # uses LIONESS).
   let
     beta_aes_key = deriveKeyMaterial("aes_key", sBytes).kdf()
     beta_iv = deriveKeyMaterial("iv", sBytes).kdf()
 
-    delta_aes_key = deriveKeyMaterial("delta_aes_key", sBytes).kdf()
-    delta_iv = deriveKeyMaterial("delta_iv", sBytes).kdf()
-
-  # Compute delta
-  let delta_prime = aes_ctr(delta_aes_key, delta_iv, payload)
+  # Decrypt one LIONESS layer of the payload
+  var delta_prime = payload[0 ..^ 1]
+  var cipher = Lioness.init(deriveLionessKey(sBytes), deriveLionessIv(sBytes)).valueOr:
+    return err("LIONESS init failed: " & $error)
+  defer:
+    cipher.clear()
+  if cipher.decrypt(delta_prime).isErr:
+    return err("LIONESS decrypt failed: payload below minimum block size")
 
   # Compute B
   let zeroPadding = newSeq[byte]((t + 1) * k)

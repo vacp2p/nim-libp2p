@@ -192,6 +192,45 @@ suite "Sphinx Tests":
       exitResult.isErr()
       exitResult.error() == "delta_prime should be all zeros"
 
+  test "Delta integrity test":
+    # From vacp2p/nim-libp2p#2233: tampering past the first k bytes of Delta
+    # was undetectable under AES-CTR (malleable XOR). LIONESS's wide-block PRP
+    # property means any single-byte flip diffuses across the whole block at
+    # the exit hop's decrypt, destroying the leading-zeros tag.
+    let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
+    let sp = wrapInSphinxPacket(message, publicKeys, delay, hops, dest).expect(
+        "sphinx wrap error"
+      )
+    var packetBytes = sp.serialize()
+
+    # Tamper a byte in the encrypted message region of Delta, past the leading
+    # k-byte zero prefix that processSphinxPacket checks at the exit hop.
+    let tamperedOffset = HeaderSize + k + 7
+    packetBytes[tamperedOffset] = packetBytes[tamperedOffset] xor 0x01
+
+    let tamperedPacket =
+      SphinxPacket.deserialize(packetBytes).expect("deserialize error")
+
+    let processedSP1 =
+      processSphinxPacket(tamperedPacket, privateKeys[0], tm).expect("processing error")
+    check processedSP1.status == Intermediate
+
+    let packet2 = SphinxPacket.deserialize(processedSP1.serializedSphinxPacket).expect(
+        "deserialize error"
+      )
+    let processedSP2 =
+      processSphinxPacket(packet2, privateKeys[1], tm).expect("processing error")
+    check processedSP2.status == Intermediate
+
+    let packet3 = SphinxPacket.deserialize(processedSP2.serializedSphinxPacket).expect(
+        "deserialize error"
+      )
+    let exitResult = processSphinxPacket(packet3, privateKeys[2], tm)
+
+    check:
+      exitResult.isErr()
+      exitResult.error() == "delta_prime should be all zeros"
+
   test "sphinx process duplicate tag":
     let (message, privateKeys, publicKeys, delay, hops, dest) = createDummyData()
 
@@ -269,7 +308,8 @@ suite "Sphinx Tests":
 
     let surb =
       createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
-    let packetBytes = useSURB(surb, message).serialize()
+    let packetBytes =
+      useSURB(surb, message).expect("useSURB should succeed").serialize()
 
     check packetBytes.len == PacketSize
 
@@ -334,7 +374,8 @@ suite "Sphinx Tests":
     let surb =
       createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
 
-    let packetBytes = useSURB(surb, message).serialize()
+    let packetBytes =
+      useSURB(surb, message).expect("useSURB should succeed").serialize()
 
     check packetBytes.len == PacketSize
 
@@ -357,7 +398,8 @@ suite "Sphinx Tests":
     let surb =
       createSURB(publicKeys, delay, hops, randomI(), rng()).expect("Create SURB error")
 
-    let packetBytes = useSURB(surb, message).serialize()
+    let packetBytes =
+      useSURB(surb, message).expect("useSURB should succeed").serialize()
 
     check packetBytes.len == PacketSize
 
@@ -388,7 +430,9 @@ suite "Sphinx Tests":
           "Create SURB error"
         )
 
-      let packetBytes = useSURB(surb, Message(paddedMessage)).serialize()
+      let packetBytes = useSURB(surb, Message(paddedMessage))
+        .expect("useSURB should succeed")
+        .serialize()
 
       check packetBytes.len == PacketSize
 

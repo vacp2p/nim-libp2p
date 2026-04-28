@@ -872,7 +872,9 @@ proc reply(
     error "could not build reply message", err = error
     return
 
-  let sphinxPacket = useSURB(surb, message)
+  let sphinxPacket = useSURB(surb, message).valueOr:
+    error "could not build SURB sphinx packet", err = error
+    return
 
   let sendRes = await mixProto.sendPacket(
     peerId, multiAddr, sphinxPacket, SendPacketLogConfig(logType: Reply)
