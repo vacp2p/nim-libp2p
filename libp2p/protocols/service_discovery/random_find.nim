@@ -55,6 +55,7 @@ proc randomRecords(
         except CancelledError as e:
           await popFirstFut.cancelAndWait()
           raise e
+
         if popFirstFut.completed:
           let (peerId, _) = await popFirstFut
           peerId
