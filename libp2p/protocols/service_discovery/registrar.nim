@@ -163,12 +163,13 @@ proc waitingTime*(
   var waitDuration = chronos.seconds(w.int64)
 
   if serviceId in registrar.timestampService:
-    let elapsedDuration =
-      now - registrar.timestampService.getOrDefault(serviceId, Moment())
-    let prevBoundTimestamp = registrar.boundService.getOrDefault(serviceId, Moment())
-    let lowerBound = prevBoundTimestamp - elapsedDuration
-    if lowerBound > now and waitDuration < lowerBound - now:
-      waitDuration = lowerBound - now
+    let
+      prevTimestamp = registrar.timestampService.getOrDefault(serviceId, Moment())
+      prevBound = registrar.boundService.getOrDefault(serviceId, Moment())
+      elapsedDuration = now - prevTimestamp
+      prevWaitDuration = prevBound - prevTimestamp
+    if waitDuration < prevWaitDuration - elapsedDuration:
+      waitDuration = prevWaitDuration - elapsedDuration
 
   for addressInfo in ad.data.addresses:
     let ip = addressInfo.address.getIp().valueOr:
@@ -176,11 +177,13 @@ proc waitingTime*(
 
     let ipKey = $ip
     if ipKey in registrar.timestampIp:
-      let elapsedDuration = now - registrar.timestampIp.getOrDefault(ipKey, Moment())
-      let prevBoundTimestamp = registrar.boundIp.getOrDefault(ipKey, Moment())
-      let lowerBound = prevBoundTimestamp - elapsedDuration
-      if lowerBound > now and waitDuration < lowerBound - now:
-        waitDuration = lowerBound - now
+      let
+        prevTimestamp = registrar.timestampIp.getOrDefault(ipKey, Moment())
+        prevBound = registrar.boundIp.getOrDefault(ipKey, Moment())
+        elapsedDuration = now - prevTimestamp
+        prevWaitDuration = prevBound - prevTimestamp
+      if waitDuration < prevWaitDuration - elapsedDuration:
+        waitDuration = prevWaitDuration - elapsedDuration
 
   return waitDuration
 
