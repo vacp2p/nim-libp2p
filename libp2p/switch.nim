@@ -235,8 +235,11 @@ proc upgrader(
 proc upgradeMonitor(
     switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore
 ) {.async: (raises: []).} =
+  var semAcquired = false
   var upgradeSuccessful = false
   try:
+    await upgrades.acquire()
+    semAcquired = true
     await switch.upgrader(trans, conn).wait(30.seconds)
     trace "Connection upgrade succeeded"
     upgradeSuccessful = true
@@ -251,10 +254,11 @@ proc upgradeMonitor(
   finally:
     if (not upgradeSuccessful) and (not isNil(conn)):
       await conn.close()
-    try:
-      upgrades.release()
-    except AsyncSemaphoreError:
-      raiseAssert "semaphore released without acquire"
+    if semAcquired:
+      try:
+        upgrades.release()
+      except AsyncSemaphoreError:
+        raiseAssert "semaphore released without acquire"
 
 proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
@@ -262,17 +266,9 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
 
   while transport.running:
-    try:
-      await upgrades.acquire() # first wait for an upgrade slot to become available
-    except CancelledError:
-      return
-
     var conn: Connection
     try:
       debug "About to accept incoming connection"
-      # remember to always release the slot when
-      # the upgrade succeeds or fails, this is
-      # currently done by the `upgradeMonitor`
       let slot = await s.connManager.getIncomingSlot()
       conn =
         try:
@@ -290,10 +286,6 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # we can get one on the next try
         debug "Unable to get a connection"
         slot.release()
-        try:
-          upgrades.release()
-        except AsyncSemaphoreError:
-          raiseAssert "semaphore released without acquire"
         continue
 
       slot.trackConnection(conn)
@@ -306,19 +298,11 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       debug "Accepted an incoming connection", conn
       asyncSpawn s.upgradeMonitor(transport, conn, upgrades)
     except CancelledError:
-      try:
-        upgrades.release()
-      except AsyncSemaphoreError:
-        raiseAssert "semaphore released without acquire"
       return
     except CatchableError as exc:
       error "Exception in accept loop, exiting", description = exc.msg
       if not isNil(conn):
         await conn.close()
-      try:
-        upgrades.release()
-      except AsyncSemaphoreError:
-        raiseAssert "semaphore released without acquire"
       return
 
 proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
