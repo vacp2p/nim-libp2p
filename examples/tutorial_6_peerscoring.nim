@@ -114,8 +114,7 @@ proc main() {.async.} =
   block:
     let host = makeHost()
     let clients = @[
-      makeClient(), makeClient(), makeClient(), makeClient(),
-      makeClient(), makeClient(),
+      makeClient(), makeClient(), makeClient(), makeClient(), makeClient(), makeClient()
     ]
     await host.start()
     for c in clients:
@@ -240,10 +239,8 @@ proc main() {.async.} =
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
     let conn = connectedIds(host)
-    echo fmt"4d. survivors = {conn.len}, " &
-      fmt"p1(100) in = {p1.isAmong(conn)}, " &
-      fmt"p2(0) in = {p2.isAmong(conn)}, " &
-      fmt"p3(0) in = {p3.isAmong(conn)}, " &
+    echo fmt"4d. survivors = {conn.len}, " & fmt"p1(100) in = {p1.isAmong(conn)}, " &
+      fmt"p2(0) in = {p2.isAmong(conn)}, " & fmt"p3(0) in = {p3.isAmong(conn)}, " &
       fmt"p4(grace) in = {p4.isAmong(conn)}"
     echo fmt"   peerScore(p1) = {host.connManager.peerScore(p1)}"
 
