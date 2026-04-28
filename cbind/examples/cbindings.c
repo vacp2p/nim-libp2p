@@ -519,8 +519,10 @@ static void peerstore_entry_handler(int callerRet,
                                     const char *msg, size_t len,
                                     void *userData) {
   if (callerRet != RET_OK || entry == NULL) {
-    printf("PeerStoreEntry error(%d): %.*s\n", callerRet, (int)len,
-           msg != NULL ? msg : "");
+    printf("PeerStoreEntry error(%d)", callerRet);
+    if (msg != NULL && len > 0) {
+        printf(": %.*s\n", (int)len, msg);
+    }
     exit(1);
   }
 

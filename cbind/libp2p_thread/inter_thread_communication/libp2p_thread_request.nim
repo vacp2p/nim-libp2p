@@ -306,7 +306,10 @@ proc handlePeerStoreEntryRes(
   let entry = res.valueOr:
     foreignThreadGc:
       let msg = $error
-      cb(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
+      if msg.len() > 0:
+        cb(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](msg.len()), request[].userData)
+      else:
+        cb(RET_ERR.cint, nil, nil, cast[csize_t](msg.len()), request[].userData)
     return
 
   foreignThreadGc:

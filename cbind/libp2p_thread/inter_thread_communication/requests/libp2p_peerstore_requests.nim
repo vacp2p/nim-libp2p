@@ -72,20 +72,20 @@ proc process*(
 
   case self.operation
   of PS_ADD_PEER:
-    let addrs =
-      try:
-        self[].addrs.toSeq().mapIt(MultiAddress.init($it).tryGet())
-      except LPError:
-        return err("invalid multiaddress")
+    var addrs = newSeqOfCap[MultiAddress](self[].addrs.len)
+    for addr in self[].addrs.toSeq():
+      let parsedAddr = MultiAddress.init($addr).valueOr:
+        return err($error)
+      addrs.add(parsedAddr)
     peerStore[AddressBook].extend(peerId, addrs)
     if self[].protocols.len > 0:
       peerStore[ProtoBook].extend(peerId, self[].protocols.toSeq().mapIt($it))
   of PS_SET_ADDRESSES:
-    let addrs =
-      try:
-        self[].addrs.toSeq().mapIt(MultiAddress.init($it).tryGet())
-      except LPError:
-        return err("invalid multiaddress")
+    var addrs = newSeqOfCap[MultiAddress](self[].addrs.len)
+    for addr in self[].addrs.toSeq():
+      let parsedAddr = MultiAddress.init($addr).valueOr:
+        return err($error)
+      addrs.add(parsedAddr)
     peerStore[AddressBook][peerId] = addrs
   of PS_SET_PROTOCOLS:
     peerStore[ProtoBook][peerId] = self[].protocols.toSeq().mapIt($it)
