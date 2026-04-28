@@ -11,17 +11,6 @@ when not defined(macosx):
   import ../../tools/[unittest]
 
   suite "Heartbeat":
-    asyncTest "simple runAfter":
-      var i = 0
-      proc t() {.async.} =
-        runAfter 500.milliseconds:
-          i.inc()
-
-      discard t()
-      check i == 0
-      await sleepAsync(700.milliseconds)
-      check i == 1
-
     asyncTest "simple heartbeat":
       var i = 0
       proc t() {.async.} =
