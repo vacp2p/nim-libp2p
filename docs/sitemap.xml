@@ -28,4 +28,8 @@
          <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_5_connmanager/</loc>
          <lastmod>2026-04-29</lastmod>
     </url>
+    <url>
+         <loc>https://vacp2p.github.io/nim-libp2p/docs/tutorial_6_peerscoring/</loc>
+         <lastmod>2026-04-29</lastmod>
+    </url>
 </urlset>
