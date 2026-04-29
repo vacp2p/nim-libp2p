@@ -30,7 +30,7 @@ suite "KadDHT Protobuffers":
     )
     # encode with hideConnection=false to preserve connection type for round-trip check
     let peer =
-      Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ConnectionType.connected)
+      Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ConnectionStatus.connected)
     check peer == Peer.decode(peer.encode(hideConnection = false)).get()
 
     let msg = Message(
@@ -83,7 +83,8 @@ suite "KadDHT Protobuffers":
       Message.decode(pb).isErr()
 
   test "peer with empty addr list and no connection":
-    let peer = Peer(id: @[0x42'u8], addrs: @[], connection: ConnectionType.notConnected)
+    let peer =
+      Peer(id: @[0x42'u8], addrs: @[], connection: ConnectionStatus.notConnected)
     let encoded = peer.encode()
     let decoded = Peer.decode(initProtoBuffer(encoded.buffer)).get()
     check:
@@ -129,7 +130,7 @@ suite "KadDHT Protobuffers":
       let peer = Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ct)
       let decoded =
         Peer.decode(initProtoBuffer(peer.encode(hideConnection = true).buffer)).get()
-      check decoded.connection == ConnectionType.notConnected
+      check decoded.connection == ConnectionStatus.notConnected
 
   test "encode peer with hideConnection=false preserves actual connection type":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
@@ -139,7 +140,7 @@ suite "KadDHT Protobuffers":
         Peer.decode(initProtoBuffer(peer.encode(hideConnection = false).buffer)).get()
       check decoded.connection == ct
 
-  test "decode all four ConnectionType values":
+  test "decode all four ConnectionStatus values":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
     for ct in [notConnected, connected, canConnect, cannotConnect]:
       var pb = initProtoBuffer()
@@ -159,8 +160,8 @@ suite "KadDHT Protobuffers":
       providerPeers: @[Peer(id: @[3'u8], addrs: maddrs, connection: canConnect)],
     )
     let decoded = Message.decode(msg.encode(hideConnection = true)).get()
-    check decoded.closerPeers[0].connection == ConnectionType.notConnected
-    check decoded.providerPeers[0].connection == ConnectionType.notConnected
+    check decoded.closerPeers[0].connection == ConnectionStatus.notConnected
+    check decoded.providerPeers[0].connection == ConnectionStatus.notConnected
 
   test "KadDHTConfig hideConnectionInfo defaults to true":
     let cfg = KadDHTConfig.new()

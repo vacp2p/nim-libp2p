@@ -25,7 +25,7 @@ type
     register = 16 # REGISTER for Service Discovery
     getAds = 17 # GET_ADS for Service Discovery
 
-  ConnectionType* = enum
+  ConnectionStatus* = enum
     notConnected = 0
     connected = 1
     canConnect = 2 # Unused
@@ -34,7 +34,7 @@ type
   Peer* {.public.} = object
     id*: seq[byte]
     addrs*: seq[MultiAddress]
-    connection*: ConnectionType
+    connection*: ConnectionStatus
 
   # Registration status for Service Discovery
   RegistrationStatus* = enum
@@ -72,6 +72,13 @@ type
     register*: Opt[RegisterMessage] # field 21 -  REGISTER message
     getAds*: Opt[GetAdsMessage] # field 22 -  GET_ADS message
 
+proc hide(
+    connStatus: ConnectionStatus, hideConnectionStatus: bool
+): ConnectionStatus {.raises: [], gcsafe.} =
+  if hideConnectionStatus:
+    return ConnectionStatus.notConnected
+  return connStatus
+
 proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.}
 
 proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gcsafe.}
@@ -84,13 +91,14 @@ proc encode*(record: Record): ProtoBuffer {.raises: [].} =
   pb.finish()
   return pb
 
-proc encode*(peer: Peer, hideConnection: bool = true): ProtoBuffer {.raises: [].} =
+proc encode*(
+    peer: Peer, hideConnectionStatus: bool = true
+): ProtoBuffer {.raises: [].} =
   var pb = initProtoBuffer()
   pb.write(1, peer.id)
   for address in peer.addrs:
     pb.write(2, address.data.buffer)
-  let connType = if hideConnection: ConnectionType.notConnected else: peer.connection
-  pb.write(3, uint32(ord(connType)))
+  pb.write(3, peer.connection.hide(hideConnectionStatus).ord.uint32)
   pb.finish()
   return pb
 
@@ -127,7 +135,7 @@ proc encode*(getAdsMsg: GetAdsMessage): ProtoBuffer {.raises: [], gcsafe.} =
   return pb
 
 proc encode*(
-    msg: Message, hideConnection: bool = true
+    msg: Message, hideConnectionStatus: bool = true
 ): ProtoBuffer {.raises: [], gcsafe.} =
   var pb = initProtoBuffer()
 
@@ -138,10 +146,10 @@ proc encode*(
   pb.writeOpt(3, msg.record)
 
   for peer in msg.closerPeers:
-    pb.write(8, peer.encode(hideConnection))
+    pb.write(8, peer.encode(hideConnectionStatus))
 
   for peer in msg.providerPeers:
-    pb.write(9, peer.encode(hideConnection))
+    pb.write(9, peer.encode(hideConnectionStatus))
 
   msg.register.withValue(regMsg):
     pb.write(21, regMsg.encode())
@@ -190,7 +198,7 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
 
   var connVal: uint32
   if ?pb.getField(3, connVal):
-    p.connection = ?decodeEnum[ConnectionType](connVal)
+    p.connection = ?decodeEnum[ConnectionStatus](connVal)
 
   return ok(p)
 
