@@ -5,7 +5,7 @@
 ## connection manager. This tutorial drives one of those configurations at
 ## runtime and shows what the connection manager actually *does*:
 ##
-## 1. **When trim fires**: `highWater` triggers a trim cycle; the the manager 
+## 1. **When trim fires**: `highWater` triggers a trim cycle; the manager 
 ##    schedules a trim cycle that attempts to reduce peers to `lowWater`, 
 ##    skipping grace/protected peers.
 ## 2. **`protect` / `unprotect`**: keep a chosen peer immune from trim.
@@ -182,12 +182,12 @@ proc main() {.async.} =
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
 
-    let connectedIds = host.connectedIds()
-    echo fmt"3. survivors = {connectedIds.len} (lowWater = {LowWater}), " &
-      fmt"vip(100) in = {vip in connectedIds}, " &
-      fmt"plain1(0) in = {plain1 in connectedIds}, " &
-      fmt"plain2(0) in = {plain2 in connectedIds}, " &
-      fmt"trigger(grace) in = {trigger in connectedIds}"
+    let connected = host.connectedIds()
+    echo fmt"3. survivors = {connected.len} (lowWater = {LowWater}), " &
+      fmt"vip(100) in = {vip in connected}, " &
+      fmt"plain1(0) in = {plain1 in connected}, " &
+      fmt"plain2(0) in = {plain2 in connected}, " &
+      fmt"trigger(grace) in = {trigger in connected}"
     echo fmt"   peerScore(vip) = {host.connManager.peerScore(vip)}"
 
     await allFutures(@[host.stop()] & clients.mapIt(it.stop()))
@@ -238,10 +238,10 @@ proc main() {.async.} =
     # two zero-score peers; p1 survives on score, p4 survives on grace.
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
-    let connectedIds = host.connectedIds()
-    echo fmt"4d. survivors = {connectedIds.len}, " &
-      fmt"p1(100) in = {p1 in connectedIds}, " & fmt"p2(0) in = {p2 in connectedIds}, " &
-      fmt"p3(0) in = {p3 in connectedIds}, " & fmt"p4(grace) in = {p4 in connectedIds}"
+    let connected = host.connectedIds()
+    echo fmt"4d. survivors = {connected.len}, " & fmt"p1(100) in = {p1 in connected}, " &
+      fmt"p2(0) in = {p2 in connected}, " & fmt"p3(0) in = {p3 in connected}, " &
+      fmt"p4(grace) in = {p4 in connected}"
     echo fmt"   peerScore(p1) = {host.connManager.peerScore(p1)}"
 
     # `bumpDecayingTag` adds to a *live* tag. Demonstrate it by bumping p1
