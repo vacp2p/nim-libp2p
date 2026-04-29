@@ -185,7 +185,7 @@ proc dial*(
 
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
-) {.gcsafe, raises: [LPError], public.} =
+) {.gcsafe, raises: [LPError].} =
   ## mount a protocol to the switch
 
   if isNil(proto.handler):

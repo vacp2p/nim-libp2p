@@ -296,7 +296,7 @@ proc new*(
     rng: ref HmacDrbgContext,
     addresses: seq[MultiAddress] = @[],
     flags: set[ServerFlags] = {},
-): TorSwitch {.raises: [LPError], public.} =
+): TorSwitch {.raises: [LPError].} =
   var builder = SwitchBuilder.new().withRng(rng).withTransport(
       proc(config: TransportConfig): Transport =
         TorTransport.new(torServer, flags, config.upgr)

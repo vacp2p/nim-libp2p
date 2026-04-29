@@ -636,7 +636,7 @@ method publish*(
     topic: string,
     data: seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.base, async: (raises: []), public.} =
+): Future[int] {.base, async: (raises: []).} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
@@ -731,7 +731,7 @@ proc init*[PubParams: object | bool](
     parameters: PubParams = false,
     customConnCallbacks: Opt[CustomConnectionCallbacks] =
       Opt.none(CustomConnectionCallbacks),
-): P {.raises: [InitializationError], public.} =
+): P {.raises: [InitializationError].} =
   let pubsub =
     when PubParams is bool:
       P(

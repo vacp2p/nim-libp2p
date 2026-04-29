@@ -420,7 +420,7 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## Circuit relay and DNS addresses are never filtered.
   b.withAddressPolicy(publicRoutableAddressPolicy)
 
-proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
+proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
@@ -583,7 +583,7 @@ proc newStandardSwitchBuilder*(
     nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
     peerStoreCapacity = 1000,
-): SwitchBuilder {.raises: [LPError], public.} =
+): SwitchBuilder {.raises: [LPError].} =
   ## Helper for common switch configurations.
   var b = SwitchBuilder
     .new()
@@ -653,7 +653,7 @@ proc newStandardSwitch*(
     nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
     peerStoreCapacity = 1000,
-): Switch {.raises: [LPError], public.} =
+): Switch {.raises: [LPError].} =
   newStandardSwitchBuilder(
     privKey = privKey,
     addrs = addrs,
