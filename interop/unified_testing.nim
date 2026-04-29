@@ -111,7 +111,7 @@ proc addTransport*(
         MultiAddress.init("/ip4/" & bindIp & "/tcp/0").tryGet()
       )
   of "ws":
-    discard builder.withWsTransport().withAddress(
+    discard builder.withWsTransport(flags = tcpFlags).withAddress(
         MultiAddress.init("/ip4/" & bindIp & "/tcp/0/ws").tryGet()
       )
   of "quic-v1":
