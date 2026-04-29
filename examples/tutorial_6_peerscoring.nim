@@ -5,8 +5,8 @@
 ## connection manager. This tutorial drives one of those configurations at
 ## runtime and shows what the connection manager actually *does*:
 ##
-## 1. **When trim fires**: `highWater` triggers a trim cycle; the manager 
-##    schedules a trim cycle that attempts to reduce peers to `lowWater`, 
+## 1. **When trim fires**: `highWater` triggers a trim cycle; the manager
+##    schedules a trim cycle that attempts to reduce peers to `lowWater`,
 ##    skipping grace/protected peers.
 ## 2. **`protect` / `unprotect`**: keep a chosen peer immune from trim.
 ## 3. **Static tags**: bias trim selection with `tagPeer(peerId, tag, value)`.
