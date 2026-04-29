@@ -8,14 +8,12 @@
 import chronos, chronicles
 import bearssl/rand
 import
-  ../protobuf/minprotobuf,
   ../peerinfo,
   ../stream/connection,
   ../peerid,
   ../crypto/crypto,
   ../multiaddress,
   ../protocols/protocol,
-  ../utility,
   ../errors
 
 export chronicles, rand, connection
@@ -31,7 +29,7 @@ type
   PingError* = object of LPError
   WrongPingAckError* = object of PingError
 
-  PingHandler* {.public.} = proc(peer: PeerId): Future[void] {.gcsafe, raises: [].}
+  PingHandler* = proc(peer: PeerId): Future[void] {.gcsafe, raises: [].}
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
@@ -39,7 +37,7 @@ type
 
 proc new*(
     T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()
-): T {.public.} =
+): T =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
@@ -66,7 +64,7 @@ method init*(p: Ping) =
 proc ping*(
     p: Ping, conn: Connection
 ): Future[Duration] {.
-    public, async: (raises: [CancelledError, LPStreamError, WrongPingAckError])
+    async: (raises: [CancelledError, LPStreamError, WrongPingAckError])
 .} =
   ## Sends ping to `conn`, returns the delay
 

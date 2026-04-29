@@ -39,7 +39,7 @@ chronicles.formatIt(MixEntryConnection):
 
 method readOnce*(
     s: MixEntryConnection, pbytes: pointer, nbytes: int
-): Future[int] {.async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   if s.isEof:
     raise newLPStreamEOFError()
 
@@ -69,7 +69,7 @@ method readOnce*(
 
 method write*(
     self: MixEntryConnection, msg: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   if msg.len() > DataSize:
     raise newException(LPStreamError, "exceeds max msg size of " & $DataSize & " bytes")
   await self.mixDialer(msg, self.codec, self.destination)

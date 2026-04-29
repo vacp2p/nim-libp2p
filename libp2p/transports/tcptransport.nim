@@ -89,7 +89,7 @@ proc new*(
     flags: set[ServerFlags] = {},
     upgrade: Upgrade,
     connectionsTimeout = 10.minutes,
-): T {.public.} =
+): T =
   let self = T(
     flags: flags,
     clientFlags:
