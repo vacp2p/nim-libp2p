@@ -3,7 +3,6 @@
 {.used.}
 
 import std/sequtils
-from std/times import getTime, toUnix
 import chronos, chronicles, results
 import
   ../../../libp2p/
@@ -49,7 +48,7 @@ proc makeAdvertisement*(
     serviceId: string = $1,
     privateKey: PrivateKey = PrivateKey.random(rng[]).get(),
     addrs: seq[MultiAddress] = @[],
-    seqNo: uint64 = getTime().toUnix().uint64,
+    seqNo: uint64 = Moment.now().epochSeconds.uint64,
 ): Advertisement =
   let peerId = PeerId.init(privateKey).get()
   let extRecord = ExtendedPeerRecord(
@@ -87,10 +86,10 @@ proc makeMockDiscovery*(
     config = KadDHTConfig.new(
       ExtEntryValidator(),
       ExtEntrySelector(),
-      timeout = chronos.seconds(1),
-      cleanupProvidersInterval = chronos.milliseconds(100),
-      providerExpirationInterval = chronos.seconds(1),
-      republishProvidedKeysInterval = chronos.milliseconds(50),
+      timeout = 1.secs,
+      cleanupProvidersInterval = 100.millis,
+      providerExpirationInterval = 1.secs,
+      republishProvidedKeysInterval = 50.millis,
     ),
   )
 
@@ -100,7 +99,7 @@ proc makeDisco*(
   var config = ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
   config.fReturn = fReturn
   if advertExpiry >= 0:
-    config.advertExpiry = seconds(advertExpiry)
+    config.advertExpiry = advertExpiry.secs
   if safetyParam >= 0:
     config.safetyParam = safetyParam
   makeMockDiscovery(config)
@@ -116,10 +115,10 @@ proc setupDiscovery*(
   let config = KadDHTConfig.new(
     validator,
     selector,
-    timeout = chronos.seconds(1),
-    cleanupProvidersInterval = chronos.milliseconds(100),
-    providerExpirationInterval = chronos.seconds(1),
-    republishProvidedKeysInterval = chronos.milliseconds(50),
+    timeout = 1.secs,
+    cleanupProvidersInterval = 100.millis,
+    providerExpirationInterval = 1.secs,
+    republishProvidedKeysInterval = 50.millis,
   )
   let disco = ServiceDiscovery.new(switch, bootstrapNodes, config)
   switch.mount(disco)
