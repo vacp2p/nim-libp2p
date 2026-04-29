@@ -227,13 +227,13 @@ method setup*(
 
 method run*(
     self: AutonatService, switch: Switch
-) {.public, async: (raises: [CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   trace "Running AutonatService"
   await askConnectedPeers(self, switch)
 
 method stop*(
     self: AutonatService, switch: Switch
-): Future[bool] {.public, async: (raises: [CancelledError]).} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   info "Stopping AutonatService"
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
