@@ -9,7 +9,7 @@ skipDirs =
   @["cbind", "examples", "interop", "performance", "simulation", "tests", "tools"]
 
 requires "nim >= 2.0.0",
-  "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.6",
+  "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.7",
   "chronicles >= 0.11.0", "chronos >= 4.2.2", "metrics", "secp256k1", "stew >= 0.4.2",
   "unittest2", "results", "serialization", "lsquic >= 0.2.0",
   "https://github.com/status-im/nim-websock#42c37b4172519566db016810eccfce8a02cc1cdf",
