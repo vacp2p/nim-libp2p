@@ -142,10 +142,13 @@ proc decayNone*(): DecayFn =
 
 proc maxTotal*(T: type LimitsConfig, maxConnections: int): LimitsConfig =
   ## Constructs LimitsConfig with single shared cap limit.
+  doAssert maxConnections > 0, "maxConnections must be > 0"
   LimitsConfig(maxConnections: maxConnections)
 
 proc maxInOut*(T: type LimitsConfig, maxIn: int, maxOut: int): LimitsConfig =
   ## Constructs LimitsConfig with single independent inbound/outbound caps limits.
+  doAssert maxIn > 0, "maxIn must be > 0"
+  doAssert maxOut > 0, "maxOut must be > 0"
   LimitsConfig(maxIn: maxIn, maxOut: maxOut)
 
 proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =

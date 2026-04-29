@@ -270,7 +270,6 @@ proc withMaxConnections*(
 ): SwitchBuilder {.public.} =
   ## Maximum concurrent connections of the switch. You should either use this,
   ## or `withMaxInOut <#withMaxInOut,SwitchBuilder,int,int>`_.
-  doAssert maxConnections > 0, "`maxConnections` must be greater than 0"
   b.limitsConfig = Opt.some(LimitsConfig.maxTotal(maxConnections))
   b
 
@@ -278,8 +277,6 @@ proc withMaxInOut*(
     b: SwitchBuilder, maxIn: int, maxOut: int
 ): SwitchBuilder {.public.} =
   ## Maximum concurrent incoming and outgoing connections.
-  doAssert maxIn > 0, "`maxIn` must be greater than 0"
-  doAssert maxOut > 0, "`maxOut` must be greater than 0"
   b.limitsConfig = Opt.some(LimitsConfig.maxInOut(maxIn, maxOut))
   b
 
