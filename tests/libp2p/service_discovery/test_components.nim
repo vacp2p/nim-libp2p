@@ -268,12 +268,12 @@ suite "Component - handleRegister":
       .get()
     let registrarKey = registrarNode.switch.peerInfo.privateKey
     let now = Moment.now()
-    # window = [tMod+tWaitFor .. tMod+tWaitFor+registrationWindow(1s)] = [now-1000 .. now-999]
+    # window = [tMod+tWaitFor .. tMod+tWaitFor+registrationWindow(1s)] = [now-10000000 .. now-999999]
     # now is well past the window, so processRetryTicket ignores the ticket
     var ticket = Ticket(
       advertisement: adBytes,
-      tInit: now - 1000.secs,
-      tMod: now - 1000.secs,
+      tInit: now - 10000000.secs,
+      tMod: now - 10000000.secs,
       tWaitFor: 0.secs,
       signature: @[],
     )

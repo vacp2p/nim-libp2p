@@ -97,9 +97,9 @@ proc encode*(peer: Peer): ProtoBuffer {.raises: [].} =
 proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
   var pb = initProtoBuffer()
   pb.write(1, ticket.advertisement)
-  pb.write(2, ticket.tInit.epochSeconds.uint64)
-  pb.write(3, ticket.tMod.epochSeconds.uint64)
-  pb.write(4, ticket.tWaitFor.seconds.uint32)
+  pb.write(2, cast[uint64](ticket.tInit.epochSeconds))
+  pb.write(3, cast[uint64](ticket.tMod.epochSeconds))
+  pb.write(4, cast[uint32](ticket.tWaitFor.seconds))
   if ticket.signature.len > 0:
     pb.write(5, ticket.signature)
   pb.finish()
@@ -206,8 +206,8 @@ proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
   discard ?pb.getField(5, ticket.signature)
 
   #TODO make this nicer?
-  ticket.tInit = Moment.init(tInit.int64, Second)
-  ticket.tMod = Moment.init(tMod.int64, Second)
+  ticket.tInit = Moment.init(cast[int64](tInit), Second)
+  ticket.tMod = Moment.init(cast[int64](tMod), Second)
   ticket.tWaitFor = tWaitFor.secs
 
   return ok(ticket)
