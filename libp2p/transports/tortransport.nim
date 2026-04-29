@@ -70,7 +70,7 @@ proc new*(
     transportAddress: TransportAddress,
     flags: set[ServerFlags] = {},
     upgrade: Upgrade,
-): T {.public.} =
+): T =
   ## Creates a Tor transport
 
   let self = T(

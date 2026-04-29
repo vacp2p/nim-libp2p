@@ -71,10 +71,9 @@ nim-libp2p is used by:
 nim-libp2p has been used in production for many years in high-stake scenarios, so its core is considered stable.
 Some modules are more recent and less stable.
 
-The versioning follows [semver](https://semver.org/), with some additions:
-
-- Some of libp2p procedures are marked as `.public.`, they will remain compatible during each `MAJOR` version
-- The rest of the procedures are considered internal, and can change at any `MINOR` version (but remain compatible for each new `PATCH`)
+The versioning follows [semver](https://semver.org/):
+ - nim-libp2p will remain compatible during each `MAJOR` version. 
+ - non braking changes and new features can happen at any `MINOR` version
 
 ## License
 

@@ -27,7 +27,7 @@ type
     gcsafe, async: (raises: [CancelledError])
   .} ## A proc that expected to resolve the listen addresses into dialable addresses
 
-  PeerInfo* {.public.} = ref object
+  PeerInfo* = ref object
     peerId*: PeerId
     listenAddrs*: seq[MultiAddress]
     ## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).
