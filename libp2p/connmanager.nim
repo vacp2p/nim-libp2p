@@ -47,6 +47,14 @@ type
     gracePeriod*: Duration ## newly connected peers are exempt from trimming
     silencePeriod*: Duration ## minimum interval between trim cycles
 
+  LimitsConfig* = object
+    ## Configuration for connection limits. Construct via `LimitsConfig.maxTotal`
+    ## for a single shared cap, or `LimitsConfig.maxInOut` for independent
+    ## inbound/outbound caps.
+    maxConnections: int = -1
+    maxIn: int = -1
+    maxOut: int = -1
+
   TooManyConnectionsError* = object of LPError
   AlreadyExpectingConnectionError* = object of LPError
 
@@ -134,40 +142,39 @@ proc decayNone*(): DecayFn =
 
 proc new*(
     T: type ConnManager,
-    maxConnections: int = -1,
-    maxIn: int = -1,
-    maxOut: int = -1,
     maxConnsPerPeer: int = -1,
+    limits: Opt[LimitsConfig] = Opt.none(LimitsConfig),
     watermark: Opt[WatermarkConfig] = Opt.none(WatermarkConfig),
     scoringConfig: ScoringConfig = ScoringConfig(),
 ): ConnManager =
   ## Creates a `ConnManager`.
   ##
-  ## Parameters `maxConnections`, `maxIn`, `maxOut`, and `maxConnsPerPeer`
-  ## accept `-1` to mean "use the default value".
-  ## 
-  ## By default (no arguments), total connections are capped at `DefaultMaxConnections`.
-  ## Pass `maxConnections` for a custom total cap, or `maxIn`/`maxOut` for
-  ## independent per-direction caps.
+  ## `maxConnsPerPeer` accepts `-1` to mean "use the default value".
   ##
-  ## When `watermark` is provided without explicit connection limits the
-  ## semaphore is omitted and hi/lo trimming is the only guard.  When both
-  ## are provided the semaphore blocks new connections hard while trimming
-  ## also prunes existing ones.
+  ## `limits` selects the connection-cap strategy: `LimitsConfig.maxTotal(n)`
+  ## for a single shared cap, or `LimitsConfig.maxInOut(i, o)` for independent
+  ## per-direction caps. When omitted, the total cap defaults to
+  ## `DefaultMaxConnections`. 
+  ##
+  ## When `watermark` is provided without `limits` the semaphore is omitted
+  ## and hi/lo trimming is the only guard.  When both are provided the
+  ## semaphore blocks new connections hard while trimming also prunes
+  ## existing ones.
+  let cfg = limits.get(LimitsConfig())
   let hasWatermark = watermark.isSome
-  let hasInOut = maxIn > 0 and maxOut > 0
-  let hasTotal = maxConnections > 0
+  let hasInOut = cfg.maxIn > 0 and cfg.maxOut > 0
+  let hasTotal = cfg.maxConnections > 0
 
   var inSema, outSema: AsyncSemaphore
   var maxInArg, maxOutArg: int
 
   if hasInOut:
-    inSema = newAsyncSemaphore(maxIn)
-    outSema = newAsyncSemaphore(maxOut)
-    maxInArg = maxIn
-    maxOutArg = maxOut
+    inSema = newAsyncSemaphore(cfg.maxIn)
+    outSema = newAsyncSemaphore(cfg.maxOut)
+    maxInArg = cfg.maxIn
+    maxOutArg = cfg.maxOut
   elif hasTotal or not hasWatermark:
-    let cap = if hasTotal: maxConnections else: DefaultMaxConnections
+    let cap = if cfg.maxConnections > 0: cfg.maxConnections else: DefaultMaxConnections
     let sema = newAsyncSemaphore(cap)
     inSema = sema
     outSema = sema

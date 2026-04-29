@@ -4,13 +4,6 @@
 when defined(nimdoc):
   ## Welcome to the nim-libp2p reference!
   ##
-  ## On the left, you'll find a switch that allows you to see private
-  ## procedures. By default, you'll only see the public one (marked with `{.public.}`)
-  ##
-  ## The difference between public and private procedures is that public procedure
-  ## stay backward compatible during the Major version, whereas private ones can
-  ## change at each new Minor version.
-  ##
   ## If you're new to nim-libp2p, you can find a tutorial `here<https://vacp2p.github.io/nim-libp2p/docs/tutorial_1_connect/>`_
   ## that can help you get started.
 
@@ -30,11 +23,6 @@ when defined(nimdoc):
       peerstore,
       multiaddress,
     ]
-
-  proc dummyPrivateProc*() =
-    ## A private proc example
-    discard
-
 else:
   import
     libp2p/[

@@ -27,7 +27,7 @@ proc currentStats*(p: PerfClient): Stats =
 
 proc perf*(
     p: PerfClient, conn: Connection, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0
-): Future[Duration] {.public, async: (raises: [CancelledError, LPStreamError]).} =
+): Future[Duration] {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "starting performance benchmark", conn, sizeToWrite, sizeToRead
 
   p.stats = Stats()

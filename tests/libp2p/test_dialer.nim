@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, sequtils
+import chronos, sequtils, results
 import ../../libp2p/[builders, switch]
 import ../tools/[unittest, futures]
 
@@ -32,7 +32,7 @@ suite "Dialer":
   asyncTest "Max connections reached":
     var switches: seq[Switch]
 
-    let dst = newStandardSwitch(maxConnections = 2)
+    let dst = newStandardSwitch(limits = Opt.some(LimitsConfig.maxTotal(2)))
     await dst.start()
     switches.add(dst)
 

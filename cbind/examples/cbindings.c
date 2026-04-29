@@ -49,6 +49,11 @@ static void private_key_handler(int callerRet, const uint8_t *keyData,
                               size_t keyDataLen, const char *msg, size_t len,
                               void *userData);
 
+static void peerstore_entry_handler(int callerRet,
+                                    const Libp2pPeerStoreEntry *entry,
+                                    const char *msg, size_t len,
+                                    void *userData);
+
 static void connection_handler(int callerRet, libp2p_stream_t *conn,
                                const char *msg, size_t len, void *userData);
 static void create_cid_handler(int callerRet, const char *msg, size_t len,
@@ -226,6 +231,41 @@ int main(int argc, char **argv) {
   waitForCallback();
 
   libp2p_kad_get_providers(ctx2, cid, get_providers_handler, NULL);
+  waitForCallback();
+
+  // Peerstore operations
+  // After connect+identify, node2 is in node1's peerstore.
+
+  printf("Known peers in peerstore:\n");
+  libp2p_peerstore_get_peers(ctx1, peers_handler, NULL);
+  waitForCallback();
+
+  printf("Peer info for node2:\n");
+  libp2p_peerstore_get_peer_info(ctx1, pInfo2.peerId, peerstore_entry_handler, NULL);
+  waitForCallback();
+
+  // Merge an extra address for node2
+  const char *extra_addrs[] = {"/ip4/1.2.3.4/tcp/9999"};
+  libp2p_peerstore_add_peer(ctx1, pInfo2.peerId, extra_addrs, 1, NULL, 0,
+                            event_handler, NULL);
+  waitForCallback();
+
+  // Replace node2's protocols
+  const char *test_protos[] = {"/test/1.0.0"};
+  libp2p_peerstore_set_peer_protocols(ctx1, pInfo2.peerId, test_protos, 1,
+                                      event_handler, NULL);
+  waitForCallback();
+
+  printf("Peer info after modifications:\n");
+  libp2p_peerstore_get_peer_info(ctx1, pInfo2.peerId, peerstore_entry_handler, NULL);
+  waitForCallback();
+
+  // Delete node2 from peerstore
+  libp2p_peerstore_delete_peer(ctx1, pInfo2.peerId, event_handler, NULL);
+  waitForCallback();
+
+  printf("Known peers after delete:\n");
+  libp2p_peerstore_get_peers(ctx1, peers_handler, NULL);
   waitForCallback();
 
   sleep(5);
@@ -470,6 +510,35 @@ static void connection_handler(int callerRet, libp2p_stream_t *conn,
   }
 
   ping_stream = conn;
+
+  signal_callback_executed();
+}
+
+static void peerstore_entry_handler(int callerRet,
+                                    const Libp2pPeerStoreEntry *entry,
+                                    const char *msg, size_t len,
+                                    void *userData) {
+  if (callerRet != RET_OK || entry == NULL) {
+    printf("PeerStoreEntry error(%d)", callerRet);
+    if (msg != NULL && len > 0) {
+        printf(": %.*s\n", (int)len, msg);
+    }
+    exit(1);
+  }
+
+  printf("  peerId: %s\n", entry->peerId != NULL ? entry->peerId : "(null)");
+  printf("  addresses (%zu):\n", entry->addrsLen);
+  for (size_t i = 0; i < entry->addrsLen; i++)
+    printf("    %s\n", entry->addrs[i] != NULL ? entry->addrs[i] : "(null)");
+  printf("  protocols (%zu):\n", entry->protocolsLen);
+  for (size_t i = 0; i < entry->protocolsLen; i++)
+    printf("    %s\n",
+           entry->protocols[i] != NULL ? entry->protocols[i] : "(null)");
+  printf("  publicKey: %zu bytes\n", entry->publicKeyLen);
+  printf("  agentVersion: %s\n",
+         entry->agentVersion != NULL ? entry->agentVersion : "");
+  printf("  protoVersion: %s\n",
+         entry->protoVersion != NULL ? entry->protoVersion : "");
 
   signal_callback_executed();
 }

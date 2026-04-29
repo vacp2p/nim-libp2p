@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
-{.push public.}
 
 import chronos, chronicles, net, results
 import chronos/apps/http/httpclient, bearssl/rand
