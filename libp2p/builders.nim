@@ -77,8 +77,8 @@ type
     transports: seq[TransportBuilder]
     rng: ref HmacDrbgContext
     maxConnsPerPeer: int
-    limitsCfg: Opt[LimitsConfig]
-    watermarkCfg: Opt[WatermarkConfig]
+    limitsConfig: Opt[LimitsConfig]
+    watermarkConfig: Opt[WatermarkConfig]
     scoringConfig: ScoringConfig
     sendSignedPeerRecord: bool
     protoVersion: string
@@ -111,8 +111,8 @@ proc new*(T: type[SwitchBuilder]): T {.public.} =
     addresses: @[address],
     secureManagers: @[],
     maxConnsPerPeer: -1,
-    limitsCfg: Opt.none(LimitsConfig),
-    watermarkCfg: Opt.none(WatermarkConfig),
+    limitsConfig: Opt.none(LimitsConfig),
+    watermarkConfig: Opt.none(WatermarkConfig),
     scoringConfig: ScoringConfig(),
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
@@ -258,13 +258,11 @@ proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder {.publi
   b.rng = rng
   b
 
-proc withLimits*(
-    b: SwitchBuilder, limits: LimitsConfig
-): SwitchBuilder {.public.} =
+proc withLimits*(b: SwitchBuilder, limits: LimitsConfig): SwitchBuilder {.public.} =
   ## Set the connection limits for the switch. Construct `limits` via
   ## `LimitsConfig.maxTotal` for a shared cap or `LimitsConfig.maxInOut`
   ## for independent per-direction caps.
-  b.limitsCfg = Opt.some(limits)
+  b.limitsConfig = Opt.some(limits)
   b
 
 proc withMaxConnections*(
@@ -273,7 +271,7 @@ proc withMaxConnections*(
   ## Maximum concurrent connections of the switch. You should either use this,
   ## or `withMaxInOut <#withMaxInOut,SwitchBuilder,int,int>`_.
   doAssert maxConnections > 0, "`maxConnections` must be greater than 0"
-  b.limitsCfg = Opt.some(LimitsConfig.maxTotal(maxConnections))
+  b.limitsConfig = Opt.some(LimitsConfig.maxTotal(maxConnections))
   b
 
 proc withMaxInOut*(
@@ -282,7 +280,7 @@ proc withMaxInOut*(
   ## Maximum concurrent incoming and outgoing connections.
   doAssert maxIn > 0, "`maxIn` must be greater than 0"
   doAssert maxOut > 0, "`maxOut` must be greater than 0"
-  b.limitsCfg = Opt.some(LimitsConfig.maxInOut(maxIn, maxOut))
+  b.limitsConfig = Opt.some(LimitsConfig.maxInOut(maxIn, maxOut))
   b
 
 proc withMaxConnsPerPeer*(
@@ -305,7 +303,7 @@ proc withWatermark*(
   ## a hard semaphore cap and active trimming simultaneously.
   doAssert lowWater > 0, "lowWater must be > 0"
   doAssert highWater > lowWater, "highWater must be > lowWater"
-  b.watermarkCfg = Opt.some(
+  b.watermarkConfig = Opt.some(
     WatermarkConfig(
       lowWater: lowWater,
       highWater: highWater,
@@ -460,9 +458,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
   let connManager = ConnManager.new(
-    limits = b.limitsCfg,
+    limits = b.limitsConfig,
     maxConnsPerPeer = b.maxConnsPerPeer,
-    watermark = b.watermarkCfg,
+    watermark = b.watermarkConfig,
     scoringConfig = b.scoringConfig,
   )
 
