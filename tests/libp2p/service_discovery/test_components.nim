@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, tables]
+import std/[times, tables, sequtils]
 import chronos, results
 import ../../../libp2p/[switch, crypto/crypto]
 import ../../../libp2p/protocols/service_discovery
@@ -335,14 +335,20 @@ suite "Component - end-to-end":
 
   asyncTest "addProvidedService registers service, lookup finds it":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupDiscoNode(conf)
+    # Using 2 registrar to reduce the chance of
+    # dropping a peer whose bucket index fall outside the default range.
+    # 1 chance in 4_294_967_296 is the new failure rate.
+    let registrarNode1 = setupDiscoNode(conf)
+    let registrarNode2 = setupDiscoNode(conf)
     let advertiserNode = setupDiscoNode(conf)
     let discovererNode = setupDiscoNode(conf)
-    startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
+    startAndDeferStop(@[registrarNode1, registrarNode2, advertiserNode, discovererNode])
 
     # Advertiser and discoverer both know about the registrar
-    await connect(registrarNode, advertiserNode)
-    await connect(registrarNode, discovererNode)
+    await connect(registrarNode1, advertiserNode)
+    await connect(registrarNode2, advertiserNode)
+    await connect(registrarNode1, discovererNode)
+    await connect(registrarNode2, discovererNode)
 
     let service = makeServiceInfo("e2e-test-service")
     let serviceId = service.id.hashServiceId()
@@ -352,10 +358,13 @@ suite "Component - end-to-end":
 
     # Wait until registrar stores the advertisement
     checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len == 1
+      (
+        registrarNode1.registrar.cache.getOrDefault(serviceId, @[]).len == 1 or
+        registrarNode2.registrar.cache.getOrDefault(serviceId, @[]).len == 1
+      )
 
     # Discoverer looks up and finds it
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()
     check found.get().len >= 1
-    check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
+    check found.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
