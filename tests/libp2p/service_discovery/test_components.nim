@@ -23,10 +23,10 @@ proc setupDiscoNode(
     config = KadDHTConfig.new(
       ExtEntryValidator(),
       ExtEntrySelector(),
-      timeout = chronos.seconds(1),
-      cleanupProvidersInterval = chronos.milliseconds(100),
-      providerExpirationInterval = chronos.seconds(1),
-      republishProvidedKeysInterval = chronos.milliseconds(50),
+      timeout = 1.secs,
+      cleanupProvidersInterval = 100.millis,
+      providerExpirationInterval = 1.secs,
+      republishProvidedKeysInterval = 50.millis,
     ),
     discoConfig = discoConf,
     xprPublishing = false,
@@ -46,7 +46,7 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.none(Ticket),
     )
-    let tWait = seconds(900)
+    let tWait = 900.secs
     let tResult = disco.processRetryTicket(regMsg, ad, tWait)
     check tResult == tWait
 
@@ -67,7 +67,7 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = seconds(900)
+    let tWait = 900.secs
     let tResult = disco.processRetryTicket(regMsg, ad, tWait)
     check tResult == tWait
 
@@ -89,7 +89,7 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = seconds(900)
+    let tWait = 900.secs
     let tResult = disco.processRetryTicket(regMsg, ad, tWait)
     check tResult == tWait
 
@@ -113,7 +113,7 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = seconds(900)
+    let tWait = 900.secs
     let tResult = disco.processRetryTicket(regMsg, ad, tWait)
     check tResult == tWait
 
@@ -137,7 +137,7 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = seconds(900)
+    let tWait = 900.secs
     let tResult = disco.processRetryTicket(regMsg, ad, tWait)
     check tResult == tWait
 
@@ -161,7 +161,7 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = seconds(900)
+    let tWait = 900.secs
     let tResult = disco.processRetryTicket(regMsg, ad, tWait)
     check tResult == tWait
 
@@ -187,9 +187,9 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = seconds(900)
+    let tWait = 900.secs
     let tResult = disco.processRetryTicket(regMsg, ad, tWait)
-    check abs(seconds(tResult) - 700) <= 1
+    check abs(tResult.secs - 700) <= 1
 
   test "valid retry with sufficient elapsed returns <= 0":
     let disco = makeMockDiscovery()
@@ -212,7 +212,7 @@ suite "processRetryTicket":
       status: Opt.none(kad_protobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = seconds(100)
+    let tWait = 100.secs
     let tResult = disco.processRetryTicket(regMsg, ad, tWait)
     check tResult <= ZeroDuration
 

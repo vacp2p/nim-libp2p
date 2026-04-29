@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, times, tables, hashes]
+import std/[sequtils, sets, tables, hashes]
 import chronicles, chronos, results, stew/byteutils
 import nimcrypto/sha2
 import
@@ -21,11 +21,11 @@ const
   Default_K_lookup* = 5
   Default_F_lookup* = 30
   Default_F_return* = 10
-  Default_E*: int64 = 900
+  Default_E* = 900.secs
   Default_C*: uint64 = 1_000
   Default_P_occ* = 10.0
   Default_G* = 1e-7
-  Default_Delta*: int32 = 1
+  Default_Delta* = 1.secs
   Default_M_buckets* = 16
 
 type
@@ -66,11 +66,11 @@ type
     kLookup*: int
     fLookup*: int
     fReturn*: int
-    advertExpiry*: timer.Duration
+    advertExpiry*: Duration
     advertCacheCap*: uint64
     occupancyExp*: float64
     safetyParam*: float64
-    registrationWindow*: timer.Duration
+    registrationWindow*: Duration
     bucketsCount*: int
 
   ServiceDiscovery* = ref object of KadDHT
@@ -105,11 +105,11 @@ proc new*(
     kLookup: kLookup,
     fLookup: fLookup,
     fReturn: fReturn,
-    advertExpiry: advertExpiry.secs,
+    advertExpiry: advertExpiry,
     advertCacheCap: advertCacheCap,
     occupancyExp: occupancyExp,
     safetyParam: safetyParam,
-    registrationWindow: registrationWindow.secs,
+    registrationWindow: registrationWindow,
     bucketsCount: bucketsCount,
   )
 
@@ -152,7 +152,7 @@ proc new*(T: typedesc[Registrar]): T =
   )
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(running: initHashSet[AdvertiseTask](), seqNo: getTime().toUnix().uint64)
+  T(running: initHashSet[AdvertiseTask](), seqNo: Moment.now().epochSeconds.uint64)
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
@@ -160,7 +160,7 @@ proc toKey*(service: ServiceInfo): Key =
 proc init*(
     T: typedesc[ExtendedPeerRecord],
     peerInfo: PeerInfo,
-    seqNo: uint64 = getTime().toUnix().uint64,
+    seqNo: uint64 = Moment.now().epochSeconds.uint64,
     services: seq[ServiceInfo] = @[],
 ): T =
   T(
@@ -215,7 +215,7 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
     peerInfo.privateKey,
     ExtendedPeerRecord(
       peerId: peerInfo.peerId,
-      seqNo: getTime().toUnix().uint64,
+      seqNo: Moment.now().epochSeconds.uint64,
       addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
       services: services,
     ),

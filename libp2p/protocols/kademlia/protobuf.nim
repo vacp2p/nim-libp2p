@@ -205,6 +205,7 @@ proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
   discard ?pb.getField(4, tWaitFor)
   discard ?pb.getField(5, ticket.signature)
 
+  #TODO make this nicer?
   ticket.tInit = Moment.init(tInit.int64, Second)
   ticket.tMod = Moment.init(tMod.int64, Second)
   ticket.tWaitFor = tWaitFor.secs

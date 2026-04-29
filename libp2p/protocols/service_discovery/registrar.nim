@@ -67,15 +67,14 @@ proc pruneAdsForService(
   while i < ads.len:
     let ad = ads[i]
     let key = ad.toAdvertisementKey()
-    let ts = registrar.cacheTimestamps.getOrDefault(key, Moment())
-
-    if isExpired(now, ts, advertExpiry):
-      registrar.ipTree.removeAd(ad)
-      registrar.cacheTimestamps.del(key)
-      ads.delete(i)
-      inc(expiredCount)
-    else:
-      inc(i)
+    registrar.cacheTimestamps.withValue(key, ts):
+      if isExpired(now, ts[], advertExpiry):
+        registrar.ipTree.removeAd(ad)
+        registrar.cacheTimestamps.del(key)
+        ads.delete(i)
+        inc(expiredCount)
+      else:
+        inc(i)
 
 proc pruneEmptyServices(registrar: Registrar) =
   var toRemove: seq[ServiceId] = @[]
@@ -160,12 +159,12 @@ proc waitingTime*(
   w = min(w, float64(uint32.high))
   w = ceil(w)
 
-  var waitDuration = chronos.seconds(w.int64)
+  var waitDuration = w.int64.secs
 
   if serviceId in registrar.timestampService:
     let
-      prevTimestamp = registrar.timestampService.getOrDefault(serviceId, Moment())
-      prevBound = registrar.boundService.getOrDefault(serviceId, Moment())
+      prevTimestamp = registrar.timestampService.getOrDefault(serviceId, now)
+      prevBound = registrar.boundService.getOrDefault(serviceId, now)
       elapsedDuration = now - prevTimestamp
       prevWaitDuration = prevBound - prevTimestamp
     if waitDuration < prevWaitDuration - elapsedDuration:
@@ -178,8 +177,8 @@ proc waitingTime*(
     let ipKey = $ip
     if ipKey in registrar.timestampIp:
       let
-        prevTimestamp = registrar.timestampIp.getOrDefault(ipKey, Moment())
-        prevBound = registrar.boundIp.getOrDefault(ipKey, Moment())
+        prevTimestamp = registrar.timestampIp.getOrDefault(ipKey, now)
+        prevBound = registrar.boundIp.getOrDefault(ipKey, now)
         elapsedDuration = now - prevTimestamp
         prevWaitDuration = prevBound - prevTimestamp
       if waitDuration < prevWaitDuration - elapsedDuration:
@@ -194,8 +193,8 @@ proc updateLowerBounds*(
     waitDuration: Duration,
     now: Moment,
 ) =
-  let prevTimestamp = registrar.timestampService.getOrDefault(serviceId, Moment())
-  let prevBoundTimestamp = registrar.boundService.getOrDefault(serviceId, Moment())
+  let prevTimestamp = registrar.timestampService.getOrDefault(serviceId, now)
+  let prevBoundTimestamp = registrar.boundService.getOrDefault(serviceId, now)
   let prevWait = prevBoundTimestamp - prevTimestamp
   let elapsedDuration = now - prevTimestamp
 
@@ -208,8 +207,8 @@ proc updateLowerBounds*(
       continue
 
     let ipKey = $ip
-    let prevTimestamp = registrar.timestampIp.getOrDefault(ipKey, Moment())
-    let prevBoundTimestamp = registrar.boundIp.getOrDefault(ipKey, Moment())
+    let prevTimestamp = registrar.timestampIp.getOrDefault(ipKey, now)
+    let prevBoundTimestamp = registrar.boundIp.getOrDefault(ipKey, now)
     let prevWait = prevBoundTimestamp - prevTimestamp
     let elapsedDuration = now - prevTimestamp
 
@@ -287,29 +286,33 @@ proc sendRegisterResponse*(
   if writeRes.isErr:
     error "failed to send register response", err = writeRes.error.msg
 
-proc findAdIdx*(ads: seq[Advertisement], peerId: PeerId): int =
+proc findAdIdx*(ads: seq[Advertisement], peerId: PeerId): Opt[int] =
   for i in 0 ..< ads.len:
     if ads[i].data.peerId == peerId:
-      return i
-  -1
+      return Opt.some(i)
 
-proc findOldestKey(disco: ServiceDiscovery): AdvertisementKey =
+  return Opt.none(int)
+
+proc findOldestKey(disco: ServiceDiscovery): Opt[AdvertisementKey] =
   var oldestKey: AdvertisementKey
-  var oldestTime: Moment
-  var first = true
+  var oldestTime = Moment.high
 
   for k, t in disco.registrar.cacheTimestamps:
-    if first or t < oldestTime:
+    if t < oldestTime:
       oldestTime = t
       oldestKey = k
-      first = false
 
-  return oldestKey
+  if oldestTime == Moment.high:
+    return Opt.none(AdvertisementKey)
+
+  return Opt.some(oldestKey)
 
 proc evictOldestAd*(
     disco: ServiceDiscovery, serviceId: ServiceId, ads: var seq[Advertisement]
 ) =
-  let oldestKey = disco.findOldestKey()
+  let oldestKey = disco.findOldestKey().valueOr:
+    return
+
   var emptiedSid: ServiceId
   var sidBecameEmpty = false
 
@@ -387,11 +390,12 @@ proc acceptAdvertisement*(
   disco.rtManager.insertPeer(serviceId, ad.data.peerId.toKey())
 
   var ads = disco.registrar.cache.getOrDefault(serviceId)
-  let idx = findAdIdx(ads, ad.data.peerId)
 
-  let shouldUpdateMetrics =
-    if idx >= 0:
-      disco.registrar.updateExistingAd(ads, idx, ad, now)
+  var shouldUpdateMetrics: bool
+  let idxOpt = findAdIdx(ads, ad.data.peerId)
+  shouldUpdateMetrics =
+    if idxOpt.isSome():
+      disco.registrar.updateExistingAd(ads, idxOpt.get(), ad, now)
     else:
       disco.insertNewAd(serviceId, ads, ad, now)
 
