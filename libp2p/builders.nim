@@ -251,7 +251,7 @@ proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder =
   b.rng = rng
   b
 
-proc withLimits*(b: SwitchBuilder, limits: LimitsConfig): SwitchBuilder {.public.} =
+proc withLimits*(b: SwitchBuilder, limits: LimitsConfig): SwitchBuilder =
   ## Set the connection limits for the switch. Construct `limits` via
   ## `LimitsConfig.maxTotal` for a shared cap or `LimitsConfig.maxInOut`
   ## for independent per-direction caps.
@@ -260,7 +260,7 @@ proc withLimits*(b: SwitchBuilder, limits: LimitsConfig): SwitchBuilder {.public
 
 proc withMaxConnections*(
     b: SwitchBuilder, maxConnections: int
-): SwitchBuilder {.public.} =
+): SwitchBuilder =
   ## Maximum concurrent connections of the switch. You should either use this,
   ## or `withMaxInOut <#withMaxInOut,SwitchBuilder,int,int>`_.
   b.limitsConfig = Opt.some(LimitsConfig.maxTotal(maxConnections))
