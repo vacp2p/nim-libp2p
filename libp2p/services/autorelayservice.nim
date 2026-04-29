@@ -143,7 +143,7 @@ method run*(
 
 method stop*(
     self: AutoRelayService, switch: Switch
-): Future[bool] {.public, async: (raises: [CancelledError]).} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if hasBeenStopped:
     self.running = false

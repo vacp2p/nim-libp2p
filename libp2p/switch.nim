@@ -44,7 +44,7 @@ logScope:
 const ConcurrentUpgrades* = 4
 
 type
-  Switch* {.public.} = ref object of Dial
+  Switch* = ref object of Dial
     peerInfo*: PeerInfo
     connManager*: ConnManager
     transports*: seq[Transport]
@@ -83,9 +83,7 @@ method stop*(
   self.inUse = false
   return true
 
-proc addConnEventHandler*(
-    s: Switch, handler: ConnEventHandler, kind: ConnEventKind
-) {.public.} =
+proc addConnEventHandler*(s: Switch, handler: ConnEventHandler, kind: ConnEventKind) =
   ## Adds a ConnEventHandler, which will be triggered when
   ## a connection to a peer is created or dropped.
   ## There may be multiple connections per peer.
@@ -95,12 +93,10 @@ proc addConnEventHandler*(
 
 proc removeConnEventHandler*(
     s: Switch, handler: ConnEventHandler, kind: ConnEventKind
-) {.public.} =
+) =
   s.connManager.removeConnEventHandler(handler, kind)
 
-proc addPeerEventHandler*(
-    s: Switch, handler: PeerEventHandler, kind: PeerEventKind
-) {.public.} =
+proc addPeerEventHandler*(s: Switch, handler: PeerEventHandler, kind: PeerEventKind) =
   ## Adds a PeerEventHandler, which will be triggered when
   ## a peer connects or disconnects from us.
   ##
@@ -109,7 +105,7 @@ proc addPeerEventHandler*(
 
 proc removePeerEventHandler*(
     s: Switch, handler: PeerEventHandler, kind: PeerEventKind
-) {.public.} =
+) =
   s.connManager.removePeerEventHandler(handler, kind)
 
 method addTransport*(s: Switch, t: Transport) =
@@ -119,16 +115,14 @@ method addTransport*(s: Switch, t: Transport) =
 proc connectedPeers*(s: Switch, dir: Direction): seq[PeerId] =
   s.connManager.connectedPeers(dir)
 
-proc isConnected*(s: Switch, peerId: PeerId): bool {.public.} =
+proc isConnected*(s: Switch, peerId: PeerId): bool =
   ## returns true if the peer has one or more
   ## associated connections
   ##
 
   peerId in s.connManager
 
-proc disconnect*(
-    s: Switch, peerId: PeerId
-) {.public, async: (raises: [CancelledError]).} =
+proc disconnect*(s: Switch, peerId: PeerId) {.async: (raises: [CancelledError]).} =
   ## Disconnect from a peer, waiting for the connection(s) to be dropped
   await s.connManager.dropPeer(peerId)
 
@@ -139,9 +133,7 @@ method connect*(
     forceDial = false,
     reuseConnection = true,
     dir = Direction.Out,
-): Future[void] {.
-    public, async: (raises: [DialFailedError, CancelledError], raw: true)
-.} =
+): Future[void] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Connects to a peer without opening a stream to it
 
   s.dialer.connect(peerId, addrs, forceDial, reuseConnection, dir)
@@ -159,18 +151,14 @@ method connect*(
 
 method dial*(
     s: Switch, peerId: PeerId, protos: seq[string]
-): Future[Connection] {.
-    public, async: (raises: [DialFailedError, CancelledError], raw: true)
-.} =
+): Future[Connection] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Open a stream to a connected peer with the specified `protos`
 
   s.dialer.dial(peerId, protos)
 
 proc dial*(
     s: Switch, peerId: PeerId, proto: string
-): Future[Connection] {.
-    public, async: (raises: [DialFailedError, CancelledError], raw: true)
-.} =
+): Future[Connection] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Open a stream to a connected peer with the specified `proto`
 
   dial(s, peerId, @[proto])
@@ -181,9 +169,7 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
-): Future[Connection] {.
-    public, async: (raises: [DialFailedError, CancelledError], raw: true)
-.} =
+): Future[Connection] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Connected to a peer and open a stream
   ## with the specified `protos`
 
@@ -191,9 +177,7 @@ method dial*(
 
 proc dial*(
     s: Switch, peerId: PeerId, addrs: seq[MultiAddress], proto: string
-): Future[Connection] {.
-    public, async: (raises: [DialFailedError, CancelledError], raw: true)
-.} =
+): Future[Connection] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Connected to a peer and open a stream
   ## with the specified `proto`
 
@@ -201,7 +185,7 @@ proc dial*(
 
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
-) {.gcsafe, raises: [LPError], public.} =
+) {.gcsafe, raises: [LPError].} =
   ## mount a protocol to the switch
 
   if isNil(proto.handler):
@@ -305,7 +289,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         await conn.close()
       return
 
-proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
+proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   ## Stop listening on every transport, and
   ## close every active connections
 
@@ -337,7 +321,7 @@ proc stop*(s: Switch) {.public, async: (raises: [CancelledError]).} =
 
   trace "Switch stopped"
 
-proc start*(s: Switch) {.public, async: (raises: [CancelledError, LPError]).} =
+proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   ## Start listening on every transport
 
   if s.started:
