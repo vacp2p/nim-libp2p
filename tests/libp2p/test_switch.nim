@@ -1239,3 +1239,23 @@ suite "Switch":
     await switch.start()
 
     await allFuturesRaising(switch.stop())
+
+  asyncTest "accept loop not blocked by upgrade semaphore":
+    # Regression: old code held the upgrade semaphore in the accept loop, blocking
+    # it when ConcurrentUpgrades (4) were in flight; manifested as 80+ kad nodes
+    # getting stuck on bootstrap.
+    const NumPeers = 85
+    let server = newStandardSwitch(maxConnections = NumPeers)
+    await server.start()
+
+    var clients: seq[Switch]
+    for _ in 0 ..< NumPeers:
+      let c = newStandardSwitch()
+      await c.start()
+      clients.add(c)
+
+    let connects =
+      clients.mapIt(it.connect(server.peerInfo.peerId, server.peerInfo.addrs))
+    check await allFutures(connects).withTimeout(30.seconds)
+
+    await allFuturesRaising(clients.mapIt(it.stop()) & @[server.stop()])
