@@ -355,9 +355,10 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Ignore `nim-libp2p/tests/tools/crypto.nim` (that's the definition file)
 
 ### API Stability
-- Always add comment when PR introduces breaking change.
-- Do not warn about breaking changes in the following modules as they are still not considered stable and under active development: `kademlia`, `mix`, `service_discovery`
-- Internal procedures may change at MINOR versions
+- Treat the intended public API surface, especially modules re-exported from `libp2p.nim`, as backward-compatible within a MAJOR version.
+- If a PR introduces a breaking change to that public API surface, add a comment in the PR description that clearly documents the breaking change, the affected modules or APIs, and any required migration notes.
+- Do not warn about breaking changes in the following modules, because they are not yet considered stable and remain under active development: `kademlia`, `mix`, `service_discovery`.
+- Internal procedures and other non-public implementation details may change in MINOR versions.
 
 ### Experimental GossipSub Extensions
 - Must use protobuf field numbers `> 0x200000` to force ≥4-byte tags
