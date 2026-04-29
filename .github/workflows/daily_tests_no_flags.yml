@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
 
@@ -33,7 +33,7 @@ jobs:
 
       - name: Restore deps from cache
         id: deps-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: nimbledeps
           key: nimbledeps-${{ hashFiles('.pinned') }}
@@ -46,5 +46,3 @@ jobs:
       - name: Build and run tests without feature flags
         run: |
           nim c -r tests/test_all.nim
-  
-
