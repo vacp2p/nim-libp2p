@@ -49,28 +49,28 @@ type
     changeHandlers: seq[PeerBookChangeHandler]
     deletor: PeerBookChangeHandler
 
-  PeerBook*[T] {.public.} = ref object of BasePeerBook
+  PeerBook*[T] = ref object of BasePeerBook
     book*: Table[PeerId, T]
 
   SeqPeerBook*[T] = ref object of PeerBook[seq[T]]
 
-  AddressBook* {.public.} = ref object of SeqPeerBook[MultiAddress]
-  ProtoBook* {.public.} = ref object of SeqPeerBook[string]
-  KeyBook* {.public.} = ref object of PeerBook[PublicKey]
+  AddressBook* = ref object of SeqPeerBook[MultiAddress]
+  ProtoBook* = ref object of SeqPeerBook[string]
+  KeyBook* = ref object of PeerBook[PublicKey]
 
-  AgentBook* {.public.} = ref object of PeerBook[string]
-  LastSeenBook* {.public.} = ref object of PeerBook[Opt[MultiAddress]]
-  LastSeenOutboundBook* {.public.} = ref object of PeerBook[Opt[MultiAddress]]
-  ProtoVersionBook* {.public.} = ref object of PeerBook[string]
-  SPRBook* {.public.} = ref object of PeerBook[Envelope]
+  AgentBook* = ref object of PeerBook[string]
+  LastSeenBook* = ref object of PeerBook[Opt[MultiAddress]]
+  LastSeenOutboundBook* = ref object of PeerBook[Opt[MultiAddress]]
+  ProtoVersionBook* = ref object of PeerBook[string]
+  SPRBook* = ref object of PeerBook[Envelope]
 
-  MixPubKeyBook* {.public.} = ref object of PeerBook[Curve25519Key]
+  MixPubKeyBook* = ref object of PeerBook[Curve25519Key]
     ## Keeps track of Mix protocol public keys of peers
 
   ####################
   # Peer store types #
   ####################
-  PeerStore* {.public.} = ref object
+  PeerStore* = ref object
     books: Table[string, BasePeerBook]
     identify: Identify
     capacity*: int
@@ -79,20 +79,18 @@ type
       ## When set, inbound peer addresses are filtered through the shared
       ## policy before they are stored or redistributed.
 
-proc new*(
-    T: type PeerStore, identify: Identify, capacity = 1000
-): PeerStore {.public.} =
+proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore =
   T(identify: identify, capacity: capacity, addressPolicy: defaultAddressPolicy)
 
 #########################
 # Generic Peer Book API #
 #########################
 
-proc `[]`*[T](peerBook: PeerBook[T], peerId: PeerId): T {.public.} =
+proc `[]`*[T](peerBook: PeerBook[T], peerId: PeerId): T =
   ## Get all known metadata of a provided peer, or default(T) if missing
   peerBook.book.getOrDefault(peerId)
 
-proc `[]=`*[T](peerBook: PeerBook[T], peerId: PeerId, entry: T) {.public.} =
+proc `[]=`*[T](peerBook: PeerBook[T], peerId: PeerId, entry: T) =
   ## Set metadata for a given peerId.
 
   peerBook.book[peerId] = entry
@@ -101,7 +99,7 @@ proc `[]=`*[T](peerBook: PeerBook[T], peerId: PeerId, entry: T) {.public.} =
   for handler in peerBook.changeHandlers:
     handler(peerId)
 
-proc del*[T](peerBook: PeerBook[T], peerId: PeerId): bool {.public.} =
+proc del*[T](peerBook: PeerBook[T], peerId: PeerId): bool =
   ## Delete the provided peer from the book. Returns whether the peer was in the book
 
   if peerId notin peerBook.book:
@@ -113,14 +111,14 @@ proc del*[T](peerBook: PeerBook[T], peerId: PeerId): bool {.public.} =
       handler(peerId)
     return true
 
-proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool {.public.} =
+proc contains*[T](peerBook: PeerBook[T], peerId: PeerId): bool =
   peerId in peerBook.book
 
-proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) {.public.} =
+proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) =
   ## Adds a callback that will be called everytime the book changes
   peerBook.changeHandlers.add(handler)
 
-proc len*[T](peerBook: PeerBook[T]): int {.public.} =
+proc len*[T](peerBook: PeerBook[T]): int =
   peerBook.book.len
 
 ##################
@@ -131,7 +129,7 @@ macro getTypeName(t: type): untyped =
   let typ = getTypeImpl(t)[1]
   newLit(repr(typ.owner()) & "." & repr(typ))
 
-proc `[]`*[T](p: PeerStore, typ: type[T]): T {.public.} =
+proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   ## Get a book from the PeerStore (ex: peerStore[AddressBook])
   let name = getTypeName(T)
   result = T(p.books.getOrDefault(name))
@@ -144,7 +142,7 @@ proc `[]`*[T](p: PeerStore, typ: type[T]): T {.public.} =
     p.books[name] = result
   return result
 
-proc del*(peerStore: PeerStore, peerId: PeerId) {.public.} =
+proc del*(peerStore: PeerStore, peerId: PeerId) =
   ## Delete the provided peer from every book.
   for _, book in peerStore.books:
     book.deletor(peerId)

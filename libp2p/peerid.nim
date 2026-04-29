@@ -4,7 +4,7 @@
 ## This module implementes API for libp2p peer.
 
 {.push raises: [].}
-{.push public.}
+
 {.used.}
 
 import
