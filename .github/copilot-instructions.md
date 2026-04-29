@@ -355,7 +355,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Ignore `nim-libp2p/tests/tools/crypto.nim` (that's the definition file)
 
 ### API Stability
-- Always add comment when PR introduces braking change.
+- Always add comment when PR introduces breaking change.
 - Do not warn about breaking changes in the following modules as they are still not considered stable and under active development: `kademlia`, `mix`, `service_discovery`
 - Internal procedures may change at MINOR versions
 
