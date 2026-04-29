@@ -568,8 +568,13 @@ suite "Service Discovery Registrar - Edge Cases":
     let ad = makeAdvertisement($serviceId)
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad.toAdvertisementKey()] = initMoment(1000)
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = initMoment(0)
 
+    check ad in registrar.cache.getOrDefault(serviceId)
+    check ad.toAdvertisementKey() in registrar.cacheTimestamps
+
+    # expire ads that are older than 1s
+    # our ad is very old (moment zero)
     pruneExpiredAds(registrar, 1.secs)
 
     check ad notin registrar.cache.getOrDefault(serviceId)
