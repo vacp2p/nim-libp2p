@@ -126,7 +126,9 @@ proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gc
   let peers = await kad.findNode(key)
   for chunk in peers.toChunks(kad.config.alpha):
     let rpcBatch = chunk.mapIt(
-      kad.switch.dispatchAddProvider(it, key, kad.codec, kad.config.hideConnectionStatus)
+      kad.switch.dispatchAddProvider(
+        it, key, kad.codec, kad.config.hideConnectionStatus
+      )
     )
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
