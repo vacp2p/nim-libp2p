@@ -12,6 +12,7 @@ import
     transports/wstransport,
     upgrademngrs/upgrade,
     multiaddress,
+    wire,
     errors,
     muxers/muxer,
     muxers/mplex/mplex,
@@ -85,6 +86,40 @@ suite "WebSocket transport":
 
   connectionTransportTest(wsTransProvider, wsAddress)
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
+
+  asyncTest "slow WebSocket headers do not block valid accepts":
+    let server =
+      WsTransport.new(Upgrade(), headersTimeout = 3.seconds, concurrentAccepts = 2)
+    await server.start(@[MultiAddress.init(wsAddress).get()])
+    defer:
+      await server.stop()
+
+    let rawAddr = server.addrs[0].initTAddress().tryGet()
+    let slow = await connect(rawAddr)
+    var slowClosed = false
+    defer:
+      if not slowClosed:
+        slow.close()
+
+    # Give the server time to wait for this stream in header parsing.
+    discard await slow.write("GET / HTTP/1.1\r\nUpgrade: websocket\r\n")
+    await sleepAsync(500.millis)
+
+    let client = wsTransProvider()
+    defer:
+      await client.stop()
+
+    # The valid WebSocket handshake must not wait for the slow one to time out.
+    let outboundFut = client.dial(server.addrs[0])
+    let inbound = await server.accept().wait(1.seconds)
+    let outbound = await outboundFut.wait(1.seconds)
+
+    slow.close()
+    slowClosed = true
+
+    let outboundClosing = outbound.close()
+    await inbound.close()
+    await outboundClosing
 
   streamTransportTest(
     wsTransProvider,
