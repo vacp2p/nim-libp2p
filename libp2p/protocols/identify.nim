@@ -54,7 +54,7 @@ type
     observedAddrManager*: ObservedAddrManager
 
   IdentifyPushHandler* = proc(peer: PeerId, newInfo: IdentifyInfo): Future[void] {.
-    gcsafe, raises: [], public
+    gcsafe, raises: []
   .}
 
   IdentifyPush* = ref object of LPProtocol

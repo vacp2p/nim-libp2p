@@ -123,7 +123,7 @@ method atEof*(s: LPStream): bool {.base.} =
 method readOnce*(
     s: LPStream, pbytes: pointer, nbytes: int
 ): Future[int] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
+    base, async: (raises: [CancelledError, LPStreamError], raw: true)
 .} =
   ## Reads whatever is available in the stream,
   ## up to `nbytes`. Will block if nothing is
@@ -234,7 +234,7 @@ method readLp*(
 method write*(
     s: LPStream, msg: seq[byte]
 ): Future[void] {.
-    async: (raises: [CancelledError, LPStreamError], raw: true), base, public
+    async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
   # Write `msg` to stream, waiting for the write to be finished
   raiseAssert("[LPStream.write] abstract method not implemented!")
@@ -242,7 +242,7 @@ method write*(
 method writeLp*(
     s: LPStream, msg: openArray[byte]
 ): Future[void] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
+    base, async: (raises: [CancelledError, LPStreamError], raw: true)
 .} =
   ## Write `msg` with a varint-encoded length prefix
   let vbytes = PB.toBytes(msg.len().uint64)
@@ -254,7 +254,7 @@ method writeLp*(
 method writeLp*(
     s: LPStream, msg: string
 ): Future[void] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
+    base, async: (raises: [CancelledError, LPStreamError], raw: true)
 .} =
   writeLp(s, msg.toOpenArrayByte(0, msg.high))
 
