@@ -51,7 +51,7 @@ type
     ## Configuration for connection limits. Construct via `LimitsConfig.maxTotal`
     ## for a single shared cap, or `LimitsConfig.maxInOut` for independent
     ## inbound/outbound caps.
-    maxTotal: int = -1
+    maxConnections: int = -1
     maxIn: int = -1
     maxOut: int = -1
 
@@ -140,9 +140,9 @@ proc decayNone*(): DecayFn =
   return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
     value
 
-proc maxTotal*(T: type LimitsConfig, maxTotal: int): LimitsConfig =
+proc maxTotal*(T: type LimitsConfig, maxConnections: int): LimitsConfig =
   ## Constructs LimitsConfig with single shared cap limit.
-  LimitsConfig(maxTotal: maxTotal)
+  LimitsConfig(maxConnections: maxConnections)
 
 proc maxInOut*(T: type LimitsConfig, maxIn: int, maxOut: int): LimitsConfig =
   ## Constructs LimitsConfig with single independent inbound/outbound caps limits.
@@ -171,10 +171,10 @@ proc new*(
   ## and hi/lo trimming is the only guard.  When both are provided the
   ## semaphore blocks new connections hard while trimming also prunes
   ## existing ones.
-  let cfg = limits.get(LimitsConfig.maxTotal(DefaultMaxConnections))
+  let cfg = limits.get(LimitsConfig())
   let hasWatermark = watermark.isSome
   let hasInOut = cfg.maxIn > 0 and cfg.maxOut > 0
-  let hasTotal = cfg.maxTotal > 0
+  let hasTotal = cfg.maxConnections > 0
 
   var inSema, outSema: AsyncSemaphore
   var maxInArg, maxOutArg: int
@@ -185,11 +185,12 @@ proc new*(
     maxInArg = cfg.maxIn
     maxOutArg = cfg.maxOut
   elif hasTotal or not hasWatermark:
-    let sema = newAsyncSemaphore(cfg.maxTotal)
+    let cap = if cfg.maxConnections > 0: cfg.maxConnections else: DefaultMaxConnections
+    let sema = newAsyncSemaphore(cap)
     inSema = sema
     outSema = sema
-    maxInArg = cfg.maxTotal
-    maxOutArg = cfg.maxTotal
+    maxInArg = cap
+    maxOutArg = cap
   else:
     maxInArg = ConnectionsUnlimited
     maxOutArg = ConnectionsUnlimited
