@@ -335,9 +335,9 @@ suite "Component - end-to-end":
 
   asyncTest "addProvidedService registers service, lookup finds it":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    # Using 2 registrar to reduce the chance of
-    # dropping a peer whose bucket index fall outside the default range.
-    # 1 chance in 4_294_967_296 is the new failure rate.
+    # Using 2 registrars reduces the chance of dropping a peer whose
+    # bucket index falls outside the default bucket range
+    # (`Default_M_buckets = 16`). This reduces the failure rate to 1 in 4_294_967_296.
     let registrarNode1 = setupDiscoNode(conf)
     let registrarNode2 = setupDiscoNode(conf)
     let advertiserNode = setupDiscoNode(conf)
