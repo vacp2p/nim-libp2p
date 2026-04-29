@@ -188,11 +188,10 @@ method init*(f: FloodSub) =
 method publish*(
     f: FloodSub,
     topic: string,
-    data: seq[byte],
+    data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
-  # base returns always 0
-  discard await procCall PubSub(f).publish(topic, data)
+  handleSelfPublishing(f, topic, data)
 
   trace "Publishing message on topic", data = data.shortLog, topic
 

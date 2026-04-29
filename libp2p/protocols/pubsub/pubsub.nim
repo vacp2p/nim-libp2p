@@ -474,6 +474,10 @@ proc handleData*(
   # Fast path - futures finished synchronously or nobody cared about data
   newFutureCompleted[void]()
 
+template handleSelfPublishing*(p: PubSub, topic: string, data: seq[byte]) =
+  if p.triggerSelf:
+    await handleData(p, topic, data)
+
 method handleConn*(
     p: PubSub, conn: Connection, proto: string
 ) {.base, async: (raises: [CancelledError]).} =
@@ -634,7 +638,7 @@ proc subscribe*(
 method publish*(
     p: PubSub,
     topic: string,
-    data: seq[byte],
+    data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.base, async: (raises: []), public.} =
   ## publish to a ``topic``
@@ -643,8 +647,7 @@ method publish*(
   ## message to, excluding self. Note that this is an optimistic number of
   ## attempts - the number of peers that actually receive the message might
   ## be lower.
-  if p.triggerSelf:
-    await handleData(p, topic, data)
+  handleSelfPublishing(p, topic, data)
 
   return 0
 
