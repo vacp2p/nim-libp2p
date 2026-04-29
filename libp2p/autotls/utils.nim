@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 {.push raises: [].}
-{.push public.}
 
 import chronicles
 import ../errors

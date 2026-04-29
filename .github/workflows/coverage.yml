@@ -22,7 +22,7 @@ jobs:
       NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
       CICOV: YES
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -35,7 +35,7 @@ jobs:
 
       - name: Restore deps from cache
         id: deps-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: nimbledeps
           key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}

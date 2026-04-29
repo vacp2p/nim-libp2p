@@ -28,10 +28,10 @@ suite "KadDHT Protobuffers":
         timeReceived: Opt.some("2025-05-12T12:00:00Z"),
       )
     )
-    # encode with hideConnection=false to preserve connection type for round-trip check
+    # encode with hideConnectionStatus=false to preserve connection type for round-trip check
     let peer =
       Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ConnectionStatus.connected)
-    check peer == Peer.decode(peer.encode(hideConnection = false)).get()
+    check peer == Peer.decode(peer.encode(hideConnectionStatus = false)).get()
 
     let msg = Message(
       msgType: MessageType.putValue,
@@ -42,7 +42,7 @@ suite "KadDHT Protobuffers":
       closerPeers: @[Peer(id: @[9'u8], addrs: maddrs, connection: canConnect)],
       providerPeers: @[Peer(id: @[9'u8], addrs: maddrs, connection: canConnect)],
     )
-    check msg == Message.decode(msg.encode(hideConnection = false)).get()
+    check msg == Message.decode(msg.encode(hideConnectionStatus = false)).get()
 
   test "decode record with missing fields":
     var pb = initProtoBuffer()
@@ -98,7 +98,7 @@ suite "KadDHT Protobuffers":
       MultiAddress.init("/dns4/example.com/tcp/443").get(),
     ]
     let peer = Peer(id: @[1'u8, 2, 3, 4, 5], addrs: maddrs, connection: canConnect)
-    let encoded = peer.encode(hideConnection = false)
+    let encoded = peer.encode(hideConnectionStatus = false)
     let decoded = Peer.decode(initProtoBuffer(encoded.buffer)).get()
     check:
       decoded == peer
@@ -124,20 +124,22 @@ suite "KadDHT Protobuffers":
     check:
       Peer.decode(pb).isErr()
 
-  test "encode peer with hideConnection=true always emits notConnected":
+  test "encode peer with hideConnectionStatus=true always emits notConnected":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
     for ct in [connected, canConnect, cannotConnect, notConnected]:
       let peer = Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ct)
-      let decoded =
-        Peer.decode(initProtoBuffer(peer.encode(hideConnection = true).buffer)).get()
+      let decoded = Peer
+        .decode(initProtoBuffer(peer.encode(hideConnectionStatus = true).buffer))
+        .get()
       check decoded.connection == ConnectionStatus.notConnected
 
-  test "encode peer with hideConnection=false preserves actual connection type":
+  test "encode peer with hideConnectionStatus=false preserves actual connection type":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
     for ct in [connected, canConnect, cannotConnect, notConnected]:
       let peer = Peer(id: @[1'u8, 2, 3], addrs: maddrs, connection: ct)
-      let decoded =
-        Peer.decode(initProtoBuffer(peer.encode(hideConnection = false).buffer)).get()
+      let decoded = Peer
+        .decode(initProtoBuffer(peer.encode(hideConnectionStatus = false).buffer))
+        .get()
       check decoded.connection == ct
 
   test "decode all four ConnectionStatus values":
@@ -151,7 +153,7 @@ suite "KadDHT Protobuffers":
       let p = Peer.decode(pb).get()
       check p.connection == ct
 
-  test "encode message with hideConnection=true hides connection in both peer lists":
+  test "encode message with hideConnectionStatus=true hides connection in both peer lists":
     let maddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get()]
     let msg = Message(
       msgType: MessageType.findNode,
@@ -159,10 +161,10 @@ suite "KadDHT Protobuffers":
       closerPeers: @[Peer(id: @[2'u8], addrs: maddrs, connection: connected)],
       providerPeers: @[Peer(id: @[3'u8], addrs: maddrs, connection: canConnect)],
     )
-    let decoded = Message.decode(msg.encode(hideConnection = true)).get()
+    let decoded = Message.decode(msg.encode(hideConnectionStatus = true)).get()
     check decoded.closerPeers[0].connection == ConnectionStatus.notConnected
     check decoded.providerPeers[0].connection == ConnectionStatus.notConnected
 
-  test "KadDHTConfig hideConnectionInfo defaults to true":
+  test "KadDHTConfig hideConnectionStatus defaults to true":
     let cfg = KadDHTConfig.new()
-    check cfg.hideConnectionInfo == true
+    check cfg.hideConnectionStatus == true

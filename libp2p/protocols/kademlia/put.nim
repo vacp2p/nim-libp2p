@@ -116,7 +116,7 @@ proc handlePutValue*(
   kad.dataTable.insert(msg.key, entryRecord.value, $times.now().utc)
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
-  let encoded = msg.encode(kad.config.hideConnectionInfo)
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(
     encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
   )

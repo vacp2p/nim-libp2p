@@ -23,7 +23,7 @@ proc dispatchGetVal*(
     await conn.close()
 
   let msg = Message(msgType: MessageType.getValue, key: key)
-  let encoded = msg.encode(kad.config.hideConnectionInfo)
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getValue])
   kad_message_bytes_sent.inc(
@@ -154,7 +154,7 @@ method handleGetValue*(
     let response = Message(
       msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
     )
-    let encoded = response.encode(kad.config.hideConnectionInfo)
+    let encoded = response.encode(kad.config.hideConnectionStatus)
     kad_message_bytes_sent.inc(
       encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
     )
@@ -176,7 +176,7 @@ method handleGetValue*(
     ),
     closerPeers: kad.findClosestPeers(key),
   )
-  let encoded = response.encode(kad.config.hideConnectionInfo)
+  let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(
     encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
   )

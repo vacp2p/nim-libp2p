@@ -10,7 +10,7 @@ import stew/[endians2, objects]
 import ../../crypto/crypto
 
 type
-  Record* {.public.} = object
+  Record* = object
     key*: seq[byte]
     value*: Opt[seq[byte]]
     timeReceived*: Opt[string]
@@ -31,7 +31,7 @@ type
     canConnect = 2 # Unused
     cannotConnect = 3 # Unused
 
-  Peer* {.public.} = object
+  Peer* = object
     id*: seq[byte]
     addrs*: seq[MultiAddress]
     connection*: ConnectionStatus
@@ -44,7 +44,7 @@ type
 
   # Ticket message for Service Discovery
   # Nested within Register message
-  Ticket* {.public.} = object
+  Ticket* = object
     advertisement*: seq[byte] # field 1 - Copy of the original advertisement
     tInit*: uint64 # field 2 - Ticket creation timestamp (Unix time in seconds)
     tMod*: uint64 # field 3 - Last modification timestamp (Unix time in seconds)
@@ -53,17 +53,17 @@ type
 
   # Register message for Service Discovery
   # Field 21 in the main Message
-  RegisterMessage* {.public.} = object
+  RegisterMessage* = object
     advertisement*: seq[byte] # field 1 - Encoded advertisement
     status*: Opt[RegistrationStatus] # field 2 - Registration status (response only)
     ticket*: Opt[Ticket] # field 3 - Optional ticket
 
   # GetAds message for Service Discovery
   # Field 22 in the main Message
-  GetAdsMessage* {.public.} = object
+  GetAdsMessage* = object
     advertisements*: seq[seq[byte]] # field 1 - List of encoded advertisements
 
-  Message* {.public.} = object
+  Message* = object
     msgType*: MessageType
     key*: seq[byte]
     record*: Opt[Record]

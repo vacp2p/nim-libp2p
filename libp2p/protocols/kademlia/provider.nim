@@ -97,7 +97,7 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
     raiseAssert("checked with hasKey")
 
 proc dispatchAddProvider(
-    switch: Switch, peer: PeerId, key: Key, codec: string, hideConnection: bool
+    switch: Switch, peer: PeerId, key: Key, codec: string, hideConnectionStatus: bool
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   let conn =
     try:
@@ -113,7 +113,7 @@ proc dispatchAddProvider(
     key: key,
     providerPeers: @[switch.peerInfo.toPeer()],
   )
-  let encoded = msg.encode(hideConnection)
+  let encoded = msg.encode(hideConnectionStatus)
   kad_messages_sent.inc(labelValues = [$MessageType.addProvider])
   kad_message_bytes_sent.inc(
     encoded.buffer.len.int64, labelValues = [$MessageType.addProvider]
@@ -126,7 +126,7 @@ proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gc
   let peers = await kad.findNode(key)
   for chunk in peers.toChunks(kad.config.alpha):
     let rpcBatch = chunk.mapIt(
-      kad.switch.dispatchAddProvider(it, key, kad.codec, kad.config.hideConnectionInfo)
+      kad.switch.dispatchAddProvider(it, key, kad.codec, kad.config.hideConnectionStatus)
     )
     try:
       await rpcBatch.allFutures().wait(kad.config.timeout)
@@ -198,7 +198,7 @@ proc dispatchGetProviders*(
   defer:
     await conn.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
-  let encoded = msg.encode(kad.config.hideConnectionInfo)
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getProviders])
   kad_message_bytes_sent.inc(
@@ -276,7 +276,7 @@ proc handleGetProviders*(
     closerPeers: kad.findClosestPeers(msg.key),
     providerPeers: providers.toSeq(),
   )
-  let encoded = response.encode(kad.config.hideConnectionInfo)
+  let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(
     encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
   )
