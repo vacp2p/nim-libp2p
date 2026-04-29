@@ -16,7 +16,7 @@ logScope:
 
 type Perf* = ref object of LPProtocol
 
-proc new*(T: typedesc[Perf]): T {.public.} =
+proc new*(T: typedesc[Perf]): T =
   var p = T()
 
   proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
