@@ -54,7 +54,9 @@ proc readConfig(): Config =
 
 proc createSwitch(config: Config, mountPerfProto: bool): Switch =
   var builder = SwitchBuilder.new().withRng(newRng())
-  builder.addTransport(config.transport, config.bindIp)
+  builder.addTransport(
+    config.transport, config.bindIp, tcpFlags = {ServerFlags.TcpNoDelay}
+  )
   builder.addSecureChannel(config.secureChannel)
   builder.addMuxer(config.muxer)
 
