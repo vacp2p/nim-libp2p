@@ -11,6 +11,38 @@ import ./[types]
 logScope:
   topics = "ext-kad-dht random records"
 
+proc makeFireCallback(event: AsyncEvent): CallbackFunc =
+  proc(_: pointer) {.gcsafe, raises: [].} =
+    event.fire()
+
+proc nextPeer(
+    queue: AsyncQueue[(PeerId, Opt[Message])], findNodeFut: Future[seq[PeerId]]
+): Future[Opt[PeerId]] {.async: (raises: [CancelledError]).} =
+  ## Pop the next peer from the queue, blocking until one arrives or
+  ## findNodeFut finishes. Returns none when no more peers will come.
+  if not queue.empty():
+    let (peerId, _) = await queue.popFirst()
+    return Opt.some(peerId)
+
+  # Queue is temporarily empty while findNodeFut may still enqueue more peers.
+  # Wait for whichever comes first.
+  let popFirstFut = queue.popFirst()
+  let wakeEvent = newAsyncEvent()
+  popFirstFut.addCallback(makeFireCallback(wakeEvent))
+  findNodeFut.addCallback(makeFireCallback(wakeEvent))
+  try:
+    await wakeEvent.wait()
+  except CancelledError as e:
+    await popFirstFut.cancelAndWait()
+    raise e
+
+  if popFirstFut.completed:
+    let (peerId, _) = await popFirstFut
+    Opt.some(peerId)
+  else:
+    await popFirstFut.cancelAndWait()
+    Opt.none(PeerId)
+
 proc randomRecords(
     disco: ServiceDiscovery
 ): Future[seq[ExtendedPeerRecord]] {.async: (raises: [CancelledError]).} =
@@ -34,25 +66,30 @@ proc randomRecords(
   let findNodeFut = disco.findNode(randomKey, queue)
 
   var buffers: seq[seq[byte]]
-  while not findNodeFut.finished or not queue.empty():
-    let (peerId, _) = await queue.popFirst()
+  try:
+    while not findNodeFut.finished or not queue.empty():
+      let peerId = (await nextPeer(queue, findNodeFut)).valueOr:
+        break
 
-    let res = catch:
-      await disco.dispatchGetVal(peerId, peerId.toKey())
-    let msgOpt = res.valueOr:
-      error "kad getValue failed", error = res.error.msg
-      continue
+      let res = catch:
+        await disco.dispatchGetVal(peerId, peerId.toKey())
+      let msgOpt = res.valueOr:
+        error "kad getValue failed", error = res.error.msg
+        continue
 
-    let reply = msgOpt.valueOr:
-      continue
+      let reply = msgOpt.valueOr:
+        continue
 
-    let record = reply.record.valueOr:
-      continue
+      let record = reply.record.valueOr:
+        continue
 
-    let buffer = record.value.valueOr:
-      continue
+      let buffer = record.value.valueOr:
+        continue
 
-    buffers.add(buffer)
+      buffers.add(buffer)
+  except CancelledError as e:
+    await findNodeFut.cancelAndWait()
+    raise e
 
   let findNodeRes = catch:
     await findNodeFut
