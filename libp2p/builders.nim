@@ -458,8 +458,8 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError], public.} =
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
   let connManager = ConnManager.new(
-    limits = b.limitsConfig,
     maxConnsPerPeer = b.maxConnsPerPeer,
+    limits = b.limitsConfig,
     watermark = b.watermarkConfig,
     scoringConfig = b.scoringConfig,
   )
