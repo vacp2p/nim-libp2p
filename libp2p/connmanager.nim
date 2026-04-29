@@ -17,9 +17,9 @@ declareCounter(
 )
 
 const
-  MaxConnections* = 50
-  MaxConnectionsPerPeer* = 1
-  connectionsUnlimited = high(int)
+  DefaultMaxConnections = 50
+  DefaultMaxConnectionsPerPeer = 1
+  ConnectionsUnlimited = high(int)
 
 type
   DecayFn* = proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].}
@@ -89,7 +89,7 @@ type
   ConnManager* = ref object of RootObj
     closed: bool
     muxerStore: MuxerStore
-    maxConnsPerPeer: int = MaxConnectionsPerPeer
+    maxConnsPerPeer: int
     maxConnectionsIn: int
     maxConnectionsOut: int
     inSema: AsyncSemaphore
@@ -137,18 +137,21 @@ proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
 
 proc new*(
     T: type ConnManager,
-    maxConnections: int = 0,
-    maxIn: int = 0,
-    maxOut: int = 0,
-    maxConnsPerPeer: int = MaxConnectionsPerPeer,
+    maxConnections: int = -1,
+    maxIn: int = -1,
+    maxOut: int = -1,
+    maxConnsPerPeer: int = -1,
     watermark: Opt[WatermarkConfig] = Opt.none(WatermarkConfig),
     scoringConfig: ScoringConfig = ScoringConfig(),
 ): ConnManager =
   ## Creates a `ConnManager`.
   ##
-  ## By default (no arguments), a shared semaphore caps connections at
-  ## `MaxConnections`. Pass `maxConnections` for a custom shared cap, or
-  ## `maxIn`/`maxOut` for independent per-direction caps.
+  ## Parameters `maxConnections`, `maxIn`, `maxOut`, and `maxConnsPerPeer`
+  ## accept `-1` to mean "use the default value".
+  ## 
+  ## By default (no arguments), total connections are capped at `DefaultMaxConnections`.
+  ## Pass `maxConnections` for a custom total cap, or `maxIn`/`maxOut` for
+  ## independent per-direction caps.
   ##
   ## When `watermark` is provided without explicit connection limits the
   ## semaphore is omitted and hi/lo trimming is the only guard.  When both
@@ -167,19 +170,21 @@ proc new*(
     maxInArg = maxIn
     maxOutArg = maxOut
   elif hasTotal or not hasWatermark:
-    let cap = if hasTotal: maxConnections else: MaxConnections
+    let cap = if hasTotal: maxConnections else: DefaultMaxConnections
     let sema = newAsyncSemaphore(cap)
     inSema = sema
     outSema = sema
     maxInArg = cap
     maxOutArg = cap
   else:
-    maxInArg = connectionsUnlimited
-    maxOutArg = connectionsUnlimited
+    maxInArg = ConnectionsUnlimited
+    maxOutArg = ConnectionsUnlimited
 
   T(
     muxerStore: MuxerStore.new(),
-    maxConnsPerPeer: maxConnsPerPeer,
+    maxConnsPerPeer:
+      if maxConnsPerPeer >= 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
+      # issue#2328 must never be 0
     maxConnectionsIn: maxInArg,
     maxConnectionsOut: maxOutArg,
     inSema: inSema,
@@ -483,7 +488,7 @@ func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
 proc availableSlots*(c: ConnManager, dir: Direction): int =
   let sema = semaphore(c, dir)
   if sema == nil:
-    return connectionsUnlimited
+    return ConnectionsUnlimited
   return sema.availableSlots
 
 proc release*(cs: ConnectionSlot) =

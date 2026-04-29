@@ -32,6 +32,8 @@ task tutorials, "Generate tutorial markdown files":
   tutorialToMd("tutorial_2_customproto.nim")
   tutorialToMd("tutorial_3_protobuf.nim")
   tutorialToMd("tutorial_4_gossipsub.nim")
+  tutorialToMd("tutorial_5_connmanager.nim")
+  tutorialToMd("tutorial_6_peerscoring.nim")
   tutorialToMd("circuitrelay.nim")
 
 task website, "Build the website (run from project root)":
