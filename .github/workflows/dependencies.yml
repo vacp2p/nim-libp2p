@@ -33,7 +33,7 @@ jobs:
             secret: ACTIONS_GITHUB_TOKEN_NIM_CODEX
     steps:
       - name: Clone target repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ matrix.target.repository }}
           ref: ${{ matrix.target.ref}}

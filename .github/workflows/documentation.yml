@@ -15,11 +15,11 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
 
-      - uses: jiro4989/setup-nim-action@v1
+      - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.x'
 
@@ -35,7 +35,7 @@ jobs:
           ls ${GITHUB_REF##*/}
 
       - name: Clone the gh-pages branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: vacp2p/nim-libp2p
           ref: gh-pages
@@ -66,13 +66,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.x
 
-      - uses: jiro4989/setup-nim-action@v1
+      - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: 'stable'
 
@@ -80,7 +80,7 @@ jobs:
         run: pip install mkdocs-material && cd examples && nimble -y website
 
       - name: Clone the gh-pages branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: vacp2p/nim-libp2p
           ref: gh-pages
