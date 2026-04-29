@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 {.push raises: [].}
-{.push public.}
 
 import std/sequtils
 import pkg/[chronos, chronicles, results]

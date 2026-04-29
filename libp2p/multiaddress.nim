@@ -4,7 +4,6 @@
 ## This module implements MultiAddress.
 
 {.push raises: [].}
-{.push public.}
 
 import pkg/[chronos, chronicles, results]
 import std/[nativesockets, net, hashes]
