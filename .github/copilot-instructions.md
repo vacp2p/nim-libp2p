@@ -44,10 +44,14 @@ nim-libp2p/
 ├── examples/                   # Tutorial and example applications
 ├── cbind/                      # C/FFI bindings layer
 ├── docs/                       # Documentation
+│   ├── README.md               # Documentation index
 │   ├── development.md          # Setup and testing guide
 │   ├── contributing.md         # Contribution guidelines
 │   ├── compile_time_flags.md   # All compile-time flags documented
-│   └── common_hurdles.md       # Known issues and fixes
+│   ├── common_hurdles.md       # Known issues and fixes
+│   ├── protocols_mix.md        # Mix protocol documentation
+│   ├── protocols_mix_spam_protection.md  # Mix spam protection documentation
+│   └── interop_hole_punching.md  # Hole punching interop test guide
 ├── tools/                      # Developer tools (dependency pinner, markdown runner, etc.)
 ├── libp2p.nim                  # Main entry point (re-exports public APIs)
 ├── libp2p.nimble               # Package manifest and build tasks
@@ -165,8 +169,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 - **secp256k1** — Secp256k1 curve operations
 - **bearssl** — TLS/SSL
 - **dnsclient** (`>= 0.3.0, < 0.4.0`) — DNS client (used by AutoTLS)
-- **websock** (`>= 0.2.1`) — WebSocket transport
-- **nim-lsquic** — QUIC transport (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
+- **websock** — WebSocket transport (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
+- **lsquic** (`>= 0.2.0`) — QUIC transport
 - **nim-jwt** — JWT library for AutoTLS/ACME (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
 - **unittest2** — Testing framework
 
@@ -465,9 +469,10 @@ The `cbind/` directory contains the C/FFI layer for using nim-libp2p from C/C++:
 - `libp2p.nim` — FFI function implementations (exported with `{.exportc.}`)
 - `libp2p.h` — Generated C header
 - `ffi_types.nim` — C-compatible type definitions
+- `types.nim` — Additional C-compatible type implementations
 - `alloc.nim` — Cross-thread memory allocation helpers
 - `libp2p_thread/` — Thread management for async operations from C
-- `examples/cbindings.c`, `examples/mix.c` — C usage examples
+- `examples/cbindings.c`, `examples/echo.c`, `examples/mix.c` — C usage examples
 
 ```sh
 cd cbind
@@ -522,7 +527,7 @@ Run `nimble format` locally before pushing. The `linters.yml` CI workflow checks
 `--define:nimRawSetjmp` is set on Windows (non-MSVC) to avoid stack corruption with SEH and exceptions.
 
 ### QUIC transport
-Uses `nim-lsquic` (pinned GitHub commit). May require extra system dependencies for building.
+Uses `lsquic` (`>= 0.2.0`). May require extra system dependencies for building.
 
 ---
 
