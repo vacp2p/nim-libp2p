@@ -76,7 +76,7 @@ jobs:
     runs-on: ${{ matrix.builder }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
 
@@ -90,7 +90,7 @@ jobs:
 
       - name: Restore deps from cache
         id: deps-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: nimbledeps
           # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
@@ -100,7 +100,7 @@ jobs:
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
         id: windows-mingw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: external/mingw-${{ matrix.platform.cpu }}
           key: 'mingw-llvm-17-${{ matrix.platform.cpu }}'

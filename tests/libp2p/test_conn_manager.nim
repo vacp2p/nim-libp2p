@@ -19,14 +19,10 @@ method newStream*(
 ): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   Connection.new(m.peerId, Direction.Out)
 
-proc newMaxTotal(
-    maxConnections = MaxConnections, maxConnsPerPeer = MaxConnectionsPerPeer
-): ConnManager =
+proc newMaxTotal(maxConnections = 10, maxConnsPerPeer = 1): ConnManager =
   ConnManager.new(maxConnections = maxConnections, maxConnsPerPeer = maxConnsPerPeer)
 
-proc newMaxInOut(
-    maxIn: int, maxOut: int, maxConnsPerPeer = MaxConnectionsPerPeer
-): ConnManager =
+proc newMaxInOut(maxIn: int, maxOut: int, maxConnsPerPeer = 1): ConnManager =
   ConnManager.new(maxIn = maxIn, maxOut = maxOut, maxConnsPerPeer = maxConnsPerPeer)
 
 proc newWatermark*(
