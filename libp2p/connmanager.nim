@@ -140,6 +140,17 @@ proc decayNone*(): DecayFn =
   return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
     value
 
+proc maxTotal*(T: type LimitsConfig, maxConnections: int): LimitsConfig =
+  ## Constructs LimitsConfig with single shared cap limit.
+  doAssert maxConnections > 0, "maxConnections must be > 0"
+  LimitsConfig(maxConnections: maxConnections)
+
+proc maxInOut*(T: type LimitsConfig, maxIn: int, maxOut: int): LimitsConfig =
+  ## Constructs LimitsConfig with independent inbound/outbound caps.
+  doAssert maxIn > 0, "maxIn must be > 0"
+  doAssert maxOut > 0, "maxOut must be > 0"
+  LimitsConfig(maxIn: maxIn, maxOut: maxOut)
+
 proc new*(
     T: type ConnManager,
     maxConnsPerPeer: int = -1,
