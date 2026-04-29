@@ -122,9 +122,7 @@ method atEof*(s: LPStream): bool {.base.} =
 
 method readOnce*(
     s: LPStream, pbytes: pointer, nbytes: int
-): Future[int] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true)
-.} =
+): Future[int] {.base, async: (raises: [CancelledError, LPStreamError], raw: true).} =
   ## Reads whatever is available in the stream,
   ## up to `nbytes`. Will block if nothing is
   ## available
@@ -233,17 +231,13 @@ method readLp*(
 
 method write*(
     s: LPStream, msg: seq[byte]
-): Future[void] {.
-    async: (raises: [CancelledError, LPStreamError], raw: true), base
-.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), base.} =
   # Write `msg` to stream, waiting for the write to be finished
   raiseAssert("[LPStream.write] abstract method not implemented!")
 
 method writeLp*(
     s: LPStream, msg: openArray[byte]
-): Future[void] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true)
-.} =
+): Future[void] {.base, async: (raises: [CancelledError, LPStreamError], raw: true).} =
   ## Write `msg` with a varint-encoded length prefix
   let vbytes = PB.toBytes(msg.len().uint64)
   var buf = newSeqUninit[byte](msg.len() + vbytes.len)
@@ -253,9 +247,7 @@ method writeLp*(
 
 method writeLp*(
     s: LPStream, msg: string
-): Future[void] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true)
-.} =
+): Future[void] {.base, async: (raises: [CancelledError, LPStreamError], raw: true).} =
   writeLp(s, msg.toOpenArrayByte(0, msg.high))
 
 proc write*(
@@ -272,9 +264,7 @@ method closeImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), b
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
   newFutureCompleted[void]()
 
-method close*(
-    s: LPStream
-): Future[void] {.async: (raises: [], raw: true), base.} =
+method close*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.} =
   ## close the stream - this may block, but will not raise exceptions
   ##
   if s.isClosed:
