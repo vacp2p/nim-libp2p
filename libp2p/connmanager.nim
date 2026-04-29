@@ -146,7 +146,7 @@ proc maxTotal*(T: type LimitsConfig, maxConnections: int): LimitsConfig =
   LimitsConfig(maxConnections: maxConnections)
 
 proc maxInOut*(T: type LimitsConfig, maxIn: int, maxOut: int): LimitsConfig =
-  ## Constructs LimitsConfig with single independent inbound/outbound caps limits.
+  ## Constructs LimitsConfig with independent inbound/outbound caps.
   doAssert maxIn > 0, "maxIn must be > 0"
   doAssert maxOut > 0, "maxOut must be > 0"
   LimitsConfig(maxIn: maxIn, maxOut: maxOut)
