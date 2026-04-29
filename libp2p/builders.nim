@@ -258,9 +258,7 @@ proc withLimits*(b: SwitchBuilder, limits: LimitsConfig): SwitchBuilder =
   b.limitsConfig = Opt.some(limits)
   b
 
-proc withMaxConnections*(
-    b: SwitchBuilder, maxConnections: int
-): SwitchBuilder =
+proc withMaxConnections*(b: SwitchBuilder, maxConnections: int): SwitchBuilder =
   ## Maximum concurrent connections of the switch. You should either use this,
   ## or `withMaxInOut <#withMaxInOut,SwitchBuilder,int,int>`_.
   b.limitsConfig = Opt.some(LimitsConfig.maxTotal(maxConnections))
