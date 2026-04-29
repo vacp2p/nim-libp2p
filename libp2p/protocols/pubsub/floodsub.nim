@@ -25,7 +25,7 @@ logScope:
 
 const FloodSubCodec* = "/floodsub/1.0.0"
 
-type FloodSub* {.public.} = ref object of PubSub
+type FloodSub* = ref object of PubSub
   floodsub*: PeerTable # topic to remote peer map
   seen*: TimedCache[SaltedId]
     # Early filter for messages recently observed on the network

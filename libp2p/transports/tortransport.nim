@@ -70,7 +70,7 @@ proc new*(
     transportAddress: TransportAddress,
     flags: set[ServerFlags] = {},
     upgrade: Upgrade,
-): T {.public.} =
+): T =
   ## Creates a Tor transport
 
   let self = T(
@@ -296,7 +296,7 @@ proc new*(
     rng: ref HmacDrbgContext,
     addresses: seq[MultiAddress] = @[],
     flags: set[ServerFlags] = {},
-): TorSwitch {.raises: [LPError], public.} =
+): TorSwitch {.raises: [LPError].} =
   var builder = SwitchBuilder.new().withRng(rng).withTransport(
       proc(config: TransportConfig): Transport =
         TorTransport.new(torServer, flags, config.upgr)

@@ -126,14 +126,12 @@ method setup*(
     self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
   return hasBeenSetup
 
-method run*(
-    self: HPService, switch: Switch
-) {.public, async: (raises: [CancelledError]).} =
+method run*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   await self.autonatService.run(switch)
 
 method stop*(
     self: HPService, switch: Switch
-): Future[bool] {.public, async: (raises: [CancelledError]).} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   discard await self.autonatService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(

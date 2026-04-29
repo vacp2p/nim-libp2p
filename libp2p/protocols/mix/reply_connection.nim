@@ -16,12 +16,12 @@ type MixReplyConnection* = ref object of Connection
 
 method readExactly*(
     self: MixReplyConnection, pbytes: pointer, nbytes: int
-): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   raise newException(LPStreamError, "MixReplyConnection does not allow reading")
 
 method write*(
     self: MixReplyConnection, msg: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   if msg.len() > DataSize:
     raise newException(LPStreamError, "exceeds max msg size of " & $DataSize & " bytes")
   await self.mixReplyDialer(self.surbs, msg)
