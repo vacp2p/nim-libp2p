@@ -110,21 +110,19 @@ method initStream*(s: LPStream) {.base.} =
 
 method join*(
     s: LPStream
-): Future[void] {.base, async: (raises: [CancelledError], raw: true), public.} =
+): Future[void] {.base, async: (raises: [CancelledError], raw: true).} =
   ## Wait for the stream to be closed
   s.closeEvent.wait()
 
-method closed*(s: LPStream): bool {.base, public.} =
+method closed*(s: LPStream): bool {.base.} =
   s.isClosed
 
-method atEof*(s: LPStream): bool {.base, public.} =
+method atEof*(s: LPStream): bool {.base.} =
   s.isEof
 
 method readOnce*(
     s: LPStream, pbytes: pointer, nbytes: int
-): Future[int] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
-.} =
+): Future[int] {.base, async: (raises: [CancelledError, LPStreamError], raw: true).} =
   ## Reads whatever is available in the stream,
   ## up to `nbytes`. Will block if nothing is
   ## available
@@ -132,7 +130,7 @@ method readOnce*(
 
 method readExactly*(
     s: LPStream, pbytes: pointer, nbytes: int
-): Future[void] {.base, async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[void] {.base, async: (raises: [CancelledError, LPStreamError]).} =
   ## Waits for `nbytes` to be available, then read
   ## them and return them
   if s.atEof:
@@ -168,7 +166,7 @@ method readExactly*(
 
 method readLine*(
     s: LPStream, limit = 0, sep = "\r\n"
-): Future[string] {.base, async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[string] {.base, async: (raises: [CancelledError, LPStreamError]).} =
   ## Reads up to `limit` bytes are read, or a `sep` is found
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
@@ -196,7 +194,7 @@ method readLine*(
 
 method readVarint*(
     conn: LPStream
-): Future[uint64] {.base, async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[uint64] {.base, async: (raises: [CancelledError, LPStreamError]).} =
   var buffer: array[10, byte]
 
   for i in 0 ..< len(buffer):
@@ -215,7 +213,7 @@ method readVarint*(
 
 method readLp*(
     s: LPStream, maxSize: int
-): Future[seq[byte]] {.base, async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[seq[byte]] {.base, async: (raises: [CancelledError, LPStreamError]).} =
   ## read length prefixed msg, with the length encoded as a varint
   let
     length = await s.readVarint()
@@ -233,17 +231,13 @@ method readLp*(
 
 method write*(
     s: LPStream, msg: seq[byte]
-): Future[void] {.
-    async: (raises: [CancelledError, LPStreamError], raw: true), base, public
-.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), base.} =
   # Write `msg` to stream, waiting for the write to be finished
   raiseAssert("[LPStream.write] abstract method not implemented!")
 
 method writeLp*(
     s: LPStream, msg: openArray[byte]
-): Future[void] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
-.} =
+): Future[void] {.base, async: (raises: [CancelledError, LPStreamError], raw: true).} =
   ## Write `msg` with a varint-encoded length prefix
   let vbytes = PB.toBytes(msg.len().uint64)
   var buf = newSeqUninit[byte](msg.len() + vbytes.len)
@@ -253,14 +247,12 @@ method writeLp*(
 
 method writeLp*(
     s: LPStream, msg: string
-): Future[void] {.
-    base, async: (raises: [CancelledError, LPStreamError], raw: true), public
-.} =
+): Future[void] {.base, async: (raises: [CancelledError, LPStreamError], raw: true).} =
   writeLp(s, msg.toOpenArrayByte(0, msg.high))
 
 proc write*(
     s: LPStream, msg: string
-): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), public.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   s.write(msg.toBytes())
 
 method closeImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.} =
@@ -272,9 +264,7 @@ method closeImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), b
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
   newFutureCompleted[void]()
 
-method close*(
-    s: LPStream
-): Future[void] {.async: (raises: [], raw: true), base, public.} =
+method close*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.} =
   ## close the stream - this may block, but will not raise exceptions
   ##
   if s.isClosed:
@@ -288,7 +278,7 @@ method close*(
   # itself must implement this - once-only check as well, with their own field
   closeImpl(s)
 
-proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []), public.} =
+proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []).} =
   ## Close the stream and wait for EOF - use this with half-closed streams where
   ## an EOF is expected to arrive from the other end.
   ##
