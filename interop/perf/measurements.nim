@@ -111,13 +111,11 @@ proc runMeasurement*(
   let perfClient = PerfClient.new()
 
   for iteration in 0 ..< iterations:
-    let
-      startedAt = Moment.now()
-      conn = await sw.dial(remotePeerId, PerfCodec)
+    let conn = await sw.dial(remotePeerId, PerfCodec)
 
     try:
-      discard await perfClient.perf(conn, uploadBytes, downloadBytes)
-      values.add(measurementValue(uploadBytes, downloadBytes, Moment.now() - startedAt))
+      let duration = await perfClient.perf(conn, uploadBytes, downloadBytes)
+      values.add(measurementValue(uploadBytes, downloadBytes, duration))
     finally:
       await conn.close()
 

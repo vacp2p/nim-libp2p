@@ -3,6 +3,7 @@
 
 import chronos, chronicles, os
 import ../../libp2p/builders
+import ../../tests/tools/crypto
 import ../unified_testing
 import ./measurements
 
@@ -53,7 +54,7 @@ proc readConfig(): Config =
   config
 
 proc createSwitch(config: Config, mountPerfProto: bool): Switch =
-  var builder = SwitchBuilder.new().withRng(newRng())
+  var builder = SwitchBuilder.new().withRng(rng())
   builder.addTransport(
     config.transport, config.bindIp, tcpFlags = {ServerFlags.TcpNoDelay}
   )
@@ -122,14 +123,10 @@ proc runDialer(config: Config) {.async.} =
   echo ""
   printMeasurement("latency", config.latencyIterations, latencyStats, 3, "ms")
 
-let testTimeout = parseIntEnv("TEST_TIMEOUT_SECS", DefaultTestTimeoutSecs).seconds
+let config = readConfig()
 
-proc main() {.async.} =
-  let config = readConfig()
+runMain(config.testTimeoutSecs.seconds):
   if config.isDialer:
     await runDialer(config)
   else:
     await runListener(config)
-
-runMain(testTimeout):
-  await main()
