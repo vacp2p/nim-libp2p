@@ -14,7 +14,7 @@ COPY . nim-libp2p/
 
 RUN \
   cd nim-libp2p && \
-  nim c -d:release --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs2 -p:nim-libp2p --mm:refc -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None --threads:on -o:/app/perf-interop ./interop/perf/main.nim
+  nim c -d:release --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs2 --mm:refc -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None --threads:on -o:/app/perf-interop ./interop/perf/main.nim
 
 FROM debian:trixie-slim AS runtime
 

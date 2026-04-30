@@ -6,10 +6,43 @@
 import std/[os, sequtils, strformat, strutils]
 import chronos, chronicles, redis
 import ../libp2p/[builders, transports/wstransport]
+import ../tests/tools/crypto
 
-export redis
+export redis, crypto
 
-# ---------- env / ip ----------
+# ---------- config ----------
+
+type BaseConfig* = object of RootObj
+  ## Shared configuration for unified-testing interop binaries.
+  isDialer*: bool
+  bindIp*: string
+  redisAddr*: string
+  testKey*: string
+  transport*: string
+  secureChannel*: string
+  muxer*: string
+  testTimeout*: Duration
+
+const DefaultTestTimeout* = 600.seconds
+
+proc readBaseConfig*(): BaseConfig =
+  let isDialer = parseBoolEnv("IS_DIALER", false)
+  let bindIp =
+    if isDialer:
+      resolveBindIp(getEnv("DIALER_IP", getEnv("LISTENER_IP", "0.0.0.0")))
+    else:
+      resolveBindIp(getEnv("LISTENER_IP", "0.0.0.0"))
+  let config = BaseConfig(
+    isDialer: isDialer,
+    bindIp: bindIp,
+    redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
+    testKey: getEnv("TEST_KEY"),
+    transport: getEnv("TRANSPORT", "tcp"),
+    secureChannel: getEnv("SECURE_CHANNEL", "noise"),
+    muxer: getEnv("MUXER", "mplex"),
+    testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
+  )
+  config
 
 proc parseBoolEnv*(name: string, defaultValue: bool): bool =
   getEnv(name, $defaultValue).toLowerAscii() == "true"
@@ -93,6 +126,51 @@ proc pollGet*(
   pollUntil(hasValue(), timeout, delay, "Timeout waiting for Redis key: " & key)
   return val
 
+const
+  ListenerMultiaddrSuffix* = "_listener_multiaddr"
+  ListenerPeerIdSuffix* = "_listener_peer_id"
+  RelayMultiaddrSuffix* = "_relay_multiaddr"
+
+proc makeKey*(testKey, suffix: string): string =
+  testKey & suffix
+
+proc publishValue*(client: Redis, testKey, suffix, value: string) =
+  client.setk(makeKey(testKey, suffix), value)
+
+proc fetchValue*(
+    client: Redis, testKey, suffix: string, timeout: Duration = 30.seconds
+): Future[string] {.async.} =
+  await client.pollGet(makeKey(testKey, suffix), timeout)
+
+proc publishListenerMultiaddr*(client: Redis, testKey: string, sw: Switch) =
+  let addrs = sw.peerInfo.fullAddrs.tryGet()
+  if addrs.len == 0:
+    raise newException(CatchableError, "Listener has no addresses")
+  client.publishValue(testKey, ListenerMultiaddrSuffix, $addrs[0])
+
+proc fetchListenerMultiaddr*(
+    client: Redis, testKey: string, timeout: Duration = 30.seconds
+): Future[MultiAddress] {.async.} =
+  let raw = await client.fetchValue(testKey, ListenerMultiaddrSuffix, timeout)
+  MultiAddress.init(raw).tryGet()
+
+proc publishListenerPeerId*(client: Redis, testKey: string, sw: Switch): PeerId =
+  let peerId = sw.peerInfo.peerId
+  client.publishValue(testKey, ListenerPeerIdSuffix, $peerId)
+  peerId
+
+proc fetchListenerPeerId*(
+    client: Redis, testKey: string, timeout: Duration = 30.seconds
+): Future[PeerId] {.async.} =
+  let raw = await client.fetchValue(testKey, ListenerPeerIdSuffix, timeout)
+  PeerId.init(raw).tryGet()
+
+proc fetchRelayMultiaddr*(
+    client: Redis, testKey: string, timeout: Duration = 30.seconds
+): Future[MultiAddress] {.async.} =
+  let raw = await client.fetchValue(testKey, RelayMultiaddrSuffix, timeout)
+  MultiAddress.init(raw).tryGet()
+
 # ---------- timing ----------
 
 proc toMs*(duration: Duration): float =
@@ -154,6 +232,15 @@ proc addMuxer*(builder: SwitchBuilder, muxer: string) =
     discard
   else:
     raise newException(CatchableError, "unsupported muxer: " & muxer)
+
+proc buildBaseSwitch*[T: BaseConfig](
+    config: T, tcpFlags: set[ServerFlags] = {}
+): SwitchBuilder =
+  var builder = SwitchBuilder.new().withRng(rng())
+  builder.addTransport(config.transport, config.bindIp, tcpFlags = tcpFlags)
+  builder.addSecureChannel(config.secureChannel)
+  builder.addMuxer(config.muxer)
+  builder
 
 # ---------- runner ----------
 
