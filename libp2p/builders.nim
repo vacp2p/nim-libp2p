@@ -50,9 +50,6 @@ export
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
 type
-  TransportProvider* {.deprecated: "Use TransportBuilder instead".} =
-    proc(upgr: Upgrade, privateKey: PrivateKey): Transport {.gcsafe, raises: [].}
-
   TransportBuilder* = proc(config: TransportConfig): Transport {.gcsafe, raises: [].}
 
   TransportConfig* = ref object
@@ -198,22 +195,6 @@ proc withTransport*(b: SwitchBuilder, prov: TransportBuilder): SwitchBuilder =
       .build()
   b.transports.add(prov)
   b
-
-proc withTransport*(
-    b: SwitchBuilder, prov: TransportProvider
-): SwitchBuilder {.deprecated: "Use TransportBuilder instead".} =
-  ## Use a custom transport
-  runnableExamples:
-    let switch = SwitchBuilder
-      .new()
-      .withTransport(
-        proc(upgr: Upgrade, privateKey: PrivateKey): Transport =
-          TcpTransport.new(flags, upgr)
-      )
-      .build()
-  let tBuilder: TransportBuilder = proc(config: TransportConfig): Transport =
-    prov(config.upgr, config.privateKey)
-  b.withTransport(tBuilder)
 
 proc withTcpTransport*(b: SwitchBuilder, flags: set[ServerFlags] = {}): SwitchBuilder =
   b.withTransport(
