@@ -25,10 +25,7 @@ import ../../../../libp2p/protocols/mix/mix_protocol
 import ../../../../libp2p/protocols/mix/mix_node
 import ../../../../libp2p/protocols/connectivity/relay/client
 
-const
-  DefaultDnsResolver = "1.1.1.1:53"
-  DefaultMaxConnections = MaxConnections
-  DefaultMaxConnectionsPerPeer = MaxConnectionsPerPeer
+const DefaultDnsResolver = "1.1.1.1:53"
 
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
@@ -245,14 +242,20 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let transport = TransportType.fromCint(config.transport).valueOr:
     raiseAssert "invalid transport type"
 
+  let limits =
+    if config.maxIn > 0 and config.maxOut > 0:
+      Opt.some(LimitsConfig.maxInOut(config.maxIn, config.maxOut))
+    elif config.maxConnections > 0:
+      Opt.some(LimitsConfig.maxTotal(config.maxConnections))
+    else:
+      Opt.none(LimitsConfig)
+
   var switchBuilder = newStandardSwitchBuilder(
     privKey = privKey,
     addrs = addrs,
     muxer = muxer,
     transport = transport,
-    maxConnections = config.maxConnections,
-    maxIn = config.maxIn,
-    maxOut = config.maxOut,
+    limits = limits,
     maxConnsPerPeer = config.maxConnsPerPeer,
     nameResolver = dnsResolver,
   )
@@ -309,10 +312,10 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     transport: ord(TransportType.TCP),
     kadBootstrapNodes: nil,
     kadBootstrapNodesLen: 0,
-    maxConnections: DefaultMaxConnections,
+    maxConnections: -1,
     maxIn: -1,
     maxOut: -1,
-    maxConnsPerPeer: DefaultMaxConnectionsPerPeer,
+    maxConnsPerPeer: -1,
     circuitRelay: 0,
     circuitRelayClient: 0,
     autonat: 0,

@@ -740,6 +740,43 @@ suite "Mplex":
       await allFuturesRaising(transport1.stop(), transport2.stop())
       await acceptFut
 
+    asyncTest "Connection.reset aborts the dialer stream":
+      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      let transport1 = TcpTransport.new(upgrade = Upgrade())
+
+      proc acceptHandler() {.async.} =
+        let conn = await transport1.accept()
+        let mplexListen = Mplex.new(conn)
+        mplexListen.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          await stream.reset()
+
+        await mplexListen.handle()
+        await mplexListen.close()
+
+      await transport1.start(ma)
+      let acceptFut = acceptHandler()
+
+      let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
+      let conn = await transport2.dial(transport1.addrs[0])
+
+      let mplexDial = Mplex.new(conn)
+      let mplexDialFut = mplexDial.handle()
+      let stream = await mplexDial.newStream()
+
+      expect LPStreamResetError:
+        discard await stream.readLp(1024)
+      expect LPStreamResetError:
+        await stream.writeLp("HELLO")
+
+      await stream.close()
+
+      checkTracker(LPChannelTrackerName)
+
+      await conn.close()
+      await mplexDialFut
+      await allFuturesRaising(transport1.stop(), transport2.stop())
+      await acceptFut
+
     asyncTest "dialing mplex closes both ends":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
       let transport1 = TcpTransport.new(upgrade = Upgrade())

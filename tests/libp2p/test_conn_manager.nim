@@ -19,15 +19,17 @@ method newStream*(
 ): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   Connection.new(m.peerId, Direction.Out)
 
-proc newMaxTotal(
-    maxConnections = MaxConnections, maxConnsPerPeer = MaxConnectionsPerPeer
-): ConnManager =
-  ConnManager.new(maxConnections = maxConnections, maxConnsPerPeer = maxConnsPerPeer)
+proc newMaxTotal(maxConnections = 10, maxConnsPerPeer = 1): ConnManager =
+  ConnManager.new(
+    maxConnsPerPeer = maxConnsPerPeer,
+    limits = Opt.some(LimitsConfig.maxTotal(maxConnections)),
+  )
 
-proc newMaxInOut(
-    maxIn: int, maxOut: int, maxConnsPerPeer = MaxConnectionsPerPeer
-): ConnManager =
-  ConnManager.new(maxIn = maxIn, maxOut = maxOut, maxConnsPerPeer = maxConnsPerPeer)
+proc newMaxInOut(maxIn: int, maxOut: int, maxConnsPerPeer = 1): ConnManager =
+  ConnManager.new(
+    maxConnsPerPeer = maxConnsPerPeer,
+    limits = Opt.some(LimitsConfig.maxInOut(maxIn, maxOut)),
+  )
 
 proc newWatermark*(
     lowWater: int,
@@ -645,7 +647,7 @@ suite "Connection Manager: watermark with connection limiting":
     # semaphore stays exhausted and all further connection attempts are rejected.
     const maxConns = 3
     let connMngr = ConnManager.new(
-      maxConnections = maxConns,
+      limits = Opt.some(LimitsConfig.maxTotal(maxConns)),
       watermark = Opt.some(
         WatermarkConfig(
           lowWater: 1, highWater: 2, gracePeriod: 0.seconds, silencePeriod: 0.seconds

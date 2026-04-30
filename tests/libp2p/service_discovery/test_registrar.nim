@@ -205,7 +205,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= chronos.seconds(500)
+    check abs(w.inFloatSecs - 1500.0) < 0.001
 
   test "waitingTime service lower bound decreases with elapsed time":
     let registrar = Registrar.new()
@@ -220,8 +220,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= chronos.seconds(500)
-    check w < chronos.seconds(1000)
+    check abs(w.inFloatSecs - 500.0) < 0.001
 
   test "waitingTime enforces IP lower bound when exists":
     let registrar = Registrar.new()
@@ -236,7 +235,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= chronos.seconds(500)
+    check abs(w.inFloatSecs - 1500.0) < 0.001
 
   test "waitingTime IP lower bound is per IP address":
     let registrar = Registrar.new()
@@ -280,7 +279,7 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check w >= chronos.seconds(2000)
+    check abs(w.inFloatSecs - 3000.0) < 0.001
 
 suite "Service Discovery Registrar - Lower Bound Updates":
   test "updateLowerBounds stores service bound as w":

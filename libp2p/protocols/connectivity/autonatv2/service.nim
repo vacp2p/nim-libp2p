@@ -53,7 +53,9 @@ type
     rng: ref HmacDrbgContext
 
   StatusAndConfidenceHandler* = proc(
-    networkReachability: NetworkReachability, confidence: Opt[float]
+    networkReachability: NetworkReachability,
+    confidence: Opt[float],
+    dialBackAddr: Opt[MultiAddress],
   ): Future[void] {.gcsafe, async: (raises: [CancelledError]).}
 
 proc new*(
@@ -89,9 +91,13 @@ proc new*(
     rng: rng,
   )
 
-proc callHandler(self: AutonatV2Service) {.async: (raises: [CancelledError]).} =
+proc callHandler(
+    self: AutonatV2Service, dialBackAddr: Opt[MultiAddress]
+) {.async: (raises: [CancelledError]).} =
   if not isNil(self.statusAndConfidenceHandler):
-    await self.statusAndConfidenceHandler(self.networkReachability, self.confidence)
+    await self.statusAndConfidenceHandler(
+      self.networkReachability, self.confidence, dialBackAddr
+    )
 
 proc hasEnoughIncomingSlots(switch: Switch): bool =
   # we leave some margin instead of comparing to 0 as a peer could connect to us while we are asking for the dial back
@@ -150,11 +156,13 @@ proc askPeer(
     return Unknown
 
   trace "Asking peer for reachability"
+  var dialBackAddr = Opt.none(MultiAddress)
   let ans =
     try:
       let reqAddrs = switch.peerInfo.addrs
       let autonatV2Resp = await self.client.sendDialRequest(peerId, reqAddrs)
       debug "AutonatV2Response", autonatV2Resp = autonatV2Resp
+      dialBackAddr = autonatV2Resp.addrs
       autonatV2Resp.reachability
     except CancelledError as exc:
       raise exc
@@ -169,7 +177,7 @@ proc askPeer(
       Unknown
   let hasReachabilityOrConfidenceChanged = await self.handleAnswer(ans)
   if hasReachabilityOrConfidenceChanged:
-    await self.callHandler()
+    await self.callHandler(dialBackAddr)
   await switch.peerInfo.update()
   return ans
 
@@ -243,13 +251,13 @@ method setup*(
 
 method run*(
     self: AutonatV2Service, switch: Switch
-) {.public, async: (raises: [CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   trace "Running AutonatV2Service"
   await askConnectedPeers(self, switch)
 
 method stop*(
     self: AutonatV2Service, switch: Switch
-): Future[bool] {.public, async: (raises: [CancelledError]).} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   trace "Stopping AutonatV2Service"
   let hasBeenStopped = await procCall Service(self).stop(switch)
   if not hasBeenStopped:
