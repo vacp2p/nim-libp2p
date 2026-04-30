@@ -499,7 +499,7 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events only once per peer":
-    let switch1 = newStandardSwitch()
+    let switch1 = newStandardSwitch(maxConnsPerPeer = 2)
 
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
@@ -717,7 +717,8 @@ suite "Switch":
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(limits = Opt.some(LimitsConfig.maxTotal(3)))
+    let destSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)))
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -749,7 +750,8 @@ suite "Switch":
       switches.add(newStandardSwitch())
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(limits = Opt.some(LimitsConfig.maxTotal(3)))
+    let srcSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)))
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()
@@ -770,7 +772,8 @@ suite "Switch":
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(limits = Opt.some(LimitsConfig.maxInOut(3, 1)))
+    let destSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(3, 1)))
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -802,7 +805,8 @@ suite "Switch":
       switches.add(newStandardSwitch())
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(limits = Opt.some(LimitsConfig.maxInOut(1, 3)))
+    let srcSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(1, 3)))
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()

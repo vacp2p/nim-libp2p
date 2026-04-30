@@ -31,6 +31,7 @@ const
   IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
   ProtoVersion* = "ipfs/0.1.0"
   AgentVersion* = "nim-libp2p/0.0.1"
+  identifyAddrsLogMax = 5
 
 type
   IdentifyError* = object of LPError
@@ -59,9 +60,16 @@ type
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
 
+func shortLog*(addrs: seq[MultiAddress]): string =
+  if addrs.len <= identifyAddrsLogMax:
+    return addrs.map(x => $x).join(",")
+  return
+    addrs[0 ..< identifyAddrsLogMax].map(x => $x).join(",") & ",...(+" &
+    $(addrs.len - identifyAddrsLogMax) & " more)"
+
 chronicles.expandIt(IdentifyInfo):
   pubkey = ($it.pubkey).shortLog
-  addresses = it.addrs.map(x => $x).join(",")
+  addresses = shortLog(it.addrs)
   protocols = it.protos.map(x => $x).join(",")
   observable_address = $it.observedAddr
   proto_version = it.protoVersion.get("None")
