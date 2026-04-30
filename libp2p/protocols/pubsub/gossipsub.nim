@@ -420,7 +420,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       for prune in respControl.prune:
         libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
-    trace "sending control message", payload = shortLog(respControl), peer
+    trace "sending control message", control = shortLog(respControl), peer
     g.send(peer, RPCMsg.withControl(respControl), MessagePriority.High)
 
   if messages.len > 0:
@@ -614,7 +614,7 @@ method rpcHandler*(
     for m in rpcMsg.messages:
       libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topic])
 
-  trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, rpcMsg = rpcMsg.shortLog
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
 
   # trigger hooks - these may modify the message
@@ -873,7 +873,7 @@ method publish*(
   logScope:
     msgId = shortLog(msgId)
 
-  trace "Created new message", payload = shortLog(msg), peers = peers.len
+  trace "Created new message", message = shortLog(msg), peers = peers.len
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -

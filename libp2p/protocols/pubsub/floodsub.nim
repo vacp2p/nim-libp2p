@@ -102,7 +102,7 @@ method rpcHandler*(
     debug "failed to decode msg from peer", peer, err = error
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
-  trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, rpcMsg = rpcMsg.shortLog
   # trigger hooks
   peer.recvObservers(rpcMsg)
 
@@ -216,7 +216,7 @@ method publish*(
       trace "Error generating message id, skipping publish", error = error
       return 0
 
-  trace "Created new message", payload = shortLog(msg), peers = peers.len, topic, msgId
+  trace "Created new message", message = shortLog(msg), peers = peers.len, topic, msgId
 
   if f.addSeen(f.salt(msgId)):
     # custom msgid providers might cause this
