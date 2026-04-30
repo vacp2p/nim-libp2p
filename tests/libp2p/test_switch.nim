@@ -35,6 +35,40 @@ const TestCodec = "/test/proto/1.0.0"
 
 type TestProto = ref object of LPProtocol
 
+# On Windows, there is a brief gap between switch.start() returning and the
+# TCP transport being ready to accept connections, causing sporadic
+# DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
+proc dialWithRetry(
+    switch: Switch, peerId: PeerId, addrs: seq[MultiAddress], proto: string
+): Future[Connection] {.async: (raises: [CancelledError, DialFailedError]).} =
+  when defined(windows):
+    var lastErr: ref DialFailedError
+    for _ in 0 ..< 10:
+      try:
+        return await switch.dial(peerId, addrs, proto)
+      except DialFailedError as e:
+        lastErr = e
+        await sleepAsync(200.milliseconds)
+    raise lastErr
+  else:
+    return await switch.dial(peerId, addrs, proto)
+
+proc connectWithRetry(
+    switch: Switch, peerId: PeerId, addrs: seq[MultiAddress]
+): Future[void] {.async: (raises: [CancelledError, DialFailedError]).} =
+  when defined(windows):
+    var lastErr: ref DialFailedError
+    for _ in 0 ..< 10:
+      try:
+        await switch.connect(peerId, addrs)
+        return
+      except DialFailedError as e:
+        lastErr = e
+        await sleepAsync(200.milliseconds)
+    raise lastErr
+  else:
+    await switch.connect(peerId, addrs)
+
 suite "Switch":
   teardown:
     checkTrackers()
@@ -1189,30 +1223,7 @@ suite "Switch":
     dst.mount(testProto)
 
     let conn =
-      # On Windows, there is a brief gap between switch.start() returning and the
-      # TCP transport being ready to accept connections, causing sporadic
-      # DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
-      when defined(windows):
-        var dialConn: Connection
-        var lastDialError: ref DialFailedError
-        var connected = false
-        for _ in 0 ..< 10:
-          try:
-            dialConn =
-              await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
-            connected = true
-            break
-          except DialFailedError as e:
-            lastDialError = e
-            # Bounded retry for the documented Windows listener readiness gap.
-            await sleepAsync(200.milliseconds)
-        if not connected:
-          if not isNil(lastDialError):
-            raise lastDialError
-          raiseAssert "dial retry loop exited without establishing a connection"
-        dialConn
-      else:
-        await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+      await src.dialWithRetry(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
 
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
@@ -1245,7 +1256,7 @@ suite "Switch":
     # it when ConcurrentUpgrades (4) were in flight; manifested as 80+ kad nodes
     # getting stuck on bootstrap.
     const NumPeers = 85
-    let server = newStandardSwitch(maxConnections = NumPeers)
+    let server = newStandardSwitch(limits = Opt.some(LimitsConfig.maxTotal(NumPeers)))
     await server.start()
 
     var clients: seq[Switch]
@@ -1253,9 +1264,11 @@ suite "Switch":
       let c = newStandardSwitch()
       await c.start()
       clients.add(c)
+    defer:
+      await allFuturesRaising(clients.mapIt(it.stop()) & @[server.stop()])
 
     let connects =
-      clients.mapIt(it.connect(server.peerInfo.peerId, server.peerInfo.addrs))
-    check await allFutures(connects).withTimeout(30.seconds)
-
-    await allFuturesRaising(clients.mapIt(it.stop()) & @[server.stop()])
+      clients.mapIt(it.connectWithRetry(server.peerInfo.peerId, server.peerInfo.addrs))
+    let allConnects = allFuturesRaising(connects)
+    check await allConnects.withTimeout(30.seconds)
+    await allConnects
