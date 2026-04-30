@@ -186,6 +186,25 @@ type MixCurve25519Key* {.bycopy.} = object
 type MixSecp256k1PubKey* {.bycopy.} = object
   bytes*: array[33, byte]
 
+type Libp2pPeerStoreEntry* {.bycopy.} = object
+  peerId*: cstring
+  addrs*: ptr cstring
+  addrsLen*: csize_t
+  protocols*: ptr cstring
+  protocolsLen*: csize_t
+  publicKey*: ptr byte
+  publicKeyLen*: csize_t
+  agentVersion*: cstring
+  protoVersion*: cstring
+
+type PeerStoreEntryCallback* = proc(
+  callerRet: cint,
+  entry: ptr Libp2pPeerStoreEntry,
+  msg: ptr cchar,
+  len: csize_t,
+  userData: pointer,
+) {.cdecl, gcsafe, raises: [].}
+
 ### End of exported types
 ################################################################################
 

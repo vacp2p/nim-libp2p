@@ -17,6 +17,7 @@ import
     libp2p_lifecycle_requests, libp2p_peer_manager_requests, libp2p_pubsub_requests,
     libp2p_kademlia_requests, libp2p_stream_requests, libp2p_relay_requests,
     libp2p_protocol_requests, libp2p_service_discovery_requests,
+    libp2p_peerstore_requests,
   ],
   ../libp2p,
   ../libp2p/crypto/crypto,
@@ -1465,6 +1466,160 @@ proc libp2p_circuit_relay_reserve(
     return RET_ERR.cint
 
   RET_OK.cint
+
+### Peerstore APIs
+
+proc libp2p_peerstore_get_peers(
+    ctx: ptr LibP2PContext, callback: PeersCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.PEERSTORE,
+    PeerStoreRequest.createShared(PS_GET_PEERS),
+    callback,
+    CallbackKind.DEFAULT,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, 0, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_peerstore_get_peer_info(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    callback: PeerStoreEntryCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil():
+    let msg = "peerId is not set"
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  libp2p_thread.sendRequestToLibP2PThread(
+    ctx,
+    RequestType.PEERSTORE,
+    PeerStoreRequest.createShared(PS_GET_PEER_INFO, peerId = peerId),
+    callback,
+    userData,
+  ).isOkOr:
+    let msg = "libp2p error: " & $error
+    callback(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), userData)
+    return RET_ERR.cint
+
+  return RET_OK.cint
+
+proc libp2p_peerstore_add_peer(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    addrs: ptr cstring,
+    addrsLen: csize_t,
+    protos: ptr cstring,
+    protosLen: csize_t,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil():
+    failWithMsg(callback, userData, "peerId is not set")
+
+  if addrsLen == 0:
+    failWithMsg(callback, userData, "at least one address is required")
+
+  failIfDataMissing(cast[ptr byte](addrs), addrsLen, callback, userData)
+  failIfDataMissing(cast[ptr byte](protos), protosLen, callback, userData)
+  handleRequest(
+    ctx,
+    RequestType.PEERSTORE,
+    PeerStoreRequest.createShared(
+      PS_ADD_PEER,
+      peerId = peerId,
+      addrs = addrs,
+      addrsLen = addrsLen,
+      protocols = protos,
+      protocolsLen = protosLen,
+    ),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_peerstore_set_peer_addresses(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    addrs: ptr cstring,
+    addrsLen: csize_t,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil():
+    failWithMsg(callback, userData, "peerId is not set")
+
+  failIfDataMissing(cast[ptr byte](addrs), addrsLen, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PEERSTORE,
+    PeerStoreRequest.createShared(
+      PS_SET_ADDRESSES, peerId = peerId, addrs = addrs, addrsLen = addrsLen
+    ),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_peerstore_set_peer_protocols(
+    ctx: ptr LibP2PContext,
+    peerId: cstring,
+    protos: ptr cstring,
+    protosLen: csize_t,
+    callback: Libp2pCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil():
+    failWithMsg(callback, userData, "peerId is not set")
+
+  failIfDataMissing(cast[ptr byte](protos), protosLen, callback, userData)
+
+  handleRequest(
+    ctx,
+    RequestType.PEERSTORE,
+    PeerStoreRequest.createShared(
+      PS_SET_PROTOCOLS, peerId = peerId, protocols = protos, protocolsLen = protosLen
+    ),
+    callback,
+    userData,
+  ).cint
+
+proc libp2p_peerstore_delete_peer(
+    ctx: ptr LibP2PContext, peerId: cstring, callback: Libp2pCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibParams(ctx, callback, userData)
+
+  if peerId.isNil():
+    failWithMsg(callback, userData, "peerId is not set")
+
+  handleRequest(
+    ctx,
+    RequestType.PEERSTORE,
+    PeerStoreRequest.createShared(PS_DELETE_PEER, peerId = peerId),
+    callback,
+    userData,
+  ).cint
 
 ### End of exported procs
 ################################################################################

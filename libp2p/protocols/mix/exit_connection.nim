@@ -11,7 +11,7 @@ type MixExitConnection* = ref object of Connection
 
 method readOnce*(
     self: MixExitConnection, pbytes: pointer, nbytes: int
-): Future[int] {.async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   if self.message.len == 0:
     return 0 # Nothing else to read.
   if self.message.len < nbytes:
@@ -24,7 +24,7 @@ method readOnce*(
 
 method write*(
     self: MixExitConnection, msg: seq[byte]
-): Future[void] {.async: (raises: [CancelledError, LPStreamError]), public.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   if msg.len() > DataSize:
     raise newException(LPStreamError, "exceeds max msg size of " & $DataSize & " bytes")
   self.response.add(msg)
