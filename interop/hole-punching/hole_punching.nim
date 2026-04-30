@@ -44,7 +44,7 @@ proc isDirectlyConnected(switch: Switch, peerId: PeerId): bool =
 
 type HolePunchSwitches = object
   sw: Switch
-  auxSwitch: Switch
+  aux: Switch
   autonatService: AutonatService
 
 proc createSwitches(config: BaseConfig): HolePunchSwitches =
@@ -63,18 +63,16 @@ proc createSwitches(config: BaseConfig): HolePunchSwitches =
   # Setup switches
   let switches = HolePunchSwitches(
     sw: createSwitch(config, relayClient, hpservice),
-    auxSwitch: createSwitch(config),
+    aux: createSwitch(config),
     autonatService: autonatService,
   )
   switches
 
-proc connectViaRelay(
+proc connectToRelay(
     config: BaseConfig, redisClient: Redis, switches: HolePunchSwitches
 ): Future[MultiAddress] {.async.} =
   # Connect to aux switch for AutoNAT stub to report NotReachable
-  await switches.sw.connect(
-    switches.auxSwitch.peerInfo.peerId, switches.auxSwitch.peerInfo.addrs
-  )
+  await switches.sw.connect(switches.aux.peerInfo.peerId, switches.aux.peerInfo.addrs)
 
   # Wait for autonat to report NotReachable
   pollUntil(
@@ -107,14 +105,13 @@ proc runDialer(config: BaseConfig) {.async.} =
     redisClient = setupRedis(config.redisAddr)
     switches = createSwitches(config)
 
-  await allFutures(switches.sw.start(), switches.auxSwitch.start())
+  await allFutures(switches.sw.start(), switches.aux.start())
   defer:
     # Timeout the stop to avoid hanging on mplex teardown
-    discard await allFutures(switches.sw.stop(), switches.auxSwitch.stop()).withTimeout(
-      5.seconds
-    )
+    discard
+      await allFutures(switches.sw.stop(), switches.aux.stop()).withTimeout(5.seconds)
 
-  let relayMA = await connectViaRelay(config, redisClient, switches)
+  let relayMA = await connectToRelay(config, redisClient, switches)
 
   let listenerId = await fetchListenerPeerId(redisClient, config.testKey)
   info "Got listener peer ID", listenerId
@@ -153,14 +150,13 @@ proc runListener(config: BaseConfig) {.async.} =
     redisClient = setupRedis(config.redisAddr)
     switches = createSwitches(config)
 
-  await allFutures(switches.sw.start(), switches.auxSwitch.start())
+  await allFutures(switches.sw.start(), switches.aux.start())
   defer:
     # Timeout the stop to avoid hanging on mplex teardown
-    discard await allFutures(switches.sw.stop(), switches.auxSwitch.stop()).withTimeout(
-      5.seconds
-    )
+    discard
+      await allFutures(switches.sw.stop(), switches.aux.stop()).withTimeout(5.seconds)
 
-  discard await connectViaRelay(config, redisClient, switches)
+  discard await connectToRelay(config, redisClient, switches)
 
   let listenerPeerId = publishListenerPeerId(redisClient, config.testKey, switches.sw)
   info "Published listener peer ID to Redis", listenerPeerId
