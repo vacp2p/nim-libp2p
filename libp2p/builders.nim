@@ -251,7 +251,7 @@ proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder =
   b.rng = rng
   b
 
-proc withLimits*(b: SwitchBuilder, limits: ConnectionLimits): SwitchBuilder =
+proc withConnectionLimits*(b: SwitchBuilder, limits: ConnectionLimits): SwitchBuilder =
   ## Set the connection limits for the switch. Construct `limits` via
   ## `ConnectionLimits.maxTotal` for a shared cap or `ConnectionLimits.maxInOut`
   ## for independent per-direction caps.
@@ -273,7 +273,7 @@ proc withMaxConnsPerPeer*(b: SwitchBuilder, maxConnsPerPeer: int): SwitchBuilder
   b.maxConnsPerPeer = maxConnsPerPeer
   b
 
-proc withWatermark*(
+proc withWatermarkPolicy*(
     b: SwitchBuilder,
     lowWater: int,
     highWater: int,
@@ -297,7 +297,7 @@ proc withWatermark*(
   )
   b
 
-proc withScoring*(
+proc withPeerScoring*(
     b: SwitchBuilder, scoring: PeerScoring = PeerScoring()
 ): SwitchBuilder =
   ## Configure connection scoring parameters.
@@ -551,7 +551,7 @@ proc newStandardSwitchBuilder*(
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
-    limits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
+    connectionLimits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
     maxConnsPerPeer = -1,
     nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
@@ -565,8 +565,8 @@ proc newStandardSwitchBuilder*(
     .withPeerStore(capacity = peerStoreCapacity)
     .withNoise()
 
-  limits.withValue(cfg):
-    b = b.withLimits(cfg)
+  connectionLimits.withValue(cfg):
+    b = b.withConnectionLimits(cfg)
 
   if maxConnsPerPeer >= 0: # issue#2328 must never be 0
     b = b.withMaxConnsPerPeer(maxConnsPerPeer)
@@ -616,7 +616,7 @@ proc newStandardSwitch*(
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
-    limits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
+    connectionLimits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
     maxConnsPerPeer = -1,
     nameResolver = Opt.none(NameResolver),
     sendSignedPeerRecord = false,
@@ -632,7 +632,7 @@ proc newStandardSwitch*(
     secureManagers = secureManagers,
     inTimeout = inTimeout,
     outTimeout = outTimeout,
-    limits = limits,
+    connectionLimits = connectionLimits,
     maxConnsPerPeer = maxConnsPerPeer,
     nameResolver = nameResolver,
     sendSignedPeerRecord = sendSignedPeerRecord,

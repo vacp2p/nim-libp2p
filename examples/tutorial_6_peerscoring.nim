@@ -18,10 +18,10 @@
 ## couple of seconds:
 ##
 ## ```nim
-## .withWatermark(
+## .withWatermarkPolicy(
 ##   lowWater = 2, highWater = 3,
 ##   gracePeriod = 100.millis, silencePeriod = 50.millis)
-## .withScoring(PeerScoring(decayResolution: 50.millis))
+## .withPeerScoring(PeerScoring(decayResolution: 50.millis))
 ## ```
 ##
 ## **Important:** trim is not time-based, it only runs when a new
@@ -55,13 +55,13 @@ proc createBaseBuilder(): SwitchBuilder =
 
 proc makeHost(): Switch =
   createBaseBuilder()
-    .withWatermark(
+    .withWatermarkPolicy(
       lowWater = LowWater,
       highWater = HighWater,
       gracePeriod = GracePeriod,
       silencePeriod = SilencePeriod,
     )
-    .withScoring(PeerScoring(decayResolution: DecayResolution))
+    .withPeerScoring(PeerScoring(decayResolution: DecayResolution))
     .build()
 
 proc makeClient(): Switch =
@@ -263,7 +263,7 @@ waitFor(main())
 ##
 ## | Scenario | API exercised | Outcome |
 ## |---|---|---|
-## | 1. Trim trigger | `withWatermark` | count drops from `highWater + 1` to `lowWater` after the next `storeMuxer` |
+## | 1. Trim trigger | `withWatermarkPolicy` | count drops from `highWater + 1` to `lowWater` after the next `storeMuxer` |
 ## | 2. Protect / Unprotect | `protect`, `unprotect`, `isProtected` | tagged peer survives trim; loses immunity once all tags removed |
 ## | 3. Static tags | `tagPeer`, `peerScore` | high-score peers survive; low/no-score peers pruned first |
 ## | 4. Decaying tags | `tagPeerDecaying`, `bumpDecayingTag`, `decayFixed` / `decayNone` / `decayLinear` | score decays per tick, can be bumped while live, must be re-tagged once removed |
