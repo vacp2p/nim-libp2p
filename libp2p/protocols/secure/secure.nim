@@ -72,6 +72,13 @@ method closeImpl*(s: SecureConn) {.async: (raises: []).} =
 
   await procCall Connection(s).closeImpl()
 
+method resetImpl*(s: SecureConn) {.async: (raises: []).} =
+  trace "Resetting secure conn", s, dir = s.dir
+  if s.stream != nil:
+    await s.stream.reset()
+
+  await procCall Connection(s).closeImpl()
+
 method readMessage*(
     c: SecureConn
 ): Future[seq[byte]] {.

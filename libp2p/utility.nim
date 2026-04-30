@@ -9,9 +9,6 @@ import results, chronos, sequtils
 
 export results
 
-## public pragma is marker of "public" api subject to stronger stability guarantees.
-template public*() {.pragma.}
-
 const ShortDumpMax = 12
 
 template compilesOr*(a, b: untyped): untyped =

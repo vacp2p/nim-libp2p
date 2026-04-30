@@ -17,7 +17,7 @@ type
 
 method write*(
     s: BridgeStream, msg: seq[byte]
-): Future[void] {.public, async: (raises: [CancelledError, LPStreamError], raw: true).} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   s.writeHandler(msg)
 
 method closeImpl*(s: BridgeStream): Future[void] {.async: (raises: [], raw: true).} =

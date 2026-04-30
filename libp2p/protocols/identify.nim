@@ -38,7 +38,7 @@ type
   IdentityInvalidMsgError* = object of IdentifyError
   IdentifyNoPubKeyError* = object of IdentifyError
 
-  IdentifyInfo* {.public.} = object
+  IdentifyInfo* = object
     pubkey*: Opt[PublicKey]
     peerId*: PeerId
     addrs*: seq[MultiAddress]
@@ -53,9 +53,8 @@ type
     sendSignedPeerRecord*: bool
     observedAddrManager*: ObservedAddrManager
 
-  IdentifyPushHandler* = proc(peer: PeerId, newInfo: IdentifyInfo): Future[void] {.
-    gcsafe, raises: [], public
-  .}
+  IdentifyPushHandler* =
+    proc(peer: PeerId, newInfo: IdentifyInfo): Future[void] {.gcsafe, raises: [].}
 
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
@@ -197,7 +196,7 @@ proc identify*(
       trace "Observed address is not valid.", observedAddr = observed
   return info
 
-proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T {.public.} =
+proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T =
   ## Create a IdentifyPush protocol. `handler` will be called every time
   ## a peer sends us new `PeerInfo`
   let identifypush = T(identifyHandler: handler)
@@ -237,7 +236,7 @@ proc init*(p: IdentifyPush) =
 
 proc push*(
     p: IdentifyPush, peerInfo: PeerInfo, conn: Connection
-) {.public, async: (raises: [CancelledError, LPStreamError]).} =
+) {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Send new `peerInfo`s to a connection
   var pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)

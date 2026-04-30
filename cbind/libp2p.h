@@ -206,6 +206,27 @@ typedef struct {
   size_t addrsLen;
 } Libp2pPeerInfo;
 
+// Peerstore entry containing all known metadata for a peer.
+// All fields are only valid for the duration of the callback; copy if needed.
+// publicKey is NULL and publicKeyLen is 0 when the key is not known.
+// agentVersion and protoVersion are empty strings when not known.
+typedef struct {
+  const char    *peerId;
+  const char   **addrs;
+  size_t         addrsLen;
+  const char   **protocols;
+  size_t         protocolsLen;
+  const uint8_t *publicKey;
+  size_t         publicKeyLen;
+  const char    *agentVersion;
+  const char    *protoVersion;
+} Libp2pPeerStoreEntry;
+
+typedef void (*PeerStoreEntryCallback)(int callerRet,
+                                       const Libp2pPeerStoreEntry *entry,
+                                       const char *msg, size_t len,
+                                       void *userData);
+
 // Service descriptor returned by Service discovery.
 // Fields are only valid for the duration of the callback; copy if needed.
 typedef struct {
@@ -461,6 +482,44 @@ int libp2p_kad_get_providers(libp2p_ctx_t *ctx, const char *cid,
 int libp2p_kad_random_records(libp2p_ctx_t *ctx, RandomRecordsCallback callback,
                               void *userData);
 
+// === Service Discovery APIs ===
+
+int libp2p_service_disco_start(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                               void *userData);
+
+int libp2p_service_disco_stop(libp2p_ctx_t *ctx, Libp2pCallback callback,
+                              void *userData);
+
+int libp2p_service_disco_start_advertising(libp2p_ctx_t *ctx,
+                                           const char *serviceId,
+                                           const uint8_t *serviceData,
+                                           size_t serviceDataLen,
+                                           Libp2pCallback callback,
+                                           void *userData);
+
+int libp2p_service_disco_stop_advertising(libp2p_ctx_t *ctx,
+                                          const char *serviceId,
+                                          Libp2pCallback callback,
+                                          void *userData);
+
+int libp2p_service_disco_start_discovering(libp2p_ctx_t *ctx,
+                                           const char *serviceId,
+                                           Libp2pCallback callback,
+                                           void *userData);
+
+int libp2p_service_disco_stop_discovering(libp2p_ctx_t *ctx,
+                                          const char *serviceId,
+                                          Libp2pCallback callback,
+                                          void *userData);
+
+int libp2p_service_disco_lookup(libp2p_ctx_t *ctx, const char *serviceId,
+                                const uint8_t *serviceData, size_t serviceDataLen,
+                                RandomRecordsCallback callback, void *userData);
+
+int libp2p_service_disco_random_lookup(libp2p_ctx_t *ctx,
+                                       RandomRecordsCallback callback,
+                                       void *userData);
+
 // === Mix APIs ===
 
 void libp2p_mix_generate_priv_key(libp2p_curve25519_key_t *outKey);
@@ -514,6 +573,41 @@ int libp2p_dial_circuit_relay(libp2p_ctx_t *ctx, const char *dstPeerId,
 int libp2p_circuit_relay_reserve(libp2p_ctx_t *ctx, const char *relayPeerId,
                                  const char **relayAddrs, size_t relayAddrsLen,
                                  ReservationCallback callback, void *userData);
+
+// === Peerstore APIs ===
+
+// Returns peer IDs of all peers known to the address book.
+int libp2p_peerstore_get_peers(libp2p_ctx_t *ctx, PeersCallback callback,
+                               void *userData);
+
+// Returns all known metadata for peerId.
+// Addresses and protocols are populated from the peerstore books.
+// publicKey is set when the key has been received via identify.
+int libp2p_peerstore_get_peer_info(libp2p_ctx_t *ctx, const char *peerId,
+                                   PeerStoreEntryCallback callback,
+                                   void *userData);
+
+// Merges addrs into the address book for peerId (extends without duplicates).
+// Optionally merges protos into the protocol book when protosLen > 0.
+// addrsLen must be > 0.
+int libp2p_peerstore_add_peer(libp2p_ctx_t *ctx, const char *peerId,
+                              const char **addrs, size_t addrsLen,
+                              const char **protos, size_t protosLen,
+                              Libp2pCallback callback, void *userData);
+
+// Replaces all addresses stored for peerId.
+int libp2p_peerstore_set_peer_addresses(libp2p_ctx_t *ctx, const char *peerId,
+                                        const char **addrs, size_t addrsLen,
+                                        Libp2pCallback callback, void *userData);
+
+// Replaces all protocols stored for peerId.
+int libp2p_peerstore_set_peer_protocols(libp2p_ctx_t *ctx, const char *peerId,
+                                        const char **protos, size_t protosLen,
+                                        Libp2pCallback callback, void *userData);
+
+// Removes peerId from all peerstore books.
+int libp2p_peerstore_delete_peer(libp2p_ctx_t *ctx, const char *peerId,
+                                 Libp2pCallback callback, void *userData);
 
 #ifdef __cplusplus
 }

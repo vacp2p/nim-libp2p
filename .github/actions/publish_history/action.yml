@@ -5,7 +5,7 @@ runs:
   using: "composite"
   steps:
     - name: Clone the branch
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: ${{ github.repository }}
         ref: ${{ env.PUBLISH_BRANCH_NAME }}

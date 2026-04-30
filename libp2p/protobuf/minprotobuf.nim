@@ -9,8 +9,6 @@ import ../varint, ../utility, stew/endians2, results
 import ../utils/sequninit
 export results, utility
 
-{.push public.}
-
 type
   ProtoFieldKind* = enum
     ## Protobuf's field types enum
