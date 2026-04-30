@@ -399,6 +399,22 @@ suite "Yamux":
       blocker.complete()
       await streamA.close()
 
+    asyncTest "Connection.reset aborts the initiator stream":
+      mSetup()
+
+      yamuxb.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+        await conn.reset()
+
+      let streamA = await yamuxa.newStream()
+      check streamA == yamuxa.getStreams()[0]
+
+      expect LPStreamResetError:
+        discard await streamA.readLp(100)
+      expect LPStreamResetError:
+        await streamA.writeLp(fromHex("1234"))
+
+      await streamA.close()
+
     asyncTest "Peer must be able to read from stream after closing it for writing":
       mSetup()
 

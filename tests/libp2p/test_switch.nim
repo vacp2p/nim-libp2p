@@ -717,7 +717,8 @@ suite "Switch":
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(maxConnections = 3)
+    let destSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)))
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -749,7 +750,8 @@ suite "Switch":
       switches.add(newStandardSwitch())
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(maxConnections = 3)
+    let srcSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)))
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()
@@ -770,7 +772,8 @@ suite "Switch":
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(maxIn = 3, maxOut = 1)
+    let destSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(3, 1)))
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -802,7 +805,8 @@ suite "Switch":
       switches.add(newStandardSwitch())
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(maxOut = 3, maxIn = 1)
+    let srcSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(1, 3)))
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()

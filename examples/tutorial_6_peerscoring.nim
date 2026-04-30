@@ -5,9 +5,9 @@
 ## connection manager. This tutorial drives one of those configurations at
 ## runtime and shows what the connection manager actually *does*:
 ##
-## 1. **When trim fires**: `highWater` triggers a trim cycle; the the manager 
-##    schedules a trim cycle that attempts to reduce peers to `lowWater`, 
-##    skipping grace/protected peers.
+## 1. **When trim fires**: exceeding `highWater` triggers a trim cycle; the
+##    manager schedules a trim cycle that attempts to reduce peers to
+##    `lowWater`, skipping grace/protected peers.
 ## 2. **`protect` / `unprotect`**: keep a chosen peer immune from trim.
 ## 3. **Static tags**: bias trim selection with `tagPeer(peerId, tag, value)`.
 ## 4. **Decaying tags**: `tagPeerDecaying` plus `bumpDecayingTag`, watching
@@ -18,10 +18,10 @@
 ## couple of seconds:
 ##
 ## ```nim
-## .withWatermark(
+## .withWatermarkPolicy(
 ##   lowWater = 2, highWater = 3,
 ##   gracePeriod = 100.millis, silencePeriod = 50.millis)
-## .withScoring(ScoringConfig(decayResolution: 50.millis))
+## .withPeerScoring(PeerScoring(decayResolution: 50.millis))
 ## ```
 ##
 ## **Important:** trim is not time-based, it only runs when a new
@@ -55,13 +55,13 @@ proc createBaseBuilder(): SwitchBuilder =
 
 proc makeHost(): Switch =
   createBaseBuilder()
-    .withWatermark(
+    .withWatermarkPolicy(
       lowWater = LowWater,
       highWater = HighWater,
       gracePeriod = GracePeriod,
       silencePeriod = SilencePeriod,
     )
-    .withScoring(ScoringConfig(decayResolution: DecayResolution))
+    .withPeerScoring(PeerScoring(decayResolution: DecayResolution))
     .build()
 
 proc makeClient(): Switch =
@@ -182,12 +182,12 @@ proc main() {.async.} =
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
 
-    let connectedIds = host.connectedIds()
-    echo fmt"3. survivors = {connectedIds.len} (lowWater = {LowWater}), " &
-      fmt"vip(100) in = {vip in connectedIds}, " &
-      fmt"plain1(0) in = {plain1 in connectedIds}, " &
-      fmt"plain2(0) in = {plain2 in connectedIds}, " &
-      fmt"trigger(grace) in = {trigger in connectedIds}"
+    let connected = host.connectedIds()
+    echo fmt"3. survivors = {connected.len} (lowWater = {LowWater}), " &
+      fmt"vip(100) in = {vip in connected}, " &
+      fmt"plain1(0) in = {plain1 in connected}, " &
+      fmt"plain2(0) in = {plain2 in connected}, " &
+      fmt"trigger(grace) in = {trigger in connected}"
     echo fmt"   peerScore(vip) = {host.connManager.peerScore(vip)}"
 
     await allFutures(@[host.stop()] & clients.mapIt(it.stop()))
@@ -238,10 +238,10 @@ proc main() {.async.} =
     # two zero-score peers; p1 survives on score, p4 survives on grace.
     await connectClient(host, clients[3])
     await sleepAsync(TrimWait)
-    let connectedIds = host.connectedIds()
-    echo fmt"4d. survivors = {connectedIds.len}, " &
-      fmt"p1(100) in = {p1 in connectedIds}, " & fmt"p2(0) in = {p2 in connectedIds}, " &
-      fmt"p3(0) in = {p3 in connectedIds}, " & fmt"p4(grace) in = {p4 in connectedIds}"
+    let connected = host.connectedIds()
+    echo fmt"4d. survivors = {connected.len}, " & fmt"p1(100) in = {p1 in connected}, " &
+      fmt"p2(0) in = {p2 in connected}, " & fmt"p3(0) in = {p3 in connected}, " &
+      fmt"p4(grace) in = {p4 in connected}"
     echo fmt"   peerScore(p1) = {host.connManager.peerScore(p1)}"
 
     # `bumpDecayingTag` adds to a *live* tag. Demonstrate it by bumping p1
@@ -263,7 +263,7 @@ waitFor(main())
 ##
 ## | Scenario | API exercised | Outcome |
 ## |---|---|---|
-## | 1. Trim trigger | `withWatermark` | count drops from `highWater + 1` to `lowWater` after the next `storeMuxer` |
+## | 1. Trim trigger | `withWatermarkPolicy` | count drops from `highWater + 1` to `lowWater` after the next `storeMuxer` |
 ## | 2. Protect / Unprotect | `protect`, `unprotect`, `isProtected` | tagged peer survives trim; loses immunity once all tags removed |
 ## | 3. Static tags | `tagPeer`, `peerScore` | high-score peers survive; low/no-score peers pruned first |
 ## | 4. Decaying tags | `tagPeerDecaying`, `bumpDecayingTag`, `decayFixed` / `decayNone` / `decayLinear` | score decays per tick, can be bumped while live, must be re-tagged once removed |

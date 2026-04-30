@@ -127,20 +127,20 @@ type
 
   PeerMessageDecodeError* = object of CatchableError
 
-  TopicHandler* {.public.} =
+  TopicHandler* =
     proc(topic: string, data: seq[byte]): Future[void] {.gcsafe, raises: [].}
 
-  ValidatorHandler* {.public.} = proc(
-    topic: string, message: Message
-  ): Future[ValidationResult] {.gcsafe, raises: [].}
+  ValidatorHandler* = proc(topic: string, message: Message): Future[ValidationResult] {.
+    gcsafe, raises: []
+  .}
 
   TopicPair* = tuple[topic: string, handler: TopicHandler]
 
-  MsgIdProvider* {.public.} = proc(m: Message): Result[MessageId, ValidationResult] {.
+  MsgIdProvider* = proc(m: Message): Result[MessageId, ValidationResult] {.
     noSideEffect, raises: [], gcsafe
   .}
 
-  SubscriptionValidator* {.public.} = proc(topic: string): bool {.raises: [], gcsafe.}
+  SubscriptionValidator* = proc(topic: string): bool {.raises: [], gcsafe.}
     ## Every time a peer send us a subscription (even to an unknown topic),
     ## we have to store it, which may be an attack vector.
     ## This callback can be used to reject topic we're not interested in
@@ -168,7 +168,7 @@ type
     requestsPartial*: bool
     supportsSendingPartial*: bool
 
-  PubSub* {.public.} = ref object of LPProtocol
+  PubSub* = ref object of LPProtocol
     switch*: Switch # the switch used to dial/connect to peers
     peerInfo*: PeerInfo # this peer's info
     topics*: Table[string, TopicData] # the topics that _we_ are interested in
@@ -446,6 +446,10 @@ proc handleData*(
   # Fast path - futures finished synchronously or nobody cared about data
   newFutureCompleted[void]()
 
+template handleSelfPublishing*(p: PubSub, topic: string, data: seq[byte]) =
+  if p.triggerSelf:
+    await handleData(p, topic, data)
+
 method handleConn*(
     p: PubSub, conn: Connection, proto: string
 ) {.base, async: (raises: [CancelledError]).} =
@@ -531,7 +535,7 @@ method onTopicSubscription*(
   else:
     libp2p_pubsub_unsubscriptions.inc()
 
-proc unsubscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
+proc unsubscribe*(p: PubSub, topic: string, handler: TopicHandler) =
   ## unsubscribe from a ``topic`` string
   ##
   p.topics.withValue(topic, topicData):
@@ -544,12 +548,12 @@ proc unsubscribe*(p: PubSub, topic: string, handler: TopicHandler) {.public.} =
 
     p.updateTopicMetrics(topic)
 
-proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) {.public.} =
+proc unsubscribe*(p: PubSub, topics: openArray[TopicPair]) =
   ## unsubscribe from a list of ``topic`` handlers
   for t in topics:
     p.unsubscribe(t.topic, t.handler)
 
-proc unsubscribeAll*(p: PubSub, topic: string) {.public, gcsafe.} =
+proc unsubscribeAll*(p: PubSub, topic: string) {.gcsafe.} =
   ## unsubscribe every `handler` from `topic`
   if topic notin p.topics:
     debug "unsubscribeAll called for an unknown topic", topic
@@ -566,7 +570,7 @@ proc subscribe*(
     handler: TopicHandler,
     requestsPartial: bool = false,
     supportsSendingPartial: bool = false,
-) {.public.} =
+) =
   ## subscribe to a topic
   ##
   ## ``topic``   - a string topic to subscribe to
@@ -606,17 +610,16 @@ proc subscribe*(
 method publish*(
     p: PubSub,
     topic: string,
-    data: seq[byte],
+    data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
-): Future[int] {.base, async: (raises: []), public.} =
+): Future[int] {.base, async: (raises: []).} =
   ## publish to a ``topic``
   ##
   ## The return value is the number of neighbours that we attempted to send the
   ## message to, excluding self. Note that this is an optimistic number of
   ## attempts - the number of peers that actually receive the message might
   ## be lower.
-  if p.triggerSelf:
-    await handleData(p, topic, data)
+  handleSelfPublishing(p, topic, data)
 
   return 0
 
@@ -632,7 +635,7 @@ method initPubSub*(p: PubSub) {.base, raises: [InitializationError].} =
 
 method addValidator*(
     p: PubSub, topic: varargs[string], hook: ValidatorHandler
-) {.base, public, gcsafe.} =
+) {.base, gcsafe.} =
   ## Add a validator to a `topic`. Each new message received in this
   ## will be sent to `hook`. `hook` can return either `Accept`,
   ## `Ignore` or `Reject` (which can descore the peer)
@@ -642,7 +645,7 @@ method addValidator*(
 
 method removeValidator*(
     p: PubSub, topic: varargs[string], hook: ValidatorHandler
-) {.base, public, gcsafe.} =
+) {.base, gcsafe.} =
   for t in topic:
     p.validators.withValue(t, validators):
       validators[].excl(hook)
@@ -703,7 +706,7 @@ proc init*[PubParams: object | bool](
     parameters: PubParams = false,
     customConnCallbacks: Opt[CustomConnectionCallbacks] =
       Opt.none(CustomConnectionCallbacks),
-): P {.raises: [InitializationError], public.} =
+): P {.raises: [InitializationError].} =
   let pubsub =
     when PubParams is bool:
       P(
@@ -754,10 +757,10 @@ proc init*[PubParams: object | bool](
 
   return pubsub
 
-proc addObserver*(p: PubSub, observer: PubSubObserver) {.public.} =
+proc addObserver*(p: PubSub, observer: PubSubObserver) =
   p.observers[] &= observer
 
-proc removeObserver*(p: PubSub, observer: PubSubObserver) {.public.} =
+proc removeObserver*(p: PubSub, observer: PubSubObserver) =
   let idx = p.observers[].find(observer)
   if idx != -1:
     p.observers[].del(idx)

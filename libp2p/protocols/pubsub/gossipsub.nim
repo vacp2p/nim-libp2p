@@ -439,7 +439,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
 
 proc sendIDontWant(
     g: GossipSub,
-    msg: Message,
+    topic: string,
     msgId: MessageId,
     peersToSendIDontWant: HashSet[PubSubPeer],
 ) =
@@ -457,7 +457,7 @@ proc sendIDontWant(
     (it.codec != GossipSubCodec_10 and it.codec != GossipSubCodec_11) and
       #
       # IDONTWANT is only supported by >= GossipSubCodec_12
-    (not g.extensionsState.peerRequestsPartial(it.peerId, msg.topic))
+    (not g.extensionsState.peerRequestsPartial(it.peerId, topic))
       #
       # skip sending IDONTWANT if peer has requested partial for topic
   )
@@ -468,8 +468,8 @@ proc sendIDontWant(
 
 const iDontWantMessageSizeThreshold* = 512
 
-proc isLargeMessage(msg: Message, msgId: MessageId): bool =
-  msg.data.len > max(iDontWantMessageSizeThreshold, msgId.len * 10)
+proc isLargeMessage(dataLen: int, msgId: MessageId): bool =
+  dataLen > max(iDontWantMessageSizeThreshold, msgId.len * 10)
 
 proc validateAndRelay(
     g: GossipSub, msg: Message, msgId: MessageId, saltedId: SaltedId, peer: PubSubPeer
@@ -487,10 +487,10 @@ proc validateAndRelay(
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
 
-    if isLargeMessage(msg, msgId):
+    if isLargeMessage(msg.data.len, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
-      g.sendIDontWant(msg, msgId, peersToSendIDontWant)
+      g.sendIDontWant(topic, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
 
@@ -545,7 +545,7 @@ proc validateAndRelay(
     toSendPeers.exclIfIt(isMsgInIdontWant(it))
 
     g.extensionsState.preambleBroadcastIfNotReceiving(
-      RPCMsg.withPreamble(msg, msgId), toSendPeers.mapIt(it.peerId)
+      RPCMsg.withPreamble(topic, msgId, msg.data.len), toSendPeers.mapIt(it.peerId)
     )
 
     # In theory, if topics are the same in all messages, we could batch - we'd
@@ -762,7 +762,7 @@ proc makePeersForPublishUsingCustomConn(
     )
 
 proc makePeersForPublishDefault(
-    g: GossipSub, topic: string, data: seq[byte] = @[]
+    g: GossipSub, topic: string, dataLen: int = 0
 ): HashSet[PubSubPeer] =
   var peers: HashSet[PubSubPeer]
 
@@ -782,7 +782,7 @@ proc makePeersForPublishDefault(
         let
           bandwidth = (g.parameters.bandwidthEstimatebps) div 8 div 1000
             # Divisions are to convert it to Bytes per ms TODO replace with bandwidth estimate
-          msToTransmit = max(data.len div bandwidth, 1)
+          msToTransmit = max(dataLen div bandwidth, 1)
         max(
           g.parameters.heartbeatInterval.milliseconds div msToTransmit,
           g.parameters.dLow,
@@ -821,7 +821,7 @@ proc makePeersForPublishDefault(
 method publish*(
     g: GossipSub,
     topic: string,
-    data: seq[byte],
+    data: sink seq[byte],
     publishParams: Opt[PublishParams] = Opt.none(PublishParams),
 ): Future[int] {.async: (raises: []).} =
   logScope:
@@ -831,8 +831,7 @@ method publish*(
     debug "Empty topic, skipping publish"
     return 0
 
-  # base returns always 0
-  discard await procCall PubSub(g).publish(topic, data)
+  handleSelfPublishing(g, topic, data)
 
   trace "Publishing message on topic", data = data.shortLog
 
@@ -842,7 +841,7 @@ method publish*(
     if pubParams.useCustomConn:
       g.makePeersForPublishUsingCustomConn(topic)
     else:
-      g.makePeersForPublishDefault(topic, data)
+      g.makePeersForPublishDefault(topic, data.len)
 
   peers = peers.filterIt(
     (not g.extensionsState.peerRequestsPartial(it.peerId, topic))
@@ -887,12 +886,12 @@ method publish*(
     g.mcache.put(msgId, msg)
 
   if g.parameters.sendIDontWantOnPublish:
-    if not pubParams.skipIDontWant and isLargeMessage(msg, msgId):
-      g.sendIDontWant(msg, msgId, peers)
+    if not pubParams.skipIDontWant and isLargeMessage(msg.data.len, msgId):
+      g.sendIDontWant(topic, msgId, peers)
 
     if not pubParams.skipPreamble:
       g.extensionsState.preambleBroadcast(
-        RPCMsg.withPreamble(msg, msgId), peers.mapIt(it.peerId)
+        RPCMsg.withPreamble(topic, msgId, msg.data.len), peers.mapIt(it.peerId)
       )
 
   g.broadcast(

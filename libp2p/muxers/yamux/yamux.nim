@@ -233,6 +233,7 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).}
   trace "Reset channel"
   channel.isReset = true
   channel.remoteReset = not isLocal
+  channel.isClosed = true
   channel.clearQueues(newLPStreamEOFError())
 
   channel.sendWindow = 0
@@ -242,13 +243,16 @@ proc reset(channel: YamuxChannel, isLocal: bool = false) {.async: (raises: []).}
         await channel.conn.write(YamuxHeader.data(channel.id, 0, {Rst}))
       except CancelledError, LPStreamError:
         discard
-    await channel.close()
+    await channel.closeImpl()
   if not channel.closedRemotely.isSet():
     await channel.remoteClosed()
   channel.receivedData.fire()
   if not isLocal:
     # If the reset is remote, there's no reason to flush anything.
     channel.recvWindow = 0
+
+method resetImpl*(channel: YamuxChannel) {.async: (raises: []).} =
+  await channel.reset(isLocal = true)
 
 proc updateRecvWindow(
     channel: YamuxChannel
