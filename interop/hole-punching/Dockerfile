@@ -16,7 +16,7 @@ RUN cd nim-libp2p && \
   nim c -d:release --skipProjCfg --skipParentCfg --NimblePath:./nimbledeps/pkgs2 \
   --mm:refc --threads:on \
   -d:chronicles_log_level=INFO -d:chronicles_default_output_device=stderr -d:chronicles_colors=None \
-  -o:/app/peer ./interop/hole-punching/hole_punching.nim
+  -o:/app/peer ./interop/hole-punching/main.nim
 
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y iproute2 && rm -rf /var/lib/apt/lists/*

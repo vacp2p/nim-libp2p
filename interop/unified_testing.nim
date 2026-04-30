@@ -25,25 +25,6 @@ type BaseConfig* = object of RootObj
 
 const DefaultTestTimeout* = 600.seconds
 
-proc readBaseConfig*(): BaseConfig =
-  let isDialer = parseBoolEnv("IS_DIALER", false)
-  let bindIp =
-    if isDialer:
-      resolveBindIp(getEnv("DIALER_IP", getEnv("LISTENER_IP", "0.0.0.0")))
-    else:
-      resolveBindIp(getEnv("LISTENER_IP", "0.0.0.0"))
-  let config = BaseConfig(
-    isDialer: isDialer,
-    bindIp: bindIp,
-    redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
-    testKey: getEnv("TEST_KEY"),
-    transport: getEnv("TRANSPORT", "tcp"),
-    secureChannel: getEnv("SECURE_CHANNEL", "noise"),
-    muxer: getEnv("MUXER", "mplex"),
-    testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
-  )
-  config
-
 proc parseBoolEnv*(name: string, defaultValue: bool): bool =
   getEnv(name, $defaultValue).toLowerAscii() == "true"
 
@@ -80,6 +61,25 @@ proc resolveBindIp*(ip: string): string =
     raise newException(CatchableError, "Can't find local ip!")
 
   ($addresses[0][0].host).split(":")[0]
+
+proc readBaseConfig*(): BaseConfig =
+  let isDialer = parseBoolEnv("IS_DIALER", false)
+  let bindIp =
+    if isDialer:
+      resolveBindIp(getEnv("DIALER_IP", getEnv("LISTENER_IP", "0.0.0.0")))
+    else:
+      resolveBindIp(getEnv("LISTENER_IP", "0.0.0.0"))
+  let config = BaseConfig(
+    isDialer: isDialer,
+    bindIp: bindIp,
+    redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
+    testKey: getEnv("TEST_KEY"),
+    transport: getEnv("TRANSPORT", "tcp"),
+    secureChannel: getEnv("SECURE_CHANNEL", "noise"),
+    muxer: getEnv("MUXER", "mplex"),
+    testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
+  )
+  config
 
 # ---------- redis ----------
 

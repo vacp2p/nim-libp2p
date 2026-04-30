@@ -168,7 +168,7 @@ proc runListener(config: BaseConfig) {.async.} =
   # Wait to be killed (docker-compose will stop us after dialer exits)
   await sleepAsync(5.minutes)
 
-proc entry() =
+proc main() =
   let config = readBaseConfig()
   info "Test configuration", config
 
@@ -178,4 +178,4 @@ proc entry() =
     else:
       await runListener(config)
 
-entry()
+main()
