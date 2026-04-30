@@ -7,7 +7,7 @@
 ## and can optionally trim low-scoring peers via watermark logic.
 ##
 ## You'll find all configuration options in the `withMaxConnections`,
-## `withMaxInOut`, and `withWatermark` builder methods.
+## `withMaxInOut`, and `withWatermarkPolicy` builder methods.
 import chronos, strformat
 
 import libp2p
@@ -74,7 +74,7 @@ proc main() {.async.} =
       switch, "3. .withMaxInOut(30, 20)", "(in-limit: 30, out-limit: 20)"
     )
 
-  ## ### 4. `.withWatermark(10, 20)` — soft trimming, no hard cap
+  ## ### 4. `.withWatermarkPolicy(10, 20)` — soft trimming, no hard cap
   ##
   ## No semaphore is created — the switch **never blocks** an incoming
   ## connection based on count alone.  Instead, once the connected-peer count
@@ -83,14 +83,14 @@ proc main() {.async.} =
   ## the lowest-scoring peers.  Peers within the grace period (default 1 min)
   ## and protected peers are skipped during trimming.
   block:
-    let switch = createBaseBuilder().withWatermark(10, 20).build()
+    let switch = createBaseBuilder().withWatermarkPolicy(10, 20).build()
 
     await connectPeer(
-      switch, "4. .withWatermark(10, 20)",
+      switch, "4. .withWatermarkPolicy(10, 20)",
       "(no hard cap; trims to 10 once 20 are connected)",
     )
 
-  ## ### 5. `.withWatermark(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)` — custom timing
+  ## ### 5. `.withWatermarkPolicy(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)` — custom timing
   ##
   ## `gracePeriod` protects newly connected peers from being trimmed: any peer
   ## that connected less than `gracePeriod` ago is skipped when the connection
@@ -107,15 +107,15 @@ proc main() {.async.} =
   ## longer, while a short silence period allows more frequent pruning passes.
   block:
     let switch = createBaseBuilder()
-      .withWatermark(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)
+      .withWatermarkPolicy(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)
       .build()
 
     await connectPeer(
-      switch, "5. .withWatermark(gracePeriod=30s, silencePeriod=5s)",
+      switch, "5. .withWatermarkPolicy(gracePeriod=30s, silencePeriod=5s)",
       "(trims at 20; grace 30 s; silence 5 s)",
     )
 
-  ## ### 6. `.withWatermark(10, 20).withMaxConnections(30)` — hard cap + trimming
+  ## ### 6. `.withWatermarkPolicy(10, 20).withMaxConnections(30)` — hard cap + trimming
   ##
   ## A semaphore enforces an absolute ceiling of 30 connections while
   ## watermark trimming keeps the active peer count near 10 long before that
@@ -124,24 +124,25 @@ proc main() {.async.} =
   ## existing ones once the high-water mark is hit.
   block:
     let switch =
-      createBaseBuilder().withWatermark(10, 20).withMaxConnections(30).build()
+      createBaseBuilder().withWatermarkPolicy(10, 20).withMaxConnections(30).build()
 
     await connectPeer(
-      switch, "6. .withWatermark(10,20).withMaxConnections(30)",
+      switch, "6. .withWatermarkPolicy(10,20).withMaxConnections(30)",
       "(hard cap: 30; trims at 20)",
     )
 
-  ## ### 7. `.withWatermark(10, 20).withMaxInOut(30, 20)` — per-direction caps + trimming
+  ## ### 7. `.withWatermarkPolicy(10, 20).withMaxInOut(30, 20)` — per-direction caps + trimming
   ##
   ## The most granular configuration: two independent semaphores (30 incoming,
   ## 20 outgoing) combined with watermark trimming.  New connections are
   ## blocked by the per-direction caps, and existing connections are pruned
   ## asynchronously once the total peer count exceeds 20.
   block:
-    let switch = createBaseBuilder().withWatermark(10, 20).withMaxInOut(30, 20).build()
+    let switch =
+      createBaseBuilder().withWatermarkPolicy(10, 20).withMaxInOut(30, 20).build()
 
     await connectPeer(
-      switch, "7. .withWatermark(10,20).withMaxInOut(30,20)",
+      switch, "7. .withWatermarkPolicy(10,20).withMaxInOut(30,20)",
       "(in-limit: 30, out-limit: 20; trims at 20)",
     )
 
@@ -158,7 +159,7 @@ waitFor(main())
 ## | `.build()` | Shared limit at 50 (default `MaxConnections`) |
 ## | `.withMaxConnections(100)` | Shared limit at 100 |
 ## | `.withMaxInOut(30, 20)` | Separate limits: 30 incoming / 20 outgoing |
-## | `.withWatermark(10, 20)` | No hard cap; trims to 10 once 20 connected |
-## | `.withWatermark(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)` | Custom trim timing: 30s grace, 5s cooldown |
-## | `.withWatermark(10, 20).withMaxConnections(30)` | Hard cap at 30 + trim at 20 |
-## | `.withWatermark(10, 20).withMaxInOut(30, 20)` | Separate limits + trim at 20 |
+## | `.withWatermarkPolicy(10, 20)` | No hard cap; trims to 10 once 20 connected |
+## | `.withWatermarkPolicy(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)` | Custom trim timing: 30s grace, 5s cooldown |
+## | `.withWatermarkPolicy(10, 20).withMaxConnections(30)` | Hard cap at 30 + trim at 20 |
+## | `.withWatermarkPolicy(10, 20).withMaxInOut(30, 20)` | Separate limits + trim at 20 |

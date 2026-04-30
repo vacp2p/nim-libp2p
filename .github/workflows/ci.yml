@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test:
     env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+      NIMBLE_COMMIT: 003780eadb3c409407beff6035012597bfdcc76b # v0.99.1
     timeout-minutes: 55
     strategy:
       fail-fast: false
