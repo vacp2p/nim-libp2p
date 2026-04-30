@@ -21,8 +21,12 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
 
 proc dispatchPutVal*(
     switch: Switch, peer: PeerId, key: Key, value: seq[byte], codec: string
-) {.async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError]).} =
-  let conn = await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
+): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+  let connRes = catch:
+    await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
+  if connRes.isErr:
+    return err(connRes.error.msg)
+  let conn = connRes.value()
   defer:
     await conn.close()
   let msg = Message(
@@ -38,22 +42,28 @@ proc dispatchPutVal*(
   )
 
   var replyBuf: seq[byte]
+  var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
-    await conn.writeLp(encoded.buffer)
-    replyBuf = await conn.readLp(MaxMsgSize)
+    ioRes = catch:
+      await conn.writeLp(encoded.buffer)
+      replyBuf = await conn.readLp(MaxMsgSize)
+  if ioRes.isErr:
+    return err(ioRes.error.msg)
 
   kad_message_bytes_received.inc(
     replyBuf.len.int64, labelValues = [$MessageType.putValue]
   )
 
   let reply = Message.decode(replyBuf).valueOr:
-    raise newException(ValueError, "PutValue reply decode fail")
+    return err("PutValue reply decode fail")
 
   debug "Got PutValue reply", msg = msg, reply = reply, conn = conn
 
   if reply != msg:
     error "Unexpected change between msg and reply: ",
       msg = msg, reply = reply, conn = conn
+
+  return ok()
 
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
