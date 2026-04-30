@@ -80,6 +80,10 @@ jobs:
         with:
           submodules: true
 
+      - name: Select Nimble version for Nim 2.0.x
+        if: startsWith(matrix.nim.ref, 'v2.0')
+        run: echo "NIMBLE_COMMIT=9207e8b2bbdf66b5a4d1020214cff44d2d30df92" >> $GITHUB_ENV # v0.20.1
+
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
         with:
