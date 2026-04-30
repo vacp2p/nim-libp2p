@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, sequtils]
+import std/sequtils
 import chronos, chronicles, results
 import
   ../../../libp2p/
@@ -29,9 +29,9 @@ proc makeServiceInfo*(id: string = "blabla"): ServiceInfo =
 proc makeTicket*(): Ticket =
   Ticket(
     advertisement: @[1'u8, 2, 3, 4],
-    tInit: 1_000_000,
-    tMod: 2_000_000,
-    tWaitFor: 3000,
+    tInit: Moment.init(1_000_000, Second),
+    tMod: Moment.init(2_000_000, Second),
+    tWaitFor: 3000.secs,
     signature: @[],
   )
 
@@ -48,7 +48,7 @@ proc makeAdvertisement*(
     serviceId: string = $1,
     privateKey: PrivateKey = PrivateKey.random(rng[]).get(),
     addrs: seq[MultiAddress] = @[],
-    seqNo: uint64 = getTime().toUnix().uint64,
+    seqNo: uint64 = Moment.now().epochSeconds.uint64,
 ): Advertisement =
   let peerId = PeerId.init(privateKey).get()
   let extRecord = ExtendedPeerRecord(
@@ -59,7 +59,7 @@ proc makeAdvertisement*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-proc fillCache*(registrar: Registrar, n: int, now: uint64) =
+proc fillCache*(registrar: Registrar, n: int, now: Moment) =
   for i in 0 ..< n:
     let ad = makeAdvertisement($i)
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
@@ -86,20 +86,20 @@ proc makeMockDiscovery*(
     config = KadDHTConfig.new(
       ExtEntryValidator(),
       ExtEntrySelector(),
-      timeout = chronos.seconds(1),
-      cleanupProvidersInterval = chronos.milliseconds(100),
-      providerExpirationInterval = chronos.seconds(1),
-      republishProvidedKeysInterval = chronos.milliseconds(50),
+      timeout = 1.secs,
+      cleanupProvidersInterval = 100.millis,
+      providerExpirationInterval = 1.secs,
+      republishProvidedKeysInterval = 50.millis,
     ),
   )
 
 proc makeDisco*(
-    fReturn: int = 3, advertExpiry: float64 = -1, safetyParam: float64 = -1
+    fReturn: int = 3, advertExpiry: int64 = -1, safetyParam: float64 = -1
 ): ServiceDiscovery =
   var config = ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
   config.fReturn = fReturn
   if advertExpiry >= 0:
-    config.advertExpiry = chronos.seconds(int(advertExpiry))
+    config.advertExpiry = advertExpiry.secs
   if safetyParam >= 0:
     config.safetyParam = safetyParam
   makeMockDiscovery(config)
@@ -115,10 +115,10 @@ proc setupDiscovery*(
   let config = KadDHTConfig.new(
     validator,
     selector,
-    timeout = chronos.seconds(1),
-    cleanupProvidersInterval = chronos.milliseconds(100),
-    providerExpirationInterval = chronos.seconds(1),
-    republishProvidedKeysInterval = chronos.milliseconds(50),
+    timeout = 1.secs,
+    cleanupProvidersInterval = 100.millis,
+    providerExpirationInterval = 1.secs,
+    republishProvidedKeysInterval = 50.millis,
   )
   let disco = ServiceDiscovery.new(switch, bootstrapNodes, config)
   switch.mount(disco)
