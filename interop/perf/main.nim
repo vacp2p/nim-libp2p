@@ -16,7 +16,7 @@ const
   DefaultUploadIterations = 10
   DefaultDownloadIterations = 10
   DefaultLatencyIterations = 100
-  DefaultTestTimeoutSecs = 600
+  DefaultTestTimeout = 600.seconds
   DialTimeout = 30.seconds
 
 type Config = object
@@ -32,7 +32,7 @@ type Config = object
   uploadIterations: int
   downloadIterations: int
   latencyIterations: int
-  testTimeoutSecs: int
+  testTimeout: Duration
 
 proc readConfig(): Config =
   let config = Config(
@@ -48,7 +48,7 @@ proc readConfig(): Config =
     uploadIterations: parseIntEnv("UPLOAD_ITERATIONS", DefaultUploadIterations),
     downloadIterations: parseIntEnv("DOWNLOAD_ITERATIONS", DefaultDownloadIterations),
     latencyIterations: parseIntEnv("LATENCY_ITERATIONS", DefaultLatencyIterations),
-    testTimeoutSecs: parseIntEnv("TEST_TIMEOUT_SECS", DefaultTestTimeoutSecs),
+    testTimeout: parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout),
   )
   info "Loaded perf interop configuration", config
   config
@@ -83,6 +83,7 @@ proc runListener(config: Config) {.async.} =
   redisClient.setk(config.testKey & "_listener_multiaddr", listenerAddr)
   info "Published listener multiaddr", listenerAddr
 
+  # Listener stays alive until terminated by the test harness.
   await sleepAsync(100.hours)
 
 proc runDialer(config: Config) {.async.} =
@@ -118,15 +119,16 @@ proc runDialer(config: Config) {.async.} =
       await runMeasurement(sw, remotePeerId, 1'u64, 1'u64, config.latencyIterations)
 
   printMeasurement("upload", config.uploadIterations, uploadStats, 2, "Gbps")
-  echo ""
   printMeasurement("download", config.downloadIterations, downloadStats, 2, "Gbps")
-  echo ""
   printMeasurement("latency", config.latencyIterations, latencyStats, 3, "ms")
 
-let config = readConfig()
+proc main() =
+  let config = readConfig()
 
-runMain(config.testTimeoutSecs.seconds):
-  if config.isDialer:
-    await runDialer(config)
-  else:
-    await runListener(config)
+  runMain(config.testTimeout):
+    if config.isDialer:
+      await runDialer(config)
+    else:
+      await runListener(config)
+
+main()

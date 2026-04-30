@@ -26,6 +26,15 @@ proc parseUint64Env*(name: string, defaultValue: uint64): uint64 =
   except ValueError:
     defaultValue
 
+proc parseDurationEnv*(name: string, unit: Duration, defaultValue: Duration): Duration =
+  let raw = getEnv(name)
+  if raw.len == 0:
+    return defaultValue
+  try:
+    parseInt(raw) * unit
+  except ValueError:
+    defaultValue
+
 proc resolveBindIp*(ip: string): string =
   ## If `ip` is the wildcard 0.0.0.0, pick the first eth0 address
   ## (the docker-compose network the interop harness wires up). Otherwise

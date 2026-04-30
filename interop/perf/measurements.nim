@@ -85,6 +85,7 @@ proc printMeasurement*(
   echo "  outliers: " & formatList(stats.outliers, decimals)
   echo "  samples: " & formatList(stats.samples, decimals)
   echo "  unit: " & unit
+  echo ""
 
 proc measurementValue*(
     uploadBytes: uint64, downloadBytes: uint64, duration: Duration
@@ -110,7 +111,7 @@ proc runMeasurement*(
   var values: seq[float]
   let perfClient = PerfClient.new()
 
-  for iteration in 0 ..< iterations:
+  for _ in 0 ..< iterations:
     let conn = await sw.dial(remotePeerId, PerfCodec)
 
     try:
