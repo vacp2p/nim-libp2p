@@ -242,7 +242,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let transport = TransportType.fromCint(config.transport).valueOr:
     raiseAssert "invalid transport type"
 
-  let limits =
+  let connectionLimits =
     if config.maxIn > 0 and config.maxOut > 0:
       Opt.some(ConnectionLimits.maxInOut(config.maxIn, config.maxOut))
     elif config.maxConnections > 0:
@@ -255,7 +255,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     addrs = addrs,
     muxer = muxer,
     transport = transport,
-    limits = limits,
+    connectionLimits = connectionLimits,
     maxConnsPerPeer = config.maxConnsPerPeer,
     nameResolver = dnsResolver,
   )
