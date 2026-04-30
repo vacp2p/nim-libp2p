@@ -48,13 +48,8 @@ typedef void (*Libp2pBufferCallback)(int callerRet, const uint8_t *data,
 // libp2p instance (created by libp2p_new).
 typedef struct libp2p_ctx libp2p_ctx_t;
 
-// stream handle returned by dial/mix_dial callbacks.
+// stream handle returned by dial callbacks.
 typedef struct libp2p_stream libp2p_stream_t;
-
-// Curve25519 private/public key bytes used by the mix protocol.
-typedef struct {
-  uint8_t bytes[32];
-} libp2p_curve25519_key_t;
 
 // Compressed secp256k1 public key bytes (33 bytes, including prefix).
 typedef struct {
@@ -75,13 +70,6 @@ typedef uint32_t Direction;
 enum {
   Direction_In = 0,
   Direction_Out = 1,
-};
-
-typedef uint32_t Libp2pMixReadBehavior;
-
-enum {
-  LIBP2P_MIX_READ_EXACTLY = 0,
-  LIBP2P_MIX_READ_LP = 1,
 };
 
 typedef uint32_t Libp2pMuxer;
@@ -140,9 +128,6 @@ typedef struct {
 
   // Enable/disable Kademlia DHT (default on).
   int mount_kad;
-
-  // Enable/disable mix protocol support (default off).
-  int mount_mix;
 
   // Enable Service Discovery  (default off).
   int mount_service_discovery;
@@ -519,42 +504,6 @@ int libp2p_service_disco_lookup(libp2p_ctx_t *ctx, const char *serviceId,
 int libp2p_service_disco_random_lookup(libp2p_ctx_t *ctx,
                                        RandomRecordsCallback callback,
                                        void *userData);
-
-// === Mix APIs ===
-
-void libp2p_mix_generate_priv_key(libp2p_curve25519_key_t *outKey);
-
-void libp2p_mix_public_key(libp2p_curve25519_key_t inKey,
-                           libp2p_curve25519_key_t *outKey);
-
-int libp2p_mix_dial(libp2p_ctx_t *ctx, const char *peerId,
-                    const char *multiaddr, const char *proto,
-                    ConnectionCallback callback, void *userData);
-
-int libp2p_mix_dial_with_reply(libp2p_ctx_t *ctx, const char *peerId,
-                               const char *multiaddr, const char *proto,
-                               int expect_reply, uint8_t num_surbs,
-                               ConnectionCallback callback, void *userData);
-
-// Registers how the exit-layer reads payloads for the given proto.
-// behavior + size_param:
-// - LIBP2P_MIX_READ_EXACTLY: read exactly size_param bytes
-// - LIBP2P_MIX_READ_LP: read length-prefixed frames up to size_param bytes
-int libp2p_mix_register_dest_read_behavior(libp2p_ctx_t *ctx, const char *proto,
-                                           Libp2pMixReadBehavior behavior,
-                                           uint32_t size_param,
-                                           Libp2pCallback callback,
-                                           void *userData);
-
-int libp2p_mix_set_node_info(libp2p_ctx_t *ctx, const char *multiaddr,
-                             libp2p_curve25519_key_t mix_priv_key,
-                             Libp2pCallback callback, void *userData);
-
-int libp2p_mix_nodepool_add(libp2p_ctx_t *ctx, const char *peerId,
-                            const char *multiaddr,
-                            libp2p_curve25519_key_t mix_pub_key,
-                            libp2p_secp256k1_pubkey_t libp2p_pub_key,
-                            Libp2pCallback callback, void *userData);
 
 // callback receives a buffer valid only during its execution
 int libp2p_public_key(libp2p_ctx_t *ctx, Libp2pBufferCallback callback,

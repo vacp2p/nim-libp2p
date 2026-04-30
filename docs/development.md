@@ -63,7 +63,6 @@ nimble test
 # - Full path: "libp2p/transports/test_tcp" matches libp2p/transports/test_tcp.nim
 nimble testpath quic
 nimble testpath transports/test_ws
-nimble testpath mix
 # etc ...
 
 # run specific test suites

@@ -133,7 +133,6 @@ type Libp2pConfig* {.bycopy.} = object
   mountGossipsub*: cint
   gossipsubTriggerSelf*: cint
   mountKad*: cint
-  mountMix*: cint
   mountServiceDiscovery*: cint
   dnsResolver*: cstring
   addrs*: ptr cstring
@@ -175,16 +174,6 @@ type RetCode* {.size: sizeof(cint).} = enum
   RET_OK = 0
   RET_ERR = 1
   RET_MISSING_CALLBACK = 2
-
-type MixReadBehaviorKind* {.size: sizeof(cint).} = enum
-  MIX_READ_EXACTLY = 0
-  MIX_READ_LP = 1
-
-type MixCurve25519Key* {.bycopy.} = object
-  bytes*: array[32, byte]
-
-type MixSecp256k1PubKey* {.bycopy.} = object
-  bytes*: array[33, byte]
 
 type Libp2pPeerStoreEntry* {.bycopy.} = object
   peerId*: cstring

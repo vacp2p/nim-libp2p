@@ -32,7 +32,6 @@ proc runTest(filename: string, moreoptions: string = "") =
   if getEnv("CICOV").len > 0:
     compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
   compileCmd &= " -d:libp2p_autotls_support"
-  compileCmd &= " -d:libp2p_mix_experimental_exit_is_dest"
   compileCmd &= " " & moreoptions & " "
 
   var runnerArgs = " --output-level=VERBOSE"
