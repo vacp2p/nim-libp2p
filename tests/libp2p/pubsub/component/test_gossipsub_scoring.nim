@@ -462,9 +462,10 @@ suite "GossipSub Component - Scoring":
       centerNode.getPeerTopicInfo(node2peerId, topic).invalidMessageDeliveries ==
         messagesToSend.float64 # invalid messages
 
-    # When scoring hartbeat occurs (2nd scoring heartbeat)
+    # When scoring heartbeat occurs (2nd scoring heartbeat)
     # Then peer scores are calculated
-    checkUntilTimeout:
+    await centerNode.waitForScoringHeartbeatByEvent(1)
+    check:
       # node1: p1 (time in mesh) + p2 (first message deliveries)
       centerNode.getPeerScore(node1peerId) > 5.0 and
         centerNode.getPeerScore(node1peerId) < 6.0
@@ -533,7 +534,8 @@ suite "GossipSub Component - Scoring":
 
     # When next scoring heartbeat occurs
     # Then Peer has negative score
-    checkUntilTimeout:
+    await nodes[0].waitForScoringHeartbeatByEvent(1)
+    check:
       # p3b (mesh failure penalty) [p1 and p3 not calculated when peer was pruned]
       nodes[0].getPeerScore(node1PeerId) == -125.0
 
