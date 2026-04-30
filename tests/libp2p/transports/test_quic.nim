@@ -50,6 +50,35 @@ suite "Quic transport":
     streamProvider,
   )
 
+  asyncTest "Connection.reset aborts the initiator stream":
+    var serverResetDone = newFuture[void]()
+
+    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        let msg = await stream.readLp(100)
+        check msg == fromHex("1234")
+        await stream.reset()
+        serverResetDone.complete()
+
+    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+      noExceptionWithStreamClose(stream):
+        await stream.writeLp(fromHex("1234"))
+        await serverResetDone
+
+        var buffer: array[1, byte]
+        check (await stream.readOnce(addr buffer[0], 1)) == 0
+
+        expect LPStreamResetError:
+          await stream.writeLp(fromHex("1234"))
+
+    await runSingleStreamScenario(
+      @[MultiAddress.init(addressIP4).get()],
+      quicTransProvider,
+      streamProvider,
+      serverStreamHandler,
+      clientStreamHandler,
+    )
+
   asyncTest "transport e2e - invalid cert - server":
     let server = await createQuicTransport(isServer = true, withInvalidCert = true)
     asyncSpawn createServerAcceptConn(server)()

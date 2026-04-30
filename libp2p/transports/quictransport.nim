@@ -88,14 +88,20 @@ when defined(libp2p_agents_metrics):
 method readOnce*(
     stream: QuicStream, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
+  if stream.wasResetLocally:
+    raise newLPStreamClosedError()
+
   if stream.atEof:
     raise newLPStreamRemoteClosedError()
 
-  let readLen =
-    try:
-      await stream.stream.readOnce(cast[ptr byte](pbytes), nbytes)
-    except StreamError as e:
-      raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
+  var readLen: int
+  try:
+    readLen = await stream.stream.readOnce(cast[ptr byte](pbytes), nbytes)
+  except StreamError as e:
+    if e of ref StreamResetError:
+      raise newLPStreamResetError()
+
+    raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
 
   if readLen == 0:
     stream.isEof = true
@@ -112,6 +118,9 @@ method readOnce*(
 method write*(
     stream: QuicStream, bytes: seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
+  if stream.wasResetLocally:
+    raise newLPStreamClosedError()
+
   try:
     await stream.stream.write(bytes)
     libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
@@ -121,7 +130,10 @@ method write*(
         libp2p_peers_traffic_write.inc(
           bytes.len.int64, labelValues = [stream.shortAgent]
         )
-  except StreamError:
+  except StreamError as e:
+    if e of ref StreamResetError:
+      raise newLPStreamResetError()
+
     raise newLPStreamEOFError()
 
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
@@ -130,6 +142,12 @@ method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
     await stream.stream.close()
   except CancelledError, StreamError:
     discard
+
+method resetImpl*(stream: QuicStream) {.async: (raises: []).} =
+  stream.stream.abort()
+  stream.isEof = true
+  stream.session.streams.excl(stream)
+  await procCall P2PConnection(stream).closeImpl()
 
 method closeImpl*(stream: QuicStream) {.async: (raises: []).} =
   try:
