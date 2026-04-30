@@ -270,9 +270,7 @@ method findNode*(
   let dispatchFind = proc(
       kad: KadDHT, peer: PeerId, target: Key
   ): Future[Result[Message, string]] {.
-      async: (raises: [CancelledError]),
-      gcsafe,
-      closure
+      async: (raises: [CancelledError]), gcsafe, closure
   .} =
     return await dispatchFindNode(kad, peer, target)
 
