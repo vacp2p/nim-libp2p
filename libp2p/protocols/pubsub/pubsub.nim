@@ -233,7 +233,7 @@ proc send*(
   ##   High priority messages are sent immediately, medium and low priority messages are queued
   ##   and sent only after all high priority messages have been sent.
 
-  trace "sending pubsub message to peer", peer, payload = shortLog(msg)
+  trace "sending pubsub message to peer", peer, rpcMsg = shortLog(msg)
   peer.send(msg, p.anonymize, priority, useCustomConn)
 
 proc send*(
@@ -301,7 +301,7 @@ proc broadcast*(
         npeers, labelValues = [p.topicLabel(prune.topicID)]
       )
 
-  trace "broadcasting messages to peers", peers = sendPeers.len, payload = shortLog(msg)
+  trace "broadcasting messages to peers", peers = sendPeers.len, rpcMsg = shortLog(msg)
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:

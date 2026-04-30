@@ -447,7 +447,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection", p, payload = shortLog(msg)
+    debug "No send connection", p, encodedMsg = shortLog(msg)
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
@@ -570,7 +570,7 @@ proc sendEncoded*(
   p.clearSendPriorityQueue()
 
   if msg.len <= 0:
-    debug "empty message, skipping", p, payload = shortLog(msg)
+    debug "empty message, skipping", p, encodedMsg = shortLog(msg)
     newFutureCompleted[void]()
   elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub",
