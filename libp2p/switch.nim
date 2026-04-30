@@ -42,6 +42,7 @@ logScope:
 # previously provided)
 
 const ConcurrentUpgrades* = 4
+const UpgradeTimeout* = 30.seconds
 
 type
   Switch* = ref object of Dial
@@ -222,9 +223,10 @@ proc upgradeMonitor(
   var semAcquired = false
   var upgradeSuccessful = false
   try:
-    await upgrades.acquire()
+    let deadline = Moment.now() + UpgradeTimeout
+    await upgrades.acquire().wait(deadline)
     semAcquired = true
-    await switch.upgrader(trans, conn).wait(30.seconds)
+    await switch.upgrader(trans, conn).wait(deadline)
     trace "Connection upgrade succeeded"
     upgradeSuccessful = true
   except CancelledError:
