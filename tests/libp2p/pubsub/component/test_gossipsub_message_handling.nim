@@ -474,13 +474,12 @@ suite "GossipSub Component - Message Handling":
 
     let cReceived = newWaitGroup(1)
 
+    proc cHandler(topicName: string, data: seq[byte]) {.async.} =
+      cReceived.done()
+
     nodes[0].subscribe(topic, voidTopicHandler) # A
     nodes[1].subscribe(topic, voidTopicHandler) # B
-    nodes[2].subscribe(
-      topic,
-      proc(topicName: string, data: seq[byte]) {.async.} =
-        cReceived.done(),
-    ) # C
+    nodes[2].subscribe(topic, cHandler) # C
     waitSubscribeStar(nodes, topic)
 
     # Wait for mesh to form with all peers
