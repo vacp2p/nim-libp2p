@@ -35,40 +35,6 @@ const TestCodec = "/test/proto/1.0.0"
 
 type TestProto = ref object of LPProtocol
 
-# On Windows, there is a brief gap between switch.start() returning and the
-# TCP transport being ready to accept connections, causing sporadic
-# DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
-proc dialWithRetry(
-    switch: Switch, peerId: PeerId, addrs: seq[MultiAddress], proto: string
-): Future[Connection] {.async: (raises: [CancelledError, DialFailedError]).} =
-  when defined(windows):
-    var lastErr: ref DialFailedError
-    for _ in 0 ..< 10:
-      try:
-        return await switch.dial(peerId, addrs, proto)
-      except DialFailedError as e:
-        lastErr = e
-        await sleepAsync(200.milliseconds)
-    raise lastErr
-  else:
-    return await switch.dial(peerId, addrs, proto)
-
-proc connectWithRetry(
-    switch: Switch, peerId: PeerId, addrs: seq[MultiAddress]
-): Future[void] {.async: (raises: [CancelledError, DialFailedError]).} =
-  when defined(windows):
-    var lastErr: ref DialFailedError
-    for _ in 0 ..< 10:
-      try:
-        await switch.connect(peerId, addrs)
-        return
-      except DialFailedError as e:
-        lastErr = e
-        await sleepAsync(200.milliseconds)
-    raise lastErr
-  else:
-    await switch.connect(peerId, addrs)
-
 suite "Switch":
   teardown:
     checkTrackers()
@@ -1222,8 +1188,7 @@ suite "Switch":
     await testProto.start()
     dst.mount(testProto)
 
-    let conn =
-      await src.dialWithRetry(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
 
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
@@ -1268,7 +1233,7 @@ suite "Switch":
       await allFuturesRaising(clients.mapIt(it.stop()) & @[server.stop()])
 
     let connects =
-      clients.mapIt(it.connectWithRetry(server.peerInfo.peerId, server.peerInfo.addrs))
+      clients.mapIt(it.connect(server.peerInfo.peerId, server.peerInfo.addrs))
     let allConnects = allFuturesRaising(connects)
     check await allConnects.withTimeout(30.seconds)
     await allConnects
