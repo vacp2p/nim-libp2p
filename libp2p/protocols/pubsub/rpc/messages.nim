@@ -392,11 +392,11 @@ proc withExtensions*(
 proc withControl*(_: typedesc[RPCMsg], control: ControlMessage): RPCMsg =
   RPCMsg(control: Opt.some(control))
 
-proc withMessages*(_: typedesc[RPCMsg], messages: seq[Message]): RPCMsg =
-  RPCMsg(messages: messages)
+proc withMessages*(_: typedesc[RPCMsg], messages: sink seq[Message]): RPCMsg =
+  RPCMsg(messages: move(messages))
 
-proc withMessages*(_: typedesc[RPCMsg], msg: Message): RPCMsg =
-  RPCMsg.withMessages(@[msg])
+proc withMessages*(_: typedesc[RPCMsg], msg: sink Message): RPCMsg =
+  RPCMsg.withMessages(@[move(msg)])
 
 proc withSubscriptions*(_: typedesc[RPCMsg], subscriptions: seq[SubOpts]): RPCMsg =
   RPCMsg(subscriptions: subscriptions)
@@ -420,8 +420,12 @@ proc withPreamble*(
     )
   RPCMsg.withPreamble(preambles)
 
-proc withPreamble*(_: typedesc[RPCMsg], msg: Message, msgId: MessageId): RPCMsg =
-  RPCMsg.withPreamble(@[msg], @[msgId])
+proc withPreamble*(
+    _: typedesc[RPCMsg], topic: string, msgId: MessageId, messageLength: int
+): RPCMsg =
+  RPCMsg.withPreamble(
+    @[Preamble(topicID: topic, messageID: msgId, messageLength: messageLength.uint32)]
+  )
 
 proc withIMReceiving*(_: typedesc[RPCMsg], imreceiving: seq[IMReceiving]): RPCMsg =
   RPCMsg(preambleExtension: Opt.some(PreambleExtensionRPC(imreceiving: imreceiving)))

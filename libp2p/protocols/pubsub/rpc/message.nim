@@ -76,7 +76,7 @@ proc verify*(m: Message): bool =
 proc init*(
     T: type Message,
     peer: Opt[PeerInfo],
-    data: seq[byte],
+    data: sink seq[byte],
     topic: string,
     seqno: Opt[uint64],
     sign: bool = true,
@@ -84,7 +84,7 @@ proc init*(
   if sign and peer.isNone():
     doAssert(false, "Cannot sign message without peer info")
 
-  var msg = Message(data: data, topic: topic)
+  var msg = Message(data: move(data), topic: topic)
 
   # order matters, we want to include seqno in the signature
   seqno.withValue(seqn):
@@ -103,9 +103,13 @@ proc init*(
   msg
 
 proc init*(
-    T: type Message, peerId: PeerId, data: seq[byte], topic: string, seqno: Opt[uint64]
+    T: type Message,
+    peerId: PeerId,
+    data: sink seq[byte],
+    topic: string,
+    seqno: Opt[uint64],
 ): Message {.gcsafe, raises: [].} =
-  var msg = Message(data: data, topic: topic)
+  var msg = Message(data: move(data), topic: topic)
   msg.fromPeer = peerId
 
   seqno.withValue(seqn):
