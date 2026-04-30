@@ -153,14 +153,14 @@ proc maxInOut*(T: type LimitsConfig, maxIn: int, maxOut: int): LimitsConfig =
 
 proc new*(
     T: type ConnManager,
-    maxConnsPerPeer: int = -1,
+    maxConnsPerPeer: int = 0,
     limits: Opt[LimitsConfig] = Opt.none(LimitsConfig),
     watermark: Opt[WatermarkConfig] = Opt.none(WatermarkConfig),
     scoringConfig: ScoringConfig = ScoringConfig(),
 ): ConnManager =
   ## Creates a `ConnManager`.
   ##
-  ## `maxConnsPerPeer` accepts `-1` to mean "use the default value".
+  ## `maxConnsPerPeer` accepts values ≤0 to mean "use the default value".
   ##
   ## `limits` selects the connection-cap strategy: `LimitsConfig.maxTotal(n)`
   ## for a single shared cap, or `LimitsConfig.maxInOut(i, o)` for independent
