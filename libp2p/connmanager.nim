@@ -154,9 +154,9 @@ proc maxInOut*(T: type ConnectionLimits, maxIn: int, maxOut: int): ConnectionLim
 proc new*(
     T: type ConnManager,
     maxConnsPerPeer: int = 0,
-    limits: Opt[LimitsConfig] = Opt.none(LimitsConfig),
-    watermark: Opt[WatermarkConfig] = Opt.none(WatermarkConfig),
-    scoringConfig: ScoringConfig = ScoringConfig(),
+    limits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
+    watermark: Opt[WatermarkPolicy] = Opt.none(WatermarkPolicy),
+    scoring: PeerScoring = PeerScoring(),
 ): ConnManager =
   ## Creates a `ConnManager`.
   ##
