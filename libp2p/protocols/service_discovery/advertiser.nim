@@ -140,10 +140,9 @@ proc advertiseToRegistrar*(
 
       currentTicket = Opt.some(newTicket)
 
-      let waitSecs =
-        min(disco.discoConfig.advertExpiry.seconds.uint32, newTicket.tWaitFor)
+      let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor)
 
-      await sleepAsync(chronos.seconds(int(waitSecs)))
+      await sleepAsync(waitSecs)
     of kademlia_protobuf.RegistrationStatus.Rejected:
       # Don't reschedule - this registrar rejected us
       break

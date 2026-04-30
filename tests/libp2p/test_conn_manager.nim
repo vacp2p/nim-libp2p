@@ -22,13 +22,13 @@ method newStream*(
 proc newMaxTotal(maxConnections = 10, maxConnsPerPeer = 1): ConnManager =
   ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
-    limits = Opt.some(LimitsConfig.maxTotal(maxConnections)),
+    limits = Opt.some(ConnectionLimits.maxTotal(maxConnections)),
   )
 
 proc newMaxInOut(maxIn: int, maxOut: int, maxConnsPerPeer = 1): ConnManager =
   ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
-    limits = Opt.some(LimitsConfig.maxInOut(maxIn, maxOut)),
+    limits = Opt.some(ConnectionLimits.maxInOut(maxIn, maxOut)),
   )
 
 proc newWatermark*(
@@ -39,15 +39,15 @@ proc newWatermark*(
     outboundBonus: int = 0,
     decayResolution = 1.minutes,
 ): ConnManager =
-  let wtCfg = WatermarkConfig(
+  let wtCfg = WatermarkPolicy(
     lowWater: lowWater,
     highWater: highWater,
     gracePeriod: gracePeriod,
     silencePeriod: silencePeriod,
   )
   let scCfg =
-    ScoringConfig(outboundBonus: outboundBonus, decayResolution: decayResolution)
-  ConnManager.new(watermark = Opt.some(wtCfg), scoringConfig = scCfg)
+    PeerScoring(outboundBonus: outboundBonus, decayResolution: decayResolution)
+  ConnManager.new(watermark = Opt.some(wtCfg), scoring = scCfg)
 
 proc storeMuxers(connMngr: ConnManager, count: uint): Future[seq[PeerId]] {.async.} =
   let peers = PeerId.random(count, rng).tryGet()
@@ -669,9 +669,9 @@ suite "Connection Manager: watermark with connection limiting":
     # semaphore stays exhausted and all further connection attempts are rejected.
     const maxConns = 3
     let connMngr = ConnManager.new(
-      limits = Opt.some(LimitsConfig.maxTotal(maxConns)),
+      limits = Opt.some(ConnectionLimits.maxTotal(maxConns)),
       watermark = Opt.some(
-        WatermarkConfig(
+        WatermarkPolicy(
           lowWater: 1, highWater: 2, gracePeriod: 0.seconds, silencePeriod: 0.seconds
         )
       ),
