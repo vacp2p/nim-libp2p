@@ -21,7 +21,7 @@
 ## .withWatermark(
 ##   lowWater = 2, highWater = 3,
 ##   gracePeriod = 100.millis, silencePeriod = 50.millis)
-## .withScoring(ScoringConfig(decayResolution: 50.millis))
+## .withScoring(PeerScoring(decayResolution: 50.millis))
 ## ```
 ##
 ## **Important:** trim is not time-based, it only runs when a new
@@ -61,7 +61,7 @@ proc makeHost(): Switch =
       gracePeriod = GracePeriod,
       silencePeriod = SilencePeriod,
     )
-    .withScoring(ScoringConfig(decayResolution: DecayResolution))
+    .withScoring(PeerScoring(decayResolution: DecayResolution))
     .build()
 
 proc makeClient(): Switch =

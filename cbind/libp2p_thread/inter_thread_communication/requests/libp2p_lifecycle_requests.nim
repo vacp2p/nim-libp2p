@@ -244,11 +244,11 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   let limits =
     if config.maxIn > 0 and config.maxOut > 0:
-      Opt.some(LimitsConfig.maxInOut(config.maxIn, config.maxOut))
+      Opt.some(ConnectionLimits.maxInOut(config.maxIn, config.maxOut))
     elif config.maxConnections > 0:
-      Opt.some(LimitsConfig.maxTotal(config.maxConnections))
+      Opt.some(ConnectionLimits.maxTotal(config.maxConnections))
     else:
-      Opt.none(LimitsConfig)
+      Opt.none(ConnectionLimits)
 
   var switchBuilder = newStandardSwitchBuilder(
     privKey = privKey,
