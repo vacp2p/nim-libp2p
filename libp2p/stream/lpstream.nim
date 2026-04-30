@@ -38,6 +38,7 @@ type
     oid*: Oid
     dir*: Direction
     closedWithEOF: bool # prevent concurrent calls
+    isResetLocally: bool
     isClosedRemotely*: bool
 
   LPStreamError* = object of LPError
@@ -119,6 +120,9 @@ method closed*(s: LPStream): bool {.base.} =
 
 method atEof*(s: LPStream): bool {.base.} =
   s.isEof
+
+func wasResetLocally*(s: LPStream): bool {.inline.} =
+  s.isResetLocally
 
 method readOnce*(
     s: LPStream, pbytes: pointer, nbytes: int
@@ -264,6 +268,10 @@ method closeImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), b
   trace "Closed stream", s, objName = s.objName, dir = $s.dir
   newFutureCompleted[void]()
 
+method resetImpl*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.} =
+  ## Default reset fallback for transports without an abort primitive.
+  closeImpl(s)
+
 method close*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.} =
   ## close the stream - this may block, but will not raise exceptions
   ##
@@ -277,6 +285,19 @@ method close*(s: LPStream): Future[void] {.async: (raises: [], raw: true), base.
   # override `closeImpl`, it is called only once - anyone overriding `close`
   # itself must implement this - once-only check as well, with their own field
   closeImpl(s)
+
+proc resetStream(s: LPStream): Future[void] {.async: (raises: [], raw: true).} =
+  ## Abort the stream and best-effort notify the remote peer, if supported.
+  if s.isClosed:
+    trace "Already closed", s
+    return newFutureCompleted[void]()
+
+  s.isClosed = true
+  s.isResetLocally = true
+  resetImpl(s)
+
+template reset*[T: LPStream](s: T): untyped =
+  resetStream(s)
 
 proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []).} =
   ## Close the stream and wait for EOF - use this with half-closed streams where
@@ -300,7 +321,7 @@ proc closeWithEOF*(s: LPStream): Future[void] {.async: (raises: []).} =
   s.closedWithEOF = true
   await s.close()
 
-  if s.atEof():
+  if s.isResetLocally or s.atEof():
     return
 
   try:
