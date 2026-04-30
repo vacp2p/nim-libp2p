@@ -18,7 +18,7 @@ declareCounter(
 
 const
   DefaultMaxConnections = 50
-  DefaultMaxConnectionsPerPeer = 1
+  DefaultMaxConnectionsPerPeer = 2
   ConnectionsUnlimited = high(int)
 
 type
@@ -151,19 +151,16 @@ proc maxInOut*(T: type ConnectionLimits, maxIn: int, maxOut: int): ConnectionLim
   doAssert maxOut > 0, "maxOut must be > 0"
   ConnectionLimits(maxIn: maxIn, maxOut: maxOut)
 
-proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
-  result = newException(TooManyConnectionsError, "Too many connections")
-
 proc new*(
     T: type ConnManager,
-    maxConnsPerPeer: int = -1,
+    maxConnsPerPeer: int = 0,
     limits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
     watermark: Opt[WatermarkPolicy] = Opt.none(WatermarkPolicy),
     scoring: PeerScoring = PeerScoring(),
 ): ConnManager =
   ## Creates a `ConnManager`.
   ##
-  ## `maxConnsPerPeer` accepts `-1` to mean "use the default value".
+  ## `maxConnsPerPeer` accepts values ≤0 to mean "use the default value".
   ##
   ## `limits` selects the connection-cap strategy: `ConnectionLimits.maxTotal(n)`
   ## for a single shared cap, or `ConnectionLimits.maxInOut(i, o)` for independent
@@ -201,8 +198,7 @@ proc new*(
   T(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer:
-      if maxConnsPerPeer >= 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
-      # issue#2328 must never be 0
+      if maxConnsPerPeer > 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
     maxConnectionsIn: maxInArg,
     maxConnectionsOut: maxOutArg,
     inSema: inSema,
@@ -435,19 +431,17 @@ proc storeMuxer*(
   let
     peerId = muxer.connection.peerId
     dir = muxer.connection.dir
+    peerConnsCount = c.muxerStore.count(peerId)
+    isNewPeer = peerConnsCount == 0
 
-  if c.muxerStore.count(peerId) > c.maxConnsPerPeer:
+  if peerConnsCount >= c.maxConnsPerPeer:
     let key = (peerId, dir)
     let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Too many connections for peer",
-        conns = c.muxerStore.count(peerId), peerId, dir
-
-      raise newTooManyConnectionsError()
-
-  let isNewPeer = c.muxerStore.count(peerId) == 0
+      debug "Per peer connections limit reached", conns = peerConnsCount, peerId
+      raise newException(TooManyConnectionsError, "Per peer connections limit reached")
 
   if not c.muxerStore.add(muxer):
     raise newException(LPError, "muxer already stored")
@@ -496,8 +490,11 @@ proc getOutgoingSlot*(
       # still calling acquire to track this connection.
       discard c.outSema.acquire()
     elif not c.outSema.tryAcquire():
-      trace "Too many outgoing connections"
-      raise newTooManyConnectionsError()
+      trace "Total outgoing connections limit reached"
+      raise newException(
+        TooManyConnectionsError, "Total outgoing connections limit reached"
+      )
+
   return ConnectionSlot(connManager: c, direction: Out)
 
 func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
