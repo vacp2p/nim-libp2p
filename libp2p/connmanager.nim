@@ -32,7 +32,7 @@ type
     interval: Duration
     decayFn: DecayFn
 
-  PeerScoring* = object ## Configuration for connection scoring parameters.
+  PeerScoring* = object ## Configuration for peer scoring parameters.
     outboundBonus*: int = 100
       ## `outboundBonus` is added to the score of every peer with an outbound connection
     decayResolution*: Duration = 1.minutes
