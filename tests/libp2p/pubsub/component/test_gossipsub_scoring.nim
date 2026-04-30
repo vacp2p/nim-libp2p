@@ -434,8 +434,8 @@ suite "GossipSub Component - Scoring":
     nodes[0].addValidator(topic, validationHandler)
 
     # 1st scoring heartbeat
-    checkUntilTimeout:
-      centerNode.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
+    await centerNode.waitForScoringHeartbeatByEvent(1)
+    check:
       centerNode.getPeerScore(node1peerId) > 0
       centerNode.getPeerScore(node2peerId) > 0
 
@@ -519,7 +519,8 @@ suite "GossipSub Component - Scoring":
 
     # When scoring heartbeat occurs
     # Then Peer has negative score due to active meshMessageDeliveries deficit
-    checkUntilTimeout:
+    await nodes[0].waitForScoringHeartbeatByEvent(1)
+    check:
       nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
       nodes[0].mesh.getOrDefault(topic).len == numberOfNodes - 1
       # p1 (time in mesh) - p3 (mesh message deliveries)
