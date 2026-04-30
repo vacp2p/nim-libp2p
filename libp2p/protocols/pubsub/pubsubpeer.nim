@@ -570,7 +570,7 @@ proc sendEncoded*(
   p.clearSendPriorityQueue()
 
   if msg.len <= 0:
-    debug "empty message, skipping", p, encodedMsg = shortLog(msg)
+    debug "empty message, skipping", p, encoded = shortLog(msg)
     newFutureCompleted[void]()
   elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub",
