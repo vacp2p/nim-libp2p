@@ -52,7 +52,7 @@ suite "RendezVous Errors":
             "A".repeat(300), node.switch.peerInfo.signedPeerRecord.encode().get, 2.hours
           )
       ),
-      ResponseStatus.InvalidNamespace,
+      ResponseInvalidNamespace,
     ),
     (
       "Register - Invalid Signed Peer Record",
@@ -61,7 +61,7 @@ suite "RendezVous Errors":
           # Malformed SPR - empty bytes will fail validation
           prepareRegisterMessage("namespace", newSeq[byte](), 2.hours)
       ),
-      ResponseStatus.InvalidSignedPeerRecord,
+      ResponseInvalidSignedPeerRecord,
     ),
     (
       "Register - Invalid TTL",
@@ -71,24 +71,23 @@ suite "RendezVous Errors":
             "namespace", node.switch.peerInfo.signedPeerRecord.encode().get, 73.hours
           )
       ),
-      ResponseStatus.InvalidTTL,
+      ResponseInvalidTTL,
     ),
     (
       "Discover - Invalid Namespace",
       (
         proc(node: RendezVous): Message =
-          prepareDiscoverMessage(ns = Opt.some("A".repeat(300)))
+          prepareDiscoverMessage(ns = pbSome("A".repeat(300)))
       ),
-      ResponseStatus.InvalidNamespace,
+      ResponseInvalidNamespace,
     ),
     (
       "Discover - Invalid Cookie",
       (
         proc(node: RendezVous): Message =
-          # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
-          prepareDiscoverMessage(cookie = Opt.some(newSeq[byte]()))
+          prepareDiscoverMessage(cookie = pbSome(newSeq[byte]()))
       ),
-      ResponseStatus.InvalidCookie,
+      ResponseInvalidCookie,
     ),
   ]
 
@@ -103,16 +102,17 @@ suite "RendezVous Errors":
 
       let
         peerNode = peerNodes[0]
-        messageBuf = encode(getMessage(peerNode)).buffer
+        messageBuf = Protobuf.encode(getMessage(peerNode))
 
       let
         responseBuf = await sendRdvMessage(peerNode, rendezvousNode, messageBuf)
-        responseMessage = Message.decode(responseBuf).tryGet()
+        responseMessage = Protobuf.decode(responseBuf, Message)
         actualStatus =
-          if responseMessage.registerResponse.isSome():
-            responseMessage.registerResponse.get.status
+          if responseMessage.msgType.get() == MsgTypeRegisterResponse:
+            responseMessage.registerResponse.get().status.get()
           else:
-            responseMessage.discoverResponse.get.status
+            check responseMessage.msgType.get() == MsgTypeDiscoverResponse
+            responseMessage.discoverResponse.get().status.get()
 
       check actualStatus == expectedStatus
 
@@ -129,12 +129,12 @@ suite "RendezVous Errors":
     )
 
     # Attempt one more registration which should be rejected with NotAuthorized
-    let messageBuf = encode(
+    let messageBuf = Protobuf.encode(
       prepareRegisterMessage(
         namespace, peerNodes[0].switch.peerInfo.signedPeerRecord.encode().get, 2.hours
       )
-    ).buffer
+    )
 
     let responseBuf = await sendRdvMessage(peerNodes[0], rendezvousNode, messageBuf)
-    let responseMessage = Message.decode(responseBuf).tryGet()
-    check responseMessage.registerResponse.get.status == ResponseStatus.NotAuthorized
+    let responseMessage = Protobuf.decode(responseBuf, Message)
+    check responseMessage.registerResponse.get().status.get() == ResponseNotAuthorized
