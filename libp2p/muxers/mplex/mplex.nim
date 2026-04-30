@@ -175,8 +175,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
       of MessageType.CloseIn, MessageType.CloseOut:
         await channel.pushEof()
       of MessageType.ResetIn, MessageType.ResetOut:
-        channel.remoteReset = true
-        await channel.reset()
+        await channel.resetChannel(isLocal = false)
   except CancelledError:
     debug "Unexpected cancellation in mplex handler", m
   except LPStreamEOFError as exc:

@@ -33,6 +33,10 @@ method closeImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
   await self.conn.close()
   await procCall Connection(self).closeImpl()
 
+method resetImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
+  await self.conn.reset()
+  await procCall Connection(self).closeImpl()
+
 method getWrapped*(self: RelayConnection): Connection =
   self.conn
 
