@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test:
     env:
-      NIMBLE_COMMIT: 003780eadb3c409407beff6035012597bfdcc76b # v0.99.1
+      NIMBLE_COMMIT: 42ef70c2102a942c46f13eb76872326edd525cec # v0.22.3
     timeout-minutes: 55
     strategy:
       fail-fast: false
@@ -40,9 +40,10 @@ jobs:
             cpu: amd64
             cc: gcc
         nim:
-          - ref: v2.0.16
+          - ref: v2.2.4
             memory_management: refc
-          - ref: v2.2.6
+            nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+          - ref: v2.2.10
             memory_management: refc
         include:
           - platform:
@@ -80,9 +81,10 @@ jobs:
         with:
           submodules: true
 
-      - name: Select Nimble version for Nim 2.0.x
-        if: startsWith(matrix.nim.ref, 'v2.0')
-        run: echo "NIMBLE_COMMIT=9207e8b2bbdf66b5a4d1020214cff44d2d30df92" >> $GITHUB_ENV # v0.20.1
+      - name: Select Nimble version
+        if: matrix.nim.nimble_commit != ''
+        shell: bash
+        run: echo "NIMBLE_COMMIT=${{ matrix.nim.nimble_commit }}" >> $GITHUB_ENV
 
       - name: Setup Nim
         uses: "./.github/actions/install_nim"
