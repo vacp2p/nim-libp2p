@@ -128,7 +128,7 @@ method write*(
           bytes.len.int64, labelValues = [stream.shortAgent]
         )
   except StreamError as e:
-    raise newLPStreamEOFError()
+    raise newLPStreamResetError()
 
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
