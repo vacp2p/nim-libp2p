@@ -549,7 +549,7 @@ proc newStandardSwitchBuilder*(
   connectionLimits.withValue(cfg):
     b = b.withConnectionLimits(cfg)
 
-  if maxConnsPerPeer >= 0: # issue#2328 must never be 0
+  if maxConnsPerPeer > 0:
     b = b.withMaxConnsPerPeer(maxConnsPerPeer)
 
   privKey.withValue(pkey):
