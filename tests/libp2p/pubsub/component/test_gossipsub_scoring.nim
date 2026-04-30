@@ -481,7 +481,8 @@ suite "GossipSub Component - Scoring":
 
     # Then peers with bad score are disconnected on scoring heartbeat (3rd scoring heartbeat)
     await centerNode.waitForScoringHeartbeatByEvent(1)
-    check:
+    # disconnects happen independently of scoring heartbeat events, so poll continuously
+    checkUntilTimeout:
       centerNode.mesh[topic].toSeq().len == 1
 
   asyncTest "Nodes not meeting Mesh Message Deliveries Threshold are penalised":
