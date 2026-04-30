@@ -558,8 +558,7 @@ suite "AutonatV2 Service":
       switch = createSwitch(Opt.some(service))
     var switches = createSwitches(3)
 
-    let awaiter = newFuture[void]()
-    var capturedAddr = Opt.none(MultiAddress)
+    let awaiter = newFuture[Opt[MultiAddress]]()
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability,
@@ -569,12 +568,11 @@ suite "AutonatV2 Service":
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
         if not awaiter.finished:
-          capturedAddr = dialBackAddr
-          awaiter.complete()
+          awaiter.complete(dialBackAddr)
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
-    await awaiter
+    let capturedAddr = await awaiter
 
     check service.networkReachability == NetworkReachability.Reachable
     check capturedAddr.isSome()
@@ -589,8 +587,7 @@ suite "AutonatV2 Service":
       switch = createSwitch(Opt.some(service))
     var switches = createSwitches(3)
 
-    let awaiter = newFuture[void]()
-    var capturedAddr = Opt.none(MultiAddress)
+    let awaiter = newFuture[Opt[MultiAddress]]()
 
     proc statusAndConfidenceHandler(
         networkReachability: NetworkReachability,
@@ -600,12 +597,11 @@ suite "AutonatV2 Service":
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
         if not awaiter.finished:
-          capturedAddr = dialBackAddr
-          awaiter.complete()
+          awaiter.complete(dialBackAddr)
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
-    await awaiter
+    let capturedAddr = await awaiter
     await client.finished
 
     check service.networkReachability == NetworkReachability.NotReachable
