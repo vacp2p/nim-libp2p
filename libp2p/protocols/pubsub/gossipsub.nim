@@ -509,6 +509,12 @@ proc validateAndRelay(
       g.subscribedDirectPeers.withValue(topic, peers):
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
+      # Also exclude the original message source to prevent relaying back to them.
+      # This handles the case where the immediate sender differs from the original
+      # publisher (e.g., the message arrived via an intermediate relay node).
+      if msg.fromPeer.data.len > 0:
+        g.peers.withValue(msg.fromPeer, sourcePeer):
+          toSendPeers.excl(sourcePeer[])
 
     if isLargeMessage(msg.data.len, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
