@@ -26,6 +26,31 @@ jobs:
           fail: true
           suggest: true
 
+      - name: Check clang-format (C/H files in cbind/)
+        run: |
+          files=$(find cbind/ -name "*.c" -o -name "*.h")
+          if [ -z "$files" ]; then
+            echo "No C/H files found in cbind/"
+            exit 0
+          fi
+          unformatted=""
+          for f in $files; do
+            if ! diff -q <(clang-format --style=file:cbind/.clang-format "$f") "$f" > /dev/null 2>&1; then
+              unformatted="$unformatted $f"
+            fi
+          done
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not formatted correctly:"
+            for f in $unformatted; do
+              echo "  $f"
+              diff <(clang-format --style=file:cbind/.clang-format "$f") "$f" || true
+            done
+            echo ""
+            echo "Please run: clang-format -i --style=file:cbind/.clang-format <files>"
+            exit 1
+          fi
+          echo "All C/H files in cbind/ are properly formatted."
+
       - name: Check License Header
         uses: apache/skywalking-eyes/header@v0.8.0
         with:
