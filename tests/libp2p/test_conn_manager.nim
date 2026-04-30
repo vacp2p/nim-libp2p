@@ -445,8 +445,9 @@ suite "Connection Manager maxConnsPerPeer":
     await runTest(0, defaultMaxConnsPerPeer)
 
   for i in 1 ..< 10:
-    asyncTest fmt"peer limit is reached with {i} muxers":
-      await runTest(i, i)
+    let limit = i
+    asyncTest fmt"peer limit is reached with {limit} muxers":
+      await runTest(limit, limit)
 
 suite "Connection Manager Watermark":
   teardown:
