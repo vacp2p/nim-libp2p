@@ -509,16 +509,14 @@ proc validateAndRelay(
       g.subscribedDirectPeers.withValue(topic, peers):
         toSendPeers.incl(peers[])
       toSendPeers.excl(peer)
-      # Also exclude the original message source to prevent relaying back to them.
-      # This handles the case where the immediate sender differs from the original
-      # publisher (e.g., the message arrived via an intermediate relay node).
-      if msg.fromPeer.data.len > 0:
-        g.peers.withValue(msg.fromPeer, sourcePeer):
-          toSendPeers.excl(sourcePeer[])
 
     if isLargeMessage(msg.data.len, msgId):
       var peersToSendIDontWant = HashSet[PubSubPeer]()
       addToSendPeers(peersToSendIDontWant)
+      # Also exclude the original message publisher so we don't send IDontWant
+      # to a peer we won't relay to after the fix below.
+      g.peers.withValue(msg.fromPeer, sourcePeer):
+        peersToSendIDontWant.excl(sourcePeer[])
       g.sendIDontWant(topic, msgId, peersToSendIDontWant)
 
     let validation = await g.validate(msg)
@@ -560,6 +558,11 @@ proc validateAndRelay(
     addToSendPeers(toSendPeers)
     # Don't send it to peers that sent it during validation
     toSendPeers.excl(seenPeers)
+    # Also exclude the original message publisher to prevent relaying back to
+    # them. This handles the case where the message arrived via an intermediate
+    # relay node (e.g., A→B→C: when C relays, it should not send back to A).
+    g.peers.withValue(msg.fromPeer, sourcePeer):
+      toSendPeers.excl(sourcePeer[])
 
     proc isMsgInIdontWant(it: PubSubPeer): bool =
       for iDontWant in it.iDontWants:
