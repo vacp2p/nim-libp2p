@@ -64,7 +64,7 @@ func shortLog*(addrs: seq[MultiAddress]): string =
   if addrs.len <= identifyAddrsLogMax:
     return addrs.map(x => $x).join(",")
   return
-    addrs[0 ..< identifyAddrsLogMax].map(x => $x).join(",") & "...(+" &
+    addrs[0 ..< identifyAddrsLogMax].map(x => $x).join(",") & ",...(+" &
     $(addrs.len - identifyAddrsLogMax) & " more)"
 
 chronicles.expandIt(IdentifyInfo):
