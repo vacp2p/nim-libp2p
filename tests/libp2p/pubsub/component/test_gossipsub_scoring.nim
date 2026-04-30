@@ -378,11 +378,12 @@ suite "GossipSub Component - Scoring":
       100
     nodes[0].topicParams[topic].meshMessageDeliveriesDecay = 0.9
 
-    # We should have decayed 5 times, though allowing 4..6
-    await sleepAsync(decayInterval * 5)
+    # Wait for exactly 5 scoring heartbeats to ensure precise decay count
+    await nodes[0].waitForScoringHeartbeatByEvent(5)
+    # After exactly 5 decays: 100 * 0.9^5 = 59.049
     check:
       nodes[0].peerStats[nodes[1].peerInfo.peerId].topicInfos[topic].meshMessageDeliveries in
-        50.0 .. 66.0
+        57.0 .. 62.0
 
   asyncTest "Nodes publishing invalid messages are penalised and disconnected":
     # Given GossipSub nodes with Topic Params
