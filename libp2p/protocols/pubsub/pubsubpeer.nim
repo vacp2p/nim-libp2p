@@ -447,7 +447,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection", p, encodedMsg = shortLog(msg)
+    debug "No send connection", p, encoded = shortLog(msg)
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
