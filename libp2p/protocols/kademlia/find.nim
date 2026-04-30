@@ -207,8 +207,7 @@ proc iterativeLookup*(
     let dispatchWithPeer = proc(
         peerId: PeerId
     ): Future[(PeerId, Result[Message, string])] {.
-        async: (raises: [CancelledError]),
-        gcsafe
+        async: (raises: [CancelledError]), gcsafe
     .} =
       let msg = await dispatch(kad, peerId, target)
       return (peerId, msg)
