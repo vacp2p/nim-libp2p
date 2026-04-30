@@ -130,10 +130,9 @@ proc collectBucketAds(
     disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int
 ): Future[seq[Advertisement]] {.async: (raises: [CancelledError]).} =
   var found = newSeqOfCap[Advertisement](limit)
-  var pending: seq[Future[Result[GetAdsResult, string]]] =
-    peers.mapIt(
-      Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId, limit))
-    )
+  var pending: seq[Future[Result[GetAdsResult, string]]] = peers.mapIt(
+    Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId, limit))
+  )
   defer:
     for fut in pending:
       if not fut.finished():
