@@ -480,7 +480,8 @@ suite "GossipSub Component - Scoring":
       node.parameters.disconnectBadPeers = true
 
     # Then peers with bad score are disconnected on scoring heartbeat (3rd scoring heartbeat)
-    checkUntilTimeout:
+    await centerNode.waitForScoringHeartbeatByEvent(1)
+    check:
       centerNode.mesh[topic].toSeq().len == 1
 
   asyncTest "Nodes not meeting Mesh Message Deliveries Threshold are penalised":
