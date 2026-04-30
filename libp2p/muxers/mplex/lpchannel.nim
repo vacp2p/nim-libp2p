@@ -91,18 +91,19 @@ proc closeUnderlying(s: LPChannel): Future[void] {.async: (raises: []).} =
   if s.closedLocal and s.atEof():
     await procCall BufferStream(s).close()
 
-proc reset*(s: LPChannel) {.async: (raises: []).} =
-  if s.isClosed:
-    trace "Already closed", s
+proc resetChannel*(s: LPChannel, isLocal: bool) {.async: (raises: []).} =
+  if s.localReset or s.remoteReset:
+    trace "Already reset", s
     return
 
   s.isClosed = true
   s.closedLocal = true
-  s.localReset = not s.remoteReset
+  s.localReset = isLocal
+  s.remoteReset = not isLocal
 
   trace "Resetting channel", s, len = s.len
 
-  if s.isOpen and not s.conn.isClosed:
+  if isLocal and s.isOpen and not s.conn.isClosed:
     # If the connection is still active, notify the other end
     proc resetMessage() {.async: (raises: []).} =
       try:
@@ -117,6 +118,9 @@ proc reset*(s: LPChannel) {.async: (raises: []).} =
   await s.closeImpl()
 
   trace "Channel reset", s
+
+method resetImpl*(s: LPChannel) {.async: (raises: []).} =
+  await s.resetChannel(isLocal = true)
 
 method close*(s: LPChannel) {.async: (raises: []).} =
   ## Close channel for writing - a message will be sent to the other peer
