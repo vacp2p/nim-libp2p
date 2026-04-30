@@ -50,7 +50,7 @@ export
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
 type
-  TransportBuilder* {.public.} =
+  TransportBuilder* =
     proc(config: TransportConfig): Transport {.gcsafe, raises: [].}
 
   TransportConfig* = ref object
@@ -199,7 +199,7 @@ proc withTransport*(b: SwitchBuilder, prov: TransportBuilder): SwitchBuilder =
 
 proc withTcpTransport*(
     b: SwitchBuilder, flags: set[ServerFlags] = {}
-): SwitchBuilder {.public.} =
+): SwitchBuilder =
   b.withTransport(
     proc(config: TransportConfig): Transport =
       TcpTransport.new(flags, config.upgr)
