@@ -554,10 +554,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#4-withwatermark10-20-soft-trimming-no-hard-cap" class="md-nav__link">
+  <a href="#4-withwatermarkpolicy10-20-soft-trimming-no-hard-cap" class="md-nav__link">
     <span class="md-ellipsis">
       
-        4. .withWatermark(10, 20) — soft trimming, no hard cap
+        4. .withWatermarkPolicy(10, 20) — soft trimming, no hard cap
       
     </span>
   </a>
@@ -565,10 +565,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#5-withwatermark10-20-graceperiod-30seconds-silenceperiod-5seconds-custom-timing" class="md-nav__link">
+  <a href="#5-withwatermarkpolicy10-20-graceperiod-30seconds-silenceperiod-5seconds-custom-timing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. .withWatermark(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds) — custom timing
+        5. .withWatermarkPolicy(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds) — custom timing
       
     </span>
   </a>
@@ -576,10 +576,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#6-withwatermark10-20withmaxconnections30-hard-cap-trimming" class="md-nav__link">
+  <a href="#6-withwatermarkpolicy10-20withmaxconnections30-hard-cap-trimming" class="md-nav__link">
     <span class="md-ellipsis">
       
-        6. .withWatermark(10, 20).withMaxConnections(30) — hard cap + trimming
+        6. .withWatermarkPolicy(10, 20).withMaxConnections(30) — hard cap + trimming
       
     </span>
   </a>
@@ -587,10 +587,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#7-withwatermark10-20withmaxinout30-20-per-direction-caps-trimming" class="md-nav__link">
+  <a href="#7-withwatermarkpolicy10-20withmaxinout30-20-per-direction-caps-trimming" class="md-nav__link">
     <span class="md-ellipsis">
       
-        7. .withWatermark(10, 20).withMaxInOut(30, 20) — per-direction caps + trimming
+        7. .withWatermarkPolicy(10, 20).withMaxInOut(30, 20) — per-direction caps + trimming
       
     </span>
   </a>
@@ -633,7 +633,7 @@ manager through <code>SwitchBuilder</code> as an API showcase.
 The connection manager controls how many simultaneous connections a switch accepts,
 and can optionally trim low-scoring peers via watermark logic.</p>
 <p>You'll find all configuration options in the <code>withMaxConnections</code>,
-<code>withMaxInOut</code>, and <code>withWatermark</code> builder methods.
+<code>withMaxInOut</code>, and <code>withWatermarkPolicy</code> builder methods.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="n">chronos</span><span class="p">,</span><span class="w"> </span><span class="n">strformat</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">import</span><span class="w"> </span><span class="n">libp2p</span>
@@ -696,7 +696,7 @@ control over how bandwidth is allocated.
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;3. .withMaxInOut(30, 20)&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;(in-limit: 30, out-limit: 20)&quot;</span>
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="p">)</span>
 </code></pre></div></p>
-<h3 id="4-withwatermark10-20-soft-trimming-no-hard-cap">4. <code>.withWatermark(10, 20)</code> — soft trimming, no hard cap</h3>
+<h3 id="4-withwatermarkpolicy10-20-soft-trimming-no-hard-cap">4. <code>.withWatermarkPolicy(10, 20)</code> — soft trimming, no hard cap</h3>
 <p>No semaphore is created — the switch <strong>never blocks</strong> an incoming
 connection based on count alone.  Instead, once the connected-peer count
 exceeds the <strong>high-water mark</strong> (20), the connection manager
@@ -704,14 +704,14 @@ asynchronously trims down to the <strong>low-water mark</strong> (10) by closing
 the lowest-scoring peers.  Peers within the grace period (default 1 min)
 and protected peers are skipped during trimming.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="w">  </span><span class="k">block</span><span class="p">:</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="k">let</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createBaseBuilder</span><span class="p">().</span><span class="n">withWatermark</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">).</span><span class="n">build</span><span class="p">()</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="k">let</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createBaseBuilder</span><span class="p">().</span><span class="n">withWatermarkPolicy</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">).</span><span class="n">build</span><span class="p">()</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="n">await</span><span class="w"> </span><span class="n">connectPeer</span><span class="p">(</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;4. .withWatermark(10, 20)&quot;</span><span class="p">,</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;4. .withWatermarkPolicy(10, 20)&quot;</span><span class="p">,</span>
 <a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">      </span><span class="s">&quot;(no hard cap; trims to 10 once 20 are connected)&quot;</span><span class="p">,</span>
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="p">)</span>
 </code></pre></div></p>
-<h3 id="5-withwatermark10-20-graceperiod-30seconds-silenceperiod-5seconds-custom-timing">5. <code>.withWatermark(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)</code> — custom timing</h3>
+<h3 id="5-withwatermarkpolicy10-20-graceperiod-30seconds-silenceperiod-5seconds-custom-timing">5. <code>.withWatermarkPolicy(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)</code> — custom timing</h3>
 <p><code>gracePeriod</code> protects newly connected peers from being trimmed: any peer
 that connected less than <code>gracePeriod</code> ago is skipped when the connection
 manager prunes down to <code>lowWater</code>.  Shortening it from the default 1 minute
@@ -725,15 +725,15 @@ responsiveness: a long grace period preserves recently opened connections
 longer, while a short silence period allows more frequent pruning passes.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="w">  </span><span class="k">block</span><span class="p">:</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="k">let</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createBaseBuilder</span><span class="p">()</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">      </span><span class="p">.</span><span class="n">withWatermark</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="n">gracePeriod</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">30.</span><span class="n">seconds</span><span class="p">,</span><span class="w"> </span><span class="n">silencePeriod</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">5.</span><span class="n">seconds</span><span class="p">)</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">      </span><span class="p">.</span><span class="n">withWatermarkPolicy</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="n">gracePeriod</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">30.</span><span class="n">seconds</span><span class="p">,</span><span class="w"> </span><span class="n">silencePeriod</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">5.</span><span class="n">seconds</span><span class="p">)</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">      </span><span class="p">.</span><span class="n">build</span><span class="p">()</span>
 <a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
 <a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="n">await</span><span class="w"> </span><span class="n">connectPeer</span><span class="p">(</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;5. .withWatermark(gracePeriod=30s, silencePeriod=5s)&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;5. .withWatermarkPolicy(gracePeriod=30s, silencePeriod=5s)&quot;</span><span class="p">,</span>
 <a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">      </span><span class="s">&quot;(trims at 20; grace 30 s; silence 5 s)&quot;</span><span class="p">,</span>
 <a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="p">)</span>
 </code></pre></div></p>
-<h3 id="6-withwatermark10-20withmaxconnections30-hard-cap-trimming">6. <code>.withWatermark(10, 20).withMaxConnections(30)</code> — hard cap + trimming</h3>
+<h3 id="6-withwatermarkpolicy10-20withmaxconnections30-hard-cap-trimming">6. <code>.withWatermarkPolicy(10, 20).withMaxConnections(30)</code> — hard cap + trimming</h3>
 <p>A semaphore enforces an absolute ceiling of 30 connections while
 watermark trimming keeps the active peer count near 10 long before that
 ceiling is ever reached.  Both guards operate simultaneously: the
@@ -741,27 +741,28 @@ semaphore blocks new connections at the limit, and the trimmer prunes
 existing ones once the high-water mark is hit.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="w">  </span><span class="k">block</span><span class="p">:</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="k">let</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">      </span><span class="n">createBaseBuilder</span><span class="p">().</span><span class="n">withWatermark</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">).</span><span class="n">withMaxConnections</span><span class="p">(</span><span class="mi">30</span><span class="p">).</span><span class="n">build</span><span class="p">()</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">      </span><span class="n">createBaseBuilder</span><span class="p">().</span><span class="n">withWatermarkPolicy</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">).</span><span class="n">withMaxConnections</span><span class="p">(</span><span class="mi">30</span><span class="p">).</span><span class="n">build</span><span class="p">()</span>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>
 <a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="n">await</span><span class="w"> </span><span class="n">connectPeer</span><span class="p">(</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;6. .withWatermark(10,20).withMaxConnections(30)&quot;</span><span class="p">,</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;6. .withWatermarkPolicy(10,20).withMaxConnections(30)&quot;</span><span class="p">,</span>
 <a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">      </span><span class="s">&quot;(hard cap: 30; trims at 20)&quot;</span><span class="p">,</span>
 <a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="p">)</span>
 </code></pre></div></p>
-<h3 id="7-withwatermark10-20withmaxinout30-20-per-direction-caps-trimming">7. <code>.withWatermark(10, 20).withMaxInOut(30, 20)</code> — per-direction caps + trimming</h3>
+<h3 id="7-withwatermarkpolicy10-20withmaxinout30-20-per-direction-caps-trimming">7. <code>.withWatermarkPolicy(10, 20).withMaxInOut(30, 20)</code> — per-direction caps + trimming</h3>
 <p>The most granular configuration: two independent semaphores (30 incoming,
 20 outgoing) combined with watermark trimming.  New connections are
 blocked by the per-direction caps, and existing connections are pruned
 asynchronously once the total peer count exceeds 20.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="w">  </span><span class="k">block</span><span class="p">:</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="k">let</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createBaseBuilder</span><span class="p">().</span><span class="n">withWatermark</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">).</span><span class="n">withMaxInOut</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">).</span><span class="n">build</span><span class="p">()</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="n">await</span><span class="w"> </span><span class="n">connectPeer</span><span class="p">(</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;7. .withWatermark(10,20).withMaxInOut(30,20)&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">      </span><span class="s">&quot;(in-limit: 30, out-limit: 20; trims at 20)&quot;</span><span class="p">,</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="p">)</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="n">waitFor</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="k">let</span><span class="w"> </span><span class="n">switch</span><span class="w"> </span><span class="o">=</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">      </span><span class="n">createBaseBuilder</span><span class="p">().</span><span class="n">withWatermarkPolicy</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">).</span><span class="n">withMaxInOut</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span><span class="w"> </span><span class="mi">20</span><span class="p">).</span><span class="n">build</span><span class="p">()</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="n">await</span><span class="w"> </span><span class="n">connectPeer</span><span class="p">(</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">      </span><span class="n">switch</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;7. .withWatermarkPolicy(10,20).withMaxInOut(30,20)&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">      </span><span class="s">&quot;(in-limit: 30, out-limit: 20; trims at 20)&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="p">)</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">waitFor</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>
 Running this program with <code>nim c -p:../ -d:chronicles_log_level=error -r tutorial_5_connmanager.nim</code> produces
 one line per scenario, each showing <code>connected = 1</code>, confirming that each
@@ -788,19 +789,19 @@ configuration accepts connections normally under its limit.</p>
 <td>Separate limits: 30 incoming / 20 outgoing</td>
 </tr>
 <tr>
-<td><code>.withWatermark(10, 20)</code></td>
+<td><code>.withWatermarkPolicy(10, 20)</code></td>
 <td>No hard cap; trims to 10 once 20 connected</td>
 </tr>
 <tr>
-<td><code>.withWatermark(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)</code></td>
+<td><code>.withWatermarkPolicy(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds)</code></td>
 <td>Custom trim timing: 30s grace, 5s cooldown</td>
 </tr>
 <tr>
-<td><code>.withWatermark(10, 20).withMaxConnections(30)</code></td>
+<td><code>.withWatermarkPolicy(10, 20).withMaxConnections(30)</code></td>
 <td>Hard cap at 30 + trim at 20</td>
 </tr>
 <tr>
-<td><code>.withWatermark(10, 20).withMaxInOut(30, 20)</code></td>
+<td><code>.withWatermarkPolicy(10, 20).withMaxInOut(30, 20)</code></td>
 <td>Separate limits + trim at 20</td>
 </tr>
 </tbody>
