@@ -104,33 +104,11 @@ proc init*(
     maxHighPriorityQueueLen = DefaultMaxHighPriorityQueueLen,
     maxMediumPriorityQueueLen = DefaultMaxMediumPriorityQueueLen,
     maxLowPriorityQueueLen = DefaultMaxLowPriorityQueueLen,
-    maxNumElementsInNonPriorityQueue: int = -1,
-      # Deprecated: use maxMediumPriorityQueueLen and maxLowPriorityQueueLen instead.
     sendIDontWantOnPublish = false,
     testExtensionConfig = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig = Opt.none(PartialMessageExtensionConfig),
     pingpongExtensionConfig = Opt.none(PingPongExtensionConfig),
 ): GossipSubParams =
-  if maxNumElementsInNonPriorityQueue >= 0:
-    warn "maxNumElementsInNonPriorityQueue is deprecated. Use maxMediumPriorityQueueLen and maxLowPriorityQueueLen"
-
-  let resolvedMaxMediumPriorityQueueLen =
-    if maxNumElementsInNonPriorityQueue >= 0 and
-        maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen:
-      maxNumElementsInNonPriorityQueue
-    else:
-      maxMediumPriorityQueueLen
-
-  let resolvedMaxLowPriorityQueueLen =
-    if maxNumElementsInNonPriorityQueue >= 0 and
-        maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
-      maxNumElementsInNonPriorityQueue
-    else:
-      maxLowPriorityQueueLen
-
-  let deprecatedMaxNumElementsInNonPriorityQueue =
-    if maxNumElementsInNonPriorityQueue >= 0: maxNumElementsInNonPriorityQueue else: 0
-
   GossipSubParams(
     explicit: true,
     pruneBackoff: pruneBackoff,
@@ -170,9 +148,8 @@ proc init*(
     overheadRateLimit: overheadRateLimit,
     disconnectPeerAboveRateLimit: disconnectPeerAboveRateLimit,
     maxHighPriorityQueueLen: maxHighPriorityQueueLen,
-    maxMediumPriorityQueueLen: resolvedMaxMediumPriorityQueueLen,
-    maxLowPriorityQueueLen: resolvedMaxLowPriorityQueueLen,
-    maxNumElementsInNonPriorityQueue: deprecatedMaxNumElementsInNonPriorityQueue,
+    maxMediumPriorityQueueLen: maxMediumPriorityQueueLen,
+    maxLowPriorityQueueLen: maxLowPriorityQueueLen,
     sendIDontWantOnPublish: sendIDontWantOnPublish,
     testExtensionConfig: testExtensionConfig,
     partialMessageExtensionConfig: partialMessageExtensionConfig,
@@ -443,7 +420,7 @@ proc handleControl(g: GossipSub, peer: PubSubPeer, control: ControlMessage) =
       for prune in respControl.prune:
         libp2p_pubsub_broadcast_prune.inc(labelValues = [g.topicLabel(prune.topicID)])
 
-    trace "sending control message", payload = shortLog(respControl), peer
+    trace "sending control message", control = shortLog(respControl), peer
     g.send(peer, RPCMsg.withControl(respControl), MessagePriority.High)
 
   if messages.len > 0:
@@ -646,7 +623,7 @@ method rpcHandler*(
     for m in rpcMsg.messages:
       libp2p_pubsub_received_messages.inc(labelValues = [$peer.peerId, m.topic])
 
-  trace "decoded msg from peer", peer, payload = rpcMsg.shortLog
+  trace "decoded msg from peer", peer, rpcMsg = rpcMsg.shortLog
   await rateLimit(g, peer, g.messageOverhead(rpcMsg, msgSize))
 
   # trigger hooks - these may modify the message
@@ -905,7 +882,7 @@ method publish*(
   logScope:
     msgId = shortLog(msgId)
 
-  trace "Created new message", payload = shortLog(msg), peers = peers.len
+  trace "Created new message", message = shortLog(msg), peers = peers.len
 
   if g.addSeen(g.salt(msgId)):
     # If the message was received or published recently, don't re-publish it -
@@ -1109,20 +1086,6 @@ method initPubSub*(g: GossipSub) {.raises: [InitializationError].} =
 
   if not g.parameters.explicit:
     g.parameters = GossipSubParams.init()
-
-  # If deprecated maxNumElementsInNonPriorityQueue was set
-  # and the new fields are still at their defaults, copy the value over.
-  if g.parameters.maxNumElementsInNonPriorityQueue > 0 and (
-    g.parameters.maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen or
-    g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen
-  ):
-    warn "maxNumElementsInNonPriorityQueue is deprecated. Use maxMediumPriorityQueueLen and maxLowPriorityQueueLen"
-    if g.parameters.maxMediumPriorityQueueLen == DefaultMaxMediumPriorityQueueLen:
-      g.parameters.maxMediumPriorityQueueLen =
-        g.parameters.maxNumElementsInNonPriorityQueue
-    if g.parameters.maxLowPriorityQueueLen == DefaultMaxLowPriorityQueueLen:
-      g.parameters.maxLowPriorityQueueLen =
-        g.parameters.maxNumElementsInNonPriorityQueue
 
   let validationRes = g.parameters.validateParameters()
   if validationRes.isErr:

@@ -18,7 +18,7 @@ declareCounter(
 
 const
   DefaultMaxConnections = 50
-  DefaultMaxConnectionsPerPeer = 1
+  DefaultMaxConnectionsPerPeer = 2
   ConnectionsUnlimited = high(int)
 
 type
@@ -32,13 +32,13 @@ type
     interval: Duration
     decayFn: DecayFn
 
-  ScoringConfig* = object ## Configuration for connection scoring parameters.
+  PeerScoring* = object ## Configuration for peer scoring parameters.
     outboundBonus*: int = 100
       ## `outboundBonus` is added to the score of every peer with an outbound connection
     decayResolution*: Duration = 1.minutes
       ## `decayResolution` controls how often ephemeral tag decay functions are applied
 
-  WatermarkConfig* = object
+  WatermarkPolicy* = object
     ## Configuration for hi/lo watermark connection management.
     ## When peer count exceeds `highWater`, a trim cycle runs until
     ## peer count drops to `lowWater`.
@@ -47,9 +47,9 @@ type
     gracePeriod*: Duration ## newly connected peers are exempt from trimming
     silencePeriod*: Duration ## minimum interval between trim cycles
 
-  LimitsConfig* = object
-    ## Configuration for connection limits. Construct via `LimitsConfig.maxTotal`
-    ## for a single shared cap, or `LimitsConfig.maxInOut` for independent
+  ConnectionLimits* = object
+    ## Configuration for connection limits. Construct via `ConnectionLimits.maxTotal`
+    ## for a single shared cap, or `ConnectionLimits.maxInOut` for independent
     ## inbound/outbound caps.
     maxConnections: int = -1
     maxIn: int = -1
@@ -108,12 +108,12 @@ type
     readyPeers: HashSet[PeerId]
     expectedConnectionsOverLimit*: Table[(PeerId, Direction), Future[Muxer]]
     peerStore*: PeerStore
-    watermark: Opt[WatermarkConfig]
+    watermark: Opt[WatermarkPolicy]
     connectedAt: Table[PeerId, Moment]
     protectedPeers: Table[PeerId, HashSet[string]]
     trimFut: Future[void]
     lastTrim: Moment
-    scoringConfig: ScoringConfig
+    scoring: PeerScoring
     staticTags: Table[PeerId, Table[string, int]]
     decayingTags: Table[PeerId, Table[string, DecayingTagValue]]
     decayLoopFut: Future[void]
@@ -140,41 +140,38 @@ proc decayNone*(): DecayFn =
   return proc(value: int, elapsed: Duration): int {.gcsafe, raises: [].} =
     value
 
-proc maxTotal*(T: type LimitsConfig, maxConnections: int): LimitsConfig =
-  ## Constructs LimitsConfig with single shared cap limit.
+proc maxTotal*(T: type ConnectionLimits, maxConnections: int): ConnectionLimits =
+  ## Constructs ConnectionLimits with single shared cap limit.
   doAssert maxConnections > 0, "maxConnections must be > 0"
-  LimitsConfig(maxConnections: maxConnections)
+  ConnectionLimits(maxConnections: maxConnections)
 
-proc maxInOut*(T: type LimitsConfig, maxIn: int, maxOut: int): LimitsConfig =
-  ## Constructs LimitsConfig with independent inbound/outbound caps.
+proc maxInOut*(T: type ConnectionLimits, maxIn: int, maxOut: int): ConnectionLimits =
+  ## Constructs ConnectionLimits with independent inbound/outbound caps.
   doAssert maxIn > 0, "maxIn must be > 0"
   doAssert maxOut > 0, "maxOut must be > 0"
-  LimitsConfig(maxIn: maxIn, maxOut: maxOut)
-
-proc newTooManyConnectionsError(): ref TooManyConnectionsError {.inline.} =
-  result = newException(TooManyConnectionsError, "Too many connections")
+  ConnectionLimits(maxIn: maxIn, maxOut: maxOut)
 
 proc new*(
     T: type ConnManager,
-    maxConnsPerPeer: int = -1,
-    limits: Opt[LimitsConfig] = Opt.none(LimitsConfig),
-    watermark: Opt[WatermarkConfig] = Opt.none(WatermarkConfig),
-    scoringConfig: ScoringConfig = ScoringConfig(),
+    maxConnsPerPeer: int = 0,
+    limits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
+    watermark: Opt[WatermarkPolicy] = Opt.none(WatermarkPolicy),
+    scoring: PeerScoring = PeerScoring(),
 ): ConnManager =
   ## Creates a `ConnManager`.
   ##
-  ## `maxConnsPerPeer` accepts `-1` to mean "use the default value".
+  ## `maxConnsPerPeer` accepts values ≤0 to mean "use the default value".
   ##
-  ## `limits` selects the connection-cap strategy: `LimitsConfig.maxTotal(n)`
-  ## for a single shared cap, or `LimitsConfig.maxInOut(i, o)` for independent
+  ## `limits` selects the connection-cap strategy: `ConnectionLimits.maxTotal(n)`
+  ## for a single shared cap, or `ConnectionLimits.maxInOut(i, o)` for independent
   ## per-direction caps. When omitted, the total cap defaults to
-  ## `DefaultMaxConnections`. 
+  ## `DefaultMaxConnections`.
   ##
   ## When `watermark` is provided without `limits` the semaphore is omitted
   ## and hi/lo trimming is the only guard.  When both are provided the
   ## semaphore blocks new connections hard while trimming also prunes
   ## existing ones.
-  let cfg = limits.get(LimitsConfig())
+  let cfg = limits.get(ConnectionLimits())
   let hasWatermark = watermark.isSome
   let hasInOut = cfg.maxIn > 0 and cfg.maxOut > 0
   let hasTotal = cfg.maxConnections > 0
@@ -201,14 +198,13 @@ proc new*(
   T(
     muxerStore: MuxerStore.new(),
     maxConnsPerPeer:
-      if maxConnsPerPeer >= 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
-      # issue#2328 must never be 0
+      if maxConnsPerPeer > 0: maxConnsPerPeer else: DefaultMaxConnectionsPerPeer,
     maxConnectionsIn: maxInArg,
     maxConnectionsOut: maxOutArg,
     inSema: inSema,
     outSema: outSema,
     watermark: watermark,
-    scoringConfig: scoringConfig,
+    scoring: scoring,
   )
 
 proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
@@ -435,19 +431,17 @@ proc storeMuxer*(
   let
     peerId = muxer.connection.peerId
     dir = muxer.connection.dir
+    peerConnsCount = c.muxerStore.count(peerId)
+    isNewPeer = peerConnsCount == 0
 
-  if c.muxerStore.count(peerId) > c.maxConnsPerPeer:
+  if peerConnsCount >= c.maxConnsPerPeer:
     let key = (peerId, dir)
     let expectedConn = c.expectedConnectionsOverLimit.getOrDefault(key)
     if expectedConn != nil and not expectedConn.finished:
       expectedConn.complete(muxer)
     else:
-      debug "Too many connections for peer",
-        conns = c.muxerStore.count(peerId), peerId, dir
-
-      raise newTooManyConnectionsError()
-
-  let isNewPeer = c.muxerStore.count(peerId) == 0
+      debug "Per peer connections limit reached", conns = peerConnsCount, peerId
+      raise newException(TooManyConnectionsError, "Per peer connections limit reached")
 
   if not c.muxerStore.add(muxer):
     raise newException(LPError, "muxer already stored")
@@ -496,8 +490,11 @@ proc getOutgoingSlot*(
       # still calling acquire to track this connection.
       discard c.outSema.acquire()
     elif not c.outSema.tryAcquire():
-      trace "Too many outgoing connections"
-      raise newTooManyConnectionsError()
+      trace "Total outgoing connections limit reached"
+      raise newException(
+        TooManyConnectionsError, "Total outgoing connections limit reached"
+      )
+
   return ConnectionSlot(connManager: c, direction: Out)
 
 func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
@@ -608,7 +605,7 @@ proc peerScore*(c: ConnManager, peerId: PeerId): int =
   ##   + sum of all current decaying tag values
   var score = 0
   if not c.selectMuxer(peerId, Direction.Out).isNil:
-    score += c.scoringConfig.outboundBonus
+    score += c.scoring.outboundBonus
   c.staticTags.withValue(peerId, tags):
     for _, v in tags[]:
       score += v
@@ -635,7 +632,7 @@ proc applyDecay(c: ConnManager) =
 
 proc runDecayLoop(c: ConnManager) {.async: (raises: [CancelledError]).} =
   while c.decayingTags.len > 0:
-    await sleepAsync(c.scoringConfig.decayResolution)
+    await sleepAsync(c.scoring.decayResolution)
     c.applyDecay()
   c.decayLoopFut = nil
 

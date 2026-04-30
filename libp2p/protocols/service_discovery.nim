@@ -42,7 +42,7 @@ proc maintainSelfSignedPeerRecord(
 proc maintainRegistrar(disco: ServiceDiscovery) {.async: (raises: [CancelledError]).} =
   heartbeat "prune expired advertisements",
     disco.discoConfig.advertExpiry, sleepFirst = true:
-    disco.registrar.pruneExpiredAds(disco.discoConfig.advertExpiry.seconds.uint64)
+    disco.registrar.pruneExpiredAds(disco.discoConfig.advertExpiry)
 
 proc maintainServiceTables(
     disco: ServiceDiscovery
