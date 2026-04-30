@@ -34,7 +34,9 @@ proc autonatInteropTest*(
   let awaiter = newFuture[void]()
 
   proc statusAndConfidenceHandler(
-      networkReachability: NetworkReachability, confidence: Opt[float]
+      networkReachability: NetworkReachability,
+      confidence: Opt[float],
+      dialBackAddr: Opt[MultiAddress],
   ) {.async: (raises: [CancelledError]).} =
     if networkReachability != NetworkReachability.Unknown and confidence.isSome() and
         confidence.get() >= 0.3:
