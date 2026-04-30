@@ -300,7 +300,7 @@ proc withWatermarkPolicy*(
 proc withPeerScoring*(
     b: SwitchBuilder, scoring: PeerScoring = PeerScoring()
 ): SwitchBuilder =
-  ## Configure connection scoring parameters.
+  ## Configure peer scoring parameters.
   doAssert scoring.decayResolution > 0.seconds, "decayResolution must be > 0"
   b.scoring = scoring
   b
