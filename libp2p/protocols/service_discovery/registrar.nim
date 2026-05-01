@@ -152,7 +152,7 @@ proc waitingTime*(
 
   var w: float64 =
     discoConfig.advertExpiry.seconds.float64 * occupancy *
-    (serviceSim + ipSim + discoConfig.safetyParam)
+    (serviceSim + discoConfig.ipSimCoefficient * ipSim + discoConfig.safetyParam)
 
   # Bound & Quantize W
   w = max(0.0, w)
