@@ -303,11 +303,11 @@ proc new*(
     )
   if addresses.len != 0:
     builder = builder.withAddresses(addresses)
-  let switch =
-    when MplexEnabled:
-      builder.withMplex().withNoise().build()
-    else:
-      builder.withYamux().withNoise().build()
+  when MplexEnabled:
+    builder = builder.withMplex()
+  when YamuxEnabled:
+    builder = builder.withYamux()
+  let switch = builder.withNoise().build()
   let torSwitch = T(
     peerInfo: switch.peerInfo,
     ms: switch.ms,
