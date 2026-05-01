@@ -157,7 +157,10 @@ proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
 
 when MplexEnabled:
   proc withMplex*(
-      b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes, maxChannCount = 200
+      b: SwitchBuilder,
+      inTimeout = 5.minutes,
+      outTimeout = 5.minutes,
+      maxChannCount = 200,
   ): SwitchBuilder =
     ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
     ## | `Timeout` is the duration after which a inactive connection will be closed
