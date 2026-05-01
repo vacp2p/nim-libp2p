@@ -28,6 +28,9 @@ proc toNimHex(hexStr: string): string =
 
 proc generateCodecList(csvContent: string): string =
   var lines: seq[string]
+  lines.add("# SPDX-License-Identifier: Apache-2.0 OR MIT")
+  lines.add("# Copyright (c) Status Research & Development GmbH")
+  lines.add("#")
   lines.add("# This file is auto-generated from the multicodec table CSV at:")
   lines.add("# https://github.com/multiformats/multicodec/blob/master/table.csv")
   lines.add("#")

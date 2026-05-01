@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH
+#
 # This file is auto-generated from the multicodec table CSV at:
 # https://github.com/multiformats/multicodec/blob/master/table.csv
 #
