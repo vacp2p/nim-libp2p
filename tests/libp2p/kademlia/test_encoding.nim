@@ -169,8 +169,8 @@ suite "KadDHT Protobuffers":
     let cfg = KadDHTConfig.new()
     check cfg.hideConnectionStatus == true
 
-when defined(kadProviderRejection):
-  suite "KadDHT Protobuffers - kadProviderRejection":
+when defined(libp2p_kademlia_provider_rejection):
+  suite "KadDHT Protobuffers - libp2p_kademlia_provider_rejection":
     test "round-trip for AddProviderStatus":
       let accepted = Message(
         msgType: MessageType.addProvider,

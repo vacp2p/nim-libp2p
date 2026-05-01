@@ -311,7 +311,7 @@ type KadDHTConfig* = ref object
   maxProvidersPerKey*: Opt[int]
     ## Maximum number of distinct providers stored per key.
     ## None (default) means unlimited.
-    ## Only enforced when compiled with ``-d:kadProviderRejection``.
+    ## Only enforced when compiled with ``-d:libp2p_kademlia_provider_rejection``.
 
 proc new*(
     T: typedesc[KadDHTConfig],

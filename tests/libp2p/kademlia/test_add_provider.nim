@@ -404,7 +404,7 @@ suite "KadDHT - Add Provider":
       kads[1].providerManager.providerRecords.len == 1
       kads[1].providerManager.providerRecords[0].provider.id == kads[0].rtable.selfId
 
-when defined(kadProviderRejection):
+when defined(libp2p_kademlia_provider_rejection):
   suite "KadDHT - ADD_PROVIDER Rejection":
     teardown:
       checkTrackers()

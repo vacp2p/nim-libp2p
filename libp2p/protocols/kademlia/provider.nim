@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 ## Provider record management for the Kademlia DHT.
-## With ``-d:kadProviderRejection``: receivers enforce ``maxProvidersPerKey``
+## With ``-d:libp2p_kademlia_provider_rejection``: receivers enforce ``maxProvidersPerKey``
 ## and reply with accepted/rejected on field 11; senders spill over to farther
 ## peers when a full batch is rejected. Re-advertisements are always accepted.
 
@@ -127,7 +127,7 @@ proc dispatchAddProvider(
   if writeRes.isErr:
     return err(writeRes.error.msg)
 
-  when defined(kadProviderRejection):
+  when defined(libp2p_kademlia_provider_rejection):
     let readRes = catch:
       await conn.readLp(MaxMsgSize)
     if readRes.isErr:
@@ -146,7 +146,7 @@ proc sendBatch(kad: KadDHT, peers: seq[PeerId], key: Key): auto =
     kad.switch.dispatchAddProvider(it, key, kad.codec, kad.config.hideConnectionStatus)
   )
 
-when defined(kadProviderRejection):
+when defined(libp2p_kademlia_provider_rejection):
   proc countResults[T](rpcBatch: seq[T]): (int, int) =
     var accepted, rejected: int
     for fut in rpcBatch:
@@ -194,7 +194,7 @@ when defined(kadProviderRejection):
           key = key, batchSize = chunk.len
 
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
-  when defined(kadProviderRejection):
+  when defined(libp2p_kademlia_provider_rejection):
     await kad.addProviderSpillover(key)
   else:
     let peers = await kad.findNode(key)
@@ -246,7 +246,7 @@ method handleAddProvider*(
 ) {.base, async: (raises: [CancelledError]).} =
   if not MultiHash.validate(msg.key):
     error "Received key is an invalid Multihash", msg = msg, conn = conn, key = msg.key
-    when defined(kadProviderRejection):
+    when defined(libp2p_kademlia_provider_rejection):
       await conn.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
 
@@ -255,7 +255,7 @@ method handleAddProvider*(
   let validPeers =
     msg.providerPeers.filterIt(it.id == peerBytes and PeerId.init(it.id).isOk())
 
-  when defined(kadProviderRejection):
+  when defined(libp2p_kademlia_provider_rejection):
     kad.config.maxProvidersPerKey.withValue(limit):
       let existingProviders =
         kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
@@ -278,7 +278,7 @@ method handleAddProvider*(
       )
     )
 
-  when defined(kadProviderRejection):
+  when defined(libp2p_kademlia_provider_rejection):
     let status =
       if validPeers.len > 0: AddProviderStatus.accepted else: AddProviderStatus.rejected
     await conn.sendAddProviderResponse(kad, status)

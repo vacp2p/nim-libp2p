@@ -213,7 +213,7 @@ proc addRandomPeers*(
     state.shortlist[peers[i]] = xorDistance(peers[i], target, hasher)
   peers.sortPeers(target, hasher)
 
-when defined(kadProviderRejection):
+when defined(libp2p_kademlia_provider_rejection):
   proc sendAddProviderAndGetStatus*(
       sender: KadDHT, receiver: KadDHT, key: Key
   ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =

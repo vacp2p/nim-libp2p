@@ -45,7 +45,7 @@ type
 
   AddProviderStatus* = enum
     ## Response status carried in field 11 of an ADD_PROVIDER reply (nim extension).
-    ## Only populated when both peers are compiled with ``-d:kadProviderRejection``.
+    ## Only populated when both peers are compiled with ``-d:libp2p_kademlia_provider_rejection``.
     ## Peers without the flag never write nor read this field.
     accepted = 0
     rejected = 1
@@ -161,7 +161,7 @@ proc encode*(
   for peer in msg.providerPeers:
     pb.write(9, peer.encode(hideConnectionStatus))
 
-  when defined(kadProviderRejection):
+  when defined(libp2p_kademlia_provider_rejection):
     msg.providerStatus.withValue(status):
       pb.write(11, uint32(ord(status)))
 
@@ -287,7 +287,7 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   for ppb in providerPbs:
     m.providerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
 
-  when defined(kadProviderRejection):
+  when defined(libp2p_kademlia_provider_rejection):
     var providerStatusVal: uint32
     if ?pb.getField(11, providerStatusVal):
       m.providerStatus = Opt.some(?decodeEnum[AddProviderStatus](providerStatusVal))

@@ -18,7 +18,7 @@ import strutils, os
 --d:
   unittestPrintTime
 --d:
-  kadProviderRejection
+  libp2p_kademlia_provider_rejection
 
 # Only add chronicles param if the
 # user didn't specify any
