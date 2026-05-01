@@ -37,17 +37,13 @@ proc refreshTable*(
     let randomKey = randomKeyInBucket(rtable.selfId, i, kad.rng)
     discard await kad.findNode(randomKey, rtable)
 
-proc bootstrap*(
-    kad: KadDHT, forceRefresh = false
-) {.async: (raises: [CancelledError]).} =
-  await kad.refreshTable(kad.rtable, forceRefresh)
-
+proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  await kad.refreshTable(kad.rtable, true)
   debug "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "Refreshing buckets (bootstrapping)",
-    kad.config.bucketRefreshTime, sleepFirst = true:
-    await kad.bootstrap()
+  heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
+    await kad.refreshTable(kad.rtable, false)
 
 proc new*(
     T: typedesc[KadDHT],
@@ -57,6 +53,7 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     client: bool = false,
     codec: string = KadCodec,
+    bootstrapping: bool = true,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
@@ -69,6 +66,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    bootstrapping,
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -126,7 +124,8 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
-  await kad.bootstrap(forceRefresh = true)
+  if kad.bootstrapping:
+    await kad.bootstrap()
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
