@@ -11,13 +11,16 @@
 import httpclient, strutils
 
 const
-  CsvUrl =
-    "https://raw.githubusercontent.com/multiformats/multicodec/master/table.csv"
+  CsvUrl = "https://raw.githubusercontent.com/multiformats/multicodec/master/table.csv"
   OutputFile = "libp2p/multicodec_table.nim"
 
 proc toNimHex(hexStr: string): string =
   ## Convert a hex string (e.g. "0x1a") to a Nim-style uppercase hex literal (e.g. "0x1A").
-  let prefix = if hexStr.len > 2: hexStr[0 .. 1] else: ""
+  let prefix =
+    if hexStr.len > 2:
+      hexStr[0 .. 1]
+    else:
+      ""
   if prefix == "0x" or prefix == "0X":
     "0x" & hexStr[2 ..^ 1].toUpperAscii()
   else:
@@ -25,16 +28,10 @@ proc toNimHex(hexStr: string): string =
 
 proc generateCodecList(csvContent: string): string =
   var lines: seq[string]
-  lines.add(
-    "# This file is auto-generated from the multicodec table CSV at:"
-  )
-  lines.add(
-    "# https://github.com/multiformats/multicodec/blob/master/table.csv"
-  )
+  lines.add("# This file is auto-generated from the multicodec table CSV at:")
+  lines.add("# https://github.com/multiformats/multicodec/blob/master/table.csv")
   lines.add("#")
-  lines.add(
-    "# DO NOT EDIT MANUALLY. Run `nimble gen_multicodec` to regenerate."
-  )
+  lines.add("# DO NOT EDIT MANUALLY. Run `nimble gen_multicodec` to regenerate.")
   lines.add("")
   lines.add("const MultiCodecList = [")
 
@@ -53,8 +50,7 @@ proc generateCodecList(csvContent: string): string =
     let name = parts[0].strip()
     let code = parts[2].strip()
 
-    if name == "" or code == "" or
-        not (code.startsWith("0x") or code.startsWith("0X")):
+    if name == "" or code == "" or not (code.startsWith("0x") or code.startsWith("0X")):
       continue
 
     lines.add("  (\"" & name & "\", " & toNimHex(code) & "),")

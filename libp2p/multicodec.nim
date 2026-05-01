@@ -23,7 +23,7 @@ include ./multicodec_table
 
 ## Custom codecs not found in the upstream multicodec CSV.
 const MultiCodecListCustom = [
-  ("libp2p-custom-peer-record", 0x300000), # not in multicodec list
+  ("libp2p-custom-peer-record", 0x300000) # not in multicodec list
 ]
 
 type
@@ -55,8 +55,7 @@ when libp2p_multicodec_exts != "":
   const (NameCodecs, CodeCodecs) =
     initLists(@MultiCodecList & @MultiCodecListCustom & @CodecExts)
 else:
-  const (NameCodecs, CodeCodecs) =
-    initLists(@MultiCodecList & @MultiCodecListCustom)
+  const (NameCodecs, CodeCodecs) = initLists(@MultiCodecList & @MultiCodecListCustom)
 
 proc multiCodec*(name: string): MultiCodec {.compileTime.} =
   ## Generate MultiCodec from string ``name`` at compile time.

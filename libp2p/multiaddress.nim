@@ -405,7 +405,10 @@ const
     MAProtocol(mcodec: multiCodec("p2p-webrtc-star"), kind: Marker, size: 0),
     MAProtocol(mcodec: multiCodec("p2p-webrtc-direct"), kind: Marker, size: 0),
     MAProtocol(
-      mcodec: multiCodec("memorytransport"), kind: Path, size: 0, coder: TranscoderMemory
+      mcodec: multiCodec("memorytransport"),
+      kind: Path,
+      size: 0,
+      coder: TranscoderMemory,
     ),
   ]
 
