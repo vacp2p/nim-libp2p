@@ -126,6 +126,8 @@ proc pruneExpiredAds*(registrar: Registrar, advertExpiry: Duration) =
   # Expire IP-level bounds
   pruneExpiredEntries(registrar.timestampIp, registrar.boundIp, now, advertExpiry)
 
+  debug "pruned expired adverts", count = expiredCount
+
 proc waitingTime*(
     registrar: Registrar,
     discoConfig: ServiceDiscoveryConfig,
