@@ -488,13 +488,18 @@ suite "GossipSub Component - Message Handling":
       nodes[1].mesh.getOrDefault(topic).len == 2
       nodes[2].mesh.getOrDefault(topic).len == 2
 
-    # Capture all messages received by A at the network level (before deduplication).
-    # We use createCheckForMessages here so that even if A drops the message as a
-    # duplicate, we still detect that C sent something to A.
-    let (receivedOnA, checkForMessagesOnA) = createCheckForMessages()
-    nodes[0].addOnRecvObserver(checkForMessagesOnA)
-
     let msgData = "Hello, relay test!".toBytes()
+    let relayedToA = newFuture[void]("relayedToA")
+
+    # Capture messages received by A at the network level (before deduplication).
+    # Even if A drops the message as a duplicate, this still detects that C sent
+    # something to A.
+    nodes[0].addOnRecvObserver(
+      proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
+        for message in msgs.messages:
+          if message.data == msgData and not relayedToA.finished:
+            relayedToA.complete()
+    )
 
     # Remove C from A's mesh and gossipsub so A only sends to B when publishing.
     # C still has A in its mesh – this is the bug scenario: when C receives from B,
@@ -505,19 +510,19 @@ suite "GossipSub Component - Message Handling":
     nodes[0].mesh[topic].excl(cPeer)
     nodes[0].gossipsub[topic].excl(cPeer)
 
+    check:
+      not nodes[0].mesh.hasPeerId(topic, nodes[2].peerInfo.peerId)
+      not nodes[0].gossipsub.hasPeerId(topic, nodes[2].peerInfo.peerId)
+      nodes[2].mesh.hasPeerId(topic, nodes[0].peerInfo.peerId)
+
     # A publishes – only reaches B (C removed from A's mesh/gossipsub)
     tryPublish await nodes[0].publish(topic, msgData), 1
 
     # Wait for C to receive the message via B's relay
     await cReceived.wait()
 
-    # Wait to allow any potential relay from C to A to be delivered and processed.
-    # sleepAsync is intentional here: we are asserting a non-event (C must NOT relay
-    # to A), so there is no positive condition to poll with checkUntilTimeout.
-    await sleepAsync(100.milliseconds)
-
     # A should NOT have received the message back from C at the network level
-    check receivedOnA[].filterIt(it.data == msgData).len == 0
+    check not await relayedToA.withTimeout(100.milliseconds)
 
   asyncTest "GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()
