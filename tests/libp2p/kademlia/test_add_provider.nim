@@ -534,4 +534,3 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     checkUntilTimeout:
       nodeA.providerManager.providerRecords.len == 1
       nodeB.providerManager.providerRecords.len == 1
-
