@@ -217,7 +217,7 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
 
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsServers =
-    if config.dnsResolver.isNil() or config.dnsResolver[0] == '\0':
+    if config.dnsResolver.isNil() or config.dnsResolver == "":
       DefaultDnsServers
     else:
       @[initTAddress($config.dnsResolver)]
