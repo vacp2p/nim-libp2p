@@ -19,7 +19,7 @@ proc ping*(
     await conn.close()
 
   let request = Message(msgType: MessageType.ping)
-  let encoded = request.encode()
+  let encoded = request.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.ping])
   kad_message_bytes_sent.inc(
@@ -40,7 +40,7 @@ proc ping*(
 proc handlePing*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  let encoded = msg.encode()
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(
     encoded.buffer.len.int64, labelValues = [$MessageType.ping]
   )
