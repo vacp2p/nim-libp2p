@@ -8,7 +8,7 @@
 ## Usage: nim c -r tools/gen_multicodec.nim
 ## Or via nimble: nimble gen_multicodec
 
-import httpclient, strutils, os
+import httpclient, strutils
 
 const
   CsvUrl =
@@ -65,6 +65,8 @@ proc generateCodecList(csvContent: string): string =
 proc main() =
   echo "Downloading multicodec table from: ", CsvUrl
   let client = newHttpClient()
+  defer:
+    client.close()
   let csv = client.getContent(CsvUrl)
   let content = generateCodecList(csv)
   writeFile(OutputFile, content)
