@@ -25,8 +25,6 @@ import ../../../../libp2p/protocols/mix/mix_protocol
 import ../../../../libp2p/protocols/mix/mix_node
 import ../../../../libp2p/protocols/connectivity/relay/client
 
-const DefaultDnsResolver = "1.1.1.1:53"
-
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
   START_NODE
@@ -218,8 +216,12 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   libp2p.mountMix(config)
 
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
-  let dnsResolver =
-    Opt.some(cast[NameResolver](DnsResolver.new(@[initTAddress($config.dnsResolver)])))
+  let dnsServers =
+    if config.dnsResolver.isNil() or config.dnsResolver[0] == '\0':
+      DefaultDnsServers
+    else:
+      @[initTAddress($config.dnsResolver)]
+  let dnsResolver = Opt.some(cast[NameResolver](DnsResolver.new(dnsServers)))
 
   var privKey = Opt.none(PrivateKey)
   if config.privKey.data != nil and config.privKey.dataLen > 0:
@@ -305,7 +307,7 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     mountKad: 1,
     mountMix: 0,
     mountServiceDiscovery: 0,
-    dnsResolver: DefaultDnsResolver.alloc(),
+    dnsResolver: nil,
     addrs: nil,
     addrsLen: 0,
     muxer: ord(MuxerType.MPLEX),
