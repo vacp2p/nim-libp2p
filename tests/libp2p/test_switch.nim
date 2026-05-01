@@ -1225,7 +1225,9 @@ suite "Switch":
     # it when ConcurrentUpgrades (4) were in flight; manifested as 80+ kad nodes
     # getting stuck on bootstrap.
     const NumPeers = 85
-    let server = newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(NumPeers)))
+    let server = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(NumPeers))
+    )
     await server.start()
 
     var clients: seq[Switch]
