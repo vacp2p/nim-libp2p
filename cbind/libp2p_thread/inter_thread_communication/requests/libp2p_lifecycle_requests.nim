@@ -216,14 +216,14 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   libp2p.mountMix(config)
 
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
-  let effectiveDnsServers =
+  let dnsServersAddrs =
     if config.dnsResolver.isNil():
       DefaultDnsServers
     elif config.dnsResolver == "":
       DefaultDnsServers
     else:
       @[initTAddress($config.dnsResolver)]
-  let dnsResolver = Opt.some(cast[NameResolver](DnsResolver.new(effectiveDnsServers)))
+  let dnsResolver = Opt.some(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
 
   var privKey = Opt.none(PrivateKey)
   if config.privKey.data != nil and config.privKey.dataLen > 0:
