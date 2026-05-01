@@ -133,7 +133,7 @@ proc dispatchFindNode*(
     await conn.close()
 
   let msg = Message(msgType: MessageType.findNode, key: target)
-  let encoded = msg.encode()
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.findNode])
   kad_message_bytes_sent.inc(
@@ -316,7 +316,7 @@ method handleFindNode*(
 
   let response =
     Message(msgType: MessageType.findNode, closerPeers: kad.findClosestPeers(target))
-  let encoded = response.encode()
+  let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(
     encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
   )
