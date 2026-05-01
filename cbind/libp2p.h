@@ -211,15 +211,15 @@ typedef struct {
 // publicKey is NULL and publicKeyLen is 0 when the key is not known.
 // agentVersion and protoVersion are empty strings when not known.
 typedef struct {
-  const char    *peerId;
-  const char   **addrs;
-  size_t         addrsLen;
-  const char   **protocols;
-  size_t         protocolsLen;
+  const char *peerId;
+  const char **addrs;
+  size_t addrsLen;
+  const char **protocols;
+  size_t protocolsLen;
   const uint8_t *publicKey;
-  size_t         publicKeyLen;
-  const char    *agentVersion;
-  const char    *protoVersion;
+  size_t publicKeyLen;
+  const char *agentVersion;
+  const char *protoVersion;
 } Libp2pPeerStoreEntry;
 
 typedef void (*PeerStoreEntryCallback)(int callerRet,
@@ -490,12 +490,9 @@ int libp2p_service_disco_start(libp2p_ctx_t *ctx, Libp2pCallback callback,
 int libp2p_service_disco_stop(libp2p_ctx_t *ctx, Libp2pCallback callback,
                               void *userData);
 
-int libp2p_service_disco_start_advertising(libp2p_ctx_t *ctx,
-                                           const char *serviceId,
-                                           const uint8_t *serviceData,
-                                           size_t serviceDataLen,
-                                           Libp2pCallback callback,
-                                           void *userData);
+int libp2p_service_disco_start_advertising(
+    libp2p_ctx_t *ctx, const char *serviceId, const uint8_t *serviceData,
+    size_t serviceDataLen, Libp2pCallback callback, void *userData);
 
 int libp2p_service_disco_stop_advertising(libp2p_ctx_t *ctx,
                                           const char *serviceId,
@@ -513,7 +510,8 @@ int libp2p_service_disco_stop_discovering(libp2p_ctx_t *ctx,
                                           void *userData);
 
 int libp2p_service_disco_lookup(libp2p_ctx_t *ctx, const char *serviceId,
-                                const uint8_t *serviceData, size_t serviceDataLen,
+                                const uint8_t *serviceData,
+                                size_t serviceDataLen,
                                 RandomRecordsCallback callback, void *userData);
 
 int libp2p_service_disco_random_lookup(libp2p_ctx_t *ctx,
@@ -598,12 +596,14 @@ int libp2p_peerstore_add_peer(libp2p_ctx_t *ctx, const char *peerId,
 // Replaces all addresses stored for peerId.
 int libp2p_peerstore_set_peer_addresses(libp2p_ctx_t *ctx, const char *peerId,
                                         const char **addrs, size_t addrsLen,
-                                        Libp2pCallback callback, void *userData);
+                                        Libp2pCallback callback,
+                                        void *userData);
 
 // Replaces all protocols stored for peerId.
 int libp2p_peerstore_set_peer_protocols(libp2p_ctx_t *ctx, const char *peerId,
                                         const char **protos, size_t protosLen,
-                                        Libp2pCallback callback, void *userData);
+                                        Libp2pCallback callback,
+                                        void *userData);
 
 // Removes peerId from all peerstore books.
 int libp2p_peerstore_delete_peer(libp2p_ctx_t *ctx, const char *peerId,

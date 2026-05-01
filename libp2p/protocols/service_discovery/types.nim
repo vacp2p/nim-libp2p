@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[sequtils, sets, times, tables, hashes]
+import std/[sequtils, sets, tables, hashes]
 import chronicles, chronos, results, stew/byteutils
 import nimcrypto/sha2
 import
@@ -21,11 +21,11 @@ const
   Default_K_lookup* = 5
   Default_F_lookup* = 30
   Default_F_return* = 10
-  Default_E* = 900.0
+  Default_E* = 900.secs
   Default_C*: uint64 = 1_000
-  Default_P_occ* = chronos.seconds(10)
+  Default_P_occ* = 10.0
   Default_G* = 1e-7
-  Default_Delta* = chronos.seconds(1)
+  Default_Delta* = 1.secs
   Default_M_buckets* = 16
   Default_IpSimCoefficient* = 1.0
 
@@ -47,12 +47,12 @@ type
 
   Registrar* = ref object
     cache*: OrderedTable[ServiceId, seq[Advertisement]]
-    cacheTimestamps*: Table[AdvertisementKey, uint64]
+    cacheTimestamps*: Table[AdvertisementKey, Moment]
     ipTree*: IpTree
-    boundService*: Table[ServiceId, float64]
-    timestampService*: Table[ServiceId, uint64]
-    boundIp*: Table[string, float64]
-    timestampIp*: Table[string, uint64]
+    boundService*: Table[ServiceId, Moment]
+    timestampService*: Table[ServiceId, Moment]
+    boundIp*: Table[string, Moment]
+    timestampIp*: Table[string, Moment]
 
   AdvertiseTask* = ref object
     fut*: Future[void]
@@ -67,12 +67,12 @@ type
     kLookup*: int
     fLookup*: int
     fReturn*: int
-    advertExpiry*: chronos.Duration
+    advertExpiry*: Duration
     advertCacheCap*: uint64
-    occupancyExp*: chronos.Duration
+    occupancyExp*: float64
     safetyParam*: float64
     ipSimCoefficient*: float64
-    registrationWindow*: chronos.Duration
+    registrationWindow*: Duration
     bucketsCount*: int
 
   ServiceDiscovery* = ref object of KadDHT
@@ -94,7 +94,7 @@ proc new*(
     kLookup = Default_K_lookup,
     fLookup = Default_F_lookup,
     fReturn = Default_F_return,
-    advertExpiry: chronos.Duration = chronos.seconds(int(Default_E)),
+    advertExpiry = Default_E,
     advertCacheCap = Default_C,
     occupancyExp = Default_P_occ,
     safetyParam = Default_G,
@@ -148,16 +148,16 @@ proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
 proc new*(T: typedesc[Registrar]): T =
   T(
     cache: initOrderedTable[ServiceId, seq[Advertisement]](),
-    cacheTimestamps: initTable[AdvertisementKey, uint64](),
+    cacheTimestamps: initTable[AdvertisementKey, Moment](),
     ipTree: IpTree.new(),
-    boundService: initTable[ServiceId, float64](),
-    timestampService: initTable[ServiceId, uint64](),
-    boundIp: initTable[string, float64](),
-    timestampIp: initTable[string, uint64](),
+    boundService: initTable[ServiceId, Moment](),
+    timestampService: initTable[ServiceId, Moment](),
+    boundIp: initTable[string, Moment](),
+    timestampIp: initTable[string, Moment](),
   )
 
 proc new*(T: typedesc[Advertiser]): T =
-  T(running: initHashSet[AdvertiseTask](), seqNo: getTime().toUnix().uint64)
+  T(running: initHashSet[AdvertiseTask](), seqNo: Moment.now().epochSeconds.uint64)
 
 proc toKey*(service: ServiceInfo): Key =
   return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
@@ -165,7 +165,7 @@ proc toKey*(service: ServiceInfo): Key =
 proc init*(
     T: typedesc[ExtendedPeerRecord],
     peerInfo: PeerInfo,
-    seqNo: uint64 = getTime().toUnix().uint64,
+    seqNo: uint64 = Moment.now().epochSeconds.uint64,
     services: seq[ServiceInfo] = @[],
 ): T =
   T(
@@ -220,7 +220,7 @@ proc record*(disco: ServiceDiscovery): Result[SignedExtendedPeerRecord, string] 
     peerInfo.privateKey,
     ExtendedPeerRecord(
       peerId: peerInfo.peerId,
-      seqNo: getTime().toUnix().uint64,
+      seqNo: Moment.now().epochSeconds.uint64,
       addresses: peerInfo.addrs.mapIt(AddressInfo(address: it)),
       services: services,
     ),

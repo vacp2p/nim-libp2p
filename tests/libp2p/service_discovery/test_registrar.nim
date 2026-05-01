@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[times, math]
+import std/math
 import chronos, chronicles, results
 import
   ../../../libp2p/[
@@ -19,16 +19,18 @@ import ../../../libp2p/utils/iptree
 import ../../tools/[unittest, crypto]
 import ./utils
 
-func inFloatSecs(d: chronos.Duration): float64 =
-  ## Convert a Duration back to float64 seconds via nanoseconds for full precision.
-  d.nanoseconds.float64 / 1_000_000_000.0
+func initMoment(secs: int64): Moment =
+  Moment.init(secs, Second)
+
+func inFloatSecs(d: Duration): float64 =
+  d.secs.float64
 
 suite "Service Discovery Registrar - Waiting Time Calculation":
   test "waitingTime returns low value for empty cache with no IP similarity":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
@@ -47,7 +49,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let serviceId2 = makeServiceId(2)
     let ad1 = makeAdvertisement($serviceId1)
     let ad2 = makeAdvertisement($serviceId2)
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
     registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now
@@ -65,7 +67,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let ad1 = makeAdvertisement($serviceId)
     let ad2 = makeAdvertisement($serviceId)
     let ad3 = makeAdvertisement($serviceId)
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     registrar.cache[serviceId] = @[ad1, ad2, ad3]
     registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now
@@ -82,7 +84,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("192.168.1.1")])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     # Tree is empty so IP score is 0
     check registrar.ipTree.ipScore(
@@ -114,7 +116,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
         makeMultiAddress("192.168.1.50"), # Same subnet – high score
       ]
     )
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     check w > ZeroDuration
@@ -127,28 +129,29 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
 
     for i in 0 ..< 1000:
       let testAd = makeAdvertisement($i)
-      registrar.cacheTimestamps[testAd.toAdvertisementKey()] = getTime().toUnix().uint64
+      registrar.cacheTimestamps[testAd.toAdvertisementKey()] = Moment.now()
 
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # At capacity, occupancy = 100.0
     # Allow 1 ns tolerance: float->ns truncation can lose a sub-nanosecond fraction
     let expectedSecs =
-      discoConfig.advertExpiry.inFloatSecs * 100.0 * discoConfig.safetyParam
+      ceil(discoConfig.advertExpiry.seconds.float64 * 100.0 * discoConfig.safetyParam)
     check w.inFloatSecs >= expectedSecs - 1e-9
 
   test "waitingTime formula includes safety parameter":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new(safetyParam = 0.5)
     let ad = makeAdvertisement()
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # Empty cache, no IP sim: w = advertExpiry * 1.0 * safetyParam
-    let expected = discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam
+    let expected =
+      ceil(discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam)
     check abs(w.inFloatSecs - expected) < 1.0
 
   test "waitingTime ipSimCoefficient=0 eliminates IP similarity penalty":
@@ -197,56 +200,56 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now: uint64 = 1000
+    let now = initMoment(1000)
 
     # bound = 1500, timestamp = 1000 → effective = 1500 - 0 = 1500
-    registrar.boundService[serviceId] = 1500.0
-    registrar.timestampService[serviceId] = 1000
+    registrar.boundService[serviceId] = initMoment(1500)
+    registrar.timestampService[serviceId] = initMoment(1000)
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check abs(w.inFloatSecs - 1500.0) < 0.001
+    check w >= 500.secs
 
   test "waitingTime service lower bound decreases with elapsed time":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now: uint64 = 2000
+    let now = initMoment(2000)
 
-    # bound = 1500, timestamp = 1000 → elapsed = 1000 → effective = 500
-    registrar.boundService[serviceId] = 1500.0
-    registrar.timestampService[serviceId] = 1000
+    registrar.boundService[serviceId] = initMoment(500)
+    registrar.timestampService[serviceId] = initMoment(1000)
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check abs(w.inFloatSecs - 500.0) < 0.001
+    check w >= 1.secs
+    check w < 1000.secs
 
   test "waitingTime enforces IP lower bound when exists":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ip = "192.168.1.50"
     let ad = makeAdvertisement(addrs = @[makeMultiAddress(ip)])
-    let now: uint64 = 1000
+    let now = initMoment(1000)
     let serviceId = makeServiceId()
 
-    registrar.boundIp[ip] = 1500.0
-    registrar.timestampIp[ip] = 1000
+    registrar.boundIp[ip] = initMoment(1500)
+    registrar.timestampIp[ip] = initMoment(1000)
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check abs(w.inFloatSecs - 1500.0) < 0.001
+    check w >= 500.secs
 
   test "waitingTime IP lower bound is per IP address":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ip1 = "192.168.1.1"
     let ip2 = "10.0.0.1"
-    let now: uint64 = 1000
+    let now = initMoment(1000)
     let serviceId = makeServiceId()
 
-    registrar.boundIp[ip1] = 1500.0
-    registrar.timestampIp[ip1] = 1000
+    registrar.boundIp[ip1] = initMoment(1500)
+    registrar.timestampIp[ip1] = initMoment(1000)
 
     let ad2 = makeAdvertisement(addrs = @[makeMultiAddress(ip2)])
     let w2 = registrar.waitingTime(discoConfig, ad2, 1000, serviceId, now)
@@ -262,16 +265,16 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
     let serviceId = makeServiceId()
     let ip1 = "192.168.1.1"
     let ip2 = "10.0.0.1"
-    let now: uint64 = 1000
+    let now = initMoment(1000)
 
-    registrar.boundService[serviceId] = 2000.0
-    registrar.timestampService[serviceId] = 1000
+    registrar.boundService[serviceId] = initMoment(2000)
+    registrar.timestampService[serviceId] = initMoment(1000)
 
-    registrar.boundIp[ip1] = 3000.0
-    registrar.timestampIp[ip1] = 1000
+    registrar.boundIp[ip1] = initMoment(3000)
+    registrar.timestampIp[ip1] = initMoment(1000)
 
-    registrar.boundIp[ip2] = 1500.0
-    registrar.timestampIp[ip2] = 1000
+    registrar.boundIp[ip2] = initMoment(1500)
+    registrar.timestampIp[ip2] = initMoment(1000)
 
     let ad = makeAdvertisement(
       $serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)]
@@ -279,49 +282,49 @@ suite "Service Discovery Registrar - Lower Bound Enforcement":
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
-    check abs(w.inFloatSecs - 3000.0) < 0.001
+    check w >= 2000.secs
 
 suite "Service Discovery Registrar - Lower Bound Updates":
   test "updateLowerBounds stores service bound as w":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now: uint64 = 1000
-    let w = 500.0
+    let now = initMoment(1000)
+    let w = 500.secs
 
     updateLowerBounds(registrar, serviceId, ad, w, now)
 
     check serviceId in registrar.boundService
-    check registrar.boundService[serviceId] == w
+    check registrar.boundService[serviceId] == now + w
     check registrar.timestampService[serviceId] == now
 
   test "updateLowerBounds updates service bound when w exceeds effective bound":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now: uint64 = 1000
+    let now = initMoment(1000)
 
-    registrar.boundService[serviceId] = 1500.0
-    registrar.timestampService[serviceId] = 500
+    registrar.boundService[serviceId] = initMoment(1500)
+    registrar.timestampService[serviceId] = initMoment(500)
     # effective = 1500 - (1000 - 500) = 1000; new w = 1200 > 1000 → update
 
-    updateLowerBounds(registrar, serviceId, ad, 1200.0, now)
+    updateLowerBounds(registrar, serviceId, ad, 1200.secs, now)
 
-    check registrar.boundService[serviceId] == 1200.0
-    check registrar.timestampService[serviceId] == 1000
+    check registrar.boundService[serviceId] == initMoment(2200)
+    check registrar.timestampService[serviceId] == initMoment(1000)
 
   test "updateLowerBounds does not decrease service bound":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now: uint64 = 1000
+    let now = initMoment(1000)
 
-    registrar.boundService[serviceId] = 2500.0
-    registrar.timestampService[serviceId] = 500
+    registrar.boundService[serviceId] = initMoment(2500)
+    registrar.timestampService[serviceId] = initMoment(500)
     # effective = 2500 - 500 = 2000; new w = 1000 < 2000 → no update
     let oldBound = registrar.boundService[serviceId]
 
-    updateLowerBounds(registrar, serviceId, ad, 1000.0, now)
+    updateLowerBounds(registrar, serviceId, ad, 1000.secs, now)
 
     check registrar.boundService[serviceId] == oldBound
 
@@ -333,17 +336,17 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     let ad = makeAdvertisement(
       $serviceId, addrs = @[makeMultiAddress(ip1), makeMultiAddress(ip2)]
     )
-    let now: uint64 = 1000
-    let w = 500.0
+    let now = initMoment(1000)
+    let w = 500.secs
 
     updateLowerBounds(registrar, serviceId, ad, w, now)
 
     check ip1 in registrar.boundIp
-    check registrar.boundIp[ip1] == w
+    check registrar.boundIp[ip1] == now + w
     check registrar.timestampIp[ip1] == now
 
     check ip2 in registrar.boundIp
-    check registrar.boundIp[ip2] == w
+    check registrar.boundIp[ip2] == now + w
     check registrar.timestampIp[ip2] == now
 
   test "updateLowerBounds accumulates bounds correctly across multiple calls":
@@ -351,32 +354,30 @@ suite "Service Discovery Registrar - Lower Bound Updates":
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
 
-    updateLowerBounds(registrar, serviceId, ad, 500.0, 1000)
-    check registrar.boundService[serviceId] == 500.0
+    updateLowerBounds(registrar, serviceId, ad, 500.secs, initMoment(1000))
+    check registrar.boundService[serviceId] == initMoment(1500)
 
-    # effective at t=1100: 500 - (1100 - 1000) = 400; w=300 < 400 → no update
-    updateLowerBounds(registrar, serviceId, ad, 300.0, 1100)
-    check registrar.boundService[serviceId] == 500.0
+    updateLowerBounds(registrar, serviceId, ad, 800.secs, initMoment(1500))
+    check registrar.boundService[serviceId] == initMoment(2300)
 
-    # effective at t=1600: 500 - (1600 - 1000) = -100; w=800 > -100 → update
-    updateLowerBounds(registrar, serviceId, ad, 800.0, 1600)
-    check registrar.boundService[serviceId] == 800.0
+    updateLowerBounds(registrar, serviceId, ad, 1200.secs, initMoment(2000))
+    check registrar.boundService[serviceId] == initMoment(3200)
 
   test "updateLowerBounds with empty addresses does not crash":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId, addrs = @[])
-    let now: uint64 = 1000
+    let now = initMoment(1000)
 
-    updateLowerBounds(registrar, serviceId, ad, 500.0, now)
+    updateLowerBounds(registrar, serviceId, ad, 500.secs, now)
 
-    check registrar.boundService[serviceId] == 500.0
+    check registrar.boundService[serviceId] == initMoment(1500)
 
 suite "Service Discovery Registrar - Cache Pruning":
   test "pruneExpiredAds does nothing on empty registrar":
     let registrar = Registrar.new()
 
-    pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900.secs)
 
     check registrar.cache.len == 0
     check registrar.cacheTimestamps.len == 0
@@ -385,12 +386,12 @@ suite "Service Discovery Registrar - Cache Pruning":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     registrar.cache[serviceId] = @[ad]
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
 
-    pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900.secs)
 
     check ad in registrar.cache[serviceId]
     check ad.toAdvertisementKey() in registrar.cacheTimestamps
@@ -399,12 +400,12 @@ suite "Service Discovery Registrar - Cache Pruning":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000.secs
 
-    pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900.secs)
 
     check ad notin registrar.cache.getOrDefault(serviceId)
     check ad.toAdvertisementKey() notin registrar.cacheTimestamps
@@ -414,15 +415,15 @@ suite "Service Discovery Registrar - Cache Pruning":
     let serviceId = makeServiceId()
     let ip = IpAddress(family: IpAddressFamily.IPv4, address_v4: [192'u8, 168, 1, 1])
     let ad = makeAdvertisement($serviceId, addrs = @[makeMultiAddress("192.168.1.1")])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000.secs
     registrar.ipTree.insertIp(ip)
 
     check registrar.ipTree.root.counter == 1
 
-    pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900.secs)
 
     check registrar.ipTree.root.counter == 0
 
@@ -430,14 +431,14 @@ suite "Service Discovery Registrar - Cache Pruning":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000.secs
 
     check ad.toAdvertisementKey() in registrar.cacheTimestamps
 
-    pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900.secs)
 
     check ad.toAdvertisementKey() notin registrar.cacheTimestamps
 
@@ -447,14 +448,14 @@ suite "Service Discovery Registrar - Cache Pruning":
     let ad1 = makeAdvertisement($serviceId)
     let ad2 = makeAdvertisement($serviceId)
     let ad3 = makeAdvertisement($serviceId)
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     registrar.cache[serviceId] = @[ad1, ad2, ad3]
-    registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now - 1000 # expired
+    registrar.cacheTimestamps[ad1.toAdvertisementKey()] = now - 1000.secs # expired
     registrar.cacheTimestamps[ad2.toAdvertisementKey()] = now # fresh
-    registrar.cacheTimestamps[ad3.toAdvertisementKey()] = now - 2000 # expired
+    registrar.cacheTimestamps[ad3.toAdvertisementKey()] = now - 2000.secs # expired
 
-    pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900.secs)
 
     check registrar.cache[serviceId].len == 1
     check ad2 in registrar.cache[serviceId]
@@ -465,12 +466,12 @@ suite "Service Discovery Registrar - Cache Pruning":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId, addrs = @[])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now - 1000.secs
 
-    pruneExpiredAds(registrar, 900)
+    pruneExpiredAds(registrar, 900.secs)
 
     check ad notin registrar.cache.getOrDefault(serviceId)
 
@@ -506,7 +507,7 @@ suite "Service Discovery Registrar - State Management":
   test "cacheTimestamps correctly tracks insertion time":
     let registrar = Registrar.new()
     let ad = makeAdvertisement()
-    let timestamp: uint64 = 12345
+    let timestamp = initMoment(12345)
 
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = timestamp
 
@@ -531,7 +532,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = makeAdvertisement(addrs = @[])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
@@ -544,7 +545,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let serviceId = makeServiceId()
     let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
     let ad = makeAdvertisement(addrs = @[ipv6Addr])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
@@ -562,7 +563,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let ipv4Addr = makeMultiAddress("192.168.1.50")
     let ipv6Addr = MultiAddress.init("/ip6/::1/tcp/9000").get()
     let ad = makeAdvertisement(addrs = @[ipv4Addr, ipv6Addr])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
@@ -572,7 +573,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = makeAdvertisement()
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
@@ -583,7 +584,7 @@ suite "Service Discovery Registrar - Edge Cases":
     let registrar = Registrar.new()
     let discoConfig = ServiceDiscoveryConfig.new()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
@@ -594,12 +595,12 @@ suite "Service Discovery Registrar - Edge Cases":
     let registrar = Registrar.new()
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
-    let now: uint64 = 1000
+    let now = initMoment(1000)
 
-    updateLowerBounds(registrar, serviceId, ad, 0.0, now)
+    updateLowerBounds(registrar, serviceId, ad, ZeroDuration, now)
 
     check serviceId in registrar.boundService
-    check registrar.boundService[serviceId] == 0.0
+    check registrar.boundService[serviceId] == now
 
   test "pruneExpiredAds with very old timestamp":
     let registrar = Registrar.new()
@@ -607,9 +608,14 @@ suite "Service Discovery Registrar - Edge Cases":
     let ad = makeAdvertisement($serviceId)
 
     registrar.cache[serviceId] = @[ad]
-    registrar.cacheTimestamps[ad.toAdvertisementKey()] = 1000.uint64
+    registrar.cacheTimestamps[ad.toAdvertisementKey()] = initMoment(0)
 
-    pruneExpiredAds(registrar, 1)
+    check ad in registrar.cache.getOrDefault(serviceId)
+    check ad.toAdvertisementKey() in registrar.cacheTimestamps
+
+    # expire ads that are older than 1s
+    # our ad is very old (moment zero)
+    pruneExpiredAds(registrar, 1.secs)
 
     check ad notin registrar.cache.getOrDefault(serviceId)
     check ad.toAdvertisementKey() notin registrar.cacheTimestamps
@@ -618,7 +624,7 @@ suite "Service Discovery Registrar - Configuration Variations":
   test "different advertCacheCap affects occupancy":
     let registrar = Registrar.new()
     let ad = makeAdvertisement()
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     for i in 0 ..< 100:
@@ -634,17 +640,17 @@ suite "Service Discovery Registrar - Configuration Variations":
   test "different occupancyExp changes wait time curve":
     let registrar = Registrar.new()
     let ad = makeAdvertisement()
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     for i in 0 ..< 500:
       let testAd = makeAdvertisement($makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
-    let discoConfig1 = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(1))
+    let discoConfig1 = ServiceDiscoveryConfig.new(occupancyExp = 1.0)
     let w1 = registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
 
-    let discoConfig2 = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(20))
+    let discoConfig2 = ServiceDiscoveryConfig.new(occupancyExp = 20.0)
     let w2 = registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
 
     check w2 >= w1
@@ -652,16 +658,15 @@ suite "Service Discovery Registrar - Configuration Variations":
   test "different advertExpiry scales base wait time":
     let registrar = Registrar.new()
     let ad = makeAdvertisement()
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     let discoConfig1 =
-      ServiceDiscoveryConfig.new(safetyParam = 1.0, advertExpiry = chronos.seconds(100))
+      ServiceDiscoveryConfig.new(safetyParam = 1.0, advertExpiry = 100.secs)
     let w1 = registrar.waitingTime(discoConfig1, ad, 1000, serviceId, now)
 
-    let discoConfig2 = ServiceDiscoveryConfig.new(
-      safetyParam = 1.0, advertExpiry = chronos.seconds(10000)
-    )
+    let discoConfig2 =
+      ServiceDiscoveryConfig.new(safetyParam = 1.0, advertExpiry = 10000.secs)
     let w2 = registrar.waitingTime(discoConfig2, ad, 1000, serviceId, now)
 
     check w2 > w1
@@ -669,7 +674,7 @@ suite "Service Discovery Registrar - Configuration Variations":
   test "different safetyParam adds to wait time":
     let registrar = Registrar.new()
     let ad = makeAdvertisement()
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     let discoConfig1 = ServiceDiscoveryConfig.new(safetyParam = 0.0)
@@ -683,14 +688,14 @@ suite "Service Discovery Registrar - Configuration Variations":
   test "occupancyExp of 0 gives occupancy of 1.0":
     let registrar = Registrar.new()
     let ad = makeAdvertisement()
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     for i in 0 ..< 500:
       let testAd = makeAdvertisement($makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
-    let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(0))
+    let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = 0.0)
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # pow(x, 0) = 1.0 regardless of x, so occupancy = 1.0 / 1.0 = 1.0
@@ -699,14 +704,14 @@ suite "Service Discovery Registrar - Configuration Variations":
   test "occupancyExp of 1 gives linear occupancy":
     let registrar = Registrar.new()
     let ad = makeAdvertisement()
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let serviceId = makeServiceId()
 
     for i in 0 ..< 500:
       let testAd = makeAdvertisement($makeServiceId(i.byte))
       registrar.cacheTimestamps[testAd.toAdvertisementKey()] = now
 
-    let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = chronos.seconds(1))
+    let discoConfig = ServiceDiscoveryConfig.new(occupancyExp = 1.0)
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # occupancyExp=1: occupancy = 1/(1-0.5) = 2.0
@@ -760,12 +765,11 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.none(Ticket),
     )
-    let tWait = 300.0
-    let now: uint64 = 1_150
+    let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
 
-    check abs(tRemaining - tWait) < 0.001
+    check tRemaining == tWait
 
   test "processRetryTicket returns original wait time for mismatched ticket advertisement":
     let disco = makeMockDiscovery()
@@ -776,7 +780,11 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let otherAdBuf = otherAd.encode().get()
 
     var ticket = Ticket(
-      advertisement: otherAdBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: otherAdBuf,
+      tInit: Moment.init(1_000, Second),
+      tMod: Moment.init(1_100, Second),
+      tWaitFor: 50.secs,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -785,12 +793,11 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = 300.0
-    let now: uint64 = 1_150
+    let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
 
-    check abs(tRemaining - tWait) < 0.001
+    check tRemaining == tWait
 
   test "processRetryTicket returns original wait time for invalid ticket signature":
     let disco = makeMockDiscovery()
@@ -799,7 +806,11 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     let adBuf = ad.encode().get()
 
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: Moment.init(1_000, Second),
+      tMod: Moment.init(1_100, Second),
+      tWaitFor: 50.secs,
+      signature: @[],
     )
     check ticket.sign(otherDisco.switch.peerInfo.privateKey).isOk()
 
@@ -808,21 +819,25 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = 300.0
-    let now: uint64 = 1_150
+    let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
 
-    check abs(tRemaining - tWait) < 0.001
+    check tRemaining == tWait
 
   test "processRetryTicket returns original wait time when retry is too early":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
-    # windowStart = tMod + tWaitFor = 1_100 + 50 = 1_150; now = 1_149 < windowStart
+    # Set tMod = now, tWaitFor = 100 → windowStart = now + 100 (in the future)
+    let now = Moment.now()
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: now - 1000.secs,
+      tMod: now,
+      tWaitFor: 100.secs,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -831,21 +846,26 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = 300.0
-    let now: uint64 = 1_149
+    let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
 
-    check abs(tRemaining - tWait) < 0.001
+    check tRemaining == tWait
 
   test "processRetryTicket returns original wait time when retry is outside registration window":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
-    # windowStart = 1_150, windowEnd = 1_151 (default delta = 1s); now = 1_152 > windowEnd
+    # Set tMod = now - 100, tWaitFor = 50 → windowStart = now - 50
+    # delta = 1s → windowEnd = now - 49; now > windowEnd → outside
+    let now = Moment.now()
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: now - 1000.secs,
+      tMod: now,
+      tWaitFor: 50.secs,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -854,21 +874,27 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = 300.0
-    let now: uint64 = 1_152
+    let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
 
-    check abs(tRemaining - tWait) < 0.001
+    check tRemaining == tWait
 
   test "processRetryTicket subtracts accumulated wait at windowEnd boundary":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
-    # windowStart = 1_150, windowEnd = 1_151; now = 1_151 (at boundary)
+    # Set tMod = now, tWaitFor = 0 → windowStart = now
+    # delta = 1s → windowEnd = now + 1; now is within window
+    # totalWaitSoFar = now - (now - 151) = 151 ± 1
+    let now = Moment.now()
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: now - 151.secs,
+      tMod: now,
+      tWaitFor: 0.secs,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -877,21 +903,27 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = 300.0
-    let now: uint64 = 1_151
+    let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
 
-    # totalWaitSoFar = 1_151 - 1_000 = 151; tRemaining = 300 - 151 = 149
-    check abs(tRemaining - 149.0) < 0.001
+    # totalWaitSoFar = 151 ± 1; tRemaining = 149 ± 1
+    check abs(tRemaining.secs - 149) <= 1
 
   test "processRetryTicket returns non-positive remaining when accumulated wait exceeds tWait":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
+    # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
+    # totalWaitSoFar = now - (now - 150) = 150 ± 1; tWait = 100 → negative
+    let now = Moment.now()
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: now - 150.secs,
+      tMod: now,
+      tWaitFor: 0.secs,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -900,21 +932,26 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    # tWait=100, now=1_150 → totalWaitSoFar=150 → tRemaining=100-150=-50
-    let tWait = 100.0
-    let now: uint64 = 1_150
+    let tWait = 100.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
 
-    check tRemaining < 0.0
+    check tRemaining <= ZeroDuration
 
   test "processRetryTicket subtracts accumulated wait for valid retry in window":
     let disco = makeMockDiscovery()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
+    # Set tMod = now, tWaitFor = 0 → windowStart = now (within window)
+    # totalWaitSoFar = now - (now - 150) = 150 ± 1
+    let now = Moment.now()
     var ticket = Ticket(
-      advertisement: adBuf, tInit: 1_000, tMod: 1_100, tWaitFor: 50, signature: @[]
+      advertisement: adBuf,
+      tInit: now - 150.secs,
+      tMod: now,
+      tWaitFor: 0.secs,
+      signature: @[],
     )
     check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
 
@@ -923,13 +960,12 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
       status: Opt.none(kadprotobuf.RegistrationStatus),
       ticket: Opt.some(ticket),
     )
-    let tWait = 300.0
-    let now: uint64 = 1_150
+    let tWait = 300.secs
 
-    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait, now)
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
 
-    # totalWaitSoFar = 1_150 - 1_000 = 150; tRemaining = 300 - 150 = 150
-    check abs(tRemaining - 150.0) < 0.001
+    # totalWaitSoFar = 150 ± 1; tRemaining = 150 ± 1
+    check abs(tRemaining.secs - 150) <= 1
 
 suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "new peer ad is added to cache":
@@ -1065,10 +1101,10 @@ suite "Service Discovery Registrar - waitingTime never negative":
     let ad = makeAdvertisement($serviceId)
 
     # Large bound with epoch timestamp — elapsed time far exceeds bound
-    registrar.boundService[serviceId] = 100.0
-    registrar.timestampService[serviceId] = 0
+    registrar.boundService[serviceId] = initMoment(100)
+    registrar.timestampService[serviceId] = initMoment(0)
 
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
@@ -1080,11 +1116,11 @@ suite "Service Discovery Registrar - waitingTime never negative":
     let serviceId = makeServiceId()
     let ip = "10.0.0.1"
 
-    registrar.boundIp[ip] = 50.0
-    registrar.timestampIp[ip] = 0
+    registrar.boundIp[ip] = initMoment(50)
+    registrar.timestampIp[ip] = initMoment(0)
 
     let ad = makeAdvertisement(addrs = @[makeMultiAddress(ip)])
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
 
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
@@ -1106,8 +1142,8 @@ suite "Service Discovery Registrar - updateExistingAd":
     let registrar = Registrar.new()
     let ad = makeAdvertisement()
     var ads = @[ad]
-    let oldTime: uint64 = 1000
-    let newTime: uint64 = 2000
+    let oldTime = initMoment(1000)
+    let newTime = initMoment(2000)
 
     registrar.cacheTimestamps[ad.toAdvertisementKey()] = oldTime
     registrar.ipTree.insertAd(ad)
@@ -1126,17 +1162,17 @@ suite "Service Discovery Registrar - updateExistingAd":
     let newAd = makeAdvertisement(privateKey = privateKey, seqNo = 2)
     var ads = @[oldAd]
 
-    registrar.cacheTimestamps[oldAd.toAdvertisementKey()] = 1000
+    registrar.cacheTimestamps[oldAd.toAdvertisementKey()] = initMoment(1000)
     registrar.ipTree.insertAd(oldAd)
 
-    let changed = registrar.updateExistingAd(ads, 0, newAd, 2000)
+    let changed = registrar.updateExistingAd(ads, 0, newAd, initMoment(2000))
 
     check changed
     check ads.len == 1
     check ads[0].data.seqNo == 2
     check oldAd.toAdvertisementKey() notin registrar.cacheTimestamps
     check newAd.toAdvertisementKey() in registrar.cacheTimestamps
-    check registrar.cacheTimestamps[newAd.toAdvertisementKey()] == 2000
+    check registrar.cacheTimestamps[newAd.toAdvertisementKey()] == initMoment(2000)
 
   test "higher seqNo with address swap removes old IP and inserts new one":
     let registrar = Registrar.new()
@@ -1150,10 +1186,10 @@ suite "Service Discovery Registrar - updateExistingAd":
     var ads = @[oldAd]
 
     registrar.ipTree.insertAd(oldAd)
-    registrar.cacheTimestamps[oldAd.toAdvertisementKey()] = 1000
+    registrar.cacheTimestamps[oldAd.toAdvertisementKey()] = initMoment(1000)
     let counterBefore = registrar.ipTree.root.counter
 
-    discard registrar.updateExistingAd(ads, 0, newAd, 2000)
+    discard registrar.updateExistingAd(ads, 0, newAd, initMoment(2000))
 
     # IP tree entry count is unchanged: one removed, one added
     check registrar.ipTree.root.counter == counterBefore
@@ -1165,9 +1201,9 @@ suite "Service Discovery Registrar - updateExistingAd":
     let staleAd = makeAdvertisement(privateKey = privateKey, seqNo = 5)
     var ads = @[currentAd]
 
-    registrar.cacheTimestamps[currentAd.toAdvertisementKey()] = 1000
+    registrar.cacheTimestamps[currentAd.toAdvertisementKey()] = initMoment(1000)
 
-    let changed = registrar.updateExistingAd(ads, 0, staleAd, 2000)
+    let changed = registrar.updateExistingAd(ads, 0, staleAd, initMoment(2000))
 
     check not changed
     check ads[0].data.seqNo == 10
@@ -1180,7 +1216,7 @@ suite "Service Discovery Registrar - insertNewAd":
     let serviceId = makeServiceId()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     var ads: seq[Advertisement] = @[]
-    let now: uint64 = 1000
+    let now = initMoment(1000)
 
     let changed = disco.insertNewAd(serviceId, ads, ad, now)
 
@@ -1192,15 +1228,15 @@ suite "Service Discovery Registrar - insertNewAd":
     check disco.registrar.ipTree.root.counter > 0
 
   test "inserts ad without eviction when cache is under capacity":
-    let disco = makeDisco(advertExpiry = 900.0)
+    let disco = makeDisco(advertExpiry = 900)
     let serviceId = makeServiceId()
     let existingAd = makeAdvertisement($makeServiceId(99))
-    disco.registrar.cacheTimestamps[existingAd.toAdvertisementKey()] = 1000
+    disco.registrar.cacheTimestamps[existingAd.toAdvertisementKey()] = initMoment(1000)
 
     let newAd = makeAdvertisement()
     var ads: seq[Advertisement] = @[]
 
-    discard disco.insertNewAd(serviceId, ads, newAd, 2000)
+    discard disco.insertNewAd(serviceId, ads, newAd, initMoment(2000))
 
     # Existing ad must still be present (no eviction)
     check existingAd.toAdvertisementKey() in disco.registrar.cacheTimestamps
@@ -1214,14 +1250,18 @@ suite "Service Discovery Registrar - insertNewAd":
     )
     let disco = makeMockDiscovery(config)
     let serviceId = makeServiceId()
-    let now: uint64 = 5000
+    let now = initMoment(5000)
 
     # Fill cache exactly to capacity; the first entry gets the oldest timestamp
     var oldestAd: Advertisement
     for i in 0 ..< cap:
       let sid = makeServiceId(i.byte)
       let a = makeAdvertisement($sid)
-      let ts = if i == 0: 100'u64 else: now
+      let ts =
+        if i == 0:
+          initMoment(100)
+        else:
+          now
       disco.registrar.cacheTimestamps[a.toAdvertisementKey()] = ts
       disco.registrar.cache[sid] = @[a]
       if i == 0:
