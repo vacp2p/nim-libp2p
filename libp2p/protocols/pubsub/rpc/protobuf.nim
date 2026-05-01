@@ -481,7 +481,7 @@ proc decodeMessages*(pb: ProtoBuffer): ProtoResult[seq[Message]] {.inline.} =
   ok(msgs)
 
 proc encodeRpcMsg*(msg: RPCMsg, anonymize: bool): seq[byte] =
-  trace "encodeRpcMsg: encoding message", payload = msg.shortLog()
+  trace "encodeRpcMsg: encoding message", rpcMsg = msg.shortLog()
   var pb = initProtoBuffer()
   for item in msg.subscriptions:
     pb.write(1, item)
@@ -603,7 +603,7 @@ proc decodePartialMessageExtensionRPC*(
   ok(Opt.some(pme))
 
 proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
-  trace "decodeRpcMsg: decoding message", payload = msg.shortLog()
+  trace "decodeRpcMsg: decoding message", encodedData = msg.shortLog()
   var pb = initProtoBuffer(msg)
   var rpcMsg = RPCMsg()
   assign(rpcMsg.messages, ?pb.decodeMessages())

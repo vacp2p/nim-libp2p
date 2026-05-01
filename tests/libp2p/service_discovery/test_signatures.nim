@@ -2,20 +2,12 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
+import chronos
 import results
 import ../../../libp2p/crypto/crypto
 import ../../../libp2p/protocols/kademlia/protobuf
 import ../../tools/[unittest, crypto]
 import ./utils
-
-proc makeTicket*(): Ticket =
-  Ticket(
-    advertisement: @[1'u8, 2, 3, 4],
-    tInit: 1_000_000,
-    tMod: 2_000_000,
-    tWaitFor: 3000,
-    signature: @[],
-  )
 
 proc signedTicket*(privateKey: PrivateKey): Ticket =
   var t = makeTicket()
@@ -61,35 +53,45 @@ suite "Ticket - tamper detection":
   test "tampered tInit":
     let key = PrivateKey.random(rng[]).get()
     var t = signedTicket(key)
-    t.tInit = t.tInit + 1
+    t.tInit = t.tInit + 1.secs
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tMod":
     let key = PrivateKey.random(rng[]).get()
     var t = signedTicket(key)
-    t.tMod = t.tMod + 1
+    t.tMod = t.tMod + 1.secs
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tWaitFor":
     let key = PrivateKey.random(rng[]).get()
     var t = signedTicket(key)
-    t.tWaitFor = t.tWaitFor + 1
+    t.tWaitFor = t.tWaitFor + 1.secs
     check not t.verify(key.getPublicKey().get())
 
 suite "Ticket - boundary values":
   test "all-zero time fields sign and verify correctly":
     # tInit=0, tMod=0, tWaitFor=0 are valid; must not be treated as unsigned
     let key = PrivateKey.random(rng[]).get()
-    var t =
-      Ticket(advertisement: @[0xAB'u8], tInit: 0, tMod: 0, tWaitFor: 0, signature: @[])
+    var t = Ticket(
+      advertisement: @[0xAB'u8],
+      tInit: Moment.low,
+      tMod: Moment.low,
+      tWaitFor: ZeroDuration,
+      signature: @[],
+    )
     check:
       t.sign(key).isOk()
       t.verify(key.getPublicKey().get())
 
   test "empty advertisement bytes sign and verify correctly":
     let key = PrivateKey.random(rng[]).get()
-    var t =
-      Ticket(advertisement: @[], tInit: 1000, tMod: 2000, tWaitFor: 300, signature: @[])
+    var t = Ticket(
+      advertisement: @[],
+      tInit: Moment.init(1000, Second),
+      tMod: Moment.init(2000, Second),
+      tWaitFor: 300.secs,
+      signature: @[],
+    )
     check:
       t.sign(key).isOk()
       t.verify(key.getPublicKey().get())
