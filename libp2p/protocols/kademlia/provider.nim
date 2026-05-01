@@ -141,17 +141,13 @@ proc dispatchAddProvider(
   else:
     return ok(AddProviderStatus.accepted)
 
-proc sendBatch(
-    kad: KadDHT, peers: seq[PeerId], key: Key
-): seq[Future[Result[AddProviderStatus, string]]] =
+proc sendBatch(kad: KadDHT, peers: seq[PeerId], key: Key): auto =
   peers.mapIt(
     kad.switch.dispatchAddProvider(it, key, kad.codec, kad.config.hideConnectionStatus)
   )
 
 when defined(kadProviderRejection):
-  proc countResults(
-      rpcBatch: seq[Future[Result[AddProviderStatus, string]]]
-  ): (int, int) =
+  proc countResults[T](rpcBatch: seq[T]): (int, int) =
     var accepted, rejected: int
     for fut in rpcBatch:
       if not fut.finished() or fut.failed():

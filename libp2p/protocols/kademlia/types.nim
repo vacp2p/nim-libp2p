@@ -366,7 +366,7 @@ type KadDHT* = ref object of LPProtocol
   config*: KadDHTConfig
 
 proc awaitBatch*[T](
-    rpcBatch: seq[Future[T]], timeout: Duration
+    rpcBatch: seq[T], timeout: Duration
 ) {.async: (raises: [CancelledError]).} =
   try:
     await rpcBatch.allFutures().wait(timeout)
