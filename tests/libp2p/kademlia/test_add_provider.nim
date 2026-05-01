@@ -410,7 +410,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # kads[0] is sender, kads[1] is receiver with maxProvidersPerKey = 1
     let senderKad = setupKad()
     let receiverConfig = testKadConfig()
-    receiverConfig.maxProvidersPerKey = 1
+    receiverConfig.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
     startAndDeferStop(@[senderKad, receiverKad])
@@ -443,7 +443,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # so a re-advertisement is not blocked by the per-key limit check.
     let senderKad = setupKad()
     let receiverConfig = testKadConfig()
-    receiverConfig.maxProvidersPerKey = 1
+    receiverConfig.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
     startAndDeferStop(@[senderKad, receiverKad])
@@ -469,7 +469,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     let senderKad = setupKad()
 
     let closeConfig = testKadConfig()
-    closeConfig.maxProvidersPerKey = 1
+    closeConfig.maxProvidersPerKey = Opt.some(1)
     let closeKad = setupKad(closeConfig)
 
     let farKad = setupKad()

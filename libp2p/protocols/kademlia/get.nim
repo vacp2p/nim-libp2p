@@ -139,11 +139,7 @@ proc getValue*(
       # value is invalid or not best
       rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
 
-  try:
-    await rpcBatch.allFutures().wait(chronos.seconds(5))
-  except AsyncTimeoutError:
-    # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-    discard
+  await rpcBatch.awaitBatch(chronos.seconds(5))
 
   ok(best)
 

@@ -141,20 +141,39 @@ proc dispatchAddProvider(
   else:
     return ok(AddProviderStatus.accepted)
 
-proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
-  ## Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self's peerInfo.
-  ## When compiled with -d:kadProviderRejection, uses iterative lookup for a larger candidate set
-  ## and spills over to farther peers when a batch is fully rejected.
+proc sendBatch(
+    kad: KadDHT, peers: seq[PeerId], key: Key
+): seq[Future[Result[AddProviderStatus, string]]] =
+  peers.mapIt(
+    kad.switch.dispatchAddProvider(it, key, kad.codec, kad.config.hideConnectionStatus)
+  )
 
-  when defined(kadProviderRejection):
+when defined(kadProviderRejection):
+  proc countResults(
+      rpcBatch: seq[Future[Result[AddProviderStatus, string]]]
+  ): (int, int) =
+    var accepted, rejected: int
+    for fut in rpcBatch:
+      if not fut.finished() or fut.failed():
+        continue
+      let res = fut.value()
+      if res.isOk():
+        case res.value()
+        of AddProviderStatus.accepted:
+          accepted.inc()
+        of AddProviderStatus.rejected:
+          rejected.inc()
+    (accepted, rejected)
+
+  proc addProviderSpillover(
+      kad: KadDHT, key: Key
+  ) {.async: (raises: [CancelledError]).} =
     let noReply = proc(
         peerId: PeerId, msgOpt: Opt[Message], state: var LookupState
     ): Future[void] {.async: (raises: []), gcsafe.} =
       discard
-
     let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
       state.hasResponsesFromClosestAvailable()
-
     let dispatchFind = proc(
         kad: KadDHT, peer: PeerId, target: Key
     ): Future[Result[Message, string]] {.
@@ -162,60 +181,29 @@ proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gc
     .} =
       return await dispatchFindNode(kad, peer, target)
 
-    let state = await kad.iterativeLookup(key, dispatchFind, noReply, stop)
-
-    # All peers discovered during lookup sorted by XOR distance (closest first).
-    # This set is larger than k and provides candidates for spillover.
-    let allPeers = state.allSortedPeers()
+    let allPeers =
+      (await kad.iterativeLookup(key, dispatchFind, noReply, stop)).allSortedPeers()
 
     var stored = 0
     for chunk in allPeers.toChunks(kad.config.alpha):
       if stored >= kad.config.replication:
         break
-
-      let rpcBatch = chunk.mapIt(
-        kad.switch.dispatchAddProvider(
-          it, key, kad.codec, kad.config.hideConnectionStatus
-        )
-      )
-      try:
-        await rpcBatch.allFutures().wait(kad.config.timeout)
-      except AsyncTimeoutError:
-        discard
-
-      var chunkAccepted = 0
-      var chunkRejected = 0
-      for fut in rpcBatch:
-        if not fut.finished() or fut.failed():
-          continue
-        let res = fut.value()
-        if res.isOk():
-          case res.value()
-          of AddProviderStatus.accepted:
-            chunkAccepted.inc()
-            stored.inc()
-          of AddProviderStatus.rejected:
-            chunkRejected.inc()
-
-      # If every peer in this batch explicitly rejected (key full at that distance),
-      # count it as a spillover round and continue to the next (farther) batch.
-      if chunkAccepted == 0 and chunkRejected > 0 and chunkRejected == chunk.len:
+      let batch = kad.sendBatch(chunk, key)
+      await batch.awaitBatch(kad.config.timeout)
+      let (accepted, rejected) = batch.countResults()
+      stored += accepted
+      if accepted == 0 and rejected == chunk.len:
         kad_provider_spillover_rounds.inc()
-        debug "ADD_PROVIDER batch fully rejected, spilling over to farther peers",
+        debug "ADD_PROVIDER batch fully rejected, spilling over",
           key = key, batchSize = chunk.len
+
+proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
+  when defined(kadProviderRejection):
+    await kad.addProviderSpillover(key)
   else:
     let peers = await kad.findNode(key)
     for chunk in peers.toChunks(kad.config.alpha):
-      let rpcBatch = chunk.mapIt(
-        kad.switch.dispatchAddProvider(
-          it, key, kad.codec, kad.config.hideConnectionStatus
-        )
-      )
-      try:
-        await rpcBatch.allFutures().wait(kad.config.timeout)
-      except AsyncTimeoutError:
-        # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-        discard
+      await kad.sendBatch(chunk, key).awaitBatch(kad.config.timeout)
 
 proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gcsafe.} =
   await addProvider(kad, cid.toKey())
@@ -272,18 +260,15 @@ method handleAddProvider*(
     msg.providerPeers.filterIt(it.id == peerBytes and PeerId.init(it.id).isOk())
 
   when defined(kadProviderRejection):
-    # Reject if this key has reached the per-key provider limit.
-    # A re-advertisement by an already-known provider only refreshes its expiry;
-    # it does not increase the total count, so it is exempt from the limit.
-    if kad.config.maxProvidersPerKey > 0:
+    kad.config.maxProvidersPerKey.withValue(limit):
       let existingProviders =
         kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
       let senderIsKnown = existingProviders.anyIt(it.id == peerBytes)
       let effectiveCount = existingProviders.len - (if senderIsKnown: 1 else: 0)
-      if effectiveCount >= kad.config.maxProvidersPerKey:
+      if effectiveCount >= limit:
         kad_provider_rejections_sent.inc()
         debug "ADD_PROVIDER rejected: per-key limit reached",
-          key = msg.key, limit = kad.config.maxProvidersPerKey
+          key = msg.key, limit = limit
         await conn.sendAddProviderResponse(kad, AddProviderStatus.rejected)
         return
 
