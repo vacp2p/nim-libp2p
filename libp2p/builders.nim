@@ -600,14 +600,14 @@ proc newStandardSwitchBuilder*(
       b = b.withMplex(inTimeout, outTimeout)
     else:
       raiseAssert(
-        "Mplex is not enabled. Compile with -d:libp2p_muxers including 'mplex'"
+        "Mplex is not enabled. Compile with -d:libp2p_muxers=mplex or -d:libp2p_muxers=mplex,yamux"
       )
   of MuxerType.YAMUX:
     when YamuxEnabled:
       b = b.withYamux(inTimeout = inTimeout, outTimeout = outTimeout)
     else:
       raiseAssert(
-        "Yamux is not enabled. Compile with -d:libp2p_muxers including 'yamux'"
+        "Yamux is not enabled. Compile with -d:libp2p_muxers=yamux or -d:libp2p_muxers=mplex,yamux"
       )
 
   b
