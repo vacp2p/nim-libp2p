@@ -112,9 +112,7 @@ task install_pinned, "Reads the lockfile":
       fileContent = readFile(dependency & "/nimblemeta.json")
       packageName = fileName.split('-')[0]
 
-    if not toInstall.anyIt(
-      it[0] == packageName and it[1].split('#')[^1] in fileContent
-    ):
+    if not toInstall.anyIt(it[0] == packageName and it[1].split('#')[^1] in fileContent):
       rmDir(dependency)
 
 task unpin, "Restore global package use":
