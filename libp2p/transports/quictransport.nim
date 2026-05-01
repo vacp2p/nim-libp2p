@@ -98,6 +98,9 @@ method readOnce*(
   try:
     readLen = await stream.stream.readOnce(cast[ptr byte](pbytes), nbytes)
   except StreamError as e:
+    if e of ref StreamResetError:
+      raise newLPStreamResetError()
+
     raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
 
   if readLen == 0:
@@ -128,7 +131,10 @@ method write*(
           bytes.len.int64, labelValues = [stream.shortAgent]
         )
   except StreamError as e:
-    raise newLPStreamResetError()
+    if e of ref StreamResetError:
+      raise newLPStreamResetError()
+
+    raise newLPStreamEOFError()
 
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
