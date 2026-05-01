@@ -166,11 +166,10 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
       registrar.ipTree.insertIp(ip)
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("192.168.1.7")])
     registrar.cache[serviceId] = newSeq[Advertisement](6)
+    let now = Moment.now()
     for i in 0 ..< 6:
-      registrar.cacheTimestamps[(peerId: ad.data.peerId, seqNo: uint64(i))] =
-        getTime().toUnix().uint64
+      registrar.cacheTimestamps[(peerId: ad.data.peerId, seqNo: uint64(i))] = now
 
-    let now = getTime().toUnix().uint64
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # With ipSimCoefficient=0, ipSim is excluded; w is driven only by serviceSim (6/1000)
@@ -188,7 +187,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
       registrar.ipTree.insertIp(ip)
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("192.168.1.7")])
 
-    let now = getTime().toUnix().uint64
+    let now = Moment.now()
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # ipSim ≈ 0.97 for same /24; w should be in the hundreds of seconds
