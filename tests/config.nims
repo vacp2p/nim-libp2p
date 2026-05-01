@@ -17,6 +17,8 @@ import strutils, os
   libp2p_mplex_metrics
 --d:
   unittestPrintTime
+--d:
+  kadProviderRejection
 
 # Only add chronicles param if the
 # user didn't specify any

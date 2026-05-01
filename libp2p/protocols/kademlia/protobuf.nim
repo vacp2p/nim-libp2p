@@ -43,6 +43,13 @@ type
     Wait = 1
     Rejected = 2
 
+  AddProviderStatus* = enum
+    ## Response status carried in field 11 of an ADD_PROVIDER reply (nim extension).
+    ## Only populated when both peers are compiled with ``-d:kadProviderRejection``.
+    ## Peers without the flag never write nor read this field.
+    accepted = 0
+    rejected = 1
+
   # Ticket message for Service Discovery
   # Nested within Register message
   Ticket* = object
@@ -70,6 +77,7 @@ type
     record*: Opt[Record]
     closerPeers*: seq[Peer]
     providerPeers*: seq[Peer]
+    providerStatus*: Opt[AddProviderStatus] # field 11 - ADD_PROVIDER response status (nim extension)
     register*: Opt[RegisterMessage] # field 21 -  REGISTER message
     getAds*: Opt[GetAdsMessage] # field 22 -  GET_ADS message
 
@@ -151,6 +159,10 @@ proc encode*(
 
   for peer in msg.providerPeers:
     pb.write(9, peer.encode(hideConnectionStatus))
+
+  when defined(kadProviderRejection):
+    msg.providerStatus.withValue(status):
+      pb.write(11, uint32(ord(status)))
 
   msg.register.withValue(regMsg):
     pb.write(21, regMsg.encode())
@@ -273,6 +285,11 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   discard ?pb.getRepeatedField(9, providerPbs)
   for ppb in providerPbs:
     m.providerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
+
+  when defined(kadProviderRejection):
+    var providerStatusVal: uint32
+    if ?pb.getField(11, providerStatusVal):
+      m.providerStatus = Opt.some(?decodeEnum[AddProviderStatus](providerStatusVal))
 
   # Decode Register message (field 21)
   var regBuf: seq[byte]

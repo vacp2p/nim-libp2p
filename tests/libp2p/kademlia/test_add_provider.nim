@@ -401,3 +401,157 @@ suite "KadDHT - Add Provider":
     checkUntilTimeout:
       kads[1].providerManager.providerRecords.len == 1
       kads[1].providerManager.providerRecords[0].provider.id == kads[0].rtable.selfId
+
+suite "KadDHT - ADD_PROVIDER Rejection":
+  teardown:
+    checkTrackers()
+
+  asyncTest "Receiver rejects ADD_PROVIDER when per-key limit reached":
+    # kads[0] is sender, kads[1] is receiver with maxProvidersPerKey = 1
+    let senderKad = setupKad()
+    let receiverConfig = testKadConfig()
+    receiverConfig.maxProvidersPerKey = 1
+    let receiverKad = setupKad(receiverConfig)
+
+    startAndDeferStop(@[senderKad, receiverKad])
+
+    await connect(senderKad, receiverKad)
+
+    let key = senderKad.rtable.selfId
+    check receiverKad.providerManager.providerRecords.len == 0
+
+    # First ADD_PROVIDER: receiver has 0 providers for key → accepted
+    await senderKad.addProvider(key.toCid())
+    checkUntilTimeout:
+      receiverKad.providerManager.providerRecords.len == 1
+
+    # Now add a second sender and have it try to advertise the same key
+    let sender2Kad = setupKad()
+    startAndDeferStop(@[sender2Kad])
+    await connect(sender2Kad, receiverKad)
+
+    # Receiver already has 1 provider for key (= maxProvidersPerKey) → reject
+    await sender2Kad.addProvider(key.toCid())
+    await sleepAsync(200.milliseconds)
+
+    # Receiver still has only 1 record; second ADD_PROVIDER was rejected
+    check receiverKad.providerManager.providerRecords.len == 1
+
+  asyncTest "Existing provider refresh is allowed even at per-key limit":
+    # The same provider re-advertising updates the expiry rather than adding new entries.
+    # Since addProviderRecord removes then re-adds the same record, the count stays the same
+    # so a re-advertisement is not blocked by the per-key limit check.
+    let senderKad = setupKad()
+    let receiverConfig = testKadConfig()
+    receiverConfig.maxProvidersPerKey = 1
+    let receiverKad = setupKad(receiverConfig)
+
+    startAndDeferStop(@[senderKad, receiverKad])
+    await connect(senderKad, receiverKad)
+
+    let key = senderKad.rtable.selfId
+    await senderKad.addProvider(key.toCid())
+    checkUntilTimeout:
+      receiverKad.providerManager.providerRecords.len == 1
+
+    let originalExpiry = receiverKad.providerManager.providerRecords[0].expiresAt
+
+    await sleepAsync(10.milliseconds)
+    # Same sender re-advertises; knownKeys count stays ≤ maxProvidersPerKey
+    await senderKad.addProvider(key.toCid())
+    checkUntilTimeout:
+      receiverKad.providerManager.providerRecords[0].expiresAt > originalExpiry
+
+  asyncTest "Spillover: stores at farther node when closest node is full":
+    # Topology: sender → close (full for key) and far (empty).
+    # closeKad is pre-populated with a record so it will reject.
+    # senderKad should then store the record at farKad (spillover).
+    let senderKad = setupKad()
+
+    let closeConfig = testKadConfig()
+    closeConfig.maxProvidersPerKey = 1
+    let closeKad = setupKad(closeConfig)
+
+    let farKad = setupKad()
+
+    startAndDeferStop(@[senderKad, closeKad, farKad])
+
+    # Connect sender to both close and far
+    await connect(senderKad, closeKad)
+    await connect(senderKad, farKad)
+
+    let key = senderKad.rtable.selfId
+
+    # Directly inject a record into closeKad to trigger rejection without
+    # involving an extra sender (which would also discover and fill farKad).
+    let existingPeer = Peer(
+      id: randomPeerId().getBytes(),
+      addrs: @[],
+      connection: ConnectionStatus.notConnected,
+    )
+    closeKad.providerManager.knownKeys[key] = initHashSet[Provider]()
+    closeKad.providerManager.knownKeys[key].incl(existingPeer)
+    closeKad.providerManager.providerRecords.push(
+      ProviderRecord(
+        provider: existingPeer, expiresAt: Moment.now() + 1.hours, key: key
+      )
+    )
+    check closeKad.providerManager.providerRecords.len == 1
+    check farKad.providerManager.providerRecords.len == 0
+
+    # senderKad advertises; closeKad rejects (maxProvidersPerKey=1, already full),
+    # so senderKad spills over to farKad which accepts.
+    await senderKad.addProvider(key.toCid())
+
+    checkUntilTimeout:
+      farKad.providerManager.providerRecords.len == 1
+      farKad.providerManager.providerRecords[0].provider.id ==
+        senderKad.switch.peerInfo.peerId.getBytes()
+
+  asyncTest "Normal replication still works when all nodes accept":
+    # With unlimited capacity both discovered peers get the record via normal replication.
+    let senderKad = setupKad()
+    let nodeA = setupKad()
+    let nodeB = setupKad()
+
+    startAndDeferStop(@[senderKad, nodeA, nodeB])
+
+    await connect(senderKad, nodeA)
+    await connect(senderKad, nodeB)
+
+    let key = senderKad.rtable.selfId
+
+    check nodeA.providerManager.providerRecords.len == 0
+    check nodeB.providerManager.providerRecords.len == 0
+
+    await senderKad.addProvider(key.toCid())
+
+    checkUntilTimeout:
+      nodeA.providerManager.providerRecords.len == 1
+      nodeB.providerManager.providerRecords.len == 1
+
+  asyncTest "Protobuf round-trip for AddProviderStatus":
+    # Encode and decode a Message with providerStatus field
+    let accepted = Message(
+      msgType: MessageType.addProvider,
+      providerStatus: Opt.some(AddProviderStatus.accepted),
+    )
+    let rejected = Message(
+      msgType: MessageType.addProvider,
+      providerStatus: Opt.some(AddProviderStatus.rejected),
+    )
+    let noStatus = Message(
+      msgType: MessageType.addProvider, providerStatus: Opt.none(AddProviderStatus)
+    )
+
+    let decodedAccepted = Message.decode(accepted.encode().buffer).valueOr:
+      raiseAssert("decode of accepted failed")
+    let decodedRejected = Message.decode(rejected.encode().buffer).valueOr:
+      raiseAssert("decode of rejected failed")
+    let decodedNoStatus = Message.decode(noStatus.encode().buffer).valueOr:
+      raiseAssert("decode of noStatus failed")
+
+    check:
+      decodedAccepted.providerStatus == Opt.some(AddProviderStatus.accepted)
+      decodedRejected.providerStatus == Opt.some(AddProviderStatus.rejected)
+      decodedNoStatus.providerStatus.isNone()

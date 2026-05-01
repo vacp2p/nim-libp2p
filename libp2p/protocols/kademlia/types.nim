@@ -26,6 +26,7 @@ const
   DefaultRepublishInterval* = 10.minutes # same as bootstrap
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
+  DefaultMaxProvidersPerKey* = 0 # 0 = unlimited
 
   MaxMsgSize* = 4096
 
@@ -308,6 +309,11 @@ type KadDHTConfig* = ref object
   addressPolicy*: PeerAddressPolicy
   hideConnectionStatus*: bool
   disableBootstrapping*: bool
+  maxProvidersPerKey*: int
+    ## Maximum number of distinct providers stored per key.
+    ## 0 (default) means unlimited.
+    ## Only enforced when compiled with ``-d:kadProviderRejection``;
+    ## without that flag the field is present but has no effect.
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -327,6 +333,7 @@ proc new*(
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
+    maxProvidersPerKey: int = DefaultMaxProvidersPerKey,
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,
@@ -345,6 +352,7 @@ proc new*(
     addressPolicy: addressPolicy,
     hideConnectionStatus: hideConnectionStatus,
     disableBootstrapping: disableBootstrapping,
+    maxProvidersPerKey: maxProvidersPerKey,
   )
 
 type KadDHT* = ref object of LPProtocol
