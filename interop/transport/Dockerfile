@@ -8,7 +8,7 @@ COPY .pinned libp2p.nimble nim-libp2p/
 RUN --mount=type=cache,target=/var/cache/apt apt-get update && apt-get install -y --no-install-recommends ca-certificates binutils \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cd nim-libp2p && nimble install_pinned && nimble install redis -y
+RUN cd nim-libp2p && nimble install -y redis && nimble install_pinned
 
 COPY . nim-libp2p/
 
