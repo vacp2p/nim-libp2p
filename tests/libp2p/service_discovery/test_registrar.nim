@@ -154,6 +154,45 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
       ceil(discoConfig.advertExpiry.seconds.float64 * discoConfig.safetyParam)
     check abs(w.inFloatSecs - expected) < 1.0
 
+  test "waitingTime ipSimCoefficient=0 eliminates IP similarity penalty":
+    let registrar = Registrar.new()
+    let discoConfig = ServiceDiscoveryConfig.new(ipSimCoefficient = 0.0)
+    let serviceId = makeServiceId()
+
+    # Six nodes on the same /24 already registered
+    for i in 1 .. 6:
+      let ip =
+        IpAddress(family: IpAddressFamily.IPv4, address_v4: [192'u8, 168, 1, uint8(i)])
+      registrar.ipTree.insertIp(ip)
+    let ad = makeAdvertisement(addrs = @[makeMultiAddress("192.168.1.7")])
+    registrar.cache[serviceId] = newSeq[Advertisement](6)
+    let now = Moment.now()
+    for i in 0 ..< 6:
+      registrar.cacheTimestamps[(peerId: ad.data.peerId, seqNo: uint64(i))] = now
+
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+
+    # With ipSimCoefficient=0, ipSim is excluded; w is driven only by serviceSim (6/1000)
+    # w = 900 * ~1.0 * (0.006 + 0 + 1e-7) ≈ 5.4s  →  well under 10s
+    check w < 10.seconds
+
+  test "waitingTime ipSimCoefficient=1 (default) preserves IP similarity penalty":
+    let registrar = Registrar.new()
+    let discoConfig = ServiceDiscoveryConfig.new(ipSimCoefficient = 1.0)
+    let serviceId = makeServiceId()
+
+    for i in 1 .. 6:
+      let ip =
+        IpAddress(family: IpAddressFamily.IPv4, address_v4: [192'u8, 168, 1, uint8(i)])
+      registrar.ipTree.insertIp(ip)
+    let ad = makeAdvertisement(addrs = @[makeMultiAddress("192.168.1.7")])
+
+    let now = Moment.now()
+    let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
+
+    # ipSim ≈ 0.97 for same /24; w should be in the hundreds of seconds
+    check w > 500.seconds
+
 suite "Service Discovery Registrar - Lower Bound Enforcement":
   test "waitingTime enforces service lower bound when exists":
     let registrar = Registrar.new()
