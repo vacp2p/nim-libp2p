@@ -37,8 +37,10 @@ proc refreshTable*(
     let randomKey = randomKeyInBucket(rtable.selfId, i, kad.rng)
     discard await kad.findNode(randomKey, rtable)
 
-proc bootstrap*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  await kad.refreshTable(kad.rtable, true)
+proc bootstrap*(
+    kad: KadDHT, forceRefresh = false
+) {.async: (raises: [CancelledError]).} =
+  await kad.refreshTable(kad.rtable, forceRefresh)
   debug "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
@@ -66,7 +68,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
-    bootstrapping,
+    bootstrapping: bootstrapping,
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -125,7 +127,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     return
 
   if kad.bootstrapping:
-    await kad.bootstrap()
+    await kad.bootstrap(forceRefresh = true)
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
