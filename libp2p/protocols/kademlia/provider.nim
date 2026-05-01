@@ -2,42 +2,9 @@
 # Copyright (c) Status Research & Development GmbH
 
 ## Provider record management for the Kademlia DHT.
-##
-## Standard behaviour
-## ------------------
-## ``addProvider`` discovers the k closest peers to a key via an iterative
-## FIND_NODE lookup and sends an ADD_PROVIDER message to each of them.
-## ``handleAddProvider`` stores the record without sending any response.
-##
-## Overload-protection mode  (-d:kadProviderRejection)
-## ---------------------------------------------------
-## When compiled with ``-d:kadProviderRejection`` a two-sided extension
-## is activated that is otherwise wire-invisible:
-##
-## **Receiver side (``handleAddProvider``)**
-##
-## * Checks ``KadDHTConfig.maxProvidersPerKey`` before storing.
-##   If a key already has that many distinct providers the request is
-##   rejected and an ``AddProviderStatus.rejected`` response is written back
-##   on the same connection.
-## * Re-advertisements by an already-known provider are **exempt** from the
-##   limit: they only refresh the expiry of the existing record and do not
-##   increase the per-key count.
-## * An ``AddProviderStatus.accepted`` response is written for every stored
-##   record.
-##
-## **Sender side (``dispatchAddProvider`` / ``addProvider``)**
-##
-## * Reads the response written by the receiver.  If the peer does not send
-##   one (e.g. older node without the flag) the result is treated as
-##   ``accepted`` for backward compatibility.
-## * Uses the full shortlist produced by ``iterativeLookup`` instead of only
-##   the top-k result of ``findNode``, giving a larger pool of candidates.
-## * Tries candidates in order of increasing XOR distance from the key
-##   (closest first, alpha at a time).  When an entire batch is rejected the
-##   sender advances to the next, farther batch — "spilling over" past the
-##   popular hot-spot — until ``replication`` successful stores have been
-##   made or the candidate list is exhausted.
+## With ``-d:kadProviderRejection``: receivers enforce ``maxProvidersPerKey``
+## and reply with accepted/rejected on field 11; senders spill over to farther
+## peers when a full batch is rejected. Re-advertisements are always accepted.
 
 import std/[sequtils, tables, sets, heapqueue]
 import chronos, chronicles, results
