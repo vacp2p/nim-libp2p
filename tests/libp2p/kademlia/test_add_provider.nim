@@ -433,9 +433,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # Receiver already has 1 provider for key (= maxProvidersPerKey) → reject
     let cidKey = key.toCid().toKey()
     let status = await sender2Kad.switch.dispatchAddProvider(
-      receiverKad.switch.peerInfo.peerId,
-      cidKey,
-      sender2Kad.codec,
+      receiverKad.switch.peerInfo.peerId, cidKey, sender2Kad.codec,
       sender2Kad.config.hideConnectionStatus,
     )
     check status.isOk()
