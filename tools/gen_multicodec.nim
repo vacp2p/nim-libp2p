@@ -17,7 +17,8 @@ const
 
 proc toNimHex(hexStr: string): string =
   ## Convert a hex string (e.g. "0x1a") to a Nim-style uppercase hex literal (e.g. "0x1A").
-  if hexStr.len > 2 and (hexStr[0 .. 1] == "0x" or hexStr[0 .. 1] == "0X"):
+  let prefix = if hexStr.len > 2: hexStr[0 .. 1] else: ""
+  if prefix == "0x" or prefix == "0X":
     "0x" & hexStr[2 ..^ 1].toUpperAscii()
   else:
     hexStr
@@ -64,13 +65,7 @@ proc generateCodecList(csvContent: string): string =
 proc main() =
   echo "Downloading multicodec table from: ", CsvUrl
   let client = newHttpClient()
-  let csv =
-    try:
-      client.getContent(CsvUrl)
-    except CatchableError as e:
-      echo "Error downloading CSV: ", e.msg
-      quit(1)
-
+  let csv = client.getContent(CsvUrl)
   let content = generateCodecList(csv)
   writeFile(OutputFile, content)
   echo "Generated: ", OutputFile
