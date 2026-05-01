@@ -168,3 +168,30 @@ suite "KadDHT Protobuffers":
   test "KadDHTConfig hideConnectionStatus defaults to true":
     let cfg = KadDHTConfig.new()
     check cfg.hideConnectionStatus == true
+
+when defined(kadProviderRejection):
+  suite "KadDHT Protobuffers - kadProviderRejection":
+    test "round-trip for AddProviderStatus":
+      let accepted = Message(
+        msgType: MessageType.addProvider,
+        providerStatus: Opt.some(AddProviderStatus.accepted),
+      )
+      let rejected = Message(
+        msgType: MessageType.addProvider,
+        providerStatus: Opt.some(AddProviderStatus.rejected),
+      )
+      let noStatus = Message(
+        msgType: MessageType.addProvider, providerStatus: Opt.none(AddProviderStatus)
+      )
+
+      let decodedAccepted = Message.decode(accepted.encode().buffer).valueOr:
+        raiseAssert("decode of accepted failed")
+      let decodedRejected = Message.decode(rejected.encode().buffer).valueOr:
+        raiseAssert("decode of rejected failed")
+      let decodedNoStatus = Message.decode(noStatus.encode().buffer).valueOr:
+        raiseAssert("decode of noStatus failed")
+
+      check:
+        decodedAccepted.providerStatus == Opt.some(AddProviderStatus.accepted)
+        decodedRejected.providerStatus == Opt.some(AddProviderStatus.rejected)
+        decodedNoStatus.providerStatus.isNone()

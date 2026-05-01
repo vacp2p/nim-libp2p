@@ -431,11 +431,15 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     await connect(sender2Kad, receiverKad)
 
     # Receiver already has 1 provider for key (= maxProvidersPerKey) → reject
-    await sender2Kad.addProvider(key.toCid())
-    await sleepAsync(200.milliseconds)
-
-    # Receiver still has only 1 record; second ADD_PROVIDER was rejected
-    check receiverKad.providerManager.providerRecords.len == 1
+    let cidKey = key.toCid().toKey()
+    let status = await sender2Kad.switch.dispatchAddProvider(
+      receiverKad.switch.peerInfo.peerId,
+      cidKey,
+      sender2Kad.codec,
+      sender2Kad.config.hideConnectionStatus,
+    )
+    check status.isOk()
+    check status.value() == AddProviderStatus.rejected
 
   asyncTest "Existing provider refresh is allowed even at per-key limit":
     # The same provider re-advertising updates the expiry rather than adding new entries.
@@ -456,6 +460,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
 
     let originalExpiry = receiverKad.providerManager.providerRecords[0].expiresAt
 
+    # Ensure the clock advances so the refreshed expiresAt is strictly greater
     await sleepAsync(10.milliseconds)
     # Same sender re-advertises; knownKeys count stays ≤ maxProvidersPerKey
     await senderKad.addProvider(key.toCid())
@@ -530,28 +535,3 @@ suite "KadDHT - ADD_PROVIDER Rejection":
       nodeA.providerManager.providerRecords.len == 1
       nodeB.providerManager.providerRecords.len == 1
 
-  asyncTest "Protobuf round-trip for AddProviderStatus":
-    # Encode and decode a Message with providerStatus field
-    let accepted = Message(
-      msgType: MessageType.addProvider,
-      providerStatus: Opt.some(AddProviderStatus.accepted),
-    )
-    let rejected = Message(
-      msgType: MessageType.addProvider,
-      providerStatus: Opt.some(AddProviderStatus.rejected),
-    )
-    let noStatus = Message(
-      msgType: MessageType.addProvider, providerStatus: Opt.none(AddProviderStatus)
-    )
-
-    let decodedAccepted = Message.decode(accepted.encode().buffer).valueOr:
-      raiseAssert("decode of accepted failed")
-    let decodedRejected = Message.decode(rejected.encode().buffer).valueOr:
-      raiseAssert("decode of rejected failed")
-    let decodedNoStatus = Message.decode(noStatus.encode().buffer).valueOr:
-      raiseAssert("decode of noStatus failed")
-
-    check:
-      decodedAccepted.providerStatus == Opt.some(AddProviderStatus.accepted)
-      decodedRejected.providerStatus == Opt.some(AddProviderStatus.rejected)
-      decodedNoStatus.providerStatus.isNone()
