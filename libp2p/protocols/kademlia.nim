@@ -56,6 +56,10 @@ proc new*(
     client: bool = false,
     codec: string = KadCodec,
 ): T {.raises: [].} =
+  when not defined(kadProviderRejection):
+    doAssert config.maxProvidersPerKey.isNone,
+      "maxProvidersPerKey has no effect without -d:kadProviderRejection"
+
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(replication = config.replication),
