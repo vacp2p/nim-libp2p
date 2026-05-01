@@ -426,12 +426,17 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64, labelValues = [$p.peerId]
     )
 
-proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
+proc sendMsgContinue(
+    conn: Connection, msgFut: Future[void].Raising([CancelledError, LPStreamError])
+) {.async: (raises: [CancelledError]).} =
   # Continuation for a pending transport write from below
   try:
     await msgFut
     trace "sent pubsub message to remote", conn
-  except CatchableError as exc:
+  except CancelledError as exc:
+    trace "sendMsgContinue cancelled", conn, description = exc.msg
+    raise exc
+  except LPStreamError as exc:
     trace "Unexpected exception in sendMsgContinue", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
@@ -454,7 +459,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
-): Future[void] {.async: (raises: []).} =
+): Future[void] {.async: (raises: [CancelledError]).} =
   ## Starts a transport write and returns its lifecycle future for internal
   ## queue accounting. Do not await this from receive-handler paths.
   type ConnectionType = enum
@@ -480,21 +485,10 @@ proc sendMsg(
     trace "sending encoded msg to peer",
       conntype = $connType, conn = conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
-    if not f.completed():
-      await sendMsgContinue(conn, f)
-    else:
-      if f.failed():
-        trace "sending encoded msg to peer failed", description = f.error.msg
-        await conn.close()
-      else:
-        trace "sent pubsub message to remote", conn
+    await sendMsgContinue(conn, f)
   else:
     trace "sending encoded msg to peer via slow path"
-    try:
-      await sendMsgSlow(p, msg)
-    except CancelledError:
-      trace "sending encoded msg via slow path was cancelled"
-      discard
+    await sendMsgSlow(p, msg)
 
 proc disconnectPeer(p: PubSubPeer): Future[void] =
   if not p.disconnected:
