@@ -55,7 +55,6 @@ proc new*(
     rng: ref HmacDrbgContext = newRng(),
     client: bool = false,
     codec: string = KadCodec,
-    bootstrapping: bool = true,
 ): T {.raises: [].} =
   var rtable = RoutingTable.new(
     switch.peerInfo.peerId.toKey(),
@@ -68,7 +67,6 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
-    bootstrapping: bootstrapping,
   )
 
   # Fill up buckets with initial bootstrap nodes
@@ -126,7 +124,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
-  if kad.bootstrapping:
+  if not kad.config.disableBootstrapping:
     await kad.bootstrap(forceRefresh = true)
 
   kad.maintenanceLoop = kad.maintainBuckets()
