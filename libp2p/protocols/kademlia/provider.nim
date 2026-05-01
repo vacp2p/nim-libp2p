@@ -97,24 +97,13 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
     raiseAssert("checked with hasKey")
 
 proc dispatchAddProvider(
-<<<<<<< fix/kad-handle-dial-failed-exception
-    switch: Switch, peer: PeerId, key: Key, codec: string
+    switch: Switch, peer: PeerId, key: Key, codec: string, hideConnectionStatus: bool
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   let connRes = catch:
     await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
   if connRes.isErr:
     return err(connRes.error.msg)
   let conn = connRes.value()
-=======
-    switch: Switch, peer: PeerId, key: Key, codec: string, hideConnectionStatus: bool
-) {.async: (raises: [CancelledError, LPStreamError]).} =
-  let conn =
-    try:
-      await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
-    except DialFailedError as e:
-      error "AddProvider could not dial peer", description = e.msg
-      return
->>>>>>> master
   defer:
     await conn.close()
 
