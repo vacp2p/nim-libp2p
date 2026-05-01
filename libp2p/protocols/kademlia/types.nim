@@ -27,7 +27,6 @@ const
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
 
-
   MaxMsgSize* = 4096
 
 type Key* = seq[byte]
