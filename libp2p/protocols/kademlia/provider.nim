@@ -101,7 +101,7 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
   except KeyError:
     raiseAssert("checked with hasKey")
 
-proc dispatchAddProvider*(
+proc dispatchAddProvider(
     switch: Switch, peer: PeerId, key: Key, codec: string, hideConnectionStatus: bool
 ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
   let connRes = catch:

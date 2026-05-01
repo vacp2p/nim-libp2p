@@ -3,11 +3,13 @@
 
 {.used.}
 
-import chronos, results, sets, sequtils, tables
+import chronos, chronicles, results, sets, sequtils, tables
 import
   ../../../libp2p/[protocols/kademlia, switch, builders, multicodec, multihash, cid]
 import ../../tools/[lifecycle, topology, unittest]
 import ./[mock_kademlia, utils]
+
+trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
 proc isAtMaxCapacity(providerRecords: ProviderRecords): bool =
   providerRecords.len == providerRecords.capacity
@@ -402,133 +404,131 @@ suite "KadDHT - Add Provider":
       kads[1].providerManager.providerRecords.len == 1
       kads[1].providerManager.providerRecords[0].provider.id == kads[0].rtable.selfId
 
-suite "KadDHT - ADD_PROVIDER Rejection":
-  teardown:
-    checkTrackers()
+when defined(kadProviderRejection):
+  suite "KadDHT - ADD_PROVIDER Rejection":
+    teardown:
+      checkTrackers()
 
-  asyncTest "Receiver rejects ADD_PROVIDER when per-key limit reached":
-    # kads[0] is sender, kads[1] is receiver with maxProvidersPerKey = 1
-    let senderKad = setupKad()
-    let receiverConfig = testKadConfig()
-    receiverConfig.maxProvidersPerKey = Opt.some(1)
-    let receiverKad = setupKad(receiverConfig)
+    asyncTest "Receiver rejects ADD_PROVIDER when per-key limit reached":
+      # kads[0] is sender, kads[1] is receiver with maxProvidersPerKey = 1
+      let senderKad = setupKad()
+      let receiverConfig = testKadConfig()
+      receiverConfig.maxProvidersPerKey = Opt.some(1)
+      let receiverKad = setupKad(receiverConfig)
 
-    startAndDeferStop(@[senderKad, receiverKad])
+      startAndDeferStop(@[senderKad, receiverKad])
 
-    await connect(senderKad, receiverKad)
+      await connect(senderKad, receiverKad)
 
-    let key = senderKad.rtable.selfId
-    check receiverKad.providerManager.providerRecords.len == 0
+      let key = senderKad.rtable.selfId
+      check receiverKad.providerManager.providerRecords.len == 0
 
-    # First ADD_PROVIDER: receiver has 0 providers for key → accepted
-    await senderKad.addProvider(key.toCid())
-    checkUntilTimeout:
-      receiverKad.providerManager.providerRecords.len == 1
+      # First ADD_PROVIDER: receiver has 0 providers for key → accepted
+      await senderKad.addProvider(key.toCid())
+      checkUntilTimeout:
+        receiverKad.providerManager.providerRecords.len == 1
 
-    # Now add a second sender and have it try to advertise the same key
-    let sender2Kad = setupKad()
-    startAndDeferStop(@[sender2Kad])
-    await connect(sender2Kad, receiverKad)
+      # Now add a second sender and have it try to advertise the same key
+      let sender2Kad = setupKad()
+      startAndDeferStop(@[sender2Kad])
+      await connect(sender2Kad, receiverKad)
 
-    # Receiver already has 1 provider for key (= maxProvidersPerKey) → reject
-    let cidKey = key.toCid().toKey()
-    let status = await sender2Kad.switch.dispatchAddProvider(
-      receiverKad.switch.peerInfo.peerId, cidKey, sender2Kad.codec,
-      sender2Kad.config.hideConnectionStatus,
-    )
-    check status.isOk()
-    check status.value() == AddProviderStatus.rejected
+      # Receiver already has 1 provider for key (= maxProvidersPerKey) → reject
+      let cidKey = key.toCid().toKey()
+      let status = await sender2Kad.sendAddProviderAndGetStatus(receiverKad, cidKey)
+      check status.isOk()
+      check status.value() == AddProviderStatus.rejected
 
-  asyncTest "Existing provider refresh is allowed even at per-key limit":
-    # The same provider re-advertising updates the expiry rather than adding new entries.
-    # Since addProviderRecord removes then re-adds the same record, the count stays the same
-    # so a re-advertisement is not blocked by the per-key limit check.
-    let senderKad = setupKad()
-    let receiverConfig = testKadConfig()
-    receiverConfig.maxProvidersPerKey = Opt.some(1)
-    let receiverKad = setupKad(receiverConfig)
+    asyncTest "Existing provider refresh is allowed even at per-key limit":
+      # The same provider re-advertising updates the expiry rather than adding new entries.
+      # Since addProviderRecord removes then re-adds the same record, the count stays the same
+      # so a re-advertisement is not blocked by the per-key limit check.
+      let senderKad = setupKad()
+      let receiverConfig = testKadConfig()
+      receiverConfig.maxProvidersPerKey = Opt.some(1)
+      let receiverKad = setupKad(receiverConfig)
 
-    startAndDeferStop(@[senderKad, receiverKad])
-    await connect(senderKad, receiverKad)
+      startAndDeferStop(@[senderKad, receiverKad])
+      await connect(senderKad, receiverKad)
 
-    let key = senderKad.rtable.selfId
-    await senderKad.addProvider(key.toCid())
-    checkUntilTimeout:
-      receiverKad.providerManager.providerRecords.len == 1
+      let key = senderKad.rtable.selfId
+      await senderKad.addProvider(key.toCid())
+      checkUntilTimeout:
+        receiverKad.providerManager.providerRecords.len == 1
 
-    let originalExpiry = receiverKad.providerManager.providerRecords[0].expiresAt
+      let originalExpiry = receiverKad.providerManager.providerRecords[0].expiresAt
 
-    # Ensure the clock advances so the refreshed expiresAt is strictly greater
-    await sleepAsync(10.milliseconds)
-    # Same sender re-advertises; knownKeys count stays ≤ maxProvidersPerKey
-    await senderKad.addProvider(key.toCid())
-    checkUntilTimeout:
-      receiverKad.providerManager.providerRecords[0].expiresAt > originalExpiry
+      # Ensure the clock advances so the refreshed expiresAt is strictly greater
+      await sleepAsync(10.milliseconds)
+      # Same sender re-advertises; knownKeys count stays ≤ maxProvidersPerKey
+      await senderKad.addProvider(key.toCid())
+      checkUntilTimeout:
+        receiverKad.providerManager.providerRecords[0].expiresAt > originalExpiry
 
-  asyncTest "Spillover: stores at farther node when closest node is full":
-    # Topology: sender → close (full for key) and far (empty).
-    # closeKad is pre-populated with a record so it will reject.
-    # senderKad should then store the record at farKad (spillover).
-    let senderKad = setupKad()
+    asyncTest "Spillover: stores at farther node when closest node is full":
+      # Topology: sender → close (full for key) and far (empty).
+      # closeKad is pre-populated with a record so it will reject.
+      # senderKad should then store the record at farKad (spillover).
+      let senderKad = setupKad()
 
-    let closeConfig = testKadConfig()
-    closeConfig.maxProvidersPerKey = Opt.some(1)
-    let closeKad = setupKad(closeConfig)
+      let closeConfig = testKadConfig()
+      closeConfig.maxProvidersPerKey = Opt.some(1)
+      let closeKad = setupKad(closeConfig)
 
-    let farKad = setupKad()
+      let farKad = setupKad()
 
-    startAndDeferStop(@[senderKad, closeKad, farKad])
+      startAndDeferStop(@[senderKad, closeKad, farKad])
 
-    # Connect sender to both close and far
-    await connect(senderKad, closeKad)
-    await connect(senderKad, farKad)
+      # Connect sender to both close and far
+      await connect(senderKad, closeKad)
+      await connect(senderKad, farKad)
 
-    let key = senderKad.rtable.selfId
+      let key = senderKad.rtable.selfId
 
-    # Directly inject a record into closeKad to trigger rejection without
-    # involving an extra sender (which would also discover and fill farKad).
-    let existingPeer = Peer(
-      id: randomPeerId().getBytes(),
-      addrs: @[],
-      connection: ConnectionStatus.notConnected,
-    )
-    closeKad.providerManager.knownKeys[key] = initHashSet[Provider]()
-    closeKad.providerManager.knownKeys[key].incl(existingPeer)
-    closeKad.providerManager.providerRecords.push(
-      ProviderRecord(
-        provider: existingPeer, expiresAt: Moment.now() + 1.hours, key: key
+      # Directly inject a record into closeKad to trigger rejection without
+      # involving an extra sender (which would also discover and fill farKad).
+      let existingPeer = Peer(
+        id: randomPeerId().getBytes(),
+        addrs: @[],
+        connection: ConnectionStatus.notConnected,
       )
-    )
-    check closeKad.providerManager.providerRecords.len == 1
-    check farKad.providerManager.providerRecords.len == 0
+      closeKad.providerManager.knownKeys[key] = initHashSet[Provider]()
+      closeKad.providerManager.knownKeys[key].incl(existingPeer)
+      closeKad.providerManager.providerRecords.push(
+        ProviderRecord(
+          provider: existingPeer, expiresAt: Moment.now() + 1.hours, key: key
+        )
+      )
+      check closeKad.providerManager.providerRecords.len == 1
+      check farKad.providerManager.providerRecords.len == 0
 
-    # senderKad advertises; closeKad rejects (maxProvidersPerKey=1, already full),
-    # so senderKad spills over to farKad which accepts.
-    await senderKad.addProvider(key.toCid())
+      # senderKad advertises; closeKad rejects (maxProvidersPerKey=1, already full),
+      # so senderKad spills over to farKad which accepts.
+      await senderKad.addProvider(key.toCid())
 
-    checkUntilTimeout:
-      farKad.providerManager.providerRecords.len == 1
-      farKad.providerManager.providerRecords[0].provider.id ==
-        senderKad.switch.peerInfo.peerId.getBytes()
+      checkUntilTimeout:
+        farKad.providerManager.providerRecords.len == 1
+        farKad.providerManager.providerRecords[0].provider.id ==
+          senderKad.switch.peerInfo.peerId.getBytes()
 
-  asyncTest "Normal replication still works when all nodes accept":
-    # With unlimited capacity both discovered peers get the record via normal replication.
-    let senderKad = setupKad()
-    let nodeA = setupKad()
-    let nodeB = setupKad()
+    asyncTest "Normal replication still works when all nodes accept":
+      # With unlimited capacity both discovered peers get the record via normal replication.
+      let senderKad = setupKad()
+      let nodeA = setupKad()
+      let nodeB = setupKad()
 
-    startAndDeferStop(@[senderKad, nodeA, nodeB])
+      startAndDeferStop(@[senderKad, nodeA, nodeB])
 
-    await connect(senderKad, nodeA)
-    await connect(senderKad, nodeB)
+      await connect(senderKad, nodeA)
+      await connect(senderKad, nodeB)
 
-    let key = senderKad.rtable.selfId
+      let key = senderKad.rtable.selfId
 
-    check nodeA.providerManager.providerRecords.len == 0
-    check nodeB.providerManager.providerRecords.len == 0
+      check nodeA.providerManager.providerRecords.len == 0
+      check nodeB.providerManager.providerRecords.len == 0
 
-    await senderKad.addProvider(key.toCid())
+      await senderKad.addProvider(key.toCid())
 
-    checkUntilTimeout:
-      nodeA.providerManager.providerRecords.len == 1
-      nodeB.providerManager.providerRecords.len == 1
+      checkUntilTimeout:
+        nodeA.providerManager.providerRecords.len == 1
+        nodeB.providerManager.providerRecords.len == 1

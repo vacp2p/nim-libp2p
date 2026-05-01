@@ -3,7 +3,7 @@
 {.used.}
 
 import algorithm, chronos, chronicles, results, sequtils, sets, tables
-import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/[protocols/kademlia, switch, builders, stream/connection]
 import ../../tools/[crypto, unittest]
 import ./mock_kademlia
 
@@ -35,13 +35,13 @@ method select*(
 
 proc createSwitch*(): Switch =
   SwitchBuilder
-    .new()
-    .withRng(rng)
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
+  .new()
+  .withRng(rng)
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .build()
 
 proc testKadConfig*(
     validator: EntryValidator = PermissiveValidator(),
@@ -197,12 +197,12 @@ proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =
   peers
-    .mapIt((it, xorDistance(it, targetKey, hasher)))
-    .sorted(
-      proc(a, b: auto): int =
-        cmp(a[1], b[1])
-    )
-    .mapIt(it[0])
+  .mapIt((it, xorDistance(it, targetKey, hasher)))
+  .sorted(
+    proc(a, b: auto): int =
+      cmp(a[1], b[1])
+  )
+  .mapIt(it[0])
 
 proc addRandomPeers*(
     state: var LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
@@ -212,3 +212,33 @@ proc addRandomPeers*(
     peers.add(randomPeerId())
     state.shortlist[peers[i]] = xorDistance(peers[i], target, hasher)
   peers.sortPeers(target, hasher)
+
+when defined(kadProviderRejection):
+  proc sendAddProviderAndGetStatus*(
+      sender: KadDHT, receiver: KadDHT, key: Key
+  ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
+    let connRes = catch:
+      await sender.switch.dial(
+        receiver.switch.peerInfo.peerId, receiver.switch.peerInfo.addrs, sender.codec
+      )
+    if connRes.isErr:
+      return err(connRes.error.msg)
+    let conn = connRes.value()
+    defer:
+      await conn.close()
+    let msg = Message(
+      msgType: MessageType.addProvider,
+      key: key,
+      providerPeers: @[sender.switch.peerInfo.toPeer()],
+    )
+    let writeRes = catch:
+      await conn.writeLp(msg.encode(sender.config.hideConnectionStatus).buffer)
+    if writeRes.isErr:
+      return err(writeRes.error.msg)
+    let readRes = catch:
+      await conn.readLp(MaxMsgSize)
+    if readRes.isErr:
+      return ok(AddProviderStatus.accepted)
+    let reply = Message.decode(readRes.value).valueOr:
+      return ok(AddProviderStatus.accepted)
+    return ok(reply.providerStatus.get(AddProviderStatus.accepted))
