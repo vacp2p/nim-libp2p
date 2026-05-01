@@ -28,7 +28,7 @@ else:
     libp2p/[
       protobuf/minprotobuf,
       muxers/muxer,
-      muxers/mplex/mplex,
+      muxers/muxer_config,
       stream/lpstream,
       stream/bufferstream,
       stream/connection,
@@ -49,7 +49,13 @@ else:
       protocols/pubsub,
     ]
 
+  when MplexEnabled:
+    import libp2p/muxers/mplex/mplex
+
   export
     minprotobuf, switch, peerid, peerinfo, connection, multiaddress, crypto, lpstream,
-    bufferstream, muxer, mplex, transport, tcptransport, noise, errors, cid, multihash,
-    multicodec, builders, pubsub, quictransport
+    bufferstream, muxer, muxer_config, transport, tcptransport, noise, errors, cid,
+    multihash, multicodec, builders, pubsub, quictransport
+
+  when MplexEnabled:
+    export mplex

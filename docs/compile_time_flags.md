@@ -24,6 +24,25 @@ Specify gossipsub specific topics to measure in the metrics:
 nim c -d:KnownLibP2PTopics=topic1,topic2,topic3 some_file.nim
 ```
 
+## Compile-time muxer selection
+
+Select which stream multiplexers are compiled in (default: both `mplex` and `yamux`):
+
+```bash
+# Enable only mplex (exclude yamux):
+nim c -d:libp2p_muxers=mplex some_file.nim
+
+# Enable only yamux (exclude mplex):
+nim c -d:libp2p_muxers=yamux some_file.nim
+
+# Enable both (default):
+nim c -d:libp2p_muxers=mplex,yamux some_file.nim
+```
+
+When a muxer is excluded, its module is not imported and will not appear in the final
+binary. The `withMplex` and `withYamux` builder methods are only available when the
+respective muxer is enabled.
+
 ## Flags that extend `MultiFormats`
 
 | Multi format   | Compiler flag<br>(path to extensions file) | Expected definition in extension file |

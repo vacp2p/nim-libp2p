@@ -10,6 +10,8 @@ runnableExamples:
 {.push raises: [].}
 
 import tables, chronos, chronicles, sequtils
+import muxers/muxer_config
+export muxer_config
 import
   switch,
   peerid,
@@ -19,7 +21,7 @@ import
   multiaddress,
   crypto/crypto,
   transports/[transport, tcptransport, wstransport, quictransport, memorytransport],
-  muxers/[muxer, mplex/mplex, yamux/yamux],
+  muxers/muxer,
   protocols/[identify, secure/secure, secure/noise, rendezvous, kademlia],
   protocols/connectivity/[
     autonat/server,
@@ -41,6 +43,12 @@ import
   errors,
   utility
 import services/wildcardresolverservice
+
+when MplexEnabled:
+  import muxers/mplex/mplex
+
+when YamuxEnabled:
+  import muxers/yamux/yamux
 
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
@@ -147,37 +155,39 @@ proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
   b.sendSignedPeerRecord = sendIt
   b
 
-proc withMplex*(
-    b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes, maxChannCount = 200
-): SwitchBuilder =
-  ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
-  ## | `Timeout` is the duration after which a inactive connection will be closed
-  proc newMuxer(conn: Connection): Muxer =
-    Mplex.new(conn, inTimeout, outTimeout, maxChannCount)
+when MplexEnabled:
+  proc withMplex*(
+      b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes, maxChannCount = 200
+  ): SwitchBuilder =
+    ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
+    ## | `Timeout` is the duration after which a inactive connection will be closed
+    proc newMuxer(conn: Connection): Muxer =
+      Mplex.new(conn, inTimeout, outTimeout, maxChannCount)
 
-  assert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
-  b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
-  b
+    assert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
+    b.muxers.add(MuxerProvider.new(newMuxer, MplexCodec))
+    b
 
-proc withYamux*(
-    b: SwitchBuilder,
-    maxChannCount: int = MaxChannelCount,
-    windowSize: int = YamuxDefaultWindowSize,
-    inTimeout: Duration = 5.minutes,
-    outTimeout: Duration = 5.minutes,
-): SwitchBuilder =
-  proc newMuxer(conn: Connection): Muxer =
-    Yamux.new(
-      conn,
-      maxChannCount = maxChannCount,
-      windowSize = windowSize,
-      inTimeout = inTimeout,
-      outTimeout = outTimeout,
-    )
+when YamuxEnabled:
+  proc withYamux*(
+      b: SwitchBuilder,
+      maxChannCount: int = MaxChannelCount,
+      windowSize: int = YamuxDefaultWindowSize,
+      inTimeout: Duration = 5.minutes,
+      outTimeout: Duration = 5.minutes,
+  ): SwitchBuilder =
+    proc newMuxer(conn: Connection): Muxer =
+      Yamux.new(
+        conn,
+        maxChannCount = maxChannCount,
+        windowSize = windowSize,
+        inTimeout = inTimeout,
+        outTimeout = outTimeout,
+      )
 
-  assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
-  b.muxers.add(MuxerProvider.new(newMuxer, YamuxCodec))
-  b
+    assert b.muxers.countIt(it.codec == YamuxCodec) == 0, "Yamux build multiple times"
+    b.muxers.add(MuxerProvider.new(newMuxer, YamuxCodec))
+    b
 
 proc withNoise*(b: SwitchBuilder): SwitchBuilder =
   b.secureManagers.add(SecureProtocol.Noise)
@@ -522,12 +532,17 @@ type MuxerType* {.pure.} = enum
   MPLEX
   YAMUX
 
+when MplexEnabled:
+  const defaultMuxer = MuxerType.MPLEX
+elif YamuxEnabled:
+  const defaultMuxer = MuxerType.YAMUX
+
 proc newStandardSwitchBuilder*(
     privKey = Opt.none(PrivateKey),
     addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
-    muxer: MuxerType = MuxerType.MPLEX,
+    muxer: MuxerType = defaultMuxer,
     rng = newRng(),
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
@@ -581,9 +596,19 @@ proc newStandardSwitchBuilder*(
 
   case muxer
   of MuxerType.MPLEX:
-    b = b.withMplex(inTimeout, outTimeout)
+    when MplexEnabled:
+      b = b.withMplex(inTimeout, outTimeout)
+    else:
+      raiseAssert(
+        "Mplex is not enabled. Compile with -d:libp2p_muxers including 'mplex'"
+      )
   of MuxerType.YAMUX:
-    b = b.withYamux(inTimeout = inTimeout, outTimeout = outTimeout)
+    when YamuxEnabled:
+      b = b.withYamux(inTimeout = inTimeout, outTimeout = outTimeout)
+    else:
+      raiseAssert(
+        "Yamux is not enabled. Compile with -d:libp2p_muxers including 'yamux'"
+      )
 
   b
 
@@ -592,7 +617,7 @@ proc newStandardSwitch*(
     addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
-    muxer: MuxerType = MuxerType.MPLEX,
+    muxer: MuxerType = defaultMuxer,
     rng = newRng(),
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
