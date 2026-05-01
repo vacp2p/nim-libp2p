@@ -202,7 +202,7 @@ suite "KadDHT - Get Providers":
     kads[1].providerManager.knownKeys[key].incl(kads[2].toPeer())
     # Invalid provider with malformed peer ID bytes
     kads[1].providerManager.knownKeys[key].incl(
-      Peer(id: @[1.byte, 1, 1], addrs: @[], connection: ConnectionType.notConnected)
+      Peer(id: @[1.byte, 1, 1], addrs: @[], connection: ConnectionStatus.notConnected)
     )
 
     # kads[0] queries - should filter out invalid provider and return only valid one
