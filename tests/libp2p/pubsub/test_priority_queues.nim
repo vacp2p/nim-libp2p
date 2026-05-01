@@ -127,11 +127,11 @@ suite "Priority queue behavior":
   teardown:
     checkTrackers()
 
-  asyncTest "High priority sends return immediately even while writes stay pending":
+  asyncTest "Pending high priority sends delay lower priority messages":
     let disconnectRequestedForTest = new bool
 
     let peer = createTestPeer(
-      maxHigh = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
+      maxHigh = 3, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
     )
     let conn = createPendingConnection()
     defer:
@@ -139,15 +139,18 @@ suite "Priority queue behavior":
 
     peer.sendConn = conn
 
-    # These writes stay pending, but sendEncoded itself now completes immediately.
+    # These sends stay pending, keeping the high-priority backlog visible until
+    # the underlying transport write completes.
     let f1 = peer.sendEncoded(@[1'u8, 2, 3], MessagePriority.High)
     let f2 = peer.sendEncoded(@[1'u8, 2, 3], MessagePriority.High)
     let f3 = peer.sendEncoded(@[1'u8, 2, 3], MessagePriority.High)
+    let mediumFut = peer.sendEncoded(@[4'u8, 5, 6], MessagePriority.Medium)
 
     check:
       f1.finished
       f2.finished
       f3.finished
+      mediumFut.finished
       conn.pendingWrites.len == 3
       not conn.pendingWrites[0].finished
       not conn.pendingWrites[1].finished
@@ -165,11 +168,11 @@ suite "Priority queue behavior":
     check:
       not disconnectRequestedForTest[]
 
-  asyncTest "Medium priority sends fast-path even behind a pending high write":
+  asyncTest "Medium priority messages wait while high priority send is pending":
     let disconnectRequestedForTest = new bool
 
     let peer = createTestPeer(
-      maxMedium = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
+      maxMedium = 4, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
     )
     let conn = createRecorderConnection()
     defer:
@@ -178,10 +181,10 @@ suite "Priority queue behavior":
     peer.sendConn = conn
 
     let highMsg = @[1'u8, 2, 3]
-    let mediumMsgs = @[@[10'u8, 0, 0], @[11'u8, 0, 0], @[12'u8, 0, 0], @[13'u8, 0, 0]]
+    let mediumMsgs = @[@[10'u8, 0, 0], @[11'u8, 0, 0]]
 
-    # The first high-priority write remains pending on the connection, but later
-    # medium-priority sends still take the fast path and complete immediately.
+    # The first high-priority send remains pending on the connection, but later
+    # medium-priority messages are queued until it completes.
     let highFut = peer.sendEncoded(highMsg, MessagePriority.High)
     check highFut.finished
 
@@ -189,24 +192,22 @@ suite "Priority queue behavior":
       let f = peer.sendEncoded(msg, MessagePriority.Medium)
       check f.finished
 
-    check conn.writes ==
-      @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
+    check conn.writes == @[highMsg]
 
     conn.releaseFirstWrite()
 
-    await callbacksDrained(conn.firstWriteFut)
+    checkUntilTimeout:
+      conn.writes == @[highMsg, mediumMsgs[0], mediumMsgs[1]]
 
     check:
-      conn.writes ==
-        @[highMsg, mediumMsgs[0], mediumMsgs[1], mediumMsgs[2], mediumMsgs[3]]
       not disconnectRequestedForTest[]
       peer.hasSendConn()
 
-  asyncTest "Low priority sends fast-path even behind a pending high write":
+  asyncTest "Low priority messages wait while high priority send is pending":
     let disconnectRequestedForTest = new bool
 
     let peer = createTestPeer(
-      maxLow = 2, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
+      maxLow = 4, onEvent = newDisconnectRecorder(disconnectRequestedForTest)
     )
     let conn = createRecorderConnection()
     defer:
@@ -215,10 +216,10 @@ suite "Priority queue behavior":
     peer.sendConn = conn
 
     let highMsg = @[1'u8, 2, 3]
-    let lowMsgs = @[@[20'u8, 0, 0], @[21'u8, 0, 0], @[22'u8, 0, 0], @[23'u8, 0, 0]]
+    let lowMsgs = @[@[20'u8, 0, 0], @[21'u8, 0, 0]]
 
-    # The first high-priority write remains pending on the connection, but later
-    # low-priority sends still take the fast path and complete immediately.
+    # The first high-priority send remains pending on the connection, but later
+    # low-priority messages are queued until it completes.
     let highFut = peer.sendEncoded(highMsg, MessagePriority.High)
     check highFut.finished
 
@@ -226,14 +227,14 @@ suite "Priority queue behavior":
       let f = peer.sendEncoded(msg, MessagePriority.Low)
       check f.finished
 
-    check conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1], lowMsgs[2], lowMsgs[3]]
+    check conn.writes == @[highMsg]
 
     conn.releaseFirstWrite()
 
-    await callbacksDrained(conn.firstWriteFut)
+    checkUntilTimeout:
+      conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1]]
 
     check:
-      conn.writes == @[highMsg, lowMsgs[0], lowMsgs[1], lowMsgs[2], lowMsgs[3]]
       not disconnectRequestedForTest[]
       peer.hasSendConn()
 
