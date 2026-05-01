@@ -77,7 +77,8 @@ type
     record*: Opt[Record]
     closerPeers*: seq[Peer]
     providerPeers*: seq[Peer]
-    providerStatus*: Opt[AddProviderStatus] # field 11 - ADD_PROVIDER response status (nim extension)
+    providerStatus*: Opt[AddProviderStatus]
+      # field 11 - ADD_PROVIDER response status (nim extension)
     register*: Opt[RegisterMessage] # field 21 -  REGISTER message
     getAds*: Opt[GetAdsMessage] # field 22 -  GET_ADS message
 
