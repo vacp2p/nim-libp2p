@@ -8,13 +8,10 @@ import ./[protobuf, types, kademlia_metrics]
 
 proc ping*(
     kad: KadDHT, peerId: PeerId, addrs: seq[MultiAddress]
-): Future[bool] {.async: (raises: [CancelledError, ValueError, LPStreamError]).} =
-  let conn =
-    try:
-      await kad.switch.dial(peerId, addrs, kad.codec)
-    except DialFailedError as e:
-      error "Kad ping could not dial peer", description = e.msg
-      return false
+): Future[bool] {.
+    async: (raises: [CancelledError, DialFailedError, ValueError, LPStreamError])
+.} =
+  let conn = await kad.switch.dial(peerId, addrs, kad.codec)
   defer:
     await conn.close()
 
@@ -33,9 +30,10 @@ proc ping*(
 
   kad_message_bytes_received.inc(replyBuf.len.int64, labelValues = [$MessageType.ping])
 
-  let reply = Message.decode(replyBuf).tryGet()
+  let reply = Message.decode(replyBuf).valueOr:
+    return false
 
-  reply == request
+  return reply == request
 
 proc handlePing*(
     kad: KadDHT, conn: Connection, msg: Message

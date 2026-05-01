@@ -27,6 +27,7 @@ const
   Default_G* = 1e-7
   Default_Delta* = 1.secs
   Default_M_buckets* = 16
+  Default_IpSimCoefficient* = 1.0
 
 type
   ServiceId* = Key
@@ -70,6 +71,7 @@ type
     advertCacheCap*: uint64
     occupancyExp*: float64
     safetyParam*: float64
+    ipSimCoefficient*: float64
     registrationWindow*: Duration
     bucketsCount*: int
 
@@ -96,10 +98,12 @@ proc new*(
     advertCacheCap = Default_C,
     occupancyExp = Default_P_occ,
     safetyParam = Default_G,
+    ipSimCoefficient = Default_IpSimCoefficient,
     registrationWindow = Default_Delta,
     bucketsCount = Default_M_buckets,
 ): T {.raises: [].} =
   doAssert advertCacheCap > 0, "advertCacheCap must be > 0"
+  doAssert ipSimCoefficient >= 0.0, "ipSimCoefficient must be >= 0"
   ServiceDiscoveryConfig(
     kRegister: kRegister,
     kLookup: kLookup,
@@ -109,6 +113,7 @@ proc new*(
     advertCacheCap: advertCacheCap,
     occupancyExp: occupancyExp,
     safetyParam: safetyParam,
+    ipSimCoefficient: ipSimCoefficient,
     registrationWindow: registrationWindow,
     bucketsCount: bucketsCount,
   )
