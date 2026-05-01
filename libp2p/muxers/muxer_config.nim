@@ -23,29 +23,29 @@
 from strutils import split, strip, cmpIgnoreCase
 
 const libp2p_muxers* {.strdefine.} = "mplex,yamux"
-  ## Comma-separated list of muxers to enable at compile time.
-  ## Supported values: ``mplex``, ``yamux``.
-  ## Defaults to ``"mplex,yamux"`` (all muxers enabled).
 
-proc initSupportedMuxers(list: static string): set[uint8] =
-  var res: set[uint8]
+func muxerEnabled(list: static string, muxer: static string): bool =
   for item in list.split({',', ';', '|'}):
-    let name = strip(item)
-    if cmpIgnoreCase(name, "mplex") == 0:
-      res.incl(0'u8)
-    elif cmpIgnoreCase(name, "yamux") == 0:
-      res.incl(1'u8)
-  if len(res) == 0:
-    res = {0'u8, 1'u8}
-  res
+    if cmpIgnoreCase(item.strip(), muxer) == 0:
+      return true
 
-const SupportedMuxersSet = initSupportedMuxers(libp2p_muxers)
+func validMuxerList(list: static string): bool =
+  for item in list.split({',', ';', '|'}):
+    let name = item.strip()
+    if name.len == 0:
+      continue
+
+    if cmpIgnoreCase(name, "mplex") != 0 and cmpIgnoreCase(name, "yamux") != 0:
+      return false
+
+  true
+
+when not validMuxerList(libp2p_muxers):
+  {.error: "Unsupported muxer in -d:libp2p_muxers. Supported values: mplex,yamux".}
 
 const
-  MplexEnabled* = 0'u8 in SupportedMuxersSet
-    ## ``true`` when mplex is enabled via ``-d:libp2p_muxers``.
-  YamuxEnabled* = 1'u8 in SupportedMuxersSet
-    ## ``true`` when yamux is enabled via ``-d:libp2p_muxers``.
+  MplexEnabled* = muxerEnabled(libp2p_muxers, "mplex")
+  YamuxEnabled* = muxerEnabled(libp2p_muxers, "yamux")
 
-when not MplexEnabled and not YamuxEnabled:
+when not (MplexEnabled or YamuxEnabled):
   {.error: "At least one muxer must be enabled. Use -d:libp2p_muxers=mplex,yamux".}
