@@ -522,7 +522,7 @@ suite "GossipSub Component - Message Handling":
     await cReceived.wait()
 
     # A should NOT have received the message back from C at the network level
-    check not await relayedToA.withTimeout(100.milliseconds)
+    check not await relayedToA.withTimeout(1.seconds)
 
   asyncTest "GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()
