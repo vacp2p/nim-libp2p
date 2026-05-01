@@ -41,13 +41,11 @@ proc bootstrap*(
     kad: KadDHT, forceRefresh = false
 ) {.async: (raises: [CancelledError]).} =
   await kad.refreshTable(kad.rtable, forceRefresh)
-
   debug "Bootstrap complete"
 
 proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
-  heartbeat "Refreshing buckets (bootstrapping)",
-    kad.config.bucketRefreshTime, sleepFirst = true:
-    await kad.bootstrap()
+  heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
+    await kad.refreshTable(kad.rtable, false)
 
 proc new*(
     T: typedesc[KadDHT],
@@ -126,7 +124,8 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
     warn "Starting kad-dht twice"
     return
 
-  await kad.bootstrap(forceRefresh = true)
+  if not kad.config.disableBootstrapping:
+    await kad.bootstrap(forceRefresh = true)
 
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
