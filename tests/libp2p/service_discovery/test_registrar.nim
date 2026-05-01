@@ -175,7 +175,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
 
     # With ipSimCoefficient=0, ipSim is excluded; w is driven only by serviceSim (6/1000)
     # w = 900 * ~1.0 * (0.006 + 0 + 1e-7) ≈ 5.4s  →  well under 10s
-    check w < chronos.seconds(10)
+    check w < 10.seconds
 
   test "waitingTime ipSimCoefficient=1 (default) preserves IP similarity penalty":
     let registrar = Registrar.new()
@@ -192,7 +192,7 @@ suite "Service Discovery Registrar - Waiting Time Calculation":
     let w = registrar.waitingTime(discoConfig, ad, 1000, serviceId, now)
 
     # ipSim ≈ 0.97 for same /24; w should be in the hundreds of seconds
-    check w > chronos.seconds(500)
+    check w > 500.seconds
 
 suite "Service Discovery Registrar - Lower Bound Enforcement":
   test "waitingTime enforces service lower bound when exists":
