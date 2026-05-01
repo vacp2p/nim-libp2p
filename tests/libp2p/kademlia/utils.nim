@@ -197,12 +197,12 @@ proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =
   peers
-  .mapIt((it, xorDistance(it, targetKey, hasher)))
-  .sorted(
-    proc(a, b: auto): int =
-      cmp(a[1], b[1])
-  )
-  .mapIt(it[0])
+    .mapIt((it, xorDistance(it, targetKey, hasher)))
+    .sorted(
+      proc(a, b: auto): int =
+        cmp(a[1], b[1])
+    )
+    .mapIt(it[0])
 
 proc addRandomPeers*(
     state: var LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
