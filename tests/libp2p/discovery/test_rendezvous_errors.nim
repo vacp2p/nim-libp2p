@@ -13,7 +13,7 @@ import
     routing_record,
     crypto/crypto,
   ]
-import ../../tools/[lifecycle, unittest]
+import ../../tools/[lifecycle, unittest, crypto]
 import ./utils
 
 suite "RendezVous Errors":
@@ -22,7 +22,9 @@ suite "RendezVous Errors":
 
   asyncTest "Various local error":
     let rdv = RendezVous.new(
-      minDuration = MinimumAcceptedDuration, maxDuration = MaximumDuration
+      rng(),
+      minDuration = MinimumAcceptedDuration,
+      maxDuration = MaximumDuration,
     )
     expect AdvertiseError:
       discard await rendezvous.request(

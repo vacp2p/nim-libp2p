@@ -8,7 +8,7 @@ import ../../../libp2p/muxers/muxer
 import
   ../../../libp2p/protocols/pubsub/
     [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]
-import ../../tools/[unittest, bufferstream]
+import ../../tools/[unittest, bufferstream, crypto]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): RPCMsg =
   RPCMsg.withSubscriptions(topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
@@ -309,7 +309,7 @@ suite "GossipSub":
 
   asyncTest "rpcHandler - subscription limits":
     let gossipSub =
-      TestGossipSub.init(newStandardSwitch(transport = TransportType.QUIC))
+      TestGossipSub.init(newStandardSwitch(transport = TransportType.QUIC, rng = rng()))
     gossipSub.topicsHigh = 10
 
     var tooManyTopics: seq[string]
@@ -332,7 +332,7 @@ suite "GossipSub":
 
   asyncTest "rpcHandler - invalid message bytes":
     let gossipSub =
-      TestGossipSub.init(newStandardSwitch(transport = TransportType.QUIC))
+      TestGossipSub.init(newStandardSwitch(transport = TransportType.QUIC, rng = rng()))
 
     let peerId = randomPeerId()
     let peer = gossipSub.getPubSubPeer(peerId)

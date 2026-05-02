@@ -109,7 +109,7 @@ suite "KadDHT updatePeers address policy":
       .build()
 
     let config = KadDHTConfig.new()
-    let kad = KadDHT.new(switch, @[], config)
+    let kad = KadDHT.new(switch, @[], config, rng = rng())
     switch.mount(kad)
 
     let remotePeer = PeerId.random(rng()).tryGet()
@@ -137,7 +137,7 @@ suite "KadDHT updatePeers address policy":
       .build()
 
     let config = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy)
-    let kad = KadDHT.new(switch, @[], config)
+    let kad = KadDHT.new(switch, @[], config, rng = rng())
     switch.mount(kad)
 
     let remotePeer = PeerId.random(rng()).tryGet()
@@ -163,7 +163,7 @@ suite "KadDHT updatePeers address policy":
       .build()
 
     let config = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy)
-    let kad = KadDHT.new(switch, @[], config)
+    let kad = KadDHT.new(switch, @[], config, rng = rng())
     switch.mount(kad)
 
     let remotePeer = PeerId.random(rng()).tryGet()

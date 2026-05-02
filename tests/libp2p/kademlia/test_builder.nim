@@ -65,6 +65,7 @@ suite "KadDHT Switch Builder":
     let kad2 = KadDHT.new(
       switch2,
       bootstrapNodes = @[(switch1.peerInfo.peerId, switch1.peerInfo.addrs)],
+      rng = rng(),
       client = true,
     )
 

@@ -52,7 +52,7 @@ type SigParam = object
   v: seq[byte]
 
 proc new*(
-    T: typedesc[PeerIDAuthClient], rng: ref HmacDrbgContext = newRng()
+    T: typedesc[PeerIDAuthClient], rng: ref HmacDrbgContext
 ): PeerIDAuthClient =
   PeerIDAuthClient(session: HttpSessionRef.new(), rng: rng)
 

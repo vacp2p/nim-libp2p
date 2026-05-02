@@ -66,6 +66,7 @@ proc setupNode*(
       msgIdProvider = msgIdProvider,
       verifySignature = false,
       anonymize = true,
+      rng = rng,
     )
     pingProtocol = Ping.new(rng = rng)
 

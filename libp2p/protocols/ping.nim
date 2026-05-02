@@ -36,7 +36,7 @@ type
     rng: ref HmacDrbgContext
 
 proc new*(
-    T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext = newRng()
+    T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext
 ): T =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()

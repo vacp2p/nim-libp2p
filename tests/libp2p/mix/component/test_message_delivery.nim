@@ -15,7 +15,7 @@ import
     builders,
   ]
 
-import ../../../tools/[lifecycle, unittest]
+import ../../../tools/[lifecycle, unittest, crypto]
 import ../utils
 
 suite "Mix Protocol - Message Delivery":
@@ -28,7 +28,7 @@ suite "Mix Protocol - Message Delivery":
     )
     startAndDeferStop(nodes)
 
-    let (destNode, pingProto) = await setupDestNode(Ping.new())
+    let (destNode, pingProto) = await setupDestNode(Ping.new(rng = rng()))
     defer:
       await stopDestNode(destNode)
 
@@ -138,7 +138,7 @@ suite "Mix Protocol - Message Delivery":
       )
 
       let destNode = nodes[^1]
-      let pingProto = Ping.new()
+      let pingProto = Ping.new(rng = rng())
       destNode.switch.mount(pingProto)
 
       startAndDeferStop(nodes)

@@ -281,7 +281,7 @@ suite "Circuit Relay":
     r.maxCircuitPerPeer = tmp
     await conn.close()
 
-    let dst2 = newStandardSwitch()
+    let dst2 = newStandardSwitch(rng = rng())
     await dst2.start()
     await srelay.connect(dst2.peerInfo.peerId, dst2.peerInfo.addrs)
 

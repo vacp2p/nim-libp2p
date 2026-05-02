@@ -27,7 +27,7 @@ when defined(libp2p_autotls_support):
 
   proc new*(
       T: typedesc[ACMEClient],
-      rng: ref HmacDrbgContext = newRng(),
+      rng: ref HmacDrbgContext,
       api: ACMEApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURL)),
       key: Opt[KeyPair] = Opt.none(KeyPair),
       kid: Kid = Kid(""),
