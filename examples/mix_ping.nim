@@ -35,7 +35,8 @@ proc createSwitch(
 ): Switch =
   let skkey = libp2pPrivKey.valueOr(SkKeyPair.random(rng[]).seckey)
   let privKey = PrivateKey(scheme: Secp256k1, skkey: skkey)
-  newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr, rng = rng).build()
+  newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr, rng = rng)
+    .build()
 
 proc mixPingSimulation() {.async: (raises: [Exception]).} =
   let rng = newRng()

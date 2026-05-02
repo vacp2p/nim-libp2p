@@ -1048,8 +1048,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.parameters.preambleExtensionConfig = Opt.some(cfg)
 
   return ExtensionsState.new(
-    g.rng,
-    updatePeerBehaviorPenalty, g.parameters.testExtensionConfig,
+    g.rng, updatePeerBehaviorPenalty, g.parameters.testExtensionConfig,
     g.parameters.partialMessageExtensionConfig, g.parameters.pingpongExtensionConfig,
     g.parameters.preambleExtensionConfig,
   )

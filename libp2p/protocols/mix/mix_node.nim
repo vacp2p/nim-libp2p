@@ -48,10 +48,7 @@ proc generateRandom*(
   )
 
 proc generateRandomMany*(
-    T: typedesc[MixNodeInfo],
-    count: int,
-    rng: ref HmacDrbgContext,
-    basePort: int = 4242,
+    T: typedesc[MixNodeInfo], count: int, rng: ref HmacDrbgContext, basePort: int = 4242
 ): seq[MixNodeInfo] =
   var nodeInfos = newSeq[MixNodeInfo](count)
   for i in 0 ..< count:

@@ -32,8 +32,9 @@ suite "Dialer":
   asyncTest "Max connections reached":
     var switches: seq[Switch]
 
-    let dst =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(2)), rng = rng())
+    let dst = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(2)), rng = rng()
+    )
     await dst.start()
     switches.add(dst)
 

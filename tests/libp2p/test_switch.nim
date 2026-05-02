@@ -103,10 +103,12 @@ suite "Switch":
     proc match(proto: string): bool {.gcsafe.} =
       return proto == callProto
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     switch1.mount(testProto, match)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -185,10 +187,12 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -210,7 +214,8 @@ suite "Switch":
 
   asyncTest "e2e connect to peer with unknown PeerId":
     let resolver = MockResolver.new()
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     let switch2 = newStandardSwitch(
       secureManagers = [SecureProtocol.Noise],
       nameResolver = Opt.some(NameResolver(resolver)),
@@ -238,8 +243,10 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e connect to peer with known PeerId":
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -678,10 +685,12 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
 
     await switch1.start()
 
@@ -707,7 +716,8 @@ suite "Switch":
     await switch1.stop()
 
   asyncTest "connect to inexistent peer":
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
     let seckey = PrivateKey.random(ECDSA, rng[]).get()
@@ -718,8 +728,9 @@ suite "Switch":
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
-    let destSwitch =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)), rng = rng())
+    let destSwitch = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)), rng = rng()
+    )
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -751,8 +762,9 @@ suite "Switch":
       switches.add(newStandardSwitch(rng = rng()))
       await switches[i].start()
 
-    let srcSwitch =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)), rng = rng())
+    let srcSwitch = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)), rng = rng()
+    )
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch(rng = rng())
@@ -773,8 +785,9 @@ suite "Switch":
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
-    let destSwitch =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(3, 1)), rng = rng())
+    let destSwitch = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxInOut(3, 1)), rng = rng()
+    )
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -806,8 +819,9 @@ suite "Switch":
       switches.add(newStandardSwitch(rng = rng()))
       await switches[i].start()
 
-    let srcSwitch =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(1, 3)), rng = rng())
+    let srcSwitch = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxInOut(1, 3)), rng = rng()
+    )
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch(rng = rng())
@@ -962,8 +976,9 @@ suite "Switch":
       switch1.mount(testProto)
 
       let switch2 = newStandardSwitch(rng = rng())
-      let switch3 =
-        newStandardSwitch(addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(), rng = rng())
+      let switch3 = newStandardSwitch(
+        addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(), rng = rng()
+      )
 
       await allFuturesRaising(switch1.start(), switch2.start(), switch3.start())
 
@@ -1003,7 +1018,8 @@ suite "Switch":
     resolver.ipResponses[("localhost", true)] = @["::1"]
 
     let
-      srcSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)), rng = rng())
+      srcSwitch =
+        newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)), rng = rng())
       destSwitch = newStandardSwitch(rng = rng())
 
     await destSwitch.start()
@@ -1026,7 +1042,8 @@ suite "Switch":
       wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
-      srcTcpSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)), rng = rng())
+      srcTcpSwitch =
+        newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)), rng = rng())
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
@@ -1125,8 +1142,9 @@ suite "Switch":
         .withNoise()
         .build()
 
-      srcTcpSwitch =
-        newStandardSwitch(addrs = tcpAddress, transport = TransportType.TCP, rng = rng())
+      srcTcpSwitch = newStandardSwitch(
+        addrs = tcpAddress, transport = TransportType.TCP, rng = rng()
+      )
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
@@ -1138,8 +1156,9 @@ suite "Switch":
         )
         .withNoise()
         .build()
-      srcQuicSwitch =
-        newStandardSwitch(addrs = quicAddress, transport = TransportType.QUIC, rng = rng())
+      srcQuicSwitch = newStandardSwitch(
+        addrs = quicAddress, transport = TransportType.QUIC, rng = rng()
+      )
 
     let switches = @[destSwitch, srcTcpSwitch, srcWsSwitch, srcQuicSwitch]
     await allFutures(switches.mapIt(it.start()))
@@ -1240,8 +1259,9 @@ suite "Switch":
     # test is that this doesn't leak
 
   asyncTest "starting two times does not crash":
-    let switch =
-      newStandardSwitch(addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], rng = rng())
+    let switch = newStandardSwitch(
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], rng = rng()
+    )
 
     await switch.start()
     await switch.start()

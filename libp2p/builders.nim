@@ -450,7 +450,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     b.secureManagers &= SecureProtocol.Noise
 
   if isNil(b.rng):
-    raiseAssert "rng must be set before building - call .withRng(yourRng)"
+    b.rng = newRng()
 
   let peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
@@ -509,7 +509,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   b.kad.withValue(kadInfo):
     kadInfo.config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = kadInfo.config,
+      switch,
+      bootstrapNodes = kadInfo.bootstrapNodes,
+      config = kadInfo.config,
       rng = b.rng,
     )
     switch.mount(kad)
@@ -531,7 +533,7 @@ proc newStandardSwitchBuilder*(
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
     muxer: MuxerType = MuxerType.MPLEX,
-    rng: ref HmacDrbgContext,
+    rng = newRng(),
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
@@ -596,7 +598,7 @@ proc newStandardSwitch*(
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
     muxer: MuxerType = MuxerType.MPLEX,
-    rng: ref HmacDrbgContext,
+    rng = newRng(),
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,

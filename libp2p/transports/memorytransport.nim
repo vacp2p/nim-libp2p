@@ -27,9 +27,7 @@ type MemoryTransport* = ref object of Transport
   listener: Opt[MemoryListener]
 
 proc new*(
-    T: typedesc[MemoryTransport],
-    upgrade: Upgrade = Upgrade(),
-    rng: ref HmacDrbgContext,
+    T: typedesc[MemoryTransport], upgrade: Upgrade = Upgrade(), rng: ref HmacDrbgContext
 ): T =
   let self = T(upgrader: upgrade, rng: rng)
   procCall Transport(self).initialize()
