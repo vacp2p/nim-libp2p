@@ -504,8 +504,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     rdvService.setup(switch)
     switch.mount(rdvService)
 
-  if b.kad.isSome():
-    let kadInfo = b.kad.get()
+  b.kad.withValue(kadInfo):
     kadInfo.config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
       switch, bootstrapNodes = kadInfo.bootstrapNodes, config = kadInfo.config
