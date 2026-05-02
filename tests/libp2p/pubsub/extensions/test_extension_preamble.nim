@@ -74,7 +74,8 @@ suite "GossipSub Extensions :: Preamble Extension":
   let msgId2: MessageId = @[4'u8, 5, 6]
 
   test "isSupported":
-    let ext = PreambleExtension.new(PreambleExtensionConfig(), rng())
+    var cr = CallbackRecorder()
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     check:
       ext.isSupported(PeerExtensions()) == false
       ext.isSupported(PeerExtensions(preambleExtension: true)) == true
@@ -82,12 +83,12 @@ suite "GossipSub Extensions :: Preamble Extension":
   test "config validation - maxPreamblePeerBudget must be positive":
     var cr = CallbackRecorder()
     expect AssertionDefect:
-      discard PreambleExtension.new(cr.makeConfig(maxPreamblePeerBudget = 0, rng())
+      discard PreambleExtension.new(cr.makeConfig(maxPreamblePeerBudget = 0), rng())
 
   test "config validation - maxHeIsReceiving must be positive":
     var cr = CallbackRecorder()
     expect AssertionDefect:
-      discard PreambleExtension.new(cr.makeConfig(maxHeIsReceiving = 0, rng())
+      discard PreambleExtension.new(cr.makeConfig(maxHeIsReceiving = 0), rng())
 
   test "config validation - callbacks must be set":
     var cr = CallbackRecorder()
