@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[times, sequtils]
+import std/[times, sequtils, tables]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../../utils/[heartbeat, future]
@@ -20,32 +20,31 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
       return selectedIdx == 0
   return true
 
-proc isDataEntryExpired*(record: EntryRecord, interval: chronos.Duration): bool =
+proc isExpired*(record: EntryRecord, interval: chronos.Duration): bool =
   ## Returns true when the record's stored timestamp is older than `interval`.
   ## Records whose timestamp cannot be parsed are treated as expired.
   try:
-    let stored = times.parse(record.time, "yyyy-MM-dd'T'HH:mm:ss'Z'", utc())
+    let stored = times.parse(record.time, TimeStampFormat, utc())
     let storedUnix = stored.toTime().toUnix()
     let nowUnix = times.now().utc.toTime().toUnix()
     let maxAgeSec = interval.nanoseconds div 1_000_000_000
     (nowUnix - storedUnix) > maxAgeSec
   except TimeParseError:
-    warn "Failed to parse data entry timestamp, treating as expired",
-      time = record.time
+    warn "Failed to parse record timestamp, treating as expired", time = record.time
     true
 
-proc manageExpiredDataEntries*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Periodically scans `dataTable` and evicts entries that are older than
-  ## `config.dataEntryExpirationInterval`. Runs indefinitely as a heartbeat
+  ## `config.recordExpirationInterval`. Runs indefinitely as a heartbeat
   ## loop until cancelled (e.g. via `cancelSoon` or `cancelAndWait`).
   heartbeat "cleanup expired data entries", kad.config.cleanupDataEntriesInterval:
     var toRemove: seq[Key]
     for key, record in kad.dataTable:
-      if record.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
+      if record.isExpired(kad.config.recordExpirationInterval):
         toRemove.add(key)
     for key in toRemove:
       kad.dataTable.del(key)
-      debug "Expired data entry removed", key = key
+      debug "Expired record removed", key = key
 
 proc dispatchPutVal*(
     switch: Switch, peer: PeerId, key: Key, value: seq[byte], codec: string
@@ -96,7 +95,7 @@ proc dispatchPutVal*(
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let record = EntryRecord(value: value, time: $times.now().utc)
+  let record = EntryRecord(value: value, time: nowRFC3339())
 
   if not kad.config.validator.isValid(key, record):
     return err("invalid key/value pair")
@@ -106,7 +105,7 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
-  kad.dataTable.insert(key, value, $times.now().utc)
+  kad.dataTable.insert(key, value, nowRFC3339())
 
   for chunk in peers.toChunks(kad.config.alpha):
     let batch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec))
@@ -129,7 +128,7 @@ proc handlePutValue*(
     error "No value in record", msg = msg, conn = conn
     return
 
-  let entryRecord = EntryRecord(value: value, time: $times.now().utc)
+  let entryRecord = EntryRecord(value: value, time: nowRFC3339())
 
   # Value sanitisation done. Start insertion process
   if not kad.config.validator.isValid(msg.key, entryRecord):
@@ -140,7 +139,7 @@ proc handlePutValue*(
     error "Dropping received value, we have a better one"
     return
 
-  kad.dataTable.insert(msg.key, entryRecord.value, $times.now().utc)
+  kad.dataTable.insert(msg.key, entryRecord.value, nowRFC3339())
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
   let encoded = msg.encode(kad.config.hideConnectionStatus)

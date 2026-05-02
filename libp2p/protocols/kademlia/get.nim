@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/tables
-from std/times import now, utc
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../../utils/future
@@ -83,11 +82,11 @@ proc getValue*(
 
   # if locally present and not expired, include our own copy
   kad.dataTable.get(key).withValue(localRecord):
-    if not localRecord.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
+    if not localRecord.isExpired(kad.config.recordExpirationInterval):
       received[kad.switch.peerInfo.peerId] = Opt.some(localRecord)
     else:
       kad.dataTable.del(key)
-      debug "Local data entry expired on read", key = key
+      debug "Local record expired on read", key = key
 
   let quorum = quorumOverride.valueOr:
     kad.config.quorum
@@ -117,7 +116,7 @@ proc getValue*(
     let time = record.timeReceived.valueOr:
       debug "GetValue returned record with no timeReceived, using current time instead",
         reply = reply
-      TimeStamp($times.now().utc)
+      nowRFC3339()
 
     received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
@@ -129,7 +128,7 @@ proc getValue*(
   let best = ?kad.bestValidRecord(key, received, quorum)
 
   # insert value to our localtable
-  kad.dataTable.insert(key, best.value, $times.now().utc)
+  kad.dataTable.insert(key, best.value, nowRFC3339())
 
   # update peers that
   # - don't have best value
@@ -157,8 +156,8 @@ method handleGetValue*(
   # Evict the entry eagerly if it has expired so the `valueOr` below treats it
   # as absent and sends the standard "no record found" response.
   kad.dataTable.get(key).withValue(record):
-    if record.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
-      debug "Data entry expired, dropping", key = key
+    if record.isExpired(kad.config.recordExpirationInterval):
+      debug "record expired, dropping", key = key
       kad.dataTable.del(key)
 
   let entryRecord = kad.dataTable.get(key).valueOr:

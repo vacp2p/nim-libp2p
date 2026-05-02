@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, sequtils, sets, heapqueue]
-from times import now
+from std/times import format, now, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
 import ../protocol
@@ -26,7 +26,7 @@ const
   DefaultRepublishInterval* = 10.minutes # same as bootstrap
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
-  DefaultDataEntryExpirationInterval* = 24.hours
+  DefaultRecordExpirationInterval* = 24.hours
     # KV entries older than this are considered stale and will be evicted
   DefaultCleanupDataEntriesInterval* = 1.hours # how often to scan for stale KV entries
 
@@ -220,6 +220,11 @@ proc toPeerIds*(entries: seq[NodeEntry]): seq[PeerId] =
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
 type TimeStamp* = string
 
+const TimeStampFormat* = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+
+proc nowRFC3339*(): TimeStamp {.gcsafe, raises: [].} =
+  TimeStamp(now().utc.format(TimeStampFormat))
+
 type EntryRecord* = object
   value*: seq[byte]
   time*: TimeStamp
@@ -227,7 +232,7 @@ type EntryRecord* = object
 proc init*(
     T: typedesc[EntryRecord], value: Key, time: Opt[TimeStamp]
 ): EntryRecord {.gcsafe, raises: [].} =
-  EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
+  EntryRecord(value: value, time: time.get(nowRFC3339()))
 
 type
   ReceivedTable* = TableRef[PeerId, Opt[EntryRecord]]
@@ -309,7 +314,7 @@ type KadDHTConfig* = ref object
   republishProvidedKeysInterval*: chronos.Duration
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
-  dataEntryExpirationInterval*: chronos.Duration
+  recordExpirationInterval*: chronos.Duration
   cleanupDataEntriesInterval*: chronos.Duration
   addressPolicy*: PeerAddressPolicy
   hideConnectionStatus*: bool
@@ -338,7 +343,7 @@ proc new*(
     republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
-    dataEntryExpirationInterval: chronos.Duration = DefaultDataEntryExpirationInterval,
+    recordExpirationInterval: chronos.Duration = DefaultRecordExpirationInterval,
     cleanupDataEntriesInterval: chronos.Duration = DefaultCleanupDataEntriesInterval,
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     hideConnectionStatus: bool = true,
@@ -362,7 +367,7 @@ proc new*(
     republishProvidedKeysInterval: republishProvidedKeysInterval,
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
-    dataEntryExpirationInterval: dataEntryExpirationInterval,
+    recordExpirationInterval: recordExpirationInterval,
     cleanupDataEntriesInterval: cleanupDataEntriesInterval,
     addressPolicy: addressPolicy,
     hideConnectionStatus: hideConnectionStatus,
@@ -378,7 +383,7 @@ type KadDHT* = ref object of LPProtocol
   maintenanceLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
-  dataEntryExpirationLoop*: Future[void]
+  recordExpirationLoop*: Future[void]
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig

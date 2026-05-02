@@ -53,7 +53,7 @@ proc testKadConfig*(
     retries: int = DefaultRetries,
     providerRejection: bool = false,
     providerExpirationInterval: Duration = 1.seconds,
-    dataEntryExpirationInterval: Duration = DefaultDataEntryExpirationInterval,
+    recordExpirationInterval: Duration = DefaultRecordExpirationInterval,
     cleanupDataEntriesInterval: Duration = chronos.milliseconds(100),
 ): KadDHTConfig =
   KadDHTConfig.new(
@@ -66,7 +66,7 @@ proc testKadConfig*(
     replication = replication,
     retries = retries,
     providerRejection = providerRejection,
-    dataEntryExpirationInterval = dataEntryExpirationInterval,
+    recordExpirationInterval = recordExpirationInterval,
     cleanupDataEntriesInterval = cleanupDataEntriesInterval,
   )
 
@@ -102,7 +102,7 @@ proc setupKadSwitches*(
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     replication: int = DefaultReplication,
-    dataEntryExpirationInterval: Duration = DefaultDataEntryExpirationInterval,
+    recordExpirationInterval: Duration = DefaultRecordExpirationInterval,
     cleanupDataEntriesInterval: Duration = chronos.milliseconds(100),
 ): seq[KadDHT] =
   var kads: seq[KadDHT]
@@ -113,7 +113,7 @@ proc setupKadSwitches*(
       cleanupProvidersInterval,
       republishProvidedKeysInterval,
       replication = replication,
-      dataEntryExpirationInterval = dataEntryExpirationInterval,
+      recordExpirationInterval = recordExpirationInterval,
       cleanupDataEntriesInterval = cleanupDataEntriesInterval,
     )
     kads.add(setupKad(config, bootstrapNodes))
