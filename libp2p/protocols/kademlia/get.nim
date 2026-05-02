@@ -156,23 +156,14 @@ method handleGetValue*(
 ) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key
 
-  let entryRecord = kad.dataTable.get(key).valueOr:
-    let response = Message(
-      msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
-    )
-    let encoded = response.encode(kad.config.hideConnectionStatus)
-    kad_message_bytes_sent.inc(
-      encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-    )
-    try:
-      await conn.writeLp(encoded.buffer)
-    except LPStreamError as exc:
-      debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
-    return
+  # Evict the entry eagerly if it has expired so the `valueOr` below treats it
+  # as absent and sends the standard "no record found" response.
+  kad.dataTable.get(key).withValue(record):
+    if record.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
+      debug "Data entry expired, dropping", key = key
+      kad.dataTable.del(key)
 
-  if entryRecord.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
-    debug "Data entry expired, dropping", key = key
-    kad.dataTable.del(key)
+  let entryRecord = kad.dataTable.get(key).valueOr:
     let response = Message(
       msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
     )
