@@ -45,6 +45,8 @@ jobs:
             nimble_commit: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
           - ref: v2.2.10
             memory_management: refc
+          - ref: v2.2.10
+            memory_management: orc
         include:
           - platform:
               os: linux
