@@ -235,7 +235,7 @@ suite "KadDHT Put":
       kads[0].containsNoData(key)
       kads[1].containsNoData(key)
 
-  test "isDataEntryExpired returns correct values for various intervals":
+  asyncTest "isDataEntryExpired returns correct values for various intervals":
     let now = times.now().utc
     let oneHourAgo = now - times.initDuration(hours = 1)
     let twoDaysAgo = now - times.initDuration(hours = 48)
