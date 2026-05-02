@@ -153,13 +153,6 @@ if defined(android):
 
 proc initializeLibrary() {.exported.} =
   ## Initializes the Nim runtime and foreign-thread GC
-
-var cbindRng {.threadvar.}: ref HmacDrbgContext
-
-proc getCbindRng(): ref HmacDrbgContext =
-  if cbindRng.isNil():
-    cbindRng = newRng()
-  cbindRng
   if not initialized.exchange(true):
     # Every Nim library must call `<prefix>NimMain()` once
     libp2pNimMain()
@@ -169,6 +162,16 @@ proc getCbindRng(): ref HmacDrbgContext =
     var locals {.volatile, noinit.}: pointer
     locals = addr(locals)
     nimGC_setStackBottom(locals)
+
+# Thread-local RNG singleton for use in top-level C-exported functions.
+# Each OS thread gets its own lazily-initialised instance so entropy is not
+# exhausted by repeated calls from C code.
+var cbindRng {.threadvar.}: ref HmacDrbgContext
+
+proc getCbindRng(): ref HmacDrbgContext =
+  if cbindRng.isNil():
+    cbindRng = newRng()
+  cbindRng
 
 ### End of library setup
 ################################################################################
