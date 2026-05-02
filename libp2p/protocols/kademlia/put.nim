@@ -25,16 +25,19 @@ proc isDataEntryExpired*(record: EntryRecord, interval: chronos.Duration): bool 
   ## Records whose timestamp cannot be parsed are treated as expired.
   try:
     let stored = times.parse(record.time, "yyyy-MM-dd'T'HH:mm:ss'Z'", utc())
-    let elapsed = times.now().utc - stored
-    let maxAge = times.initDuration(nanoseconds = interval.nanoseconds)
-    elapsed > maxAge
+    let storedUnix = stored.toTime().toUnix()
+    let nowUnix = times.now().utc.toTime().toUnix()
+    let maxAgeSec = interval.nanoseconds div 1_000_000_000
+    (nowUnix - storedUnix) > maxAgeSec
   except TimeParseError:
+    warn "Failed to parse data entry timestamp, treating as expired",
+      time = record.time
     true
 
 proc manageExpiredDataEntries*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Periodically scans `dataTable` and evicts entries that are older than
   ## `config.dataEntryExpirationInterval`. Runs indefinitely as a heartbeat
-  ## loop until cancelled via `cancelSoon` or `cancelAndWait`.
+  ## loop until cancelled (e.g. via `cancelSoon` or `cancelAndWait`).
   heartbeat "cleanup expired data entries", kad.config.cleanupDataEntriesInterval:
     var toRemove: seq[Key]
     for key, record in kad.dataTable:
