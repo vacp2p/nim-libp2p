@@ -29,8 +29,10 @@ proc createSwitch*(
   let privKey = PrivateKey(
     scheme: Secp256k1, skkey: libp2pPrivKey.valueOr(SkKeyPair.random(rng[]).seckey)
   )
-  return
-    newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr, rng = rng()).build()
+  return newStandardSwitchBuilder(
+      privKey = Opt.some(privKey), addrs = multiAddr, rng = rng()
+    )
+    .build()
 
 proc setupMixNode[T: MixProtocol](
     mixNodeInfo: MixNodeInfo,

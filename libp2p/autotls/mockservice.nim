@@ -16,8 +16,9 @@ when defined(libp2p_autotls_support):
       config: AutotlsConfig = AutotlsConfig.new(),
   ): T =
     T(
-      acmeClient:
-        ACMEClient.new(rng = rng, api = ACMEApi.new(acmeServerURL = config.acmeServerURL)),
+      acmeClient: ACMEClient.new(
+        rng = rng, api = ACMEApi.new(acmeServerURL = config.acmeServerURL)
+      ),
       brokerClient: PeerIDAuthClient.new(rng),
       bearer: Opt.none(BearerToken),
       cert: Opt.none(AutotlsCert),

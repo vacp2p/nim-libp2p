@@ -106,7 +106,8 @@ suite "Dcutr":
     ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
       await sleepAsync(50.millis)
 
-    let behindNATSwitch = SwitchStub.new(newStandardSwitch(rng = rng()), connectTimeoutProc)
+    let behindNATSwitch =
+      SwitchStub.new(newStandardSwitch(rng = rng()), connectTimeoutProc)
     let publicSwitch = newStandardSwitch(rng = rng())
     ductrClientTest(behindNATSwitch, publicSwitch):
       try:
@@ -128,7 +129,8 @@ suite "Dcutr":
     ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
       raise newException(DialFailedError, "error")
 
-    let behindNATSwitch = SwitchStub.new(newStandardSwitch(rng = rng()), connectErrorProc)
+    let behindNATSwitch =
+      SwitchStub.new(newStandardSwitch(rng = rng()), connectErrorProc)
     let publicSwitch = newStandardSwitch(rng = rng())
     ductrClientTest(behindNATSwitch, publicSwitch):
       try:

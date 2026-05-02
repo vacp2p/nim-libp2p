@@ -24,7 +24,8 @@ proc setupAutonat(
 ): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
   let
     src = newStandardSwitchBuilder(addrs = srcAddrs, rng = rng()).build()
-    dst = newStandardSwitchBuilder(rng = rng()).withAutonatV2Server(config = config).build()
+    dst =
+      newStandardSwitchBuilder(rng = rng()).withAutonatV2Server(config = config).build()
     client = AutonatV2Client.new(rng)
 
   client.setup(src)
@@ -168,7 +169,8 @@ suite "AutonatV2":
       )
 
   asyncTest "Instantiate server":
-    let serverSwitch = newStandardSwitchBuilder(rng = rng()).withAutonatV2Server().build()
+    let serverSwitch =
+      newStandardSwitchBuilder(rng = rng()).withAutonatV2Server().build()
     await serverSwitch.start()
     await serverSwitch.stop()
 

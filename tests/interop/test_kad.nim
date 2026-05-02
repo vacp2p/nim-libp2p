@@ -19,8 +19,9 @@ proc createSwitch(mountKad = true): Switch =
     .build()
 
   if mountKad:
-    let kad =
-      KadDHT.new(switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 2), rng = rng())
+    let kad = KadDHT.new(
+      switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 2), rng = rng()
+    )
     switch.mount(kad)
 
   switch

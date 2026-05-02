@@ -163,16 +163,6 @@ proc initializeLibrary() {.exported.} =
     locals = addr(locals)
     nimGC_setStackBottom(locals)
 
-# Thread-local RNG singleton for use in top-level C-exported functions.
-# Each OS thread gets its own lazily-initialised instance so entropy is not
-# exhausted by repeated calls from C code.
-var cbindRng {.threadvar.}: ref HmacDrbgContext
-
-proc getCbindRng(): ref HmacDrbgContext =
-  if cbindRng.isNil():
-    cbindRng = newRng()
-  cbindRng
-
 ### End of library setup
 ################################################################################
 
@@ -186,7 +176,7 @@ proc libp2p_mix_generate_priv_key(
 
   doAssert(not outKey.isNil(), "outKey is nil")
 
-  var rng = getCbindRng()
+  let rng = newRng()
   let priv = Curve25519Key.random(rng[])
 
   for i in 0 ..< Curve25519KeySize:
@@ -263,7 +253,7 @@ proc libp2p_new_private_key(
 
   initializeLibrary()
 
-  let key = PrivateKey.random(scheme, getCbindRng()[]).valueOr:
+  let key = PrivateKey.random(scheme, newRng()[]).valueOr:
     echo "Could not generate private key"
     return RET_ERR.cint
 
