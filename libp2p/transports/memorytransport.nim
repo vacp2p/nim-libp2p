@@ -29,7 +29,7 @@ type MemoryTransport* = ref object of Transport
 proc new*(
     T: typedesc[MemoryTransport],
     upgrade: Upgrade = Upgrade(),
-    rng: ref HmacDrbgContext = newRng(),
+    rng: ref HmacDrbgContext,
 ): T =
   let self = T(upgrader: upgrade, rng: rng)
   procCall Transport(self).initialize()

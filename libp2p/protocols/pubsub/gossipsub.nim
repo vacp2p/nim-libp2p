@@ -961,7 +961,7 @@ proc maintainDirectPeers(g: GossipSub) {.async: (raises: [CancelledError]).} =
 proc createExtensionsState(g: GossipSub): ExtensionsState =
   if not g.usesExtensions():
     # use noop state when no extensions are used
-    return ExtensionsState.new()
+    return ExtensionsState.new(g.rng)
 
   proc updatePeerBehaviorPenalty(id: PeerId, delta: float64) {.gcsafe, raises: [].} =
     g.peers.withValue(id, peer):
@@ -1048,6 +1048,7 @@ proc createExtensionsState(g: GossipSub): ExtensionsState =
     g.parameters.preambleExtensionConfig = Opt.some(cfg)
 
   return ExtensionsState.new(
+    g.rng,
     updatePeerBehaviorPenalty, g.parameters.testExtensionConfig,
     g.parameters.partialMessageExtensionConfig, g.parameters.pingpongExtensionConfig,
     g.parameters.preambleExtensionConfig,

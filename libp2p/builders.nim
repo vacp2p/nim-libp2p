@@ -57,6 +57,7 @@ type
     privateKey*: PrivateKey
     autotls*: Opt[AutotlsService]
     connManager*: ConnManager
+    rng*: ref HmacDrbgContext
 
   SecureProtocol* {.pure.} = enum
     Noise
@@ -225,7 +226,7 @@ proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder =
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder =
   b.withTransport(
     proc(config: TransportConfig): Transport =
-      MemoryTransport.new(config.upgr)
+      MemoryTransport.new(config.upgr, config.rng)
   )
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder =
@@ -338,7 +339,7 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-    b.autotls = Opt.some(AutotlsService.new(config = config))
+    b.autotls = Opt.some(AutotlsService.new(b.rng, config = config))
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
@@ -348,7 +349,7 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
 proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
   var lrdv = rdv
   if rdv.isNil():
-    lrdv = RendezVous.new()
+    lrdv = RendezVous.new(b.rng)
 
   b.rdv = Opt.some(lrdv)
   b
@@ -439,6 +440,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
             privateKey: seckey,
             autotls: b.autotls,
             connManager: connManager,
+            rng: b.rng,
           )
         )
       )
@@ -448,7 +450,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     b.secureManagers &= SecureProtocol.Noise
 
   if isNil(b.rng):
-    b.rng = newRng()
+    raiseAssert "rng must be set before building - call .withRng(yourRng)"
 
   let peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
@@ -507,7 +509,8 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   b.kad.withValue(kadInfo):
     kadInfo.config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = kadInfo.config
+      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = kadInfo.config,
+      rng = b.rng,
     )
     switch.mount(kad)
 
@@ -528,7 +531,7 @@ proc newStandardSwitchBuilder*(
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
     muxer: MuxerType = MuxerType.MPLEX,
-    rng = newRng(),
+    rng: ref HmacDrbgContext,
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
@@ -593,7 +596,7 @@ proc newStandardSwitch*(
     transport: TransportType = TransportType.TCP,
     transportFlags: set[ServerFlags] = {},
     muxer: MuxerType = MuxerType.MPLEX,
-    rng = newRng(),
+    rng: ref HmacDrbgContext,
     secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,

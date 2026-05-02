@@ -702,7 +702,7 @@ proc init*[PubParams: object | bool](
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     subscriptionValidator: SubscriptionValidator = nil,
     maxMessageSize: int = 1024 * 1024,
-    rng: ref HmacDrbgContext = newRng(),
+    rng: ref HmacDrbgContext,
     parameters: PubParams = false,
     customConnCallbacks: Opt[CustomConnectionCallbacks] =
       Opt.none(CustomConnectionCallbacks),

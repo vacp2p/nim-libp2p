@@ -163,13 +163,14 @@ proc publishNewMessage(
     res = await gossipSub.publish(topic, nowBytes)
   return (now, res)
 
-proc initializeGossipsub(switch: Switch, anonymize: bool): GossipSub =
+proc initializeGossipsub(switch: Switch, anonymize: bool, rng: ref HmacDrbgContext): GossipSub =
   return GossipSub.init(
     switch = switch,
     triggerSelf = parseBool(getEnv("SELFTRIGGER", "true")),
     msgIdProvider = msgIdProvider,
     verifySignature = false,
     anonymize = anonymize,
+    rng = rng,
   )
 
 proc connectGossipsubPeers(
@@ -247,7 +248,7 @@ proc main() {.async.} =
 
   let
     switch = builder.build()
-    gossipSub = initializeGossipsub(switch, true)
+    gossipSub = initializeGossipsub(switch, true, rng)
 
   subscribeGossipsubTopic(gossipSub, "test")
   switch.mount(gossipSub)

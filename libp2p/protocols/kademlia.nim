@@ -52,7 +52,7 @@ proc new*(
     switch: Switch,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
-    rng: ref HmacDrbgContext = newRng(),
+    rng: ref HmacDrbgContext,
     client: bool = false,
     codec: string = KadCodec,
 ): T {.raises: [].} =

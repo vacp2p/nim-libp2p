@@ -5,7 +5,7 @@
 
 import nimcrypto/utils, stew/base58, bearssl/hash
 import ../../libp2p/[crypto/crypto, peerid]
-import ../tools/[unittest]
+import ../tools/[unittest, crypto]
 
 ## Test vectors was made using Go implementation
 ## https://github.com/libp2p/go-libp2p-peer
@@ -240,6 +240,6 @@ suite "Peer testing suite":
       $randomPeer1.get() == "16Uiu2HAmCxpSTFDNdWiu1MLScu7inPhcbbGfPvuvRPD1e51gw1Xr"
 
     # generate a random peer with a new random seed
-    var randomPeer2 = PeerId.random()
+    var randomPeer2 = PeerId.random(rng())
     check:
       randomPeer2.isErr() != true

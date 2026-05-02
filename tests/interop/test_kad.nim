@@ -20,7 +20,7 @@ proc createSwitch(mountKad = true): Switch =
 
   if mountKad:
     let kad =
-      KadDHT.new(switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 2))
+      KadDHT.new(switch, bootstrapNodes = @[], config = KadDHTConfig.new(quorum = 2), rng = rng())
     switch.mount(kad)
 
   switch
@@ -56,6 +56,6 @@ suite "KadDHT Interop Tests with Nim nodes":
 
   asyncTest "Fails when peer is unreachable":
     const unreachableAddress = "/ip4/127.0.0.1/tcp/59999"
-    let fakePeerId = PeerId.random().get()
+    let fakePeerId = PeerId.random(rng()).get()
 
     check not await kadInteropTest(ourAddress, unreachableAddress, fakePeerId)

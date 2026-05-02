@@ -30,7 +30,7 @@ proc createSwitch*(
     scheme: Secp256k1, skkey: libp2pPrivKey.valueOr(SkKeyPair.random(rng[]).seckey)
   )
   return
-    newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
+    newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr, rng = rng()).build()
 
 proc setupMixNode[T: MixProtocol](
     mixNodeInfo: MixNodeInfo,
@@ -73,7 +73,7 @@ proc setupMixNodes*(
     delayStrategy = Opt.none(DelayStrategy),
 ): Future[seq[MixProtocol]] {.async.} =
   var nodes: seq[MixProtocol] = @[]
-  let nodeInfos = MixNodeInfo.generateRandomMany(numNodes)
+  let nodeInfos = MixNodeInfo.generateRandomMany(numNodes, rng())
   for mixNodeInfo in nodeInfos:
     let switch =
       createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))
@@ -92,7 +92,7 @@ proc setupMixNodesWithMock*(
   ## Like setupMixNodes, but the first node is a MockMixProtocol.
   var nodes: seq[MixProtocol] = @[]
 
-  let nodeInfos = MixNodeInfo.generateRandomMany(numNodes)
+  let nodeInfos = MixNodeInfo.generateRandomMany(numNodes, rng())
 
   let mockMixNodeInfo = nodeInfos[0]
   let mockSwitch =

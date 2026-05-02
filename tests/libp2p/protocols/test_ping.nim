@@ -17,7 +17,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 suite "Ping":
   var
@@ -42,8 +42,8 @@ suite "Ping":
     proc handlePing(peer: PeerId) {.async.} =
       inc pingReceivedCount
 
-    pingProto1 = Ping.new()
-    pingProto2 = Ping.new(handlePing)
+    pingProto1 = Ping.new(rng = rng())
+    pingProto2 = Ping.new(handlePing, rng = rng())
 
     msListen = MultistreamSelect.new()
     msDial = MultistreamSelect.new()

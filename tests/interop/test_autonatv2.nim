@@ -59,7 +59,7 @@ suite "Autonatv2 Interop Tests with Nim nodes":
 
   asyncTest "Fails gracefully on connection error":
     const unreachableAddress = "/ip6/::1/tcp/59999" # Nothing listening
-    let fakePeerId = PeerId.random().get()
+    let fakePeerId = PeerId.random(rng()).get()
 
     const ourAddress = "/ip6/::1/tcp/4042"
     expect DialFailedError:

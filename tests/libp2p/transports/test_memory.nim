@@ -6,7 +6,7 @@
 
 import chronos, stew/byteutils
 import ../../../libp2p/[transports/memorytransport, multiaddress]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 suite "Memory transport":
   teardown:
@@ -18,18 +18,18 @@ suite "Memory transport":
 
   asyncTest "can handle local address":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
-    let transport: MemoryTransport = MemoryTransport.new()
+    let transport: MemoryTransport = MemoryTransport.new(rng = rng())
     await transport.start(ma)
     check transport.handles(transport.addrs[0])
     await transport.stop()
 
   asyncTest "send receive":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
-    let server = MemoryTransport.new()
+    let server = MemoryTransport.new(rng = rng())
     await server.start(ma)
 
     proc runClient() {.async.} =
-      let client = MemoryTransport.new()
+      let client = MemoryTransport.new(rng = rng())
       let conn = await client.dial("", ma[0])
 
       await conn.write("client")
@@ -55,7 +55,7 @@ suite "Memory transport":
 
   asyncTest "server already started":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
-    let server = MemoryTransport.new()
+    let server = MemoryTransport.new(rng = rng())
     await server.start(ma)
 
     proc serverAcceptHandler() {.async.} =
@@ -65,7 +65,7 @@ suite "Memory transport":
     asyncSpawn serverAcceptHandler()
 
     # accept by server2 should not succeed
-    let server2 = MemoryTransport.new()
+    let server2 = MemoryTransport.new(rng = rng())
     await server2.start(ma)
     expect MemoryTransportError:
       discard await server2.accept()
@@ -79,7 +79,7 @@ suite "Memory transport":
 
   asyncTest "server stopping - should drop accept":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
-    let server = MemoryTransport.new()
+    let server = MemoryTransport.new(rng = rng())
     await server.start(ma)
 
     proc serverAcceptHandler() {.async.} =
@@ -92,7 +92,7 @@ suite "Memory transport":
 
   asyncTest "server conn close propagated to client":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
-    let server = MemoryTransport.new()
+    let server = MemoryTransport.new(rng = rng())
     await server.start(ma)
 
     proc serverAcceptHandler() {.async.} =
@@ -105,7 +105,7 @@ suite "Memory transport":
       await server.stop()
 
     proc runClient() {.async.} =
-      let client = MemoryTransport.new()
+      let client = MemoryTransport.new(rng = rng())
       let conn = await client.dial("", ma[0])
 
       await conn.write("client")
@@ -121,7 +121,7 @@ suite "Memory transport":
 
   asyncTest "client conn close propagated to server":
     let ma = @[MultiAddress.init("/memory/addr-1").get()]
-    let server = MemoryTransport.new()
+    let server = MemoryTransport.new(rng = rng())
     await server.start(ma)
 
     proc serverAcceptHandler() {.async.} =
@@ -133,7 +133,7 @@ suite "Memory transport":
       await server.stop()
 
     proc runClient() {.async.} =
-      let client = MemoryTransport.new()
+      let client = MemoryTransport.new(rng = rng())
       let conn = await client.dial("", ma[0])
       await conn.close()
       await client.stop()
