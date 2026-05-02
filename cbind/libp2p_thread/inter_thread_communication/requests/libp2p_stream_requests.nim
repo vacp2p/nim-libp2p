@@ -5,19 +5,10 @@ import std/tables
 import chronos, results
 import ../../../[alloc, ffi_types, types]
 import ../../../../libp2p
-import ../../../../libp2p/crypto/curve25519
-import ../../../../libp2p/crypto/secp
-import ../../../../libp2p/protocols/mix
-import ../../../../libp2p/protocols/mix/curve25519 as mix_curve25519
-import ../../../../libp2p/protocols/mix/mix_node
 
 type StreamMsgType* = enum
   DIAL
   DIAL_CIRCUIT_RELAY
-  MIX_DIAL
-  MIX_REGISTER_DEST_READ
-  MIX_SET_NODE_INFO
-  MIX_NODEPOOL_ADD
   CLOSE
   CLOSE_WITH_EOF
   RELEASE
@@ -31,13 +22,7 @@ type StreamRequest* = object
   peerId: cstring
   multiaddr: cstring
   proto: cstring
-  mixReadBehaviorKind: cint
-  mixReadBehaviorParam: cint
-  mixExpectReply: bool
-  mixNumSurbs: uint8
   connHandle: ptr Libp2pStream
-  mixPubKey: MixCurve25519Key
-  libp2pPubKey: MixSecp256k1PubKey
   data: SharedSeq[byte] ## Only used for WRITE/WRITELP
   readLen: csize_t ## Only used for READEXACTLY
   maxSize: int64 ## Only used for READLP
@@ -48,13 +33,7 @@ proc createShared*(
     peerId: cstring = "",
     multiaddr: cstring = "",
     proto: cstring = "",
-    mixReadBehaviorKind: cint = MIX_READ_EXACTLY.cint,
-    mixReadBehaviorParam: cint = 0,
-    mixExpectReply: bool = false,
-    mixNumSurbs: uint8 = 0,
     conn: ptr Libp2pStream = nil,
-    mixPubKey: MixCurve25519Key = default(MixCurve25519Key),
-    libp2pPubKey: MixSecp256k1PubKey = default(MixSecp256k1PubKey),
     data: ptr byte = nil,
     dataLen: csize_t = 0,
     readLen: csize_t = 0,
@@ -65,13 +44,7 @@ proc createShared*(
   ret[].peerId = peerId.alloc()
   ret[].multiaddr = multiaddr.alloc()
   ret[].proto = proto.alloc()
-  ret[].mixReadBehaviorKind = mixReadBehaviorKind
-  ret[].mixReadBehaviorParam = mixReadBehaviorParam
-  ret[].mixExpectReply = mixExpectReply
-  ret[].mixNumSurbs = mixNumSurbs
   ret[].connHandle = conn
-  ret[].mixPubKey = mixPubKey
-  ret[].libp2pPubKey = libp2pPubKey
   ret[].data = allocSharedSeqFromCArray(data, dataLen.int)
   ret[].readLen = readLen
   ret[].maxSize = maxSize
@@ -125,145 +98,6 @@ proc processDialCircuitRelay*(
   handle[].conn = cast[pointer](conn)
   libp2p[].connections[handle] = conn
   return ok(handle)
-
-proc processMixRegisterDestRead*(
-    self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
-  defer:
-    destroyShared(self)
-
-  let mixProto = libp2p[].mix.valueOr:
-    return err("mix protocol is not mounted")
-
-  if self[].proto.isNil() or self[].proto[0] == '\0':
-    return err("proto is empty")
-
-  let sizeParam = self[].mixReadBehaviorParam.int
-  if sizeParam < 0:
-    return err("size must be >= 0")
-  case MixReadBehaviorKind(self[].mixReadBehaviorKind)
-  of MIX_READ_EXACTLY:
-    mixProto.registerDestReadBehavior($self[].proto, readExactly(sizeParam))
-  of MIX_READ_LP:
-    mixProto.registerDestReadBehavior($self[].proto, readLp(sizeParam))
-
-  return ok()
-
-proc processMixDial*(
-    self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[ptr Libp2pStream, string]] {.async: (raises: [CancelledError]).} =
-  defer:
-    destroyShared(self)
-
-  let mixProto = libp2p[].mix.valueOr:
-    return err("mix protocol is not mounted")
-
-  let peerId = PeerId.init($self[].peerId).valueOr:
-    return err($error)
-  let maddr = MultiAddress.init($self[].multiaddr).valueOr:
-    return err($error)
-
-  var params = MixParameters()
-  if self[].mixExpectReply:
-    params.expectReply = Opt.some(true)
-    if self[].mixNumSurbs > 0:
-      params.numSurbs = Opt.some(self[].mixNumSurbs)
-
-  let conn = mixProto.toConnection(
-    MixDestination.init(peerId, maddr), $self[].proto, params
-  ).valueOr:
-    return err(error)
-
-  let handle = cast[ptr Libp2pStream](createShared(Libp2pStream, 1))
-  handle[].conn = cast[pointer](conn)
-  libp2p[].connections[handle] = conn
-
-  return ok(handle)
-
-proc processMixSetNodeInfo*(
-    self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
-  defer:
-    destroyShared(self)
-
-  if self[].multiaddr.isNil() or self[].multiaddr[0] == '\0':
-    return err("node multiaddr is empty")
-
-  if self[].data.len != mix_curve25519.FieldElementSize:
-    return err("mix private key must be " & $mix_curve25519.FieldElementSize & " bytes")
-
-  let mixPrivKeyBytes = self[].data.toSeq
-  let mixPrivKey = bytesToFieldElement(mixPrivKeyBytes).valueOr:
-    return err("mix private key is not a valid priv key")
-
-  let mixPubKey = public(mixPrivKey)
-
-  let nodeAddr = MultiAddress.init($self[].multiaddr).valueOr:
-    return err($error)
-
-  let peerInfo = libp2p[].switch.peerInfo
-  if peerInfo.isNil():
-    return err("switch peerInfo is nil")
-
-  let libp2pPubKey =
-    case peerInfo.publicKey.scheme
-    of PKScheme.Secp256k1:
-      peerInfo.publicKey.skkey
-    else:
-      return err("peerInfo public key must be secp256k1")
-
-  let libp2pPrivKey =
-    case peerInfo.privateKey.scheme
-    of PKScheme.Secp256k1:
-      peerInfo.privateKey.skkey
-    else:
-      return err("peerInfo private key must be secp256k1")
-
-  libp2p[].mixNodeInfo = Opt.some(
-    initMixNodeInfo(
-      peerInfo.peerId, nodeAddr, mixPubKey, mixPrivKey, libp2pPubKey, libp2pPrivKey
-    )
-  )
-
-  if libp2p[].mix.isNone:
-    var mixProto = MixProtocol.new(libp2p[].mixNodeInfo.get(), libp2p[].switch)
-    try:
-      await mixProto.start()
-      libp2p[].switch.mount(mixProto)
-    except LPError as exc:
-      return err("could not mount mix: " & exc.msg)
-
-    libp2p[].mix = Opt.some(mixProto)
-
-  return ok()
-
-proc processMixNodePoolAdd*(
-    self: ptr StreamRequest, libp2p: ptr LibP2P
-): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
-  defer:
-    destroyShared(self)
-
-  let mixProto = libp2p[].mix.valueOr:
-    return err("mix protocol is not mounted")
-
-  if self[].peerId.isNil() or self[].peerId[0] == '\0':
-    return err("peerId is empty")
-  if self[].multiaddr.isNil() or self[].multiaddr[0] == '\0':
-    return err("multiaddr is empty")
-
-  let peerId = PeerId.init($self[].peerId).valueOr:
-    return err($error)
-  let maddr = MultiAddress.init($self[].multiaddr).valueOr:
-    return err($error)
-
-  let mixPubKey = mix_curve25519.bytesToFieldElement(self[].mixPubKey.bytes).valueOr:
-    return err("mix public key invalid: " & error)
-
-  let libp2pPubKey = SkPublicKey.init(self[].libp2pPubKey.bytes).valueOr:
-    return err("libp2p public key invalid")
-
-  mixProto.nodePool.add(MixPubInfo.init(peerId, maddr, mixPubKey, libp2pPubKey))
-  return ok()
 
 proc processClose*(
     self: ptr StreamRequest, libp2p: ptr LibP2P

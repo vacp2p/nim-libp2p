@@ -21,7 +21,6 @@ import
   std/[tables, sets, macros, sequtils],
   chronos,
   ./crypto/crypto,
-  ./crypto/curve25519,
   ./protocols/identify,
   ./protocols/protocol,
   ./peerid,
@@ -63,9 +62,6 @@ type
   LastSeenOutboundBook* = ref object of PeerBook[Opt[MultiAddress]]
   ProtoVersionBook* = ref object of PeerBook[string]
   SPRBook* = ref object of PeerBook[Envelope]
-
-  MixPubKeyBook* = ref object of PeerBook[Curve25519Key]
-    ## Keeps track of Mix protocol public keys of peers
 
   ####################
   # Peer store types #

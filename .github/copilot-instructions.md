@@ -28,7 +28,6 @@ nim-libp2p/
 │   │   ├── connectivity/       # AutoNAT, DCUtR, Circuit Relay
 │   │   ├── pubsub/             # GossipSub, FloodSub
 │   │   ├── kademlia/           # Kademlia DHT
-│   │   ├── mix/                # Sphinx Mix Network (privacy)
 │   │   ├── perf/               # Performance measurement protocol
 │   │   └── secure/             # Noise, Plaintext
 │   ├── transports/             # TCP, QUIC, WebSocket, Tor, Memory
@@ -49,8 +48,6 @@ nim-libp2p/
 │   ├── contributing.md         # Contribution guidelines
 │   ├── compile_time_flags.md   # All compile-time flags documented
 │   ├── common_hurdles.md       # Known issues and fixes
-│   ├── protocols_mix.md        # Mix protocol documentation
-│   ├── protocols_mix_spam_protection.md  # Mix spam protection documentation
 │   └── interop_hole_punching.md  # Hole punching interop test guide
 ├── tools/                      # Developer tools (dependency pinner, markdown runner, etc.)
 ├── libp2p.nim                  # Main entry point (re-exports public APIs)
@@ -81,7 +78,6 @@ nimble test
 # Run tests matching a path substring
 nimble testpath quic                   # all quic tests
 nimble testpath transports/test_ws     # specific test file
-nimble testpath mix                    # mix protocol tests
 
 # Run specific test suites
 nimble testmultiformatexts             # MultiFormat extension tests
@@ -144,7 +140,6 @@ These flags are used in CI and tests:
 | Flag | Purpose |
 |------|---------|
 | `-d:libp2p_autotls_support` | Enable AutoTLS support |
-| `-d:libp2p_mix_experimental_exit_is_dest` | MIX protocol: exit node is destination |
 | `-d:libp2p_expensive_metrics` | Per-peer cardinality metrics |
 | `-d:libp2p_agents_metrics -d:KnownLibP2PAgents=nimbus,...` | Known agent metrics |
 | `-d:KnownLibP2PTopics=topic1,topic2` | GossipSub topic metrics |
@@ -155,7 +150,7 @@ These flags are used in CI and tests:
 | `-d:libp2p_contentids_exts=<path>` | ContentIds extensions file |
 
 The test runner (`libp2p.nimble`) always compiles with:
-`-d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest`
+`-d:libp2p_autotls_support`
 
 ---
 
@@ -357,7 +352,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 ### API Stability
 - Treat the intended public API surface, especially modules re-exported from `libp2p.nim`, as backward-compatible within a MAJOR version.
 - If a PR introduces a breaking change to that public API surface, add a comment in the PR description that clearly documents the breaking change, the affected modules or APIs, and any required migration notes.
-- Do not warn about breaking changes in the following modules, because they are not yet considered stable and remain under active development: `kademlia`, `mix`, `service_discovery`.
+- Do not warn about breaking changes in the following modules, because they are not yet considered stable and remain under active development: `kademlia`, `service_discovery`.
 - Internal procedures and other non-public implementation details may change in MINOR versions.
 
 ### Experimental GossipSub Extensions
@@ -423,10 +418,6 @@ The test runner (`libp2p.nimble`) always compiles with:
 - `rendezvous.nim` + `rendezvous/` — Rendezvous server protocol
 - `service_discovery.nim` + `service_discovery/` — Service discovery (random find, routing table manager)
 
-### Privacy (`protocols/mix/`)
-- Sphinx mix network for privacy-preserving message routing
-- Curve25519, fragmentation, delay strategies, spam protection
-
 ### Services (`services/`)
 - `autorelayservice.nim` — Automatic relay selection and connection
 - `hpservice.nim` — Hole punching service
@@ -473,7 +464,7 @@ The `cbind/` directory contains the C/FFI layer for using nim-libp2p from C/C++:
 - `types.nim` — Additional C-compatible type implementations
 - `alloc.nim` — Cross-thread memory allocation helpers
 - `libp2p_thread/` — Thread management for async operations from C
-- `examples/cbindings.c`, `examples/echo.c`, `examples/mix.c` — C usage examples
+- `examples/cbindings.c`, `examples/echo.c` — C usage examples
 
 ```sh
 cd cbind

@@ -140,7 +140,5 @@ List of packages modules implemented in nim-libp2p:
 | **DHT** | |
 | [kademlia](nim-libp2p/libp2p/protocols/kademlia.nim) | [Kademlia DHT](https://github.com/libp2p/specs/tree/master/kad-dht) for peer/value discovery |
 | [kademlia-discovery](nim-libp2p/libp2p/protocols/kad_disco.nim) | Kademlia-based peer discovery |
-| **Privacy** | |
-| [mix](nim-libp2p/libp2p/protocols/mix.nim) | [Mix](https://lip.logos.co/ift-ts/raw/mix.html#5-protocol-overview) network protocol with [Sphinx](https://cypherpunks.ca/~iang/pubs/Sphinx_Oakland09.pdf) packet format for anonymity |
 | **Performance** | |
 | [perf](nim-libp2p/libp2p/protocols/perf/core.nim) | [Perf](https://github.com/libp2p/specs/blob/master/perf/perf.md) protocol for benchmarking libp2p nodes |

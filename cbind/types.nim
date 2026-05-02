@@ -8,8 +8,6 @@ import ../libp2p
 import ../libp2p/protocols/protocol
 import ../libp2p/protocols/pubsub/gossipsub
 import ../libp2p/protocols/kademlia
-import ../libp2p/protocols/mix
-import ../libp2p/protocols/mix/mix_node
 import ../libp2p/protocols/connectivity/relay/client
 import ffi_types
 
@@ -28,8 +26,6 @@ type LibP2P* = ref object
   switch*: Switch
   gossipSub*: Opt[GossipSub]
   kad*: Opt[KadDHT]
-  mix*: Opt[MixProtocol]
-  mixNodeInfo*: Opt[MixNodeInfo]
   relayClient*: Opt[RelayClient]
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
   connections*: Table[ptr Libp2pStream, Connection]
