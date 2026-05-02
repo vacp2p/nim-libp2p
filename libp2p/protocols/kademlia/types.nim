@@ -308,6 +308,10 @@ type KadDHTConfig* = ref object
   addressPolicy*: PeerAddressPolicy
   hideConnectionStatus*: bool
   disableBootstrapping*: bool
+  maxProvidersPerKey*: Opt[int]
+    ## Maximum number of distinct providers stored per key.
+    ## None (default) means unlimited.
+    ## Only enforced when compiled with ``-d:libp2p_kademlia_provider_rejection``.
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -327,6 +331,7 @@ proc new*(
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
+    maxProvidersPerKey: Opt[int] = Opt.none(int),
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,
@@ -345,6 +350,7 @@ proc new*(
     addressPolicy: addressPolicy,
     hideConnectionStatus: hideConnectionStatus,
     disableBootstrapping: disableBootstrapping,
+    maxProvidersPerKey: maxProvidersPerKey,
   )
 
 type KadDHT* = ref object of LPProtocol
@@ -357,3 +363,11 @@ type KadDHT* = ref object of LPProtocol
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig
+
+proc awaitBatch*[Fut](
+    rpcBatch: seq[Fut], timeout: Duration
+) {.async: (raises: [CancelledError]).} =
+  try:
+    await rpcBatch.allFutures().wait(timeout)
+  except AsyncTimeoutError:
+    discard

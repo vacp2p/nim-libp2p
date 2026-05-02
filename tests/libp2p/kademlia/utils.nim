@@ -3,7 +3,7 @@
 {.used.}
 
 import algorithm, chronos, chronicles, results, sequtils, sets, tables
-import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/[protocols/kademlia, switch, builders, stream/connection]
 import ../../tools/[crypto, unittest]
 import ./mock_kademlia
 
@@ -212,3 +212,33 @@ proc addRandomPeers*(
     peers.add(randomPeerId())
     state.shortlist[peers[i]] = xorDistance(peers[i], target, hasher)
   peers.sortPeers(target, hasher)
+
+when defined(libp2p_kademlia_provider_rejection):
+  proc sendAddProviderAndGetStatus*(
+      sender: KadDHT, receiver: KadDHT, key: Key
+  ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
+    let connRes = catch:
+      await sender.switch.dial(
+        receiver.switch.peerInfo.peerId, receiver.switch.peerInfo.addrs, sender.codec
+      )
+    if connRes.isErr:
+      return err(connRes.error.msg)
+    let conn = connRes.value()
+    defer:
+      await conn.close()
+    let msg = Message(
+      msgType: MessageType.addProvider,
+      key: key,
+      providerPeers: @[sender.switch.peerInfo.toPeer()],
+    )
+    let writeRes = catch:
+      await conn.writeLp(msg.encode(sender.config.hideConnectionStatus).buffer)
+    if writeRes.isErr:
+      return err(writeRes.error.msg)
+    let readRes = catch:
+      await conn.readLp(MaxMsgSize)
+    if readRes.isErr:
+      return ok(AddProviderStatus.accepted)
+    let reply = Message.decode(readRes.value).valueOr:
+      return ok(AddProviderStatus.accepted)
+    return ok(reply.providerStatus.get(AddProviderStatus.accepted))

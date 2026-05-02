@@ -81,13 +81,9 @@ proc putValue*(
   kad.dataTable.insert(key, value, $times.now().utc)
 
   for chunk in peers.toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec))
-    try:
-      await rpcBatch.allFutures().wait(kad.config.timeout)
-    except AsyncTimeoutError:
-      debug "One or more PutValue messages timed out"
-      # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-      discard
+    await chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec)).awaitBatch(
+      kad.config.timeout
+    )
 
   ok()
 

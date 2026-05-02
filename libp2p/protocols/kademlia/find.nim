@@ -110,6 +110,10 @@ proc hasResponsesFromClosestAvailable*(
 
   return closetsRespondedCnt >= state.kad.config.replication
 
+proc allSortedPeers*(state: LookupState): seq[PeerId] =
+  ## Returns all peers discovered during lookup sorted by XOR distance to target (closest first).
+  state.sortedShortlist(excludeResponded = false).mapIt(it[0])
+
 proc init*(T: type LookupState, kad: KadDHT, target: Key): T =
   var res = LookupState(kad: kad, target: target)
   for pid in kad.rtable.findClosestPeerIds(target, kad.config.replication):
