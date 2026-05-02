@@ -116,7 +116,7 @@ suite "Cover Traffic - Integration":
     check res4.isOk
 
   asyncTest "MixProtocol wires SpamProtection epoch changes to cover traffic":
-    let nodeInfos = MixNodeInfo.generateRandomMany(5)
+    let nodeInfos = MixNodeInfo.generateRandomMany(5, rng())
     let mixNodeInfo = nodeInfos[0]
     let switch =
       createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))

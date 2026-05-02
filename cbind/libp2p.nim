@@ -153,6 +153,13 @@ if defined(android):
 
 proc initializeLibrary() {.exported.} =
   ## Initializes the Nim runtime and foreign-thread GC
+
+var cbindRng {.threadvar.}: ref HmacDrbgContext
+
+proc getCbindRng(): ref HmacDrbgContext =
+  if cbindRng.isNil():
+    cbindRng = newRng()
+  cbindRng
   if not initialized.exchange(true):
     # Every Nim library must call `<prefix>NimMain()` once
     libp2pNimMain()
@@ -176,7 +183,7 @@ proc libp2p_mix_generate_priv_key(
 
   doAssert(not outKey.isNil(), "outKey is nil")
 
-  var rng = newRng()
+  var rng = getCbindRng()
   let priv = Curve25519Key.random(rng[])
 
   for i in 0 ..< Curve25519KeySize:
@@ -253,7 +260,7 @@ proc libp2p_new_private_key(
 
   initializeLibrary()
 
-  let key = PrivateKey.random(scheme, newRng()[]).valueOr:
+  let key = PrivateKey.random(scheme, getCbindRng()[]).valueOr:
     echo "Could not generate private key"
     return RET_ERR.cint
 

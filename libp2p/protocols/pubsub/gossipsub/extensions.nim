@@ -33,7 +33,7 @@ type ExtensionsState* = ref object
 
 proc new*(
     T: typedesc[ExtensionsState],
-    rng: ref HmacDrbgContext = nil,
+    rng: ref HmacDrbgContext,
     updatePeerBehaviorPenalty: UpdatePeerBehaviorPenaltyProc = noopBehaviorPenaltyProc,
     testExtensionConfig: Opt[TestExtensionConfig] = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig: Opt[PartialMessageExtensionConfig] =

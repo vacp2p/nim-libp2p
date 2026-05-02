@@ -29,21 +29,23 @@ import
 const NumMixNodes = 10
 
 proc createSwitch(
-    multiAddr: MultiAddress, libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey)
+    multiAddr: MultiAddress,
+    rng: ref HmacDrbgContext,
+    libp2pPrivKey: Opt[SkPrivateKey] = Opt.none(SkPrivateKey),
 ): Switch =
-  var rng = newRng()
   let skkey = libp2pPrivKey.valueOr(SkKeyPair.random(rng[]).seckey)
   let privKey = PrivateKey(scheme: Secp256k1, skkey: skkey)
-  newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr).build()
+  newStandardSwitchBuilder(privKey = Opt.some(privKey), addrs = multiAddr, rng = rng).build()
 
 proc mixPingSimulation() {.async: (raises: [Exception]).} =
-  let mixNodeInfos = MixNodeInfo.generateRandomMany(NumMixNodes)
+  let rng = newRng()
+  let mixNodeInfos = MixNodeInfo.generateRandomMany(NumMixNodes, rng)
   var switches: seq[Switch] = @[]
   var mixProtos: seq[MixProtocol] = @[]
 
   # Set up mix protocols on each mix node
   for nodeInfo in mixNodeInfos:
-    var switch = createSwitch(nodeInfo.multiAddr, Opt.some(nodeInfo.libp2pPrivKey))
+    var switch = createSwitch(nodeInfo.multiAddr, rng, Opt.some(nodeInfo.libp2pPrivKey))
     let proto = MixProtocol.new(nodeInfo, switch)
 
     # Populate nodePool with all other nodes' public info
@@ -60,11 +62,11 @@ proc mixPingSimulation() {.async: (raises: [Exception]).} =
     await switches.mapIt(it.stop()).allFutures()
 
   # Create a destination node (not part of the mix network)
-  let destNode = createSwitch(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+  let destNode = createSwitch(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(), rng)
   defer:
     await destNode.stop()
 
-  let pingProto = Ping.new()
+  let pingProto = Ping.new(rng = rng)
   destNode.mount(pingProto)
 
   # Start all switches
