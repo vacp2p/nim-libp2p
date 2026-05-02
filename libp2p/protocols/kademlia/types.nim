@@ -364,8 +364,8 @@ type KadDHT* = ref object of LPProtocol
   providerManager*: ProviderManager
   config*: KadDHTConfig
 
-proc awaitBatch*[T](
-    rpcBatch: seq[T], timeout: Duration
+proc awaitBatch*[Fut](
+    rpcBatch: seq[Fut], timeout: Duration
 ) {.async: (raises: [CancelledError]).} =
   try:
     await rpcBatch.allFutures().wait(timeout)
