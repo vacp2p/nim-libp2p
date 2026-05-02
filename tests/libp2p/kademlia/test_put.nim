@@ -234,3 +234,28 @@ suite "KadDHT Put":
     checkUntilTimeout:
       kads[0].containsNoData(key)
       kads[1].containsNoData(key)
+
+  test "isDataEntryExpired returns correct values for various intervals":
+    let now = times.now().utc
+    let oneHourAgo = now - times.initDuration(hours = 1)
+    let twoDaysAgo = now - times.initDuration(hours = 48)
+
+    let freshRecord = EntryRecord(value: @[1.byte], time: $now)
+    let oldRecord = EntryRecord(value: @[1.byte], time: $oneHourAgo)
+    let veryOldRecord = EntryRecord(value: @[1.byte], time: $twoDaysAgo)
+
+    # Fresh record should not be expired even with short intervals
+    check not isDataEntryExpired(freshRecord, chronos.minutes(30))
+    check not isDataEntryExpired(freshRecord, chronos.hours(24))
+
+    # 1-hour-old record: expired with 30-minute TTL, not with 2-hour TTL
+    check isDataEntryExpired(oldRecord, chronos.minutes(30))
+    check not isDataEntryExpired(oldRecord, chronos.hours(2))
+
+    # 2-day-old record: always expired for any sane TTL including default 24h
+    check isDataEntryExpired(veryOldRecord, chronos.hours(24))
+    check isDataEntryExpired(veryOldRecord, chronos.hours(2))
+
+    # Record with an unparseable timestamp is treated as expired
+    let badRecord = EntryRecord(value: @[1.byte], time: "not-a-timestamp")
+    check isDataEntryExpired(badRecord, chronos.hours(24))

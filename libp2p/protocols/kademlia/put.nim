@@ -32,6 +32,9 @@ proc isDataEntryExpired*(record: EntryRecord, interval: chronos.Duration): bool 
     true
 
 proc manageExpiredDataEntries*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  ## Periodically scans `dataTable` and evicts entries that are older than
+  ## `config.dataEntryExpirationInterval`. Runs indefinitely as a heartbeat
+  ## loop until cancelled via `cancelSoon` or `cancelAndWait`.
   heartbeat "cleanup expired data entries", kad.config.cleanupDataEntriesInterval:
     var toRemove: seq[Key]
     for key, record in kad.dataTable:
