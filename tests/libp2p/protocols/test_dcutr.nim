@@ -9,7 +9,7 @@ import ../../../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../../../libp2p/protocols/connectivity/autonat/types import NetworkReachability
 import ../../../libp2p/[builders, utils/future]
 import ../../stubs/switchstub
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 suite "Dcutr":
   teardown:
