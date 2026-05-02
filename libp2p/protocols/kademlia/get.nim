@@ -79,9 +79,13 @@ proc getValue*(
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let received = ReceivedTable()
 
-  # if locally present
-  if kad.dataTable.hasKey(key):
-    received[kad.switch.peerInfo.peerId] = kad.dataTable.get(key)
+  # if locally present and not expired, include our own copy
+  kad.dataTable.get(key).withValue(localRecord):
+    if not localRecord.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
+      received[kad.switch.peerInfo.peerId] = Opt.some(localRecord)
+    else:
+      kad.dataTable.del(key)
+      debug "Local data entry expired on read", key = key
 
   let quorum = quorumOverride.valueOr:
     kad.config.quorum
@@ -153,6 +157,22 @@ method handleGetValue*(
   let key = msg.key
 
   let entryRecord = kad.dataTable.get(key).valueOr:
+    let response = Message(
+      msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
+    )
+    let encoded = response.encode(kad.config.hideConnectionStatus)
+    kad_message_bytes_sent.inc(
+      encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
+    )
+    try:
+      await conn.writeLp(encoded.buffer)
+    except LPStreamError as exc:
+      debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+    return
+
+  if entryRecord.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
+    debug "Data entry expired, dropping", key = key
+    kad.dataTable.del(key)
     let response = Message(
       msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
     )

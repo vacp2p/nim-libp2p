@@ -207,3 +207,30 @@ suite "KadDHT Put":
 
     discard await kads[1].putValue(key, value)
     check kads[0].containsData(key, value)
+
+  asyncTest "PUT_VALUE entries expire after dataEntryExpirationInterval":
+    # Use a short expiration interval so the test doesn't take long.
+    # The stored timestamp has second-level precision, so we use 2s to avoid
+    # sub-second rounding causing premature expiry in the containsData check.
+    let kads = setupKadSwitches(
+      2,
+      dataEntryExpirationInterval = chronos.seconds(2),
+      cleanupDataEntriesInterval = chronos.milliseconds(100),
+    )
+    startAndDeferStop(kads)
+
+    await connect(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
+    let value = @[1.byte, 2, 3, 4, 5]
+    discard await kads[1].putValue(key, value)
+
+    # Value is present right after insertion
+    check:
+      kads[0].containsData(key, value)
+      kads[1].containsData(key, value)
+
+    # Wait until both the expiration interval AND a cleanup cycle have elapsed
+    checkUntilTimeout:
+      kads[0].containsNoData(key)
+      kads[1].containsNoData(key)
