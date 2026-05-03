@@ -164,7 +164,7 @@ window.addEventListener("DOMContentLoaded", main2);
   sendSignedPeerRecord*: bool
   observedAddrManager*: ObservedAddrManager">Identify</a></li>
 <li><a class="reference" href="#IdentifyError" title="IdentifyError = object of LPError">IdentifyError</a></li>
-<li><a class="reference" href="#IdentifyInfo" title="IdentifyInfo {.public.} = object
+<li><a class="reference" href="#IdentifyInfo" title="IdentifyInfo = object
   pubkey*: Opt[PublicKey]
   peerId*: PeerId
   addrs*: seq[MultiAddress]
@@ -176,7 +176,7 @@ window.addEventListener("DOMContentLoaded", main2);
 <li><a class="reference" href="#IdentifyNoPubKeyError" title="IdentifyNoPubKeyError = object of IdentifyError">IdentifyNoPubKeyError</a></li>
 <li><a class="reference" href="#IdentifyPush" title="IdentifyPush = ref object of LPProtocol">IdentifyPush</a></li>
 <li><a class="reference" href="#IdentifyPushHandler" title="IdentifyPushHandler = proc (peer: PeerId; newInfo: IdentifyInfo): Future[void] {.
-    gcsafe, raises: [], public().}">IdentifyPushHandler</a></li>
+    gcsafe, raises: [].}">IdentifyPushHandler</a></li>
 <li><a class="reference" href="#IdentityInvalidMsgError" title="IdentityInvalidMsgError = object of IdentifyError">IdentityInvalidMsgError</a></li>
 <li><a class="reference" href="#IdentityNoMatchError" title="IdentityNoMatchError = object of IdentifyError">IdentityNoMatchError</a></li>
 
@@ -226,6 +226,10 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#push%2CIdentifyPush%2CPeerInfo%2CConnection" title="push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): InternalRaisesFuture[
     void, (CancelledError, LPStreamError)]">push(p: IdentifyPush; peerInfo: PeerInfo; conn: Connection): InternalRaisesFuture[
     void, (CancelledError, LPStreamError)]</a></li>
+
+</ul>
+<ul class="simple nested-toc-section">shortLog
+  <li><a class="reference" href="#shortLog%2Cseq%5BMultiAddress%5D" title="shortLog(addrs: seq[MultiAddress]): string">shortLog(addrs: seq[MultiAddress]): string</a></li>
 
 </ul>
 
@@ -290,8 +294,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L51" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L51" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L52" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L52" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -300,13 +304,13 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L36" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L36" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L37" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L37" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 <div id="IdentifyInfo" class="tohide">
-<dt><pre><a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a> {.<span class="Identifier">public</span>.} <span class="Other">=</span> <span class="Keyword">object</span>
+<dt><pre><a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a> <span class="Other">=</span> <span class="Keyword">object</span>
   <span class="Identifier">pubkey</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">Opt</span><span class="Other">[</span><a href="../crypto/crypto.html#PublicKey"><span class="Identifier">PublicKey</span></a><span class="Other">]</span>
   <span class="Identifier">peerId</span><span class="Operator">*</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a>
   <span class="Identifier">addrs</span><span class="Operator">*</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span>
@@ -318,8 +322,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L41" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L41" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L42" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L42" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -328,8 +332,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L39" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L39" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L40" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L40" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -345,12 +349,12 @@ window.addEventListener("DOMContentLoaded", main2);
 </div>
 <div id="IdentifyPushHandler" class="tohide">
 <dt><pre><a href="#IdentifyPushHandler"><span class="Identifier">IdentifyPushHandler</span></a> <span class="Other">=</span> <span class="Keyword">proc</span> <span class="Other">(</span><span class="Identifier">peer</span><span class="Other">:</span> <a href="../peerid.html#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">;</span> <span class="Identifier">newInfo</span><span class="Other">:</span> <a href="#IdentifyInfo"><span class="Identifier">IdentifyInfo</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Future</span><span class="Other">[</span><span class="Identifier">void</span><span class="Other">]</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> </span><span class="Identifier">public</span><span class="Other">(</span><span class="Other">)</span>.}</pre></dt>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L56" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L56" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L57" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L57" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -359,8 +363,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L38" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L38" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L39" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L39" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -369,8 +373,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L37" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L37" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L38" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L38" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -433,8 +437,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L103" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L103" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L110" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L110" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -450,8 +454,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L165" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L165" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L172" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L172" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -463,8 +467,8 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L207" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L207" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L214" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L214" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -478,19 +482,19 @@ window.addEventListener("DOMContentLoaded", main2);
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L129" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L129" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L136" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L136" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
 <div id="new,typedesc[IdentifyPush],IdentifyPushHandler" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#new%2Ctypedesc%5BIdentifyPush%5D%2CIdentifyPushHandler"><span class="Identifier">new</span></a><span class="Other">(</span><span class="Identifier">T</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">handler</span><span class="Other">:</span> <a href="#IdentifyPushHandler"><span class="Identifier">IdentifyPushHandler</span></a> <span class="Other">=</span> <span class="Keyword">nil</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">T:type</span> {.
-    <span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Create a IdentifyPush protocol. <tt class="docutils literal"><span class="pre"><span class="Identifier">handler</span></span></tt> will be called every time a peer sends us new <tt class="docutils literal"><span class="pre"><span class="Identifier">PeerInfo</span></span></tt>
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L200" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L200" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L207" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L207" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -499,13 +503,27 @@ Create a IdentifyPush protocol. <tt class="docutils literal"><span class="pre"><
 <div id="push-procs-all">
   <div id="push,IdentifyPush,PeerInfo,Connection" class="tohide">
 <dt><pre><span class="Keyword">proc</span> <a href="#push%2CIdentifyPush%2CPeerInfo%2CConnection"><span class="Identifier">push</span></a><span class="Other">(</span><span class="Identifier">p</span><span class="Other">:</span> <a href="#IdentifyPush"><span class="Identifier">IdentifyPush</span></a><span class="Other">;</span> <span class="Identifier">peerInfo</span><span class="Other">:</span> <a href="../peerinfo.html#PeerInfo"><span class="Identifier">PeerInfo</span></a><span class="Other">;</span> <span class="Identifier">conn</span><span class="Other">:</span> <a href="../stream/connection.html#Connection"><span class="Identifier">Connection</span></a><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">InternalRaisesFuture</span><span class="Other">[</span>
-    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span class="Identifier">public</span><span class="Other">,</span> <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span>
-    <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+    <span class="Identifier">void</span><span class="Other">,</span> <span class="Other">(</span><span class="Identifier">CancelledError</span><span class="Other">,</span> <a href="../stream/lpstream.html#LPStreamError"><span class="Identifier">LPStreamError</span></a><span class="Other">)</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">stackTrace</span><span class="Other">:</span> <span class="DecNumber">false</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">gcsafe</span><span class="Other">,</span> <span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Send new <tt class="docutils literal"><span class="pre"><span class="Identifier">peerInfo</span></span></tt>s to a connection
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L240" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L240" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L247" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L247" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+
+</dd>
+</div>
+
+</div>
+<div id="shortLog-procs-all">
+  <div id="shortLog,seq[MultiAddress]" class="tohide">
+<dt><pre><span class="Keyword">func</span> <a href="#shortLog%2Cseq%5BMultiAddress%5D"><span class="Identifier">shortLog</span></a><span class="Other">(</span><span class="Identifier">addrs</span><span class="Other">:</span> <span class="Identifier">seq</span><span class="Other">[</span><a href="../multiaddress.html#MultiAddress"><span class="Identifier">MultiAddress</span></a><span class="Other">]</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">string</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span><span class="Other">,</span>
+    <span class="Identifier">tags</span><span class="Other">:</span> <span class="Other">[</span><span class="Identifier">RootEffect</span><span class="Other">]</span><span class="Other">,</span> <span class="Identifier">forbids</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<dd>
+
+
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L63" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L63" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -523,8 +541,8 @@ Send new <tt class="docutils literal"><span class="pre"><span class="Identifier"
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L143" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L143" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L150" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L150" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -543,8 +561,8 @@ Send new <tt class="docutils literal"><span class="pre"><span class="Identifier"
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L63" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L63" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/libp2p/protocols/identify.nim#L70" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/libp2p/protocols/identify.nim#L70" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -554,8 +572,8 @@ Send new <tt class="docutils literal"><span class="pre"><span class="Identifier"
 <dd>
 
 
-<a href="https://github.com/vacp2p/nim-libp2p/tree/master/../../../.nimble/pkgs2/chronicles-0.12.2-02febb20d088120b2836d3306cfa21f434f88f65/chronicles/formats.nim#L77" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
-<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/../../../.nimble/pkgs2/chronicles-0.12.2-02febb20d088120b2836d3306cfa21f434f88f65/chronicles/formats.nim#L77" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/tree/master/nimbledeps/pkgs2/chronicles-0.12.3-3dab9aabf9c8bd53cfc4b6ecd956b90e5988defd/chronicles/formats.nim#L77" class="link-seesrc" target="_blank">Source</a>&nbsp;&nbsp;
+<a href="https://github.com/vacp2p/nim-libp2p/edit/devel/nimbledeps/pkgs2/chronicles-0.12.3-3dab9aabf9c8bd53cfc4b6ecd956b90e5988defd/chronicles/formats.nim#L77" class="link-seesrc" target="_blank" >Edit</a>&nbsp;&nbsp;
 
 </dd>
 </div>
@@ -577,7 +595,7 @@ Send new <tt class="docutils literal"><span class="pre"><span class="Identifier"
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-04-28 16:07:47 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-05-03 18:32:40 UTC</small>
       </div>
     </div>
   </div>
