@@ -147,9 +147,15 @@ proc addMuxer*(builder: SwitchBuilder, muxer: string) =
   ## and literal `"null"` as no-ops.
   case muxer
   of "yamux":
-    discard builder.withYamux()
+    when YamuxEnabled:
+      discard builder.withYamux()
+    else:
+      raise newException(CatchableError, "yamux is not enabled at compile time")
   of "mplex":
-    discard builder.withMplex()
+    when MplexEnabled:
+      discard builder.withMplex()
+    else:
+      raise newException(CatchableError, "mplex is not enabled at compile time")
   of "", "null":
     discard
   else:
