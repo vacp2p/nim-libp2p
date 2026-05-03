@@ -88,6 +88,7 @@ proc partialMessageInteropTest*(
 
   var gossipsub = GossipSub.init(
     switch = switch,
+    rng = rng(),
     parameters = (
       var param = GossipSubParams.init()
       param.partialMessageExtensionConfig = Opt.some(

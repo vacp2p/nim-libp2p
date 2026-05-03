@@ -74,7 +74,8 @@ suite "GossipSub Extensions :: Preamble Extension":
   let msgId2: MessageId = @[4'u8, 5, 6]
 
   test "isSupported":
-    let ext = PreambleExtension.new()
+    var cr = CallbackRecorder()
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     check:
       ext.isSupported(PeerExtensions()) == false
       ext.isSupported(PeerExtensions(preambleExtension: true)) == true
@@ -82,12 +83,12 @@ suite "GossipSub Extensions :: Preamble Extension":
   test "config validation - maxPreamblePeerBudget must be positive":
     var cr = CallbackRecorder()
     expect AssertionDefect:
-      discard PreambleExtension.new(cr.makeConfig(maxPreamblePeerBudget = 0))
+      discard PreambleExtension.new(cr.makeConfig(maxPreamblePeerBudget = 0), rng())
 
   test "config validation - maxHeIsReceiving must be positive":
     var cr = CallbackRecorder()
     expect AssertionDefect:
-      discard PreambleExtension.new(cr.makeConfig(maxHeIsReceiving = 0))
+      discard PreambleExtension.new(cr.makeConfig(maxHeIsReceiving = 0), rng())
 
   test "config validation - callbacks must be set":
     var cr = CallbackRecorder()
@@ -95,21 +96,21 @@ suite "GossipSub Extensions :: Preamble Extension":
     expect AssertionDefect:
       var cfg = cr.makeConfig()
       cfg.broadcastRPC = nil
-      discard PreambleExtension.new(cfg)
+      discard PreambleExtension.new(cfg, rng())
 
     expect AssertionDefect:
       var cfg = cr.makeConfig()
       cfg.hasSeen = nil
-      discard PreambleExtension.new(cfg)
+      discard PreambleExtension.new(cfg, rng())
 
     expect AssertionDefect:
       var cfg = cr.makeConfig()
       cfg.meshAndDirectPeersForTopic = nil
-      discard PreambleExtension.new(cfg)
+      discard PreambleExtension.new(cfg, rng())
 
   test "onNegotiated adds peer to supportingPeers":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
 
     # before negotiation: imreceiving broadcast filtered out (peer not in supportingPeers)
     ext.receivePreamble(peerId, @[makePreamble()])
@@ -123,7 +124,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "onRemovePeer removes peer from supportingPeers":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     let preambleMsg = RPCMsg.withPreamble(@[makePreamble()])
@@ -140,7 +141,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handlePreamble: budget limits preambles per peer per heartbeat":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig(maxPreamblePeerBudget = 2))
+    let ext = PreambleExtension.new(cr.makeConfig(maxPreamblePeerBudget = 2), rng())
     ext.onNegotiated(peerId)
 
     ext.receivePreamble(peerId, @[makePreamble(@[1'u8])])
@@ -153,7 +154,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handlePreamble: heartbeat resets per-peer budget":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig(maxPreamblePeerBudget = 1))
+    let ext = PreambleExtension.new(cr.makeConfig(maxPreamblePeerBudget = 1), rng())
     ext.onNegotiated(peerId)
 
     ext.receivePreamble(peerId, @[makePreamble(@[1'u8])])
@@ -171,7 +172,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handlePreamble: skips already seen messages":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     cr.seenMessages = @[msgId1]
@@ -182,7 +183,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handlePreamble: skips if message already in ongoingReceives":
     var cr = CallbackRecorder(meshPeers: @[peerId, peerId2])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
     ext.onNegotiated(peerId2)
 
@@ -198,7 +199,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handlePreamble: non-mesh peer goes to ongoingIWantReceives without broadcast":
     var cr = CallbackRecorder() # meshPeers is empty
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId) # peer is not in the mesh
 
     ext.receivePreamble(peerId, @[makePreamble(msgId1)])
@@ -210,7 +211,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handlePreamble: mesh peer adds to ongoingReceives and broadcasts imreceiving":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     let preamble = makePreamble(msgId1)
@@ -222,7 +223,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handleIMReceiving: records peer as receiving a message":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
     ext.onNegotiated(peerId2)
 
@@ -245,7 +246,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handleIMReceiving: ignores mismatched message length":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
     ext.onNegotiated(peerId2)
 
@@ -270,7 +271,7 @@ suite "GossipSub Extensions :: Preamble Extension":
   test "handleIMReceiving: stops accepting after maxHeIsReceiving limit":
     var cr = CallbackRecorder(meshPeers: @[peerId])
     # limit of 1 means entries stop being accepted once len exceeds 1
-    let ext = PreambleExtension.new(cr.makeConfig(maxHeIsReceiving = 1))
+    let ext = PreambleExtension.new(cr.makeConfig(maxHeIsReceiving = 1), rng())
     ext.onNegotiated(peerId)
 
     # sending multiple imreceivings in one batch; limit is enforced per-iteration
@@ -287,7 +288,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handleIHave: returns true when message is in ongoingReceives":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     ext.receivePreamble(peerId, @[makePreamble(msgId1)])
@@ -298,7 +299,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handleIHave: returns true when message is in ongoingIWantReceives":
     var cr = CallbackRecorder() # meshPeers empty
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     ext.receivePreamble(peerId, @[makePreamble(msgId1)])
@@ -308,7 +309,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "handleIDontWant: removes message from heIsReceivings":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
     ext.onNegotiated(peerId2)
 
@@ -335,7 +336,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "preambleMsgReceived: removes message from ongoingReceives":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     ext.receivePreamble(peerId, @[makePreamble(msgId1)])
@@ -346,7 +347,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "preambleMsgReceived: removes message from ongoingIWantReceives":
     var cr = CallbackRecorder() # meshPeers empty → non-mesh
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     let nonMeshPeer = PeerId.random(rng).get()
     ext.onNegotiated(nonMeshPeer)
 
@@ -358,7 +359,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "preambleMsgReceived: skips messages below size threshold":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     # small message: preambleMsgReceived is a no-op (returns early)
@@ -367,7 +368,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "preambleBroadcast: sends only to supporting peers":
     var cr = CallbackRecorder()
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     let preambleMsg = RPCMsg.withPreamble(@[makePreamble(msgId1)])
@@ -378,7 +379,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "preambleBroadcast: skips messages below size threshold":
     var cr = CallbackRecorder()
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     let msg =
@@ -388,7 +389,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "preambleBroadcast: skips empty preamble list":
     var cr = CallbackRecorder()
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
 
     let emptyPreambleMsg = RPCMsg.withPreamble(@[]) # no preambles
@@ -397,7 +398,7 @@ suite "GossipSub Extensions :: Preamble Extension":
 
   test "preambleBroadcastIfNotReceiving: sends only to peers who reported imreceiving":
     var cr = CallbackRecorder(meshPeers: @[peerId])
-    let ext = PreambleExtension.new(cr.makeConfig())
+    let ext = PreambleExtension.new(cr.makeConfig(), rng())
     ext.onNegotiated(peerId)
     ext.onNegotiated(peerId2)
 

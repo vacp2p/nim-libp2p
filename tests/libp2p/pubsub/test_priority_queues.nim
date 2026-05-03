@@ -7,7 +7,7 @@ import chronos
 import ../../../libp2p/protocols/pubsub/pubsubpeer
 import ../../../libp2p/protocols/pubsub/gossipsub/types
 import ../../../libp2p/peerid
-import ../../tools/unittest
+import ../../tools/[unittest, crypto]
 
 proc dummyGetConn(): Future[Connection] {.
     async: (raises: [CancelledError, GetConnDialError])
@@ -113,7 +113,7 @@ proc createTestPeer(
     maxHigh: int = 2, maxMedium: int = 2, maxLow: int = 2, onEvent: OnEvent = nil
 ): PubSubPeer =
   PubSubPeer.new(
-    PeerId.random().expect("random peer id"),
+    PeerId.random(rng()).expect("random peer id"),
     dummyGetConn,
     onEvent,
     GossipSubCodec_12,

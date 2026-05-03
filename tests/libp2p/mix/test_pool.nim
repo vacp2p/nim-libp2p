@@ -7,6 +7,7 @@ import results, sequtils
 import ../../../libp2p/[crypto/crypto, crypto/secp, multiaddress, peerid, peerstore]
 import ../../../libp2p/protocols/mix/[mix_node, pool]
 import ../../tools/unittest
+import ../../tools/crypto
 import ./utils
 
 suite "MixNodePool Tests":
@@ -18,7 +19,7 @@ suite "MixNodePool Tests":
   setup:
     peerStore = PeerStore.new()
     pool = MixNodePool.new(peerStore)
-    mixNodes = MixNodeInfo.generateRandomMany(5)
+    mixNodes = MixNodeInfo.generateRandomMany(5, rng())
 
   test "new creates empty pool":
     check pool.len == 0
@@ -72,11 +73,11 @@ suite "MixNodePool Tests":
       pool.get(pubInfo.peerId).isNone
 
   test "remove returns false for non-existent peer":
-    let peerId = PeerId.random().expect("could not generate peerId")
+    let peerId = PeerId.random(rng()).expect("could not generate peerId")
     check pool.remove(peerId) == false
 
   test "get returns none for non-existent peer":
-    let peerId = PeerId.random().expect("could not generate peerId")
+    let peerId = PeerId.random(rng()).expect("could not generate peerId")
     check pool.get(peerId).isNone
 
   test "get returns none when address is missing":
@@ -99,7 +100,7 @@ suite "MixNodePool Tests":
 
   test "get filters for supported addresses (IPv4 with TCP or QUIC-v1)":
     let pubInfo = mixNodes[0].toMixPubInfo()
-    let relayPeerId = PeerId.random().expect("could not generate relay peerId")
+    let relayPeerId = PeerId.random(rng()).expect("could not generate relay peerId")
     let ipv6Addr =
       MultiAddress.init("/ip6/::1/tcp/4242").expect("could not create multiaddr")
     let udpAddr =

@@ -7,6 +7,7 @@ import std/tables
 import results, chronos
 import ../../libp2p/[muxer_store, muxers/muxer, stream/connection, peerinfo]
 import ../tools/unittest
+import ../tools/crypto
 
 template makeMuxer(name: untyped, pid: PeerId, dir: Direction = Direction.In) =
   let name = Muxer(connection: Connection.new(pid, dir))
@@ -17,8 +18,8 @@ suite "MuxerStore":
   teardown:
     checkTrackers()
 
-  let pidA = PeerId.random.tryGet()
-  let pidB = PeerId.random.tryGet()
+  let pidA = PeerId.random(rng()).tryGet()
+  let pidB = PeerId.random(rng()).tryGet()
   let pid = pidA
 
   test "new creates an empty store":

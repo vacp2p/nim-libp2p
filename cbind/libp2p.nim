@@ -176,7 +176,7 @@ proc libp2p_mix_generate_priv_key(
 
   doAssert(not outKey.isNil(), "outKey is nil")
 
-  var rng = newRng()
+  let rng = newRng()
   let priv = Curve25519Key.random(rng[])
 
   for i in 0 ..< Curve25519KeySize:

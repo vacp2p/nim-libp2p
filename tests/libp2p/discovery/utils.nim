@@ -28,7 +28,7 @@ proc createSwitch*(): Switch =
 proc createSwitch*(rdv: RendezVous): Switch =
   var lrdv = rdv
   if rdv.isNil():
-    lrdv = RendezVous.new()
+    lrdv = RendezVous.new(rng)
 
   SwitchBuilder
     .new()
@@ -46,7 +46,7 @@ proc setupNodes*(count: int): seq[RendezVous] =
   var rdvs: seq[RendezVous] = @[]
 
   for x in 0 ..< count:
-    var rdv: RendezVous = RendezVous.new()
+    var rdv: RendezVous = RendezVous.new(rng)
     discard createSwitch(rdv)
     rdvs.add(rdv)
 

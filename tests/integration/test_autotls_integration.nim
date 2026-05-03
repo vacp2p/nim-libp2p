@@ -53,7 +53,7 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
 
     asyncTest "request challenge with ACMEClient":
       let acme = ACMEClient.new(
-        api = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
+        rng = rng(), api = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       )
       defer:
         await acme.close()

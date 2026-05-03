@@ -8,7 +8,7 @@ when defined(libp2p_autotls_support):
 
   import chronos, uri
   import ../../../libp2p/[autotls/service, autotls/acme/api, autotls/acme/client, wire]
-  import ../../tools/[unittest]
+  import ../../tools/[unittest, crypto]
 
   suite "AutoTLS Configuration Tests":
     asyncTeardown:
@@ -64,7 +64,7 @@ when defined(libp2p_autotls_support):
     asyncTest "AutotlsService uses custom broker URL in registration":
       let customBrokerURL = "test-broker.example.com"
       let config = AutotlsConfig.new(brokerURL = customBrokerURL)
-      let service = AutotlsService.new(config = config)
+      let service = AutotlsService.new(rng(), config = config)
 
       # Verify the config was stored correctly
       check service.config.brokerURL == customBrokerURL

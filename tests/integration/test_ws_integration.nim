@@ -59,7 +59,7 @@ suite "WebSocket transport integration":
       .build()
 
     # Mount ping so protocol negotiation works
-    let pingProto = Ping.new()
+    let pingProto = Ping.new(rng = rng())
     switch2.mount(pingProto)
 
     await switch1.start()

@@ -170,7 +170,9 @@ proc mountGossipsub(libp2p: var LibP2P, config: Libp2pConfig) =
   var gossipSub = Opt.none(GossipSub)
   if config.mountGossipsub != 0:
     let gs = GossipSub.init(
-      switch = libp2p.switch, triggerSelf = config.gossipsubTriggerSelf != 0
+      switch = libp2p.switch,
+      triggerSelf = config.gossipsubTriggerSelf != 0,
+      rng = libp2p.rng,
     )
     libp2p.switch.mount(gs)
     gossipSub = Opt.some(gs)
@@ -186,13 +188,18 @@ proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
         libp2p.switch,
         bootstrapNodes = bootstrapNodes,
         config = kadCfg,
+        rng = libp2p.rng,
         codec = ExtendedServiceDiscoveryCodec,
       )
       libp2p.switch.mount(k)
       kad = Opt.some(KadDHT(k))
     else:
-      let k =
-        KadDHT.new(libp2p.switch, bootstrapNodes = bootstrapNodes, config = kadCfg)
+      let k = KadDHT.new(
+        libp2p.switch,
+        bootstrapNodes = bootstrapNodes,
+        config = kadCfg,
+        rng = libp2p.rng,
+      )
       libp2p.switch.mount(k)
       kad = Opt.some(k)
   libp2p.kad = kad
@@ -211,7 +218,7 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   if config.mountKad != 0 or config.mountServiceDiscovery != 0:
     libp2p.mountKad(config)
 
-  libp2p.switch.mount(Ping.new())
+  libp2p.switch.mount(Ping.new(rng = libp2p.rng))
 
   libp2p.mountMix(config)
 
@@ -224,6 +231,8 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     else:
       @[initTAddress($config.dnsResolver)]
   let dnsResolver = Opt.some(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
+
+  let rng = newRng()
 
   var privKey = Opt.none(PrivateKey)
   if config.privKey.data != nil and config.privKey.dataLen > 0:
@@ -262,6 +271,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     connectionLimits = connectionLimits,
     maxConnsPerPeer = config.maxConnsPerPeer,
     nameResolver = dnsResolver,
+    rng = rng,
   )
 
   var relayClientOpt = Opt.none(RelayClient)
@@ -286,6 +296,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
 
   var ret = LibP2P(
     switch: switch,
+    rng: rng,
     gossipSub: Opt.none(GossipSub),
     kad: Opt.none(KadDHT),
     mix: Opt.none(MixProtocol),

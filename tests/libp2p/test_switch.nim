@@ -56,10 +56,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
+    let switch2 = newStandardSwitch(rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -103,10 +103,12 @@ suite "Switch":
     proc match(proto: string): bool {.gcsafe.} =
       return proto == callProto
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     switch1.mount(testProto, match)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -145,10 +147,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
+    let switch2 = newStandardSwitch(rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -185,10 +187,12 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -210,10 +214,12 @@ suite "Switch":
 
   asyncTest "e2e connect to peer with unknown PeerId":
     let resolver = MockResolver.new()
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     let switch2 = newStandardSwitch(
       secureManagers = [SecureProtocol.Noise],
       nameResolver = Opt.some(NameResolver(resolver)),
+      rng = rng(),
     )
     await switch1.start()
     await switch2.start()
@@ -237,8 +243,10 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e connect to peer with known PeerId":
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -252,7 +260,7 @@ suite "Switch":
     # with invalid PeerId, will fail
     let fakeMa = concat(
         switch1.peerInfo.addrs[0],
-        MultiAddress.init(multiCodec("p2p"), PeerId.random.tryGet().data).tryGet(),
+        MultiAddress.init(multiCodec("p2p"), PeerId.random(rng()).tryGet().data).tryGet(),
       )
       .tryGet()
     expect(DialFailedError):
@@ -267,8 +275,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should not leak on peer disconnect":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
+    let switch2 = newStandardSwitch(rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -305,8 +313,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger connection events (remote)":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
+    let switch2 = newStandardSwitch(rng = rng())
 
     var step = 0
     var kinds: set[ConnEventKind]
@@ -353,8 +361,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger connection events (local)":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
+    let switch2 = newStandardSwitch(rng = rng())
 
     var step = 0
     var kinds: set[ConnEventKind]
@@ -401,8 +409,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events (remote)":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
+    let switch2 = newStandardSwitch(rng = rng())
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -450,8 +458,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events (local)":
-    let switch1 = newStandardSwitch()
-    let switch2 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
+    let switch2 = newStandardSwitch(rng = rng())
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -499,7 +507,7 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events only once per peer":
-    let switch1 = newStandardSwitch(maxConnsPerPeer = 2)
+    let switch1 = newStandardSwitch(maxConnsPerPeer = 2, rng = rng())
 
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
@@ -650,7 +658,7 @@ suite "Switch":
       await conn.closeWithEOF()
 
     let handlerWait = acceptHandler()
-    let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch = newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
 
     await switch.start()
 
@@ -677,10 +685,12 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch1 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
 
     await switch1.start()
 
@@ -706,7 +716,8 @@ suite "Switch":
     await switch1.stop()
 
   asyncTest "connect to inexistent peer":
-    let switch2 = newStandardSwitch(secureManagers = [SecureProtocol.Noise])
+    let switch2 =
+      newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
     let seckey = PrivateKey.random(ECDSA, rng[]).get()
@@ -717,14 +728,15 @@ suite "Switch":
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
-    let destSwitch =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)))
+    let destSwitch = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)), rng = rng()
+    )
     switches.add(destSwitch)
     await destSwitch.start()
 
     let destPeerInfo = destSwitch.peerInfo
     for i in 0 ..< 3:
-      let switch = newStandardSwitch()
+      let switch = newStandardSwitch(rng = rng())
       switches.add(switch)
       await switch.start()
 
@@ -732,7 +744,7 @@ suite "Switch":
         1000.millis
       )
 
-    let switchFail = newStandardSwitch()
+    let switchFail = newStandardSwitch(rng = rng())
     switches.add(switchFail)
     await switchFail.start()
 
@@ -747,14 +759,15 @@ suite "Switch":
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
     for i in 0 ..< 3:
-      switches.add(newStandardSwitch())
+      switches.add(newStandardSwitch(rng = rng()))
       await switches[i].start()
 
-    let srcSwitch =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)))
+    let srcSwitch = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)), rng = rng()
+    )
     await srcSwitch.start()
 
-    let dstSwitch = newStandardSwitch()
+    let dstSwitch = newStandardSwitch(rng = rng())
     await dstSwitch.start()
 
     for s in switches:
@@ -772,14 +785,15 @@ suite "Switch":
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
-    let destSwitch =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(3, 1)))
+    let destSwitch = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxInOut(3, 1)), rng = rng()
+    )
     switches.add(destSwitch)
     await destSwitch.start()
 
     let destPeerInfo = destSwitch.peerInfo
     for i in 0 ..< 3:
-      let switch = newStandardSwitch()
+      let switch = newStandardSwitch(rng = rng())
       switches.add(switch)
       await switch.start()
 
@@ -787,7 +801,7 @@ suite "Switch":
         1000.millis
       )
 
-    let switchFail = newStandardSwitch()
+    let switchFail = newStandardSwitch(rng = rng())
     switches.add(switchFail)
     await switchFail.start()
 
@@ -802,14 +816,15 @@ suite "Switch":
   asyncTest "e2e max outgoing connection limits":
     var switches: seq[Switch]
     for i in 0 ..< 3:
-      switches.add(newStandardSwitch())
+      switches.add(newStandardSwitch(rng = rng()))
       await switches[i].start()
 
-    let srcSwitch =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(1, 3)))
+    let srcSwitch = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxInOut(1, 3)), rng = rng()
+    )
     await srcSwitch.start()
 
-    let dstSwitch = newStandardSwitch()
+    let dstSwitch = newStandardSwitch(rng = rng())
     await dstSwitch.start()
 
     for s in switches:
@@ -842,10 +857,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch(peerStoreCapacity = 0)
+    let switch2 = newStandardSwitch(peerStoreCapacity = 0, rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -893,10 +908,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitch()
+    let switch1 = newStandardSwitch(rng = rng())
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitch()
+    let switch2 = newStandardSwitch(rng = rng())
     await switch1.start()
     await switch2.start()
 
@@ -953,14 +968,17 @@ suite "Switch":
       ]
 
       let switch1 = newStandardSwitch(
-        addrs = addrs, transportFlags = {ServerFlags.ReuseAddr, ServerFlags.ReusePort}
+        addrs = addrs,
+        transportFlags = {ServerFlags.ReuseAddr, ServerFlags.ReusePort},
+        rng = rng(),
       )
 
       switch1.mount(testProto)
 
-      let switch2 = newStandardSwitch()
-      let switch3 =
-        newStandardSwitch(addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
+      let switch2 = newStandardSwitch(rng = rng())
+      let switch3 = newStandardSwitch(
+        addrs = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(), rng = rng()
+      )
 
       await allFuturesRaising(switch1.start(), switch2.start(), switch3.start())
 
@@ -1000,8 +1018,9 @@ suite "Switch":
     resolver.ipResponses[("localhost", true)] = @["::1"]
 
     let
-      srcSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)))
-      destSwitch = newStandardSwitch()
+      srcSwitch =
+        newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)), rng = rng())
+      destSwitch = newStandardSwitch(rng = rng())
 
     await destSwitch.start()
     await srcSwitch.start()
@@ -1023,7 +1042,8 @@ suite "Switch":
       wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
-      srcTcpSwitch = newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)))
+      srcTcpSwitch =
+        newStandardSwitch(nameResolver = Opt.some(NameResolver(resolver)), rng = rng())
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
@@ -1122,8 +1142,9 @@ suite "Switch":
         .withNoise()
         .build()
 
-      srcTcpSwitch =
-        newStandardSwitch(addrs = tcpAddress, transport = TransportType.TCP)
+      srcTcpSwitch = newStandardSwitch(
+        addrs = tcpAddress, transport = TransportType.TCP, rng = rng()
+      )
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
@@ -1135,8 +1156,9 @@ suite "Switch":
         )
         .withNoise()
         .build()
-      srcQuicSwitch =
-        newStandardSwitch(addrs = quicAddress, transport = TransportType.QUIC)
+      srcQuicSwitch = newStandardSwitch(
+        addrs = quicAddress, transport = TransportType.QUIC, rng = rng()
+      )
 
     let switches = @[destSwitch, srcTcpSwitch, srcWsSwitch, srcQuicSwitch]
     await allFutures(switches.mapIt(it.start()))
@@ -1177,8 +1199,8 @@ suite "Switch":
         handleFinished.done()
 
     let
-      src = newStandardSwitch()
-      dst = newStandardSwitch()
+      src = newStandardSwitch(rng = rng())
+      dst = newStandardSwitch(rng = rng())
       testProto = new TestProto
     testProto.codec = TestCodec
     testProto.handler = handle
@@ -1204,7 +1226,8 @@ suite "Switch":
       addrs = @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
         MultiAddress.init("/ip4/1.1.1.1/tcp/0").tryGet(),
-      ]
+      ],
+      rng = rng(),
     )
 
     expect LPError:
@@ -1212,8 +1235,9 @@ suite "Switch":
     # test is that this doesn't leak
 
   asyncTest "starting two times does not crash":
-    let switch =
-      newStandardSwitch(addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+    let switch = newStandardSwitch(
+      addrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], rng = rng()
+    )
 
     await switch.start()
     await switch.start()

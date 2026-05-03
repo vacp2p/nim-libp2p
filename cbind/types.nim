@@ -26,6 +26,7 @@ type TopicHandlerEntry* = tuple[handler: TopicHandler, userData: pointer]
 
 type LibP2P* = ref object
   switch*: Switch
+  rng*: ref HmacDrbgContext
   gossipSub*: Opt[GossipSub]
   kad*: Opt[KadDHT]
   mix*: Opt[MixProtocol]
