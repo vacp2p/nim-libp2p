@@ -11,6 +11,10 @@
         <link rel="canonical" href="https://vacp2p.github.io/nim-libp2p/docs/tutorial_5_connmanager/">
       
       
+        <link rel="prev" href="../tutorial_4_gossipsub/">
+      
+      
+        <link rel="next" href="../tutorial_6_peerscoring/">
       
       
         
@@ -21,7 +25,7 @@
     
     
       
-        <title>Tutorial 5 connmanager - nim-libp2p</title>
+        <title>Connection Manager - nim-libp2p</title>
       
     
     
@@ -107,7 +111,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Tutorial 5 connmanager
+              Connection Manager
             
           </span>
         </div>
@@ -249,18 +253,20 @@
       
   
   
+    
   
   
+  
     
     
     
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
         
           
           <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
@@ -281,7 +287,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_1">
             <span class="md-nav__icon md-icon"></span>
             
@@ -419,6 +425,197 @@
     
   
     GossipSub
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection Manager
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connection Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-build-default-shared-limit-at-50" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. .build() — default shared limit at 50
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-withmaxconnections100-raise-the-shared-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. .withMaxConnections(100) — raise the shared cap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-withmaxinout30-20-independent-per-direction-caps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. .withMaxInOut(30, 20) — independent per-direction caps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-withwatermarkpolicy10-20-soft-trimming-no-hard-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. .withWatermarkPolicy(10, 20) — soft trimming, no hard cap
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-withwatermarkpolicy10-20-graceperiod-30seconds-silenceperiod-5seconds-custom-timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. .withWatermarkPolicy(10, 20, gracePeriod = 30.seconds, silencePeriod = 5.seconds) — custom timing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-withwatermarkpolicy10-20withmaxconnections30-hard-cap-trimming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. .withWatermarkPolicy(10, 20).withMaxConnections(30) — hard cap + trimming
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-withwatermarkpolicy10-20withmaxinout30-20-per-direction-caps-trimming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. .withWatermarkPolicy(10, 20).withMaxInOut(30, 20) — per-direction caps + trimming
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorial_6_peerscoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Peer Scoring, Protection, and Trimming
   
 
     
