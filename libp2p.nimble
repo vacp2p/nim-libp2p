@@ -123,5 +123,9 @@ task install_pinned, "Reads the lockfile":
 task unpin, "Restore global package use":
   rmDir("nimbledeps")
 
+task gen_multicodec,
+  "Download the multicodec CSV and regenerate libp2p/multicodec_table.nim":
+  exec nimc & " c -r tools/gen_multicodec.nim"
+
 task format, "Format nim code using nph":
   exec "nph ./. *.nim"
