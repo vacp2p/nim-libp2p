@@ -4,6 +4,7 @@
 import std/[times, sequtils]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
+import ../../utils/heartbeat
 import ../protocol
 import ./[protobuf, types, find, kademlia_metrics]
 
@@ -18,6 +19,33 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
     kad.config.selector.select(key, @[record, existing]).withValue(selectedIdx):
       return selectedIdx == 0
   return true
+
+proc isDataEntryExpired*(record: EntryRecord, interval: chronos.Duration): bool =
+  ## Returns true when the record's stored timestamp is older than `interval`.
+  ## Records whose timestamp cannot be parsed are treated as expired.
+  try:
+    let stored = times.parse(record.time, "yyyy-MM-dd'T'HH:mm:ss'Z'", utc())
+    let storedUnix = stored.toTime().toUnix()
+    let nowUnix = times.now().utc.toTime().toUnix()
+    let maxAgeSec = interval.nanoseconds div 1_000_000_000
+    (nowUnix - storedUnix) > maxAgeSec
+  except TimeParseError:
+    warn "Failed to parse data entry timestamp, treating as expired",
+      time = record.time
+    true
+
+proc manageExpiredDataEntries*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
+  ## Periodically scans `dataTable` and evicts entries that are older than
+  ## `config.dataEntryExpirationInterval`. Runs indefinitely as a heartbeat
+  ## loop until cancelled (e.g. via `cancelSoon` or `cancelAndWait`).
+  heartbeat "cleanup expired data entries", kad.config.cleanupDataEntriesInterval:
+    var toRemove: seq[Key]
+    for key, record in kad.dataTable:
+      if record.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
+        toRemove.add(key)
+    for key in toRemove:
+      kad.dataTable.del(key)
+      debug "Expired data entry removed", key = key
 
 proc dispatchPutVal*(
     switch: Switch, peer: PeerId, key: Key, value: seq[byte], codec: string

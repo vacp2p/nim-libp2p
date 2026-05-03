@@ -79,9 +79,13 @@ proc getValue*(
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let received = ReceivedTable()
 
-  # if locally present
-  if kad.dataTable.hasKey(key):
-    received[kad.switch.peerInfo.peerId] = kad.dataTable.get(key)
+  # if locally present and not expired, include our own copy
+  kad.dataTable.get(key).withValue(localRecord):
+    if not localRecord.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
+      received[kad.switch.peerInfo.peerId] = Opt.some(localRecord)
+    else:
+      kad.dataTable.del(key)
+      debug "Local data entry expired on read", key = key
 
   let quorum = quorumOverride.valueOr:
     kad.config.quorum
@@ -151,6 +155,13 @@ method handleGetValue*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key
+
+  # Evict the entry eagerly if it has expired so the `valueOr` below treats it
+  # as absent and sends the standard "no record found" response.
+  kad.dataTable.get(key).withValue(record):
+    if record.isDataEntryExpired(kad.config.dataEntryExpirationInterval):
+      debug "Data entry expired, dropping", key = key
+      kad.dataTable.del(key)
 
   let entryRecord = kad.dataTable.get(key).valueOr:
     let response = Message(

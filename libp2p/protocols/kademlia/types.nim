@@ -26,6 +26,9 @@ const
   DefaultRepublishInterval* = 10.minutes # same as bootstrap
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
+  DefaultDataEntryExpirationInterval* = 24.hours
+    # KV entries older than this are considered stale and will be evicted
+  DefaultCleanupDataEntriesInterval* = 1.hours # how often to scan for stale KV entries
 
   MaxMsgSize* = 4096
 
@@ -305,6 +308,8 @@ type KadDHTConfig* = ref object
   republishProvidedKeysInterval*: chronos.Duration
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
+  dataEntryExpirationInterval*: chronos.Duration
+  cleanupDataEntriesInterval*: chronos.Duration
   addressPolicy*: PeerAddressPolicy
   hideConnectionStatus*: bool
   disableBootstrapping*: bool
@@ -324,6 +329,8 @@ proc new*(
     republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
+    dataEntryExpirationInterval: chronos.Duration = DefaultDataEntryExpirationInterval,
+    cleanupDataEntriesInterval: chronos.Duration = DefaultCleanupDataEntriesInterval,
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
@@ -342,6 +349,8 @@ proc new*(
     republishProvidedKeysInterval: republishProvidedKeysInterval,
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
+    dataEntryExpirationInterval: dataEntryExpirationInterval,
+    cleanupDataEntriesInterval: cleanupDataEntriesInterval,
     addressPolicy: addressPolicy,
     hideConnectionStatus: hideConnectionStatus,
     disableBootstrapping: disableBootstrapping,
@@ -354,6 +363,7 @@ type KadDHT* = ref object of LPProtocol
   maintenanceLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
+  dataEntryExpirationLoop*: Future[void]
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig
