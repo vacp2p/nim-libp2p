@@ -98,10 +98,7 @@ method readOnce*(
   try:
     readLen = await stream.stream.readOnce(cast[ptr byte](pbytes), nbytes)
   except StreamError as e:
-    if e of ref StreamResetError:
-      raise newLPStreamResetError()
-
-    raise (ref LPStreamError)(msg: "error in readOnce: " & e.msg, parent: e)
+    raise newLPStreamResetError()
 
   if readLen == 0:
     stream.isEof = true
@@ -130,11 +127,8 @@ method write*(
         libp2p_peers_traffic_write.inc(
           bytes.len.int64, labelValues = [stream.shortAgent]
         )
-  except StreamError as e:
-    if e of ref StreamResetError:
-      raise newLPStreamResetError()
-
-    raise newLPStreamEOFError()
+  except StreamError:
+    raise newLPStreamResetError()
 
 method closeWrite*(stream: QuicStream) {.async: (raises: []).} =
   ## Close the write side of the QUIC stream
