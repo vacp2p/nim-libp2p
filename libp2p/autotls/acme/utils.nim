@@ -49,10 +49,6 @@ when defined(libp2p_autotls_support):
       raise newException(
         ACMEError, "Unexpected error occurred while getting body bytes", exc
       )
-    except Exception as exc: # this is required for nim 1.6
-      raise newException(
-        ACMEError, "Unexpected error occurred while getting body bytes", exc
-      )
 
   proc createCSR*(
       domain: string, certKeyPair: KeyPair

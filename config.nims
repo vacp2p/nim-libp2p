@@ -23,7 +23,7 @@ switch("hintAsError", "XCannotRaiseY:on")
   error
 --mm:
   refc
-  # reconsider when there's a version-2-2 branch worth testing with as we might switch to orc
+  # TODO: evaluate switching to orc on the version-2-2 branch
 
 # Avoid some rare stack corruption while using exceptions with a SEH-enabled
 # toolchain: https://github.com/status-im/nimbus-eth2/issues/3121

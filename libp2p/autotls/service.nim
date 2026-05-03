@@ -71,9 +71,6 @@ when defined(libp2p_autotls_support):
   const
     DefaultIssueRetries = 3
     DefaultIssueRetryTime = 1.seconds
-    # NoneIp is needed because nim 1.6.16 can't do proper generic inference
-    NoneIp = Opt.none(IpAddress)
-
   import
     ../crypto/rsa,
     ../utils/heartbeat,
@@ -97,7 +94,7 @@ when defined(libp2p_autotls_support):
 
   proc new*(
       T: typedesc[AutotlsConfig],
-      ipAddress: Opt[IpAddress] = NoneIp,
+      ipAddress: Opt[IpAddress] = Opt.none(IpAddress),
       nameServers: seq[TransportAddress] = DefaultDnsServers,
       acmeServerURL: Uri = parseUri(LetsEncryptURL),
       renewCheckTime: Duration = DefaultRenewCheckTime,

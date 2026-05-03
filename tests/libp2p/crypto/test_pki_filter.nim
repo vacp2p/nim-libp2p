@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
-when defined(nimHasUsed):
-  {.used.}
+{.used.}
 
 import nimcrypto/utils
 import ../../../libp2p/crypto/crypto
