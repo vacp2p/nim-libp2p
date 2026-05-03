@@ -50,7 +50,7 @@ method newStream*(
 
 when defined(libp2p_agents_metrics):
   method setShortAgent*(m: Muxer, shortAgent: string) {.base, gcsafe.} =
-    m.connection.shortAgent = shortAgent
+    m.connection.setShortAgent(shortAgent)
 
 method close*(m: Muxer) {.base, async: (raises: []).} =
   if m.connection != nil:
