@@ -7,7 +7,7 @@
 
 {.push raises: [].}
 
-import std/[tables, sequtils, sets, oids]
+import std/[options, tables, sequtils, sets]
 import bearssl/rand
 import chronos, chronicles, metrics
 
@@ -41,7 +41,8 @@ logScope:
 # and only if the channel has been secured (i.e. if a secure manager has been
 # previously provided)
 
-const ConcurrentUpgrades* = 4
+const ConcurrentUpgrades* = 32
+const UpgradeTimeout* = 30.seconds
 
 type
   Switch* = ref object of Dial
@@ -219,9 +220,13 @@ proc upgrader(
 proc upgradeMonitor(
     switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore
 ) {.async: (raises: []).} =
+  var semAcquired = false
   var upgradeSuccessful = false
+  let deadlineFut = sleepAsync(UpgradeTimeout)
   try:
-    await switch.upgrader(trans, conn).wait(30.seconds)
+    await upgrades.acquire().wait(deadlineFut)
+    semAcquired = true
+    await switch.upgrader(trans, conn).wait(deadlineFut)
     trace "Connection upgrade succeeded"
     upgradeSuccessful = true
   except CancelledError:
@@ -233,31 +238,36 @@ proc upgradeMonitor(
     trace "Connection upgrade failed", description = e.msg, conn
     libp2p_failed_upgrades_incoming.inc()
   finally:
+    await deadlineFut.cancelAndWait()
     if (not upgradeSuccessful) and (not isNil(conn)):
       await conn.close()
-    try:
-      upgrades.release()
-    except AsyncSemaphoreError:
-      raiseAssert "semaphore released without acquire"
+    if semAcquired:
+      try:
+        upgrades.release()
+      except AsyncSemaphoreError:
+        raiseAssert "semaphore released without acquire"
 
-proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
+proc accept(
+    s: Switch, transport: Transport, ready: Option[AsyncEvent] = none(AsyncEvent)
+) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
+  var readyOnce = ready
 
   while transport.running:
-    try:
-      await upgrades.acquire() # first wait for an upgrade slot to become available
-    except CancelledError:
-      return
-
     var conn: Connection
     try:
       debug "About to accept incoming connection"
-      # remember to always release the slot when
-      # the upgrade succeeds or fails, this is
-      # currently done by the `upgradeMonitor`
       let slot = await s.connManager.getIncomingSlot()
+      # Signal readiness after acquiring the slot but before awaiting
+      # transport.accept(). In chronos, fire() schedules the waiter
+      # callback without suspending here, so the loop continues
+      # synchronously into transport.accept() — on Windows this posts
+      # AcceptEx before switch.start() returns to the caller.
+      if readyOnce.isSome:
+        readyOnce.get().fire()
+        readyOnce = none(AsyncEvent)
       conn =
         try:
           await transport.accept()
@@ -274,10 +284,6 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
         # we can get one on the next try
         debug "Unable to get a connection"
         slot.release()
-        try:
-          upgrades.release()
-        except AsyncSemaphoreError:
-          raiseAssert "semaphore released without acquire"
         continue
 
       slot.trackConnection(conn)
@@ -290,19 +296,14 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
       debug "Accepted an incoming connection", conn
       asyncSpawn s.upgradeMonitor(transport, conn, upgrades)
     except CancelledError:
-      try:
-        upgrades.release()
-      except AsyncSemaphoreError:
-        raiseAssert "semaphore released without acquire"
+      if readyOnce.isSome:
+        readyOnce.get().fire()
+        readyOnce = none(AsyncEvent)
       return
     except CatchableError as exc:
       error "Exception in accept loop, exiting", description = exc.msg
       if not isNil(conn):
         await conn.close()
-      try:
-        upgrades.release()
-      except AsyncSemaphoreError:
-        raiseAssert "semaphore released without acquire"
       return
 
 proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
@@ -356,8 +357,10 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
       startFuts.add(fut)
       if t of TcpTransport:
         await fut
-        s.acceptFuts.add(s.accept(t))
+        let ready = newAsyncEvent()
+        s.acceptFuts.add(s.accept(t, some(ready)))
         s.peerInfo.listenAddrs &= t.addrs
+        await ready.wait()
 
   # some transports require some services to be running
   # in order to finish their startup process
