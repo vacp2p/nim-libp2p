@@ -460,6 +460,70 @@ suite "GossipSub Component - Message Handling":
 
     await bFinished.wait()
 
+  asyncTest "GossipSub should not relay message back to original source":
+    # Scenario: 3-node network A, B, C.
+    # A is the original publisher (msg.fromPeer = A).
+    # C has A in its mesh but receives the message first from B (not directly from A).
+    # Without the fix, C would relay the message back to A (since A is in C's mesh
+    # and B is the excluded peer, not A). With the fix, C excludes A (fromPeer) and
+    # does not relay back.
+    let nodes = generateNodes(3, gossip = true).toGossipSub()
+
+    startAndDeferStop(nodes)
+    await connectStar(nodes)
+
+    let cReceived = newWaitGroup(1)
+
+    proc onCReceived(topicName: string, data: seq[byte]) {.async.} =
+      cReceived.done()
+
+    nodes[0].subscribe(topic, voidTopicHandler) # A
+    nodes[1].subscribe(topic, voidTopicHandler) # B
+    nodes[2].subscribe(topic, onCReceived) # C
+    waitSubscribeStar(nodes, topic)
+
+    # Wait for mesh to form with all peers
+    checkUntilTimeout:
+      nodes[0].mesh.getOrDefault(topic).len == 2
+      nodes[1].mesh.getOrDefault(topic).len == 2
+      nodes[2].mesh.getOrDefault(topic).len == 2
+
+    let msgData = "Hello, relay test!".toBytes()
+    let relayedToA = newFuture[void]("relayedToA")
+
+    # Capture messages received by A at the network level (before deduplication).
+    # Even if A drops the message as a duplicate, this still detects that C sent
+    # something to A.
+    nodes[0].addOnRecvObserver(
+      proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
+        for message in msgs.messages:
+          if message.data == msgData and not relayedToA.finished:
+            relayedToA.complete()
+    )
+
+    # Remove C from A's mesh and gossipsub so A only sends to B when publishing.
+    # C still has A in its mesh – this is the bug scenario: when C receives from B,
+    # it would relay to A (original source) because peer=B is the only excluded peer.
+    # Removing C from A's gossipsub prevents the heartbeat from re-GRAFTing C into
+    # A's mesh between now and the assertion.
+    let cPeer = nodes[0].peers[nodes[2].peerInfo.peerId]
+    nodes[0].mesh[topic].excl(cPeer)
+    nodes[0].gossipsub[topic].excl(cPeer)
+
+    check:
+      not nodes[0].mesh.hasPeerId(topic, nodes[2].peerInfo.peerId)
+      not nodes[0].gossipsub.hasPeerId(topic, nodes[2].peerInfo.peerId)
+      nodes[2].mesh.hasPeerId(topic, nodes[0].peerInfo.peerId)
+
+    # A publishes – only reaches B (C removed from A's mesh/gossipsub)
+    tryPublish await nodes[0].publish(topic, msgData), 1
+
+    # Wait for C to receive the message via B's relay
+    await cReceived.wait()
+
+    # A should NOT have received the message back from C at the network level
+    check not await relayedToA.withTimeout(1.seconds)
+
   asyncTest "GossipSub send over floodPublish A -> B":
     var passed: Future[bool] = newFuture[bool]()
     proc handler(handlerTopic: string, data: seq[byte]) {.async.} =

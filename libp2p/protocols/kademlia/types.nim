@@ -307,6 +307,7 @@ type KadDHTConfig* = ref object
   providerExpirationInterval*: chronos.Duration
   addressPolicy*: PeerAddressPolicy
   hideConnectionStatus*: bool
+  disableBootstrapping*: bool
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -325,6 +326,7 @@ proc new*(
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     hideConnectionStatus: bool = true,
+    disableBootstrapping: bool = false,
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,
@@ -342,6 +344,7 @@ proc new*(
     providerExpirationInterval: providerExpirationInterval,
     addressPolicy: addressPolicy,
     hideConnectionStatus: hideConnectionStatus,
+    disableBootstrapping: disableBootstrapping,
   )
 
 type KadDHT* = ref object of LPProtocol
