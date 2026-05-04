@@ -381,10 +381,8 @@ proc insertNewAd*(
   return true
 
 proc acceptAdvertisement*(
-    disco: ServiceDiscovery, serviceId: ServiceId, ad: Advertisement
+    disco: ServiceDiscovery, now: Moment, serviceId: ServiceId, ad: Advertisement
 ) =
-  let now = Moment.now()
-
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
@@ -412,22 +410,27 @@ proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
   else:
     default
 
-proc handleRegister*(
-    disco: ServiceDiscovery, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
+proc registration*(disco: ServiceDiscovery, msg: Message): Message =
   let serviceId = msg.key
   let closerPeers = disco.findClosestPeers(serviceId)
+
+  var msg = Message(
+    msgType: MessageType.register,
+    register: Opt.some(
+      RegisterMessage(
+        advertisement: @[],
+        status: Opt.some(kademlia_protobuf.RegistrationStatus.Rejected),
+        ticket: Opt.none(Ticket),
+      )
+    ),
+    closerPeers: closerPeers,
+  )
+
   let regMsg = msg.register.valueOr:
-    return
+    return msg
 
   let ad = validateRegisterMessage(regMsg, serviceId).valueOr:
-    await sendRegisterResponse(
-      conn, kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
-    )
-    cd_register_requests.inc(
-      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
-    )
-    return
+    return msg
 
   let now = Moment.now()
   var tWait = disco.registrar.waitingTime(
@@ -436,13 +439,9 @@ proc handleRegister*(
   tWait = disco.processRetryTicket(regMsg, ad, tWait)
 
   if tWait <= ZeroDuration:
-    disco.acceptAdvertisement(serviceId, ad)
-    await sendRegisterResponse(
-      conn, kademlia_protobuf.RegistrationStatus.Confirmed, closerPeers
-    )
-    cd_register_requests.inc(
-      labelValues = [$kademlia_protobuf.RegistrationStatus.Confirmed]
-    )
+    disco.acceptAdvertisement(now, serviceId, ad)
+    msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Confirmed
+    return msg
   else:
     disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
@@ -454,26 +453,26 @@ proc handleRegister*(
     )
     if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
       error "failed to sign ticket"
-      await sendRegisterResponse(
-        conn, kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
-      )
-      cd_register_requests.inc(
-        labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
-      )
-      return
+      return msg
 
-    await sendRegisterResponse(
-      conn, kademlia_protobuf.RegistrationStatus.Wait, closerPeers, Opt.some(ticket)
-    )
-    cd_register_requests.inc(labelValues = [$kademlia_protobuf.RegistrationStatus.Wait])
+    msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Wait
+    msg.register.get().ticket = Opt.some(ticket)
+    return msg
 
-proc handleGetAds*(
+proc handleRegister*(
     disco: ServiceDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
-  ## Handle GET_ADS request
+  ## Handle REGISTER request
 
-  cd_messages_received.inc(labelValues = [$MessageType.getAds])
+  let msgOut = disco.registration(msg)
 
+  let bytes = msgOut.encode().buffer
+  let writeRes = catch:
+    await conn.writeLp(bytes)
+  if writeRes.isErr:
+    error "failed to send register response", err = writeRes.error.msg
+
+proc getAdvertisements*(disco: ServiceDiscovery, msg: Message): Message =
   let serviceId = msg.key
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
@@ -484,6 +483,18 @@ proc handleGetAds*(
     getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
     closerPeers: disco.findClosestPeers(serviceId),
   )
+
+  return response
+
+proc handleGetAds*(
+    disco: ServiceDiscovery, conn: Connection, msg: Message
+) {.async: (raises: [CancelledError]).} =
+  ## Handle GET_ADS request
+
+  cd_messages_received.inc(labelValues = [$MessageType.getAds])
+
+  let response = disco.getAdvertisements(msg)
+
   let bytes = response.encode().buffer
 
   cd_messages_sent.inc(labelValues = [$MessageType.getAds])

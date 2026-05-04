@@ -8,7 +8,7 @@ import
 import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/[types, protobuf as kademlia_protobuf]
-import ./[types, routing_table_manager, service_discovery_metrics]
+import ./[types, routing_table_manager, service_discovery_metrics, registrar]
 
 logScope:
   topics = "service-disco advertiser"
@@ -24,13 +24,9 @@ proc clear*(a: Advertiser) =
   a.running.clear()
   cd_advertiser_pending_actions.set(0)
 
-proc sendRegister*(
-    disco: ServiceDiscovery,
-    peerId: PeerId,
-    serviceId: ServiceId,
-    ad: seq[byte],
-    ticket: Opt[Ticket] = Opt.none(Ticket),
-): Future[Result[RegistrationResponse, string]] {.async: (raises: [CancelledError]).} =
+proc remoteRegister(
+    disco: ServiceDiscovery, peerId: PeerId, msg: Message
+): Future[Result[Message, string]] {.async: (raises: [CancelledError]).} =
   let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
     return err("no address found for peer: " & $peerId)
@@ -42,13 +38,6 @@ proc sendRegister*(
   defer:
     await conn.close()
 
-  let regMsg = RegisterMessage(
-    advertisement: ad,
-    status: Opt.none(kademlia_protobuf.RegistrationStatus),
-    ticket: ticket,
-  )
-  let msg =
-    Message(msgType: MessageType.register, key: serviceId, register: Opt.some(regMsg))
   let encodedMsg = msg.encode().buffer
 
   cd_messages_sent.inc(labelValues = [$MessageType.register])
@@ -77,6 +66,39 @@ proc sendRegister*(
   let reply = Message.decode(replyBuf).valueOr:
     return err("failed to decode register message response: " & $error)
 
+  return ok(reply)
+
+proc localRegister(disco: ServiceDiscovery, msg: Message): Result[Message, string] =
+  return ok(disco.registration(msg))
+
+proc sendRegister*(
+    disco: ServiceDiscovery,
+    peerId: PeerId,
+    serviceId: ServiceId,
+    ad: seq[byte],
+    ticket: Opt[Ticket] = Opt.none(Ticket),
+): Future[Result[RegistrationResponse, string]] {.async: (raises: [CancelledError]).} =
+  let msg = Message(
+    msgType: MessageType.register,
+    key: serviceId,
+    register: Opt.some(
+      RegisterMessage(
+        advertisement: ad,
+        status: Opt.none(kademlia_protobuf.RegistrationStatus),
+        ticket: ticket,
+      )
+    ),
+  )
+
+  let replyRes =
+    if peerId == disco.switch.peerInfo.peerId:
+      disco.localRegister(msg)
+    else:
+      await disco.remoteRegister(peerId, msg)
+
+  let reply = replyRes.valueOr:
+    return err($error)
+
   let registerMsg = reply.register.valueOr:
     return err("register reply not found")
   let status = registerMsg.status.valueOr:
@@ -96,7 +118,6 @@ proc advertiseToRegistrar*(
     disco: ServiceDiscovery,
     serviceId: ServiceId,
     registrar: PeerId,
-    bucketIdx: int,
     ticket: Opt[Ticket],
     advert: Opt[seq[byte]],
 ) {.async: (raises: [CancelledError]).} =
@@ -119,7 +140,7 @@ proc advertiseToRegistrar*(
   var currentTicket = ticket
 
   while true:
-    debug "registering advert", serviceId = serviceId, peerId = registrar
+    debug "registering advert", serviceId, registrar
 
     let response = (
       await disco.sendRegister(registrar, serviceId, advertBuff, currentTicket)
@@ -134,7 +155,7 @@ proc advertiseToRegistrar*(
 
     case response.status
     of kademlia_protobuf.RegistrationStatus.Confirmed:
-      debug "advert accepted", serviceId, remote = registrar
+      debug "advert accepted", serviceId, registrar
 
       await sleepAsync(disco.discoConfig.advertExpiry)
     of kademlia_protobuf.RegistrationStatus.Wait:
@@ -146,12 +167,12 @@ proc advertiseToRegistrar*(
 
       let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor)
 
-      debug "waiting for registrar", serviceId, remote = registrar, wait = $waitSecs
+      debug "waiting for registrar", serviceId, registrar, wait = $waitSecs
 
       await sleepAsync(waitSecs)
     of kademlia_protobuf.RegistrationStatus.Rejected:
       # Don't reschedule - this registrar rejected us
-      debug "registrar rejection, aborting", serviceId, remote = registrar
+      debug "registrar rejection, aborting", serviceId, registrar
       break
 
 proc addProvidedService*(
@@ -169,7 +190,7 @@ proc addProvidedService*(
   ):
     return
 
-  debug "added provided service", service = service.id, serviceId = serviceId
+  debug "added provided service", service = service.id, serviceId
 
   disco.services.incl(service)
   cd_advertiser_services_added.inc()
@@ -178,24 +199,30 @@ proc addProvidedService*(
     error "service not found", serviceId
     return
 
-  for bucketIdx in 0 ..< advTable.buckets.len:
-    let bucket = advTable.buckets[bucketIdx]
+  # Remote advertising
+  for bucket in advTable.buckets:
     if bucket.peers.len == 0:
       continue
 
-    var peers = bucket.peers
-    disco.rng.shuffle(peers)
+    let peers = disco.rng.pick(bucket.peers, disco.discoConfig.kRegister).valueOr:
+      continue
 
-    for i in 0 ..< min(disco.discoConfig.kRegister, peers.len):
-      let registrar = peers[i].nodeId.toPeerId().valueOr:
+    for peer in peers:
+      let registrar = peer.nodeId.toPeerId().valueOr:
         error "cannot convert key to peer id", error
         continue
 
-      let fut = disco.advertiseToRegistrar(
-        serviceId, registrar, bucketIdx, Opt.none(Ticket), advert
-      )
+      let fut =
+        disco.advertiseToRegistrar(serviceId, registrar, Opt.none(Ticket), advert)
       disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
       cd_advertiser_pending_actions.inc()
+
+  # Local advertising
+  let fut = disco.advertiseToRegistrar(
+    serviceId, disco.switch.peerInfo.peerId, Opt.none(Ticket), advert
+  )
+  disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
+  cd_advertiser_pending_actions.inc()
 
 proc removeProvidedService*(
     disco: ServiceDiscovery, serviceId: string
