@@ -146,9 +146,7 @@ proc sendDiscoverResponse*(
     Message(
       msgType: MessageType.DiscoverResponse,
       discoverResponse: Opt.some(
-        DiscoverResponse(
-          status: Ok, registrations: s, cookie: Opt.some(encode(cookie))
-        )
+        DiscoverResponse(status: Ok, registrations: s, cookie: Opt.some(encode(cookie)))
       ),
     )
   )
