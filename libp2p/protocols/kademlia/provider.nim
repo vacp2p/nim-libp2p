@@ -9,7 +9,7 @@
 import std/[sequtils, tables, sets, heapqueue]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid]
-import ../../utils/heartbeat
+import ../../utils/[heartbeat, future]
 import ../protocol
 import ./[protobuf, types, find, kademlia_metrics]
 
@@ -102,7 +102,12 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
     raiseAssert("checked with hasKey")
 
 proc dispatchAddProvider(
-    switch: Switch, peer: PeerId, key: Key, codec: string, hideConnectionStatus: bool
+    switch: Switch,
+    peer: PeerId,
+    key: Key,
+    codec: string,
+    hideConnectionStatus: bool,
+    replyTimeout: Duration,
 ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
   let connRes = catch:
     await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
@@ -128,10 +133,12 @@ proc dispatchAddProvider(
     return err(writeRes.error.msg)
 
   when defined(libp2p_kademlia_provider_rejection):
+    let readFut = conn.readLp(MaxMsgSize)
+    if not (await readFut.withTimeout(replyTimeout)):
+      return ok(AddProviderStatus.accepted)
     let readRes = catch:
-      await conn.readLp(MaxMsgSize)
+      await readFut
     if readRes.isErr:
-      # Peer doesn't support rejection responses; treat as accepted (backward compat)
       return ok(AddProviderStatus.accepted)
 
     let reply = Message.decode(readRes.value).valueOr:
@@ -143,7 +150,9 @@ proc dispatchAddProvider(
 
 proc sendBatch(kad: KadDHT, peers: seq[PeerId], key: Key): auto =
   peers.mapIt(
-    kad.switch.dispatchAddProvider(it, key, kad.codec, kad.config.hideConnectionStatus)
+    kad.switch.dispatchAddProvider(
+      it, key, kad.codec, kad.config.hideConnectionStatus, kad.config.timeout
+    )
   )
 
 when defined(libp2p_kademlia_provider_rejection):

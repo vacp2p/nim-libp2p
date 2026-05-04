@@ -333,6 +333,8 @@ proc new*(
     disableBootstrapping: bool = false,
     maxProvidersPerKey: Opt[int] = Opt.none(int),
 ): T {.raises: [].} =
+  doAssert maxProvidersPerKey.isNone or maxProvidersPerKey.get() > 0,
+    "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
   KadDHTConfig(
     validator: validator,
     selector: selector,
@@ -364,10 +366,3 @@ type KadDHT* = ref object of LPProtocol
   providerManager*: ProviderManager
   config*: KadDHTConfig
 
-proc awaitBatch*[Fut](
-    rpcBatch: seq[Fut], timeout: Duration
-) {.async: (raises: [CancelledError]).} =
-  try:
-    await rpcBatch.allFutures().wait(timeout)
-  except AsyncTimeoutError:
-    discard

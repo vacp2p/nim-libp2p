@@ -4,6 +4,7 @@
 import std/[times, sequtils]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
+import ../../utils/future
 import ../protocol
 import ./[protobuf, types, find, kademlia_metrics]
 
