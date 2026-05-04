@@ -8,15 +8,17 @@ runnableExamples:
   # Passing `nil` for `identify` is only safe for simple peer-book usage like
   # this example. APIs that rely on identify metadata require a real
   # `Identify` instance when constructing the `PeerStore`.
-  let peerStore = PeerStore.new(nil, capacity = 50)
+  import libp2p/peerid
+
+  let ps = PeerStore.new(nil, capacity = 50)
 
   # Create a custom book type
   type MoodBook = ref object of PeerBook[string]
 
   var somePeerId = PeerId.random().expect("get random key")
 
-  peerStore[MoodBook][somePeerId] = "Happy"
-  doAssert peerStore[MoodBook][somePeerId] == "Happy"
+  ps[MoodBook][somePeerId] = "Happy"
+  doAssert ps[MoodBook][somePeerId] == "Happy"
 
 {.push raises: [].}
 

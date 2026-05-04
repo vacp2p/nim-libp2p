@@ -46,6 +46,7 @@ proc runTest(filename: string, moreoptions: string = "") =
   # step 3: remove binary
   rmFile "tests/" & filename.toExe
 
+
 task testmultiformatexts, "Run multiformat extensions tests":
   let opts =
     "-d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim " &

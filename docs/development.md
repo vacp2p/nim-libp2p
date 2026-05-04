@@ -69,6 +69,9 @@ nimble testpath mix
 # run specific test suites
 nimble testmultiformatexts
 nimble testintegration
+
+# compile all runnableExamples blocks in repository Nim files
+nimble testrunnableexamples
 ```
 
 For faster iteration during development, you can bypass nimble overhead by compiling the test file directly:
