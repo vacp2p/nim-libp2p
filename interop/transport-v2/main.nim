@@ -25,7 +25,9 @@ proc fetchListenerAddr(
     val = client.lPop(key)
     val != redisNil and val.len > 0
 
-  pollUntil(hasValue(), timeout, 500.milliseconds, "Timeout waiting for Redis list: " & key)
+  pollUntil(
+    hasValue(), timeout, 500.milliseconds, "Timeout waiting for Redis list: " & key
+  )
   MultiAddress.init(val).tryGet()
 
 proc runListener(config: BaseConfig) {.async.} =
