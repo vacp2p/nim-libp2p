@@ -36,6 +36,8 @@ proc dispatchGetAds(
   if addrs.len == 0:
     return err("no addresses for peer")
 
+  debug "getting adverts", serviceId, remote = peerId
+
   let connRes = catch:
     await disco.switch.dial(peerId, addrs, disco.codec)
   if connRes.isErr:
@@ -81,6 +83,9 @@ proc dispatchGetAds(
   let getAdsMsg = reply.getAds.valueOr:
     error "get ads message response not found"
     return err("get ads message response not found")
+
+  debug "adverts found",
+    serviceId, remote = peerId, count = getAdsMsg.advertisements.len
 
   return ok(
     GetAdsResult(
@@ -163,16 +168,21 @@ proc collectBucketAds(
   return found
 
 proc startDiscovering*(disco: ServiceDiscovery, serviceId: string): bool =
+  let serviceHash = serviceId.hashServiceId()
+
+  debug "start discovering", service = serviceId, serviceId = serviceHash
+
   disco.rtManager.addService(
-    serviceId.hashServiceId(),
-    disco.rtable,
-    disco.config.replication,
-    disco.discoConfig.bucketsCount,
+    serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
 
 proc stopDiscovering*(disco: ServiceDiscovery, serviceId: string) =
-  disco.rtManager.removeService(serviceId.hashServiceId(), Interest)
+  let serviceHash = serviceId.hashServiceId()
+
+  debug "stop discovering", service = serviceId, serviceId = serviceHash
+
+  disco.rtManager.removeService(serviceHash, Interest)
 
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
