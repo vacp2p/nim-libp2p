@@ -17,8 +17,8 @@ let outDir = "nimcache/runnable_examples"
 createDir outDir
 
 proc compileFile(file: string) =
-  let cmd = "nim doc" &
-    " -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest" &
+  let cmd =
+    "nim doc" & " -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest" &
     " --index:off --outdir:" & outDir & " " & file
   echo "Checking runnableExamples in " & file
   let code = execCmd cmd
@@ -26,7 +26,8 @@ proc compileFile(file: string) =
     raise newException(CatchableError, "nim doc failed")
 
 for file in walkDirRec ".":
-  if file.endsWith(".nim") and not isIgnoredRunnableExamplePath(file) and containsRunnableExamples(file):
+  if file.endsWith(".nim") and not isIgnoredRunnableExamplePath(file) and
+      containsRunnableExamples(file):
     try:
       compileFile file
     except CatchableError as e:
