@@ -50,13 +50,13 @@ func isIgnoredRunnableExamplePath(path: string): bool =
   for ignoredPrefix in [".git", "nimbledeps", "nimcache"]:
     if path.startsWith(ignoredPrefix & DirSep):
       return true
-  return false
+  false
 
 func containsRunnableExamples(path: string): bool =
   for line in lines(path):
     if "runnableExamples" in line:
       return true
-  return false
+  false
 
 proc collectRunnableExampleFiles(baseDir = "."): seq[string] =
   var files: seq[string]
@@ -64,7 +64,7 @@ proc collectRunnableExampleFiles(baseDir = "."): seq[string] =
     if path.endsWith(".nim") and not isIgnoredRunnableExamplePath(path):
       if containsRunnableExamples(path):
         files.add(path)
-  return files
+  files
 
 proc checkRunnableExamples() =
   let files = collectRunnableExampleFiles()
