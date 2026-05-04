@@ -28,6 +28,8 @@ task tutorials, "Generate tutorial markdown files":
       " | nim c -r --verbosity:0 --hints:off ../tools/markdown_builder.nim "
     writeFile(filename.replace(".nim", ".md"), markdown)
 
+  # !!! IMPORTANT!!!!
+  # When adding item here add the corresponding .md file to `nim-libp2p/mkdocs.yml`
   tutorialToMd("tutorial_1_connect.nim")
   tutorialToMd("tutorial_2_customproto.nim")
   tutorialToMd("tutorial_3_protobuf.nim")

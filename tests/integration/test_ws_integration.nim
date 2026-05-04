@@ -36,7 +36,7 @@ suite "WebSocket transport integration":
       .new()
       .withRng(rng)
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()])
-      .withNameResolver(DnsResolver.new(@[initTAddress("1.1.1.1:53")]))
+      .withNameResolver(DnsResolver.new(DefaultDnsServers))
       .withWsTransport()
       .withYamux()
       .withNoise()
