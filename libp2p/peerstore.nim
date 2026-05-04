@@ -5,7 +5,7 @@
 runnableExamples:
   # Will keep info of all connected peers +
   # last 50 disconnected peers
-  let peerStore = PeerStore.new(capacity = 50)
+  let peerStore = PeerStore.new(nil, capacity = 50)
 
   # Create a custom book type
   type MoodBook = ref object of PeerBook[string]
