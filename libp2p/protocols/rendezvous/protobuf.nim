@@ -9,7 +9,7 @@ import
   protobuf_serialization/pkg/results,
   protobuf_serialization/std/enums
 
-export results, SerializationError
+export results
 
 # Implements https://github.com/libp2p/specs/blob/master/rendezvous/README.md#protobuf
 
@@ -88,23 +88,44 @@ proc encode*(dr: DiscoverResponse): seq[byte] =
 proc encode*(msg: Message): seq[byte] =
   Protobuf.encode(msg)
 
-proc decodeCookie*(buf: seq[byte]): Cookie {.raises: [SerializationError].} =
-  Protobuf.decode(buf, Cookie)
+proc decodeCookie*(buf: seq[byte]): Opt[Cookie] =
+  try:
+    Opt.some(Protobuf.decode(buf, Cookie))
+  except SerializationError:
+    Opt.none(Cookie)
 
-proc decodeRegister*(buf: seq[byte]): Register {.raises: [SerializationError].} =
-  Protobuf.decode(buf, Register)
+proc decodeRegister*(buf: seq[byte]): Opt[Register] =
+  try:
+    Opt.some(Protobuf.decode(buf, Register))
+  except SerializationError:
+    Opt.none(Register)
 
-proc decodeRegisterResponse*(buf: seq[byte]): RegisterResponse {.raises: [SerializationError].} =
-  Protobuf.decode(buf, RegisterResponse)
+proc decodeRegisterResponse*(buf: seq[byte]): Opt[RegisterResponse] =
+  try:
+    Opt.some(Protobuf.decode(buf, RegisterResponse))
+  except SerializationError:
+    Opt.none(RegisterResponse)
 
-proc decodeUnregister*(buf: seq[byte]): Unregister {.raises: [SerializationError].} =
-  Protobuf.decode(buf, Unregister)
+proc decodeUnregister*(buf: seq[byte]): Opt[Unregister] =
+  try:
+    Opt.some(Protobuf.decode(buf, Unregister))
+  except SerializationError:
+    Opt.none(Unregister)
 
-proc decodeDiscover*(buf: seq[byte]): Discover {.raises: [SerializationError].} =
-  Protobuf.decode(buf, Discover)
+proc decodeDiscover*(buf: seq[byte]): Opt[Discover] =
+  try:
+    Opt.some(Protobuf.decode(buf, Discover))
+  except SerializationError:
+    Opt.none(Discover)
 
-proc decodeDiscoverResponse*(buf: seq[byte]): DiscoverResponse {.raises: [SerializationError].} =
-  Protobuf.decode(buf, DiscoverResponse)
+proc decodeDiscoverResponse*(buf: seq[byte]): Opt[DiscoverResponse] =
+  try:
+    Opt.some(Protobuf.decode(buf, DiscoverResponse))
+  except SerializationError:
+    Opt.none(DiscoverResponse)
 
-proc decodeMessage*(buf: seq[byte]): Message {.raises: [SerializationError].} =
-  Protobuf.decode(buf, Message)
+proc decodeMessage*(buf: seq[byte]): Opt[Message] =
+  try:
+    Opt.some(Protobuf.decode(buf, Message))
+  except SerializationError:
+    Opt.none(Message)

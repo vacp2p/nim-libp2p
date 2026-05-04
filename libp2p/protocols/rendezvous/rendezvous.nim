@@ -241,8 +241,8 @@ proc discover*[E](
   var cookie =
     if d.cookie.isSome():
       try:
-        decodeCookie(d.cookie.get())
-      except SerializationError:
+        decodeCookie(d.cookie.tryGet()).tryGet()
+      except CatchableError:
         await conn.sendDiscoverResponseError(InvalidCookie)
         return
     else:
@@ -296,7 +296,7 @@ proc advertisePeer[E](
       await conn.writeLp(msg)
       let
         buf = await conn.readLp(4096)
-        msgRecv = decodeMessage(buf)
+        msgRecv = decodeMessage(buf).tryGet()
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
       elif msgRecv.registerResponse.tryGet().status != ResponseStatus.Ok:
@@ -403,11 +403,9 @@ proc requestPeer[E](
   await conn.writeLp(
     encode(Message(msgType: MessageType.Discover, discover: Opt.some(d)))
   )
-  let buf = await conn.readLp(MaximumMessageLen)
-  let msgRcv =
-    try:
-      decodeMessage(buf)
-    except SerializationError:
+  let
+    buf = await conn.readLp(MaximumMessageLen)
+    msgRcv = decodeMessage(buf).valueOr:
       debug "Message undecodable"
       return @[]
   if msgRcv.msgType != MessageType.DiscoverResponse:
@@ -561,7 +559,7 @@ proc new*(
     try:
       let
         buf = await conn.readLp(4096)
-        msg = decodeMessage(buf)
+        msg = decodeMessage(buf).tryGet()
       case msg.msgType
       of MessageType.Register:
         await rdv.register(
@@ -570,9 +568,9 @@ proc new*(
       of MessageType.RegisterResponse:
         trace "Got an unexpected Register Response", response = msg.registerResponse
       of MessageType.Unregister:
-        rdv.unregister(conn, msg.unregister.get())
+        rdv.unregister(conn, msg.unregister.tryGet())
       of MessageType.Discover:
-        await rdv.discover(conn, msg.discover.get())
+        await rdv.discover(conn, msg.discover.tryGet())
       of MessageType.DiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:

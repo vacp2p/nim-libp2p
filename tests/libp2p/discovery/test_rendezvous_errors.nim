@@ -88,7 +88,7 @@ suite "RendezVous Errors":
       "Discover - Invalid Cookie",
       (
         proc(node: RendezVous): Message =
-          # Empty buffer will fail Cookie.decode()
+          # Empty buffer will fail Cookie.decode().tryGet() and yield InvalidCookie
           prepareDiscoverMessage(cookie = Opt.some(newSeq[byte]()))
       ),
       ResponseStatus.InvalidCookie,
@@ -110,7 +110,7 @@ suite "RendezVous Errors":
 
       let
         responseBuf = await sendRdvMessage(peerNode, rendezvousNode, messageBuf)
-        responseMessage = decodeMessage(responseBuf)
+        responseMessage = decodeMessage(responseBuf).tryGet()
         actualStatus =
           if responseMessage.registerResponse.isSome():
             responseMessage.registerResponse.get.status
@@ -139,5 +139,5 @@ suite "RendezVous Errors":
     )
 
     let responseBuf = await sendRdvMessage(peerNodes[0], rendezvousNode, messageBuf)
-    let responseMessage = decodeMessage(responseBuf)
+    let responseMessage = decodeMessage(responseBuf).tryGet()
     check responseMessage.registerResponse.get.status == ResponseStatus.NotAuthorized

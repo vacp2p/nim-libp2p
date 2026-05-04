@@ -94,7 +94,7 @@ proc new*(
     try:
       let
         buf = await conn.readLp(4096)
-        msg = decodeMessage(buf)
+        msg = decodeMessage(buf).tryGet()
       case msg.msgType
       of MessageType.Register:
         await rdv.register(conn, msg.register.tryGet(), pr)
