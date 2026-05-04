@@ -24,8 +24,12 @@ proc compileFile(file: string) =
     " --index:off --outdir:" & outDir & " " & file
   echo "Checking runnableExamples in " & file
   let code = execCmd cmd
-  if code > 0:
-    raise newException(CatchableError, "nim doc failed")
+  if code != 0:
+    raise newException(
+      CatchableError,
+      "nim doc failed for file: " & file & " command: " & cmd &
+        " exit code: " & $code,
+    )
 
 for file in walkDirRec ".":
   if file.endsWith(".nim") and not isIgnoredRunnableExamplePath(file) and
