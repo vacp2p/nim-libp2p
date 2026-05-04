@@ -365,4 +365,3 @@ type KadDHT* = ref object of LPProtocol
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig
-
