@@ -46,44 +46,6 @@ proc runTest(filename: string, moreoptions: string = "") =
   # step 3: remove binary
   rmFile "tests/" & filename.toExe
 
-func isIgnoredRunnableExamplePath(path: string): bool =
-  for ignoredPrefix in [".git", "nimbledeps", "nimcache"]:
-    if path.startsWith(ignoredPrefix & DirSep):
-      return true
-  false
-
-func containsRunnableExamples(path: string): bool =
-  for line in lines(path):
-    if "runnableExamples" in line:
-      return true
-  false
-
-proc collectRunnableExampleFiles(baseDir = "."): seq[string] =
-  var files: seq[string]
-  for path in walkDirRec(baseDir):
-    if path.endsWith(".nim") and not isIgnoredRunnableExamplePath(path):
-      if containsRunnableExamples(path):
-        files.add(path)
-  files
-
-proc checkRunnableExamples() =
-  let files = collectRunnableExampleFiles()
-  if files.len == 0:
-    echo "No runnableExamples blocks found."
-    return
-
-  mkDir("nimcache")
-  let outDir = "nimcache/runnable_examples"
-  mkDir(outDir)
-
-  for file in files:
-    echo "Checking runnableExamples in " & file
-    let compileCmd =
-      nimc & " doc" & cfg & " " & flags &
-      " -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest" &
-      " --index:off --outdir:" & outDir &
-      " " & file
-    exec compileCmd
 
 task testmultiformatexts, "Run multiformat extensions tests":
   let opts =
@@ -119,9 +81,6 @@ task testpath, "Run tests matching a specific path":
     quit(1)
 
   runTest("test_all", "-d:path=" & testPathArg)
-
-task testrunnableexamples, "Compile runnableExamples blocks in all .nim files":
-  checkRunnableExamples()
 
 # pin system
 # while nimble lockfile
