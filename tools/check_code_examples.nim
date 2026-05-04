@@ -29,7 +29,23 @@ proc compileFile(file: string) =
       CatchableError, "nim doc failed for file: " & file & " exit code: " & $code
     )
 
-for file in walkDirRec ".":
-  if file.endsWith(".nim") and not isIgnoredRunnableExamplePath(file) and
-      containsRunnableExamples(file):
+iterator walkNimFiles(rootDir: string): string =
+  var dirs = @[rootDir]
+  while dirs.len > 0:
+    let currentDir = dirs.pop()
+    for entry in walkDir(currentDir):
+      if isIgnoredRunnableExamplePath(entry.path):
+        continue
+
+      case entry.kind
+      of pcDir:
+        dirs.add(entry.path)
+      of pcFile:
+        if entry.path.endsWith(".nim"):
+          yield entry.path
+      else:
+        discard
+
+for file in walkNimFiles("."):
+  if containsRunnableExamples(file):
     compileFile file
