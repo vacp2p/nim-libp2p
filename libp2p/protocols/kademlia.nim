@@ -47,15 +47,17 @@ proc maintainBuckets(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   heartbeat "Refreshing buckets", kad.config.bucketRefreshTime, sleepFirst = true:
     await kad.refreshTable(kad.rtable, false)
 
+# K instead of T to avoid clashing with the T type param in withValue[T] when
+# called inside a withValue block, which causes a compiler error under --lineDir:on
 proc new*(
-    T: typedesc[KadDHT],
+    K: typedesc[KadDHT],
     switch: Switch,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
     rng: ref HmacDrbgContext = newRng(),
     client: bool = false,
     codec: string = KadCodec,
-): T {.raises: [].} =
+): K {.raises: [].} =
   when not defined(libp2p_kademlia_provider_rejection):
     doAssert config.maxProvidersPerKey.isNone,
       "maxProvidersPerKey has no effect without -d:libp2p_kademlia_provider_rejection"
@@ -64,7 +66,7 @@ proc new*(
     switch.peerInfo.peerId.toKey(),
     config = RoutingTableConfig.new(replication = config.replication),
   )
-  let kad = T(
+  let kad = K(
     rng: rng,
     switch: switch,
     rtable: rtable,

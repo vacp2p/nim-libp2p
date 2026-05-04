@@ -1192,31 +1192,7 @@ suite "Switch":
     await testProto.start()
     dst.mount(testProto)
 
-    let conn =
-      # On Windows, there is a brief gap between switch.start() returning and the
-      # TCP transport being ready to accept connections, causing sporadic
-      # DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
-      when defined(windows):
-        var dialConn: Connection
-        var lastDialError: ref DialFailedError
-        var connected = false
-        for _ in 0 ..< 10:
-          try:
-            dialConn =
-              await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
-            connected = true
-            break
-          except DialFailedError as e:
-            lastDialError = e
-            # Bounded retry for the documented Windows listener readiness gap.
-            await sleepAsync(200.milliseconds)
-        if not connected:
-          if not isNil(lastDialError):
-            raise lastDialError
-          raiseAssert "dial retry loop exited without establishing a connection"
-        dialConn
-      else:
-        await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
 
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
@@ -1243,3 +1219,27 @@ suite "Switch":
     await switch.start()
 
     await allFuturesRaising(switch.stop())
+
+  asyncTest "accept loop not blocked by upgrade semaphore":
+    # Regression: old code held the upgrade semaphore in the accept loop, blocking
+    # it when ConcurrentUpgrades (4) were in flight; manifested as 80+ kad nodes
+    # getting stuck on bootstrap.
+    const NumPeers = 85
+    let server = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(NumPeers))
+    )
+    await server.start()
+
+    var clients: seq[Switch]
+    for _ in 0 ..< NumPeers:
+      let c = newStandardSwitch()
+      await c.start()
+      clients.add(c)
+    defer:
+      await allFuturesRaising(clients.mapIt(it.stop()) & @[server.stop()])
+
+    let connects =
+      clients.mapIt(it.connect(server.peerInfo.peerId, server.peerInfo.addrs))
+    let allConnects = allFuturesRaising(connects)
+    check await allConnects.withTimeout(30.seconds)
+    await allConnects

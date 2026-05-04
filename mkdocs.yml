@@ -46,5 +46,7 @@ nav:
     - 'Create a custom protocol': tutorial_2_customproto.md
     - 'Protobuf': tutorial_3_protobuf.md
     - 'GossipSub': tutorial_4_gossipsub.md
+    - 'Connection Manager': tutorial_5_connmanager.md
+    - 'Peer Scoring, Protection, and Trimming': tutorial_6_peerscoring.md
     - 'Circuit Relay': circuitrelay.md
   - Reference: '/nim-libp2p/master/libp2p.html'
