@@ -140,7 +140,7 @@ proc runDialer(config: BaseConfig) {.async.} =
   defer:
     await channel.close()
 
-  let pingDelay = await Ping.new().ping(channel)
+  let pingDelay = await Ping.new(rng = rng()).ping(channel)
   let pingRttMs = pingDelay.toMs()
 
   printLatencyYaml(dcutrElapsed.toMs() + pingRttMs, pingRttMs)
