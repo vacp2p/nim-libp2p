@@ -45,4 +45,4 @@ jobs:
 
       - name: Run runnableExamples check
         run: |
-          nimble testrunnableexamples
+          nim c -r ./tools/check_code_examples.nim
