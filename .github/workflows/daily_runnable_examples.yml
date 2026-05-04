@@ -1,0 +1,45 @@
+name: Daily runnableExamples
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  runnable-examples:
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+
+    name: "Run runnableExamples check"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Setup Nim
+        uses: "./.github/actions/install_nim"
+        with:
+          shell: bash
+          os: linux
+          cpu: amd64
+          nim_ref: v2.2.10
+
+      - name: Restore deps from cache
+        id: deps-cache
+        uses: actions/cache@v5
+        with:
+          path: nimbledeps
+          key: nimbledeps-${{ hashFiles('.pinned') }}
+
+      - name: Install deps
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        run: |
+          nimble install_pinned
+
+      - name: Run runnableExamples check
+        run: |
+          nimble testrunnableexamples
