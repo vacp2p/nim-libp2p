@@ -499,7 +499,7 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events only once per peer":
-    let switch1 = newStandardSwitch()
+    let switch1 = newStandardSwitch(maxConnsPerPeer = 2)
 
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng[]).tryGet()
@@ -717,7 +717,8 @@ suite "Switch":
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(limits = Opt.some(LimitsConfig.maxTotal(3)))
+    let destSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)))
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -749,7 +750,8 @@ suite "Switch":
       switches.add(newStandardSwitch())
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(limits = Opt.some(LimitsConfig.maxTotal(3)))
+    let srcSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(3)))
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()
@@ -770,7 +772,8 @@ suite "Switch":
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitch(limits = Opt.some(LimitsConfig.maxInOut(3, 1)))
+    let destSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(3, 1)))
     switches.add(destSwitch)
     await destSwitch.start()
 
@@ -802,7 +805,8 @@ suite "Switch":
       switches.add(newStandardSwitch())
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitch(limits = Opt.some(LimitsConfig.maxInOut(1, 3)))
+    let srcSwitch =
+      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxInOut(1, 3)))
     await srcSwitch.start()
 
     let dstSwitch = newStandardSwitch()
@@ -1188,31 +1192,7 @@ suite "Switch":
     await testProto.start()
     dst.mount(testProto)
 
-    let conn =
-      # On Windows, there is a brief gap between switch.start() returning and the
-      # TCP transport being ready to accept connections, causing sporadic
-      # DialFailedError. See: https://github.com/vacp2p/nim-libp2p/pull/2271
-      when defined(windows):
-        var dialConn: Connection
-        var lastDialError: ref DialFailedError
-        var connected = false
-        for _ in 0 ..< 10:
-          try:
-            dialConn =
-              await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
-            connected = true
-            break
-          except DialFailedError as e:
-            lastDialError = e
-            # Bounded retry for the documented Windows listener readiness gap.
-            await sleepAsync(200.milliseconds)
-        if not connected:
-          if not isNil(lastDialError):
-            raise lastDialError
-          raiseAssert "dial retry loop exited without establishing a connection"
-        dialConn
-      else:
-        await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
 
     await conn.writeLp("test123")
     check "test456" == string.fromBytes(await conn.readLp(1024))
@@ -1239,3 +1219,27 @@ suite "Switch":
     await switch.start()
 
     await allFuturesRaising(switch.stop())
+
+  asyncTest "accept loop not blocked by upgrade semaphore":
+    # Regression: old code held the upgrade semaphore in the accept loop, blocking
+    # it when ConcurrentUpgrades (4) were in flight; manifested as 80+ kad nodes
+    # getting stuck on bootstrap.
+    const NumPeers = 85
+    let server = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(NumPeers))
+    )
+    await server.start()
+
+    var clients: seq[Switch]
+    for _ in 0 ..< NumPeers:
+      let c = newStandardSwitch()
+      await c.start()
+      clients.add(c)
+    defer:
+      await allFuturesRaising(clients.mapIt(it.stop()) & @[server.stop()])
+
+    let connects =
+      clients.mapIt(it.connect(server.peerInfo.peerId, server.peerInfo.addrs))
+    let allConnects = allFuturesRaising(connects)
+    check await allConnects.withTimeout(30.seconds)
+    await allConnects

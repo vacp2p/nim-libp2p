@@ -3,7 +3,7 @@
 
 {.used.}
 
-import results, chronos, std/[sequtils, tables]
+import results, chronos, std/[sequtils, tables, strformat]
 import
   ../../libp2p/[connmanager, stream/connection, crypto/crypto, muxers/muxer, peerinfo]
 import ../tools/[unittest, compare, futures, crypto]
@@ -22,13 +22,13 @@ method newStream*(
 proc newMaxTotal(maxConnections = 10, maxConnsPerPeer = 1): ConnManager =
   ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
-    limits = Opt.some(LimitsConfig.maxTotal(maxConnections)),
+    limits = Opt.some(ConnectionLimits.maxTotal(maxConnections)),
   )
 
 proc newMaxInOut(maxIn: int, maxOut: int, maxConnsPerPeer = 1): ConnManager =
   ConnManager.new(
     maxConnsPerPeer = maxConnsPerPeer,
-    limits = Opt.some(LimitsConfig.maxInOut(maxIn, maxOut)),
+    limits = Opt.some(ConnectionLimits.maxInOut(maxIn, maxOut)),
   )
 
 proc newWatermark*(
@@ -39,15 +39,15 @@ proc newWatermark*(
     outboundBonus: int = 0,
     decayResolution = 1.minutes,
 ): ConnManager =
-  let wtCfg = WatermarkConfig(
+  let wtCfg = WatermarkPolicy(
     lowWater: lowWater,
     highWater: highWater,
     gracePeriod: gracePeriod,
     silencePeriod: silencePeriod,
   )
   let scCfg =
-    ScoringConfig(outboundBonus: outboundBonus, decayResolution: decayResolution)
-  ConnManager.new(watermark = Opt.some(wtCfg), scoringConfig = scCfg)
+    PeerScoring(outboundBonus: outboundBonus, decayResolution: decayResolution)
+  ConnManager.new(watermark = Opt.some(wtCfg), scoring = scCfg)
 
 proc storeMuxers(connMngr: ConnManager, count: uint): Future[seq[PeerId]] {.async.} =
   let peers = PeerId.random(count, rng).tryGet()
@@ -121,7 +121,6 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "get conn with direction":
-    # This would work with 1 as well cause of a bug in connmanager that will get fixed soon
     let connMngr = newMaxTotal(maxConnsPerPeer = 2)
 
     let mux1 = makeMuxer(peerId, Direction.Out)
@@ -182,30 +181,14 @@ suite "Connection Manager":
     await stream1.close()
     await connection.close()
 
-  asyncTest "should raise on too many connections":
-    let connMngr = newMaxTotal(maxConnsPerPeer = 0)
-
-    await connMngr.storeMuxer(makeMuxer(peerId))
-
-    let muxs = @[makeMuxer(peerId)]
-
-    expect TooManyConnectionsError:
-      await connMngr.storeMuxer(muxs[0])
-
-    await connMngr.close()
-    await allFuturesRaising(muxs.mapIt(it.close()))
-
   asyncTest "expect connection from peer":
-    # FIXME This should be 1 instead of 0, it will get fixed soon
-    let connMngr = newMaxTotal(maxConnsPerPeer = 0)
-    let peerId = PeerId.random(rng).tryGet()
-
-    await connMngr.storeMuxer(makeMuxer(peerId))
+    let connMngr = newMaxTotal(maxConnsPerPeer = 1)
 
     let muxs = @[makeMuxer(peerId), makeMuxer(peerId)]
 
+    await connMngr.storeMuxer(muxs[0])
     expect TooManyConnectionsError:
-      await connMngr.storeMuxer(muxs[0])
+      await connMngr.storeMuxer(muxs[1])
 
     let waitedConn1 = connMngr.expectConnection(peerId, In)
 
@@ -278,7 +261,7 @@ suite "Connection Manager":
     await connMngr.close()
 
   asyncTest "drop connections for peer":
-    let connMngr = newMaxTotal()
+    let connMngr = newMaxTotal(maxConnsPerPeer = 2)
 
     for i in 0 ..< 2:
       let dir = if i mod 2 == 0: Direction.In else: Direction.Out
@@ -426,6 +409,45 @@ suite "Connection Manager":
     check await incomingSlot.withTimeout(10.millis)
 
     await connMngr.close()
+
+suite "Connection Manager maxConnsPerPeer":
+  teardown:
+    checkTrackers()
+
+  let peerId = PeerId.random(rng).tryGet()
+  const defaultMaxConnsPerPeer = 2
+
+  proc runTest(maxConnsPerPeer: int, numberOfMuxersToConnect: int) {.async.} =
+    let connMngr = newMaxTotal(maxConnsPerPeer = maxConnsPerPeer)
+
+    # store up to limit
+    for _ in 0 ..< numberOfMuxersToConnect:
+      await connMngr.storeMuxer(makeMuxer(peerId))
+
+    check connMngr.connCount(peerId) == numberOfMuxersToConnect
+
+    # add one more to exceed limit
+    expect TooManyConnectionsError:
+      let extraMuxer = makeMuxer(peerId)
+      try:
+        await connMngr.storeMuxer(extraMuxer)
+      finally:
+        await extraMuxer.close()
+
+    check connMngr.connCount(peerId) == numberOfMuxersToConnect
+
+    await connMngr.close()
+
+  asyncTest "maxConnsPerPeer = -1 uses default":
+    await runTest(-1, defaultMaxConnsPerPeer)
+
+  asyncTest "maxConnsPerPeer = 0 uses default":
+    await runTest(0, defaultMaxConnsPerPeer)
+
+  for i in 1 ..< 10:
+    let limit = i
+    asyncTest fmt"peer limit is reached with {limit} muxers":
+      await runTest(limit, limit)
 
 suite "Connection Manager Watermark":
   teardown:
@@ -647,9 +669,9 @@ suite "Connection Manager: watermark with connection limiting":
     # semaphore stays exhausted and all further connection attempts are rejected.
     const maxConns = 3
     let connMngr = ConnManager.new(
-      limits = Opt.some(LimitsConfig.maxTotal(maxConns)),
+      limits = Opt.some(ConnectionLimits.maxTotal(maxConns)),
       watermark = Opt.some(
-        WatermarkConfig(
+        WatermarkPolicy(
           lowWater: 1, highWater: 2, gracePeriod: 0.seconds, silencePeriod: 0.seconds
         )
       ),

@@ -12,18 +12,17 @@ logScope:
 
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
-): Future[Opt[Message]] {.async: (raises: [CancelledError, LPStreamError]), gcsafe.} =
-  let conn =
-    try:
-      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-    except DialFailedError as e:
-      error "GetValue could not dial peer", description = e.msg
-      return Opt.none(Message)
+): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  let connRes = catch:
+    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+  if connRes.isErr:
+    return err(connRes.error.msg)
+  let conn = connRes.value()
   defer:
     await conn.close()
 
   let msg = Message(msgType: MessageType.getValue, key: key)
-  let encoded = msg.encode()
+  let encoded = msg.encode(kad.config.hideConnectionStatus)
 
   kad_messages_sent.inc(labelValues = [$MessageType.getValue])
   kad_message_bytes_sent.inc(
@@ -31,17 +30,20 @@ proc dispatchGetVal*(
   )
 
   var replyBuf: seq[byte]
+  var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
-    await conn.writeLp(encoded.buffer)
-    replyBuf = await conn.readLp(MaxMsgSize)
+    ioRes = catch:
+      await conn.writeLp(encoded.buffer)
+      replyBuf = await conn.readLp(MaxMsgSize)
+  if ioRes.isErr:
+    return err(ioRes.error.msg)
 
   kad_message_bytes_received.inc(
     replyBuf.len.int64, labelValues = [$MessageType.getValue]
   )
 
   let reply = Message.decode(replyBuf).valueOr:
-    error "GetValue reply decode fail", error = error, conn = conn
-    return Opt.none(Message)
+    return err("GetValue reply decode fail")
 
   if reply.closerPeers.len > 0:
     kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
@@ -49,7 +51,7 @@ proc dispatchGetVal*(
   conn.observedAddr.withValue(observedAddr):
     kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
 
-  return Opt.some(reply)
+  return ok(reply)
 
 proc bestValidRecord(
     kad: KadDHT, key: Key, received: ReceivedTable, quorum: int
@@ -127,7 +129,7 @@ proc getValue*(
   # - don't have best value
   # - don't have valid records
   # - don't have the values at all
-  var rpcBatch: seq[Future[void]]
+  var rpcBatch: seq[Future[Result[void, string]]]
   for p, r in received:
     let record = r.valueOr:
       # peer doesn't have value
@@ -154,7 +156,7 @@ method handleGetValue*(
     let response = Message(
       msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
     )
-    let encoded = response.encode()
+    let encoded = response.encode(kad.config.hideConnectionStatus)
     kad_message_bytes_sent.inc(
       encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
     )
@@ -176,7 +178,7 @@ method handleGetValue*(
     ),
     closerPeers: kad.findClosestPeers(key),
   )
-  let encoded = response.encode()
+  let encoded = response.encode(kad.config.hideConnectionStatus)
   kad_message_bytes_sent.inc(
     encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
   )

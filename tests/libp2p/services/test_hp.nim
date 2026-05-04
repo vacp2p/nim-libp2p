@@ -26,6 +26,7 @@ proc createSwitch(
     .withMplex()
     .withAutonat()
     .withNoise()
+    .withMaxConnsPerPeer(2) # HP needs relay + direct to coexist briefly during upgrade
 
   if hpService != nil:
     builder = builder.withServices(@[hpService])

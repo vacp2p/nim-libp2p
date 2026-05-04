@@ -17,14 +17,6 @@ import
   ]
 import ../tools/[unittest]
 
-#
-#Cloudflare
-const fallbackDnsServers = @[
-  initTAddress("1.1.1.1:53"),
-  initTAddress("1.0.0.1:53"),
-  initTAddress("[2606:4700:4700::1111]:53"),
-]
-
 const unixPlatform =
   defined(linux) or defined(solaris) or defined(macosx) or defined(freebsd) or
   defined(netbsd) or defined(openbsd) or defined(dragonfly)
@@ -56,12 +48,12 @@ proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
     finally:
       if resultSeq.len > 0:
         return resultSeq
-      return fallbackDnsServers
+      return DefaultDnsServers
   elif defined(windows):
     #TODO
-    return fallbackDnsServers
+    return DefaultDnsServers
   else:
-    return fallbackDnsServers
+    return DefaultDnsServers
 
 suite "Name resolving":
   suite "Generic Resolving":

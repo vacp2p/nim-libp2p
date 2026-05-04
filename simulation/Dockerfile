@@ -1,6 +1,6 @@
 # Build context must be the repo root:
 #   docker build -f simulation/Dockerfile -t nim-libp2p/simulation .
-FROM nimlang/nim:2.2.6-ubuntu-regular AS build
+FROM nimlang/nim:2.2.10 AS build
 
 WORKDIR /node
 COPY . .

@@ -162,9 +162,6 @@ type
     # Max number of enqueued low-priority messages. Excess messages are dropped.
     maxLowPriorityQueueLen*: int
 
-    # Deprecated: use maxMediumPriorityQueueLen and maxLowPriorityQueueLen instead.
-    maxNumElementsInNonPriorityQueue*: int
-
     # Broadcast an IDONTWANT message automatically when the message exceeds the IDONTWANT message size threshold
     sendIDontWantOnPublish*: bool
 
@@ -207,6 +204,7 @@ type
     peersInIP*: Table[MultiAddress, HashSet[PeerId]]
     routingRecordsHandler*: seq[RoutingRecordsHandler] # Callback for peer exchange
     heartbeatEvents*: seq[AsyncEvent]
+    scoringHeartbeatEvents*: seq[AsyncEvent]
 
   MeshMetrics* = object # scratch buffers for metrics
     otherPeersPerTopicMesh*: int64

@@ -50,6 +50,17 @@ proc waitForHeartbeatByEvent*[T: PubSub](node: T, multiplier: int = 1) {.async.}
 proc waitForNextHeartbeat*[T: PubSub](node: T) {.async.} =
   await node.waitForHeartbeatByEvent(1)
 
+proc waitForScoringHeartbeatByEvent*(node: GossipSub, multiplier: int = 1) {.async.} =
+  for _ in 0 ..< multiplier:
+    let evnt = newAsyncEvent()
+    node.scoringHeartbeatEvents &= evnt
+    try:
+      await evnt.wait()
+    finally:
+      let i = node.scoringHeartbeatEvents.find(evnt)
+      if i != -1:
+        node.scoringHeartbeatEvents.delete(i)
+
 type
   TestGossipSub* = ref object of GossipSub
   DValues* = object
