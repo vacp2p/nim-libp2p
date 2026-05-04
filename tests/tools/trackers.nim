@@ -36,11 +36,9 @@ template checkTrackers*() =
   for name in AllTrackerNames:
     checkTracker(name)
   # Also test the GC is not fooling with us
-  {.push warning[BareExcept]: off.}
   try:
     GC_fullCollect()
   except Defect as exc:
     raise exc # Reraise to maintain call stack
   except Exception:
     raiseAssert "Unexpected exception during GC collection"
-  {.pop.}
