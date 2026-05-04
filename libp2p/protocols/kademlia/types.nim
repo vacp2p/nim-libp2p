@@ -57,13 +57,13 @@ proc toPeer*(k: Key, switch: Switch): Result[Peer, string] =
   if addrs.len == 0:
     return err("Could not find peer addresses in address book")
 
-  ok(Peer(id: peer.getBytes(), addrs: addrs, connection: ConnectionType.notConnected))
+  ok(Peer(id: peer.getBytes(), addrs: addrs, connection: ConnectionStatus.notConnected))
 
 proc toPeer*(peerInfo: PeerInfo): Peer =
   Peer(
     id: peerInfo.peerId.getBytes(),
     addrs: peerInfo.addrs,
-    connection: ConnectionType.notConnected,
+    connection: ConnectionStatus.notConnected,
   )
 
 proc toPeers*(switch: Switch, keys: seq[Key]): seq[Peer] =
@@ -306,6 +306,8 @@ type KadDHTConfig* = ref object
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
   addressPolicy*: PeerAddressPolicy
+  hideConnectionStatus*: bool
+  disableBootstrapping*: bool
 
 proc new*(
     T: typedesc[KadDHTConfig],
@@ -323,6 +325,8 @@ proc new*(
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
+    hideConnectionStatus: bool = true,
+    disableBootstrapping: bool = false,
 ): T {.raises: [].} =
   KadDHTConfig(
     validator: validator,
@@ -339,6 +343,8 @@ proc new*(
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
     addressPolicy: addressPolicy,
+    hideConnectionStatus: hideConnectionStatus,
+    disableBootstrapping: disableBootstrapping,
   )
 
 type KadDHT* = ref object of LPProtocol

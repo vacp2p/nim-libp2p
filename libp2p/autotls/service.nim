@@ -11,6 +11,7 @@ import
   ./utils,
   ../crypto/crypto,
   ../nameresolving/nameresolver,
+  ../nameresolving/dnsresolver,
   ../peeridauth/client,
   ../switch,
   ../peerinfo,
@@ -19,14 +20,9 @@ import
 logScope:
   topics = "libp2p autotls"
 
-export LetsEncryptURL, AutoTLSError
+export LetsEncryptURL, AutoTLSError, DefaultDnsServers
 
 const
-  DefaultDnsServers* = @[
-    initTAddress("1.1.1.1:53"),
-    initTAddress("1.0.0.1:53"),
-    initTAddress("[2606:4700:4700::1111]:53"),
-  ]
   DefaultRenewCheckTime* = 1.hours
   DefaultRenewBufferTime* = 1.hours
 
@@ -83,8 +79,7 @@ when defined(libp2p_autotls_support):
     ../utils/heartbeat,
     ../transports/transport,
     ../utils/ipaddr,
-    ../transports/tcptransport,
-    ../nameresolving/dnsresolver
+    ../transports/tcptransport
 
   proc new*(
       T: typedesc[AutotlsCert],

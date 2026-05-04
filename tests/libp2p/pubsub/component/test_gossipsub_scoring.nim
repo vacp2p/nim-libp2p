@@ -378,11 +378,12 @@ suite "GossipSub Component - Scoring":
       100
     nodes[0].topicParams[topic].meshMessageDeliveriesDecay = 0.9
 
-    # We should have decayed 5 times, though allowing 4..6
-    await sleepAsync(decayInterval * 5)
+    # Wait for exactly 5 scoring heartbeats to ensure precise decay count
+    await nodes[0].waitForScoringHeartbeatByEvent(5)
+    # After exactly 5 decays: 100 * 0.9^5 = 59.049
     check:
       nodes[0].peerStats[nodes[1].peerInfo.peerId].topicInfos[topic].meshMessageDeliveries in
-        50.0 .. 66.0
+        57.0 .. 62.0
 
   asyncTest "Nodes publishing invalid messages are penalised and disconnected":
     # Given GossipSub nodes with Topic Params
@@ -433,8 +434,8 @@ suite "GossipSub Component - Scoring":
     nodes[0].addValidator(topic, validationHandler)
 
     # 1st scoring heartbeat
-    checkUntilTimeout:
-      centerNode.gossipsub.getOrDefault(topic).len == numberOfNodes - 1
+    await centerNode.waitForScoringHeartbeatByEvent(1)
+    check:
       centerNode.getPeerScore(node1peerId) > 0
       centerNode.getPeerScore(node2peerId) > 0
 
@@ -461,9 +462,10 @@ suite "GossipSub Component - Scoring":
       centerNode.getPeerTopicInfo(node2peerId, topic).invalidMessageDeliveries ==
         messagesToSend.float64 # invalid messages
 
-    # When scoring hartbeat occurs (2nd scoring heartbeat)
+    # When scoring heartbeat occurs (2nd scoring heartbeat)
     # Then peer scores are calculated
-    checkUntilTimeout:
+    await centerNode.waitForScoringHeartbeatByEvent(1)
+    check:
       # node1: p1 (time in mesh) + p2 (first message deliveries)
       centerNode.getPeerScore(node1peerId) > 5.0 and
         centerNode.getPeerScore(node1peerId) < 6.0
@@ -478,6 +480,8 @@ suite "GossipSub Component - Scoring":
       node.parameters.disconnectBadPeers = true
 
     # Then peers with bad score are disconnected on scoring heartbeat (3rd scoring heartbeat)
+    await centerNode.waitForScoringHeartbeatByEvent(1)
+    # disconnects happen independently of scoring heartbeat events, so poll continuously
     checkUntilTimeout:
       centerNode.mesh[topic].toSeq().len == 1
 
@@ -517,7 +521,8 @@ suite "GossipSub Component - Scoring":
 
     # When scoring heartbeat occurs
     # Then Peer has negative score due to active meshMessageDeliveries deficit
-    checkUntilTimeout:
+    await nodes[0].waitForScoringHeartbeatByEvent(1)
+    check:
       nodes[0].gossipsub.getOrDefault(topic).len == numberOfNodes - 1
       nodes[0].mesh.getOrDefault(topic).len == numberOfNodes - 1
       # p1 (time in mesh) - p3 (mesh message deliveries)
@@ -532,7 +537,8 @@ suite "GossipSub Component - Scoring":
 
     # When next scoring heartbeat occurs
     # Then Peer has negative score
-    checkUntilTimeout:
+    await nodes[0].waitForScoringHeartbeatByEvent(1)
+    check:
       # p3b (mesh failure penalty) [p1 and p3 not calculated when peer was pruned]
       nodes[0].getPeerScore(node1PeerId) == -125.0
 

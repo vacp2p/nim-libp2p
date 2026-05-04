@@ -426,20 +426,24 @@ proc clearSendPriorityQueue(p: PubSubPeer) =
       value = p.rpcmessagequeue.sendPriorityQueue.len.int64, labelValues = [$p.peerId]
     )
 
-proc sendMsgContinue(conn: Connection, msgFut: Future[void]) {.async: (raises: []).} =
-  # Continuation for a pending `sendMsg` future from below
+proc sendMsgContinue(
+    conn: Connection, msgFut: Future[void].Raising([CancelledError, LPStreamError])
+) {.async: (raises: [CancelledError]).} =
+  # Continuation for a pending transport write from below
   try:
     await msgFut
     trace "sent pubsub message to remote", conn
-  except CatchableError as exc:
+  except CancelledError as exc:
+    trace "sendMsgContinue cancelled", conn, description = exc.msg
+    raise exc
+  except LPStreamError as exc:
     trace "Unexpected exception in sendMsgContinue", conn, description = exc.msg
     # Next time sendConn is used, it will be have its close flag set and thus
     # will be recycled
     await conn.close() # This will clean up the send connection
 
 proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledError]).} =
-  # Slow path of `sendMsg` where msg is held in memory while send connection is
-  # being set up
+  # Slow path where msg is held in memory while send connection is being set up.
   if p.sendConn == nil:
     # Wait for a send conn to be setup. `connectOnce` will
     # complete this even if the sendConn setup failed
@@ -447,7 +451,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 
   var conn = p.sendConn
   if conn == nil or conn.closed():
-    debug "No send connection", p, payload = shortLog(msg)
+    debug "No send connection", p, encoded = shortLog(msg)
     return
 
   trace "sending encoded msg to peer", conn, encoded = shortLog(msg)
@@ -455,7 +459,9 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
 
 proc sendMsg(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool = false
-): Future[void] {.async: (raises: []).} =
+): Future[void] {.async: (raises: [CancelledError]).} =
+  ## Starts a transport write and returns its lifecycle future for internal
+  ## queue accounting. Do not await this from receive-handler paths.
   type ConnectionType = enum
     ctCustom
     ctSend
@@ -479,17 +485,10 @@ proc sendMsg(
     trace "sending encoded msg to peer",
       conntype = $connType, conn = conn, encoded = shortLog(msg)
     let f = conn.writeLp(msg)
-    if not f.completed():
-      sendMsgContinue(conn, f)
-    else:
-      if f.failed():
-        trace "sending encoded msg to peer failed", description = f.error.msg
-      else:
-        trace "sent pubsub message to remote", conn
-      f
+    await sendMsgContinue(conn, f)
   else:
     trace "sending encoded msg to peer via slow path"
-    sendMsgSlow(p, msg)
+    await sendMsgSlow(p, msg)
 
 proc disconnectPeer(p: PubSubPeer): Future[void] =
   if not p.disconnected:
@@ -508,7 +507,7 @@ proc sendHighPriorityMessage(
     p.rpcmessagequeue.sendPriorityQueue.addLast(f)
     when defined(pubsubpeer_queue_metrics):
       libp2p_gossipsub_high_priority_queue_size.inc(labelValues = [$p.peerId])
-  return f
+  return newFutureCompleted[void]()
 
 proc enqueueNonHighPriorityMessage(
     p: PubSubPeer, msg: seq[byte], useCustomConn: bool, priority: MessagePriority
@@ -570,7 +569,7 @@ proc sendEncoded*(
   p.clearSendPriorityQueue()
 
   if msg.len <= 0:
-    debug "empty message, skipping", p, payload = shortLog(msg)
+    debug "empty message, skipping", p, encoded = shortLog(msg)
     newFutureCompleted[void]()
   elif msg.len > p.maxMessageSize:
     info "trying to send a msg too big for pubsub",

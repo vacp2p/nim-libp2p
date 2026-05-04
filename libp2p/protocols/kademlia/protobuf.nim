@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+import chronos
 import ../../protobuf/minprotobuf
 import ../../varint
 import ../../utility
@@ -25,7 +26,7 @@ type
     register = 16 # REGISTER for Service Discovery
     getAds = 17 # GET_ADS for Service Discovery
 
-  ConnectionType* = enum
+  ConnectionStatus* = enum
     notConnected = 0
     connected = 1
     canConnect = 2 # Unused
@@ -34,7 +35,7 @@ type
   Peer* = object
     id*: seq[byte]
     addrs*: seq[MultiAddress]
-    connection*: ConnectionType
+    connection*: ConnectionStatus
 
   # Registration status for Service Discovery
   RegistrationStatus* = enum
@@ -46,9 +47,9 @@ type
   # Nested within Register message
   Ticket* = object
     advertisement*: seq[byte] # field 1 - Copy of the original advertisement
-    tInit*: uint64 # field 2 - Ticket creation timestamp (Unix time in seconds)
-    tMod*: uint64 # field 3 - Last modification timestamp (Unix time in seconds)
-    tWaitFor*: uint32 # field 4 - Remaining wait time in seconds
+    tInit*: Moment # field 2 - Ticket creation timestamp (Unix time in seconds)
+    tMod*: Moment # field 3 - Last modification timestamp (Unix time in seconds)
+    tWaitFor*: Duration # field 4 - Remaining wait time in seconds
     signature*: seq[byte] # field 5 - Ed25519 signature
 
   # Register message for Service Discovery
@@ -72,6 +73,13 @@ type
     register*: Opt[RegisterMessage] # field 21 -  REGISTER message
     getAds*: Opt[GetAdsMessage] # field 22 -  GET_ADS message
 
+proc hide(
+    connStatus: ConnectionStatus, hideConnectionStatus: bool
+): ConnectionStatus {.raises: [], gcsafe.} =
+  if hideConnectionStatus:
+    return ConnectionStatus.notConnected
+  return connStatus
+
 proc write*(pb: var ProtoBuffer, field: int, value: Record) {.raises: [], gcsafe.}
 
 proc writeOpt*[T](pb: var ProtoBuffer, field: int, opt: Opt[T]) {.raises: [], gcsafe.}
@@ -84,21 +92,23 @@ proc encode*(record: Record): ProtoBuffer {.raises: [].} =
   pb.finish()
   return pb
 
-proc encode*(peer: Peer): ProtoBuffer {.raises: [].} =
+proc encode*(
+    peer: Peer, hideConnectionStatus: bool = true
+): ProtoBuffer {.raises: [].} =
   var pb = initProtoBuffer()
   pb.write(1, peer.id)
   for address in peer.addrs:
     pb.write(2, address.data.buffer)
-  pb.write(3, uint32(ord(peer.connection)))
+  pb.write(3, peer.connection.hide(hideConnectionStatus).ord.uint32)
   pb.finish()
   return pb
 
 proc encode*(ticket: Ticket): ProtoBuffer {.raises: [], gcsafe.} =
   var pb = initProtoBuffer()
   pb.write(1, ticket.advertisement)
-  pb.write(2, ticket.tInit)
-  pb.write(3, ticket.tMod)
-  pb.write(4, ticket.tWaitFor)
+  pb.write(2, cast[uint64](ticket.tInit.epochSeconds))
+  pb.write(3, cast[uint64](ticket.tMod.epochSeconds))
+  pb.write(4, cast[uint32](ticket.tWaitFor.seconds))
   if ticket.signature.len > 0:
     pb.write(5, ticket.signature)
   pb.finish()
@@ -125,7 +135,9 @@ proc encode*(getAdsMsg: GetAdsMessage): ProtoBuffer {.raises: [], gcsafe.} =
   pb.finish()
   return pb
 
-proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
+proc encode*(
+    msg: Message, hideConnectionStatus: bool = true
+): ProtoBuffer {.raises: [], gcsafe.} =
   var pb = initProtoBuffer()
 
   pb.write(1, uint32(ord(msg.msgType)))
@@ -135,10 +147,10 @@ proc encode*(msg: Message): ProtoBuffer {.raises: [], gcsafe.} =
   pb.writeOpt(3, msg.record)
 
   for peer in msg.closerPeers:
-    pb.write(8, peer.encode())
+    pb.write(8, peer.encode(hideConnectionStatus))
 
   for peer in msg.providerPeers:
-    pb.write(9, peer.encode())
+    pb.write(9, peer.encode(hideConnectionStatus))
 
   msg.register.withValue(regMsg):
     pb.write(21, regMsg.encode())
@@ -187,19 +199,27 @@ proc decode*(T: type Peer, pb: ProtoBuffer): ProtoResult[T] =
 
   var connVal: uint32
   if ?pb.getField(3, connVal):
-    p.connection = ?decodeEnum[ConnectionType](connVal)
+    p.connection = ?decodeEnum[ConnectionStatus](connVal)
 
   return ok(p)
 
 proc decode*(T: type Ticket, pb: ProtoBuffer): ProtoResult[T] =
-  var ticket =
-    Ticket(advertisement: @[], tInit: 0, tMod: 0, tWaitFor: 0, signature: @[])
+  var
+    ticket = Ticket()
+    tInit: uint64 = 0
+    tMod: uint64 = 0
+    tWaitFor: uint32 = 0
 
   discard ?pb.getField(1, ticket.advertisement)
-  discard ?pb.getField(2, ticket.tInit)
-  discard ?pb.getField(3, ticket.tMod)
-  discard ?pb.getField(4, ticket.tWaitFor)
+  discard ?pb.getField(2, tInit)
+  discard ?pb.getField(3, tMod)
+  discard ?pb.getField(4, tWaitFor)
   discard ?pb.getField(5, ticket.signature)
+
+  #TODO make this nicer?
+  ticket.tInit = Moment.init(cast[int64](tInit), Second)
+  ticket.tMod = Moment.init(cast[int64](tMod), Second)
+  ticket.tWaitFor = tWaitFor.secs
 
   return ok(ticket)
 
@@ -277,9 +297,9 @@ proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =
   ## Covers: advertisement || tInit || tMod || tWaitFor
   var buf = newSeqOfCap[byte](ticket.advertisement.len + 8 + 8 + 4)
   buf.add(ticket.advertisement)
-  buf.add(@(toBytesBE(ticket.tInit)))
-  buf.add(@(toBytesBE(ticket.tMod)))
-  buf.add(@(toBytesBE(ticket.tWaitFor)))
+  buf.add(@(toBytesBE(ticket.tInit.epochSeconds.uint64)))
+  buf.add(@(toBytesBE(ticket.tMod.epochSeconds.uint64)))
+  buf.add(@(toBytesBE(ticket.tWaitFor.seconds.uint32)))
   buf
 
 proc sign*(

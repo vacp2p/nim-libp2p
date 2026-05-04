@@ -46,8 +46,8 @@ static void peerinfo_handler(int callerret, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userdata);
 
 static void private_key_handler(int callerRet, const uint8_t *keyData,
-                              size_t keyDataLen, const char *msg, size_t len,
-                              void *userData);
+                                size_t keyDataLen, const char *msg, size_t len,
+                                void *userData);
 
 static void peerstore_entry_handler(int callerRet,
                                     const Libp2pPeerStoreEntry *entry,
@@ -80,9 +80,7 @@ int main(int argc, char **argv) {
   cfg1.kad_selector = permissive_kad_selector;
   cfg1.kad_user_data = NULL;
 
-  const char *peer1_addrs[] = {
-      "/ip4/127.0.0.1/tcp/5001"
-  };
+  const char *peer1_addrs[] = {"/ip4/127.0.0.1/tcp/5001"};
   cfg1.addrs = peer1_addrs;
   cfg1.addrsLen = 1;
 
@@ -241,7 +239,8 @@ int main(int argc, char **argv) {
   waitForCallback();
 
   printf("Peer info for node2:\n");
-  libp2p_peerstore_get_peer_info(ctx1, pInfo2.peerId, peerstore_entry_handler, NULL);
+  libp2p_peerstore_get_peer_info(ctx1, pInfo2.peerId, peerstore_entry_handler,
+                                 NULL);
   waitForCallback();
 
   // Merge an extra address for node2
@@ -257,7 +256,8 @@ int main(int argc, char **argv) {
   waitForCallback();
 
   printf("Peer info after modifications:\n");
-  libp2p_peerstore_get_peer_info(ctx1, pInfo2.peerId, peerstore_entry_handler, NULL);
+  libp2p_peerstore_get_peer_info(ctx1, pInfo2.peerId, peerstore_entry_handler,
+                                 NULL);
   waitForCallback();
 
   // Delete node2 from peerstore
@@ -451,21 +451,16 @@ static void get_value_handler(int callerRet, const uint8_t *data,
   signal_callback_executed();
 }
 
-static void private_key_handler(
-    int callerRet,
-    const uint8_t *keyData,
-    size_t keyDataLen,
-    const char *msg,
-    size_t len,
-    void *userData
-) {
+static void private_key_handler(int callerRet, const uint8_t *keyData,
+                                size_t keyDataLen, const char *msg, size_t len,
+                                void *userData) {
   if (callerRet != RET_OK || keyDataLen == 0 || keyData == NULL) {
-    printf("Private key error(%d): %.*s\n", callerRet, (int)len, msg ? msg : "");
+    printf("Private key error(%d): %.*s\n", callerRet, (int)len,
+           msg ? msg : "");
     exit(1);
   }
 
-  libp2p_private_key_t *priv_key =
-      (libp2p_private_key_t *)userData;
+  libp2p_private_key_t *priv_key = (libp2p_private_key_t *)userData;
 
   uint8_t *buf = (uint8_t *)malloc(keyDataLen);
   if (!buf) {
@@ -521,7 +516,7 @@ static void peerstore_entry_handler(int callerRet,
   if (callerRet != RET_OK || entry == NULL) {
     printf("PeerStoreEntry error(%d)", callerRet);
     if (msg != NULL && len > 0) {
-        printf(": %.*s\n", (int)len, msg);
+      printf(": %.*s\n", (int)len, msg);
     }
     exit(1);
   }

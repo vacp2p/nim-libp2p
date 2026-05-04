@@ -38,7 +38,7 @@ jobs:
           shell: bash
           os: linux
           cpu: amd64
-          nim_ref: v2.2.6
+          nim_ref: v2.2.10
 
       - name: Restore deps from cache
         id: deps-cache

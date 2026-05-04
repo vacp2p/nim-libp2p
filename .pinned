@@ -1,4 +1,4 @@
-bearssl;https://github.com/status-im/nim-bearssl@#b16f70bd8e14abed1c9f03f93757547cf1e95c03
+bearssl;https://github.com/status-im/nim-bearssl@#22c6a76ce015bc07e011562bdcfc51d9446c1e82
 chronicles;https://github.com/status-im/nim-chronicles@#e7f87336d2fa47b7752b42f0be4cabd5663a5e5c
 chronos;https://github.com/status-im/nim-chronos@#45f43a9ad8bd8bcf5903b42f365c1c879bd54240
 dnsclient;https://github.com/ba0f3/dnsclient.nim@#23214235d4784d24aceed99bbfe153379ea557c8

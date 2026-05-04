@@ -1,5 +1,5 @@
 # Create the build image
-FROM nimlang/nim:2.2.6-ubuntu-regular AS build
+FROM nimlang/nim:2.2.10 AS build
 
 WORKDIR /node
 
@@ -19,7 +19,7 @@ RUN nimble c \
     performance/test_node/main.nim
 
 
-FROM nimlang/nim:2.2.6-alpine-slim
+FROM nimlang/nim:2.2.10
 
 WORKDIR /node
 
