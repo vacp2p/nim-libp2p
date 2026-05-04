@@ -100,21 +100,35 @@ jobs:
           # the mkdocs website content at the root.
           api_doc_dirs=()
           for dir in */; do
-            [ -d "$dir" ] || continue
             if [ -f "${dir}libp2p.html" ]; then
               api_doc_dirs+=("${dir%/}")
             fi
           done
 
-          find_args=(-mindepth 1 -maxdepth 1 ! -name ".git")
-          for dir in "${api_doc_dirs[@]}"; do
-            find_args+=(! -name "$dir")
+          shopt -s dotglob nullglob
+          for path in ./*; do
+            base=${path#./}
+            if [ "$base" = ".git" ]; then
+              continue
+            fi
+
+            keep=false
+            for dir in "${api_doc_dirs[@]}"; do
+              if [ "$base" = "$dir" ]; then
+                keep=true
+                break
+              fi
+            done
+
+            if [ "$keep" = false ]; then
+              rm -rf "$path"
+            fi
           done
-          find . "${find_args[@]}" -exec rm -rf {} +
+          shopt -u dotglob nullglob
 
           cp -a ../site/. .
 
-          # Keep legacy `/docs/...` links working after moving the site root.
+          # Maintain backward compatibility for `/docs/...` links.
           rm -rf docs
           mkdir -p docs
           cp -a ../site/. docs/
