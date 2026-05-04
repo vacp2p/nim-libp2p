@@ -52,21 +52,21 @@ func isIgnoredRunnableExamplePath(path: string): bool =
       return true
   return false
 
+func containsRunnableExamples(path: string): bool =
+  for line in lines(path):
+    if "runnableExamples" in line:
+      return true
+  return false
+
 proc collectRunnableExampleFiles(baseDir = "."): seq[string] =
   var files: seq[string]
   for path in walkDirRec(baseDir):
     if path.endsWith(".nim") and not isIgnoredRunnableExamplePath(path):
-      var hasRunnableExamples = false
-      for line in lines(path):
-        if "runnableExamples" in line:
-          hasRunnableExamples = true
-          break
-
-      if hasRunnableExamples:
+      if containsRunnableExamples(path):
         files.add(path)
   return files
 
-proc runRunnableExamples() =
+proc checkRunnableExamples() =
   let files = collectRunnableExampleFiles()
   if files.len == 0:
     echo "No runnableExamples blocks found."
@@ -121,7 +121,7 @@ task testpath, "Run tests matching a specific path":
   runTest("test_all", "-d:path=" & testPathArg)
 
 task testrunnableexamples, "Compile runnableExamples blocks in all .nim files":
-  runRunnableExamples()
+  checkRunnableExamples()
 
 # pin system
 # while nimble lockfile
