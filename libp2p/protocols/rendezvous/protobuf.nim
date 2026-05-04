@@ -88,44 +88,65 @@ proc encode*(dr: DiscoverResponse): seq[byte] =
 proc encode*(msg: Message): seq[byte] =
   Protobuf.encode(msg)
 
-proc decodeCookie*(buf: seq[byte]): Opt[Cookie] =
+proc decodeCookie(buf: seq[byte]): Opt[Cookie] =
   try:
     Opt.some(Protobuf.decode(buf, Cookie))
   except SerializationError:
     Opt.none(Cookie)
 
-proc decodeRegister*(buf: seq[byte]): Opt[Register] =
+proc decode*(_: type Cookie, buf: seq[byte]): Opt[Cookie] =
+  decodeCookie(buf)
+
+proc decodeRegister(buf: seq[byte]): Opt[Register] =
   try:
     Opt.some(Protobuf.decode(buf, Register))
   except SerializationError:
     Opt.none(Register)
 
-proc decodeRegisterResponse*(buf: seq[byte]): Opt[RegisterResponse] =
+proc decode*(_: type Register, buf: seq[byte]): Opt[Register] =
+  decodeRegister(buf)
+
+proc decodeRegisterResponse(buf: seq[byte]): Opt[RegisterResponse] =
   try:
     Opt.some(Protobuf.decode(buf, RegisterResponse))
   except SerializationError:
     Opt.none(RegisterResponse)
 
-proc decodeUnregister*(buf: seq[byte]): Opt[Unregister] =
+proc decode*(_: type RegisterResponse, buf: seq[byte]): Opt[RegisterResponse] =
+  decodeRegisterResponse(buf)
+
+proc decodeUnregister(buf: seq[byte]): Opt[Unregister] =
   try:
     Opt.some(Protobuf.decode(buf, Unregister))
   except SerializationError:
     Opt.none(Unregister)
 
-proc decodeDiscover*(buf: seq[byte]): Opt[Discover] =
+proc decode*(_: type Unregister, buf: seq[byte]): Opt[Unregister] =
+  decodeUnregister(buf)
+
+proc decodeDiscover(buf: seq[byte]): Opt[Discover] =
   try:
     Opt.some(Protobuf.decode(buf, Discover))
   except SerializationError:
     Opt.none(Discover)
 
-proc decodeDiscoverResponse*(buf: seq[byte]): Opt[DiscoverResponse] =
+proc decode*(_: type Discover, buf: seq[byte]): Opt[Discover] =
+  decodeDiscover(buf)
+
+proc decodeDiscoverResponse(buf: seq[byte]): Opt[DiscoverResponse] =
   try:
     Opt.some(Protobuf.decode(buf, DiscoverResponse))
   except SerializationError:
     Opt.none(DiscoverResponse)
 
-proc decodeMessage*(buf: seq[byte]): Opt[Message] =
+proc decode*(_: type DiscoverResponse, buf: seq[byte]): Opt[DiscoverResponse] =
+  decodeDiscoverResponse(buf)
+
+proc decodeMessage(buf: seq[byte]): Opt[Message] =
   try:
     Opt.some(Protobuf.decode(buf, Message))
   except SerializationError:
     Opt.none(Message)
+
+proc decode*(_: type Message, buf: seq[byte]): Opt[Message] =
+  decodeMessage(buf)

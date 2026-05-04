@@ -239,7 +239,7 @@ proc discover*[E](
   var cookie =
     if d.cookie.isSome():
       try:
-        decodeCookie(d.cookie.tryGet()).tryGet()
+        Cookie.decode(d.cookie.tryGet()).tryGet()
       except CatchableError:
         await conn.sendDiscoverResponseError(InvalidCookie)
         return
@@ -294,7 +294,7 @@ proc advertisePeer[E](
       await conn.writeLp(msg)
       let
         buf = await conn.readLp(4096)
-        msgRecv = decodeMessage(buf).tryGet()
+        msgRecv = Message.decode(buf).tryGet()
       if msgRecv.msgType != MessageType.RegisterResponse:
         trace "Unexpected register response", peer, msgType = msgRecv.msgType
       elif msgRecv.registerResponse.tryGet().status != ResponseStatus.Ok:
@@ -403,7 +403,7 @@ proc requestPeer[E](
   )
   let
     buf = await conn.readLp(MaximumMessageLen)
-    msgRcv = decodeMessage(buf).valueOr:
+    msgRcv = Message.decode(buf).valueOr:
       debug "Message undecodable"
       return @[]
   if msgRcv.msgType != MessageType.DiscoverResponse:
@@ -557,7 +557,7 @@ proc new*(
     try:
       let
         buf = await conn.readLp(4096)
-        msg = decodeMessage(buf).tryGet()
+        msg = Message.decode(buf).tryGet()
       case msg.msgType
       of MessageType.Register:
         await rdv.register(
