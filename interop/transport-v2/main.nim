@@ -47,14 +47,13 @@ proc runDialer(config: BaseConfig) {.async.} =
 
   printLatencyYaml(totalDelay.toMs(), pingDelay.toMs())
 
-proc main() =
+proc main() {.async.} =
   let config = readBaseConfig()
   info "Test configuration", config
+  if config.isDialer:
+    await runDialer(config)
+  else:
+    await runListener(config)
 
-  runMain(config.testTimeout):
-    if config.isDialer:
-      await runDialer(config)
-    else:
-      await runListener(config)
-
-main()
+let testTimeout = parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout)
+runMain(main, testTimeout)

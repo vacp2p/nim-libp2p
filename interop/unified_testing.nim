@@ -247,18 +247,12 @@ proc buildBaseSwitch*[T: BaseConfig](
 
 # ---------- runner ----------
 
-template runMain*(timeout: Duration, body: untyped) =
-  ## Run `body` as the async entry point of an interop test binary:
-  ##  - wrap in a chronos proc (so can be `await`ed),
-  ##  - bound by `timeout`,
-  ##  - log and `quit(-1)` on timeout or any `CatchableError`,
-  ##  - returns value, as otherwise 'waitFor(fut)' has no type (or is ambiguous).
+proc runMain*(body: proc(): Future[void] {.async.}, timeout: Duration) =
+  ## Run the async `body` as the entry point of an interop test binary,
+  ## bounded by `timeout`. Logs and exits with `quit(-1)` on timeout or any
+  ## `CatchableError`.
   try:
-    proc interopMainAsync(): Future[string] {.async.} =
-      body
-      return "done"
-
-    discard waitFor(interopMainAsync().wait(timeout))
+    waitFor body().wait(timeout)
   except AsyncTimeoutError as e:
     error "Program execution timed out", description = e.msg
     quit(-1)

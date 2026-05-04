@@ -96,13 +96,12 @@ proc runDialer(config: PerfConfig) {.async.} =
   printMeasurement("download", config.downloadIterations, downloadStats, 2, "Gbps")
   printMeasurement("latency", config.latencyIterations, latencyStats, 3, "ms")
 
-proc main() =
+proc main() {.async.} =
   let config = readPerfConfig()
+  if config.isDialer:
+    await runDialer(config)
+  else:
+    await runListener(config)
 
-  runMain(config.testTimeout):
-    if config.isDialer:
-      await runDialer(config)
-    else:
-      await runListener(config)
-
-main()
+let testTimeout = parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout)
+runMain(main, testTimeout)

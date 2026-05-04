@@ -164,14 +164,13 @@ proc runListener(config: BaseConfig) {.async.} =
   # Wait to be killed (docker-compose will stop us after dialer exits)
   await sleepAsync(5.minutes)
 
-proc main() =
+proc main() {.async.} =
   let config = readBaseConfig()
   info "Test configuration", config
+  if config.isDialer:
+    await runDialer(config)
+  else:
+    await runListener(config)
 
-  runMain(config.testTimeout):
-    if config.isDialer:
-      await runDialer(config)
-    else:
-      await runListener(config)
-
-main()
+let testTimeout = parseDurationEnv("TEST_TIMEOUT_SECS", 1.seconds, DefaultTestTimeout)
+runMain(main, testTimeout)
