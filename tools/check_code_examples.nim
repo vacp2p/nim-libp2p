@@ -4,8 +4,9 @@
 import os, osproc, strutils
 
 func isIgnoredRunnableExamplePath(path: string): bool =
-  for ignoredPrefix in [".git", "nimbledeps", "nimcache"]:
-    if path.contains(ignoredPrefix):
+  let normalizedPath = path.replace('\\', '/')
+  for component in normalizedPath.split('/'):
+    if component in [".git", "nimbledeps", "nimcache"]:
       return true
   false
 
