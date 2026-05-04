@@ -32,7 +32,4 @@ proc compileFile(file: string) =
 for file in walkDirRec ".":
   if file.endsWith(".nim") and not isIgnoredRunnableExamplePath(file) and
       containsRunnableExamples(file):
-    try:
-      compileFile file
-    except CatchableError as e:
-      raiseAssert "failed to compile err: " & e.msg & " file:" & file
+    compileFile file
