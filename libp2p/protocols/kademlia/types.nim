@@ -314,7 +314,7 @@ type KadDHTConfig* = ref object
     ## Only enforced when compiled with ``-d:libp2p_kademlia_provider_rejection``.
 
 proc new*(
-    T: typedesc[KadDHTConfig],
+    K: typedesc[KadDHTConfig],
     validator: EntryValidator = DefaultEntryValidator(),
     selector: EntrySelector = DefaultEntrySelector(),
     timeout: chronos.Duration = DefaultTimeout,
@@ -332,7 +332,7 @@ proc new*(
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
     maxProvidersPerKey: Opt[int] = Opt.none(int),
-): T {.raises: [].} =
+): K {.raises: [].} =
   doAssert maxProvidersPerKey.isNone or maxProvidersPerKey.get() > 0,
     "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
   KadDHTConfig(
