@@ -49,4 +49,4 @@ nav:
     - 'Connection Manager': tutorial_5_connmanager.md
     - 'Peer Scoring, Protection, and Trimming': tutorial_6_peerscoring.md
     - 'Circuit Relay': circuitrelay.md
-  - Reference: '/nim-libp2p/master/libp2p.html'
+  - Reference: '/nim-libp2p/master/theindex.html'
