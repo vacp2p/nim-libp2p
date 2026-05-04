@@ -9,12 +9,11 @@ func isIgnoredRunnableExamplePath(path: string): bool =
       return true
   false
 
-func containsRunnableExamples(path: string): bool =
-  {.noSideEffect.}:
-    for line in lines(path):
-      if "runnableExamples" in line:
-        return true
-    false
+proc containsRunnableExamples(path: string): bool =
+  for line in lines(path):
+    if "runnableExamples" in line:
+      return true
+  false
 
 let outDir = "nimcache/runnable_examples"
 createDir outDir
