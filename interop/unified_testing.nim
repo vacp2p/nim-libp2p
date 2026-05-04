@@ -69,11 +69,14 @@ proc readBaseConfig*(): BaseConfig =
       resolveBindIp(getEnv("DIALER_IP", getEnv("LISTENER_IP", "0.0.0.0")))
     else:
       resolveBindIp(getEnv("LISTENER_IP", "0.0.0.0"))
+  let testKey = getEnv("TEST_KEY")
+  if testKey.len == 0:
+    raise newException(CatchableError, "TEST_KEY env var is required")
   let config = BaseConfig(
     isDialer: isDialer,
     bindIp: bindIp,
     redisAddr: getEnv("REDIS_ADDR", "redis:6379"),
-    testKey: getEnv("TEST_KEY"),
+    testKey: testKey,
     transport: getEnv("TRANSPORT", "tcp"),
     secureChannel: getEnv("SECURE_CHANNEL", "noise"),
     muxer: getEnv("MUXER", "mplex"),
