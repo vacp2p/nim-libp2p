@@ -16,7 +16,7 @@ import ./memorymanager
 export connection
 export MemoryTransportError, MemoryTransportAcceptStopped
 
-const MemoryAutoAddress* = "/memory/*"
+const MemoryAutoAddress* = "/memorytransport/*"
 
 logScope:
   topics = "libp2p memorytransport"
@@ -39,12 +39,12 @@ proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
   if $ma != MemoryAutoAddress:
     return ma
 
-  # when special address is used `/memory/*` use any free address.
+  # when special address is used `/memorytransport/*` use any free address.
   # here we assume that any random generated address will be free.
   var randomBuf: array[10, byte]
   hmacDrbgGenerate(self.rng[], randomBuf)
 
-  return MultiAddress.init("/memory/" & toHex(randomBuf)).get()
+  return MultiAddress.init("/memorytransport/" & toHex(randomBuf)).get()
 
 method start*(
     self: MemoryTransport, addrs: seq[MultiAddress]
