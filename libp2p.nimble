@@ -56,7 +56,13 @@ proc collectRunnableExampleFiles(baseDir = "."): seq[string] =
   var files: seq[string]
   for path in walkDirRec(baseDir):
     if path.endsWith(".nim") and not isIgnoredRunnableExamplePath(path):
-      if "runnableExamples" in readFile(path):
+      var hasRunnableExamples = false
+      for line in lines(path):
+        if "runnableExamples" in line:
+          hasRunnableExamples = true
+          break
+
+      if hasRunnableExamples:
         files.add(path)
   return files
 
@@ -72,11 +78,11 @@ proc runRunnableExamples() =
 
   for file in files:
     echo "Checking runnableExamples in " & file
-    var compileCmd = nimc & " doc " & cfg & " " & flags
-    compileCmd &= " -d:libp2p_autotls_support"
-    compileCmd &= " -d:libp2p_mix_experimental_exit_is_dest"
-    compileCmd &= " --index:off --outdir:" & outDir
-    compileCmd &= " " & file
+    let compileCmd =
+      nimc & " doc" & cfg & " " & flags &
+      " -d:libp2p_autotls_support -d:libp2p_mix_experimental_exit_is_dest" &
+      " --index:off --outdir:" & outDir &
+      " " & file
     exec compileCmd
 
 task testmultiformatexts, "Run multiformat extensions tests":
