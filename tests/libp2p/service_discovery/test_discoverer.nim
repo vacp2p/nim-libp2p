@@ -3,10 +3,16 @@
 {.used.}
 
 import chronos, results, tables
-import ../../../libp2p/[peerid, switch]
-import ../../../libp2p/protocols/service_discovery/[discoverer, advertiser, types]
-import ../../../libp2p/protocols/service_discovery
-import ../../tools/[unittest, lifecycle]
+import
+  ../../../libp2p/[
+    peerid,
+    protocols/service_discovery,
+    protocols/service_discovery/advertiser,
+    protocols/service_discovery/discoverer,
+    protocols/service_discovery/types,
+    switch,
+  ]
+import ../../tools/[lifecycle, unittest]
 import ./utils
 
 suite "Discoverer - lookup":
@@ -14,7 +20,7 @@ suite "Discoverer - lookup":
     checkTrackers()
 
   asyncTest "creates service routing table on first call":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId()
 
     check not disco.rtManager.hasService(serviceId)
@@ -25,7 +31,7 @@ suite "Discoverer - lookup":
     check disco.rtManager.hasService(serviceId)
 
   asyncTest "empty routing table returns ok with empty peers":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId()
 
     let res = await disco.lookup(serviceId)
@@ -34,7 +40,7 @@ suite "Discoverer - lookup":
     check res.get().len == 0
 
   asyncTest "calling lookup twice for same service is idempotent":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId()
 
     let res1 = await disco.lookup(serviceId)
@@ -45,7 +51,7 @@ suite "Discoverer - lookup":
     check disco.rtManager.hasService(serviceId)
 
   asyncTest "distinct service IDs get independent routing tables":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let sid1 = makeServiceId(1)
     let sid2 = makeServiceId(2)
 
@@ -57,7 +63,7 @@ suite "Discoverer - lookup":
     check disco.rtManager.count() == 2
 
   asyncTest "lookup by ServiceInfo hashes to same table as lookup by ServiceId":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo("my-service")
     let serviceId = service.id.hashServiceId()
 
@@ -71,7 +77,7 @@ suite "Discoverer - start/stop discovering":
     checkTrackers()
 
   test "registers an Interest routing table":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
     let added = disco.startDiscovering(service.id)
@@ -80,7 +86,7 @@ suite "Discoverer - start/stop discovering":
     check disco.rtManager.hasService(service.id.hashServiceId())
 
   test "returns false when called again for the same service":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
     discard disco.startDiscovering(service.id)
@@ -89,7 +95,7 @@ suite "Discoverer - start/stop discovering":
     check not added
 
   test "distinct services get independent tables":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
@@ -101,7 +107,7 @@ suite "Discoverer - start/stop discovering":
     check disco.rtManager.count() == 2
 
   test "removes Interest and returns false when service was tracked":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
     check disco.startDiscovering(service.id)
@@ -110,7 +116,7 @@ suite "Discoverer - start/stop discovering":
     check not disco.rtManager.hasService(service.id.hashServiceId())
 
   test "stop does not affect a different service":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
@@ -123,9 +129,9 @@ suite "Discoverer - start/stop discovering":
 
   asyncTest "startDiscovering sends messages and finds registered peer":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = makeMockDiscovery(conf)
-    let advertiserNode = makeMockDiscovery(conf)
-    let discovererNode = makeMockDiscovery(conf)
+    let registrarNode = setupServiceDiscoveryNode(config = conf)
+    let advertiserNode = setupServiceDiscoveryNode(config = conf)
+    let discovererNode = setupServiceDiscoveryNode(config = conf)
     registrarNode.switch.mount(registrarNode)
     advertiserNode.switch.mount(advertiserNode)
     discovererNode.switch.mount(discovererNode)

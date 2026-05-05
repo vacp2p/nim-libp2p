@@ -2,28 +2,35 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/sequtils
-import chronos, chronicles, results
+import chronos, chronicles, results, sequtils
 import
-  ../../../libp2p/
-    [peerid, switch, builders, crypto/crypto, extended_peer_record, multiaddress]
-import ../../../libp2p/protocols/[service_discovery, kademlia]
-import ../../../libp2p/protocols/kademlia/protobuf
-import
-  ../../../libp2p/protocols/service_discovery/[types, registrar, routing_table_manager]
-import ../../tools/[crypto]
+  ../../../libp2p/[
+    builders,
+    crypto/crypto,
+    extended_peer_record,
+    multiaddress,
+    peerid,
+    protocols/kademlia,
+    protocols/kademlia/protobuf,
+    protocols/service_discovery,
+    protocols/service_discovery/registrar,
+    protocols/service_discovery/routing_table_manager,
+    protocols/service_discovery/types,
+    switch,
+  ]
+import ../../tools/crypto
 
-export protobuf, types, registrar, routing_table_manager
+export protobuf, registrar, routing_table_manager, types
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
-proc makePeerId*(): PeerId =
+proc randomPeerId*(): PeerId =
   PeerId.init(PrivateKey.random(rng[]).get()).get()
 
 proc makeServiceId*(id: byte = 1'u8): ServiceId =
   @[id, 2'u8, 3, 4]
 
-proc makeServiceInfo*(id: string = "blabla"): ServiceInfo =
+proc makeServiceInfo*(id: string = "test-service"): ServiceInfo =
   ServiceInfo(id: id, data: @[1, 2, 3, 4])
 
 proc makeTicket*(): Ticket =
@@ -59,11 +66,6 @@ proc makeAdvertisement*(
   )
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
-proc fillCache*(registrar: Registrar, n: int, now: Moment) =
-  for i in 0 ..< n:
-    let ad = makeAdvertisement($i)
-    registrar.cacheTimestamps[ad.toAdvertisementKey()] = now
-
 proc createSwitch*(): Switch =
   SwitchBuilder
     .new()
@@ -74,68 +76,43 @@ proc createSwitch*(): Switch =
     .withNoise()
     .build()
 
-proc makeMockDiscovery*(
-    discoConfig: ServiceDiscoveryConfig =
-      ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
-): ServiceDiscovery =
-  let switch = createSwitch()
-  ServiceDiscovery.new(
-    switch,
-    bootstrapNodes = @[],
-    discoConfig = discoConfig,
-    config = KadDHTConfig.new(
-      ExtEntryValidator(),
-      ExtEntrySelector(),
-      timeout = 1.secs,
-      cleanupProvidersInterval = 100.millis,
-      providerExpirationInterval = 1.secs,
-      republishProvidedKeysInterval = 50.millis,
-    ),
-  )
-
-proc makeDisco*(
-    fReturn: int = 3, advertExpiry: int64 = -1, safetyParam: float64 = -1
-): ServiceDiscovery =
-  var config = ServiceDiscoveryConfig.new(kRegister = 3, bucketsCount = 16)
-  config.fReturn = fReturn
-  if advertExpiry >= 0:
-    config.advertExpiry = advertExpiry.secs
-  if safetyParam >= 0:
-    config.safetyParam = safetyParam
-  makeMockDiscovery(config)
-
-# --- Legacy helpers for existing tests ---
-
-proc setupDiscovery*(
-    validator: EntryValidator,
-    selector: EntrySelector,
-    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
-): ServiceDiscovery =
-  let switch = createSwitch()
-  let config = KadDHTConfig.new(
-    validator,
-    selector,
+proc testKadDHTConfig(): KadDHTConfig =
+  KadDHTConfig.new(
+    ExtEntryValidator(),
+    ExtEntrySelector(),
     timeout = 1.secs,
     cleanupProvidersInterval = 100.millis,
     providerExpirationInterval = 1.secs,
     republishProvidedKeysInterval = 50.millis,
   )
-  let disco = ServiceDiscovery.new(switch, bootstrapNodes, config)
+
+proc setupServiceDiscoveryNode*(
+    config: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
+    bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+    xprPublishing: bool = true,
+): ServiceDiscovery =
+  let switch = createSwitch()
+  let disco = ServiceDiscovery.new(
+    switch,
+    bootstrapNodes = bootstrapNodes,
+    config = testKadDHTConfig(),
+    discoConfig = config,
+    xprPublishing = xprPublishing,
+  )
   switch.mount(disco)
   disco
 
-proc setupDiscos*(
+proc setupServiceDiscoveryNodes*(
     count: int,
-    validator: EntryValidator,
-    selector: EntrySelector,
+    config: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
+    xprPublishing: bool = true,
 ): seq[ServiceDiscovery] =
-  var discos: seq[ServiceDiscovery]
   for i in 0 ..< count:
-    discos.add(setupDiscovery(validator, selector, bootstrapNodes))
-  discos
+    result.add(setupServiceDiscoveryNode(config, bootstrapNodes, xprPublishing))
 
 proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
+  ## Bidirectionally connect two ServiceDiscovery instances.
   discard disco1.rtable.insert(disco2.switch.peerInfo.peerId)
   discard disco2.rtable.insert(disco1.switch.peerInfo.peerId)
   disco1.switch.peerStore[AddressBook][disco2.switch.peerInfo.peerId] =
@@ -145,22 +122,12 @@ proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
 
 proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:
-    discard disco.rtable.insert(makePeerId())
+    discard disco.rtable.insert(randomPeerId())
 
-proc populateAdvTable*(disco: ServiceDiscovery, serviceId: ServiceId) =
+proc populateAdvertisementTable*(disco: ServiceDiscovery, serviceId: ServiceId) =
   for i in 0 ..< disco.discoConfig.kRegister:
-    discard disco.rtable.insert(makePeerId())
+    discard disco.rtable.insert(randomPeerId())
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
-
-proc populateSearchTable*(
-    disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId]
-) =
-  discard disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-  for peer in peers:
-    disco.rtManager.insertPeer(serviceId, peer.toKey())
