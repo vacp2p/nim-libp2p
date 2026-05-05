@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[times, tables]
+import std/tables
+from std/times import now, utc
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../../utils/future
