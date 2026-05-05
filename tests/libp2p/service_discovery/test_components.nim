@@ -28,6 +28,7 @@ proc setupDiscoNode(
       providerExpirationInterval = 1.secs,
       republishProvidedKeysInterval = 50.millis,
     ),
+    rng = rng(),
     discoConfig = discoConf,
     xprPublishing = false,
   )

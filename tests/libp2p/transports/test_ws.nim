@@ -164,7 +164,7 @@ when defined(libp2p_autotls_support):
 
       let key = KeyPair.random(PKScheme.RSA, rng[]).get()
       let (privkey, cert) = tlsCertGenerator(Opt.some(key))
-      let autotls = MockAutotlsService.new()
+      let autotls = MockAutotlsService.new(rng())
       autotls.mockedKey = privkey
       autotls.mockedCert = cert
       await autotls.setup()
@@ -191,7 +191,7 @@ when defined(libp2p_autotls_support):
 
       let key = KeyPair.random(PKScheme.RSA, rng[]).get()
       let (privkey, cert) = tlsCertGenerator(Opt.some(key))
-      let autotls = MockAutotlsService.new()
+      let autotls = MockAutotlsService.new(rng())
       autotls.mockedKey = privkey
       autotls.mockedCert = cert
       await autotls.setup()

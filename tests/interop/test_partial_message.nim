@@ -32,6 +32,7 @@ proc createOtherPeer(): tuple[switch: Switch, gossipsub: GossipSub] =
 
   var gossipsub = GossipSub.init(
     switch = switch,
+    rng = rng(),
     parameters = (
       var param = GossipSubParams.init()
       param.partialMessageExtensionConfig = Opt.some(
@@ -119,7 +120,7 @@ suite "Gossipsub Partial Message Interop Tests with Nim nodes":
 
   asyncTest "Fails when peer is unreachable":
     const unreachableAddress = "/ip4/127.0.0.1/tcp/59999"
-    let fakePeerId = PeerId.random().get()
+    let fakePeerId = PeerId.random(rng()).get()
 
     expect DialFailedError:
       discard

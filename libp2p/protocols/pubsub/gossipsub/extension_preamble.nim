@@ -58,10 +58,12 @@ proc doAssert(config: PreambleExtensionConfig) =
   )
 
 proc new*(
-    T: typedesc[PreambleExtension], config: PreambleExtensionConfig
+    T: typedesc[PreambleExtension],
+    config: PreambleExtensionConfig,
+    rng: ref HmacDrbgContext,
 ): PreambleExtension =
   config.doAssert()
-  PreambleExtension(rng: newRng(), config: config)
+  PreambleExtension(rng: rng, config: config)
 
 method isSupported*(
     ext: PreambleExtension, pe: PeerExtensions
