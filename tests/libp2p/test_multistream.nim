@@ -20,9 +20,6 @@ import ../tools/[unittest, sync]
 
 {.push raises: [].}
 
-when defined(nimHasUsed):
-  {.used.}
-
 ## Mock stream for select test
 type TestSelectStream = ref object of Connection
   step*: int
