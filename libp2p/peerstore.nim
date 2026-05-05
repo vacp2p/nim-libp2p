@@ -5,15 +5,20 @@
 runnableExamples:
   # Will keep info of all connected peers +
   # last 50 disconnected peers
-  let peerStore = PeerStore.new(capacity = 50)
+  # Passing `nil` for `identify` is only safe for simple peer-book usage like
+  # this example. APIs that rely on identify metadata require a real
+  # `Identify` instance when constructing the `PeerStore`.
+  import libp2p/peerid
+
+  let ps = PeerStore.new(nil, capacity = 50)
 
   # Create a custom book type
   type MoodBook = ref object of PeerBook[string]
 
   var somePeerId = PeerId.random().expect("get random key")
 
-  peerStore[MoodBook][somePeerId] = "Happy"
-  doAssert peerStore[MoodBook][somePeerId] == "Happy"
+  ps[MoodBook][somePeerId] = "Happy"
+  doAssert ps[MoodBook][somePeerId] == "Happy"
 
 {.push raises: [].}
 
@@ -79,8 +84,9 @@ type
       ## When set, inbound peer addresses are filtered through the shared
       ## policy before they are stored or redistributed.
 
-proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore =
-  T(identify: identify, capacity: capacity, addressPolicy: defaultAddressPolicy)
+proc new*(Self: type PeerStore, identify: Identify, capacity = 1000): PeerStore =
+  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  Self(identify: identify, capacity: capacity, addressPolicy: defaultAddressPolicy)
 
 #########################
 # Generic Peer Book API #

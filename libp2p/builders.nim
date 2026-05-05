@@ -2,11 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 ## This module contains a Switch Building helper.
-runnableExamples:
-  let switch = SwitchBuilder.new().withRng(rng).withAddresses(multiaddress)
-    # etc
-    .build()
-
 {.push raises: [].}
 
 import tables, chronos, chronicles, sequtils
@@ -185,14 +180,6 @@ proc withNoise*(b: SwitchBuilder): SwitchBuilder =
 
 proc withTransport*(b: SwitchBuilder, prov: TransportBuilder): SwitchBuilder =
   ## Use a custom transport
-  runnableExamples:
-    let switch = SwitchBuilder
-      .new()
-      .withTransport(
-        proc(config: TransportConfig): Transport =
-          TcpTransport.new(flags, config.upgr)
-      )
-      .build()
   b.transports.add(prov)
   b
 

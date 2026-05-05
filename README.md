@@ -40,7 +40,7 @@ The currently supported Nim versions are v2.2.4 and v2.2.10.
 nimble install libp2p
 ```
 
-You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/docs/). See [examples](./examples) for simple usage patterns.
+You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-libp2p/). See [examples](./examples) for simple usage patterns.
 
 ## Development
 
