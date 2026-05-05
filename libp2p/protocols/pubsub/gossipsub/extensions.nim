@@ -3,6 +3,7 @@
 
 import std/[sets, tables]
 import ../../../[peerid]
+import ../../../crypto/crypto
 import ../rpc/messages
 import
   ./[

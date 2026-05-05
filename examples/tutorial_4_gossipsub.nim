@@ -123,7 +123,7 @@ proc main() {.async.} =
   for hostname in ["John", "Walter", "David", "Thuy", "Amy"]:
     let
       switch = newStandardSwitch(rng = rng)
-      gossip = GossipSub.init(switch = switch, triggerSelf = true)
+      gossip = GossipSub.init(switch = switch, triggerSelf = true, rng = rng)
     switch.mount(gossip)
     await switch.start()
 
