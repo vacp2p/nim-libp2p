@@ -167,8 +167,10 @@ when defined(libp2p_kademlia_provider_rejection):
         discard # protocol/decode error
       else:
         case fut.value().value()
-        of AddProviderStatus.accepted: accepted.inc()
-        of AddProviderStatus.rejected: rejected.inc()
+        of AddProviderStatus.accepted:
+          accepted.inc()
+        of AddProviderStatus.rejected:
+          rejected.inc()
     (accepted, rejected)
 
   proc addProviderSpillover(
