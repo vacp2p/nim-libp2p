@@ -40,7 +40,7 @@ suite "KadDHT Switch Builder":
     defer:
       await allFutures(switch1.stop(), switch2.stop())
     check:
-       switch1.ms.handlers.anyIt(KadCodec in it.protos)
+      switch1.ms.handlers.anyIt(KadCodec in it.protos)
 
   asyncTest "Use Kad as a client only":
     var switch1 = SwitchBuilder
