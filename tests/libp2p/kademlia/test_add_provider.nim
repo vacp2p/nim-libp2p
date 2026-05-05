@@ -127,7 +127,7 @@ suite "KadDHT - Add Provider":
       kads[0].providerManager.providedKeys.len == 0
 
   asyncTest "Provider limits":
-    let kads = setupKadSwitches(2)
+    let kads = setupKadSwitches(2, republishProvidedKeysInterval = chronos.hours(1))
     startAndDeferStop(kads)
 
     await connectStar(kads)
