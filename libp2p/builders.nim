@@ -85,7 +85,7 @@ type
     hpService*: Opt[HPService]
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
-    rdv: Opt[RendezVous]
+    rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
@@ -110,7 +110,7 @@ proc new*(T: type[SwitchBuilder]): T =
     agentVersion: AgentVersion,
     autotlsConfig: Opt.none(AutotlsConfig),
     circuitRelay: Opt.none(Relay),
-    rdv: Opt.none(RendezVous),
+    rdvConfig: Opt.none(RendezVousConfig),
     kad: Opt.none(KadInfo),
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
@@ -333,13 +333,10 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
   b.circuitRelay = Opt.some(r)
   b
 
-proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
-  var lrdv = rdv
-  if rdv.isNil():
-    doAssert not b.rng.isNil, "use withRng() before calling withRendezVous()"
-    lrdv = RendezVous.new(b.rng)
-
-  b.rdv = Opt.some(lrdv)
+proc withRendezVous*(
+    b: SwitchBuilder, config: RendezVousConfig = RendezVousConfig.new()
+): SwitchBuilder =
+  b.rdvConfig = Opt.some(config)
   b
 
 proc withKademlia*(
@@ -495,7 +492,8 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     relay.setup(switch)
     switch.mount(relay)
 
-  b.rdv.withValue(rdvService):
+  b.rdvConfig.withValue(rdvCfg):
+    let rdvService = RendezVous.new(b.rng, rdvCfg)
     rdvService.setup(switch)
     switch.mount(rdvService)
 

@@ -6,6 +6,7 @@ import
   ../../../libp2p/[
     builders,
     crypto/crypto,
+    multistream,
     peerid,
     protobuf/minprotobuf,
     protocols/rendezvous,
@@ -25,31 +26,26 @@ proc createSwitch*(): Switch =
     .withNoise()
     .build()
 
-proc createSwitch*(rdv: RendezVous): Switch =
-  var lrdv = rdv
-  if rdv.isNil():
-    lrdv = RendezVous.new(rng)
-
-  SwitchBuilder
+proc createSwitch*(config: RendezVousConfig = RendezVousConfig.new()): RendezVous =
+  let switch = SwitchBuilder
     .new()
+    .withRendezVous(config)
     .withRng(rng)
     .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
     .withMemoryTransport()
     .withMplex()
     .withNoise()
-    .withRendezVous(lrdv)
     .build()
+  for h in switch.ms.handlers:
+    if RendezVousCodec in h.protos:
+      return RendezVous(h.protocol)
+  doAssert false, "RendezVous not mounted"
 
 proc setupNodes*(count: int): seq[RendezVous] =
   doAssert(count > 0, "Count must be greater than 0")
-
   var rdvs: seq[RendezVous] = @[]
-
   for x in 0 ..< count:
-    var rdv: RendezVous = RendezVous.new(rng)
-    discard createSwitch(rdv)
-    rdvs.add(rdv)
-
+    rdvs.add(createSwitch())
   return rdvs
 
 proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]) =
