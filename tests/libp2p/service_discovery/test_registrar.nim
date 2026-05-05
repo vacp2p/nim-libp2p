@@ -969,7 +969,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "new peer ad is added to cache":
     let disco =
-      setupServiceDiscoveryNode(config = ServiceDiscoveryConfig.new(fReturn = 3))
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
 
@@ -980,7 +980,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
 
   test "same peer same seqNo is treated as duplicate and not added again":
     let disco =
-      setupServiceDiscoveryNode(config = ServiceDiscoveryConfig.new(fReturn = 3))
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
 
@@ -991,7 +991,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
 
   test "same peer higher seqNo replaces existing ad":
     let disco =
-      setupServiceDiscoveryNode(config = ServiceDiscoveryConfig.new(fReturn = 3))
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
@@ -1020,7 +1020,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
 
   test "same peer lower seqNo is silently dropped":
     let disco =
-      setupServiceDiscoveryNode(config = ServiceDiscoveryConfig.new(fReturn = 3))
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
@@ -1047,7 +1047,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
 
   test "different peers each store their own ad":
     let disco =
-      setupServiceDiscoveryNode(config = ServiceDiscoveryConfig.new(fReturn = 3))
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad1 = makeAdvertisement($serviceId)
     let ad2 = makeAdvertisement($serviceId)
@@ -1059,7 +1059,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
 
   test "seqNo replacement updates IP tree correctly":
     let disco =
-      setupServiceDiscoveryNode(config = ServiceDiscoveryConfig.new(fReturn = 3))
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
@@ -1134,7 +1134,7 @@ suite "Service Discovery Registrar - waitingTime never negative":
 suite "Service Discovery Registrar - concurrent same-peer registration":
   test "repeated acceptAdvertisement calls for same ad are idempotent":
     let disco =
-      setupServiceDiscoveryNode(config = ServiceDiscoveryConfig.new(fReturn = 3))
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
 
@@ -1219,7 +1219,7 @@ suite "Service Discovery Registrar - updateExistingAd":
 suite "Service Discovery Registrar - insertNewAd":
   test "inserts ad into cache, IP tree, and timestamps, returns true":
     let disco =
-      setupServiceDiscoveryNode(config = ServiceDiscoveryConfig.new(fReturn = 3))
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     var ads: seq[Advertisement] = @[]
@@ -1257,7 +1257,7 @@ suite "Service Discovery Registrar - insertNewAd":
     let config = ServiceDiscoveryConfig.new(
       kRegister = 3, bucketsCount = 16, advertCacheCap = cap.uint64
     )
-    let disco = setupServiceDiscoveryNode(config = config)
+    let disco = setupServiceDiscoveryNode(discoConfig = config)
     let serviceId = makeServiceId()
     let now = initMoment(5000)
 

@@ -87,29 +87,31 @@ proc testKadDHTConfig(): KadDHTConfig =
   )
 
 proc setupServiceDiscoveryNode*(
-    config: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
+    discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     xprPublishing: bool = true,
 ): ServiceDiscovery =
   let switch = createSwitch()
-  let disco = ServiceDiscovery.new(
+  let node = ServiceDiscovery.new(
     switch,
     bootstrapNodes = bootstrapNodes,
     config = testKadDHTConfig(),
-    discoConfig = config,
+    discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  switch.mount(disco)
-  disco
+  switch.mount(node)
+  node
 
 proc setupServiceDiscoveryNodes*(
     count: int,
-    config: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
+    discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     xprPublishing: bool = true,
 ): seq[ServiceDiscovery] =
+  var nodes: seq[ServiceDiscovery]
   for i in 0 ..< count:
-    result.add(setupServiceDiscoveryNode(config, bootstrapNodes, xprPublishing))
+    nodes.add(setupServiceDiscoveryNode(discoConfig, bootstrapNodes, xprPublishing))
+  nodes
 
 proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
   ## Bidirectionally connect two ServiceDiscovery instances.

@@ -5,7 +5,6 @@
 import chronos, results, tables
 import
   ../../../libp2p/[
-    peerid,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/discoverer,
@@ -129,9 +128,9 @@ suite "Discoverer - start/stop discovering":
 
   asyncTest "startDiscovering sends messages and finds registered peer":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(config = conf)
-    let advertiserNode = setupServiceDiscoveryNode(config = conf)
-    let discovererNode = setupServiceDiscoveryNode(config = conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
     registrarNode.switch.mount(registrarNode)
     advertiserNode.switch.mount(advertiserNode)
     discovererNode.switch.mount(discovererNode)

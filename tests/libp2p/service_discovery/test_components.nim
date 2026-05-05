@@ -2,11 +2,10 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, sequtils, tables
+import chronos, results, std/[sequtils, tables]
 import
   ../../../libp2p/[
     crypto/crypto,
-    protocols/kademlia,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/discoverer,
@@ -271,8 +270,8 @@ suite "Component - handleRegister":
 
   asyncTest "REGISTER with safetyParam=0 returns Confirmed on first attempt":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(config = conf)
-    let advertiserNode = setupServiceDiscoveryNode(config = conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
@@ -303,9 +302,9 @@ suite "Component - handleGetAds":
 
   asyncTest "GET_ADS returns ads stored in registrar cache":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(config = conf)
-    let advertiserNode = setupServiceDiscoveryNode(config = conf)
-    let discovererNode = setupServiceDiscoveryNode(config = conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
     await connect(registrarNode, advertiserNode)
     await connect(registrarNode, discovererNode)
@@ -333,8 +332,8 @@ suite "Component - handleGetAds":
 
   asyncTest "GET_ADS respects F_return limit":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, fReturn = 2)
-    let registrarNode = setupServiceDiscoveryNode(config = conf)
-    let discovererNode = setupServiceDiscoveryNode(config = conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode, discovererNode])
     await connect(registrarNode, discovererNode)
 
@@ -359,10 +358,10 @@ suite "Component - end-to-end":
     # Using 2 registrars reduces the chance of dropping a peer whose
     # bucket index falls outside the default bucket range
     # (`Default_M_buckets = 16`). This reduces the failure rate to 1 in 4_294_967_296.
-    let registrarNode1 = setupServiceDiscoveryNode(config = conf)
-    let registrarNode2 = setupServiceDiscoveryNode(config = conf)
-    let advertiserNode = setupServiceDiscoveryNode(config = conf)
-    let discovererNode = setupServiceDiscoveryNode(config = conf)
+    let registrarNode1 = setupServiceDiscoveryNode(discoConfig = conf)
+    let registrarNode2 = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode1, registrarNode2, advertiserNode, discovererNode])
 
     # Advertiser and discoverer both know about the registrar
