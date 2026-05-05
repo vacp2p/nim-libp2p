@@ -5,7 +5,7 @@
 
 import chronos, sequtils, results
 import ../../libp2p/[builders, switch]
-import ../tools/[unittest, futures]
+import ../tools/[unittest, futures, crypto]
 
 suite "Dialer":
   teardown:
@@ -13,8 +13,8 @@ suite "Dialer":
 
   asyncTest "Connect forces a new connection":
     let
-      src = newStandardSwitch(maxConnsPerPeer = 2)
-      dst = newStandardSwitch(maxConnsPerPeer = 2)
+      src = newStandardSwitch(maxConnsPerPeer = 2, rng = rng())
+      dst = newStandardSwitch(maxConnsPerPeer = 2, rng = rng())
 
     await dst.start()
 
@@ -32,18 +32,19 @@ suite "Dialer":
   asyncTest "Max connections reached":
     var switches: seq[Switch]
 
-    let dst =
-      newStandardSwitch(connectionLimits = Opt.some(ConnectionLimits.maxTotal(2)))
+    let dst = newStandardSwitch(
+      connectionLimits = Opt.some(ConnectionLimits.maxTotal(2)), rng = rng()
+    )
     await dst.start()
     switches.add(dst)
 
     for i in 1 ..< 3:
-      let src = newStandardSwitch()
+      let src = newStandardSwitch(rng = rng())
       switches.add(src)
       await src.start()
       await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs, true, false)
 
-    let src = newStandardSwitch()
+    let src = newStandardSwitch(rng = rng())
     switches.add(src)
     await src.start()
     check not await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs).withTimeout(
