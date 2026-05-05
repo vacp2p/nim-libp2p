@@ -154,7 +154,7 @@ proc new*(T: typedesc[NoReplyProtocol]): NoReplyProtocol =
         ReceivedMessage(connPeerId: conn.peerId, data: buffer)
       )
     except LPStreamError:
-      raiseAssert "should not happen"
+      discard
     finally:
       await conn.close()
 
