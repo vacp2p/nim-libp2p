@@ -336,6 +336,10 @@ proc scoringHeartbeat*(g: GossipSub) {.async: (raises: [CancelledError]).} =
     trace "running scoring heartbeat", instance = cast[int](g)
     g.updateScores()
 
+    for trigger in g.scoringHeartbeatEvents:
+      trace "firing scoring heartbeat event", instance = cast[int](g)
+      trigger.fire()
+
 proc punishInvalidMessage*(
     g: GossipSub, peer: PubSubPeer, msg: Message
 ) {.async: (raises: [PeerRateLimitError]).} =

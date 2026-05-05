@@ -119,6 +119,8 @@ proc advertiseToRegistrar*(
   var currentTicket = ticket
 
   while true:
+    debug "registering advert", serviceId = serviceId, peerId = registrar
+
     let response = (
       await disco.sendRegister(registrar, serviceId, advertBuff, currentTicket)
     ).valueOr:
@@ -132,6 +134,8 @@ proc advertiseToRegistrar*(
 
     case response.status
     of kademlia_protobuf.RegistrationStatus.Confirmed:
+      debug "advert accepted", serviceId, remote = registrar
+
       await sleepAsync(disco.discoConfig.advertExpiry)
     of kademlia_protobuf.RegistrationStatus.Wait:
       let newTicket = response.ticket.valueOr:
@@ -140,12 +144,14 @@ proc advertiseToRegistrar*(
 
       currentTicket = Opt.some(newTicket)
 
-      let waitSecs =
-        min(disco.discoConfig.advertExpiry.seconds.uint32, newTicket.tWaitFor)
+      let waitSecs = min(disco.discoConfig.advertExpiry, newTicket.tWaitFor)
 
-      await sleepAsync(chronos.seconds(int(waitSecs)))
+      debug "waiting for registrar", serviceId, remote = registrar, wait = $waitSecs
+
+      await sleepAsync(waitSecs)
     of kademlia_protobuf.RegistrationStatus.Rejected:
       # Don't reschedule - this registrar rejected us
+      debug "registrar rejection, aborting", serviceId, remote = registrar
       break
 
 proc addProvidedService*(
@@ -162,6 +168,8 @@ proc addProvidedService*(
     Provided,
   ):
     return
+
+  debug "added provided service", service = service.id, serviceId = serviceId
 
   disco.services.incl(service)
   cd_advertiser_services_added.inc()
@@ -210,6 +218,9 @@ proc removeProvidedService*(
     if s.id == serviceId:
       disco.services.excl(s)
       break
+
+  debug "removed provided service", service = serviceId, serviceId = sid
+
   cd_advertiser_services_removed.inc()
 
 proc startAdvertising*(

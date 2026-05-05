@@ -1,30 +1,21 @@
-name: Examples
+name: Daily runnableExamples
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-  merge_group:
+  schedule:
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
-  examples:
-    env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
+  runnable-examples:
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-
     defaults:
       run:
         shell: bash
 
-    name: "Build Examples"
+    name: "Run runnableExamples check"
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -45,18 +36,13 @@ jobs:
         uses: actions/cache@v5
         with:
           path: nimbledeps
-          key: nimbledeps-examples-${{ hashFiles('.pinned') }}
+          key: nimbledeps-${{ hashFiles('.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
         run: |
           nimble install_pinned
 
-      - name: Build and run examples
+      - name: Run runnableExamples check
         run: |
-          nim --version
-          nimble --version
-          gcc --version
-
-          nimble setup
-          cd examples && nimble examples
+          nim c -r ./tools/check_code_examples.nim

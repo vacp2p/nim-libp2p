@@ -290,10 +290,10 @@ suite "Autonat Service":
       AutonatClient.new(), rng, Opt.some(1.seconds), maxQueueSize = 1
     )
 
-    let switch1 = createSwitch(Opt.some(autonatService), maxConnsPerPeer = 0)
+    let switch1 = createSwitch(Opt.some(autonatService), maxConnsPerPeer = 1)
 
     let switch2 =
-      createSwitch(maxConnsPerPeer = 0, nameResolver = MockResolver.default())
+      createSwitch(maxConnsPerPeer = 1, nameResolver = MockResolver.default())
 
     let awaiter = newFuture[void]()
 
@@ -339,9 +339,9 @@ suite "Autonat Service":
       AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
 
-    let switch1 = createSwitch(Opt.some(autonatService1), maxConnsPerPeer = 0)
-    let switch2 = createSwitch(Opt.some(autonatService2), maxConnsPerPeer = 0)
-    let switch3 = createSwitch(Opt.some(autonatService3), maxConnsPerPeer = 0)
+    let switch1 = createSwitch(Opt.some(autonatService1), maxConnsPerPeer = 1)
+    let switch2 = createSwitch(Opt.some(autonatService2), maxConnsPerPeer = 1)
+    let switch3 = createSwitch(Opt.some(autonatService3), maxConnsPerPeer = 1)
 
     let awaiter1 = newFuture[void]()
     let awaiter2 = newFuture[void]()
@@ -395,8 +395,8 @@ suite "Autonat Service":
       AutonatClient.new(), rng, Opt.some(500.millis), maxQueueSize = 3
     )
 
-    let switch1 = createSwitch(Opt.some(autonatService1), maxConnsPerPeer = 0)
-    let switch2 = createSwitch(Opt.some(autonatService2), maxConnsPerPeer = 0)
+    let switch1 = createSwitch(Opt.some(autonatService1), maxConnsPerPeer = 1)
+    let switch2 = createSwitch(Opt.some(autonatService2), maxConnsPerPeer = 1)
 
     let awaiter1 = newFuture[void]()
 

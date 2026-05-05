@@ -337,7 +337,7 @@ suite "KadDHT - Add Provider":
       providerWithNoAddrs = Peer(
         id: senderKad.switch.peerInfo.peerId.getBytes(),
         addrs: @[],
-        connection: ConnectionType.connected,
+        connection: ConnectionStatus.connected,
       )
     receiverKad.handleAddProviderMessage = Opt.some(
       Message(

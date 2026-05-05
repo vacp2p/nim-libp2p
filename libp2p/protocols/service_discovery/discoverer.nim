@@ -31,16 +31,19 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
 
 proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId, limit: int
-): Future[Opt[GetAdsResult]] {.async: (raises: [CancelledError]), gcsafe.} =
+): Future[Result[GetAdsResult, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let addrs = disco.switch.peerStore[AddressBook][peerId]
   if addrs.len == 0:
-    return Opt.none(GetAdsResult)
+    return err("no addresses for peer")
+
+  debug "getting adverts", serviceId, remote = peerId
 
   let connRes = catch:
     await disco.switch.dial(peerId, addrs, disco.codec)
-  let conn = connRes.valueOr:
-    error "dialing peer failed", error = error.msg
-    return Opt.none(GetAdsResult)
+  if connRes.isErr:
+    error "dialing peer failed", error = connRes.error.msg
+    return err(connRes.error.msg)
+  let conn = connRes.value()
   defer:
     await conn.close()
 
@@ -58,14 +61,15 @@ proc dispatchGetAds(
 
   if writeRes.isErr:
     error "connection writing failed", error = writeRes.error.msg
-    return Opt.none(GetAdsResult)
+    return err(writeRes.error.msg)
 
   cd_message_duration_ms.time(labelValues = [$MessageType.getAds]):
     readRes = catch:
       await conn.readLp(MaxMsgSize)
-  let replyBuf = readRes.valueOr:
+  if readRes.isErr:
     error "connection reading failed", error = readRes.error.msg
-    return Opt.none(GetAdsResult)
+    return err(readRes.error.msg)
+  let replyBuf = readRes.value()
 
   cd_messages_received.inc(labelValues = [$MessageType.getAds])
   cd_message_bytes_received.inc(
@@ -74,13 +78,16 @@ proc dispatchGetAds(
 
   let reply = Message.decode(replyBuf).valueOr:
     error "failed to decode message response", error = $error
-    return Opt.none(GetAdsResult)
+    return err("failed to decode message response")
 
   let getAdsMsg = reply.getAds.valueOr:
     error "get ads message response not found"
-    return Opt.none(GetAdsResult)
+    return err("get ads message response not found")
 
-  return Opt.some(
+  debug "adverts found",
+    serviceId, remote = peerId, count = getAdsMsg.advertisements.len
+
+  return ok(
     GetAdsResult(
       ads: getAdsMsg.advertisements.validAds(serviceId),
       closerPeers: reply.closerPeers.toPeerInfos(),
@@ -117,18 +124,20 @@ proc processResponse(
 proc drainCompletedPeers(
     disco: ServiceDiscovery,
     serviceId: ServiceId,
-    pending: seq[Future[Opt[GetAdsResult]]],
+    pending: seq[Future[Result[GetAdsResult, string]]],
 ) =
   for fut in pending.filterIt(it.completed()):
-    fut.value().withValue(response):
-      disco.insertCloserPeers(serviceId, response.closerPeers.mapIt(it.peerId))
+    let res = fut.value()
+    if res.isOk():
+      disco.insertCloserPeers(serviceId, res.value().closerPeers.mapIt(it.peerId))
 
 proc collectBucketAds(
     disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int
 ): Future[seq[Advertisement]] {.async: (raises: [CancelledError]).} =
   var found = newSeqOfCap[Advertisement](limit)
-  var pending: seq[Future[Opt[GetAdsResult]]] =
-    peers.mapIt(Future[Opt[GetAdsResult]](dispatchGetAds(disco, it, serviceId, limit)))
+  var pending: seq[Future[Result[GetAdsResult, string]]] = peers.mapIt(
+    Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId, limit))
+  )
   defer:
     for fut in pending:
       if not fut.finished():
@@ -148,8 +157,9 @@ proc collectBucketAds(
     pending.del(pending.find(completedFut))
 
     if completedFut.completed():
-      completedFut.value().withValue(response):
-        disco.processResponse(serviceId, response, found, limit)
+      let res = completedFut.value()
+      if res.isOk():
+        disco.processResponse(serviceId, res.value(), found, limit)
 
     if found.len >= limit:
       disco.drainCompletedPeers(serviceId, pending)
@@ -158,16 +168,21 @@ proc collectBucketAds(
   return found
 
 proc startDiscovering*(disco: ServiceDiscovery, serviceId: string): bool =
+  let serviceHash = serviceId.hashServiceId()
+
+  debug "start discovering", service = serviceId, serviceId = serviceHash
+
   disco.rtManager.addService(
-    serviceId.hashServiceId(),
-    disco.rtable,
-    disco.config.replication,
-    disco.discoConfig.bucketsCount,
+    serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
 
 proc stopDiscovering*(disco: ServiceDiscovery, serviceId: string) =
-  disco.rtManager.removeService(serviceId.hashServiceId(), Interest)
+  let serviceHash = serviceId.hashServiceId()
+
+  debug "stop discovering", service = serviceId, serviceId = serviceHash
+
+  disco.rtManager.removeService(serviceHash, Interest)
 
 proc lookup*(
     disco: ServiceDiscovery, serviceId: ServiceId
