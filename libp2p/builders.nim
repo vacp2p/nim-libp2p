@@ -326,6 +326,7 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
+    doAssert not b.rng.isNil, "use withRng() before calling withAutotls()"
     b.autotls = Opt.some(AutotlsService.new(b.rng, config = config))
     b
 
@@ -336,6 +337,7 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
 proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
   var lrdv = rdv
   if rdv.isNil():
+    doAssert not b.rng.isNil, "use withRng() before calling withRendezVous()"
     lrdv = RendezVous.new(b.rng)
 
   b.rdv = Opt.some(lrdv)
@@ -376,6 +378,9 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   b.withAddressPolicy(publicRoutableAddressPolicy)
 
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
+  if isNil(b.rng):
+    b.rng = newRng()
+
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
@@ -435,9 +440,6 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
-
-  if isNil(b.rng):
-    b.rng = newRng()
 
   let peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
