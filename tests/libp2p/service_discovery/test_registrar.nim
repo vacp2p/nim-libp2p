@@ -1236,7 +1236,7 @@ suite "Service Discovery Registrar - insertNewAd":
 
   test "inserts ad without eviction when cache is under capacity":
     let disco = setupServiceDiscoveryNode(
-      config = ServiceDiscoveryConfig.new(fReturn = 3, advertExpiry = 900.secs)
+      discoConfig = ServiceDiscoveryConfig.new(fReturn = 3, advertExpiry = 900.secs)
     )
     let serviceId = makeServiceId()
     let existingAd = makeAdvertisement($makeServiceId(99))
