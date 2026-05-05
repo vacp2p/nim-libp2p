@@ -3,6 +3,7 @@
 
 {.used.}
 
+import protobuf_serialization
 import ../../../libp2p/[protocols/rendezvous/protobuf]
 import ../../tools/[unittest]
 
@@ -59,12 +60,18 @@ suite "RendezVous Protobuf":
       encode(decodedRegister) == encode(originalRegister)
 
   test "Register decode fails when missing namespace":
-    # field 2; value: @[1]
-    check Register.decode(@[byte 0x12, 0x01, 0x01]).isNone()
+    type BadRegister {.proto2.} = object
+      signedPeerRecord {.fieldNumber: 2, required.}: seq[byte]
+
+    let encoded = Protobuf.encode(BadRegister(signedPeerRecord: @[byte 1]))
+    check Register.decode(encoded).isNone()
 
   test "Register decode fails when missing signedPeerRecord":
-    # field 1; value: "ns"
-    check Register.decode(@[byte 0x0A, 0x02, 0x6E, 0x73]).isNone()
+    type BadRegister {.proto2.} = object
+      ns {.fieldNumber: 1, required.}: string
+
+    let encoded = Protobuf.encode(BadRegister(ns: namespace))
+    check Register.decode(encoded).isNone()
 
   test "RegisterResponse roundtrip successful":
     let originalResponse = RegisterResponse(
@@ -91,12 +98,14 @@ suite "RendezVous Protobuf":
       encode(decodedResponse) == encode(originalResponse)
 
   test "RegisterResponse decode fails invalid status enum":
-    # field 1; value: 999
-    check RegisterResponse.decode(@[byte 0x08, 0xE7, 0x07]).isNone()
+    type BadRegisterResponse {.proto2.} = object
+      status {.fieldNumber: 1, required, pint.}: int32
+
+    let encoded = Protobuf.encode(BadRegisterResponse(status: 999))
+    check RegisterResponse.decode(encoded).isNone()
 
   test "RegisterResponse decode fails missing status":
-    # field 2; value: "msg"
-    check RegisterResponse.decode(@[byte 0x12, 0x03, 0x6D, 0x73, 0x67]).isNone()
+    check RegisterResponse.decode(default(seq[byte])).isNone()
 
   test "Unregister roundtrip":
     let originalUnregister = Unregister(ns: namespace)
@@ -165,9 +174,13 @@ suite "RendezVous Protobuf":
       encode(decodedResponse) == encode(originalResponse)
 
   test "DiscoverResponse decode fails with invalid registration":
-    # field 1; value @[byte 0x00, 0xFF]
-    # field 3; value ResponseStatus.Ok
-    check DiscoverResponse.decode(@[byte 0x0A, 0x02, 0x00, 0xFF, 0x18, 0x00]).isNone()
+    type BadDiscoverResponse {.proto2.} = object
+      registrations {.fieldNumber: 1.}: seq[byte]
+      status {.fieldNumber: 3, required, pint.}: int32
+
+    let encoded =
+      Protobuf.encode(BadDiscoverResponse(registrations: @[byte 0x00, 0xFF], status: 0))
+    check DiscoverResponse.decode(encoded).isNone()
 
   test "DiscoverResponse decode fails missing status":
     check DiscoverResponse.decode(default(seq[byte])).isNone()
@@ -236,5 +249,8 @@ suite "RendezVous Protobuf":
       decodeResult.get().register.isNone()
 
   test "Message decode fails invalid msgType":
-    # field 1; value: 999
-    check Message.decode(@[byte 0x08, 0xE7, 0x07]).isNone()
+    type BadMessage {.proto2.} = object
+      msgType {.fieldNumber: 1, required, pint.}: int32
+
+    let encoded = Protobuf.encode(BadMessage(msgType: 999))
+    check Message.decode(encoded).isNone()
