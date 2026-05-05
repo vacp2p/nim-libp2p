@@ -20,7 +20,7 @@ import
     crypto/secp,
   ]
 
-import ../../../tools/[lifecycle, unittest]
+import ../../../tools/[lifecycle, unittest, crypto]
 import ../utils
 import ../mock_mix
 
@@ -105,7 +105,7 @@ suite "Mix Protocol - Node Failures":
       10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
     )
 
-    let (destNode, pingProto) = await setupDestNode(Ping.new())
+    let (destNode, pingProto) = await setupDestNode(Ping.new(rng = rng()))
 
     await startNodes(nodes)
     defer:
@@ -141,7 +141,7 @@ suite "Mix Protocol - Node Failures":
       10, destReadBehavior = Opt.some((codec: PingCodec, callback: readExactly(32)))
     )
 
-    let (destNode, pingProto) = await setupDestNode(Ping.new())
+    let (destNode, pingProto) = await setupDestNode(Ping.new(rng = rng()))
     let destPeerId = destNode.peerInfo.peerId
     let destAddr = destNode.peerInfo.addrs[0]
     await stopDestNode(destNode)
@@ -210,7 +210,7 @@ suite "Mix Protocol - Node Failures":
     let nodes = await setupMixNodes(10)
 
     # Create invalid node with a multiaddr missing transport layer
-    let invalidPeerId = PeerId.random().expect("could not generate peerId")
+    let invalidPeerId = PeerId.random(rng()).expect("could not generate peerId")
     let invalidMultiAddr =
       MultiAddress.init("/ip4/0.0.0.0").expect("could not initialize invalid multiaddr")
 

@@ -12,13 +12,14 @@ when defined(libp2p_autotls_support):
 
   proc new*(
       T: typedesc[MockAutotlsService],
-      rng: ref HmacDrbgContext = newRng(),
+      rng: ref HmacDrbgContext,
       config: AutotlsConfig = AutotlsConfig.new(),
   ): T =
     T(
-      acmeClient:
-        ACMEClient.new(api = ACMEApi.new(acmeServerURL = config.acmeServerURL)),
-      brokerClient: PeerIDAuthClient.new(),
+      acmeClient: ACMEClient.new(
+        rng = rng, api = ACMEApi.new(acmeServerURL = config.acmeServerURL)
+      ),
+      brokerClient: PeerIDAuthClient.new(rng),
       bearer: Opt.none(BearerToken),
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),

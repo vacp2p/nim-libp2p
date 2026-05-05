@@ -52,6 +52,7 @@ type
     privateKey*: PrivateKey
     autotls*: Opt[AutotlsService]
     connManager*: ConnManager
+    rng*: ref HmacDrbgContext
 
   SecureProtocol* {.pure.} = enum
     Noise
@@ -212,7 +213,7 @@ proc withQuicTransport*(b: SwitchBuilder): SwitchBuilder =
 proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder =
   b.withTransport(
     proc(config: TransportConfig): Transport =
-      MemoryTransport.new(config.upgr)
+      MemoryTransport.new(config.upgr, config.rng)
   )
 
 proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder =
@@ -335,7 +336,8 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
 proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
   var lrdv = rdv
   if rdv.isNil():
-    lrdv = RendezVous.new()
+    doAssert not b.rng.isNil, "use withRng() before calling withRendezVous()"
+    lrdv = RendezVous.new(b.rng)
 
   b.rdv = Opt.some(lrdv)
   b
@@ -375,6 +377,9 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   b.withAddressPolicy(publicRoutableAddressPolicy)
 
 proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
+  if isNil(b.rng):
+    b.rng = newRng()
+
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
@@ -431,6 +436,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
             privateKey: seckey,
             autotls: autotlsOpt,
             connManager: connManager,
+            rng: b.rng,
           )
         )
       )
@@ -438,9 +444,6 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
-
-  if isNil(b.rng):
-    b.rng = newRng()
 
   let peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
@@ -499,7 +502,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   b.kad.withValue(kadInfo):
     kadInfo.config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = kadInfo.config
+      switch,
+      bootstrapNodes = kadInfo.bootstrapNodes,
+      config = kadInfo.config,
+      rng = b.rng,
     )
     switch.mount(kad)
 

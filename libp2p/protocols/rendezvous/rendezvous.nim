@@ -513,7 +513,7 @@ proc setup*[E](rdv: GenericRendezVous[E], switch: Switch) =
 
 proc new*(
     T: typedesc[RendezVous],
-    rng: ref HmacDrbgContext = newRng(),
+    rng: ref HmacDrbgContext,
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
     codec: string,
@@ -587,16 +587,16 @@ proc new*(
 
 proc new*(
     T: typedesc[RendezVous],
-    rng: ref HmacDrbgContext = newRng(),
+    rng: ref HmacDrbgContext,
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
 ): T =
-  result = T.new(rng, minDuration, maxDuration, RendezVousCodec)
+  T.new(rng, minDuration, maxDuration, RendezVousCodec)
 
 proc new*(
     T: typedesc[RendezVous],
     switch: Switch,
-    rng: ref HmacDrbgContext = newRng(),
+    rng: ref HmacDrbgContext,
     minDuration = MinimumDuration,
     maxDuration = MaximumDuration,
 ): T =

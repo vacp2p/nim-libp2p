@@ -3,6 +3,7 @@
 
 import std/[sets, tables]
 import ../../../[peerid]
+import ../../../crypto/crypto
 import ../rpc/messages
 import
   ./[
@@ -33,6 +34,7 @@ type ExtensionsState* = ref object
 
 proc new*(
     T: typedesc[ExtensionsState],
+    rng: ref HmacDrbgContext,
     updatePeerBehaviorPenalty: UpdatePeerBehaviorPenaltyProc = noopBehaviorPenaltyProc,
     testExtensionConfig: Opt[TestExtensionConfig] = Opt.none(TestExtensionConfig),
     partialMessageExtensionConfig: Opt[PartialMessageExtensionConfig] =
@@ -72,7 +74,7 @@ proc new*(
     nodeExtensions.pingpongExtension = Opt.some(true)
 
   preambleExtensionConfig.withValue(c):
-    preambleExtension = Opt.some(PreambleExtension.new(c))
+    preambleExtension = Opt.some(PreambleExtension.new(c, rng))
     extensions.add(preambleExtension.get())
     nodeExtensions.preambleExtension = Opt.some(true)
 
