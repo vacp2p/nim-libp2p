@@ -1,12 +1,34 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import chronos, chronicles
+import chronos, chronicles, redis
 import ../../libp2p/[builders, protocols/ping]
 import ../unified_testing
 
 logScope:
   topics = "transport interop"
+
+# The transport interop plans (rust/go/js/python implementations) exchange the
+# listener multiaddr via RPUSH/LPOP on the namespaced list key.
+proc publishListenerAddr(client: Redis, testKey: string, sw: Switch) =
+  let addrs = sw.peerInfo.fullAddrs.tryGet()
+  if addrs.len == 0:
+    raise newException(CatchableError, "Listener has no addresses")
+  discard client.rPush(makeKey(testKey, ListenerMultiaddrSuffix), $addrs[0])
+
+proc fetchListenerAddr(
+    client: Redis, testKey: string, timeout: Duration
+): Future[MultiAddress] {.async.} =
+  let key = makeKey(testKey, ListenerMultiaddrSuffix)
+  var val: string
+  proc hasValue(): bool =
+    val = client.lPop(key)
+    val != redisNil and val.len > 0
+
+  pollUntil(
+    hasValue(), timeout, 500.milliseconds, "Timeout waiting for Redis list: " & key
+  )
+  MultiAddress.init(val).tryGet()
 
 proc runListener(config: BaseConfig) {.async.} =
   let
@@ -18,7 +40,7 @@ proc runListener(config: BaseConfig) {.async.} =
   defer:
     await switch.stop()
 
-  publishListenerMultiaddr(redisClient, config.testKey, switch)
+  publishListenerAddr(redisClient, config.testKey, switch)
   info "Published listener multiaddr"
 
   # Listener stays alive until terminated by the test harness.
@@ -37,7 +59,7 @@ proc runDialer(config: BaseConfig) {.async.} =
 
   let
     remoteAddr =
-      await fetchListenerMultiaddr(redisClient, config.testKey, config.testTimeout)
+      await fetchListenerAddr(redisClient, config.testKey, config.testTimeout)
     dialingStart = Moment.now()
     remotePeerId = await switch.connect(remoteAddr)
     stream = await switch.dial(remotePeerId, PingCodec)
