@@ -23,7 +23,9 @@ suite "RendezVous Errors":
   asyncTest "Various local error":
     let rdv = RendezVous.new(
       rng(),
-      RendezVousConfig.new(minDuration = MinimumAcceptedDuration, maxDuration = MaximumDuration),
+      RendezVousConfig.new(
+        minDuration = MinimumAcceptedDuration, maxDuration = MaximumDuration
+      ),
     )
     expect AdvertiseError:
       discard await rendezvous.request(
