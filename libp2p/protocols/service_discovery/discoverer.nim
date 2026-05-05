@@ -6,7 +6,8 @@ import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
 import ../kademlia/types
-import ./[types, routing_table_manager, service_discovery_metrics, registrar]
+import
+  ./[types, routing_table_manager, service_discovery_metrics, registrar, connection]
 
 logScope:
   topics = "service-disco discoverer"
@@ -29,52 +30,6 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
     validAds.add(ad)
   return validAds
 
-proc remoteGetAds(
-    disco: ServiceDiscovery, peerId: PeerId, msg: Message
-): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let addrs = disco.switch.peerStore[AddressBook][peerId]
-  if addrs.len == 0:
-    return err("no addresses for peer")
-
-  let connRes = catch:
-    await disco.switch.dial(peerId, addrs, disco.codec)
-  if connRes.isErr:
-    return err("dialing peer failed: " & $connRes.error.msg)
-  let conn = connRes.value()
-  defer:
-    await conn.close()
-
-  let encodedMsg = msg.encode().buffer
-
-  cd_messages_sent.inc(labelValues = [$MessageType.getAds])
-  cd_message_bytes_sent.inc(encodedMsg.len.float64, labelValues = [$MessageType.getAds])
-
-  var writeRes: Result[void, ref CatchableError]
-  var readRes: Result[seq[byte], ref CatchableError]
-  cd_message_duration_ms.time(labelValues = [$MessageType.getAds]):
-    writeRes = catch:
-      await conn.writeLp(encodedMsg)
-
-  if writeRes.isErr:
-    return err("connection writing failed: " & $writeRes.error.msg)
-
-  cd_message_duration_ms.time(labelValues = [$MessageType.getAds]):
-    readRes = catch:
-      await conn.readLp(MaxMsgSize)
-  if readRes.isErr:
-    return err("connection reading failed: " & $readRes.error.msg)
-  let replyBuf = readRes.value()
-
-  cd_messages_received.inc(labelValues = [$MessageType.getAds])
-  cd_message_bytes_received.inc(
-    replyBuf.len.float64, labelValues = [$MessageType.getAds]
-  )
-
-  let reply = Message.decode(replyBuf).valueOr:
-    return err("failed to decode message response: " & $error)
-
-  return ok(reply)
-
 proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string] =
   return ok(disco.getAdvertisements(msg))
 
@@ -89,7 +44,7 @@ proc dispatchGetAds(
     if peerId == disco.switch.peerInfo.peerId:
       disco.localGetAds(msg)
     else:
-      await disco.remoteGetAds(peerId, msg)
+      await disco.sendRemoteMessage(peerId, msg)
 
   let reply = replyRes.valueOr:
     return err($error)

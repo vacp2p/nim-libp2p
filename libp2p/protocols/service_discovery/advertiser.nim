@@ -8,7 +8,8 @@ import
 import ../../crypto/crypto
 import ../kademlia
 import ../kademlia/[types, protobuf as kademlia_protobuf]
-import ./[types, routing_table_manager, service_discovery_metrics, registrar]
+import
+  ./[types, routing_table_manager, service_discovery_metrics, registrar, connection]
 
 logScope:
   topics = "service-disco advertiser"
@@ -23,50 +24,6 @@ proc clear*(a: Advertiser) =
     task.fut.cancelSoon()
   a.running.clear()
   cd_advertiser_pending_actions.set(0)
-
-proc remoteRegister(
-    disco: ServiceDiscovery, peerId: PeerId, msg: Message
-): Future[Result[Message, string]] {.async: (raises: [CancelledError]).} =
-  let addrs = disco.switch.peerStore[AddressBook][peerId]
-  if addrs.len == 0:
-    return err("no address found for peer: " & $peerId)
-
-  let connRes = catch:
-    await disco.switch.dial(peerId, addrs, disco.codec)
-  let conn = connRes.valueOr:
-    return err("dialing peer failed: " & error.msg)
-  defer:
-    await conn.close()
-
-  let encodedMsg = msg.encode().buffer
-
-  cd_messages_sent.inc(labelValues = [$MessageType.register])
-  cd_message_bytes_sent.inc(
-    encodedMsg.len.float64, labelValues = [$MessageType.register]
-  )
-
-  var writeRes: Result[void, ref CatchableError]
-  var readRes: Result[seq[byte], ref CatchableError]
-  cd_message_duration_ms.time(labelValues = [$MessageType.register]):
-    writeRes = catch:
-      await conn.writeLp(encodedMsg)
-    readRes = catch:
-      await conn.readLp(MaxMsgSize)
-
-  if writeRes.isErr:
-    return err("connection writing failed: " & writeRes.error.msg)
-  let replyBuf = readRes.valueOr:
-    return err("connection reading failed: " & readRes.error.msg)
-
-  cd_messages_received.inc(labelValues = [$MessageType.register])
-  cd_message_bytes_received.inc(
-    replyBuf.len.float64, labelValues = [$MessageType.register]
-  )
-
-  let reply = Message.decode(replyBuf).valueOr:
-    return err("failed to decode register message response: " & $error)
-
-  return ok(reply)
 
 proc localRegister(disco: ServiceDiscovery, msg: Message): Result[Message, string] =
   return ok(disco.registration(msg))
@@ -94,7 +51,7 @@ proc sendRegister*(
     if peerId == disco.switch.peerInfo.peerId:
       disco.localRegister(msg)
     else:
-      await disco.remoteRegister(peerId, msg)
+      await disco.sendRemoteMessage(peerId, msg)
 
   let reply = replyRes.valueOr:
     return err($error)

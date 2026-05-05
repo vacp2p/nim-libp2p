@@ -410,8 +410,8 @@ proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
   else:
     default
 
-proc registration*(disco: ServiceDiscovery, msg: Message): Message =
-  let serviceId = msg.key
+proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
+  let serviceId = inMsg.key
   let closerPeers = disco.findClosestPeers(serviceId)
 
   var msg = Message(
@@ -426,10 +426,12 @@ proc registration*(disco: ServiceDiscovery, msg: Message): Message =
     closerPeers: closerPeers,
   )
 
-  let regMsg = msg.register.valueOr:
+  let regMsg = inMsg.register.valueOr:
+    error "no register message"
     return msg
 
   let ad = validateRegisterMessage(regMsg, serviceId).valueOr:
+    error "invalid register message"
     return msg
 
   let now = Moment.now()
@@ -442,35 +444,23 @@ proc registration*(disco: ServiceDiscovery, msg: Message): Message =
     disco.acceptAdvertisement(now, serviceId, ad)
     msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Confirmed
     return msg
-  else:
-    disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-    var ticket = Ticket(
-      advertisement: regMsg.advertisement,
-      tInit: regMsg.ticket.tInitOrDefault(now),
-      tMod: now,
-      tWaitFor: tWait,
-    )
-    if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
-      error "failed to sign ticket"
-      return msg
+  disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-    msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Wait
-    msg.register.get().ticket = Opt.some(ticket)
+  var ticket = Ticket(
+    advertisement: regMsg.advertisement,
+    tInit: regMsg.ticket.tInitOrDefault(now),
+    tMod: now,
+    tWaitFor: tWait,
+  )
+
+  if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
+    error "failed to sign ticket"
     return msg
 
-proc handleRegister*(
-    disco: ServiceDiscovery, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
-  ## Handle REGISTER request
-
-  let msgOut = disco.registration(msg)
-
-  let bytes = msgOut.encode().buffer
-  let writeRes = catch:
-    await conn.writeLp(bytes)
-  if writeRes.isErr:
-    error "failed to send register response", err = writeRes.error.msg
+  msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Wait
+  msg.register.get().ticket = Opt.some(ticket)
+  return msg
 
 proc getAdvertisements*(disco: ServiceDiscovery, msg: Message): Message =
   let serviceId = msg.key
@@ -485,22 +475,3 @@ proc getAdvertisements*(disco: ServiceDiscovery, msg: Message): Message =
   )
 
   return response
-
-proc handleGetAds*(
-    disco: ServiceDiscovery, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
-  ## Handle GET_ADS request
-
-  cd_messages_received.inc(labelValues = [$MessageType.getAds])
-
-  let response = disco.getAdvertisements(msg)
-
-  let bytes = response.encode().buffer
-
-  cd_messages_sent.inc(labelValues = [$MessageType.getAds])
-  cd_message_bytes_sent.inc(bytes.len.float64, labelValues = [$MessageType.getAds])
-
-  let writeRes = catch:
-    await conn.writeLp(bytes)
-  if writeRes.isErr:
-    error "failed to send getAds response", err = writeRes.error.msg

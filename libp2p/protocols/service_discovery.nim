@@ -6,8 +6,10 @@ import ../utils/heartbeat
 import ../[peerid, switch, multihash, peerinfo, extended_peer_record]
 import ./kademlia
 import
-  ./service_discovery/
-    [random_find, types, routing_table_manager, advertiser, registrar, discoverer]
+  ./service_discovery/[
+    random_find, types, routing_table_manager, advertiser, registrar, discoverer,
+    connection,
+  ]
 
 export random_find, types, discoverer, advertiser
 
@@ -123,10 +125,8 @@ proc new*(
         await disco.handleGetProviders(conn, msg)
       of MessageType.ping:
         await disco.handlePing(conn, msg)
-      of MessageType.getAds:
-        await disco.handleGetAds(conn, msg)
-      of MessageType.register:
-        await disco.handleRegister(conn, msg)
+      else:
+        await disco.handleServiceDiscoMessage(conn, msg)
 
   return disco
 
