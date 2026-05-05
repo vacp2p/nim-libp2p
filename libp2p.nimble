@@ -10,8 +10,10 @@ skipDirs =
 
 requires "nim >= 2.0.0",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.7",
+  "https://github.com/vacp2p/nim-boringssl#v0.0.2",
   "chronicles >= 0.11.0", "chronos >= 4.2.2", "metrics", "secp256k1", "stew >= 0.4.2",
-  "unittest2", "results", "serialization", "lsquic >= 0.3.0",
+  "unittest2", "results", "serialization",
+  "https://github.com/vacp2p/nim-lsquic#48c800132f4d05192b52efec5f0e53d878ed4dec",
   "https://github.com/status-im/nim-websock#42c37b4172519566db016810eccfce8a02cc1cdf",
   "https://github.com/vacp2p/nim-jwt.git#057ec95eb5af0eea9c49bfe9025b3312c95dc5f2"
 
