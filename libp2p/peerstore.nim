@@ -84,8 +84,9 @@ type
       ## When set, inbound peer addresses are filtered through the shared
       ## policy before they are stored or redistributed.
 
-proc new*(T: type PeerStore, identify: Identify, capacity = 1000): PeerStore =
-  T(identify: identify, capacity: capacity, addressPolicy: defaultAddressPolicy)
+proc new*(Self: type PeerStore, identify: Identify, capacity = 1000): PeerStore =
+  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  Self(identify: identify, capacity: capacity, addressPolicy: defaultAddressPolicy)
 
 #########################
 # Generic Peer Book API #
