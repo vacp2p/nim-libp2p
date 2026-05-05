@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+import std/hashes
 import chronos
 import ../../protobuf/minprotobuf
 import ../../varint
@@ -81,6 +82,12 @@ type
       # field 11 - ADD_PROVIDER response status (nim extension)
     register*: Opt[RegisterMessage] # field 21 -  REGISTER message
     getAds*: Opt[GetAdsMessage] # field 22 -  GET_ADS message
+
+proc hash*(peer: Peer): Hash =
+  hash(peer.id)
+
+proc `==`*(a, b: Peer): bool =
+  a.id == b.id
 
 proc hide(
     connStatus: ConnectionStatus, hideConnectionStatus: bool
