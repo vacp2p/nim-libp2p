@@ -131,9 +131,6 @@ suite "Discoverer - start/stop discovering":
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
     let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
-    registrarNode.switch.mount(registrarNode)
-    advertiserNode.switch.mount(advertiserNode)
-    discovererNode.switch.mount(discovererNode)
     startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
 
     await connect(registrarNode, advertiserNode)
