@@ -325,7 +325,10 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-    b.autotls = Opt.some(AutotlsService.new(config = config))
+    # Use .ok() instead of .some(): `some` infers T from its value arg, which
+    # clashes with the generic T returned by `new`, leaving Opt[T] unresolved.
+    # `.ok(x: untyped)` infers T solely from the receiver type, avoiding this.
+    b.autotls = Opt[AutotlsService].ok(AutotlsService.new(config = config))
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
