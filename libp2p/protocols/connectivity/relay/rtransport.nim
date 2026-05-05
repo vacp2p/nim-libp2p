@@ -127,8 +127,9 @@ method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
     result = false
   trace "Handles return", ma, result
 
-proc new*(T: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): T =
-  let self = T(client: cl, upgrader: upgrader)
+proc new*(Self: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): Self =
+  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  let self = Self(client: cl, upgrader: upgrader)
   self.running = true
   self.queue = newAsyncQueue[Connection](0)
   procCall Transport(self).initialize()
