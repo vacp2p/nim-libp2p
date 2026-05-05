@@ -159,15 +159,16 @@ when defined(libp2p_kademlia_provider_rejection):
   proc countResults[T](rpcBatch: seq[T]): (int, int) =
     var accepted, rejected: int
     for fut in rpcBatch:
-      if not fut.finished() or fut.failed():
-        continue
-      let res = fut.value()
-      if res.isOk():
-        case res.value()
-        of AddProviderStatus.accepted:
-          accepted.inc()
-        of AddProviderStatus.rejected:
-          rejected.inc()
+      if not fut.finished():
+        discard # batch timeout fired before request completed
+      elif fut.failed():
+        discard # transport/connection error
+      elif not fut.value().isOk():
+        discard # protocol/decode error
+      else:
+        case fut.value().value()
+        of AddProviderStatus.accepted: accepted.inc()
+        of AddProviderStatus.rejected: rejected.inc()
     (accepted, rejected)
 
   proc addProviderSpillover(
@@ -194,7 +195,13 @@ when defined(libp2p_kademlia_provider_rejection):
       if stored >= kad.config.replication:
         break
       let batch = kad.sendBatch(chunk, key)
-      await batch.awaitBatch(kad.config.timeout)
+      # Batch timeout must exceed the per-peer reply timeout to account for dial
+      # time. Each future waits up to `timeout` for a reply *after* the dial
+      # completes, so the batch timeout must outlast that wait; otherwise
+      # non-rejection peers (which default to accepted on reply timeout) may
+      # still be mid-wait when countResults runs and get skipped, causing the
+      # stored count to be too low and triggering unnecessary spillover rounds.
+      await batch.awaitBatch(kad.config.timeout + kad.config.timeout div 4)
       let (accepted, rejected) = batch.countResults()
       stored += accepted
       if accepted == 0 and rejected == chunk.len:
