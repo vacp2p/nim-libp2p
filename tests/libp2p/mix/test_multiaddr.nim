@@ -6,14 +6,14 @@
 import results
 import ../../../libp2p/protocols/mix/[serialization, multiaddr]
 import ../../../libp2p/[peerid, multiaddress]
-import ../../tools/[unittest]
+import ../../tools/[unittest, crypto]
 
 template maddr(ma: string): MultiAddress =
   MultiAddress.init(ma).tryGet()
 
 proc maddrConversionShouldFail(ma: string, msg: string) =
   test msg:
-    let peerId = PeerId.random().expect("could not generate peerId")
+    let peerId = PeerId.random(rng()).expect("could not generate peerId")
     let ma = MultiAddress.init(ma).expect("could not initialize multiaddr")
     check:
       multiAddrToBytes(peerId, ma).isErr
@@ -30,7 +30,7 @@ suite "Utils tests":
     for multiAddr in multiAddrs:
       let
         ma = maddr(multiAddr)
-        peerId = PeerId.random().expect("could not generate peerId")
+        peerId = PeerId.random(rng()).expect("could not generate peerId")
         multiAddrBytes = multiAddrToBytes(peerId, ma).expect("conversion failed")
 
       check multiAddrBytes.len == AddrSize

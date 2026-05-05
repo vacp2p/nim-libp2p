@@ -82,6 +82,7 @@ proc makeMockDiscovery*(
   ServiceDiscovery.new(
     switch,
     bootstrapNodes = @[],
+    rng = rng(),
     discoConfig = discoConfig,
     config = KadDHTConfig.new(
       ExtEntryValidator(),
@@ -120,7 +121,7 @@ proc setupDiscovery*(
     providerExpirationInterval = 1.secs,
     republishProvidedKeysInterval = 50.millis,
   )
-  let disco = ServiceDiscovery.new(switch, bootstrapNodes, config)
+  let disco = ServiceDiscovery.new(switch, bootstrapNodes, config, rng = rng())
   switch.mount(disco)
   disco
 

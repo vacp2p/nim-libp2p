@@ -349,7 +349,7 @@ when defined(libp2p_autotls_support):
         )
       )
 
-      acme = ACMEClient.new(api = ACMEApi(acmeApi))
+      acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi))
       let kid = await acme.getOrInitKid()
       check kid == "some-expected-kid"
 
@@ -382,7 +382,7 @@ when defined(libp2p_autotls_support):
           headers: HttpTable.init(@[("Retry-After", "0")]),
         )
       )
-      acme = ACMEClient.new(api = ACMEApi(acmeApi))
+      acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi))
       let kid = await acme.getOrInitKid()
       check kid == "some-expected-kid"
 

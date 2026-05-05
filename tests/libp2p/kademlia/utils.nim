@@ -68,7 +68,7 @@ proc setupKad*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
 ): KadDHT =
   let switch = createSwitch()
-  let kad = KadDHT.new(switch, bootstrapNodes, config)
+  let kad = KadDHT.new(switch, bootstrapNodes, config, rng = rng())
   kad.switch.mount(kad)
   kad
 
@@ -80,7 +80,7 @@ proc setupMockKad*(
     handleFindNodeDelay: Duration = ZeroDuration,
 ): MockKadDHT =
   let switch = createSwitch()
-  let kad = MockKadDHT.new(switch, bootstrapNodes, config)
+  let kad = MockKadDHT.new(switch, bootstrapNodes, config, rng = rng())
   kad.getValueResponse = getValueResponse
   kad.handleAddProviderMessage = handleAddProviderMessage
   kad.handleFindNodeDelay = handleFindNodeDelay
