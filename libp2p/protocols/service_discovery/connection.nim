@@ -50,7 +50,7 @@ proc send*(
 
   return ok(reply)
 
-proc handleServiceDiscoMessage*(
+proc handleMessage*(
     disco: ServiceDiscovery, conn: Connection, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   cd_messages_received.inc(labelValues = [$msg.msgType])
