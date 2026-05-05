@@ -82,7 +82,7 @@ type
     autonatV2Client: AutonatV2Client
     autonatV2Service*: Opt[AutonatV2Service]
     hpService*: Opt[HPService]
-    autotls: Opt[AutotlsService]
+    autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
     rdv: Opt[RendezVous]
     kad: Opt[KadInfo]
@@ -107,7 +107,7 @@ proc new*(T: type[SwitchBuilder]): T =
     scoring: PeerScoring(),
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
-    autotls: Opt.none(AutotlsService),
+    autotlsConfig: Opt.none(AutotlsConfig),
     circuitRelay: Opt.none(Relay),
     rdv: Opt.none(RendezVous),
     kad: Opt.none(KadInfo),
@@ -325,7 +325,7 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-    b.autotls = Opt.some(AutotlsService.new(config = config))
+    b.autotlsConfig = Opt.some(config)
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
@@ -413,8 +413,13 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   let ms = MultistreamSelect.new()
   let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
 
-  b.autotls.withValue(autotlsService):
-    b.services.add(autotlsService)
+  var autotlsOpt = Opt.none(AutotlsService)
+  when defined(libp2p_autotls_support):
+    b.autotlsConfig.withValue(config):
+      autotlsOpt = Opt.some(AutotlsService.new(b.rng, config))
+
+  autotlsOpt.withValue(autotlsSvc):
+    b.services.add(autotlsSvc)
 
   let transports = block:
     var transports: seq[Transport]
@@ -424,7 +429,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
           TransportConfig(
             upgr: muxedUpgrade,
             privateKey: seckey,
-            autotls: b.autotls,
+            autotls: autotlsOpt,
             connManager: connManager,
           )
         )
