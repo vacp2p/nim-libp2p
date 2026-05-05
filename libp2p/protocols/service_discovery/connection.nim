@@ -10,7 +10,7 @@ import ./[types, service_discovery_metrics, registrar]
 logScope:
   topics = "service-disco connection"
 
-proc sendRemoteMessage*(
+proc send*(
     disco: ServiceDiscovery, peerId: PeerId, msg: Message
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let addrs = disco.switch.peerStore[AddressBook][peerId]
