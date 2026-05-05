@@ -82,9 +82,8 @@ proc putValue*(
   kad.dataTable.insert(key, value, $times.now().utc)
 
   for chunk in peers.toChunks(kad.config.alpha):
-    await chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec)).awaitBatch(
-      kad.config.timeout
-    )
+    let batch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec))
+    await batch.allFuturesWaitOrTimeout(kad.config.timeout)
 
   ok()
 

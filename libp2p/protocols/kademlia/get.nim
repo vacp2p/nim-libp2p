@@ -140,7 +140,7 @@ proc getValue*(
       # value is invalid or not best
       rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
 
-  await rpcBatch.awaitBatch(chronos.seconds(5))
+  await rpcBatch.allFuturesWaitOrTimeout(chronos.seconds(5))
 
   ok(best)
 

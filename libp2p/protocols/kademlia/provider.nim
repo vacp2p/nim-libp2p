@@ -203,7 +203,7 @@ when defined(libp2p_kademlia_provider_rejection):
       # non-rejection peers (which default to accepted on reply timeout) may
       # still be mid-wait when countResults runs and get skipped, causing the
       # stored count to be too low and triggering unnecessary spillover rounds.
-      await batch.awaitBatch(kad.config.timeout + kad.config.timeout div 4)
+      await batch.allFuturesWaitOrTimeout(kad.config.timeout + kad.config.timeout div 4)
       let (accepted, rejected) = batch.countResults()
       stored += accepted
       if accepted == 0 and rejected == chunk.len:
@@ -217,7 +217,7 @@ proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gc
   else:
     let peers = await kad.findNode(key)
     for chunk in peers.toChunks(kad.config.alpha):
-      await kad.sendBatch(chunk, key).awaitBatch(kad.config.timeout)
+      await kad.sendBatch(chunk, key).allFuturesWaitOrTimeout(kad.config.timeout)
 
 proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gcsafe.} =
   await addProvider(kad, cid.toKey())

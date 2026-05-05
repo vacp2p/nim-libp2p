@@ -96,21 +96,21 @@ suite "Future":
     check f1.completed()
     check f2.failed()
 
-  asyncTest "awaitBatch completes all futures within timeout":
+  asyncTest "allFuturesWaitOrTimeout completes all futures within timeout":
     proc work() {.async.} =
       await sleepAsync(10.milliseconds)
 
     let futs = @[work(), work(), work()]
-    await futs.awaitBatch(500.milliseconds)
+    await futs.allFuturesWaitOrTimeout(500.milliseconds)
     for f in futs:
       check f.completed()
 
-  asyncTest "awaitBatch does not raise on timeout":
+  asyncTest "allFuturesWaitOrTimeout does not raise on timeout":
     proc slow() {.async.} =
       await sleepAsync(10.seconds)
 
     let futs = @[slow(), slow()]
-    await futs.awaitBatch(10.milliseconds)
+    await futs.allFuturesWaitOrTimeout(10.milliseconds)
 
-  asyncTest "awaitBatch handles empty sequence":
-    await newSeq[Future[void]]().awaitBatch(100.milliseconds)
+  asyncTest "allFuturesWaitOrTimeout handles empty sequence":
+    await newSeq[Future[void]]().allFuturesWaitOrTimeout(100.milliseconds)

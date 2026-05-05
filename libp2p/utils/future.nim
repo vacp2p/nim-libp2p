@@ -39,7 +39,7 @@ template cancelSoon*[T](futs: seq[T]) =
   for fut in futs:
     fut.cancelSoon()
 
-proc awaitBatch*[Fut](
+proc allFuturesWaitOrTimeout*[Fut](
     rpcBatch: seq[Fut], timeout: Duration
 ) {.async: (raises: [CancelledError]).} =
   try:
