@@ -66,7 +66,8 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
   except MuxerError as e:
     trace "failed to open stream for identify push", peerId, description = e.msg
   except MultiStreamError as e:
-    trace "multistream negotiation failed for identify push", peerId, description = e.msg
+    trace "multistream negotiation failed for identify push",
+      peerId, description = e.msg
   except LPStreamError as e:
     trace "stream error during identify push", peerId, description = e.msg
   finally:
@@ -80,7 +81,7 @@ proc broadcast*(p: IdentifyPusher) =
   ## without blocking the caller.
   if p.identifyPush.isNil:
     return
-  
+
   for peerId in p.pushPeers.toSeq():
     let fut = p.sendOne(peerId)
     p.ongoingSend.add(fut)
@@ -110,9 +111,7 @@ proc start*(p: IdentifyPusher) =
     else:
       p.pushPeers.excl(peerId)
 
-  proc onLeft(
-      peerId: PeerId, event: PeerEvent
-  ) {.async: (raises: [CancelledError]).} =
+  proc onLeft(peerId: PeerId, event: PeerEvent) {.async: (raises: [CancelledError]).} =
     p.pushPeers.excl(peerId)
 
   p.onIdentifiedHandler = onIdentified
