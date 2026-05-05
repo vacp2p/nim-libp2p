@@ -474,6 +474,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   )
 
   switch.mount(identify)
+  switch.setupIdentifyPush()
 
   if not isNil(b.autonatV2Client):
     b.autonatV2Client.setup(switch)
