@@ -26,7 +26,7 @@ proc createSwitch*(): Switch =
     .withNoise()
     .build()
 
-proc createSwitch*(config: RendezVousConfig = RendezVousConfig.new()): RendezVous =
+proc createSwitch*(config: RendezVousConfig): RendezVous =
   let switch = SwitchBuilder
     .new()
     .withRendezVous(config)
@@ -45,7 +45,7 @@ proc setupNodes*(count: int): seq[RendezVous] =
   doAssert(count > 0, "Count must be greater than 0")
   var rdvs: seq[RendezVous] = @[]
   for x in 0 ..< count:
-    rdvs.add(createSwitch())
+    rdvs.add(createSwitch(RendezVousConfig.new()))
   return rdvs
 
 proc setupRendezvousNodeWithPeerNodes*(count: int): (RendezVous, seq[RendezVous]) =
