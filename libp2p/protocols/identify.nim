@@ -61,20 +61,9 @@ type
   IdentifyPush* = ref object of LPProtocol
     identifyHandler: IdentifyPushHandler
 
-func shortLog*(addrs: seq[MultiAddress]): string =
-  let limit = min(addrs.len, identifyAddrsLogMax)
-  for i in 0 ..< limit:
-    if i > 0:
-      result.add(',')
-    result.add($addrs[i])
-  if addrs.len > identifyAddrsLogMax:
-    result.add(",...(+")
-    result.add($(addrs.len - identifyAddrsLogMax))
-    result.add(" more)")
-
 chronicles.expandIt(IdentifyInfo):
   pubkey = ($it.pubkey).shortLog
-  addresses = shortLog(it.addrs)
+  addresses = it.addrs.shortLog(identifyAddrsLogMax)
   protocols = it.protos.join(",")
   observable_address = $it.observedAddr
   proto_version = it.protoVersion.get("None")
