@@ -75,14 +75,14 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
 
       let switch = SwitchBuilder
         .new()
-        .withRng(rng)
-        .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
-        .withTcpTransport()
         .withAutotls(
           config = AutotlsConfig.new(
             acmeServerURL = parseUri(LetsEncryptURLStaging), renewCheckTime = 1.seconds
           )
         )
+        .withRng(rng)
+        .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+        .withTcpTransport()
         .withYamux()
         .withNoise()
         .build()
