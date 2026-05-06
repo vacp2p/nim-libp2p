@@ -363,7 +363,7 @@ proc new*(
 
 type KadDHT* = ref object of LPProtocol
   switch*: Switch
-  rng*: ref HmacDrbgContext
+  rng*: Rng
   rtable*: RoutingTable
   maintenanceLoop*: Future[void]
   republishLoop*: Future[void]

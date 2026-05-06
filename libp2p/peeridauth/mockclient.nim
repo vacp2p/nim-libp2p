@@ -15,7 +15,7 @@ type MockPeerIDAuthClient* = ref object of PeerIDAuthClient
   mockedBody*: seq[byte]
 
 proc new*(
-    T: typedesc[MockPeerIDAuthClient], rng: ref HmacDrbgContext
+    T: typedesc[MockPeerIDAuthClient], rng: Rng
 ): MockPeerIDAuthClient {.raises: [].} =
   MockPeerIDAuthClient(session: HttpSessionRef.new(), rng: rng)
 

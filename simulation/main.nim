@@ -164,7 +164,7 @@ proc publishNewMessage(
   return (now, res)
 
 proc initializeGossipsub(
-    switch: Switch, anonymize: bool, rng: ref HmacDrbgContext
+    switch: Switch, anonymize: bool, rng: Rng
 ): GossipSub =
   return GossipSub.init(
     switch = switch,
@@ -176,7 +176,7 @@ proc initializeGossipsub(
   )
 
 proc connectGossipsubPeers(
-    switch: Switch, addrs: seq[string], connectTo: int, rng: ref HmacDrbgContext
+    switch: Switch, addrs: seq[string], connectTo: int, rng: Rng
 ): Future[Result[int, string]] {.async.} =
   var multiAddrs = addrs
 

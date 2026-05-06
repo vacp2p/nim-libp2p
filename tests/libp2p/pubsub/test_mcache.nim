@@ -10,7 +10,7 @@ import
 import ../../tools/[unittest, crypto]
 
 proc randomPeerId(): PeerId =
-  PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+  PeerId.init(PrivateKey.random(ECDSA, rng).get()).get()
 
 const MsgIdGenSuccess = "msg id generation success"
 

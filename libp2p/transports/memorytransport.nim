@@ -22,12 +22,12 @@ logScope:
   topics = "libp2p memorytransport"
 
 type MemoryTransport* = ref object of Transport
-  rng: ref HmacDrbgContext
+  rng: Rng
   connections: seq[Connection]
   listener: Opt[MemoryListener]
 
 proc new*(
-    T: typedesc[MemoryTransport], upgrade: Upgrade = Upgrade(), rng: ref HmacDrbgContext
+    T: typedesc[MemoryTransport], upgrade: Upgrade = Upgrade(), rng: Rng
 ): T =
   let self = T(upgrader: upgrade, rng: rng)
   procCall Transport(self).initialize()
@@ -40,7 +40,7 @@ proc listenAddress(self: MemoryTransport, ma: MultiAddress): MultiAddress =
   # when special address is used `/memorytransport/*` use any free address.
   # here we assume that any random generated address will be free.
   var randomBuf: array[10, byte]
-  hmacDrbgGenerate(self.rng[], randomBuf)
+  self.rng.generate(randomBuf)
 
   return MultiAddress.init("/memorytransport/" & toHex(randomBuf)).get()
 

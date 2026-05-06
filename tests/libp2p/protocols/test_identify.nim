@@ -51,7 +51,7 @@ suite "Identify":
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
         MultiAddress.init("/ip6/::/tcp/0").get(),
       ]
-      remoteSecKey = PrivateKey.random(ECDSA, rng[]).get()
+      remoteSecKey = PrivateKey.random(ECDSA, rng()).get()
       remotePeerInfo =
         PeerInfo.new(remoteSecKey, ma, ["/test/proto1/1.0.0", "/test/proto2/1.0.0"])
 
@@ -132,7 +132,7 @@ suite "Identify":
       conn = await transport2.dial(transport1.addrs[0])
 
       expect IdentityNoMatchError:
-        let pi2 = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
+        let pi2 = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
         discard await msDial.select(conn, IdentifyCodec)
         discard await identifyProto2.identify(conn, pi2.peerId)
 
@@ -261,7 +261,7 @@ suite "Identify":
           switch2.peerInfo.protocols
 
       let oldPeerId = switch2.peerInfo.peerId
-      switch2.peerInfo = PeerInfo.new(PrivateKey.random(rng[]).get())
+      switch2.peerInfo = PeerInfo.new(PrivateKey.random(rng()).get())
 
       await identifyPush2.push(switch2.peerInfo, conn)
 
@@ -287,7 +287,7 @@ suite "Identify":
       server = SwitchBuilder
         .new()
         .withAddresses(@[quicAddress, tcpAddress])
-        .withRng(rng)
+        .withRng(rng())
         .withMplex()
         .withTcpTransport()
         .withQuicTransport()
@@ -295,7 +295,7 @@ suite "Identify":
         .build()
 
       # Client switch to dial and identify
-      client = newStandardSwitch(addrs = @[tcpAddress], rng = rng)
+      client = newStandardSwitch(addrs = @[tcpAddress], rng = rng())
 
     await server.start()
     await client.start()

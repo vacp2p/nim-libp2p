@@ -16,6 +16,7 @@ import stew/ctops
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import ../utils/sequninit
+import rng
 
 export Asn1Error, results
 
@@ -98,7 +99,7 @@ template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
 
 proc random*[T: RsaKP](
     t: typedesc[T],
-    rng: var HmacDrbgContext,
+    rng: Rng,
     bits = DefaultKeySize,
     pubexp = DefaultPublicExponent,
 ): RsaResult[T] =
@@ -124,7 +125,7 @@ proc random*[T: RsaKP](
   var keygen = rsaKeygenGetDefault()
 
   if keygen(
-    addr rng.vtable,
+    bearSslPrng(rng),
     addr res.seck,
     addr res.buffer[sko],
     addr res.pubk,

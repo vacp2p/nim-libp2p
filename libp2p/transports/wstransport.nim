@@ -16,6 +16,7 @@ import
   ../multistream,
   ../multiaddress,
   ../utility,
+  ../crypto/rng,
   ../stream/connection,
   ../upgrademngrs/upgrade,
   websock/websock
@@ -141,7 +142,7 @@ type WsTransport* = ref object of Transport
   flags: set[ServerFlags]
   handshakeTimeout: Duration
   factories: seq[ExtFactory]
-  rng: ref HmacDrbgContext
+  rng: Rng
 
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
@@ -180,7 +181,8 @@ method start*(
 
   await procCall Transport(self).start(addrs)
 
-  self.wsserver = WSServer.new(factories = self.factories, rng = self.rng)
+  self.wsserver =
+    WSServer.new(factories = self.factories, rng = bearSslDrbgRef(self.rng))
 
   for i, ma in addrs:
     let isWss =
@@ -410,7 +412,7 @@ proc new*(
     tlsFlags: set[TLSFlags] = {},
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
-    rng: ref HmacDrbgContext = nil,
+    rng: Rng = nil,
     handshakeTimeout = DefaultHeadersTimeout,
 ): T {.raises: [].} =
   ## Creates a secure WebSocket transport
@@ -434,7 +436,7 @@ proc new*(
     upgrade: Upgrade,
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
-    rng: ref HmacDrbgContext = nil,
+    rng: Rng = nil,
     handshakeTimeout = DefaultHeadersTimeout,
 ): T {.raises: [].} =
   ## Creates a clear-text WebSocket transport

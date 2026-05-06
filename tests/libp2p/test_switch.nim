@@ -510,10 +510,10 @@ suite "Switch":
     let switch1 = newStandardSwitch(maxConnsPerPeer = 2, rng = rng())
 
     # use same private keys to emulate two connection from same peer
-    let privKey = PrivateKey.random(rng[]).tryGet()
-    let switch2 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
+    let privKey = PrivateKey.random(rng()).tryGet()
+    let switch2 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng())
 
-    let switch3 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng)
+    let switch3 = newStandardSwitch(privKey = Opt.some(privKey), rng = rng())
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -570,7 +570,7 @@ suite "Switch":
   asyncTest "e2e should allow dropping peer from connection events":
     # use same private keys to emulate two connection from same peer
     let
-      privateKey = PrivateKey.random(rng[]).tryGet()
+      privateKey = PrivateKey.random(rng()).tryGet()
       peerInfo = PeerInfo.new(privateKey)
 
     var switches: seq[Switch]
@@ -589,13 +589,13 @@ suite "Switch":
       except DialFailedError:
         raiseAssert "Unexpected DialFailedError in connection event hook"
 
-    switches.add(newStandardSwitch(rng = rng))
+    switches.add(newStandardSwitch(rng = rng()))
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     await switches[0].start()
 
-    switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
+    switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng()))
     await switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
     onConnect.done()
 
@@ -604,7 +604,7 @@ suite "Switch":
     await allFuturesRaising(switches.mapIt(it.stop()))
 
   asyncTest "e2e should allow dropping multiple connections for peer from connection events":
-    let privateKey = PrivateKey.random(rng[]).tryGet()
+    let privateKey = PrivateKey.random(rng()).tryGet()
     let peerInfo = PeerInfo.new(privateKey)
 
     var switches: seq[Switch]
@@ -619,14 +619,14 @@ suite "Switch":
         allDisconnected.done()
 
     # Start first switch
-    switches.add(newStandardSwitch(maxConnsPerPeer = 10, rng = rng))
+    switches.add(newStandardSwitch(maxConnsPerPeer = 10, rng = rng()))
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     await switches[0].start()
 
     # Connect remaining switches sequentially
     for i in 1 .. 5:
-      switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng))
+      switches.add(newStandardSwitch(privKey = Opt.some(privateKey), rng = rng()))
       switches[i].addConnEventHandler(hook, ConnEventKind.Connected)
       switches[i].addConnEventHandler(hook, ConnEventKind.Disconnected)
       await switches[i].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
@@ -662,7 +662,7 @@ suite "Switch":
 
     await switch.start()
 
-    var peerId = PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).get()
+    var peerId = PeerId.init(PrivateKey.random(ECDSA, rng()).get()).get()
     expect DialFailedError:
       await switch.connect(peerId, transport.addrs)
 
@@ -720,7 +720,7 @@ suite "Switch":
       newStandardSwitch(secureManagers = [SecureProtocol.Noise], rng = rng())
     await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
-    let seckey = PrivateKey.random(ECDSA, rng[]).get()
+    let seckey = PrivateKey.random(ECDSA, rng()).get()
     let somePeer = PeerInfo.new(seckey, [someAddr])
     expect(DialFailedError):
       discard await switch2.dial(somePeer.peerId, somePeer.addrs, TestCodec)
@@ -1047,7 +1047,7 @@ suite "Switch":
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
-        .withRng(rng)
+        .withRng(rng())
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
@@ -1060,7 +1060,7 @@ suite "Switch":
       destSwitch = SwitchBuilder
         .new()
         .withAddresses(@[tcpAddress, wsAddress])
-        .withRng(rng)
+        .withRng(rng())
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
@@ -1100,7 +1100,7 @@ suite "Switch":
       srcSwitch = SwitchBuilder
         .new()
         .withAddress(quicAddress1)
-        .withRng(rng)
+        .withRng(rng())
         .withQuicTransport()
         .withNoise()
         .build()
@@ -1108,7 +1108,7 @@ suite "Switch":
       destSwitch = SwitchBuilder
         .new()
         .withAddress(quicAddress2)
-        .withRng(rng)
+        .withRng(rng())
         .withQuicTransport()
         .withNoise()
         .build()
@@ -1131,7 +1131,7 @@ suite "Switch":
       destSwitch = SwitchBuilder
         .new()
         .withAddresses(@[tcpAddress, wsAddress, quicAddress])
-        .withRng(rng)
+        .withRng(rng())
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
@@ -1148,7 +1148,7 @@ suite "Switch":
       srcWsSwitch = SwitchBuilder
         .new()
         .withAddress(wsAddress)
-        .withRng(rng)
+        .withRng(rng())
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =

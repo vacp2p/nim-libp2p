@@ -5,7 +5,7 @@
 
 import tables, sequtils, sugar, sets
 import metrics except collect
-import chronos, chronicles, bearssl/rand, stew/[byteutils, objects]
+import chronos, chronicles, stew/[byteutils, objects]
 import
   ./protobuf,
   ../protocol,
@@ -13,6 +13,7 @@ import
   ../../switch,
   ../../dial,
   ../../routing_record,
+  ../../crypto/rng,
   ../../utils/heartbeat,
   ../../utils/future,
   ../../stream/connection,
@@ -92,7 +93,7 @@ type
     # the value is the index sequence corresponding to this
     # namespace in the offsettedqueue.
     namespaces*: Table[string, seq[int]]
-    rng*: ref HmacDrbgContext
+    rng*: Rng
     config*: RendezVousConfig
     salt*: string
     expiredDT*: Moment
@@ -540,13 +541,13 @@ proc setup*[E](rdv: GenericRendezVous[E], switch: Switch) =
 
 proc new*(
     T: typedesc[RendezVous],
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     config: RendezVousConfig = RendezVousConfig.new(),
 ): T =
   let rdv = GenericRendezVous[PeerRecord](
     rng: rng,
     config: config,
-    salt: string.fromBytes(generateBytes(rng[], 8)),
+    salt: string.fromBytes(generateBytes(rng, 8)),
     registered: initOffsettedSeq[RegisteredData](),
     expiredDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
@@ -591,7 +592,7 @@ proc new*(
 proc new*(
     T: typedesc[RendezVous],
     switch: Switch,
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     config: RendezVousConfig = RendezVousConfig.new(),
 ): T =
   let rdv = T.new(rng, config)

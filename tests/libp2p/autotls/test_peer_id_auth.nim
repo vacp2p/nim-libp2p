@@ -20,12 +20,12 @@ suite "PeerID Auth Client":
     checkTrackers()
 
   asyncSetup:
-    client = MockPeerIDAuthClient.new(rng)
+    client = MockPeerIDAuthClient.new(rng())
     client.mockedHeaders = HttpTable.init()
-    peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng[]).get())
+    peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng()).get())
 
   asyncTest "request authentication":
-    let serverPrivateKey = PrivateKey.random(PKScheme.RSA, rng[]).get()
+    let serverPrivateKey = PrivateKey.random(PKScheme.RSA, rng()).get()
     let serverPubkey = serverPrivateKey.getPublicKey().get()
     let b64serverPubkey = serverPubkey.pubkeyBytes().encode(safe = true)
     client.mockedHeaders.add(
@@ -51,7 +51,7 @@ suite "PeerID Auth Client":
     )
 
     let uri = parseUri("https://example.com/some/uri")
-    let serverPrivateKey = PrivateKey.random(PKScheme.RSA, rng[]).get()
+    let serverPrivateKey = PrivateKey.random(PKScheme.RSA, rng()).get()
     let serverPubkey = serverPrivateKey.getPublicKey().get()
     let authorizationResponse = await client.requestAuthorization(
       peerInfo, uri, "some-challenge-client", "some-challenge-server", serverPubkey,
