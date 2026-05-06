@@ -225,6 +225,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 - Style check is **strict** — naming must match declaration exactly
 - No bare `except` clauses (use typed exceptions)
 - No unused imports
+- Use runtime feature flags or configs for experimental features. Use compile-time flags ONLY when the code must not exist in the binary due to security, compliance, platform, abi, or substantial size/performance constraints.
 
 #### Detecting unused symbols
 - Always check for unused identifiers. Flag any variable, parameter, procedure, function, iterator, template, or macro that meets any of these conditions:
