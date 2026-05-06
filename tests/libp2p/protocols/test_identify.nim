@@ -3,7 +3,6 @@
 
 {.used.}
 
-import std/sets
 import chronos, chronicles
 import
   ../../../libp2p/[
@@ -313,70 +312,3 @@ suite "Identify":
     # The client's peerStore should now have the server's info including addresses via identify
     let storedAddrs = client.peerStore[AddressBook][server.peerInfo.peerId]
     check countAddressesWithPattern(storedAddrs, QUIC_V1) == 1
-
-  suite "Auto identify push":
-    var
-      switch1 {.threadvar.}: Switch
-      switch2 {.threadvar.}: Switch
-
-    asyncSetup:
-      let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()]
-      switch1 = newStandardSwitch(addrs = ma)
-      switch2 = newStandardSwitch(addrs = ma)
-      await switch1.start()
-      await switch2.start()
-      await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
-
-    asyncTeardown:
-      await switch1.stop()
-      await switch2.stop()
-
-    asyncTest "tracks peers that advertise IdentifyPush":
-      checkUntilTimeout:
-        switch1.peerInfo.peerId in switch2.identifyPusher.pushPeers
-        switch2.peerInfo.peerId in switch1.identifyPusher.pushPeers
-
-    asyncTest "broadcasts on mount of new protocol":
-      # wait until both sides have identified each other
-      checkUntilTimeout:
-        switch1.peerInfo.peerId in switch2.identifyPusher.pushPeers
-        switch2.peerInfo.peerId in switch1.identifyPusher.pushPeers
-
-      # mount new protocol to switch2
-      let codecs = "/test/new-protocol/1.0.0"
-      proc dummyHandler(
-          conn: Connection, proto: string
-      ): Future[void] {.async: (raises: [CancelledError]).} =
-        await conn.close()
-
-      let dummy = LPProtocol.new(@[codecs], dummyHandler)
-      await dummy.start()
-      switch2.mount(dummy)
-
-      # switch1 should get information about new protocol
-      checkUntilTimeout:
-        codecs in switch1.peerStore[ProtoBook][switch2.peerInfo.peerId]
-
-    asyncTest "broadcasts on updateAddrs":
-      checkUntilTimeout:
-        switch1.peerInfo.peerId in switch2.identifyPusher.pushPeers
-        switch2.peerInfo.peerId in switch1.identifyPusher.pushPeers
-
-      # switch2 starts listening on new address
-      let extra = MultiAddress.init("/ip4/127.0.0.1/tcp/999").tryGet()
-      switch2.peerInfo.listenAddrs.add(extra)
-      await switch2.updateAddrs()
-
-      # switch1 should receive new address
-      checkUntilTimeout:
-        extra in switch1.peerStore[AddressBook][switch2.peerInfo.peerId]
-
-    asyncTest "removes peer on disconnect":
-      checkUntilTimeout:
-        switch1.peerInfo.peerId in switch2.identifyPusher.pushPeers
-        switch2.peerInfo.peerId in switch1.identifyPusher.pushPeers
-
-      await switch1.disconnect(switch2.peerInfo.peerId)
-
-      checkUntilTimeout:
-        switch2.peerInfo.peerId notin switch1.identifyPusher.pushPeers

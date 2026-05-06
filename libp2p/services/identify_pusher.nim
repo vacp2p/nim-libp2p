@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-## `IdentifyPusher` — orchestrates the IdentifyPush protocol.
+## `IdentifyPusher` — orchestrates the IdentifyPush protocol as a Switch Service.
 ##
 ## Tracks which connected peers advertise the IdentifyPush codec, keeps that
 ## set in sync with connect / disconnect / re-identify events, and broadcasts
@@ -12,15 +12,16 @@
 import std/[sets, sequtils]
 import chronos, chronicles
 import
-  ./protocols/identify,
-  ./peerinfo,
-  ./peerid,
-  ./peerstore,
-  ./connmanager,
-  ./multistream,
-  ./stream/connection,
-  ./muxers/muxer,
-  ./utils/future
+  ../protocols/identify,
+  ../peerinfo,
+  ../peerid,
+  ../peerstore,
+  ../connmanager,
+  ../multistream,
+  ../stream/connection,
+  ../muxers/muxer,
+  ../utils/future,
+  ../switch
 
 export identify
 
@@ -30,23 +31,23 @@ logScope:
 type
   PushSendFut = Future[void].Raising([CancelledError])
 
-  IdentifyPusher* = ref object
+  IdentifyPusher* = ref object of Service
     identifyPush*: IdentifyPush
-    pushPeers*: HashSet[PeerId]
-    ongoingSend*: seq[PushSendFut]
+    pushPeers: HashSet[PeerId]
+    started: bool
+    ongoingSend: seq[PushSendFut]
     connManager: ConnManager
     peerStore: PeerStore
     peerInfo: PeerInfo
     onIdentifiedHandler: PeerEventHandler
     onLeftHandler: PeerEventHandler
+    onPeerInfoUpdated: PeerInfoObserver
 
-proc new*(
-    T: type IdentifyPusher,
-    connManager: ConnManager,
-    peerStore: PeerStore,
-    peerInfo: PeerInfo,
-): T =
-  T(connManager: connManager, peerStore: peerStore, peerInfo: peerInfo)
+proc new*(T: type IdentifyPusher): T =
+  T()
+
+proc pushPeers*(p: IdentifyPusher): seq[PeerId] =
+  return p.pushPeers.toSeq()
 
 proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledError]).} =
   let muxer = p.connManager.selectMuxer(peerId)
@@ -72,14 +73,14 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
     trace "stream error during identify push", peerId, description = e.msg
   finally:
     if not stream.isNil:
-      await stream.closeWithEOF()
+      await noCancel stream.closeWithEOF()
 
 proc broadcast*(p: IdentifyPusher) =
   ## Send an IdentifyPush message with our current `peerInfo` to every
   ## connected peer that advertises the IdentifyPush protocol.
   ## Each send runs as a background future; this proc returns immediately
   ## without blocking the caller.
-  if p.identifyPush.isNil:
+  if not p.started:
     return
 
   for peerId in p.pushPeers.toSeq():
@@ -90,10 +91,17 @@ proc broadcast*(p: IdentifyPusher) =
       if idx >= 0:
         p.ongoingSend.del(idx)
 
-proc start*(p: IdentifyPusher) =
-  ## Construct the IdentifyPush protocol and register the connection manager
-  ## hooks that maintain `pushPeers`. The caller is responsible for mounting
-  ## `p.identifyPush` on a Switch.
+method setup*(
+    p: IdentifyPusher, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  var hasBeenSetup = await procCall Service(p).setup(switch)
+  if not hasBeenSetup:
+    return
+
+  p.peerStore = switch.peerStore
+  p.connManager = switch.connManager
+  p.peerInfo = switch.peerInfo
+
   proc onIncomingPush(peerId: PeerId, info: IdentifyInfo) {.async.} =
     p.peerStore.updatePeerInfo(info)
     if IdentifyPushCodec in info.protos:
@@ -102,6 +110,26 @@ proc start*(p: IdentifyPusher) =
       p.pushPeers.excl(peerId)
 
   p.identifyPush = IdentifyPush.new(onIncomingPush)
+
+  try:
+    switch.mount(p.identifyPush)
+  except LPError as e:
+    trace "could not mount IdentifyPush", msg = e.msg
+    hasBeenSetup = false
+
+  return hasBeenSetup
+
+method run*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =
+  if p.started:
+    return
+
+  p.started = true
+
+  proc onPeerInfoUpdated(peerInfo: PeerInfo) {.gcsafe, raises: [].} =
+    p.broadcast()
+
+  p.onPeerInfoUpdated = onPeerInfoUpdated
+  p.peerInfo.addObserver(p.onPeerInfoUpdated)
 
   proc onIdentified(
       peerId: PeerId, event: PeerEvent
@@ -119,19 +147,31 @@ proc start*(p: IdentifyPusher) =
   p.connManager.addPeerEventHandler(onIdentified, PeerEventKind.Identified)
   p.connManager.addPeerEventHandler(onLeft, PeerEventKind.Left)
 
-proc stop*(p: IdentifyPusher) {.async: (raises: []).} =
-  ## Cancel any in-flight pushes and unregister connection manager hooks.
-  if p.onIdentifiedHandler != nil:
-    p.connManager.removePeerEventHandler(
-      p.onIdentifiedHandler, PeerEventKind.Identified
-    )
-    p.onIdentifiedHandler = nil
-  if p.onLeftHandler != nil:
-    p.connManager.removePeerEventHandler(p.onLeftHandler, PeerEventKind.Left)
-    p.onLeftHandler = nil
+method stop*(
+    p: IdentifyPusher, switch: Switch
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  let hasBeenStopped = await procCall Service(p).stop(switch)
+  if hasBeenStopped:
+    if not p.started:
+      return hasBeenStopped
 
-  let pending = move(p.ongoingSend)
-  pending.cancelSoon()
+    p.started = false
 
-  p.pushPeers.clear()
-  p.identifyPush = nil
+    if not p.onIdentifiedHandler.isNil:
+      p.connManager.removePeerEventHandler(
+        p.onIdentifiedHandler, PeerEventKind.Identified
+      )
+      p.onIdentifiedHandler = nil
+    if not p.onLeftHandler.isNil:
+      p.connManager.removePeerEventHandler(p.onLeftHandler, PeerEventKind.Left)
+      p.onLeftHandler = nil
+    if not p.onPeerInfoUpdated.isNil:
+      p.peerInfo.removeObserver(p.onPeerInfoUpdated)
+      p.onPeerInfoUpdated = nil
+
+    let pending = move(p.ongoingSend)
+    await pending.cancelAndWait()
+
+    p.pushPeers.clear()
+
+  return hasBeenStopped
