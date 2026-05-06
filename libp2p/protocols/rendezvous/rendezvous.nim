@@ -45,6 +45,36 @@ const
 type PeerRecordValidator*[E] =
   proc(_: E, spr: seq[byte], peerId: PeerId): Result[void, string] {.gcsafe.}
 
+type RendezVousConfig* = ref object
+  minDuration*: Duration
+  maxDuration*: Duration
+  minTTL*: uint64
+  maxTTL*: uint64
+
+proc new*(
+    T: typedesc[RendezVousConfig],
+    minDuration: Duration = MinimumDuration,
+    maxDuration: Duration = MaximumDuration,
+): T =
+  var minD = minDuration
+  var maxD = maxDuration
+  if minD < MinimumAcceptedDuration:
+    warn "TTL too short: 1 minute minimum"
+    minD = MinimumAcceptedDuration
+  if maxD > MaximumDuration:
+    warn "TTL too long: 72 hours maximum"
+    maxD = MaximumDuration
+  if minD >= maxD:
+    warn "Minimum TTL longer than maximum"
+    minD = MinimumAcceptedDuration
+    maxD = MaximumDuration
+  T(
+    minDuration: minD,
+    maxDuration: maxD,
+    minTTL: minD.seconds.uint64,
+    maxTTL: maxD.seconds.uint64,
+  )
+
 type
   AdvertiseError* = object of LPError
   RendezVousError* = object of LPError
@@ -63,6 +93,7 @@ type
     # namespace in the offsettedqueue.
     namespaces*: Table[string, seq[int]]
     rng*: ref HmacDrbgContext
+    config*: RendezVousConfig
     salt*: string
     expiredDT*: Moment
     registerDeletionLoop*: Future[void]
@@ -72,10 +103,6 @@ type
     peers*: seq[PeerId]
     cookiesSaved*: Table[PeerId, Table[string, seq[byte]]]
     switch*: Switch
-    minDuration*: Duration
-    maxDuration*: Duration
-    minTTL*: uint64
-    maxTTL*: uint64
     peerRecordValidator*: PeerRecordValidator[E]
 
   RendezVous* = GenericRendezVous[PeerRecord]
@@ -161,7 +188,7 @@ proc save*[E](
     rdv.registered.add(
       RegisteredData(
         peerId: peerId,
-        expiration: Moment.now() + r.ttl.get(rdv.minTTL).int64.seconds,
+        expiration: Moment.now() + r.ttl.get(rdv.config.minTTL).int64.seconds,
         data: r,
       )
     )
@@ -177,8 +204,8 @@ proc register*[E](
   libp2p_rendezvous_register.inc()
   if r.ns.len < MinimumNamespaceLen or r.ns.len > MaximumNamespaceLen:
     return conn.sendRegisterResponseError(InvalidNamespace)
-  let ttl = r.ttl.get(rdv.minTTL)
-  if ttl < rdv.minTTL or ttl > rdv.maxTTL:
+  let ttl = r.ttl.get(rdv.config.minTTL)
+  if ttl < rdv.config.minTTL or ttl > rdv.config.maxTTL:
     return conn.sendRegisterResponseError(InvalidTTL)
   let pr = rdv.peerRecordValidator(peerRecord, r.signedPeerRecord, conn.peerId)
   if pr.isErr():
@@ -314,7 +341,7 @@ proc advertise*[E](
   if ns.len < MinimumNamespaceLen or ns.len > MaximumNamespaceLen:
     raise newException(AdvertiseError, "Invalid namespace")
 
-  if ttl < rdv.minDuration or ttl > rdv.maxDuration:
+  if ttl < rdv.config.minDuration or ttl > rdv.config.maxDuration:
     raise newException(AdvertiseError, "Invalid time to live: " & $ttl)
 
   let
@@ -333,7 +360,7 @@ proc advertise*[E](
 method advertise*(
     rdv: RendezVous, ns: string, ttl: Opt[Duration] = Opt.none(Duration)
 ) {.base, async: (raises: [CancelledError, AdvertiseError]).} =
-  let lttl = ttl.get(rdv.minDuration)
+  let lttl = ttl.get(rdv.config.minDuration)
   if rdv.switch.isNil:
     # I don't like this, but adding this as i don't understand why we have a constructor without switch as arg
     raise newException(AdvertiseError, "Rendezvous not setup with a switch")
@@ -427,8 +454,8 @@ proc request*[E](
       for r in registrations:
         if limit == 0:
           break
-        let ttl = r.ttl.get(rdv.maxTTL + 1)
-        if ttl > rdv.maxTTL:
+        let ttl = r.ttl.get(rdv.config.maxTTL + 1)
+        if ttl > rdv.config.maxTTL:
           continue
         let
           spr = SignedPayload[E].decode(r.signedPeerRecord).valueOr:
@@ -440,7 +467,7 @@ proc request*[E](
               s[pr.peerId]
             except exceptions.KeyError:
               raiseAssert "checked with hasKey"
-          if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.maxTTL) < ttl) or
+          if (prSaved.seqNo == pr.seqNo and rSaved.ttl.get(rdv.config.maxTTL) < ttl) or
               prSaved.seqNo < pr.seqNo:
             s[pr.peerId] = (pr, r)
         else:
@@ -514,40 +541,16 @@ proc setup*[E](rdv: GenericRendezVous[E], switch: Switch) =
 proc new*(
     T: typedesc[RendezVous],
     rng: ref HmacDrbgContext,
-    minDuration = MinimumDuration,
-    maxDuration = MaximumDuration,
-    codec: string,
+    config: RendezVousConfig = RendezVousConfig.new(),
 ): T =
-  var minD = minDuration
-  var maxD = maxDuration
-  if minD < MinimumAcceptedDuration:
-    warn "TTL too short: 1 minute minimum"
-    minD = MinimumAcceptedDuration
-
-  if maxD > MaximumDuration:
-    warn "TTL too long: 72 hours maximum"
-    maxD = MaximumDuration
-
-  if minD >= maxD:
-    warn "Minimum TTL longer than maximum"
-    minD = MinimumAcceptedDuration
-    maxD = MaximumDuration
-
-  let
-    minTTL = minD.seconds.uint64
-    maxTTL = maxD.seconds.uint64
-
   let rdv = GenericRendezVous[PeerRecord](
     rng: rng,
+    config: config,
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
     expiredDT: Moment.now() - 1.days,
     #registerEvent: newAsyncEvent(),
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
-    minDuration: minDuration,
-    maxDuration: maxDuration,
-    minTTL: minTTL,
-    maxTTL: maxTTL,
     peerRecordValidator: checkPeerRecord,
   )
   logScope:
@@ -580,27 +583,18 @@ proc new*(
     finally:
       await conn.close()
 
-  info "Rendezvous protocol initialized", codec
+  info "Rendezvous protocol initialized"
   rdv.handler = handleStream
-  rdv.codec = codec
+  rdv.codec = RendezVousCodec
   return rdv
-
-proc new*(
-    T: typedesc[RendezVous],
-    rng: ref HmacDrbgContext,
-    minDuration = MinimumDuration,
-    maxDuration = MaximumDuration,
-): T =
-  T.new(rng, minDuration, maxDuration, RendezVousCodec)
 
 proc new*(
     T: typedesc[RendezVous],
     switch: Switch,
     rng: ref HmacDrbgContext,
-    minDuration = MinimumDuration,
-    maxDuration = MaximumDuration,
+    config: RendezVousConfig = RendezVousConfig.new(),
 ): T =
-  let rdv = T.new(rng, minDuration, maxDuration, RendezVousCodec)
+  let rdv = T.new(rng, config)
   rdv.setup(switch)
   return rdv
 
