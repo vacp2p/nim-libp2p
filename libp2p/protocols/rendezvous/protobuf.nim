@@ -69,12 +69,6 @@ type
     discover* {.fieldNumber: 5.}: Opt[Discover]
     discoverResponse* {.fieldNumber: 6.}: Opt[DiscoverResponse]
 
-Protobuf.serializerFor([
-  Cookie,
-  Register,
-  RegisterResponse,
-  Unregister,
-  Discover,
-  DiscoverResponse,
-  Message
-])
+Protobuf.serializerFor(
+  [Cookie, Register, RegisterResponse, Unregister, Discover, DiscoverResponse, Message]
+)

@@ -3,10 +3,7 @@
 
 {.push raises: [].}
 
-import
-  std/macros,
-  results,
-  protobuf_serialization
+import std/macros, results, protobuf_serialization
 
 macro serializerFor*(_: type Protobuf, Types: untyped): untyped =
   ## This generates encode/decode protobuf procs for `Types`
