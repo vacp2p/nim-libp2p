@@ -44,7 +44,7 @@ proc dispatchGetAds(
     if peerId == disco.switch.peerInfo.peerId:
       disco.localGetAds(msg)
     else:
-      await disco.sendRemoteMessage(peerId, msg)
+      await disco.send(peerId, msg)
 
   let reply = replyRes.valueOr:
     return err($error)

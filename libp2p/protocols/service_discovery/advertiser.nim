@@ -51,7 +51,7 @@ proc sendRegister*(
     if peerId == disco.switch.peerInfo.peerId:
       disco.localRegister(msg)
     else:
-      await disco.sendRemoteMessage(peerId, msg)
+      await disco.send(peerId, msg)
 
   let reply = replyRes.valueOr:
     return err($error)

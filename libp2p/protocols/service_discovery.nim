@@ -126,7 +126,7 @@ proc new*(
       of MessageType.ping:
         await disco.handlePing(conn, msg)
       else:
-        await disco.handleServiceDiscoMessage(conn, msg)
+        await disco.handleMessage(conn, msg)
 
   return disco
 
