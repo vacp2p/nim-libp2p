@@ -44,6 +44,7 @@ suite "WebSocket transport integration":
 
     let switch2 = SwitchBuilder
       .new()
+      .withAutotls()
       .withRng(rng)
       .withAddresses(
         @[
@@ -53,7 +54,6 @@ suite "WebSocket transport integration":
       )
       .withTcpTransport()
       .withWsTransport()
-      .withAutotls()
       .withYamux()
       .withNoise()
       .build()
