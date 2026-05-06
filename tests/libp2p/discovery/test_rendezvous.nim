@@ -3,7 +3,7 @@
 
 {.used.}
 
-import sequtils, strformat, sugar, chronos, stew/byteutils
+import sequtils, strformat, sugar, chronos, stew/byteutils, protobuf_serialization
 import
   ../../../libp2p/[
     protocols/rendezvous,
@@ -13,18 +13,16 @@ import
     routing_record,
     crypto/crypto,
     multicodec,
-    protobuf/minprotobuf,
     builders,
     utils/offsettedseq,
   ]
 import ../../tools/[lifecycle, topology, unittest, crypto]
 import ./utils
 
-# XXX protobuf_ser
-type CustomPeerRecord* = object
-  peerId*: PeerId
-  seqNo*: uint64
-  customField*: string
+type CustomPeerRecord* {.proto2.} = object
+  peerId* {.fieldNumber: 1, required, ext.}: PeerId
+  seqNo* {.fieldNumber: 2, required, pint.}: uint64
+  customField* {.fieldNumber: 3, required.}: string
 
 proc payloadDomain*(T: typedesc[CustomPeerRecord]): string =
   $multiCodec("libp2p-custom-peer-record")
@@ -37,25 +35,14 @@ proc init*(T: typedesc[CustomPeerRecord], peerId: PeerId, seqNo: uint64): T =
 
 proc decode*(
     T: typedesc[CustomPeerRecord], buffer: seq[byte]
-): Result[CustomPeerRecord, ProtoError] =
-  let pb = initProtoBuffer(buffer)
-  var record = CustomPeerRecord()
-
-  ?pb.getRequiredField(1, record.peerId)
-  ?pb.getRequiredField(2, record.seqNo)
-  ?pb.getRequiredField(3, record.customField)
-
-  ok(record)
+): Result[CustomPeerRecord, SerializationError] =
+  try:
+    ok(Protobuf.decode(buffer, CustomPeerRecord))
+  except SerializationError as exc:
+    err(exc[])
 
 proc encode*(record: CustomPeerRecord): seq[byte] =
-  var pb = initProtoBuffer()
-
-  pb.write(1, record.peerId)
-  pb.write(2, record.seqNo)
-  pb.write(3, record.customField)
-
-  pb.finish()
-  pb.buffer
+  Protobuf.encode(record)
 
 proc checkCustomPeerRecord(
     _: CustomPeerRecord, spr: seq[byte], peerId: PeerId

@@ -14,6 +14,7 @@ import
   chronicles,
   nimcrypto/utils,
   utility,
+  protobuf_serialization,
   ./crypto/crypto,
   ./multicodec,
   ./multihash,
@@ -232,3 +233,32 @@ func getField*(
       ok(true)
     else:
       err(ProtoError.IncorrectBlob)
+
+## protobuf_serialization extension
+
+func supportsPacked*(T: type PeerId, ProtoType: type ProtobufExt): bool =
+  false
+func supportsPacked*(T: type seq[PeerId], ProtoType: type ProtobufExt): bool =
+  false
+
+func computeFieldSize*(
+    field: int, value: PeerId, ProtoType: type ProtobufExt, skipDefault: static bool
+): int =
+  computeFieldSize(field, value.data, pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: PeerId,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  writeField(stream, field, value.data, pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var PeerId,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  readFieldInto(stream, value.data, header, pbytes)
