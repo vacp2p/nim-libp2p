@@ -25,7 +25,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     startAndDeferStop(@[registrarNode, discovererNode])
     await connect(registrarNode, discovererNode)
 
-    let serviceId = "empty-service".hashServiceId()
+    let serviceId = toServiceId(ServiceInfo(id: "empty-service"))
     let lookupResp = await discovererNode.lookup(serviceId)
     check lookupResp.isOk()
     check lookupResp.get().len == 0
@@ -40,7 +40,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     await connect(registrarNode, discovererNode)
 
     let serviceName = "cached-service"
-    let serviceId = serviceName.hashServiceId()
+    let serviceId = toServiceId(ServiceInfo(id: serviceName))
     let adBytes = makeAdvertisement(
         serviceName, advertiserNode.switch.peerInfo.privateKey
       )
@@ -66,7 +66,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     await connect(registrarNode, discovererNode)
 
     let serviceName = "limited-service"
-    let serviceId = serviceName.hashServiceId()
+    let serviceId = toServiceId(ServiceInfo(id: serviceName))
 
     for _ in 0 ..< 4:
       let ad = makeAdvertisement(serviceName)

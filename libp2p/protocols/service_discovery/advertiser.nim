@@ -139,7 +139,7 @@ proc addProvidedService*(
 ) =
   doAssert not disco.clientMode, "not supported in client mode"
 
-  let serviceId = service.id.hashServiceId()
+  let serviceId = toServiceId(service)
 
   if not disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
@@ -186,7 +186,7 @@ proc removeProvidedService*(
 ) {.async: (raises: [CancelledError]).} =
   doAssert not disco.clientMode, "not supported in client mode"
 
-  let sid = serviceId.hashServiceId()
+  let sid = toServiceId(ServiceInfo(id: serviceId))
 
   var toRemove: HashSet[AdvertiseTask]
 

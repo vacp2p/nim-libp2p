@@ -12,11 +12,11 @@ import
 import ../../tools/unittest
 import ./utils
 
-suite "Discoverer - lookup":
+suite "Discoverer - lookup (one-shot)":
   teardown:
     checkTrackers()
 
-  asyncTest "creates service routing table on first call":
+  asyncTest "one-shot lookup does not leave routing table behind":
     let disco = setupServiceDiscoveryNode()
     let serviceId = makeServiceId()
 
@@ -25,7 +25,7 @@ suite "Discoverer - lookup":
     let res = await disco.lookup(serviceId)
 
     check res.isOk()
-    check disco.rtManager.hasService(serviceId)
+    check not disco.rtManager.hasService(serviceId)
 
   asyncTest "empty routing table returns ok with empty peers":
     let disco = setupServiceDiscoveryNode()
@@ -45,9 +45,8 @@ suite "Discoverer - lookup":
 
     check res1.isOk()
     check res2.isOk()
-    check disco.rtManager.hasService(serviceId)
 
-  asyncTest "distinct service IDs get independent routing tables":
+  asyncTest "distinct service IDs do not leave routing tables behind":
     let disco = setupServiceDiscoveryNode()
     let sid1 = makeServiceId(1)
     let sid2 = makeServiceId(2)
@@ -55,71 +54,96 @@ suite "Discoverer - lookup":
     discard await disco.lookup(sid1)
     discard await disco.lookup(sid2)
 
-    check disco.rtManager.hasService(sid1)
-    check disco.rtManager.hasService(sid2)
-    check disco.rtManager.count() == 2
+    check not disco.rtManager.hasService(sid1)
+    check not disco.rtManager.hasService(sid2)
+    check disco.rtManager.count() == 0
 
-  asyncTest "lookup by ServiceInfo hashes to same table as lookup by ServiceId":
+  asyncTest "lookup by ServiceInfo hashes to same ServiceId as lookup by string":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo("my-service")
-    let serviceId = service.id.hashServiceId()
 
-    let res = await disco.lookup(service)
+    let res1 = await disco.lookup(service)
+    let res2 = await disco.lookup(toServiceId(service))
 
-    check res.isOk()
-    check disco.rtManager.hasService(serviceId)
+    check res1.isOk()
+    check res2.isOk()
 
 suite "Discoverer - start/stop discovering":
   teardown:
     checkTrackers()
 
-  test "registers an Interest routing table":
+  asyncTest "registers an Interest routing table and spawns background task":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
-    let added = disco.startDiscovering(service.id)
+    let added = disco.startDiscovering(service)
 
     check added
-    check disco.rtManager.hasService(service.id.hashServiceId())
+    check disco.rtManager.hasService(toServiceId(service))
+    check disco.discoverer.running.anyIt(it.serviceId == toServiceId(service))
 
-  test "returns false when called again for the same service":
+    await disco.stopDiscovering(service)
+
+  asyncTest "returns false when called again for the same service":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
-    discard disco.startDiscovering(service.id)
-    let added = disco.startDiscovering(service.id)
+    discard disco.startDiscovering(service)
+    let added = disco.startDiscovering(service)
 
     check not added
 
-  test "distinct services get independent tables":
+    await disco.stopDiscovering(service)
+
+  asyncTest "distinct services get independent tables":
     let disco = setupServiceDiscoveryNode()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
-    discard disco.startDiscovering(s1.id)
-    discard disco.startDiscovering(s2.id)
+    discard disco.startDiscovering(s1)
+    discard disco.startDiscovering(s2)
 
-    check disco.rtManager.hasService(s1.id.hashServiceId())
-    check disco.rtManager.hasService(s2.id.hashServiceId())
+    check disco.rtManager.hasService(toServiceId(s1))
+    check disco.rtManager.hasService(toServiceId(s2))
     check disco.rtManager.count() == 2
 
-  test "removes Interest and returns false when service was tracked":
+    await disco.stopDiscovering(s1)
+    await disco.stopDiscovering(s2)
+
+  asyncTest "removes routing table and cancels task on stop":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
-    check disco.startDiscovering(service.id)
-    disco.stopDiscovering(service.id)
+    check disco.startDiscovering(service)
+    await disco.stopDiscovering(service)
 
-    check not disco.rtManager.hasService(service.id.hashServiceId())
+    check not disco.rtManager.hasService(toServiceId(service))
+    check not disco.discoverer.running.anyIt(it.serviceId == toServiceId(service))
 
-  test "stop does not affect a different service":
+  asyncTest "stop does not affect a different service":
     let disco = setupServiceDiscoveryNode()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
-    check disco.startDiscovering(s1.id)
-    check disco.startDiscovering(s2.id)
-    disco.stopDiscovering(s1.id)
+    check disco.startDiscovering(s1)
+    check disco.startDiscovering(s2)
+    await disco.stopDiscovering(s1)
 
-    check not disco.rtManager.hasService(s1.id.hashServiceId())
-    check disco.rtManager.hasService(s2.id.hashServiceId())
+    check not disco.rtManager.hasService(toServiceId(s1))
+    check disco.rtManager.hasService(toServiceId(s2))
+
+    await disco.stopDiscovering(s2)
+
+  asyncTest "lookup returns cache when startDiscovering is active":
+    let disco = setupServiceDiscoveryNode()
+    let service = makeServiceInfo()
+    let sid = toServiceId(service)
+
+    discard disco.startDiscovering(service)
+
+    let res = await disco.lookup(sid)
+
+    check res.isOk()
+    check res.get() == disco.discoverer.cache.getOrDefault(sid, @[])
+
+    await disco.stopDiscovering(service)

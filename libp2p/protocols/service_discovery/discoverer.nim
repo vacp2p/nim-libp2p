@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/sequtils
+import std/[sequtils, sets, tables]
 import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
+import ../../utils/heartbeat
 import ../kademlia
 import ../kademlia/types
 import
@@ -135,43 +136,33 @@ proc collectBucketAds(
 
   return found
 
-proc startDiscovering*(disco: ServiceDiscovery, serviceId: string): bool =
-  let serviceHash = serviceId.hashServiceId()
+proc mergeAds(
+    existing, incoming: seq[Advertisement]
+): seq[Advertisement] {.raises: [].} =
+  var best: Table[PeerId, Advertisement]
+  for ad in existing & incoming:
+    let pid = ad.data.peerId
+    best.withValue(pid, curr):
+      if ad.data.seqNo > curr[].data.seqNo:
+        curr[] = ad
+    do:
+      best[pid] = ad
+  return toSeq(best.values)
 
-  debug "start discovering", service = serviceId, serviceId = serviceHash
-
-  disco.rtManager.addService(
-    serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-
-proc stopDiscovering*(disco: ServiceDiscovery, serviceId: string) =
-  let serviceHash = serviceId.hashServiceId()
-
-  debug "stop discovering", service = serviceId, serviceId = serviceHash
-
-  disco.rtManager.removeService(serviceHash, Interest)
-
-proc lookup*(
-    disco: ServiceDiscovery, serviceId: ServiceId
-): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
-  ## Look up providers for a specific service id.
-  cd_lookup_requests.inc()
-
-  discard disco.rtManager.addService(
-    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest,
-  )
-
+proc fetchRemoteAds(
+    disco: ServiceDiscovery,
+    serviceId: ServiceId,
+    limit: int,
+    includeLocal: bool = false,
+): Future[seq[Advertisement]] {.async: (raises: [CancelledError]).} =
   let searchTable = disco.rtManager.getTable(serviceId).valueOr:
-    return err("service table not found for service id: " & $serviceId)
+    return @[]
 
-  var found = newSeqOfCap[Advertisement](disco.discoConfig.fLookup)
-  var once = true
+  var found = newSeqOfCap[Advertisement](limit)
+  var addedLocal = not includeLocal
 
-  let buckets = searchTable.buckets
-  for bucket in buckets:
-    if found.len >= disco.discoConfig.fLookup:
+  for bucket in searchTable.buckets:
+    if found.len >= limit:
       break
 
     if bucket.peers.len == 0:
@@ -179,12 +170,95 @@ proc lookup*(
 
     var peers = disco.peersToQuery(bucket)
 
-    if once:
+    if not addedLocal:
       peers.add(disco.switch.peerInfo.peerId)
-      once = false
+      addedLocal = true
 
-    let remaining = disco.discoConfig.fLookup - found.len
+    let remaining = limit - found.len
     found.add(await disco.collectBucketAds(serviceId, peers, remaining))
+
+  return found
+
+proc discoverFromRegistrar(
+    disco: ServiceDiscovery, serviceId: ServiceId
+) {.async: (raises: [CancelledError]).} =
+  heartbeat "discover service ads", disco.discoConfig.advertExpiry:
+    let remoteAds = await disco.fetchRemoteAds(serviceId, disco.discoConfig.fLookup)
+    disco.discoverer.cache[serviceId] =
+      mergeAds(disco.discoverer.cache.getOrDefault(serviceId, @[]), remoteAds)
+
+proc addDiscoveredService*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  let sid = toServiceId(service)
+
+  if disco.discoverer.running.anyIt(it.serviceId == sid):
+    return false
+
+  debug "start discovering", service = service.id, serviceId = sid
+
+  discard disco.rtManager.addService(
+    sid, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+
+  let fut = disco.discoverFromRegistrar(sid)
+  disco.discoverer.running.incl(DiscoverTask(fut: fut, serviceId: sid))
+  return true
+
+proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
+  disco.addDiscoveredService(service)
+
+proc stopDiscovering*(
+    disco: ServiceDiscovery, service: ServiceInfo
+) {.async: (raises: [CancelledError]).} =
+  let sid = toServiceId(service)
+
+  debug "stop discovering", service = service.id, serviceId = sid
+
+  var toRemove: HashSet[DiscoverTask]
+  for t in disco.discoverer.running.filterIt(it.serviceId == sid):
+    await t.fut.cancelAndWait()
+    toRemove.incl(t)
+  disco.discoverer.running.excl(toRemove)
+
+  disco.discoverer.cache.del(sid)
+  disco.rtManager.removeService(sid, Interest)
+
+proc lookup*(
+    disco: ServiceDiscovery, serviceId: ServiceId
+): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
+  ## Look up providers for a specific service id.
+  cd_lookup_requests.inc()
+
+  let hasActiveDiscovery = disco.discoverer.running.anyIt(it.serviceId == serviceId)
+
+  # Return cache immediately if it already has enough entries
+  if hasActiveDiscovery:
+    let cached = disco.discoverer.cache.getOrDefault(serviceId, @[])
+    if cached.len >= disco.discoConfig.fLookup:
+      cd_lookup_peers_found.inc(cached.len.int64)
+      return ok(cached)
+
+  # Ensure a routing table exists; remove it on exit for one-shot callers
+  discard disco.rtManager.addService(
+    serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+    Interest,
+  )
+  defer:
+    if not disco.discoverer.running.anyIt(it.serviceId == serviceId):
+      disco.rtManager.removeService(serviceId, Interest)
+
+  let remoteAds = await disco.fetchRemoteAds(
+    serviceId, disco.discoConfig.fLookup, includeLocal = not hasActiveDiscovery
+  )
+
+  let found =
+    if hasActiveDiscovery:
+      let merged =
+        mergeAds(disco.discoverer.cache.getOrDefault(serviceId, @[]), remoteAds)
+      disco.discoverer.cache[serviceId] = merged
+      merged
+    else:
+      remoteAds
 
   cd_lookup_peers_found.inc(found.len.int64)
   return ok(found)

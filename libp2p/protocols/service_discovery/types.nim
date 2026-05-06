@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[sequtils, sets, tables, hashes]
-import chronicles, chronos, results, stew/byteutils
+import chronicles, chronos, results
 import nimcrypto/sha2
 import
   ../../[
@@ -62,6 +62,14 @@ type
     running*: HashSet[AdvertiseTask]
     seqNo*: uint64
 
+  DiscoverTask* = ref object
+    fut*: Future[void]
+    serviceId*: ServiceId
+
+  Discoverer* = ref object
+    running*: HashSet[DiscoverTask]
+    cache*: Table[ServiceId, seq[Advertisement]]
+
   ServiceDiscoveryConfig* = object
     kRegister*: int
     kLookup*: int
@@ -77,6 +85,7 @@ type
 
   ServiceDiscovery* = ref object of KadDHT
     advertiser*: Advertiser
+    discoverer*: Discoverer
     registrar*: Registrar
     rtManager*: ServiceRoutingTableManager
     services*: HashSet[ServiceInfo]
@@ -121,6 +130,9 @@ proc new*(
 proc hash*(t: AdvertiseTask): Hash =
   hash(cast[pointer](t))
 
+proc hash*(t: DiscoverTask): Hash =
+  hash(cast[pointer](t))
+
 proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
   (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
 
@@ -135,13 +147,22 @@ proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: []
     adBytes.add(encoded)
   adBytes
 
-proc hashServiceId*(serviceStr: string): ServiceId =
-  let digest = sha256.digest(serviceStr)
+proc toServiceId*(service: ServiceInfo): ServiceId =
+  let digest = sha256.digest(service.id)
   @(digest.data)
+
+proc `==`*(a, b: ServiceInfo): bool =
+  a.id == b.id
+
+proc `==`*(a: ServiceInfo, b: ServiceId): bool =
+  toServiceId(a) == b
+
+proc `==`*(a: ServiceId, b: ServiceInfo): bool =
+  b == a
 
 proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
   for service in ad.data.services:
-    if hashServiceId(service.id) == serviceId:
+    if service == serviceId:
       return true
   false
 
@@ -159,8 +180,11 @@ proc new*(T: typedesc[Registrar]): T =
 proc new*(T: typedesc[Advertiser]): T =
   T(running: initHashSet[AdvertiseTask](), seqNo: Moment.now().epochSeconds.uint64)
 
-proc toKey*(service: ServiceInfo): Key =
-  return MultiHash.digest("sha2-256", service.id.toBytes()).get().toKey()
+proc new*(T: typedesc[Discoverer]): T =
+  T(
+    running: initHashSet[DiscoverTask](),
+    cache: initTable[ServiceId, seq[Advertisement]](),
+  )
 
 proc init*(
     T: typedesc[ExtendedPeerRecord],

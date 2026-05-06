@@ -21,7 +21,7 @@ suite "Service Discovery Component - Register":
     await connect(registrarNode, advertiserNode)
 
     let serviceName = "test-register-service"
-    let serviceId = serviceName.hashServiceId()
+    let serviceId = toServiceId(ServiceInfo(id: serviceName))
     let adBytes = makeAdvertisement(serviceName).encode().get()
 
     let regResp = await advertiserNode.sendRegister(
@@ -53,7 +53,7 @@ suite "Service Discovery Component - Register":
     await connect(registrarNode, advertiserNode)
 
     let serviceName = "out-of-window-service"
-    let serviceId = serviceName.hashServiceId()
+    let serviceId = toServiceId(ServiceInfo(id: serviceName))
     let adBytes = makeAdvertisement(
         serviceName, advertiserNode.switch.peerInfo.privateKey
       )
@@ -84,7 +84,7 @@ suite "Service Discovery Component - Register":
     await connect(registrarNode, advertiserNode)
 
     let serviceName = "test-confirm-service"
-    let serviceId = serviceName.hashServiceId()
+    let serviceId = toServiceId(ServiceInfo(id: serviceName))
     let adBytes = makeAdvertisement(serviceName).encode().get()
 
     let regResp = await advertiserNode.sendRegister(

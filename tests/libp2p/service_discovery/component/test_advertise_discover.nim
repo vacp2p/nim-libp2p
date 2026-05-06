@@ -32,7 +32,7 @@ suite "Service Discovery Component - Advertise Discover":
     await connect(registrarNode2, discovererNode)
 
     let service = makeServiceInfo("e2e-test-service")
-    let serviceId = service.id.hashServiceId()
+    let serviceId = toServiceId(service)
 
     advertiserNode.addProvidedService(service)
 
@@ -47,8 +47,8 @@ suite "Service Discovery Component - Advertise Discover":
     check found.get().len >= 1
     check found.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
 
-  asyncTest "startDiscovering sends messages and finds registered peer":
-    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+  asyncTest "startDiscovering populates cache and lookup returns it":
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, advertExpiry = 1.secs)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
     let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
@@ -58,18 +58,21 @@ suite "Service Discovery Component - Advertise Discover":
     await connect(registrarNode, discovererNode)
 
     let service = makeServiceInfo("start-disco-e2e-service")
-    let serviceId = service.id.hashServiceId()
+    let serviceId = toServiceId(service)
 
     advertiserNode.addProvidedService(service)
     checkUntilTimeout:
       registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len > 0
 
-    check discovererNode.startDiscovering(service.id)
+    check discovererNode.startDiscovering(service)
+
+    checkUntilTimeout:
+      discovererNode.discoverer.cache.getOrDefault(serviceId, @[]).len > 0
 
     let found = await discovererNode.lookup(service)
     check found.isOk()
     check found.get().len > 0
     check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
 
-    discovererNode.stopDiscovering(service.id)
+    await discovererNode.stopDiscovering(service)
     check not discovererNode.rtManager.hasService(serviceId)

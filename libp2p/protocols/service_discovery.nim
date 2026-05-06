@@ -80,6 +80,7 @@ proc new*(
     rtManager: ServiceRoutingTableManager.new(),
     clientMode: client,
     advertiser: Advertiser.new(),
+    discoverer: Discoverer.new(),
     registrar: Registrar.new(),
     services: toHashSet(services),
     discoConfig: discoConfig,
@@ -154,6 +155,10 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
 
   disco.advertiser.clear()
 
+  for t in disco.discoverer.running:
+    t.fut.cancelSoon()
+  disco.discoverer.running.clear()
+
   if not disco.selfSignedPeerRecordLoop.isNil():
     disco.selfSignedPeerRecordLoop.cancelSoon()
     disco.selfSignedPeerRecordLoop = nil
@@ -171,4 +176,4 @@ method stop*(disco: ServiceDiscovery) {.async: (raises: []).} =
 proc lookup*(
     disco: ServiceDiscovery, service: ServiceInfo
 ): Future[Result[seq[Advertisement], string]] {.async: (raises: [CancelledError]).} =
-  return await disco.lookup(service.id.hashServiceId())
+  return await disco.lookup(toServiceId(service))
