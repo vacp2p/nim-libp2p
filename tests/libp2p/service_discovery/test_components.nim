@@ -343,7 +343,8 @@ suite "Component - handleGetAds":
     # Directly populate the registrar cache with 4 distinct ads
     for _ in 0 ..< 4:
       let ad = makeAdvertisement(serviceName)
-      registrarNode.acceptAdvertisement(serviceId, ad)
+      let now = Moment.now()
+      registrarNode.acceptAdvertisement(now, serviceId, ad)
 
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()

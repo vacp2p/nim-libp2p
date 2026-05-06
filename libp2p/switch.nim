@@ -19,6 +19,7 @@ import
   multistream,
   multiaddress,
   protocols/protocol,
+  protocols/identify,
   protocols/secure/secure,
   peerinfo,
   ./muxers/muxer,
@@ -26,11 +27,12 @@ import
   nameresolving/nameresolver,
   peerid,
   peerstore,
+  identify_pusher,
   errors,
   utility,
   dialer
 
-export connmanager, upgrade, dialer, peerstore
+export connmanager, upgrade, dialer, peerstore, identify_pusher
 
 logScope:
   topics = "libp2p switch"
@@ -57,6 +59,7 @@ type
     started: bool
     services*: seq[Service]
     rng*: ref HmacDrbgContext
+    identifyPusher*: IdentifyPusher
 
   UpgradeError* = object of LPError
 
@@ -184,6 +187,13 @@ proc dial*(
 
   dial(s, peerId, addrs, @[proto])
 
+proc updateAddrs*(s: Switch) {.async: (raises: [CancelledError]).} =
+  ## Refresh `peerInfo.addrs` via the address mappers and notify connected
+  ## peers via IdentifyPush. Call this when listen addresses change.
+  await s.peerInfo.update()
+  if not s.identifyPusher.isNil:
+    s.identifyPusher.broadcast()
+
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
 ) {.gcsafe, raises: [LPError].} =
@@ -200,6 +210,19 @@ proc mount*[T: LPProtocol](
 
   s.ms.addHandler(proto.codecs, proto, matcher)
   s.peerInfo.protocols.add(proto.codec)
+
+  if s.started and not s.identifyPusher.isNil and proto.codec != IdentifyPushCodec:
+    s.identifyPusher.broadcast()
+
+proc setupIdentifyPush*(s: Switch) {.raises: [LPError].} =
+  ## Construct, mount and wire the IdentifyPush protocol to this switch.
+  ## After this call, the switch automatically tracks which connected peers
+  ## support IdentifyPush and broadcasts updates when our protocols or
+  ## addresses change.
+  let pusher = IdentifyPusher.new(s.connManager, s.peerStore, s.peerInfo)
+  pusher.start()
+  s.identifyPusher = pusher
+  s.mount(pusher.identifyPush)
 
 proc upgrader(
     switch: Switch, trans: Transport, conn: Connection
@@ -325,6 +348,9 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   # close and cleanup all connections
   await s.connManager.close()
+
+  if not s.identifyPusher.isNil:
+    await s.identifyPusher.stop()
 
   for transp in s.transports:
     try:

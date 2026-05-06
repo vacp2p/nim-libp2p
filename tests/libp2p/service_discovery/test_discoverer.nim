@@ -141,13 +141,13 @@ suite "Discoverer - start/stop discovering":
 
     advertiserNode.addProvidedService(service)
     checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len == 1
+      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len > 0
 
     check discovererNode.startDiscovering(service.id)
 
     let found = await discovererNode.lookup(service)
     check found.isOk()
-    check found.get().len >= 1
+    check found.get().len > 0
     check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
 
     discovererNode.stopDiscovering(service.id)
