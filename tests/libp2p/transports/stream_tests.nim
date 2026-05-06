@@ -130,8 +130,7 @@ template streamTransportTest*(
         # step 5: server waits for client to close and attempts to write
         await clientHandlerDone
 
-        if
-            isTcpTransport(listenAddrs) or isTorTransport(listenAddrs) or
+        if isTcpTransport(listenAddrs) or isTorTransport(listenAddrs) or
             isWsTransport(listenAddrs):
           # For TCP/Tor/WS: after client.stop(), the OS sends FIN but the server
           # socket enters CLOSE_WAIT. In this state, the OS still accepts writes
