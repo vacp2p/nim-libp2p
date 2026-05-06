@@ -75,3 +75,37 @@ suite "PeerInfo":
       PeerInfo.new(seckey, multiAddresses, addressMappers = @[addressMapper])
     waitFor peerInfo.update()
     check peerInfo.addrs == multiAddresses2
+
+  test "Observers fire on update":
+    let
+      seckey = PrivateKey.random(ECDSA, rng[]).get()
+      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet()]
+      peerInfo = PeerInfo.new(seckey, multiAddresses)
+
+    var
+      callsA = 0
+      callsB = 0
+      seenAddrs: seq[MultiAddress]
+
+    proc obsA(p: PeerInfo) {.gcsafe, raises: [].} =
+      inc callsA
+      seenAddrs = p.addrs
+
+    proc obsB(p: PeerInfo) {.gcsafe, raises: [].} =
+      inc callsB
+
+    peerInfo.addObserver(obsA)
+    peerInfo.addObserver(obsB)
+    peerInfo.addObserver(nil) # nil guard: must be no-op
+
+    waitFor peerInfo.update()
+    check:
+      callsA == 1
+      callsB == 1
+      seenAddrs == peerInfo.addrs
+
+    peerInfo.removeObserver(obsA)
+    waitFor peerInfo.update()
+    check:
+      callsA == 1
+      callsB == 2

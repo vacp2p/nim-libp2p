@@ -187,13 +187,6 @@ proc dial*(
 
   dial(s, peerId, addrs, @[proto])
 
-proc updateAddrs*(s: Switch) {.async: (raises: [CancelledError]).} =
-  ## Refresh `peerInfo.addrs` via the address mappers and notify connected
-  ## peers via IdentifyPush. Call this when listen addresses change.
-  await s.peerInfo.update()
-  if not s.identifyPusher.isNil:
-    s.identifyPusher.broadcast()
-
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
 ) {.gcsafe, raises: [LPError].} =

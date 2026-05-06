@@ -26,6 +26,9 @@ type
     gcsafe, async: (raises: [CancelledError])
   .} ## A proc that expected to resolve the listen addresses into dialable addresses
 
+  PeerInfoObserver* = proc(p: PeerInfo) {.gcsafe, raises: [].}
+    ## Invoked after each `PeerInfo.update()`.
+
   PeerInfo* = ref object
     peerId*: PeerId
     listenAddrs*: seq[MultiAddress]
@@ -42,6 +45,7 @@ type
     privateKey*: PrivateKey
     publicKey*: PublicKey
     signedPeerRecord*: SignedPeerRecord
+    observers: seq[PeerInfoObserver]
 
 func shortLog*(p: PeerInfo): auto =
   (
@@ -64,6 +68,10 @@ proc expandAddrs*(
   p.addressPolicy.filterAddrs(addrs)
 
 proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
+  defer:
+    for observer in p.observers:
+      observer(p)
+
   p.addrs = p.listenAddrs
   for mapper in p.addressMappers:
     p.addrs = await mapper(p.addrs)
@@ -74,6 +82,14 @@ proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
   ).valueOr:
     info "Can't update the signed peer record"
     return
+
+proc addObserver*(p: PeerInfo, observer: PeerInfoObserver) =
+  if observer.isNil:
+    return
+  p.observers.add(observer)
+
+proc removeObserver*(p: PeerInfo, observer: PeerInfoObserver) =
+  p.observers.keepItIf(it != observer)
 
 proc addrs*(p: PeerInfo): seq[MultiAddress] =
   p.addrs
