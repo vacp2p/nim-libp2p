@@ -4,18 +4,11 @@
 {.used.}
 
 import chronos, sequtils
-import ../../../libp2p/protocols/[kademlia, service_discovery]
-import ../../tools/[lifecycle, topology, unittest]
-import ./utils
+import ../../../../libp2p/protocols/service_discovery
+import ../../../tools/[lifecycle, topology, unittest]
+import ../utils
 
-proc hasKey(disco: ServiceDiscovery, key: Key): bool =
-  for b in disco.rtable.buckets:
-    for ent in b.peers:
-      if ent.nodeId == key:
-        return true
-  return false
-
-suite "Service discovery - FindRandom":
+suite "Service Discovery Component - Find Random":
   teardown:
     checkTrackers()
 
