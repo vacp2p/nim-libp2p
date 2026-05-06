@@ -226,6 +226,8 @@ proc init*(p: IdentifyPush) =
         if receivedPeerId != conn.peerId:
           raise newException(IdentityNoMatchError, "Peer ids don't match")
         identInfo.peerId = receivedPeerId
+      else:
+        identInfo.peerId = conn.peerId
 
       trace "triggering peer event", peerInfo = conn.peerId
       if not isNil(p.identifyHandler):
