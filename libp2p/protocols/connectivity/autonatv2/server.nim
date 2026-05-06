@@ -270,11 +270,12 @@ proc handleDialRequest(
     )
 
 proc new*(
-    T: typedesc[AutonatV2],
+    Self: typedesc[AutonatV2],
     switch: Switch,
     config: AutonatV2Config = AutonatV2Config.new(),
-): T =
-  let autonatV2 = T(switch: switch, config: config)
+): Self =
+  # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
+  let autonatV2 = Self(switch: switch, config: config)
   proc handleStream(
       conn: Connection, proto: string
   ) {.async: (raises: [CancelledError]).} =

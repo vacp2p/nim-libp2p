@@ -27,6 +27,7 @@ proc kadInteropTest*(
     switch,
     bootstrapNodes = @[(otherPeerId, @[MultiAddress.init(otherAddr).get()])],
     config = KadDHTConfig.new(quorum = 2),
+    rng = rng(),
   )
 
   switch.mount(kad)
