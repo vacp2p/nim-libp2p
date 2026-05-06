@@ -39,6 +39,7 @@ type
     peerInfo: PeerInfo
     onIdentifiedHandler: PeerEventHandler
     onLeftHandler: PeerEventHandler
+    onPeerInfoUpdated: PeerInfoObserver
 
 proc new*(
     T: type IdentifyPusher,
@@ -94,6 +95,13 @@ proc start*(p: IdentifyPusher) =
   ## Construct the IdentifyPush protocol and register the connection manager
   ## hooks that maintain `pushPeers`. The caller is responsible for mounting
   ## `p.identifyPush` on a Switch.
+
+  proc onPeerInfoUpdated(peerInfo: PeerInfo) {.gcsafe, raises: [].} =
+    p.broadcast()
+
+  p.onPeerInfoUpdated = onPeerInfoUpdated
+  p.peerInfo.addObserver(p.onPeerInfoUpdated)
+
   proc onIncomingPush(peerId: PeerId, info: IdentifyInfo) {.async.} =
     p.peerStore.updatePeerInfo(info)
     if IdentifyPushCodec in info.protos:
@@ -121,14 +129,16 @@ proc start*(p: IdentifyPusher) =
 
 proc stop*(p: IdentifyPusher) {.async: (raises: []).} =
   ## Cancel any in-flight pushes and unregister connection manager hooks.
-  if p.onIdentifiedHandler != nil:
+  if not p.onIdentifiedHandler.isNil:
     p.connManager.removePeerEventHandler(
       p.onIdentifiedHandler, PeerEventKind.Identified
     )
     p.onIdentifiedHandler = nil
-  if p.onLeftHandler != nil:
+  if not p.onLeftHandler.isNil:
     p.connManager.removePeerEventHandler(p.onLeftHandler, PeerEventKind.Left)
     p.onLeftHandler = nil
+  if not p.onPeerInfoUpdated.isNil:
+    p.peerInfo.removeObserver(p.onPeerInfoUpdated)
 
   let pending = move(p.ongoingSend)
   pending.cancelSoon()

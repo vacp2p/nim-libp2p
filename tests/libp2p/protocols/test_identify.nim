@@ -357,7 +357,7 @@ suite "Identify":
       checkUntilTimeout:
         codecs in switch1.peerStore[ProtoBook][switch2.peerInfo.peerId]
 
-    asyncTest "broadcasts on updateAddrs":
+    asyncTest "broadcasts on PeerInfo.update()":
       checkUntilTimeout:
         switch1.peerInfo.peerId in switch2.identifyPusher.pushPeers
         switch2.peerInfo.peerId in switch1.identifyPusher.pushPeers
@@ -365,7 +365,7 @@ suite "Identify":
       # switch2 starts listening on new address
       let extra = MultiAddress.init("/ip4/127.0.0.1/tcp/999").tryGet()
       switch2.peerInfo.listenAddrs.add(extra)
-      await switch2.updateAddrs()
+      switch2.peerInfo.update()
 
       # switch1 should receive new address
       checkUntilTimeout:

@@ -103,6 +103,14 @@ proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
     info "Can't update the signed peer record"
     return
 
+proc addObserver*(p: PeerInfo, observer: PeerInfoObserver) =
+  if observer.isNil:
+    return
+  p.observers.add(observer)
+
+proc removeObserver*(p: PeerInfo, observer: PeerInfoObserver) =
+  p.observers.keepItIf(it != observer)
+
 proc addrs*(p: PeerInfo): seq[MultiAddress] =
   p.addrs
 
