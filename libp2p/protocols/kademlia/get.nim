@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[times, tables]
+import std/tables
+from std/times import now, utc
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
+import ../../utils/future
 import ../protocol
 import ./[protobuf, types, find, put, kademlia_metrics]
 
@@ -139,11 +141,7 @@ proc getValue*(
       # value is invalid or not best
       rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
 
-  try:
-    await rpcBatch.allFutures().wait(chronos.seconds(5))
-  except AsyncTimeoutError:
-    # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-    discard
+  await rpcBatch.allFuturesWaitOrTimeout(kad.config.timeout)
 
   ok(best)
 
