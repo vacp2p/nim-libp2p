@@ -824,6 +824,32 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     check tRemaining == tWait
 
+  test "processRetryTicket returns original wait time when retry window is far in the past":
+    let disco = setupServiceDiscoveryNode()
+    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    let now = Moment.now()
+    var ticket = Ticket(
+      advertisement: adBuf,
+      tInit: Moment.init(1_000, Second),
+      tMod: now - 100_000.secs,
+      tWaitFor: 0.secs,
+      signature: @[],
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+    let tWait = 300.secs
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+
+    check tRemaining == tWait
+
   test "processRetryTicket returns original wait time when retry is too early":
     let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
@@ -862,7 +888,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     var ticket = Ticket(
       advertisement: adBuf,
       tInit: now - 1000.secs,
-      tMod: now,
+      tMod: now - 100.secs,
       tWaitFor: 50.secs,
       signature: @[],
     )
