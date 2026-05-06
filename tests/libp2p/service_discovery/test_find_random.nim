@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, std/sequtils
+import chronos, sequtils
 import ../../../libp2p/protocols/[kademlia, service_discovery]
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils
@@ -20,7 +20,7 @@ suite "Service discovery - FindRandom":
     checkTrackers()
 
   asyncTest "Simple find random node":
-    let discos = setupDiscos(5, ExtEntryValidator(), ExtEntrySelector())
+    let discos = setupServiceDiscoveryNodes(5)
     startAndDeferStop(discos)
 
     await connectStar(discos)
@@ -41,7 +41,7 @@ suite "Service discovery - FindRandom":
     # `await queue.popFirst()` which blocked forever once findNodeFut finished
     # silently; the fix uses `await one(popFirstFut, findNodeFut)` so that
     # findNodeFut completing is sufficient to unblock and exit.
-    let discos = setupDiscos(1, ExtEntryValidator(), ExtEntrySelector())
+    let discos = setupServiceDiscoveryNodes(1)
     startAndDeferStop(discos)
 
     # No peers are connected, so the routing table is empty and findNode returns
@@ -54,7 +54,7 @@ suite "Service discovery - FindRandom":
     # as an orphaned getter. That getter silently consumes the next peer enqueued
     # by the still-running findNodeFut, leaking transport resources that are
     # caught by teardown checkTrackers.
-    let discos = setupDiscos(3, ExtEntryValidator(), ExtEntrySelector())
+    let discos = setupServiceDiscoveryNodes(3)
     startAndDeferStop(discos)
     await connectStar(discos)
 
