@@ -17,7 +17,8 @@ suite "RendezVous Protobuf":
     check Cookie.decode(original.encode()).tryGet() == original
 
   test "Register roundtrip":
-    let original = Register(ns: namespace, signedPeerRecord: @[byte 1, 2, 3], ttl: Opt.some(60'u64))
+    let original =
+      Register(ns: namespace, signedPeerRecord: @[byte 1, 2, 3], ttl: Opt.some(60'u64))
     check Register.decode(original.encode()).tryGet() == original
 
   test "RegisterResponse roundtrip":
@@ -48,5 +49,6 @@ suite "RendezVous Protobuf":
 
   test "Message roundtrip Register variant":
     let registerPayload = Register(ns: namespace, signedPeerRecord: @[byte 1])
-    let original = Message(msgType: MessageType.Register, register: Opt.some(registerPayload))
+    let original =
+      Message(msgType: MessageType.Register, register: Opt.some(registerPayload))
     check Message.decode(original.encode()).tryGet() == original
