@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import lsquic/lsquic_ffi
+import boringssl
 import strutils
 import results
 import ../../utils/sequninit
