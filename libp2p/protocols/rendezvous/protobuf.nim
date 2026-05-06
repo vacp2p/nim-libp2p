@@ -4,10 +4,12 @@
 {.push raises: [].}
 
 import
+  std/macros,
   results,
   protobuf_serialization,
   protobuf_serialization/pkg/results,
-  protobuf_serialization/std/enums
+  protobuf_serialization/std/enums,
+  ../../protobuf/utils
 
 export results
 
@@ -67,86 +69,12 @@ type
     discover* {.fieldNumber: 5.}: Opt[Discover]
     discoverResponse* {.fieldNumber: 6.}: Opt[DiscoverResponse]
 
-proc encode*(c: Cookie): seq[byte] =
-  Protobuf.encode(c)
-
-proc encode*(r: Register): seq[byte] =
-  Protobuf.encode(r)
-
-proc encode*(rr: RegisterResponse): seq[byte] =
-  Protobuf.encode(rr)
-
-proc encode*(u: Unregister): seq[byte] =
-  Protobuf.encode(u)
-
-proc encode*(d: Discover): seq[byte] =
-  Protobuf.encode(d)
-
-proc encode*(dr: DiscoverResponse): seq[byte] =
-  Protobuf.encode(dr)
-
-proc encode*(msg: Message): seq[byte] =
-  Protobuf.encode(msg)
-
-proc decodeCookie(buf: seq[byte]): Opt[Cookie] =
-  try:
-    Opt.some(Protobuf.decode(buf, Cookie))
-  except SerializationError:
-    Opt.none(Cookie)
-
-proc decode*(_: type Cookie, buf: seq[byte]): Opt[Cookie] =
-  decodeCookie(buf)
-
-proc decodeRegister(buf: seq[byte]): Opt[Register] =
-  try:
-    Opt.some(Protobuf.decode(buf, Register))
-  except SerializationError:
-    Opt.none(Register)
-
-proc decode*(_: type Register, buf: seq[byte]): Opt[Register] =
-  decodeRegister(buf)
-
-proc decodeRegisterResponse(buf: seq[byte]): Opt[RegisterResponse] =
-  try:
-    Opt.some(Protobuf.decode(buf, RegisterResponse))
-  except SerializationError:
-    Opt.none(RegisterResponse)
-
-proc decode*(_: type RegisterResponse, buf: seq[byte]): Opt[RegisterResponse] =
-  decodeRegisterResponse(buf)
-
-proc decodeUnregister(buf: seq[byte]): Opt[Unregister] =
-  try:
-    Opt.some(Protobuf.decode(buf, Unregister))
-  except SerializationError:
-    Opt.none(Unregister)
-
-proc decode*(_: type Unregister, buf: seq[byte]): Opt[Unregister] =
-  decodeUnregister(buf)
-
-proc decodeDiscover(buf: seq[byte]): Opt[Discover] =
-  try:
-    Opt.some(Protobuf.decode(buf, Discover))
-  except SerializationError:
-    Opt.none(Discover)
-
-proc decode*(_: type Discover, buf: seq[byte]): Opt[Discover] =
-  decodeDiscover(buf)
-
-proc decodeDiscoverResponse(buf: seq[byte]): Opt[DiscoverResponse] =
-  try:
-    Opt.some(Protobuf.decode(buf, DiscoverResponse))
-  except SerializationError:
-    Opt.none(DiscoverResponse)
-
-proc decode*(_: type DiscoverResponse, buf: seq[byte]): Opt[DiscoverResponse] =
-  decodeDiscoverResponse(buf)
-
-proc decodeMessage(buf: seq[byte]): Opt[Message] =
-  try:
-    Opt.some(Protobuf.decode(buf, Message))
-  except SerializationError:
-    Opt.none(Message)
-
-proc decode*(_: type Message, buf: seq[byte]): Opt[Message] =
-  decodeMessage(buf)
+Protobuf.serializerFor([
+  Cookie,
+  Register,
+  RegisterResponse,
+  Unregister,
+  Discover,
+  DiscoverResponse,
+  Message
+])
