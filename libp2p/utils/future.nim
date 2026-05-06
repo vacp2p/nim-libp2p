@@ -38,3 +38,11 @@ template newFutureCompleted*[T](): auto =
 template cancelSoon*[T](futs: seq[T]) =
   for fut in futs:
     fut.cancelSoon()
+
+proc allFuturesWaitOrTimeout*[Fut](
+    futs: seq[Fut], timeout: Duration
+) {.async: (raises: [CancelledError]).} =
+  try:
+    await futs.allFutures().wait(timeout)
+  except AsyncTimeoutError:
+    discard
