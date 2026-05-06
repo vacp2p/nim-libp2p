@@ -1213,7 +1213,6 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
       vb.data.offset = vb.data.offset + skipLen
     # Marker - nothing to skip
 
-
 const AvgMultiaddrStringLength = 32
 
 func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
