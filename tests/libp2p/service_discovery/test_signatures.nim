@@ -2,18 +2,10 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos
-import results
-import ../../../libp2p/crypto/crypto
-import ../../../libp2p/protocols/kademlia/protobuf
-import ../../tools/[unittest, crypto]
+import chronos, results
+import ../../../libp2p/[crypto/crypto, protocols/kademlia/protobuf]
+import ../../tools/[crypto, unittest]
 import ./utils
-
-proc signedTicket*(privateKey: PrivateKey): Ticket =
-  var t = makeTicket()
-  let res = t.sign(privateKey)
-  doAssert res.isOk(), "sign failed in test helper"
-  t
 
 suite "Ticket - sign and verify":
   test "sign succeeds and verify passes with matching key":

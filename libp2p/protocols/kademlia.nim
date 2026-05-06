@@ -13,7 +13,7 @@ export routing_table, protobuf, types, find, get, put, provider, ping, kademlia_
 logScope:
   topics = "kad-dht"
 
-const KadCodec = "/ipfs/kad/1.0.0"
+const KadCodec* = "/ipfs/kad/1.0.0"
 
 proc refreshTable*(
     kad: KadDHT, rtable: RoutingTable, forceRefresh = false
