@@ -381,10 +381,8 @@ proc insertNewAd*(
   return true
 
 proc acceptAdvertisement*(
-    disco: ServiceDiscovery, serviceId: ServiceId, ad: Advertisement
+    disco: ServiceDiscovery, now: Moment, serviceId: ServiceId, ad: Advertisement
 ) =
-  let now = Moment.now()
-
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
@@ -412,22 +410,39 @@ proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
   else:
     default
 
-proc handleRegister*(
-    disco: ServiceDiscovery, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
-  let serviceId = msg.key
+proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
+  let serviceId = inMsg.key
   let closerPeers = disco.findClosestPeers(serviceId)
-  let regMsg = msg.register.valueOr:
-    return
 
-  let ad = validateRegisterMessage(regMsg, serviceId).valueOr:
-    await sendRegisterResponse(
-      conn, kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
-    )
+  var msg = Message(
+    msgType: MessageType.register,
+    register: Opt.some(
+      RegisterMessage(
+        advertisement: @[],
+        status: Opt.some(kademlia_protobuf.RegistrationStatus.Rejected),
+        ticket: Opt.none(Ticket),
+      )
+    ),
+    closerPeers: closerPeers,
+  )
+
+  let regMsg = inMsg.register.valueOr:
+    error "no register message"
+
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
     )
-    return
+
+    return msg
+
+  let ad = validateRegisterMessage(regMsg, serviceId).valueOr:
+    error "invalid register message"
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
+    return msg
 
   let now = Moment.now()
   var tWait = disco.registrar.waitingTime(
@@ -436,44 +451,42 @@ proc handleRegister*(
   tWait = disco.processRetryTicket(regMsg, ad, tWait)
 
   if tWait <= ZeroDuration:
-    disco.acceptAdvertisement(serviceId, ad)
-    await sendRegisterResponse(
-      conn, kademlia_protobuf.RegistrationStatus.Confirmed, closerPeers
-    )
+    disco.acceptAdvertisement(now, serviceId, ad)
+
+    msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Confirmed
+
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Confirmed]
     )
-  else:
-    disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
 
-    var ticket = Ticket(
-      advertisement: regMsg.advertisement,
-      tInit: regMsg.ticket.tInitOrDefault(now),
-      tMod: now,
-      tWaitFor: tWait,
+    return msg
+
+  disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
+
+  var ticket = Ticket(
+    advertisement: regMsg.advertisement,
+    tInit: regMsg.ticket.tInitOrDefault(now),
+    tMod: now,
+    tWaitFor: tWait,
+  )
+
+  if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
+    error "failed to sign ticket"
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
     )
-    if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
-      error "failed to sign ticket"
-      await sendRegisterResponse(
-        conn, kademlia_protobuf.RegistrationStatus.Rejected, closerPeers
-      )
-      cd_register_requests.inc(
-        labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
-      )
-      return
 
-    await sendRegisterResponse(
-      conn, kademlia_protobuf.RegistrationStatus.Wait, closerPeers, Opt.some(ticket)
-    )
-    cd_register_requests.inc(labelValues = [$kademlia_protobuf.RegistrationStatus.Wait])
+    return msg
 
-proc handleGetAds*(
-    disco: ServiceDiscovery, conn: Connection, msg: Message
-) {.async: (raises: [CancelledError]).} =
-  ## Handle GET_ADS request
+  msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Wait
+  msg.register.get().ticket = Opt.some(ticket)
 
-  cd_messages_received.inc(labelValues = [$MessageType.getAds])
+  cd_register_requests.inc(labelValues = [$kademlia_protobuf.RegistrationStatus.Wait])
 
+  return msg
+
+proc getAdvertisements*(disco: ServiceDiscovery, msg: Message): Message =
   let serviceId = msg.key
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
@@ -484,12 +497,5 @@ proc handleGetAds*(
     getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
     closerPeers: disco.findClosestPeers(serviceId),
   )
-  let bytes = response.encode().buffer
 
-  cd_messages_sent.inc(labelValues = [$MessageType.getAds])
-  cd_message_bytes_sent.inc(bytes.len.float64, labelValues = [$MessageType.getAds])
-
-  let writeRes = catch:
-    await conn.writeLp(bytes)
-  if writeRes.isErr:
-    error "failed to send getAds response", err = writeRes.error.msg
+  return response
