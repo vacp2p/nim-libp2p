@@ -176,21 +176,9 @@ when defined(libp2p_kademlia_provider_rejection):
   proc addProviderSpillover(
       kad: KadDHT, key: Key
   ) {.async: (raises: [CancelledError]).} =
-    let noReply = proc(
-        peerId: PeerId, msgOpt: Opt[Message], state: var LookupState
-    ): Future[void] {.async: (raises: []), gcsafe.} =
-      discard
-    let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
-      state.hasResponsesFromClosestAvailable()
-    let dispatchFind = proc(
-        kad: KadDHT, peer: PeerId, target: Key
-    ): Future[Result[Message, string]] {.
-        async: (raises: [CancelledError]), gcsafe, closure
-    .} =
-      return await dispatchFindNode(kad, peer, target)
-
-    let allPeers =
-      (await kad.iterativeLookup(key, dispatchFind, noReply, stop)).allSortedPeers()
+    let allPeers = (
+      await kad.iterativeLookup(key, findNodeDispatch, noopReply, closestAvailableStop)
+    ).allSortedPeers()
 
     var stored = 0
     for chunk in allPeers.toChunks(kad.config.alpha):
