@@ -2,45 +2,27 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/[tables, sequtils]
-import chronos, results
-import ../../../libp2p/[switch, crypto/crypto]
-import ../../../libp2p/protocols/service_discovery
+import chronos, results, std/[sequtils, tables]
 import
-  ../../../libp2p/protocols/service_discovery/[types, registrar, advertiser, discoverer]
-import ../../../libp2p/protocols/[kademlia]
-import ../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
-import ../../tools/[unittest, lifecycle, crypto]
-import ./utils
-
-proc setupDiscoNode(
-    discoConf: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new()
-): ServiceDiscovery =
-  let switch = createSwitch()
-  let kad = ServiceDiscovery.new(
+  ../../../libp2p/[
+    crypto/crypto,
+    protocols/service_discovery,
+    protocols/service_discovery/advertiser,
+    protocols/service_discovery/discoverer,
+    protocols/service_discovery/registrar,
+    protocols/service_discovery/types,
     switch,
-    bootstrapNodes = @[],
-    config = KadDHTConfig.new(
-      ExtEntryValidator(),
-      ExtEntrySelector(),
-      timeout = 1.secs,
-      cleanupProvidersInterval = 100.millis,
-      providerExpirationInterval = 1.secs,
-      republishProvidedKeysInterval = 50.millis,
-    ),
-    rng = rng(),
-    discoConfig = discoConf,
-    xprPublishing = false,
-  )
-  switch.mount(kad)
-  kad
+  ]
+import ../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
+import ../../tools/[crypto, lifecycle, unittest]
+import ./utils
 
 suite "processRetryTicket":
   teardown:
     checkTrackers()
 
   test "no ticket returns t_wait":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement()
     let regMsg = kad_protobuf.RegisterMessage(
       advertisement: @[1'u8],
@@ -52,7 +34,7 @@ suite "processRetryTicket":
     check tResult == tWait
 
   test "mismatched advertisement bytes returns t_wait":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     var ticket = Ticket(
@@ -73,7 +55,7 @@ suite "processRetryTicket":
     check tResult == tWait
 
   test "invalid ticket signature returns t_wait":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement()
     let wrongKey = PrivateKey.random(rng[]).get()
     let adBytes = @[1'u8, 2, 3]
@@ -95,7 +77,7 @@ suite "processRetryTicket":
     check tResult == tWait
 
   test "expired ticket (window very far in past) returns t_wait":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
@@ -119,7 +101,7 @@ suite "processRetryTicket":
     check tResult == tWait
 
   test "retry before window start returns t_wait":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
@@ -143,7 +125,7 @@ suite "processRetryTicket":
     check tResult == tWait
 
   test "retry after window end returns t_wait":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
@@ -167,7 +149,7 @@ suite "processRetryTicket":
     check tResult == tWait
 
   test "valid retry within window returns t_remaining":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
@@ -193,7 +175,7 @@ suite "processRetryTicket":
     check abs(tResult.secs - 700) <= 1
 
   test "valid retry with sufficient elapsed returns <= 0":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement()
     let key = disco.switch.peerInfo.privateKey
     let adBytes = @[1'u8, 2, 3]
@@ -222,8 +204,8 @@ suite "Component - handleRegister":
     checkTrackers()
 
   asyncTest "first REGISTER with no ticket returns Wait":
-    let registrarNode = setupDiscoNode()
-    let advertiserNode = setupDiscoNode()
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
@@ -239,8 +221,8 @@ suite "Component - handleRegister":
     check regResp.get().ticket.isSome()
 
   asyncTest "REGISTER with malformed advertisement bytes returns Rejected":
-    let registrarNode = setupDiscoNode()
-    let advertiserNode = setupDiscoNode()
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
@@ -255,8 +237,8 @@ suite "Component - handleRegister":
     check regResp.get().status == kad_protobuf.RegistrationStatus.Rejected
 
   asyncTest "REGISTER with out-of-window ticket ignores ticket and returns Wait":
-    let registrarNode = setupDiscoNode()
-    let advertiserNode = setupDiscoNode()
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
@@ -288,8 +270,8 @@ suite "Component - handleRegister":
 
   asyncTest "REGISTER with safetyParam=0 returns Confirmed on first attempt":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupDiscoNode(conf)
-    let advertiserNode = setupDiscoNode(conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
@@ -308,8 +290,8 @@ suite "Component - handleGetAds":
     checkTrackers()
 
   asyncTest "GET_ADS on empty registrar cache returns no ads":
-    let registrarNode = setupDiscoNode()
-    let discovererNode = setupDiscoNode()
+    let registrarNode = setupServiceDiscoveryNode()
+    let discovererNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode, discovererNode])
     await connect(registrarNode, discovererNode)
 
@@ -320,9 +302,9 @@ suite "Component - handleGetAds":
 
   asyncTest "GET_ADS returns ads stored in registrar cache":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupDiscoNode(conf)
-    let advertiserNode = setupDiscoNode(conf)
-    let discovererNode = setupDiscoNode(conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
     await connect(registrarNode, advertiserNode)
     await connect(registrarNode, discovererNode)
@@ -350,8 +332,8 @@ suite "Component - handleGetAds":
 
   asyncTest "GET_ADS respects F_return limit":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, fReturn = 2)
-    let registrarNode = setupDiscoNode(conf)
-    let discovererNode = setupDiscoNode(conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode, discovererNode])
     await connect(registrarNode, discovererNode)
 
@@ -376,10 +358,10 @@ suite "Component - end-to-end":
     # Using 2 registrars reduces the chance of dropping a peer whose
     # bucket index falls outside the default bucket range
     # (`Default_M_buckets = 16`). This reduces the failure rate to 1 in 4_294_967_296.
-    let registrarNode1 = setupDiscoNode(conf)
-    let registrarNode2 = setupDiscoNode(conf)
-    let advertiserNode = setupDiscoNode(conf)
-    let discovererNode = setupDiscoNode(conf)
+    let registrarNode1 = setupServiceDiscoveryNode(discoConfig = conf)
+    let registrarNode2 = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
     startAndDeferStop(@[registrarNode1, registrarNode2, advertiserNode, discovererNode])
 
     # Advertiser and discoverer both know about the registrar
