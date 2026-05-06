@@ -155,10 +155,7 @@ template orError*(exp: untyped, err: untyped): untyped =
     err
 
 proc random*(
-    T: typedesc[PrivateKey],
-    scheme: PKScheme,
-    rng: Rng,
-    bits = RsaDefaultKeySize,
+    T: typedesc[PrivateKey], scheme: PKScheme, rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
@@ -217,10 +214,7 @@ proc random*(
     err(SchemeError)
 
 proc random*(
-    T: typedesc[KeyPair],
-    scheme: PKScheme,
-    rng: Rng,
-    bits = RsaDefaultKeySize,
+    T: typedesc[KeyPair], scheme: PKScheme, rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##

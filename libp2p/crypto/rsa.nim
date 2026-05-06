@@ -98,10 +98,7 @@ template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
     ptlen -= 1
 
 proc random*[T: RsaKP](
-    t: typedesc[T],
-    rng: Rng,
-    bits = DefaultKeySize,
-    pubexp = DefaultPublicExponent,
+    t: typedesc[T], rng: Rng, bits = DefaultKeySize, pubexp = DefaultPublicExponent
 ): RsaResult[T] =
   ## Generate new random RSA private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.

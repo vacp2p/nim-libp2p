@@ -4,7 +4,7 @@
 
 from std/strutils import toUpper
 import std/[sequtils, algorithm]
-import bearssl/hash, nimcrypto/utils
+import bearssl/[hash, rand], nimcrypto/utils
 import ../../../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 import ../../tools/[unittest, crypto]
 
@@ -631,6 +631,20 @@ suite "Key interface test suite":
     let original = cards.toSeq().sorted()
     rng().shuffle(cards)
     check cards.toSeq().sorted() == original
+
+  test "newBearSslRng wraps existing HMAC-DRBG context":
+    var seed = [byte 1, 2, 3, 4, 5, 6, 7, 8]
+    let ctx = (ref HmacDrbgContext)()
+    var expectedCtx: HmacDrbgContext
+    hmacDrbgInit(ctx[], addr sha256Vtable, addr seed[0], uint seed.len)
+    hmacDrbgInit(expectedCtx, addr sha256Vtable, addr seed[0], uint seed.len)
+
+    let wrapped = newBearSslRng(ctx)
+    var got, expected: array[32, byte]
+    wrapped.generate(got)
+    hmacDrbgGenerate(expectedCtx, addr expected[0], uint expected.len)
+
+    check got == expected
 
   test "pickOne returns none for empty sequence":
     let x: seq[int] = @[]

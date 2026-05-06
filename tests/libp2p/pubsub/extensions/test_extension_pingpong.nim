@@ -26,7 +26,7 @@ proc handlePingPong(ext: PingPongExtension, peerId: PeerId, ping: seq[byte]) =
   ext.onHandleRPC(peerId, RPCMsg.withPing(ping))
 
 suite "GossipSub Extensions :: PingPong Extension":
-  let peerId = PeerId.random(rng).get()
+  let peerId = PeerId.random(rng()).get()
 
   test "isSupported":
     let ext = PingPongExtension.new()
@@ -94,7 +94,7 @@ suite "GossipSub Extensions :: PingPong Extension":
     var cr = CallbackRecorder()
     let ext = PingPongExtension.new(cr.config(peerBudgetBytes = 5))
 
-    let peerId2 = PeerId.random(rng).get()
+    let peerId2 = PeerId.random(rng()).get()
 
     # exhaust budget for peerId
     ext.handlePingPong(peerId, @[1'u8, 2, 3, 4, 5])
@@ -112,7 +112,7 @@ suite "GossipSub Extensions :: PingPong Extension":
     var cr = CallbackRecorder()
     let ext = PingPongExtension.new(cr.config(peerBudgetBytes = 5))
 
-    let peerId2 = PeerId.random(rng).get()
+    let peerId2 = PeerId.random(rng()).get()
 
     # exhaust budget for both peers
     ext.handlePingPong(peerId, @[1'u8, 2, 3, 4, 5])

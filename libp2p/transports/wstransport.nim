@@ -386,7 +386,12 @@ method dial*(
     debug "creating websocket",
       address = initAddress, secure = secure, hostName = hostname
     transp = await WebSocket.connect(
-      initAddress, "", secure = secure, hostName = hostname, flags = self.tlsFlags
+      initAddress,
+      "",
+      secure = secure,
+      hostName = hostname,
+      flags = self.tlsFlags,
+      rng = bearSslDrbgRef(self.rng),
     )
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:
@@ -409,13 +414,15 @@ proc new*(
     tlsPrivateKey: TLSPrivateKey,
     tlsCertificate: TLSCertificate,
     autotls: Opt[AutotlsService],
+    rng: Rng,
     tlsFlags: set[TLSFlags] = {},
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
-    rng: Rng = nil,
     handshakeTimeout = DefaultHeadersTimeout,
 ): T {.raises: [].} =
   ## Creates a secure WebSocket transport
+
+  doAssert not rng.isNil, "Rng is nil"
 
   let self = T(
     upgrader: upgrade,
@@ -434,9 +441,9 @@ proc new*(
 proc new*(
     T: typedesc[WsTransport],
     upgrade: Upgrade,
+    rng: Rng,
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
-    rng: Rng = nil,
     handshakeTimeout = DefaultHeadersTimeout,
 ): T {.raises: [].} =
   ## Creates a clear-text WebSocket transport

@@ -118,12 +118,12 @@ const
 suite "Public key infrastructure filtering test suite":
   test RSATestMessage:
     when not (supported(PKScheme.RSA)):
-      let sk2048 = PrivateKey.random(PKScheme.RSA, rng[], 2048)
-      let sk3072 = PrivateKey.random(PKScheme.RSA, rng[], 3072)
-      let sk4096 = PrivateKey.random(PKScheme.RSA, rng[], 4096)
-      let kp2048 = KeyPair.random(PKScheme.RSA, rng[], 2048)
-      let kp3072 = KeyPair.random(PKScheme.RSA, rng[], 3072)
-      let kp4096 = KeyPair.random(PKScheme.RSA, rng[], 4096)
+      let sk2048 = PrivateKey.random(PKScheme.RSA, rng(), 2048)
+      let sk3072 = PrivateKey.random(PKScheme.RSA, rng(), 3072)
+      let sk4096 = PrivateKey.random(PKScheme.RSA, rng(), 4096)
+      let kp2048 = KeyPair.random(PKScheme.RSA, rng(), 2048)
+      let kp3072 = KeyPair.random(PKScheme.RSA, rng(), 3072)
+      let kp4096 = KeyPair.random(PKScheme.RSA, rng(), 4096)
       let sk = PrivateKey.init(fromHex(stripSpaces(RSA_PrivateKey)))
       let pk = PublicKey.init(fromHex(stripSpaces(RSA_PublicKey)))
       check:
@@ -144,8 +144,8 @@ suite "Public key infrastructure filtering test suite":
         sk.error == CryptoError.KeyError
         pk.error == CryptoError.KeyError
     else:
-      let sk2048 = PrivateKey.random(PKScheme.RSA, rng[], 2048)
-      let kp2048 = KeyPair.random(PKScheme.RSA, rng[], 2048)
+      let sk2048 = PrivateKey.random(PKScheme.RSA, rng(), 2048)
+      let kp2048 = KeyPair.random(PKScheme.RSA, rng(), 2048)
       let sk = PrivateKey.init(fromHex(stripSpaces(RSA_PrivateKey)))
       let pk = PublicKey.init(fromHex(stripSpaces(RSA_PublicKey)))
       check:
@@ -156,8 +156,8 @@ suite "Public key infrastructure filtering test suite":
 
   test EcdsaTestMessage:
     when not (supported(PKScheme.ECDSA)):
-      let rsk = PrivateKey.random(PKScheme.ECDSA, rng[])
-      let rkp = KeyPair.random(PKScheme.ECDSA, rng[])
+      let rsk = PrivateKey.random(PKScheme.ECDSA, rng())
+      let rkp = KeyPair.random(PKScheme.ECDSA, rng())
       let sk = PrivateKey.init(fromHex(stripSpaces(ECDSA_PrivateKey)))
       let pk = PublicKey.init(fromHex(stripSpaces(ECDSA_PublicKey)))
       check:
@@ -170,8 +170,8 @@ suite "Public key infrastructure filtering test suite":
         sk.error == CryptoError.KeyError
         pk.error == CryptoError.KeyError
     else:
-      let rsk = PrivateKey.random(PKScheme.ECDSA, rng[])
-      let rkp = KeyPair.random(PKScheme.ECDSA, rng[])
+      let rsk = PrivateKey.random(PKScheme.ECDSA, rng())
+      let rkp = KeyPair.random(PKScheme.ECDSA, rng())
       let sk = PrivateKey.init(fromHex(stripSpaces(ECDSA_PrivateKey)))
       let pk = PublicKey.init(fromHex(stripSpaces(ECDSA_PublicKey)))
       check:
@@ -182,8 +182,8 @@ suite "Public key infrastructure filtering test suite":
 
   test EdTestMessage:
     when not (supported(PKScheme.Ed25519)):
-      let rsk = PrivateKey.random(PKScheme.Ed25519, rng[])
-      let rkp = KeyPair.random(PKScheme.Ed25519, rng[])
+      let rsk = PrivateKey.random(PKScheme.Ed25519, rng())
+      let rkp = KeyPair.random(PKScheme.Ed25519, rng())
       let sk = PrivateKey.init(fromHex(stripSpaces(ED25519_PrivateKey)))
       let pk = PublicKey.init(fromHex(stripSpaces(ED25519_PublicKey)))
       check:
@@ -196,8 +196,8 @@ suite "Public key infrastructure filtering test suite":
         sk.error == CryptoError.KeyError
         pk.error == CryptoError.KeyError
     else:
-      let rsk = PrivateKey.random(PKScheme.Ed25519, rng[])
-      let rkp = KeyPair.random(PKScheme.Ed25519, rng[])
+      let rsk = PrivateKey.random(PKScheme.Ed25519, rng())
+      let rkp = KeyPair.random(PKScheme.Ed25519, rng())
       let sk = PrivateKey.init(fromHex(stripSpaces(ED25519_PrivateKey)))
       let pk = PublicKey.init(fromHex(stripSpaces(ED25519_PublicKey)))
       check:
@@ -208,8 +208,8 @@ suite "Public key infrastructure filtering test suite":
 
   test SecpTestMessage:
     when not (supported(PKScheme.Secp256k1)):
-      let rsk = PrivateKey.random(PKScheme.Secp256k1, rng[])
-      let rkp = KeyPair.random(PKScheme.Secp256k1, rng[])
+      let rsk = PrivateKey.random(PKScheme.Secp256k1, rng())
+      let rkp = KeyPair.random(PKScheme.Secp256k1, rng())
       let sk = PrivateKey.init(fromHex(stripSpaces(SECP256k1_PrivateKey)))
       let pk = PublicKey.init(fromHex(stripSpaces(SECP256k1_PublicKey)))
       check:
@@ -222,8 +222,8 @@ suite "Public key infrastructure filtering test suite":
         sk.error == CryptoError.KeyError
         pk.error == CryptoError.KeyError
     else:
-      let rsk = PrivateKey.random(PKScheme.Secp256k1, rng[])
-      let rkp = KeyPair.random(PKScheme.Secp256k1, rng[])
+      let rsk = PrivateKey.random(PKScheme.Secp256k1, rng())
+      let rkp = KeyPair.random(PKScheme.Secp256k1, rng())
       let sk = PrivateKey.init(fromHex(stripSpaces(SECP256k1_PrivateKey)))
       let pk = PublicKey.init(fromHex(stripSpaces(SECP256k1_PublicKey)))
       check:

@@ -70,9 +70,7 @@ proc public*(private: Curve25519Key): Curve25519Key =
 proc random*(_: type[Curve25519Key], rng: Rng): Curve25519Key =
   var res: Curve25519Key
   let defaultBrEc = ecGetDefault()
-  let len = ecKeygen(
-    bearSslPrng(rng), defaultBrEc, nil, addr res[0], EC_curve25519
-  )
+  let len = ecKeygen(bearSslPrng(rng), defaultBrEc, nil, addr res[0], EC_curve25519)
   # Per bearssl documentation, the keygen only fails if the curve is
   # unrecognised -
   doAssert len == Curve25519KeySize, "Could not generate curve"

@@ -173,11 +173,13 @@ suite "Hole Punching":
 
     let autonatClientStub1 = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub1.answer = NotReachable
-    let autonatService1 = AutonatService.new(autonatClientStub1, rng(), maxQueueSize = 1)
+    let autonatService1 =
+      AutonatService.new(autonatClientStub1, rng(), maxQueueSize = 1)
 
     let autonatClientStub2 = AutonatClientStub.new(expectedDials = 1)
     autonatClientStub2.answer = answer
-    let autonatService2 = AutonatService.new(autonatClientStub2, rng(), maxQueueSize = 1)
+    let autonatService2 =
+      AutonatService.new(autonatClientStub2, rng(), maxQueueSize = 1)
 
     let relayClient1 = RelayClient.new()
     let relayClient2 = RelayClient.new()

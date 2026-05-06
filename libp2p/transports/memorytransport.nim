@@ -26,9 +26,7 @@ type MemoryTransport* = ref object of Transport
   connections: seq[Connection]
   listener: Opt[MemoryListener]
 
-proc new*(
-    T: typedesc[MemoryTransport], upgrade: Upgrade = Upgrade(), rng: Rng
-): T =
+proc new*(T: typedesc[MemoryTransport], upgrade: Upgrade = Upgrade(), rng: Rng): T =
   let self = T(upgrader: upgrade, rng: rng)
   procCall Transport(self).initialize()
   self

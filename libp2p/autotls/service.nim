@@ -129,9 +129,7 @@ when defined(libp2p_autotls_support):
     )
 
   proc new*(
-      T: typedesc[AutotlsService],
-      rng: Rng,
-      config: AutotlsConfig = AutotlsConfig.new(),
+      T: typedesc[AutotlsService], rng: Rng, config: AutotlsConfig = AutotlsConfig.new()
   ): T =
     T(
       acmeClient: ACMEClient.new(

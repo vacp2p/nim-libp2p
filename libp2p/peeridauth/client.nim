@@ -54,9 +54,7 @@ type SigParam = object
 proc new*(T: typedesc[PeerIDAuthClient], rng: Rng): PeerIDAuthClient =
   PeerIDAuthClient(session: HttpSessionRef.new(), rng: rng)
 
-proc sampleChar(
-    ctx: Rng, choices: string
-): char {.raises: [ValueError].} =
+proc sampleChar(ctx: Rng, choices: string): char {.raises: [ValueError].} =
   ## Samples a random character from the input string using the DRBG context
   if choices.len == 0:
     raise newException(ValueError, "Cannot sample from an empty string")

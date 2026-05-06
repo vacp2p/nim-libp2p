@@ -99,7 +99,7 @@ suite "Circuit Relay":
     r = Relay.new(circuitRelayV1 = true)
     src = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -108,7 +108,7 @@ suite "Circuit Relay":
       .build()
     dst = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -117,7 +117,7 @@ suite "Circuit Relay":
       .build()
     srelay = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()

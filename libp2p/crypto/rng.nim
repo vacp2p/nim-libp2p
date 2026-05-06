@@ -25,6 +25,15 @@ proc newRng*(): Rng =
     return nil
   rng
 
+proc newBearSslRng*(drbg: ref HmacDrbgContext): Rng =
+  ## Wrap an existing BearSSL HMAC-DRBG context.
+  ##
+  ## This is a temporary compatibility API for the BearSSL to BoringSSL
+  ## migration. New code should use `newRng`.
+  if isNil(drbg):
+    return nil
+  Rng(drbg: drbg)
+
 template bearSslDrbg*(rng: Rng): untyped =
   rng.drbg[]
 
@@ -37,7 +46,8 @@ template bearSslPrng*(rng: Rng): untyped =
 proc generate*[T](rng: Rng, v: var T) =
   ## Fill `v` with random data. `v` must be a simple type.
   doAssert not isNil(rng), "Rng is nil"
-  static: doAssert supportsCopyMem(T)
+  static:
+    doAssert supportsCopyMem(T)
 
   when sizeof(v) > 0:
     when T is bool:
@@ -50,7 +60,8 @@ proc generate*[T](rng: Rng, v: var T) =
 proc generate*[V](rng: Rng, v: var openArray[V]) =
   ## Fill `v` with random data. `V` must be a simple type.
   doAssert not isNil(rng), "Rng is nil"
-  static: doAssert supportsCopyMem(V) and sizeof(V) > 0
+  static:
+    doAssert supportsCopyMem(V) and sizeof(V) > 0
 
   when V is bool:
     for b in v.mitems:

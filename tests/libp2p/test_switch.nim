@@ -1051,7 +1051,7 @@ suite "Switch":
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr)
+            WsTransport.new(config.upgr, config.rng)
         )
         .withNameResolver(resolver)
         .withNoise()
@@ -1064,7 +1064,7 @@ suite "Switch":
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr)
+            WsTransport.new(config.upgr, config.rng)
         )
         .withTcpTransport()
         .withNoise()
@@ -1135,7 +1135,7 @@ suite "Switch":
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr)
+            WsTransport.new(config.upgr, config.rng)
         )
         .withTcpTransport()
         .withQuicTransport()
@@ -1152,7 +1152,7 @@ suite "Switch":
         .withMplex()
         .withTransport(
           proc(config: TransportConfig): Transport =
-            WsTransport.new(config.upgr)
+            WsTransport.new(config.upgr, config.rng)
         )
         .withNoise()
         .build()

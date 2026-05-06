@@ -232,11 +232,7 @@ proc random*(
   var ecimp = ecGetDefault()
   var res = new EcPrivateKey
   if ecKeygen(
-    bearSslPrng(rng),
-    ecimp,
-    addr res.key,
-    addr res.buffer[0],
-    safeConvert[cint](kind),
+    bearSslPrng(rng), ecimp, addr res.key, addr res.buffer[0], safeConvert[cint](kind)
   ) == 0:
     err(EcKeyGenError)
   else:
@@ -258,9 +254,7 @@ proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
   else:
     err(EcKeyIncorrectError)
 
-proc random*(
-    T: typedesc[EcKeyPair], kind: EcCurveKind, rng: Rng
-): EcResult[T] =
+proc random*(T: typedesc[EcKeyPair], kind: EcCurveKind, rng: Rng): EcResult[T] =
   ## Generate new random EC private and public keypair using BearSSL's
   ## HMAC-SHA256-DRBG algorithm.
   ##

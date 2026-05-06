@@ -163,9 +163,7 @@ proc publishNewMessage(
     res = await gossipSub.publish(topic, nowBytes)
   return (now, res)
 
-proc initializeGossipsub(
-    switch: Switch, anonymize: bool, rng: Rng
-): GossipSub =
+proc initializeGossipsub(switch: Switch, anonymize: bool, rng: Rng): GossipSub =
   return GossipSub.init(
     switch = switch,
     triggerSelf = parseBool(getEnv("SELFTRIGGER", "true")),

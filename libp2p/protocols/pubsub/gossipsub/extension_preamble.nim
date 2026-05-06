@@ -58,9 +58,7 @@ proc doAssert(config: PreambleExtensionConfig) =
   )
 
 proc new*(
-    T: typedesc[PreambleExtension],
-    config: PreambleExtensionConfig,
-    rng: Rng,
+    T: typedesc[PreambleExtension], config: PreambleExtensionConfig, rng: Rng
 ): PreambleExtension =
   config.doAssert()
   PreambleExtension(rng: rng, config: config)

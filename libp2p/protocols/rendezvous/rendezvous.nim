@@ -540,9 +540,7 @@ proc setup*[E](rdv: GenericRendezVous[E], switch: Switch) =
   rdv.switch.addPeerEventHandler(handlePeer, Left)
 
 proc new*(
-    T: typedesc[RendezVous],
-    rng: Rng,
-    config: RendezVousConfig = RendezVousConfig.new(),
+    T: typedesc[RendezVous], rng: Rng, config: RendezVousConfig = RendezVousConfig.new()
 ): T =
   let rdv = GenericRendezVous[PeerRecord](
     rng: rng,

@@ -200,7 +200,13 @@ proc withWsTransport*(
   b.withTransport(
     proc(config: TransportConfig): Transport =
       WsTransport.new(
-        config.upgr, tlsPrivateKey, tlsCertificate, config.autotls, tlsFlags, flags
+        config.upgr,
+        tlsPrivateKey,
+        tlsCertificate,
+        config.autotls,
+        rng = config.rng,
+        tlsFlags = tlsFlags,
+        flags = flags,
       )
   )
 
