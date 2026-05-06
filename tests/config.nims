@@ -17,8 +17,6 @@ import strutils, os
   libp2p_mplex_metrics
 --d:
   unittestPrintTime
---d:
-  libp2p_kademlia_provider_rejection
 
 # Only add chronicles param if the
 # user didn't specify any

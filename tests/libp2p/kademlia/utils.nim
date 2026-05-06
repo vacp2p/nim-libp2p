@@ -35,13 +35,13 @@ method select*(
 
 proc createSwitch*(): Switch =
   SwitchBuilder
-    .new()
-    .withRng(rng)
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
+  .new()
+  .withRng(rng)
+  .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
+  .withTcpTransport()
+  .withMplex()
+  .withNoise()
+  .build()
 
 proc testKadConfig*(
     validator: EntryValidator = PermissiveValidator(),
@@ -49,18 +49,21 @@ proc testKadConfig*(
     cleanupProvidersInterval: Duration = chronos.milliseconds(100),
     republishProvidedKeysInterval: Duration = chronos.milliseconds(50),
     replication: int = DefaultReplication,
-    timeout = chronos.seconds(1),
+    timeout = 1.seconds,
     retries: int = DefaultRetries,
+    providerRejection: bool = false,
+    providerExpirationInterval: Duration = 1.seconds,
 ): KadDHTConfig =
   KadDHTConfig.new(
     validator,
     selector,
     timeout = timeout,
-    providerExpirationInterval = chronos.seconds(1),
+    providerExpirationInterval = providerExpirationInterval,
     cleanupProvidersInterval = cleanupProvidersInterval,
     republishProvidedKeysInterval = republishProvidedKeysInterval,
     replication = replication,
     retries = retries,
+    providerRejection = providerRejection,
   )
 
 proc setupKad*(
@@ -197,12 +200,12 @@ proc sortPeers*(
     peers: seq[PeerId], targetKey: Key, hasher: Opt[XorDHasher]
 ): seq[PeerId] =
   peers
-    .mapIt((it, xorDistance(it, targetKey, hasher)))
-    .sorted(
-      proc(a, b: auto): int =
-        cmp(a[1], b[1])
-    )
-    .mapIt(it[0])
+  .mapIt((it, xorDistance(it, targetKey, hasher)))
+  .sorted(
+    proc(a, b: auto): int =
+      cmp(a[1], b[1])
+  )
+  .mapIt(it[0])
 
 proc addRandomPeers*(
     state: var LookupState, count: int, target: Key, hasher: Opt[XorDHasher]
@@ -213,32 +216,34 @@ proc addRandomPeers*(
     state.shortlist[peers[i]] = xorDistance(peers[i], target, hasher)
   peers.sortPeers(target, hasher)
 
-when defined(libp2p_kademlia_provider_rejection):
-  proc sendAddProviderAndGetStatus*(
-      sender: KadDHT, receiver: KadDHT, key: Key
-  ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
-    let connRes = catch:
-      await sender.switch.dial(
-        receiver.switch.peerInfo.peerId, receiver.switch.peerInfo.addrs, sender.codec
-      )
-    if connRes.isErr:
-      return err(connRes.error.msg)
-    let conn = connRes.value()
-    defer:
-      await conn.close()
-    let msg = Message(
-      msgType: MessageType.addProvider,
-      key: key,
-      providerPeers: @[sender.switch.peerInfo.toPeer()],
+proc sendAddProviderAndGetStatus*(
+    sender: KadDHT, receiver: KadDHT, key: Key
+): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
+  let connRes = catch:
+    await sender.switch.dial(
+      receiver.switch.peerInfo.peerId, receiver.switch.peerInfo.addrs, sender.codec
     )
-    let writeRes = catch:
-      await conn.writeLp(msg.encode(sender.config.hideConnectionStatus).buffer)
-    if writeRes.isErr:
-      return err(writeRes.error.msg)
-    let readRes = catch:
-      await conn.readLp(MaxMsgSize)
-    if readRes.isErr:
-      return ok(AddProviderStatus.accepted)
-    let reply = Message.decode(readRes.value).valueOr:
-      return ok(AddProviderStatus.accepted)
-    return ok(reply.providerStatus.get(AddProviderStatus.accepted))
+  if connRes.isErr:
+    return err(connRes.error.msg)
+  let conn = connRes.value()
+  defer:
+    await conn.close()
+  let msg = Message(
+    msgType: MessageType.addProvider,
+    key: key,
+    providerPeers: @[sender.switch.peerInfo.toPeer()],
+  )
+  let writeRes = catch:
+    await conn.writeLp(msg.encode(sender.config.hideConnectionStatus).buffer)
+  if writeRes.isErr:
+    return err(writeRes.error.msg)
+  let readFut = conn.readLp(MaxMsgSize)
+  if not (await readFut.withTimeout(sender.config.timeout)):
+    return ok(AddProviderStatus.accepted)
+  let readRes = catch:
+    await readFut
+  if readRes.isErr:
+    return ok(AddProviderStatus.accepted)
+  let reply = Message.decode(readRes.value).valueOr:
+    return ok(AddProviderStatus.accepted)
+  return ok(reply.providerStatus.get(AddProviderStatus.accepted))

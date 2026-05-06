@@ -46,8 +46,10 @@ type
 
   AddProviderStatus* = enum
     ## Response status carried in field 11 of an ADD_PROVIDER reply (nim extension).
-    ## Only populated when both peers are compiled with ``-d:libp2p_kademlia_provider_rejection``.
-    ## Peers without the flag never write nor read this field.
+    ## Only populated when the responding peer has ``providerRejection = true``.
+    ## Peers with ``providerRejection = false`` never write this field; receivers
+    ## always decode it when present and act on it only if their own
+    ## ``providerRejection`` is true.
     accepted = 0
     rejected = 1
 
@@ -168,9 +170,8 @@ proc encode*(
   for peer in msg.providerPeers:
     pb.write(9, peer.encode(hideConnectionStatus))
 
-  when defined(libp2p_kademlia_provider_rejection):
-    msg.providerStatus.withValue(status):
-      pb.write(11, uint32(ord(status)))
+  msg.providerStatus.withValue(status):
+    pb.write(11, uint32(ord(status)))
 
   msg.register.withValue(regMsg):
     pb.write(21, regMsg.encode())
@@ -294,10 +295,9 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   for ppb in providerPbs:
     m.providerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
 
-  when defined(libp2p_kademlia_provider_rejection):
-    var providerStatusVal: uint32
-    if ?pb.getField(11, providerStatusVal):
-      m.providerStatus = Opt.some(?decodeEnum[AddProviderStatus](providerStatusVal))
+  var providerStatusVal: uint32
+  if ?pb.getField(11, providerStatusVal):
+    m.providerStatus = Opt.some(?decodeEnum[AddProviderStatus](providerStatusVal))
 
   # Decode Register message (field 21)
   var regBuf: seq[byte]

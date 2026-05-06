@@ -91,12 +91,13 @@ suite "KadDHT Protobuffers":
       decoded == peer
 
   test "peer with multiple multiaddresses":
-    let maddrs = @[
-      MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get(),
-      MultiAddress.init("/ip4/192.168.1.1/tcp/4001").get(),
-      MultiAddress.init("/ip6/::1/tcp/9000").get(),
-      MultiAddress.init("/dns4/example.com/tcp/443").get(),
-    ]
+    let maddrs =
+      @[
+        MultiAddress.init("/ip4/127.0.0.1/tcp/9000").get(),
+        MultiAddress.init("/ip4/192.168.1.1/tcp/4001").get(),
+        MultiAddress.init("/ip6/::1/tcp/9000").get(),
+        MultiAddress.init("/dns4/example.com/tcp/443").get(),
+      ]
     let peer = Peer(id: @[1'u8, 2, 3, 4, 5], addrs: maddrs, connection: canConnect)
     let encoded = peer.encode(hideConnectionStatus = false)
     let decoded = Peer.decode(initProtoBuffer(encoded.buffer)).get()
@@ -169,29 +170,28 @@ suite "KadDHT Protobuffers":
     let cfg = KadDHTConfig.new()
     check cfg.hideConnectionStatus == true
 
-when defined(libp2p_kademlia_provider_rejection):
-  suite "KadDHT Protobuffers - libp2p_kademlia_provider_rejection":
-    test "round-trip for AddProviderStatus":
-      let accepted = Message(
-        msgType: MessageType.addProvider,
-        providerStatus: Opt.some(AddProviderStatus.accepted),
-      )
-      let rejected = Message(
-        msgType: MessageType.addProvider,
-        providerStatus: Opt.some(AddProviderStatus.rejected),
-      )
-      let noStatus = Message(
-        msgType: MessageType.addProvider, providerStatus: Opt.none(AddProviderStatus)
-      )
+suite "KadDHT Protobuffers - AddProviderStatus":
+  test "round-trip for AddProviderStatus":
+    let accepted = Message(
+      msgType: MessageType.addProvider,
+      providerStatus: Opt.some(AddProviderStatus.accepted),
+    )
+    let rejected = Message(
+      msgType: MessageType.addProvider,
+      providerStatus: Opt.some(AddProviderStatus.rejected),
+    )
+    let noStatus = Message(
+      msgType: MessageType.addProvider, providerStatus: Opt.none(AddProviderStatus)
+    )
 
-      let decodedAccepted = Message.decode(accepted.encode().buffer).valueOr:
-        raiseAssert("decode of accepted failed")
-      let decodedRejected = Message.decode(rejected.encode().buffer).valueOr:
-        raiseAssert("decode of rejected failed")
-      let decodedNoStatus = Message.decode(noStatus.encode().buffer).valueOr:
-        raiseAssert("decode of noStatus failed")
+    let decodedAccepted = Message.decode(accepted.encode().buffer).valueOr:
+      raiseAssert("decode of accepted failed")
+    let decodedRejected = Message.decode(rejected.encode().buffer).valueOr:
+      raiseAssert("decode of rejected failed")
+    let decodedNoStatus = Message.decode(noStatus.encode().buffer).valueOr:
+      raiseAssert("decode of noStatus failed")
 
-      check:
-        decodedAccepted.providerStatus == Opt.some(AddProviderStatus.accepted)
-        decodedRejected.providerStatus == Opt.some(AddProviderStatus.rejected)
-        decodedNoStatus.providerStatus.isNone()
+    check:
+      decodedAccepted.providerStatus == Opt.some(AddProviderStatus.accepted)
+      decodedRejected.providerStatus == Opt.some(AddProviderStatus.rejected)
+      decodedNoStatus.providerStatus.isNone()

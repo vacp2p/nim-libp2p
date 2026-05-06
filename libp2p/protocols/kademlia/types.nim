@@ -308,10 +308,14 @@ type KadDHTConfig* = ref object
   addressPolicy*: PeerAddressPolicy
   hideConnectionStatus*: bool
   disableBootstrapping*: bool
+  providerRejection*: bool
+    ## When true, the node enforces ``maxProvidersPerKey`` and replies to
+    ## ADD_PROVIDER with accepted/rejected on field 11; the sender spills over
+    ## to farther peers when a full batch is rejected.
   maxProvidersPerKey*: Opt[int]
     ## Maximum number of distinct providers stored per key.
     ## None (default) means unlimited.
-    ## Only enforced when compiled with ``-d:libp2p_kademlia_provider_rejection``.
+    ## Only enforced when ``providerRejection`` is true.
 
 proc new*(
     K: typedesc[KadDHTConfig],
@@ -331,6 +335,7 @@ proc new*(
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
+    providerRejection: bool = false,
     maxProvidersPerKey: Opt[int] = Opt.none(int),
 ): K {.raises: [].} =
   doAssert maxProvidersPerKey.isNone or maxProvidersPerKey.get() > 0,
@@ -352,6 +357,7 @@ proc new*(
     addressPolicy: addressPolicy,
     hideConnectionStatus: hideConnectionStatus,
     disableBootstrapping: disableBootstrapping,
+    providerRejection: providerRejection,
     maxProvidersPerKey: maxProvidersPerKey,
   )
 

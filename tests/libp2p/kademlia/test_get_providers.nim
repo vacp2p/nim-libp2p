@@ -58,12 +58,7 @@ suite "KadDHT - Get Providers":
   asyncTest "Get providers updates routing table with closerPeers when no providers are returned":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = setupKadSwitches(
-      3,
-      PermissiveValidator(),
-      CandSelector(),
-      @[],
-      chronos.seconds(1),
-      chronos.seconds(1),
+      3, PermissiveValidator(), CandSelector(), @[], 1.seconds, 1.seconds
     )
     startAndDeferStop(kads)
 
@@ -86,12 +81,7 @@ suite "KadDHT - Get Providers":
   asyncTest "Get providers updates routing table with closerPeers (with providers)":
     # kads[2] <---> kads[0] (hub) <---> kads[1]
     let kads = setupKadSwitches(
-      3,
-      PermissiveValidator(),
-      CandSelector(),
-      @[],
-      chronos.seconds(1),
-      chronos.seconds(1),
+      3, PermissiveValidator(), CandSelector(), @[], 1.seconds, 1.seconds
     )
     startAndDeferStop(kads)
 
