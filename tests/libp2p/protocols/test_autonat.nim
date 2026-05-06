@@ -48,7 +48,7 @@ proc makeAutonatServicePrivate(): Switch =
     finally:
       await conn.close()
   autonatProtocol.codec = AutonatCodec
-  result = newStandardSwitch()
+  result = newStandardSwitch(rng = rng())
   result.mount(autonatProtocol)
 
 suite "Autonat":
@@ -57,7 +57,7 @@ suite "Autonat":
 
   asyncTest "dialMe returns public address":
     let
-      src = newStandardSwitch()
+      src = newStandardSwitch(rng = rng())
       dst = createAutonatSwitch()
     await src.start()
     await dst.start()
@@ -70,7 +70,7 @@ suite "Autonat":
 
   asyncTest "dialMe handles dial error msg":
     let
-      src = newStandardSwitch()
+      src = newStandardSwitch(rng = rng())
       dst = makeAutonatServicePrivate()
 
     await src.start()
@@ -84,8 +84,8 @@ suite "Autonat":
 
   asyncTest "Timeout is triggered in autonat handle":
     let
-      src = newStandardSwitch()
-      dst = newStandardSwitch()
+      src = newStandardSwitch(rng = rng())
+      dst = newStandardSwitch(rng = rng())
       autonat = Autonat.new(dst, dialTimeout = 1.seconds)
       doesNothingListener = TcpTransport.new(upgrade = Upgrade())
 
@@ -115,7 +115,7 @@ suite "Autonat":
 
   asyncTest "dialMe dials dns and returns public address":
     let
-      src = newStandardSwitch()
+      src = newStandardSwitch(rng = rng())
       dst = createAutonatSwitch(nameResolver = MockResolver.default())
 
     await src.start()

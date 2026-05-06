@@ -15,7 +15,8 @@ runnableExamples:
   # Create a custom book type
   type MoodBook = ref object of PeerBook[string]
 
-  var somePeerId = PeerId.random().expect("get random key")
+  let exampleRng = newRng()
+  var somePeerId = PeerId.random(exampleRng).expect("get random key")
 
   ps[MoodBook][somePeerId] = "Happy"
   doAssert ps[MoodBook][somePeerId] == "Happy"

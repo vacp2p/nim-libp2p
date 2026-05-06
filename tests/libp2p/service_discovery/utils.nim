@@ -96,6 +96,7 @@ proc setupServiceDiscoveryNode*(
     switch,
     bootstrapNodes = bootstrapNodes,
     config = testKadDHTConfig(),
+    rng = rng(),
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )

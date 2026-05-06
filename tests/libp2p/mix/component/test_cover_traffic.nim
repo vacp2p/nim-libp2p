@@ -77,15 +77,15 @@ suite "Cover Traffic - Integration":
 
   asyncTest "slot exhaustion blocks local send, epoch reset unblocks":
     let nodes = await setupMixNodes(5)
-    startAndDeferStop(nodes)
+    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
+    await startNodes(nodes)
+    defer:
+      await stopNodes(nodes)
+      await stopDestNode(destNode)
 
     let ct = ConstantRateCoverTraffic.new(totalSlots = 2, useInternalEpochTimer = false)
     ct.onEpochChange(1)
     nodes[0].coverTraffic = Opt.some(CoverTraffic(ct))
-
-    let (destNode, _) = await setupDestNode(NoReplyProtocol.new())
-    defer:
-      await stopDestNode(destNode)
 
     let incoming = newAsyncQueue[seq[byte]]()
 
@@ -116,7 +116,7 @@ suite "Cover Traffic - Integration":
     check res4.isOk
 
   asyncTest "MixProtocol wires SpamProtection epoch changes to cover traffic":
-    let nodeInfos = MixNodeInfo.generateRandomMany(5)
+    let nodeInfos = MixNodeInfo.generateRandomMany(5, rng())
     let mixNodeInfo = nodeInfos[0]
     let switch =
       createSwitch(mixNodeInfo.multiAddr, Opt.some(mixNodeInfo.libp2pPrivKey))

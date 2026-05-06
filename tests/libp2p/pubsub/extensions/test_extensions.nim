@@ -29,7 +29,7 @@ suite "GossipSub Extensions :: State":
   let peerId = PeerId.random(rng).get()
 
   test "default unconfigured state":
-    var state = ExtensionsState.new()
+    var state = ExtensionsState.new(rng())
 
     # call all proc, that are called from gossipsub here.
     # by calling these test can't assert much, but it should
@@ -47,7 +47,7 @@ suite "GossipSub Extensions :: State":
     check state.makeControlExtensions() == ControlExtensions()
 
   test "ensure default behavior for unconfigured partial message extension":
-    var state = ExtensionsState.new()
+    var state = ExtensionsState.new(rng())
 
     # expect to fail because this is user facing function, they shouldn't
     # call if extensions is not configured.
@@ -59,7 +59,7 @@ suite "GossipSub Extensions :: State":
 
   test "state reports misbehaving when ControlExtensions is sent more than once":
     var (reportedPeers, behaviorPenaltyCb) = createBehaviorPenaltyProc()
-    var state = ExtensionsState.new(behaviorPenaltyCb)
+    var state = ExtensionsState.new(rng(), behaviorPenaltyCb)
 
     # peer sends ControlExtensions for the first time
     state.handleRPC(peerId, makeRPC())
@@ -71,7 +71,7 @@ suite "GossipSub Extensions :: State":
 
   test "state reports misbehaving when ControlExtensions is sent more than once - many peers reported":
     var (reportedPeers, behaviorPenaltyCb) = createBehaviorPenaltyProc()
-    var state = ExtensionsState.new(behaviorPenaltyCb)
+    var state = ExtensionsState.new(rng(), behaviorPenaltyCb)
 
     var peers = newSeq[PeerId]()
     for i in 0 ..< 5:
@@ -84,7 +84,7 @@ suite "GossipSub Extensions :: State":
 
   test "state reports misbehaving when ControlExtensions is not first message on the stream":
     var (reportedPeers, behaviorPenaltyCb) = createBehaviorPenaltyProc()
-    var state = ExtensionsState.new(behaviorPenaltyCb)
+    var state = ExtensionsState.new(rng(), behaviorPenaltyCb)
 
     # peer sends RPCMsg without ControlExtensions
     state.handleRPC(peerId, RPCMsg())
@@ -96,7 +96,7 @@ suite "GossipSub Extensions :: State":
 
   test "peer is removed":
     var (reportedPeers, behaviorPenaltyCb) = createBehaviorPenaltyProc()
-    var state = ExtensionsState.new(behaviorPenaltyCb)
+    var state = ExtensionsState.new(rng(), behaviorPenaltyCb)
 
     for i in 0 ..< 5:
       let pid = PeerId.random(rng).get()
@@ -110,7 +110,7 @@ suite "GossipSub Extensions :: State":
       check reportedPeers[].len == 0
 
   test "isControlSent tracks addPeer and removePeer":
-    var state = ExtensionsState.new()
+    var state = ExtensionsState.new(rng())
     let pid = PeerId.random(rng).get()
 
     # initially false
@@ -134,7 +134,7 @@ suite "GossipSub Extensions :: State":
 
   test "addPeer called twice does not trigger duplicate onNegotiated":
     var ext = RecordingExtension()
-    var state = ExtensionsState.new(externalExtensions = @[Extension(ext)])
+    var state = ExtensionsState.new(rng(), externalExtensions = @[Extension(ext)])
     let pid = PeerId.random(rng).get()
 
     # peer sends extensions first (path A: handleRPC then addPeer)
@@ -148,7 +148,7 @@ suite "GossipSub Extensions :: State":
 
   test "onNegotiated fires again after removePeer":
     var ext = RecordingExtension()
-    var state = ExtensionsState.new(externalExtensions = @[Extension(ext)])
+    var state = ExtensionsState.new(rng(), externalExtensions = @[Extension(ext)])
     let pid = PeerId.random(rng).get()
 
     state.handleRPC(pid, makeRPC(ControlExtensions(testExtension: Opt.some(true))))
@@ -162,7 +162,7 @@ suite "GossipSub Extensions :: State":
 
   test "state calls all extensions callbacks":
     var ext = RecordingExtension()
-    var state = ExtensionsState.new(externalExtensions = @[Extension(ext)])
+    var state = ExtensionsState.new(rng(), externalExtensions = @[Extension(ext)])
 
     # assert that onHeartbeat is called
     state.heartbeat()
