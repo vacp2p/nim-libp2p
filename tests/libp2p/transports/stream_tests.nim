@@ -136,8 +136,9 @@ template streamTransportTest*(
           # socket enters CLOSE_WAIT. In this state, the OS still accepts writes
           # to the send buffer and returns success until it receives a reset.
           # The mplex handle loop detects the underlying EOF asynchronously (when
-          # readMsg() fails) and calls m.close() -> channel.reset(), raising
-          # LPStreamClosedError on subsequent writes.
+          # readMsg() fails) and calls m.close() -> channel.reset(). Subsequent
+          # writes raise LPStreamEOFError (often LPStreamClosedError or
+          # LPStreamResetError).
           expect LPStreamEOFError:
             let expiration = Moment.now() + 10.seconds
             while Moment.now() < expiration:
