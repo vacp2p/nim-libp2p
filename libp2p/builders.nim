@@ -83,9 +83,9 @@ type
     autonatV2Client: AutonatV2Client
     autonatV2Service*: Opt[AutonatV2Service]
     hpService*: Opt[HPService]
-    autotls: Opt[AutotlsService]
+    autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
-    rdv: Opt[RendezVous]
+    rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
     services: seq[Service]
     observedAddrManager: ObservedAddrManager
@@ -108,9 +108,9 @@ proc new*(T: type[SwitchBuilder]): T =
     scoring: PeerScoring(),
     protoVersion: ProtoVersion,
     agentVersion: AgentVersion,
-    autotls: Opt.none(AutotlsService),
+    autotlsConfig: Opt.none(AutotlsConfig),
     circuitRelay: Opt.none(Relay),
-    rdv: Opt.none(RendezVous),
+    rdvConfig: Opt.none(RendezVousConfig),
     kad: Opt.none(KadInfo),
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
@@ -326,21 +326,17 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-    doAssert not b.rng.isNil, "use withRng() before calling withAutotls()"
-    b.autotls = Opt.some(AutotlsService.new(b.rng, config = config))
+    b.autotlsConfig = Opt.some(config)
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   b.circuitRelay = Opt.some(r)
   b
 
-proc withRendezVous*(b: SwitchBuilder, rdv: RendezVous): SwitchBuilder =
-  var lrdv = rdv
-  if rdv.isNil():
-    doAssert not b.rng.isNil, "use withRng() before calling withRendezVous()"
-    lrdv = RendezVous.new(b.rng)
-
-  b.rdv = Opt.some(lrdv)
+proc withRendezVous*(
+    b: SwitchBuilder, config: RendezVousConfig = RendezVousConfig.new()
+): SwitchBuilder =
+  b.rdvConfig = Opt.some(config)
   b
 
 proc withKademlia*(
@@ -419,8 +415,13 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   let ms = MultistreamSelect.new()
   let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
 
-  b.autotls.withValue(autotlsService):
-    b.services.add(autotlsService)
+  var autotlsOpt = Opt.none(AutotlsService)
+  when defined(libp2p_autotls_support):
+    b.autotlsConfig.withValue(config):
+      autotlsOpt = Opt.some(AutotlsService.new(b.rng, config))
+
+  autotlsOpt.withValue(autotlsSvc):
+    b.services.add(autotlsSvc)
 
   let transports = block:
     var transports: seq[Transport]
@@ -430,7 +431,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
           TransportConfig(
             upgr: muxedUpgrade,
             privateKey: seckey,
-            autotls: b.autotls,
+            autotls: autotlsOpt,
             connManager: connManager,
             rng: b.rng,
           )
@@ -492,7 +493,8 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     relay.setup(switch)
     switch.mount(relay)
 
-  b.rdv.withValue(rdvService):
+  b.rdvConfig.withValue(rdvCfg):
+    let rdvService = RendezVous.new(b.rng, rdvCfg)
     rdvService.setup(switch)
     switch.mount(rdvService)
 
