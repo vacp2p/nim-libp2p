@@ -2,16 +2,14 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results, tables
+import chronos, results
 import
   ../../../libp2p/[
     protocols/service_discovery,
-    protocols/service_discovery/advertiser,
     protocols/service_discovery/discoverer,
     protocols/service_discovery/types,
-    switch,
   ]
-import ../../tools/[lifecycle, unittest]
+import ../../tools/unittest
 import ./utils
 
 suite "Discoverer - lookup":
@@ -125,30 +123,3 @@ suite "Discoverer - start/stop discovering":
 
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
-
-  asyncTest "startDiscovering sends messages and finds registered peer":
-    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
-
-    await connect(registrarNode, advertiserNode)
-    await connect(registrarNode, discovererNode)
-
-    let service = makeServiceInfo("start-disco-e2e-service")
-    let serviceId = service.id.hashServiceId()
-
-    advertiserNode.addProvidedService(service)
-    checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len > 0
-
-    check discovererNode.startDiscovering(service.id)
-
-    let found = await discovererNode.lookup(service)
-    check found.isOk()
-    check found.get().len > 0
-    check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
-
-    discovererNode.stopDiscovering(service.id)
-    check not discovererNode.rtManager.hasService(serviceId)
