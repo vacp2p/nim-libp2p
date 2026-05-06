@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, results
+import chronos, results, std/[sequtils, sets, tables]
 import
   ../../../libp2p/[
     protocols/service_discovery,
@@ -144,6 +144,7 @@ suite "Discoverer - start/stop discovering":
     let res = await disco.lookup(sid)
 
     check res.isOk()
-    check res.get() == disco.discoverer.cache.getOrDefault(sid, @[])
+    check res.get().mapIt(it.toAdvertisementKey) ==
+      disco.discoverer.cache.getOrDefault(sid, @[]).mapIt(it.toAdvertisementKey)
 
     await disco.stopDiscovering(service)
