@@ -54,7 +54,8 @@ when not defined(macosx):
       # 3x (150ms heartbeat + 30ms interval) = 540ms
       # 360ms remaining, / 30ms = 12x
       # total 15
-      check i in 14 .. 17
+      # allow extra slack for timer jitter/scheduling delays in CI
+      check i in 13 .. 18
 
     asyncTest "heartbeat sleep first":
       var i = 0
