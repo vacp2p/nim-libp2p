@@ -70,35 +70,16 @@ type CustomRendezVous = GenericRendezVous[CustomPeerRecord]
 
 proc new*(
     T: typedesc[CustomRendezVous],
-    minD = rendezvous.MinimumDuration,
-    maxD = rendezvous.MaximumDuration,
+    config: RendezVousConfig = RendezVousConfig.new(),
     peerRecordValidator: PeerRecordValidator[CustomPeerRecord] = checkCustomPeerRecord,
 ): T =
-  var minDuration = minD
-  var maxDuration = maxD
-  if minDuration < rendezvous.MinimumAcceptedDuration:
-    minDuration = rendezvous.MinimumAcceptedDuration
-
-  if maxDuration > rendezvous.MaximumDuration:
-    maxDuration = rendezvous.MaximumDuration
-
-  if minDuration >= maxDuration:
-    minDuration = rendezvous.MinimumAcceptedDuration
-    maxDuration = rendezvous.MaximumDuration
-
-  let
-    minTTL = minDuration.seconds.uint64
-    maxTTL = maxDuration.seconds.uint64
   let rdv = T(
     rng: rng,
+    config: config,
     salt: string.fromBytes(generateBytes(rng[], 8)),
     registered: initOffsettedSeq[RegisteredData](),
     expiredDT: Moment.now() - 1.days,
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
-    minDuration: minDuration,
-    maxDuration: maxDuration,
-    minTTL: minTTL,
-    maxTTL: maxTTL,
     peerRecordValidator: peerRecordValidator,
   )
   let pr = CustomPeerRecord.init(
@@ -146,7 +127,7 @@ proc advertise*(
     raise newException(AdvertiseError, "Failed to sign Custom Peer Record")
   let sprBuff = se.encode().valueOr:
     raise newException(AdvertiseError, "Wrong Signed Peer Record")
-  await rdv.advertise(namespace, rdv.minDuration, rdv.peers, sprBuff)
+  await rdv.advertise(namespace, rdv.config.minDuration, rdv.peers, sprBuff)
 
 suite "RendezVous":
   teardown:
