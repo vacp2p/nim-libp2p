@@ -972,8 +972,9 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
+    let now = Moment.now()
 
-    disco.acceptAdvertisement(serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
 
     check disco.registrar.cache.getOrDefault(serviceId).len == 1
     check disco.registrar.cache[serviceId][0].data.peerId == ad.data.peerId
@@ -983,9 +984,10 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
+    let now = Moment.now()
 
-    disco.acceptAdvertisement(serviceId, ad)
-    disco.acceptAdvertisement(serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
 
     check disco.registrar.cache[serviceId].len == 1
 
@@ -995,6 +997,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
+    let now = Moment.now()
 
     let oldAd = SignedExtendedPeerRecord
       .init(
@@ -1010,10 +1013,10 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    disco.acceptAdvertisement(serviceId, oldAd)
+    disco.acceptAdvertisement(now, serviceId, oldAd)
     check disco.registrar.cache[serviceId][0].data.seqNo == 1
 
-    disco.acceptAdvertisement(serviceId, newAd)
+    disco.acceptAdvertisement(now, serviceId, newAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 2
@@ -1024,6 +1027,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
+    let now = Moment.now()
 
     let newerAd = SignedExtendedPeerRecord
       .init(
@@ -1039,8 +1043,8 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    disco.acceptAdvertisement(serviceId, newerAd)
-    disco.acceptAdvertisement(serviceId, olderAd)
+    disco.acceptAdvertisement(now, serviceId, newerAd)
+    disco.acceptAdvertisement(now, serviceId, olderAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 10
@@ -1051,9 +1055,10 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let serviceId = makeServiceId()
     let ad1 = makeAdvertisement($serviceId)
     let ad2 = makeAdvertisement($serviceId)
+    let now = Moment.now()
 
-    disco.acceptAdvertisement(serviceId, ad1)
-    disco.acceptAdvertisement(serviceId, ad2)
+    disco.acceptAdvertisement(now, serviceId, ad1)
+    disco.acceptAdvertisement(now, serviceId, ad2)
 
     check disco.registrar.cache[serviceId].len == 2
 
@@ -1063,6 +1068,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
+    let now = Moment.now()
 
     let oldAd = SignedExtendedPeerRecord
       .init(
@@ -1088,11 +1094,11 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    disco.acceptAdvertisement(serviceId, oldAd)
+    disco.acceptAdvertisement(now, serviceId, oldAd)
     let counterAfterFirst = disco.registrar.ipTree.root.counter
     check counterAfterFirst > 0
 
-    disco.acceptAdvertisement(serviceId, newAd)
+    disco.acceptAdvertisement(now, serviceId, newAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 2
@@ -1137,9 +1143,10 @@ suite "Service Discovery Registrar - concurrent same-peer registration":
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
+    let now = Moment.now()
 
-    disco.acceptAdvertisement(serviceId, ad)
-    disco.acceptAdvertisement(serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
 
     check disco.registrar.cache[serviceId].len == 1
 

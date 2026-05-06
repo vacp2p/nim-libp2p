@@ -30,7 +30,7 @@ suite "Advertiser - addProvidedService":
     disco.addProvidedService(service)
 
     check disco.rtManager.hasService(serviceId)
-    check disco.advertiser.running.len() == 0
+    check disco.advertiser.running.len() == 1 #local action
 
   test "schedules up to kRegister actions per populated bucket":
     let disco = setupServiceDiscoveryNode()
@@ -40,7 +40,7 @@ suite "Advertiser - addProvidedService":
     disco.populateAdvertisementTable(serviceId)
     disco.addProvidedService(service)
 
-    check disco.advertiser.running.len() == disco.discoConfig.kRegister
+    check disco.advertiser.running.len() == disco.discoConfig.kRegister + 1 #local action
 
   test "adding same service twice is idempotent":
     let disco = setupServiceDiscoveryNode()
@@ -70,7 +70,7 @@ suite "Advertiser - addProvidedService":
     check disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
     check disco.rtManager.hasService(s3.id.hashServiceId())
-    check disco.advertiser.running.len() == 3
+    check disco.advertiser.running.len() == 6 # 1 local + 1 remote for each
 
 # ===========================================================================
 suite "Advertiser - removeProvidedService":
@@ -93,7 +93,7 @@ suite "Advertiser - removeProvidedService":
     check:
       not disco.rtManager.hasService(sid1)
       disco.rtManager.hasService(sid2)
-      disco.advertiser.running.len() == 1
+      disco.advertiser.running.len() == 2 # Only local actions remains
 
   asyncTest "removing non-existent service is a no-op":
     let disco = setupServiceDiscoveryNode()
