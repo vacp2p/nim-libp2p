@@ -365,7 +365,7 @@ suite "Identify":
       # switch2 starts listening on new address
       let extra = MultiAddress.init("/ip4/127.0.0.1/tcp/999").tryGet()
       switch2.peerInfo.listenAddrs.add(extra)
-      switch2.peerInfo.update()
+      await switch2.peerInfo.update()
 
       # switch1 should receive new address
       checkUntilTimeout:
