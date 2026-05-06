@@ -4,7 +4,7 @@
 {.used.}
 
 import std/[tables, sequtils]
-import ../../libp2p/[crypto/crypto, crypto/curve25519, multiaddress, peerid, peerstore]
+import ../../libp2p/[crypto/crypto, multiaddress, peerid, peerstore]
 import ../tools/[unittest, crypto]
 
 suite "PeerStore":
