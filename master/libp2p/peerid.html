@@ -220,7 +220,7 @@ window.addEventListener("DOMContentLoaded", main2);
   <li><a class="reference" href="#random%2Ctypedesc%5BPeerId%5D%2Cuint%2Cref.HmacDrbgContext" title="random(t: typedesc[PeerId]; count: uint; rng: ref HmacDrbgContext): Result[
     seq[PeerId], cstring]">random(t: typedesc[PeerId]; count: uint; rng: ref HmacDrbgContext): Result[
     seq[PeerId], cstring]</a></li>
-<li><a class="reference" href="#random%2Ctypedesc%5BPeerId%5D" title="random(t: typedesc[PeerId]; rng = newRng()): Result[PeerId, cstring]">random(t: typedesc[PeerId]; rng = newRng()): Result[PeerId, cstring]</a></li>
+<li><a class="reference" href="#random%2Ctypedesc%5BPeerId%5D%2Cref.HmacDrbgContext" title="random(t: typedesc[PeerId]; rng: ref HmacDrbgContext): Result[PeerId, cstring]">random(t: typedesc[PeerId]; rng: ref HmacDrbgContext): Result[PeerId, cstring]</a></li>
 
 </ul>
 <ul class="simple nested-toc-section">shortLog
@@ -539,9 +539,9 @@ Create <tt class="docutils literal"><span class="pre"><span class="Identifier">c
 
 </dd>
 </div>
-<div id="random,typedesc[PeerId]" class="tohide">
-<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BPeerId%5D"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span> <span class="Other">=</span> <span class="Identifier">newRng</span><span class="Other">(</span><span class="Other">)</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><a href="#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">,</span> <span class="Identifier">cstring</span><span class="Other">]</span> {.
-    <span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
+<div id="random,typedesc[PeerId],ref.HmacDrbgContext" class="tohide">
+<dt><pre><span class="Keyword">proc</span> <a href="#random%2Ctypedesc%5BPeerId%5D%2Cref.HmacDrbgContext"><span class="Identifier">random</span></a><span class="Other">(</span><span class="Identifier">t</span><span class="Other">:</span> <span class="Identifier">typedesc</span><span class="Other">[</span><a href="#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">]</span><span class="Other">;</span> <span class="Identifier">rng</span><span class="Other">:</span> <span class="Keyword">ref</span> <span class="Identifier">HmacDrbgContext</span><span class="Other">)</span><span class="Other">:</span> <span class="Identifier">Result</span><span class="Other">[</span><a href="#PeerId"><span class="Identifier">PeerId</span></a><span class="Other">,</span>
+    <span class="Identifier">cstring</span><span class="Other">]</span> {.<span><span class="Other pragmadots">...</span></span><span class="pragmawrap"><span class="Identifier">raises</span><span class="Other">:</span> <span class="Other">[</span><span class="Other">]</span></span>.}</pre></dt>
 <dd>
 
 Create new peer id with random public key.
@@ -777,7 +777,7 @@ Returns length of <tt class="docutils literal"><span class="pre">pid</span></tt>
       <div class="twelve-columns footer">
         <span class="nim-sprite"></span>
         <br>
-        <small style="color: var(--hint);">Made with Nim. Generated: 2026-05-05 15:42:59 UTC</small>
+        <small style="color: var(--hint);">Made with Nim. Generated: 2026-05-06 06:02:37 UTC</small>
       </div>
     </div>
   </div>
