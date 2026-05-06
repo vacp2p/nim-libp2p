@@ -30,7 +30,7 @@ const
   IdentifyCodec* = "/ipfs/id/1.0.0"
   IdentifyPushCodec* = "/ipfs/id/push/1.0.0"
   ProtoVersion* = "ipfs/0.1.0"
-  AgentVersion* = "nim-libp2p/0.0.1"
+  AgentVersion* = "nim-libp2p"
   identifyAddrsLogMax = 5
 
 type
