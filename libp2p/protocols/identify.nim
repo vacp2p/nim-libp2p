@@ -6,7 +6,7 @@
 
 {.push raises: [].}
 
-import std/[sequtils, strutils, sugar]
+import std/strutils
 import results, chronos, chronicles
 import
   ../protobuf/minprotobuf,
@@ -32,6 +32,7 @@ const
   ProtoVersion* = "ipfs/0.1.0"
   AgentVersion* = "nim-libp2p/0.0.1"
   identifyAddrsLogMax = 5
+  maxMsgSize = 64 * 1024
 
 type
   IdentifyError* = object of LPError
@@ -61,16 +62,20 @@ type
     identifyHandler: IdentifyPushHandler
 
 func shortLog*(addrs: seq[MultiAddress]): string =
-  if addrs.len <= identifyAddrsLogMax:
-    return addrs.map(x => $x).join(",")
-  return
-    addrs[0 ..< identifyAddrsLogMax].map(x => $x).join(",") & ",...(+" &
-    $(addrs.len - identifyAddrsLogMax) & " more)"
+  let limit = min(addrs.len, identifyAddrsLogMax)
+  for i in 0 ..< limit:
+    if i > 0:
+      result.add(',')
+    result.add($addrs[i])
+  if addrs.len > identifyAddrsLogMax:
+    result.add(",...(+")
+    result.add($(addrs.len - identifyAddrsLogMax))
+    result.add(" more)")
 
 chronicles.expandIt(IdentifyInfo):
   pubkey = ($it.pubkey).shortLog
   addresses = shortLog(it.addrs)
-  protocols = it.protos.map(x => $x).join(",")
+  protocols = it.protos.join(",")
   observable_address = $it.observedAddr
   proto_version = it.protoVersion.get("None")
   agent_version = it.agentVersion.get("None")
@@ -93,8 +98,7 @@ proc encodeMsg(
     result.write(3, proto)
   observedAddr.withValue(observed):
     result.write(4, observed.data.buffer)
-  let protoVersion = ProtoVersion
-  result.write(5, protoVersion)
+  result.write(5, ProtoVersion)
   let agentVersion =
     if peerInfo.agentVersion.len <= 0: AgentVersion else: peerInfo.agentVersion
   result.write(6, agentVersion)
@@ -151,7 +155,7 @@ method init*(p: Identify) =
   proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       trace "handling identify request", conn
-      var pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
+      let pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
       await conn.writeLp(pb.buffer)
       debug "identify: info sent", conn, info = p.peerInfo
     except CancelledError as exc:
@@ -175,7 +179,7 @@ proc identify*(
     )
 .} =
   trace "initiating identify", conn
-  var message = await conn.readLp(64 * 1024)
+  var message = await conn.readLp(maxMsgSize)
   if len(message) == 0:
     trace "identify: Empty message received!", conn
     raise newException(IdentityInvalidMsgError, "Empty message received!")
@@ -215,7 +219,7 @@ proc init*(p: IdentifyPush) =
   proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
     trace "handling identify push", conn
     try:
-      var message = await conn.readLp(64 * 1024)
+      var message = await conn.readLp(maxMsgSize)
 
       var identInfo = decodeMsg(message).valueOr:
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
@@ -246,5 +250,5 @@ proc push*(
     p: IdentifyPush, peerInfo: PeerInfo, conn: Connection
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Send new `peerInfo`s to a connection
-  var pb = encodeMsg(peerInfo, conn.observedAddr, true)
+  let pb = encodeMsg(peerInfo, conn.observedAddr, true)
   await conn.writeLp(pb.buffer)
