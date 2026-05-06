@@ -428,10 +428,20 @@ proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
 
   let regMsg = inMsg.register.valueOr:
     error "no register message"
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
     return msg
 
   let ad = validateRegisterMessage(regMsg, serviceId).valueOr:
     error "invalid register message"
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
     return msg
 
   let now = Moment.now()
@@ -442,7 +452,13 @@ proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
 
   if tWait <= ZeroDuration:
     disco.acceptAdvertisement(now, serviceId, ad)
+
     msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Confirmed
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Confirmed]
+    )
+
     return msg
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
@@ -456,10 +472,18 @@ proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
 
   if ticket.sign(disco.switch.peerInfo.privateKey).isErr:
     error "failed to sign ticket"
+
+    cd_register_requests.inc(
+      labelValues = [$kademlia_protobuf.RegistrationStatus.Rejected]
+    )
+
     return msg
 
   msg.register.get().status.get() = kademlia_protobuf.RegistrationStatus.Wait
   msg.register.get().ticket = Opt.some(ticket)
+
+  cd_register_requests.inc(labelValues = [$kademlia_protobuf.RegistrationStatus.Wait])
+
   return msg
 
 proc getAdvertisements*(disco: ServiceDiscovery, msg: Message): Message =
