@@ -9,25 +9,25 @@ import ./utils
 
 suite "Ticket - sign and verify":
   test "sign succeeds and verify passes with matching key":
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     var t = makeTicket()
     check:
       t.sign(key).isOk()
       t.verify(key.getPublicKey().get())
 
   test "verify fails with a different key":
-    let key = PrivateKey.random(rng[]).get()
-    let wrongKey = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
+    let wrongKey = PrivateKey.random(rng()).get()
     let t = signedTicket(key)
     check not t.verify(wrongKey.getPublicKey().get())
 
   test "verify fails on empty signature (unsigned ticket)":
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     let t = makeTicket() # never signed → signature = @[]
     check not t.verify(key.getPublicKey().get())
 
   test "verify fails with corrupted signature bytes":
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
     t.signature[0] = t.signature[0] xor 0xFF
     check not t.verify(key.getPublicKey().get())
@@ -37,25 +37,25 @@ suite "Ticket - tamper detection":
   # Mutating any covered field must break verification.
 
   test "tampered advertisement bytes":
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
     t.advertisement[0] = t.advertisement[0] xor 0xFF
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tInit":
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
     t.tInit = t.tInit + 1.secs
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tMod":
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
     t.tMod = t.tMod + 1.secs
     check not t.verify(key.getPublicKey().get())
 
   test "tampered tWaitFor":
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     var t = signedTicket(key)
     t.tWaitFor = t.tWaitFor + 1.secs
     check not t.verify(key.getPublicKey().get())
@@ -63,7 +63,7 @@ suite "Ticket - tamper detection":
 suite "Ticket - boundary values":
   test "all-zero time fields sign and verify correctly":
     # tInit=0, tMod=0, tWaitFor=0 are valid; must not be treated as unsigned
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     var t = Ticket(
       advertisement: @[0xAB'u8],
       tInit: Moment.low,
@@ -76,7 +76,7 @@ suite "Ticket - boundary values":
       t.verify(key.getPublicKey().get())
 
   test "empty advertisement bytes sign and verify correctly":
-    let key = PrivateKey.random(rng[]).get()
+    let key = PrivateKey.random(rng()).get()
     var t = Ticket(
       advertisement: @[],
       tInit: Moment.init(1000, Second),
@@ -90,8 +90,8 @@ suite "Ticket - boundary values":
 
   test "re-signing overwrites previous signature":
     # Signing twice must not leave a ticket that verifies against the first key
-    let key1 = PrivateKey.random(rng[]).get()
-    let key2 = PrivateKey.random(rng[]).get()
+    let key1 = PrivateKey.random(rng()).get()
+    let key2 = PrivateKey.random(rng()).get()
     var t = makeTicket()
     check:
       t.sign(key1).isOk()

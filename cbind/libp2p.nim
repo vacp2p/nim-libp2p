@@ -224,7 +224,7 @@ proc libp2p_new_private_key(
 
   initializeLibrary()
 
-  let key = PrivateKey.random(scheme, newRng()[]).valueOr:
+  let key = PrivateKey.random(scheme, newRng()).valueOr:
     echo "Could not generate private key"
     return RET_ERR.cint
 

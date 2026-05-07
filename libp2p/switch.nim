@@ -8,7 +8,6 @@
 {.push raises: [].}
 
 import std/[options, tables, sequtils, sets]
-import bearssl/rand
 import chronos, chronicles, metrics
 
 import
@@ -30,7 +29,8 @@ import
   identify_pusher,
   errors,
   utility,
-  dialer
+  dialer,
+  crypto/rng
 
 export connmanager, upgrade, dialer, peerstore, identify_pusher
 
@@ -58,7 +58,7 @@ type
     nameResolver*: NameResolver
     started: bool
     services*: seq[Service]
-    rng*: ref HmacDrbgContext
+    rng*: Rng
     identifyPusher*: IdentifyPusher
 
   UpgradeError* = object of LPError
@@ -428,7 +428,7 @@ proc newSwitch*(
     peerStore: PeerStore,
     nameResolver: NameResolver = nil,
     services = newSeq[Service](),
-    rng: ref HmacDrbgContext = nil,
+    rng: Rng = nil,
 ): Switch {.raises: [LPError].} =
   if secureManagers.len == 0:
     raise newException(LPError, "Provide at least one secure manager")

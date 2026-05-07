@@ -22,7 +22,7 @@ import ./connection_tests
 import ./stream_tests
 
 proc wsTransProvider(): Transport =
-  WsTransport.new(Upgrade())
+  WsTransport.new(Upgrade(), rng())
 
 # Generate cert only once to reduce execution time
 var secureKey {.threadvar.}: TLSPrivateKey
@@ -35,7 +35,8 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
     secureKey,
     secureCert,
     Opt.none(AutotlsService),
-    {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
+    rng(),
+    tlsFlags = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
   )
 
 proc streamProvider(conn: Connection, handle: bool = true): Muxer =
@@ -103,7 +104,7 @@ suite "WebSocket transport":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()]
 
     # Generate cert with known keypair so we can derive the PeerId (used as CN in cert)
-    let testKeyPair = KeyPair.random(PKScheme.RSA, rng[]).get()
+    let testKeyPair = KeyPair.random(PKScheme.RSA, rng()).get()
     let expectedPeerId = PeerId.init(testKeyPair.pubkey).tryGet()
     let (secureKey, secureCert) = tlsCertGenerator(Opt.some(testKeyPair))
 
@@ -112,7 +113,8 @@ suite "WebSocket transport":
       secureKey,
       secureCert,
       Opt.none(AutotlsService),
-      {TLSFlags.NoVerifyHost},
+      rng(),
+      tlsFlags = {TLSFlags.NoVerifyHost},
     )
 
     const correctPattern = mapAnd(TCP, mapEq("wss"))
@@ -162,7 +164,7 @@ when defined(libp2p_autotls_support):
     asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
+      let key = KeyPair.random(PKScheme.RSA, rng()).get()
       let (privkey, cert) = tlsCertGenerator(Opt.some(key))
       let autotls = MockAutotlsService.new(rng())
       autotls.mockedKey = privkey
@@ -174,6 +176,7 @@ when defined(libp2p_autotls_support):
         nil, # TLSPrivateKey
         nil, # TLSCertificate
         Opt.some(AutotlsService(autotls)),
+        rng(),
       )
       await wstransport.start(ma)
       defer:
@@ -189,7 +192,7 @@ when defined(libp2p_autotls_support):
     asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
       let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
+      let key = KeyPair.random(PKScheme.RSA, rng()).get()
       let (privkey, cert) = tlsCertGenerator(Opt.some(key))
       let autotls = MockAutotlsService.new(rng())
       autotls.mockedKey = privkey
@@ -200,7 +203,7 @@ when defined(libp2p_autotls_support):
       let (manualKey, manualCert) = tlsCertGenerator()
 
       let wstransport = WsTransport.new(
-        Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls))
+        Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls)), rng()
       )
       await wstransport.start(ma)
       defer:
@@ -220,6 +223,7 @@ when defined(libp2p_autotls_support):
         nil, # TLSPrivateKey
         nil, # TLSCertificate
         Opt.none(AutotlsService),
+        rng(),
       )
       await wstransport.start(ma)
       defer:
