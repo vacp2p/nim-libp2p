@@ -367,7 +367,12 @@ proc startAddressPruning*(peerStore: PeerStore) =
   ## The loop fires at the Low-confidence TTL interval (shortest possible expiry).
   if not peerStore.pruneHandle.isNil:
     return
-  peerStore.pruneHandle = addressPruneLoop(peerStore, peerStore.addressTtls.low)
+
+  let interval = peerStore.addressTtls.low
+  if interval <= ZeroDuration:
+    return
+
+  peerStore.pruneHandle = addressPruneLoop(peerStore, interval)
 
 proc close*(peerStore: PeerStore) =
   ## Cancel the background TTL-pruning loop, if running.
