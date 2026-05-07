@@ -43,12 +43,11 @@ proc extractMsgId*(data: openArray[byte]): uint64 =
 
 proc interopMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ## Message ID provider for interop tests.
-  ## Reads first 8 bytes of message data as big-endian uint64,
-  ## returns base-10 string representation as bytes.
+  ## The message ID is the raw first 8 bytes of the message data (big-endian u64),
+  ## matching the wire format used by the go and rust interop binaries.
   if m.data.len < 8:
     return err(ValidationResult.Reject)
-  let id = extractMsgId(m.data)
-  ok(($id).toBytes())
+  ok(MessageId(@(m.data.toOpenArray(0, 7))))
 
 # Node
 
