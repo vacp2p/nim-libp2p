@@ -168,3 +168,14 @@ suite "KadDHT Routing Table":
     check:
       picked.isSome()
       keys.contains(picked.get())
+
+  test "insert rejects localNodeId even when it differs from selfId":
+    let selfId = testKey(0)
+    let localNodeId = testKey(99)
+    let peer = testKey(1)
+    var rt = RoutingTable.new(selfId, localNodeId = Opt.some(localNodeId))
+
+    check:
+      not rt.insert(localNodeId) # localNodeId is rejected
+      not rt.insert(selfId) # selfId is rejected
+      rt.insert(peer) # other peers are accepted
