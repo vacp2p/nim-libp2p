@@ -142,10 +142,7 @@ proc mergeAds(
   var best: Table[PeerId, Advertisement]
   for ad in existing & incoming:
     let pid = ad.data.peerId
-    best.withValue(pid, curr):
-      if ad.data.seqNo > curr[].data.seqNo:
-        curr[] = ad
-    do:
+    if pid notin best or ad.data.seqNo > best[pid].data.seqNo:
       best[pid] = ad
   return toSeq(best.values)
 
@@ -191,7 +188,7 @@ proc discoverFromRegistrar(
       mergeAds(disco.discoverer.cache.getOrDefault(serviceId, @[]), remoteAds)
 
 proc addDiscoveredService*(disco: ServiceDiscovery, service: ServiceInfo): bool =
-  let sid = toServiceId(service)
+  let sid = deriveServiceId(service)
 
   if disco.discoverer.running.anyIt(it.serviceId == sid):
     return false
@@ -213,7 +210,7 @@ proc startDiscovering*(disco: ServiceDiscovery, service: ServiceInfo): bool =
 proc stopDiscovering*(
     disco: ServiceDiscovery, service: ServiceInfo
 ) {.async: (raises: [CancelledError]).} =
-  let sid = toServiceId(service)
+  let sid = deriveServiceId(service)
 
   debug "stop discovering", service = service.id, serviceId = sid
 

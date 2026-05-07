@@ -147,7 +147,7 @@ proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: []
     adBytes.add(encoded)
   adBytes
 
-proc toServiceId*(service: ServiceInfo): ServiceId =
+proc deriveServiceId*(service: ServiceInfo): ServiceId =
   let digest = sha256.digest(service.id)
   @(digest.data)
 
@@ -155,7 +155,7 @@ proc `==`*(a, b: ServiceInfo): bool =
   a.id == b.id
 
 proc `==`*(a: ServiceInfo, b: ServiceId): bool =
-  toServiceId(a) == b
+  deriveServiceId(a) == b
 
 proc `==`*(a: ServiceId, b: ServiceInfo): bool =
   b == a
