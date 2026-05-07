@@ -79,8 +79,7 @@ suite "Service Discovery Component - Advertise Discover":
 
   asyncTest "two advertisers register the same service - both discoverable":
     # Multiple advertisers at the same registrar use overlapping IPs in tests,
-    # which would otherwise drive the second admission's wait time above the
-    # 30s checkUntilTimeout. Disable IP similarity for this happy-path test.
+    # which would otherwise drive the second admission's wait time above the timeout.
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, ipSimCoefficient = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserA = setupServiceDiscoveryNode(discoConfig = conf)
@@ -160,4 +159,3 @@ suite "Service Discovery Component - Advertise Discover":
       advertiserNode.rtManager.getTable(serviceId).get().buckets.anyIt(
         it.peers.anyIt(it.nodeId == otherKey)
       )
- 
