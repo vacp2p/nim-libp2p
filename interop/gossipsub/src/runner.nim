@@ -45,7 +45,7 @@ proc addReceivedMessageLogger(runner: ScriptRunner) =
     PubSubObserver(
       onRecv: proc(peer: PubSubPeer, rpc: var RPCMsg) {.gcsafe, raises: [].} =
         for msg in rpc.messages:
-          if msg.topic notin runner.node.topics or msg.data.len < 8:
+          if msg.topic notin runner.node.topics or msg.data.len < MsgIdLen:
             continue
 
           let msgId = extractMsgId(msg.data)
@@ -166,10 +166,11 @@ proc executePublish(
     messageSizeBytes: int,
     publishMessageID: int,
 ) {.async.} =
-  doAssert messageSizeBytes >= 8, "messageSizeBytes must be at least 8"
+  doAssert messageSizeBytes >= MsgIdLen,
+    "messageSizeBytes must be at least " & $MsgIdLen
   var data = newSeq[byte](messageSizeBytes)
   let msgIdU64 = uint64(publishMessageID)
-  data[0 ..< 8] = toBytesBE(msgIdU64)
+  data[0 ..< MsgIdLen] = toBytesBE(msgIdU64)
   try:
     discard await runner.node.publish(publishTopicID, data)
   except CancelledError as e:

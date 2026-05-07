@@ -33,7 +33,7 @@ proc msgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ok(($m.data.hash).toBytes())
 
 proc setupNode*(
-    nodeId: int, rng: ref HmacDrbgContext, transport: TransportType = TransportType.TCP
+    nodeId: int, rng: Rng, transport: TransportType = TransportType.TCP
 ): (Switch, GossipSub, Ping) =
   let
     myPort = 5000 + nodeId

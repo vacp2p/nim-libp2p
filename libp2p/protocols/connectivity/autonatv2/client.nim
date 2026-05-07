@@ -26,7 +26,7 @@ const
 type AutonatV2Client* = ref object of LPProtocol
   dialer*: Dial
   dialBackTimeout: Duration
-  rng: ref HmacDrbgContext
+  rng: Rng
   expectedNonces: Table[Nonce, Opt[MultiAddress]]
 
 proc handleDialBack(
@@ -52,7 +52,7 @@ proc handleDialBack(
 
 proc new*(
     T: typedesc[AutonatV2Client],
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     dialBackTimeout: Duration = DefaultDialBackTimeout,
 ): T =
   let client = T(rng: rng, dialBackTimeout: dialBackTimeout)
@@ -147,7 +147,7 @@ method sendDialRequest*(
 .} =
   ## Dials peer with `pid` and requests that it tries connecting to `testAddrs`
 
-  let nonce = self.rng[].generate(Nonce)
+  let nonce = self.rng.generate(Nonce)
   self.expectedNonces[nonce] = Opt.none(MultiAddress)
 
   var dialResp: DialResponse

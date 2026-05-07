@@ -34,7 +34,7 @@ suite "WebSocket transport integration":
 
     let switch1 = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0/wss").tryGet()])
       .withNameResolver(DnsResolver.new(DefaultDnsServers))
       .withWsTransport()
@@ -45,7 +45,7 @@ suite "WebSocket transport integration":
     let switch2 = SwitchBuilder
       .new()
       .withAutotls()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(
         @[
           MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),

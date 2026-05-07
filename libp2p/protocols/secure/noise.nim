@@ -6,7 +6,6 @@
 import std/strformat
 import chronos
 import chronicles
-import bearssl/[rand, hash]
 import stew/[endians2, byteutils]
 import nimcrypto/[utils, sha2, hmac]
 import ../../stream/[connection]
@@ -71,7 +70,7 @@ type
     rs: Curve25519Key
 
   Noise* = ref object of Secure
-    rng: ref HmacDrbgContext
+    rng: Rng
     localPrivateKey: PrivateKey
     localPublicKey: seq[byte]
     noiseKeys: KeyPair
@@ -102,7 +101,7 @@ func shortLog*(conn: NoiseConnection): auto =
 chronicles.formatIt(NoiseConnection):
   shortLog(it)
 
-proc genKeyPair(rng: var HmacDrbgContext): KeyPair =
+proc genKeyPair(rng: Rng): KeyPair =
   result.privateKey = Curve25519Key.random(rng)
   result.publicKey = result.privateKey.public()
 
@@ -231,7 +230,7 @@ template write_e(): untyped =
   trace "noise write e"
   # Sets e (which must be empty) to GENERATE_KEYPAIR().
   # Appends e.public_key to the buffer. Calls MixHash(e.public_key).
-  hs.e = genKeyPair(p.rng[])
+  hs.e = genKeyPair(p.rng)
   hs.ss.mixHash(hs.e.publicKey)
 
   hs.e.publicKey.getBytes
@@ -607,7 +606,7 @@ method init*(p: Noise) {.gcsafe.} =
 
 proc new*(
     T: typedesc[Noise],
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     privateKey: PrivateKey,
     outgoing: bool = true,
     commonPrologue: seq[byte] = @[],
@@ -623,7 +622,7 @@ proc new*(
     outgoing: outgoing,
     localPrivateKey: privateKey,
     localPublicKey: pkBytes,
-    noiseKeys: genKeyPair(rng[]),
+    noiseKeys: genKeyPair(rng),
     commonPrologue: commonPrologue,
   )
 

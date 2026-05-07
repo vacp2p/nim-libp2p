@@ -20,6 +20,7 @@ import results
 import ../utils/sequninit
 
 import ../utility
+import rng
 
 export results
 
@@ -221,7 +222,7 @@ proc clear*[T: EcPKI | EcKeyPair](pki: var T) =
     pki.pubkey.key.curve = 0
 
 proc random*(
-    T: typedesc[EcPrivateKey], kind: EcCurveKind, rng: var HmacDrbgContext
+    T: typedesc[EcPrivateKey], kind: EcCurveKind, rng: Rng
 ): EcResult[EcPrivateKey] =
   ## Generate new random EC private key using BearSSL's HMAC-SHA256-DRBG
   ## algorithm.
@@ -231,11 +232,7 @@ proc random*(
   var ecimp = ecGetDefault()
   var res = new EcPrivateKey
   if ecKeygen(
-    PrngClassPointerConst(addr rng.vtable),
-    ecimp,
-    addr res.key,
-    addr res.buffer[0],
-    safeConvert[cint](kind),
+    bearSslPrng(rng), ecimp, addr res.key, addr res.buffer[0], safeConvert[cint](kind)
   ) == 0:
     err(EcKeyGenError)
   else:
@@ -257,9 +254,7 @@ proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
   else:
     err(EcKeyIncorrectError)
 
-proc random*(
-    T: typedesc[EcKeyPair], kind: EcCurveKind, rng: var HmacDrbgContext
-): EcResult[T] =
+proc random*(T: typedesc[EcKeyPair], kind: EcCurveKind, rng: Rng): EcResult[T] =
   ## Generate new random EC private and public keypair using BearSSL's
   ## HMAC-SHA256-DRBG algorithm.
   ##
@@ -1005,7 +1000,7 @@ proc verify*[T: byte | char](
 
 type ECDHEScheme* = EcCurveKind
 
-proc ephemeral*(scheme: ECDHEScheme, rng: var HmacDrbgContext): EcResult[EcKeyPair] =
+proc ephemeral*(scheme: ECDHEScheme, rng: Rng): EcResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE.
   var keypair: EcKeyPair
   if scheme == Secp256r1:
@@ -1016,7 +1011,7 @@ proc ephemeral*(scheme: ECDHEScheme, rng: var HmacDrbgContext): EcResult[EcKeyPa
     keypair = ?EcKeyPair.random(Secp521r1, rng)
   ok(keypair)
 
-proc ephemeral*(scheme: string, rng: var HmacDrbgContext): EcResult[EcKeyPair] =
+proc ephemeral*(scheme: string, rng: Rng): EcResult[EcKeyPair] =
   ## Generate ephemeral keys used to perform ECDHE using string encoding.
   ##
   ## Currently supported encoding strings are P-256, P-384, P-521, if encoding

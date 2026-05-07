@@ -65,17 +65,18 @@ when supported(PKScheme.ECDSA):
   # These used to be declared in `crypto` itself
   export ecnist.ephemeral, ecnist.ECDHEScheme
 
-import bearssl/rand, bearssl/hash as bhash
 import ../protobuf/minprotobuf, ../vbuffer, ../multihash, ../multicodec
 import nimcrypto/[rijndael, twofish, sha2, hash, hmac]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import ../utility
+import rng
 import results
 export results, utility
+export rng except bearSslDrbg, bearSslDrbgRef, bearSslPrng
 
 # This is workaround for Nim's `import` bug
-export rijndael, twofish, sha2, hash, hmac, ncrutils, rand
+export rijndael, twofish, sha2, hash, hmac, ncrutils
 
 type
   DigestSheme* = enum
@@ -153,79 +154,8 @@ template orError*(exp: untyped, err: untyped): untyped =
   exp.mapErr do(_: auto) -> auto:
     err
 
-proc newRng*(): ref HmacDrbgContext =
-  # You should only create one instance of the RNG per application / library
-  # Ref is used so that it can be shared between components
-  # TODO consider moving to bearssl
-  var seeder = prngSeederSystem(nil)
-  if seeder == nil:
-    return nil
-
-  var rng = (ref HmacDrbgContext)()
-  hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
-  if seeder(addr rng.vtable) == 0:
-    return nil
-  rng
-
-proc shuffle*[T](rng: ref HmacDrbgContext, x: var openArray[T]) =
-  if x.len == 0:
-    return
-
-  var randValues = newSeqUninit[byte](len(x) * 2)
-  hmacDrbgGenerate(rng[], randValues)
-
-  for i in countdown(x.high, 1):
-    let
-      rand = randValues[i * 2].int32 or (randValues[i * 2 + 1].int32 shl 8)
-      y = rand mod i
-    swap(x[i], x[y])
-
-proc randBelow(rng: ref HmacDrbgContext, max: uint32): int =
-  ## Returns a uniformly random integer in the range [0, max).
-  ## Uses 32-bit rejection sampling to eliminate modulo bias and to
-  ## support max values larger than 65536.
-  # threshold = 2^32 mod max. In uint32 arithmetic: (0 - umax) mod umax.
-  # Values in [0, threshold) are rejected to eliminate modulo bias.
-  let threshold = (0'u32 - max) mod max
-  while true:
-    var bytes: array[4, byte]
-    hmacDrbgGenerate(rng[], bytes)
-    let r =
-      bytes[0].uint32 or (bytes[1].uint32 shl 8) or (bytes[2].uint32 shl 16) or
-      (bytes[3].uint32 shl 24)
-    if r >= threshold:
-      return (r mod max).int
-
-proc pick*[T](rng: ref HmacDrbgContext, x: openArray[T], n: int): Opt[seq[T]] =
-  doAssert n >= 0, "n must be non-negative"
-  if x.len == 0:
-    return Opt.none(seq[T])
-  if n == 0:
-    return Opt.some(newSeq[T]())
-
-  var indices = newSeq[int](x.len)
-  for i in 0 ..< x.len:
-    indices[i] = i
-
-  let count = min(n, x.len)
-  var output = newSeq[T](count)
-  for i in 0 ..< count:
-    let j = i + rng.randBelow((x.len - i).uint32)
-    swap(indices[i], indices[j])
-    output[i] = x[indices[i]]
-  Opt.some(output)
-
-proc pickOne*[T](rng: ref HmacDrbgContext, x: openArray[T]): Opt[T] =
-  if x.len == 0:
-    return Opt.none(T)
-
-  Opt.some(x[rng.randBelow(x.len.uint32)])
-
 proc random*(
-    T: typedesc[PrivateKey],
-    scheme: PKScheme,
-    rng: var HmacDrbgContext,
-    bits = RsaDefaultKeySize,
+    T: typedesc[PrivateKey], scheme: PKScheme, rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[PrivateKey] =
   ## Generate random private key for scheme ``scheme``.
   ##
@@ -259,7 +189,7 @@ proc random*(
       err(SchemeError)
 
 proc random*(
-    T: typedesc[PrivateKey], rng: var HmacDrbgContext, bits = RsaDefaultKeySize
+    T: typedesc[PrivateKey], rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[PrivateKey] =
   ## Generate random private key using default public-key cryptography scheme.
   ##
@@ -284,10 +214,7 @@ proc random*(
     err(SchemeError)
 
 proc random*(
-    T: typedesc[KeyPair],
-    scheme: PKScheme,
-    rng: var HmacDrbgContext,
-    bits = RsaDefaultKeySize,
+    T: typedesc[KeyPair], scheme: PKScheme, rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[KeyPair] =
   ## Generate random key pair for scheme ``scheme``.
   ##
@@ -340,7 +267,7 @@ proc random*(
       err(SchemeError)
 
 proc random*(
-    T: typedesc[KeyPair], rng: var HmacDrbgContext, bits = RsaDefaultKeySize
+    T: typedesc[KeyPair], rng: Rng, bits = RsaDefaultKeySize
 ): CryptoResult[KeyPair] =
   ## Generate random private pair of keys using default public-key cryptography
   ## scheme.

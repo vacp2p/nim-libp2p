@@ -4,21 +4,21 @@
 {.used.}
 
 import std/[tables, sequtils]
-import ../../libp2p/[crypto/crypto, crypto/curve25519, multiaddress, peerid, peerstore]
+import ../../libp2p/[crypto/crypto, multiaddress, peerid, peerstore]
 import ../tools/[unittest, crypto]
 
 suite "PeerStore":
   # Testvars
   let
     # Peer 1
-    keyPair1 = KeyPair.random(ECDSA, rng[]).get()
+    keyPair1 = KeyPair.random(ECDSA, rng()).get()
     peerId1 = PeerId.init(keyPair1.seckey).get()
     multiaddrStr1 =
       "/ip4/127.0.0.1/udp/1234/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
     multiaddr1 = MultiAddress.init(multiaddrStr1).get()
     testcodec1 = "/nim/libp2p/test/0.0.1-beta1"
     # Peer 2
-    keyPair2 = KeyPair.random(ECDSA, rng[]).get()
+    keyPair2 = KeyPair.random(ECDSA, rng()).get()
     peerId2 = PeerId.init(keyPair2.seckey).get()
     multiaddrStr2 =
       "/ip4/0.0.0.0/tcp/1234/ipfs/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC"
@@ -118,7 +118,7 @@ suite "PeerStore":
     var peerStore = PeerStore.new(nil, capacity = 20)
 
     for i in 0 ..< 30:
-      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng()).get().pubkey).get()
       peerStore[AgentBook][randomPeerId] = "gds"
       peerStore.cleanup(randomPeerId)
 
@@ -128,63 +128,8 @@ suite "PeerStore":
     var peerStore = PeerStore.new(nil, capacity = -1)
 
     for i in 0 ..< 30:
-      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+      let randomPeerId = PeerId.init(KeyPair.random(ECDSA, rng()).get().pubkey).get()
       peerStore[AgentBook][randomPeerId] = "gds"
       peerStore.cleanup(randomPeerId)
 
     check peerStore[AgentBook].len == 30
-
-  test "MixPubKeyBook API":
-    # Set up peer store with MixPubKeyBook
-    var peerStore = PeerStore.new()
-
-    # Generate random Curve25519 keys for testing
-    let
-      mixKey1 = Curve25519Key.random(rng[])
-      mixKey2 = Curve25519Key.random(rng[])
-
-    # Test MixPubKeyBook::set
-    peerStore[MixPubKeyBook][peerId1] = mixKey1
-    peerStore[MixPubKeyBook][peerId2] = mixKey2
-
-    check:
-      peerStore[MixPubKeyBook][peerId1] == mixKey1
-      peerStore[MixPubKeyBook][peerId2] == mixKey2
-
-    # Test MixPubKeyBook::contains
-    check:
-      peerId1 in peerStore[MixPubKeyBook]
-      peerId2 in peerStore[MixPubKeyBook]
-
-    # Test MixPubKeyBook::len
-    check:
-      peerStore[MixPubKeyBook].len == 2
-
-    # Test MixPubKeyBook::del
-    check:
-      peerStore[MixPubKeyBook].del(peerId1) == true
-      peerId1 notin peerStore[MixPubKeyBook]
-      peerStore[MixPubKeyBook].len == 1
-
-    # Test getting non-existent peer returns default
-    let nonExistentPeerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
-    check:
-      peerStore[MixPubKeyBook][nonExistentPeerId] == default(Curve25519Key)
-
-  test "PeerStore::del removes MixPubKeyBook entry":
-    var peerStore = PeerStore.new()
-
-    let mixKey = Curve25519Key.random(rng[])
-    peerStore[MixPubKeyBook][peerId1] = mixKey
-    peerStore[AddressBook][peerId1] = @[multiaddr1]
-
-    check:
-      peerId1 in peerStore[MixPubKeyBook]
-      peerId1 in peerStore[AddressBook]
-
-    # Delete peer from all books
-    peerStore.del(peerId1)
-
-    check:
-      peerId1 notin peerStore[MixPubKeyBook]
-      peerId1 notin peerStore[AddressBook]

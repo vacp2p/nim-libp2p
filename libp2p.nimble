@@ -8,7 +8,7 @@ license = "MIT"
 skipDirs =
   @["cbind", "examples", "interop", "performance", "simulation", "tests", "tools"]
 
-requires "nim >= 2.0.0",
+requires "nim >= 2.2.4",
   "nimcrypto >= 0.6.0", "dnsclient >= 0.3.0 & < 0.4.0", "bearssl >= 0.2.7",
   "https://github.com/vacp2p/nim-boringssl#v0.0.4", "chronicles >= 0.11.0",
   "chronos >= 4.2.2", "metrics", "secp256k1", "stew >= 0.4.2", "unittest2", "results",
@@ -33,7 +33,6 @@ proc runTest(filename: string, moreoptions: string = "") =
   if getEnv("CICOV").len > 0:
     compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
   compileCmd &= " -d:libp2p_autotls_support"
-  compileCmd &= " -d:libp2p_mix_experimental_exit_is_dest"
   compileCmd &= " " & moreoptions & " "
 
   var runnerArgs = " --output-level=VERBOSE"

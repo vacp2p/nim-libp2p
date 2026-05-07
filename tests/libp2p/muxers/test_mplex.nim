@@ -875,7 +875,7 @@ suite "Mplex":
         await mplexListen.close()
 
       await transport1.start(ma)
-      let acceptFut = acceptHandler()
+      let _ = acceptHandler()
 
       let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
       let conn = await transport2.dial(transport1.addrs[0])
