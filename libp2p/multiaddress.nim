@@ -1026,11 +1026,17 @@ proc isEmpty*(ma: MultiAddress): bool =
 proc concat*(m1, m2: MultiAddress): MaResult[MultiAddress] =
   var res: MultiAddress
   res.data = initVBuffer(m1.data.buffer & m2.data.buffer)
-  ok(res)
+  if not res.validate():
+    err("multiaddress: Incorrect MultiAddress!")
+  else:
+    ok(res)
 
 proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
   m1.data.buffer &= m2.data.buffer
-  ok()
+  if not m1.validate():
+    err("multiaddress: Incorrect MultiAddress!")
+  else:
+    ok()
 
 proc `&`*(m1, m2: MultiAddress): MultiAddress {.raises: [MaError].} =
   ## Concatenates two addresses ``m1`` and ``m2``, and returns result.
