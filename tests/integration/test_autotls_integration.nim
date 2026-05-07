@@ -28,7 +28,7 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
     asyncTeardown:
       checkTrackers()
 
-    asyncTest "request challenge without ACMEClient (ACMEApi only)":
+    asyncTestRetry "request challenge without ACMEClient (ACMEApi only)":
       let key = KeyPair.random(PKScheme.RSA, rng()).get()
       let acmeApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       defer:
@@ -51,7 +51,7 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       check challenge.dns01.status == ACMEChallengeStatus.PENDING
       check challenge.dns01.token.len > 0
 
-    asyncTest "request challenge with ACMEClient":
+    asyncTestRetry "request challenge with ACMEClient":
       let acme = ACMEClient.new(
         rng = rng(), api = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       )
@@ -68,7 +68,7 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
         challenge.dns01.status == ACMEChallengeStatus.PENDING
         challenge.dns01.token.len > 0
 
-    asyncTest "AutotlsService correctly downloads challenges":
+    asyncTestRetry "AutotlsService correctly downloads challenges":
       if not hasPublicIPAddress():
         skip()
         return
