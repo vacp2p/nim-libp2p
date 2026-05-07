@@ -4,6 +4,7 @@
 import std/[times, sequtils]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
+import ../../utils/future
 import ../protocol
 import ./[protobuf, types, find, kademlia_metrics]
 
@@ -81,13 +82,8 @@ proc putValue*(
   kad.dataTable.insert(key, value, $times.now().utc)
 
   for chunk in peers.toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec))
-    try:
-      await rpcBatch.allFutures().wait(kad.config.timeout)
-    except AsyncTimeoutError:
-      debug "One or more PutValue messages timed out"
-      # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-      discard
+    let batch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec))
+    await batch.allFuturesWaitOrTimeout(kad.config.timeout)
 
   ok()
 

@@ -308,9 +308,17 @@ type KadDHTConfig* = ref object
   addressPolicy*: PeerAddressPolicy
   hideConnectionStatus*: bool
   disableBootstrapping*: bool
+  providerRejection*: bool
+    ## When true, the node enforces ``maxProvidersPerKey`` and replies to
+    ## ADD_PROVIDER with accepted/rejected on field 11; the sender spills over
+    ## to farther peers when a full batch is rejected.
+  maxProvidersPerKey*: Opt[int]
+    ## Maximum number of distinct providers stored per key.
+    ## None (default) means unlimited.
+    ## Only enforced when ``providerRejection`` is true.
 
 proc new*(
-    T: typedesc[KadDHTConfig],
+    K: typedesc[KadDHTConfig],
     validator: EntryValidator = DefaultEntryValidator(),
     selector: EntrySelector = DefaultEntrySelector(),
     timeout: chronos.Duration = DefaultTimeout,
@@ -327,7 +335,11 @@ proc new*(
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
-): T {.raises: [].} =
+    providerRejection: bool = false,
+    maxProvidersPerKey: Opt[int] = Opt.none(int),
+): K {.raises: [].} =
+  doAssert maxProvidersPerKey.isNone or maxProvidersPerKey.get() > 0,
+    "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
   KadDHTConfig(
     validator: validator,
     selector: selector,
@@ -345,6 +357,8 @@ proc new*(
     addressPolicy: addressPolicy,
     hideConnectionStatus: hideConnectionStatus,
     disableBootstrapping: disableBootstrapping,
+    providerRejection: providerRejection,
+    maxProvidersPerKey: maxProvidersPerKey,
   )
 
 type KadDHT* = ref object of LPProtocol
