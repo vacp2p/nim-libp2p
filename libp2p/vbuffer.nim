@@ -44,6 +44,7 @@ proc initVBuffer*(data: openArray[byte], offset = 0): VBuffer =
 
 proc initVBuffer*(cap: int = 128): VBuffer =
   ## Initialize empty VBuffer.
+  doAssert(cap >= 0)
   result.buffer = newSeqOfCap[byte](cap)
 
 proc writePBVarint*(vb: var VBuffer, value: PBSomeUVarint) =
