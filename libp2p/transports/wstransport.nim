@@ -202,10 +202,10 @@ method start*(
             tlsPrivateKey = self.tlsPrivateKey,
             tlsCertificate = self.tlsCertificate,
             flags = self.flags,
-            handshakeTimeout = self.handshakeTimeout,
+            headersTimeout = self.handshakeTimeout,
           )
         else:
-          HttpServer.create(address, handshakeTimeout = self.handshakeTimeout)
+          HttpServer.create(address, headersTimeout = self.handshakeTimeout)
       except CatchableError as exc:
         raise (ref WsTransportError)(
           msg: "error in WsTransport start: " & exc.msg, parent: exc
