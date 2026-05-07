@@ -591,7 +591,8 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var offset = 0
   var cursor = initCursor(ma)
   var res: MultiAddress
-  res.data = initVBuffer(64) # initial capacity for a part buffer; larger parts may still reallocate
+  res.data = initVBuffer(64)
+    # initial capacity for a part buffer; larger parts may still reallocate
 
   if index < 0:
     return err("multiaddress: negative index gived to getPart")
