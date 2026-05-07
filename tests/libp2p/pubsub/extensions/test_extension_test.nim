@@ -28,10 +28,10 @@ suite "GossipSub Extensions :: Test Extension":
 
     let ext = TestExtension.new(TestExtensionConfig(onNegotiated: onNegotiatedCb))
 
-    let peerId1 = PeerId.random(rng).get()
+    let peerId1 = PeerId.random(rng()).get()
     ext.onNegotiated(peerId1)
     check negotiatedPeers == @[peerId1]
 
-    let peerId2 = PeerId.random(rng).get()
+    let peerId2 = PeerId.random(rng()).get()
     ext.onNegotiated(peerId2)
     check negotiatedPeers == @[peerId1, peerId2]

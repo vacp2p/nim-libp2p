@@ -50,7 +50,7 @@ type
     networkReachability*: NetworkReachability
     answers: Deque[NetworkReachability]
     client*: AutonatV2Client
-    rng: ref HmacDrbgContext
+    rng: Rng
 
   StatusAndConfidenceHandler* = proc(
     networkReachability: NetworkReachability,
@@ -78,7 +78,7 @@ proc new*(
 
 proc new*(
     T: typedesc[AutonatV2Service],
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     client: AutonatV2Client = AutonatV2Client.new(),
     config: AutonatV2ServiceConfig = AutonatV2ServiceConfig.new(),
 ): T =

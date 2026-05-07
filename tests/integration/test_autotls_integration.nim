@@ -29,7 +29,7 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       checkTrackers()
 
     asyncTest "request challenge without ACMEClient (ACMEApi only)":
-      let key = KeyPair.random(PKScheme.RSA, rng[]).get()
+      let key = KeyPair.random(PKScheme.RSA, rng()).get()
       let acmeApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       defer:
         await acmeApi.close()
@@ -80,7 +80,7 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
             acmeServerURL = parseUri(LetsEncryptURLStaging), renewCheckTime = 1.seconds
           )
         )
-        .withRng(rng)
+        .withRng(rng())
         .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
         .withTcpTransport()
         .withYamux()

@@ -36,7 +36,7 @@ import libp2p/protocols/ping
 ## [chronos](https://github.com/status-im/nim-chronos) the asynchronous framework used by `nim-libp2p`
 ##
 ## Next, we'll create a helper procedure to create our switches. A switch needs a bit of configuration, and it will be easier to do this configuration only once:
-proc createSwitch(ma: MultiAddress, rng: ref HmacDrbgContext): Switch =
+proc createSwitch(ma: MultiAddress, rng: Rng): Switch =
   var switch = SwitchBuilder
     .new()
     .withRng(rng)

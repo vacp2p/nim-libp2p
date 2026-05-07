@@ -16,6 +16,7 @@ import
   ../multistream,
   ../multiaddress,
   ../utility,
+  ../crypto/rng,
   ../stream/connection,
   ../upgrademngrs/upgrade,
   websock/websock
@@ -141,7 +142,7 @@ type WsTransport* = ref object of Transport
   flags: set[ServerFlags]
   handshakeTimeout: Duration
   factories: seq[ExtFactory]
-  rng: ref HmacDrbgContext
+  rng: Rng
 
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
@@ -180,7 +181,8 @@ method start*(
 
   await procCall Transport(self).start(addrs)
 
-  self.wsserver = WSServer.new(factories = self.factories, rng = self.rng)
+  self.wsserver =
+    WSServer.new(factories = self.factories, rng = bearSslDrbgRef(self.rng))
 
   for i, ma in addrs:
     let isWss =
@@ -384,7 +386,12 @@ method dial*(
     debug "creating websocket",
       address = initAddress, secure = secure, hostName = hostname
     transp = await WebSocket.connect(
-      initAddress, "", secure = secure, hostName = hostname, flags = self.tlsFlags
+      initAddress,
+      "",
+      secure = secure,
+      hostName = hostname,
+      flags = self.tlsFlags,
+      rng = bearSslDrbgRef(self.rng),
     )
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:
@@ -407,13 +414,15 @@ proc new*(
     tlsPrivateKey: TLSPrivateKey,
     tlsCertificate: TLSCertificate,
     autotls: Opt[AutotlsService],
+    rng: Rng,
     tlsFlags: set[TLSFlags] = {},
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
-    rng: ref HmacDrbgContext = nil,
     handshakeTimeout = DefaultHeadersTimeout,
 ): T {.raises: [].} =
   ## Creates a secure WebSocket transport
+
+  doAssert not rng.isNil, "Rng is nil"
 
   let self = T(
     upgrader: upgrade,
@@ -432,9 +441,9 @@ proc new*(
 proc new*(
     T: typedesc[WsTransport],
     upgrade: Upgrade,
+    rng: Rng,
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
-    rng: ref HmacDrbgContext = nil,
     handshakeTimeout = DefaultHeadersTimeout,
 ): T {.raises: [].} =
   ## Creates a clear-text WebSocket transport
