@@ -562,7 +562,7 @@ proc protoArgument*(ma: MultiAddress, value: var openArray[byte]): MaResult[int]
           err("multiaddress: Decoding protocol error")
         else:
           res = len(temp)
-          if len(value) >= res:
+          if res > 0 and len(value) >= res:
             copyMem(addr value[0], addr temp[0], res)
           ok(res)
       else:
