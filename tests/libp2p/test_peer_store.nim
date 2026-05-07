@@ -4,6 +4,7 @@
 {.used.}
 
 import std/[tables, sequtils]
+import chronos
 import ../../libp2p/[crypto/crypto, crypto/curve25519, multiaddress, peerid, peerstore]
 import ../tools/[unittest, crypto]
 
@@ -188,3 +189,63 @@ suite "PeerStore":
     check:
       peerId1 notin peerStore[MixPubKeyBook]
       peerId1 notin peerStore[AddressBook]
+
+  asyncTest "AddressBook TTL - addresses expire after TTL":
+    let peerStore = PeerStore.new(nil, addressTtl = 10.milliseconds)
+    peerStore[AddressBook][peerId1] = @[multiaddr1]
+    check peerId1 in peerStore[AddressBook]
+    check peerStore[AddressBook][peerId1] == @[multiaddr1]
+
+    await sleepAsync(20.milliseconds)
+
+    check peerId1 notin peerStore[AddressBook]
+    check peerStore[AddressBook][peerId1].len == 0
+
+  asyncTest "AddressBook TTL - no expiry when TTL is ZeroDuration":
+    let peerStore = PeerStore.new(nil, addressTtl = ZeroDuration)
+    peerStore[AddressBook][peerId1] = @[multiaddr1]
+
+    await sleepAsync(20.milliseconds)
+
+    check peerId1 in peerStore[AddressBook]
+    check peerStore[AddressBook][peerId1] == @[multiaddr1]
+
+  asyncTest "AddressBook TTL - extend refreshes the TTL timestamp":
+    let peerStore = PeerStore.new(nil, addressTtl = 30.milliseconds)
+    peerStore[AddressBook][peerId1] = @[multiaddr1]
+
+    await sleepAsync(20.milliseconds)
+
+    # Extend refreshes the timestamp so the entry should survive
+    peerStore[AddressBook].extend(peerId1, @[multiaddr2])
+
+    await sleepAsync(20.milliseconds)
+
+    # Still alive because extend refreshed the TTL
+    check peerId1 in peerStore[AddressBook]
+    let addrs = peerStore[AddressBook][peerId1]
+    check multiaddr1 in addrs
+    check multiaddr2 in addrs
+
+  asyncTest "AddressBook TTL - del removes TTL metadata":
+    let peerStore = PeerStore.new(nil, addressTtl = 1.hours)
+    peerStore[AddressBook][peerId1] = @[multiaddr1]
+
+    check peerStore[AddressBook].del(peerId1) == true
+    check peerId1 notin peerStore[AddressBook]
+    # Second del returns false and does not error
+    check peerStore[AddressBook].del(peerId1) == false
+
+  asyncTest "AddressBook TTL - change handler fires on expiry":
+    let peerStore = PeerStore.new(nil, addressTtl = 10.milliseconds)
+    var changed = false
+    peerStore[AddressBook].addHandler(proc(pid: PeerId) {.gcsafe.} =
+      changed = true
+    )
+    peerStore[AddressBook][peerId1] = @[multiaddr1]
+    changed = false # Reset after the set
+
+    await sleepAsync(20.milliseconds)
+
+    discard peerStore[AddressBook][peerId1]
+    check changed == true

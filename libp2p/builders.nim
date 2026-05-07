@@ -77,6 +77,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
+    addressTtl: Opt[Duration]
     autonat: bool
     autonatService*: Opt[AutonatService]
     autonatV2ServerConfig: Opt[AutonatV2Config]
@@ -278,6 +279,12 @@ proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder =
   b.peerStoreCapacity = Opt.some(capacity)
   b
 
+proc withAddressTtl*(b: SwitchBuilder, ttl: Duration): SwitchBuilder =
+  ## Set how long peer addresses are kept after their last update.
+  ## Use ZeroDuration to disable TTL-based pruning.
+  b.addressTtl = Opt.some(ttl)
+  b
+
 proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
   b.protoVersion = protoVersion
   b
@@ -443,10 +450,11 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     b.secureManagers &= SecureProtocol.Noise
 
   let peerStore = block:
+    let ttl = b.addressTtl.get(otherwise = defaultAddressTtl)
     b.peerStoreCapacity.withValue(capacity):
-      PeerStore.new(identify, capacity)
+      PeerStore.new(identify, capacity, ttl)
     else:
-      PeerStore.new(identify)
+      PeerStore.new(identify, addressTtl = ttl)
 
   if b.enableWildcardResolver:
     b.services.add(WildcardAddressResolverService.new())

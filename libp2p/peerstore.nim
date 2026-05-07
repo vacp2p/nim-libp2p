@@ -61,6 +61,8 @@ type
   SeqPeerBook*[T] = ref object of PeerBook[seq[T]]
 
   AddressBook* = ref object of SeqPeerBook[MultiAddress]
+    ttl*: Duration
+    lastUpdated: Table[PeerId, Moment]
   ProtoBook* = ref object of SeqPeerBook[string]
   KeyBook* = ref object of PeerBook[PublicKey]
 
@@ -84,10 +86,26 @@ type
     addressPolicy*: PeerAddressPolicy
       ## When set, inbound peer addresses are filtered through the shared
       ## policy before they are stored or redistributed.
+    addressTtl*: Duration
+      ## How long a peer's addresses are kept after the last update.
+      ## ZeroDuration disables TTL-based pruning.
 
-proc new*(Self: type PeerStore, identify: Identify, capacity = 1000): PeerStore =
+const defaultAddressTtl* = 1.hours
+  ## Default TTL for peer addresses. Addresses not refreshed within this window are pruned.
+
+proc new*(
+    Self: type PeerStore,
+    identify: Identify,
+    capacity = 1000,
+    addressTtl = defaultAddressTtl,
+): PeerStore =
   # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
-  Self(identify: identify, capacity: capacity, addressPolicy: defaultAddressPolicy)
+  Self(
+    identify: identify,
+    capacity: capacity,
+    addressPolicy: defaultAddressPolicy,
+    addressTtl: addressTtl,
+  )
 
 #########################
 # Generic Peer Book API #
@@ -128,6 +146,43 @@ proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) =
 proc len*[T](peerBook: PeerBook[T]): int =
   peerBook.book.len
 
+###########################
+# AddressBook TTL support #
+###########################
+
+proc `[]=`*(addressBook: AddressBook, peerId: PeerId, addrs: seq[MultiAddress]) =
+  addressBook.book[peerId] = addrs
+  addressBook.lastUpdated[peerId] = Moment.now()
+  for handler in addressBook.changeHandlers:
+    handler(peerId)
+
+proc del*(addressBook: AddressBook, peerId: PeerId): bool =
+  addressBook.lastUpdated.del(peerId)
+  if peerId notin addressBook.book:
+    return false
+  addressBook.book.del(peerId)
+  for handler in addressBook.changeHandlers:
+    handler(peerId)
+  return true
+
+proc contains*(addressBook: AddressBook, peerId: PeerId): bool =
+  if peerId notin addressBook.book:
+    return false
+  if addressBook.ttl > ZeroDuration:
+    addressBook.lastUpdated.withValue(peerId, lastSeen):
+      if Moment.now() - lastSeen[] > addressBook.ttl:
+        discard addressBook.del(peerId)
+        return false
+  return true
+
+proc `[]`*(addressBook: AddressBook, peerId: PeerId): seq[MultiAddress] =
+  if addressBook.ttl > ZeroDuration:
+    addressBook.lastUpdated.withValue(peerId, lastSeen):
+      if Moment.now() - lastSeen[] > addressBook.ttl:
+        discard addressBook.del(peerId)
+        return @[]
+  addressBook.book.getOrDefault(peerId)
+
 ##################
 # Peer Store API #
 ##################
@@ -135,6 +190,17 @@ macro getTypeName(t: type): untyped =
   # Generate unique name in form of Module.Type
   let typ = getTypeImpl(t)[1]
   newLit(repr(typ.owner()) & "." & repr(typ))
+
+proc `[]`*(p: PeerStore, _: type[AddressBook]): AddressBook =
+  ## Get the AddressBook, initialising it with the store's configured TTL.
+  let name = getTypeName(AddressBook)
+  result = AddressBook(p.books.getOrDefault(name))
+  if result.isNil:
+    result = AddressBook.new()
+    result.ttl = p.addressTtl
+    result.deletor = proc(pid: PeerId) =
+      discard AddressBook(p.books.getOrDefault(name)).del(pid)
+    p.books[name] = result
 
 proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   ## Get a book from the PeerStore (ex: peerStore[AddressBook])
@@ -253,4 +319,13 @@ proc extend*[T](self: SeqPeerBook[T], key: PeerId, new: seq[T]) =
   for elem in new:
     extended.incl(elem)
 
+  self[key] = extended.toSeq()
+
+proc extend*(self: AddressBook, key: PeerId, new: seq[MultiAddress]) =
+  ## Extend addresses for a peer, refreshing the TTL timestamp.
+  var extended: HashSet[MultiAddress]
+  for old in self[key]:
+    extended.incl(old)
+  for elem in new:
+    extended.incl(elem)
   self[key] = extended.toSeq()
