@@ -4,7 +4,6 @@
 {.push raises: [].}
 
 import
-  std/macros,
   results,
   protobuf_serialization,
   protobuf_serialization/pkg/results,
