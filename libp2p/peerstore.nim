@@ -183,6 +183,17 @@ proc isExpired*(entry: AddressEntry, ttls: AddressConfidenceTtls): bool =
   of AddressConfidence.Infinite:
     false
 
+proc mergeConfidence(
+    prevConf: Table[MultiAddress, AddressConfidence],
+    ma: MultiAddress,
+    incoming: AddressConfidence,
+): AddressConfidence =
+  ## Returns the effective confidence for `ma` after merging the stored value
+  ## with `incoming`. The higher of the two wins, so a previously verified
+  ## (High/Infinite) address is never downgraded by a stale low-confidence
+  ## advertisement, while a new address simply inherits `incoming`.
+  max(prevConf.getOrDefault(ma, incoming), incoming)
+
 proc set*(
     addressBook: AddressBook,
     peerId: PeerId,
@@ -199,8 +210,13 @@ proc set*(
 
   var newEntries = newSeqOfCap[AddressEntry](addrs.len)
   for ma in addrs:
-    let conf = max(prevConf.getOrDefault(ma, confidence), confidence)
-    newEntries.add(AddressEntry(address: ma, confidence: conf, lastUpdated: now))
+    newEntries.add(
+      AddressEntry(
+        address: ma,
+        confidence: mergeConfidence(prevConf, ma, confidence),
+        lastUpdated: now,
+      )
+    )
 
   if newEntries.len > 0:
     addressBook.book[peerId] = newEntries
@@ -215,9 +231,10 @@ proc `[]=`*(addressBook: AddressBook, peerId: PeerId, addrs: seq[MultiAddress]) 
 
 proc `[]`*(addressBook: AddressBook, peerId: PeerId): seq[MultiAddress] =
   ## Return non-expired addresses for `peerId`.
-  for entry in addressBook.book.getOrDefault(peerId):
-    if not entry.isExpired(addressBook.ttls):
-      result.add(entry.address)
+  addressBook.book
+    .getOrDefault(peerId)
+    .filterIt(not it.isExpired(addressBook.ttls))
+    .mapIt(it.address)
 
 proc entries*(addressBook: AddressBook, peerId: PeerId): seq[AddressEntry] =
   ## Return the raw entry list for `peerId`, including expired entries.
@@ -235,14 +252,11 @@ proc markConnected*(addressBook: AddressBook, peerId: PeerId, ma: MultiAddress) 
   ## If the address is not yet in the book it is added.
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(peerId)
-  var found = false
-  for entry in entries.mitems:
-    if entry.address == ma:
-      entry.confidence = max(entry.confidence, AddressConfidence.High)
-      entry.lastUpdated = now
-      found = true
-      break
-  if not found:
+  let idx = entries.findIt(it.address == ma)
+  if idx >= 0:
+    entries[idx].confidence = max(entries[idx].confidence, AddressConfidence.High)
+    entries[idx].lastUpdated = now
+  else:
     entries.add(
       AddressEntry(address: ma, confidence: AddressConfidence.High, lastUpdated: now)
     )
@@ -262,14 +276,12 @@ proc extend*(
   ## New addresses are added with `confidence`.
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(key)
-  var idxByAddr: Table[MultiAddress, int]
-  for i, entry in entries:
-    idxByAddr[entry.address] = i
   for ma in addrs:
-    idxByAddr.withValue(ma, idxPtr):
-      entries[idxPtr[]].confidence = max(entries[idxPtr[]].confidence, confidence)
-      entries[idxPtr[]].lastUpdated = now
-    do:
+    let idx = entries.findIt(it.address == ma)
+    if idx >= 0:
+      entries[idx].confidence = max(entries[idx].confidence, confidence)
+      entries[idx].lastUpdated = now
+    else:
       entries.add(AddressEntry(address: ma, confidence: confidence, lastUpdated: now))
   if entries.len > 0:
     addressBook.book[key] = entries
@@ -280,21 +292,22 @@ proc pruneExpired*(addressBook: AddressBook): seq[PeerId] =
   ## Remove all per-address entries whose TTL has elapsed.
   ## Peers whose last address is pruned are deleted from the book and
   ## returned so the caller can remove them from other books as well.
-  var toUpdate: seq[(PeerId, seq[AddressEntry])]
-  var toDelete: seq[PeerId]
+  var pending: seq[(PeerId, seq[AddressEntry])]
   for peerId, entries in addressBook.book:
     let alive = entries.filterIt(not it.isExpired(addressBook.ttls))
-    if alive.len == 0:
-      toDelete.add(peerId)
-    elif alive.len < entries.len:
-      toUpdate.add((peerId, alive))
-  for (peerId, alive) in toUpdate:
-    addressBook.book[peerId] = alive
-    for handler in addressBook.changeHandlers:
-      handler(peerId)
-  for peerId in toDelete:
-    discard addressBook.del(peerId)
-  toDelete
+    if alive.len < entries.len:
+      pending.add((peerId, alive))
+
+  var deleted: seq[PeerId]
+  for (peerId, alive) in pending:
+    if alive.len > 0:
+      addressBook.book[peerId] = alive
+      for handler in addressBook.changeHandlers:
+        handler(peerId)
+    else:
+      discard addressBook.del(peerId)
+      deleted.add(peerId)
+  deleted
 
 ##################
 # Peer Store API #
