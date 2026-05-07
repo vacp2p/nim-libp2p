@@ -741,7 +741,7 @@ proc toString*(value: MultiAddress): MaResult[string] =
         return err("multiaddress: Decoding protocol error")
       if len(part) > 0:
         if (proto.kind == Path) and (part[0] == '/'):
-          res.add(part)  # path includes the leading /
+          res.add(part) # path includes the leading /
         else:
           res.add('/')
           res.add(part)
@@ -753,7 +753,10 @@ proc toString*(value: MultiAddress): MaResult[string] =
 proc `$`*(value: MultiAddress): string =
   ## Return string representation of MultiAddress ``value``.
   let s = value.toString()
-  if s.isErr: s.error else: s.get()
+  if s.isErr:
+    s.error
+  else:
+    s.get()
 
 proc protocols*(value: MultiAddress): MaResult[seq[MultiCodec]] =
   ## Returns list of protocol codecs inside of MultiAddress ``value``.
@@ -851,7 +854,7 @@ proc init*(
   else:
     let proto = CodeAddresses.getOrDefault(protocol)
     var res: MultiAddress
-    res.data = initVBuffer(10)  # varint(protocol) + 2 bytes port + overhead
+    res.data = initVBuffer(10) # varint(protocol) + 2 bytes port + overhead
     res.data.writeVarint(cast[uint64](proto.mcodec))
     if value < 0 or value > 65535:
       err("multiaddress: Incorrect integer value")
@@ -902,9 +905,8 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress]
     if proto.kind in {Fixed, Length}:
       res.data.write(proto.mcodec)
       if not proto.coder.stringToBuffer(parts[offset + 1], res.data):
-        return err(
-          "multiaddress: Error encoding `" & part & "/" & parts[offset + 1] & "`"
-        )
+        return
+          err("multiaddress: Error encoding `" & part & "/" & parts[offset + 1] & "`")
       offset += 2
     elif proto.kind == Path:
       # Reconstruct path from trimmed string to avoid seq slice + join overhead.
@@ -912,7 +914,8 @@ proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress]
       let protoStart = trimmed.find("/" & part & "/", 0)
       let path =
         if protoStart >= 0:
-          trimmed.substr(protoStart + len(part) + 1)  # +1 for the slash after protocol name
+          trimmed.substr(protoStart + len(part) + 1)
+            # +1 for the slash after protocol name
         else:
           # Fallback: reconstruct from parts (shouldn't normally happen)
           "/" & parts[(offset + 1) .. ^1].join("/")
@@ -952,7 +955,7 @@ proc init*(
     port: Port,
 ): MultiAddress =
   var res: MultiAddress
-  res.data = initVBuffer(32)  # varint + IPv4(4)/IPv6(16) + varint + port(2) + overhead
+  res.data = initVBuffer(32) # varint + IPv4(4)/IPv6(16) + varint + port(2) + overhead
   let
     networkProto =
       case address.family
@@ -985,7 +988,7 @@ proc init*(
   ## Initialize MultiAddress using chronos.TransportAddress (IPv4/IPv6/Unix)
   ## and protocol information (UDP/TCP).
   var res: MultiAddress
-  res.data = initVBuffer(64)  # varint + address(4/16/unix) + varint + port + overhead
+  res.data = initVBuffer(64) # varint + address(4/16/unix) + varint + port + overhead
   let protoProto =
     case protocol
     of IPPROTO_TCP:
