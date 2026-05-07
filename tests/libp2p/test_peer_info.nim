@@ -78,7 +78,7 @@ suite "PeerInfo":
 
   test "Observers fire on update":
     let
-      seckey = PrivateKey.random(ECDSA, rng[]).get()
+      seckey = PrivateKey.random(ECDSA, rng()).get()
       multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet()]
       peerInfo = PeerInfo.new(seckey, multiAddresses)
 
