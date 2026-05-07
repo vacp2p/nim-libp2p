@@ -1212,3 +1212,18 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
 
       vb.data.offset = vb.data.offset + skipLen
     # Marker - nothing to skip
+
+const AvgMultiAddressStringLength = 32
+
+func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
+  let limit = min(addrs.len, maxAddrs)
+  var res = newStringOfCap(limit * AvgMultiAddressStringLength)
+  for i in 0 ..< limit:
+    if i > 0:
+      res.add(',')
+    res.add($addrs[i])
+  if addrs.len > maxAddrs:
+    res.add(",...(+")
+    res.add($(addrs.len - maxAddrs))
+    res.add(" more)")
+  return res
