@@ -45,22 +45,29 @@ template asyncTest*(name: string, body: untyped): untyped =
     )
 
 template asyncTestRetry*(
-    name: string, retryDelay: Duration = 5.seconds, body: untyped
+    name: string,
+    retryDelay: Duration = 5.seconds,
+    maxAttempts: int = 3,
+    body: untyped
 ): untyped =
-  ## Runs the test up to 3 times, passing as soon as any attempt succeeds.
+  ## Runs the test up to `maxAttempts` times, passing as soon as any attempt succeeds.
   ## Sleeps `retryDelay` between attempts; fails only if all attempts fail.
   test name:
     waitFor(
       (
         proc() {.async.} =
           var lastError: ref Exception = nil
-          for attempt in 1 .. 3:
+          for attempt in 1 .. maxAttempts:
             try:
               body
               return
             except Exception as e:
               lastError = e
-              if attempt < 3:
+              checkpoint(
+                "Retry attempt " & $attempt & "/" & $maxAttempts &
+                " failed: " & e.msg
+              )
+              if attempt < maxAttempts:
                 await sleepAsync(retryDelay)
           if lastError != nil:
             raise lastError
