@@ -263,6 +263,9 @@ proc readFieldInto*(
 ): bool {.raises: [SerializationError, IOError].} =
   var data = default(seq[byte])
   if readFieldInto(stream, data, header, pbytes):
-    value.init(data)
+    if value.init(data):
+      true
+    else:
+      raise (ref ProtobufValueError)(msg: "Invalid PeerId")
   else:
     false
