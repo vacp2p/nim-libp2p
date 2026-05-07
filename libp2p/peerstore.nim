@@ -63,6 +63,7 @@ type
   AddressBook* = ref object of SeqPeerBook[MultiAddress]
     ttl*: Duration
     lastUpdated: Table[PeerId, Moment]
+
   ProtoBook* = ref object of SeqPeerBook[string]
   KeyBook* = ref object of PeerBook[PublicKey]
 
