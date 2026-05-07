@@ -668,10 +668,12 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
 
     if cursor.readVarint(header) == -1:
       yield err(MaResult[MultiAddress], "Malformed binary address!")
+      break
 
     let proto = CodeAddresses.getOrDefault(MultiCodec(header))
     if proto.kind == None:
       yield err(MaResult[MultiAddress], "Unsupported protocol '" & $header & "'")
+      break
     else:
       # capacity should accommodate any part without reallocation
       var res = MultiAddress(data: initVBuffer(64))
@@ -681,12 +683,14 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
         buf.setLen(proto.size)
         if cursor.readArray(buf) != proto.size:
           yield err(MaResult[MultiAddress], "Decoding protocol error")
+          break
         else:
           res.data.writeArray(buf)
       elif proto.kind in {MAKind.Length, Path}:
         var temp: seq[byte]
         if cursor.readSeq(temp) == -1 or len(temp) == 0:
           yield err(MaResult[MultiAddress], "Decoding protocol error")
+          break
         else:
           res.data.writeSeq(temp)
       # Marker: nothing more to write
