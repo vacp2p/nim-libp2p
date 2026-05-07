@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+## Provider record management for the Kademlia DHT.
+## When ``KadDHTConfig.providerRejection`` is true: receivers enforce
+## ``maxProvidersPerKey`` and reply with accepted/rejected on field 11; senders
+## spill over to farther peers when a full batch is rejected.
+## Re-advertisements are always accepted.
+
 import std/[sequtils, tables, sets, heapqueue]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash, cid]
-import ../../utils/heartbeat
+import ../../utils/[heartbeat, future]
 import ../protocol
 import ./[protobuf, types, find, kademlia_metrics]
 
@@ -97,8 +103,14 @@ proc addProviderRecord(pm: ProviderManager, record: ProviderRecord) =
     raiseAssert("checked with hasKey")
 
 proc dispatchAddProvider(
-    switch: Switch, peer: PeerId, key: Key, codec: string, hideConnectionStatus: bool
-): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
+    switch: Switch,
+    peer: PeerId,
+    key: Key,
+    codec: string,
+    hideConnectionStatus: bool,
+    replyTimeout: Duration,
+    providerRejection: bool,
+): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
   let connRes = catch:
     await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
   if connRes.isErr:
@@ -121,23 +133,79 @@ proc dispatchAddProvider(
     await conn.writeLp(encoded.buffer)
   if writeRes.isErr:
     return err(writeRes.error.msg)
-  return ok()
+
+  if not providerRejection:
+    return ok(AddProviderStatus.accepted)
+
+  let readFut = conn.readLp(MaxMsgSize)
+  if not (await readFut.withTimeout(replyTimeout)):
+    return ok(AddProviderStatus.accepted)
+  let readRes = catch:
+    await readFut
+  if readRes.isErr:
+    return ok(AddProviderStatus.accepted)
+
+  let reply = Message.decode(readRes.value).valueOr:
+    return ok(AddProviderStatus.accepted)
+
+  return ok(reply.providerStatus.get(AddProviderStatus.accepted))
+
+proc sendBatch(kad: KadDHT, peers: seq[PeerId], key: Key): auto =
+  peers.mapIt(
+    kad.switch.dispatchAddProvider(
+      it, key, kad.codec, kad.config.hideConnectionStatus, kad.config.timeout,
+      kad.config.providerRejection,
+    )
+  )
+
+proc countResults[T](rpcBatch: seq[T]): (int, int) =
+  var accepted, rejected: int
+  for fut in rpcBatch:
+    if not fut.finished():
+      discard # batch timeout fired before request completed
+    elif fut.failed():
+      discard # transport/connection error
+    elif not fut.value().isOk():
+      discard # protocol/decode error
+    else:
+      case fut.value().value()
+      of AddProviderStatus.accepted:
+        accepted.inc()
+      of AddProviderStatus.rejected:
+        rejected.inc()
+  (accepted, rejected)
+
+proc addProviderSpillover(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]).} =
+  let allPeers = (
+    await kad.iterativeLookup(key, findNodeDispatch, noopReply, closestAvailableStop)
+  ).allSortedPeers()
+
+  var stored = 0
+  for chunk in allPeers.toChunks(kad.config.alpha):
+    if stored >= kad.config.replication:
+      break
+    let batch = kad.sendBatch(chunk, key)
+    # Batch timeout must exceed the per-peer reply timeout to account for dial
+    # time. Each future waits up to `timeout` for a reply *after* the dial
+    # completes, so the batch timeout must outlast that wait; otherwise
+    # non-rejection peers (which default to accepted on reply timeout) may
+    # still be mid-wait when countResults runs and get skipped, causing the
+    # stored count to be too low and triggering unnecessary spillover rounds.
+    await batch.allFuturesWaitOrTimeout(kad.config.timeout + kad.config.timeout div 4)
+    let (accepted, rejected) = batch.countResults()
+    stored += accepted
+    if accepted == 0 and rejected == chunk.len:
+      kad_provider_spillover_rounds.inc()
+      debug "ADD_PROVIDER batch fully rejected, spilling over",
+        key = key, batchSize = chunk.len
 
 proc addProvider*(kad: KadDHT, key: Key) {.async: (raises: [CancelledError]), gcsafe.} =
-  ## Find the closest nodes to the key via FIND_NODE and send ADD_PROVIDER with self's peerInfo to each of them
-
-  let peers = await kad.findNode(key)
-  for chunk in peers.toChunks(kad.config.alpha):
-    let rpcBatch = chunk.mapIt(
-      kad.switch.dispatchAddProvider(
-        it, key, kad.codec, kad.config.hideConnectionStatus
-      )
-    )
-    try:
-      await rpcBatch.allFutures().wait(kad.config.timeout)
-    except AsyncTimeoutError:
-      # Dispatch will timeout if any of the calls don't receive a response (which is normal)
-      discard
+  if kad.config.providerRejection:
+    await kad.addProviderSpillover(key)
+  else:
+    let peers = await kad.findNode(key)
+    for chunk in peers.toChunks(kad.config.alpha):
+      await kad.sendBatch(chunk, key).allFuturesWaitOrTimeout(kad.config.timeout)
 
 proc addProvider*(kad: KadDHT, cid: Cid) {.async: (raises: [CancelledError]), gcsafe.} =
   await addProvider(kad, cid.toKey())
@@ -168,20 +236,45 @@ proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} 
       let expired = kad.providerManager.providerRecords.pop()
       kad.providerManager.removeProviderRecord(expired)
 
+proc sendAddProviderResponse(
+    conn: Connection, kad: KadDHT, status: AddProviderStatus
+) {.async: (raises: [CancelledError]).} =
+  let response =
+    Message(msgType: MessageType.addProvider, providerStatus: Opt.some(status))
+  try:
+    await conn.writeLp(response.encode(kad.config.hideConnectionStatus).buffer)
+  except LPStreamError as exc:
+    debug "Failed to send add-provider response",
+      conn = conn, err = exc.msg, status = status
+
 method handleAddProvider*(
     kad: KadDHT, conn: Connection, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   if not MultiHash.validate(msg.key):
     error "Received key is an invalid Multihash", msg = msg, conn = conn, key = msg.key
+    if kad.config.providerRejection:
+      await conn.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
 
   # filter out infos that do not match sender's
   let peerBytes = conn.peerId.getBytes()
+  let validPeers =
+    msg.providerPeers.filterIt(it.id == peerBytes and PeerId.init(it.id).isOk())
 
-  for peer in msg.providerPeers.filterIt(it.id == peerBytes):
-    if not PeerId.init(peer.id).isOk():
-      continue
+  if kad.config.providerRejection:
+    kad.config.maxProvidersPerKey.withValue(limit):
+      let existingProviders =
+        kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
+      let senderIsKnown = existingProviders.anyIt(it.id == peerBytes)
+      let effectiveCount = existingProviders.len - (if senderIsKnown: 1 else: 0)
+      if effectiveCount >= limit:
+        kad_provider_rejections_sent.inc()
+        debug "ADD_PROVIDER rejected: per-key limit reached",
+          key = msg.key, limit = limit
+        await conn.sendAddProviderResponse(kad, AddProviderStatus.rejected)
+        return
 
+  for peer in validPeers:
     # add provider to providerManager
     kad.providerManager.addProviderRecord(
       ProviderRecord(
@@ -190,6 +283,11 @@ method handleAddProvider*(
         key: msg.key,
       )
     )
+
+  if kad.config.providerRejection:
+    let status =
+      if validPeers.len > 0: AddProviderStatus.accepted else: AddProviderStatus.rejected
+    await conn.sendAddProviderResponse(kad, status)
 
 proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key

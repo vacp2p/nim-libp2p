@@ -110,6 +110,10 @@ proc hasResponsesFromClosestAvailable*(
 
   return closetsRespondedCnt >= state.kad.config.replication
 
+proc allSortedPeers*(state: LookupState): seq[PeerId] =
+  ## Returns all peers discovered during lookup sorted by XOR distance to target (closest first).
+  state.sortedShortlist(excludeResponded = false).mapIt(it[0])
+
 proc init*(T: type LookupState, kad: KadDHT, target: Key): T =
   var res = LookupState(kad: kad, target: target)
   for pid in kad.rtable.findClosestPeerIds(target, kad.config.replication):
@@ -180,6 +184,19 @@ proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
 proc updatePeers*(kad: KadDHT, peers: seq[(PeerId, seq[MultiAddress])]) {.raises: [].} =
   let peerInfos = peers.mapIt(PeerInfo(peerId: it[0], addrs: it[1]))
   kad.updatePeers(peerInfos)
+
+proc noopReply*(
+    peerId: PeerId, msgOpt: Opt[Message], state: var LookupState
+): Future[void] {.async: (raises: []), gcsafe.} =
+  discard
+
+proc closestAvailableStop*(state: LookupState): bool {.raises: [], gcsafe.} =
+  state.hasResponsesFromClosestAvailable()
+
+proc findNodeDispatch*(
+    kad: KadDHT, peer: PeerId, target: Key
+): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  return await dispatchFindNode(kad, peer, target)
 
 proc iterativeLookup*(
     kad: KadDHT,
@@ -263,17 +280,9 @@ method findNode*(
     if queueRes.isErr:
       error "failed to queue find node reply", error = queueRes.error.msg
 
-  let stop = proc(state: LookupState): bool {.raises: [], gcsafe.} =
-    state.hasResponsesFromClosestAvailable()
-
-  let dispatchFind = proc(
-      kad: KadDHT, peer: PeerId, target: Key
-  ): Future[Result[Message, string]] {.
-      async: (raises: [CancelledError]), gcsafe, closure
-  .} =
-    return await dispatchFindNode(kad, peer, target)
-
-  let state = await kad.iterativeLookup(target, rtable, dispatchFind, ignoreReply, stop)
+  let state = await kad.iterativeLookup(
+    target, rtable, findNodeDispatch, ignoreReply, closestAvailableStop
+  )
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 

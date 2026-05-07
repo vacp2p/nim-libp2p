@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
+import std/hashes
 import chronos
 import ../../protobuf/minprotobuf
 import ../../varint
@@ -43,6 +44,15 @@ type
     Wait = 1
     Rejected = 2
 
+  AddProviderStatus* = enum
+    ## Response status carried in field 11 of an ADD_PROVIDER reply (nim extension).
+    ## Only populated when the responding peer has ``providerRejection = true``.
+    ## Peers with ``providerRejection = false`` never write this field; receivers
+    ## always decode it when present and act on it only if their own
+    ## ``providerRejection`` is true.
+    accepted = 0
+    rejected = 1
+
   # Ticket message for Service Discovery
   # Nested within Register message
   Ticket* = object
@@ -70,8 +80,16 @@ type
     record*: Opt[Record]
     closerPeers*: seq[Peer]
     providerPeers*: seq[Peer]
+    providerStatus*: Opt[AddProviderStatus]
+      # field 11 - ADD_PROVIDER response status (nim extension)
     register*: Opt[RegisterMessage] # field 21 -  REGISTER message
     getAds*: Opt[GetAdsMessage] # field 22 -  GET_ADS message
+
+proc hash*(peer: Peer): Hash =
+  hash(peer.id)
+
+proc `==`*(a, b: Peer): bool =
+  a.id == b.id
 
 proc hide(
     connStatus: ConnectionStatus, hideConnectionStatus: bool
@@ -151,6 +169,9 @@ proc encode*(
 
   for peer in msg.providerPeers:
     pb.write(9, peer.encode(hideConnectionStatus))
+
+  msg.providerStatus.withValue(status):
+    pb.write(11, uint32(ord(status)))
 
   msg.register.withValue(regMsg):
     pb.write(21, regMsg.encode())
@@ -273,6 +294,10 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
   discard ?pb.getRepeatedField(9, providerPbs)
   for ppb in providerPbs:
     m.providerPeers.add(?Peer.decode(initProtoBuffer(ppb)))
+
+  var providerStatusVal: uint32
+  if ?pb.getField(11, providerStatusVal):
+    m.providerStatus = Opt.some(?decodeEnum[AddProviderStatus](providerStatusVal))
 
   # Decode Register message (field 21)
   var regBuf: seq[byte]

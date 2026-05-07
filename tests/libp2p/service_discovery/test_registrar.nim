@@ -2,21 +2,21 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import std/math
-import chronos, chronicles, results
+import chronos, math, results, tables
 import
   ../../../libp2p/[
-    peerid,
-    multiaddress,
-    extended_peer_record,
-    routing_record,
     crypto/crypto,
+    extended_peer_record,
+    multiaddress,
+    peerid,
+    protocols/service_discovery/registrar,
+    protocols/service_discovery/types,
+    routing_record,
     signed_envelope,
+    utils/iptree,
   ]
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
-import ../../../libp2p/protocols/service_discovery/[types, registrar]
-import ../../../libp2p/utils/iptree
-import ../../tools/[unittest, crypto]
+import ../../tools/[crypto, unittest]
 import ./utils
 
 func initMoment(secs: int64): Moment =
@@ -755,7 +755,7 @@ suite "Service Discovery Registrar - Register Message Validation":
 
 suite "Service Discovery Registrar - Retry Ticket Processing":
   test "processRetryTicket returns original wait time when no ticket is present":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
@@ -771,7 +771,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     check tRemaining == tWait
 
   test "processRetryTicket returns original wait time for mismatched ticket advertisement":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
@@ -799,8 +799,8 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     check tRemaining == tWait
 
   test "processRetryTicket returns original wait time for invalid ticket signature":
-    let disco = makeMockDiscovery()
-    let otherDisco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
+    let otherDisco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
@@ -824,8 +824,34 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
     check tRemaining == tWait
 
+  test "processRetryTicket returns original wait time when retry window is far in the past":
+    let disco = setupServiceDiscoveryNode()
+    let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
+    let adBuf = ad.encode().get()
+
+    let now = Moment.now()
+    var ticket = Ticket(
+      advertisement: adBuf,
+      tInit: Moment.init(1_000, Second),
+      tMod: now - 100_000.secs,
+      tWaitFor: 0.secs,
+      signature: @[],
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.some(ticket),
+    )
+    let tWait = 300.secs
+
+    let tRemaining = disco.processRetryTicket(regMsg, ad, tWait)
+
+    check tRemaining == tWait
+
   test "processRetryTicket returns original wait time when retry is too early":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
@@ -852,7 +878,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     check tRemaining == tWait
 
   test "processRetryTicket returns original wait time when retry is outside registration window":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
@@ -862,7 +888,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     var ticket = Ticket(
       advertisement: adBuf,
       tInit: now - 1000.secs,
-      tMod: now,
+      tMod: now - 100.secs,
       tWaitFor: 50.secs,
       signature: @[],
     )
@@ -880,7 +906,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     check tRemaining == tWait
 
   test "processRetryTicket subtracts accumulated wait at windowEnd boundary":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
@@ -910,7 +936,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     check abs(tRemaining.secs - 149) <= 1
 
   test "processRetryTicket returns non-positive remaining when accumulated wait exceeds tWait":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
@@ -938,7 +964,7 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
     check tRemaining <= ZeroDuration
 
   test "processRetryTicket subtracts accumulated wait for valid retry in window":
-    let disco = makeMockDiscovery()
+    let disco = setupServiceDiscoveryNode()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     let adBuf = ad.encode().get()
 
@@ -968,30 +994,36 @@ suite "Service Discovery Registrar - Retry Ticket Processing":
 
 suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
   test "new peer ad is added to cache":
-    let disco = makeDisco()
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
+    let now = Moment.now()
 
-    disco.acceptAdvertisement(serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
 
     check disco.registrar.cache.getOrDefault(serviceId).len == 1
     check disco.registrar.cache[serviceId][0].data.peerId == ad.data.peerId
 
   test "same peer same seqNo is treated as duplicate and not added again":
-    let disco = makeDisco()
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
+    let now = Moment.now()
 
-    disco.acceptAdvertisement(serviceId, ad)
-    disco.acceptAdvertisement(serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
 
     check disco.registrar.cache[serviceId].len == 1
 
   test "same peer higher seqNo replaces existing ad":
-    let disco = makeDisco()
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
+    let now = Moment.now()
 
     let oldAd = SignedExtendedPeerRecord
       .init(
@@ -1007,19 +1039,21 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    disco.acceptAdvertisement(serviceId, oldAd)
+    disco.acceptAdvertisement(now, serviceId, oldAd)
     check disco.registrar.cache[serviceId][0].data.seqNo == 1
 
-    disco.acceptAdvertisement(serviceId, newAd)
+    disco.acceptAdvertisement(now, serviceId, newAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 2
 
   test "same peer lower seqNo is silently dropped":
-    let disco = makeDisco()
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
+    let now = Moment.now()
 
     let newerAd = SignedExtendedPeerRecord
       .init(
@@ -1035,28 +1069,32 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    disco.acceptAdvertisement(serviceId, newerAd)
-    disco.acceptAdvertisement(serviceId, olderAd)
+    disco.acceptAdvertisement(now, serviceId, newerAd)
+    disco.acceptAdvertisement(now, serviceId, olderAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 10
 
   test "different peers each store their own ad":
-    let disco = makeDisco()
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad1 = makeAdvertisement($serviceId)
     let ad2 = makeAdvertisement($serviceId)
+    let now = Moment.now()
 
-    disco.acceptAdvertisement(serviceId, ad1)
-    disco.acceptAdvertisement(serviceId, ad2)
+    disco.acceptAdvertisement(now, serviceId, ad1)
+    disco.acceptAdvertisement(now, serviceId, ad2)
 
     check disco.registrar.cache[serviceId].len == 2
 
   test "seqNo replacement updates IP tree correctly":
-    let disco = makeDisco()
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng[]).get()
     let peerId = PeerId.init(privateKey).get()
+    let now = Moment.now()
 
     let oldAd = SignedExtendedPeerRecord
       .init(
@@ -1082,11 +1120,11 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
       )
       .get()
 
-    disco.acceptAdvertisement(serviceId, oldAd)
+    disco.acceptAdvertisement(now, serviceId, oldAd)
     let counterAfterFirst = disco.registrar.ipTree.root.counter
     check counterAfterFirst > 0
 
-    disco.acceptAdvertisement(serviceId, newAd)
+    disco.acceptAdvertisement(now, serviceId, newAd)
 
     check disco.registrar.cache[serviceId].len == 1
     check disco.registrar.cache[serviceId][0].data.seqNo == 2
@@ -1127,12 +1165,14 @@ suite "Service Discovery Registrar - waitingTime never negative":
 
 suite "Service Discovery Registrar - concurrent same-peer registration":
   test "repeated acceptAdvertisement calls for same ad are idempotent":
-    let disco = makeDisco()
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
+    let now = Moment.now()
 
-    disco.acceptAdvertisement(serviceId, ad)
-    disco.acceptAdvertisement(serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(now, serviceId, ad)
 
     check disco.registrar.cache[serviceId].len == 1
 
@@ -1211,7 +1251,8 @@ suite "Service Discovery Registrar - updateExistingAd":
 
 suite "Service Discovery Registrar - insertNewAd":
   test "inserts ad into cache, IP tree, and timestamps, returns true":
-    let disco = makeDisco()
+    let disco =
+      setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
     let ad = makeAdvertisement(addrs = @[makeMultiAddress("10.0.0.1")])
     var ads: seq[Advertisement] = @[]
@@ -1227,7 +1268,9 @@ suite "Service Discovery Registrar - insertNewAd":
     check disco.registrar.ipTree.root.counter > 0
 
   test "inserts ad without eviction when cache is under capacity":
-    let disco = makeDisco(advertExpiry = 900)
+    let disco = setupServiceDiscoveryNode(
+      discoConfig = ServiceDiscoveryConfig.new(fReturn = 3, advertExpiry = 900.secs)
+    )
     let serviceId = makeServiceId()
     let existingAd = makeAdvertisement($makeServiceId(99))
     disco.registrar.cacheTimestamps[existingAd.toAdvertisementKey()] = initMoment(1000)
@@ -1247,7 +1290,7 @@ suite "Service Discovery Registrar - insertNewAd":
     let config = ServiceDiscoveryConfig.new(
       kRegister = 3, bucketsCount = 16, advertCacheCap = cap.uint64
     )
-    let disco = makeMockDiscovery(config)
+    let disco = setupServiceDiscoveryNode(discoConfig = config)
     let serviceId = makeServiceId()
     let now = initMoment(5000)
 
