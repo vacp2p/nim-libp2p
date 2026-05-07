@@ -591,7 +591,7 @@ proc getPart(ma: MultiAddress, index: int): MaResult[MultiAddress] =
   var offset = 0
   var cursor = initCursor(ma)
   var res: MultiAddress
-  res.data = initVBuffer(64)
+  res.data = initVBuffer(64) # capacity should accommodate any part without reallocation
 
   if index < 0:
     return err("multiaddress: negative index gived to getPart")
@@ -673,6 +673,7 @@ iterator items*(ma: MultiAddress): MaResult[MultiAddress] =
     if proto.kind == None:
       yield err(MaResult[MultiAddress], "Unsupported protocol '" & $header & "'")
     else:
+      # capacity should accommodate any part without reallocation
       var res = MultiAddress(data: initVBuffer(64))
       res.data.writeVarint(header)
       if proto.kind == Fixed:
@@ -946,7 +947,7 @@ proc init*(
 
 proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   ## Initialize empty MultiAddress.
-  result.data = initVBuffer(256)
+  result.data = initVBuffer(256) # should be enough to accomodate any multiaddress 
 
 proc init*(
     mtype: typedesc[MultiAddress],
