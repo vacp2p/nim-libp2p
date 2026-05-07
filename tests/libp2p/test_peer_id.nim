@@ -3,7 +3,7 @@
 
 {.used.}
 
-import nimcrypto/utils, stew/base58, bearssl/hash
+import nimcrypto/utils, stew/base58
 import ../../libp2p/[crypto/crypto, peerid]
 import ../tools/[unittest, crypto]
 
@@ -232,12 +232,10 @@ suite "Peer testing suite":
           ekey3 == pubkey
           ekey4 == pubkey
   test "Test PeerId.random() proc":
-    # generate a random peer with a deterministic ssed 
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
-    var randomPeer1 = PeerId.random(rng)
+    var randomPeer1 = PeerId.random(rng())
     check:
-      $randomPeer1.get() == "16Uiu2HAmCxpSTFDNdWiu1MLScu7inPhcbbGfPvuvRPD1e51gw1Xr"
+      randomPeer1.isOk()
+      randomPeer1.get().validate()
 
     # generate a random peer with a new random seed
     var randomPeer2 = PeerId.random(rng())

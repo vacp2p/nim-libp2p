@@ -14,7 +14,7 @@ import ../tools/[unittest, crypto]
 
 suite "PeerInfo":
   test "Should init with private key":
-    let seckey = PrivateKey.random(ECDSA, rng[]).get()
+    let seckey = PrivateKey.random(ECDSA, rng()).get()
     var peerInfo = PeerInfo.new(seckey)
     var peerId = PeerId.init(seckey).get()
 
@@ -27,7 +27,7 @@ suite "PeerInfo":
       ExpectedPayloadType = @[(byte) 0x03, (byte) 0x01]
 
     let
-      seckey = PrivateKey.random(rng[]).tryGet()
+      seckey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(seckey).get()
       multiAddresses = @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
@@ -57,7 +57,7 @@ suite "PeerInfo":
 
   test "Public address mapping":
     let
-      seckey = PrivateKey.random(ECDSA, rng[]).get()
+      seckey = PrivateKey.random(ECDSA, rng()).get()
       multiAddresses = @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
         MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),

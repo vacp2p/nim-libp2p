@@ -54,7 +54,7 @@ proc createSwitch(
     ma: MultiAddress, outgoing: bool, plaintext: bool = false
 ): (Switch, PeerInfo) =
   var
-    privateKey = PrivateKey.random(ECDSA, rng[]).get()
+    privateKey = PrivateKey.random(ECDSA, rng()).get()
     peerInfo = PeerInfo.new(privateKey, @[ma])
 
   proc createMplex(conn: Connection): Muxer =
@@ -69,7 +69,7 @@ proc createSwitch(
       if plaintext:
         [Secure(PlainText.new())]
       else:
-        [Secure(Noise.new(rng, privateKey, outgoing = outgoing))]
+        [Secure(Noise.new(rng(), privateKey, outgoing = outgoing))]
     connManager = ConnManager.new()
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(muxers, secureManagers, ms)
@@ -86,9 +86,9 @@ suite "Noise":
   asyncTest "e2e: handle write + noise":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
+      serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
-      serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
+      serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(server)
@@ -105,8 +105,8 @@ suite "Noise":
     let
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
+      clientPrivKey = PrivateKey.random(ECDSA, rng()).get()
+      clientNoise = Noise.new(rng(), clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
 
     let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
@@ -125,8 +125,8 @@ suite "Noise":
   asyncTest "e2e: handle write + noise (wrong prologue)":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
+      serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
+      serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
 
@@ -142,9 +142,9 @@ suite "Noise":
     let
       handlerWait = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
+      clientPrivKey = PrivateKey.random(ECDSA, rng()).get()
       clientNoise = Noise.new(
-        rng, clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8]
+        rng(), clientPrivKey, outgoing = true, commonPrologue = @[1'u8, 2'u8, 3'u8]
       )
       conn = await transport2.dial(transport1.addrs[0])
 
@@ -160,9 +160,9 @@ suite "Noise":
   asyncTest "e2e: handle read + noise":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
+      serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
-      serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
+      serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
 
     let transport1: TcpTransport = TcpTransport.new(upgrade = Upgrade())
     asyncSpawn transport1.start(server)
@@ -181,8 +181,8 @@ suite "Noise":
     let
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
+      clientPrivKey = PrivateKey.random(ECDSA, rng()).get()
+      clientNoise = Noise.new(rng(), clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
     let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 
@@ -196,13 +196,13 @@ suite "Noise":
   asyncTest "e2e: handle read + noise fragmented":
     let
       server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
-      serverPrivKey = PrivateKey.random(ECDSA, rng[]).get()
+      serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
-      serverNoise = Noise.new(rng, serverPrivKey, outgoing = false)
+      serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
       readTask = newFuture[void]()
 
     var hugePayload = newSeq[byte](0xFFFFF)
-    hmacDrbgGenerate(rng[], hugePayload)
+    rng().generate(hugePayload)
     trace "Sending huge payload", size = hugePayload.len
 
     let
@@ -221,8 +221,8 @@ suite "Noise":
     let
       acceptFut = acceptHandler()
       transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-      clientPrivKey = PrivateKey.random(ECDSA, rng[]).get()
-      clientNoise = Noise.new(rng, clientPrivKey, outgoing = true)
+      clientPrivKey = PrivateKey.random(ECDSA, rng()).get()
+      clientNoise = Noise.new(rng(), clientPrivKey, outgoing = true)
       conn = await transport2.dial(transport1.addrs[0])
     let sconn = await clientNoise.secure(conn, Opt.some(serverInfo.peerId))
 

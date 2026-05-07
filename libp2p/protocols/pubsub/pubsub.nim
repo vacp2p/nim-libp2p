@@ -196,7 +196,7 @@ type
       ## lead to issues, from descoring to connection drops
       ##
       ## defaults to 1mB
-    rng*: ref HmacDrbgContext
+    rng*: Rng
 
     knownTopics*: HashSet[string]
     customConnCallbacks*: Opt[CustomConnectionCallbacks]
@@ -702,7 +702,7 @@ proc init*[PubParams: object | bool](
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     subscriptionValidator: SubscriptionValidator = nil,
     maxMessageSize: int = 1024 * 1024,
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     parameters: PubParams = false,
     customConnCallbacks: Opt[CustomConnectionCallbacks] =
       Opt.none(CustomConnectionCallbacks),

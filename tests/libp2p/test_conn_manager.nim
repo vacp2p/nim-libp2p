@@ -50,7 +50,7 @@ proc newWatermark*(
   ConnManager.new(watermark = Opt.some(wtCfg), scoring = scCfg)
 
 proc storeMuxers(connMngr: ConnManager, count: uint): Future[seq[PeerId]] {.async.} =
-  let peers = PeerId.random(count, rng).tryGet()
+  let peers = PeerId.random(count, rng()).tryGet()
   await allFuturesRaising(peers.mapIt(connMngr.storeMuxer(makeMuxer(it))))
   return peers
 
@@ -58,7 +58,7 @@ suite "Connection Manager":
   teardown:
     checkTrackers()
 
-  let peerId = PeerId.random(rng).tryGet()
+  let peerId = PeerId.random(rng()).tryGet()
 
   asyncTest "add and retrieve a muxer":
     let connMngr = newMaxTotal()
@@ -76,7 +76,7 @@ suite "Connection Manager":
   asyncTest "get all connections":
     let connMngr = newMaxTotal()
 
-    let peers = PeerId.random(5, rng).tryGet()
+    let peers = PeerId.random(5, rng()).tryGet()
     let muxs = peers.mapIt(makeMuxer(it))
     for mux in muxs:
       await connMngr.storeMuxer(mux)
@@ -198,7 +198,7 @@ suite "Connection Manager":
     await waitedConn1.cancelAndWait()
     let
       waitedConn2 = connMngr.expectConnection(peerId, In)
-      waitedConn3 = connMngr.expectConnection(PeerId.random(rng).tryGet(), In)
+      waitedConn3 = connMngr.expectConnection(PeerId.random(rng()).tryGet(), In)
       conn = makeMuxer(peerId)
     await connMngr.storeMuxer(conn)
     check (await waitedConn2) == conn
@@ -394,7 +394,7 @@ suite "Connection Manager":
     var muxs: seq[Muxer]
     for i in 0 ..< 3:
       let slot = connMngr.getOutgoingSlot()
-      let muxer = makeMuxer(PeerId.random(rng).tryGet(), Direction.In)
+      let muxer = makeMuxer(PeerId.random(rng()).tryGet(), Direction.In)
 
       slot.trackMuxer(muxer)
       muxs.add(muxer)
@@ -414,7 +414,7 @@ suite "Connection Manager maxConnsPerPeer":
   teardown:
     checkTrackers()
 
-  let peerId = PeerId.random(rng).tryGet()
+  let peerId = PeerId.random(rng()).tryGet()
   const defaultMaxConnsPerPeer = 2
 
   proc runTest(maxConnsPerPeer: int, numberOfMuxersToConnect: int) {.async.} =
@@ -453,7 +453,7 @@ suite "Connection Manager Watermark":
   teardown:
     checkTrackers()
 
-  let peerId = PeerId.random(rng).tryGet()
+  let peerId = PeerId.random(rng()).tryGet()
 
   asyncTest "trim fires when peer count exceeds highWater":
     const peersToConnect = 5
@@ -559,7 +559,7 @@ suite "Connection Manager Scoring":
     checkTrackers()
 
   const tag = "λ"
-  let peerId = PeerId.random(rng).tryGet()
+  let peerId = PeerId.random(rng()).tryGet()
 
   asyncTest "peerScore returns 0 for unknown peer":
     let cm = newWatermark(1, 2)
@@ -637,24 +637,24 @@ suite "Connection Manager Scoring":
 
   asyncTest "watermark trim prunes lowest-score peer first":
     let cm = newWatermark(1, 2)
-    let highScorePeer = PeerId.random(rng).tryGet()
-    let lowScorePeer1 = PeerId.random(rng).tryGet()
+    let highScorePeer = PeerId.random(rng()).tryGet()
+    let lowScorePeer1 = PeerId.random(rng()).tryGet()
     await cm.storeMuxer(makeMuxer(highScorePeer))
     cm.tagPeer(highScorePeer, "destacado", 500)
     await cm.storeMuxer(makeMuxer(lowScorePeer1))
     # store a third peer to trigger trim (count=3 > highWater=2)
-    await cm.storeMuxer(makeMuxer(PeerId.random(rng).tryGet()))
+    await cm.storeMuxer(makeMuxer(PeerId.random(rng()).tryGet()))
     check cm.contains(highScorePeer)
     check cm.getConnections().len == 1
     await cm.close()
 
   asyncTest "outbound peer survives watermark trim over inbound peers":
     let cm = newWatermark(1, 2, outboundBonus = 500)
-    let outboundPeer = PeerId.random(rng).tryGet()
+    let outboundPeer = PeerId.random(rng()).tryGet()
     await cm.storeMuxer(makeMuxer(outboundPeer, Direction.Out))
-    await cm.storeMuxer(makeMuxer(PeerId.random(rng).tryGet(), Direction.In))
+    await cm.storeMuxer(makeMuxer(PeerId.random(rng()).tryGet(), Direction.In))
     # add one more over the high water to trigger the trim
-    await cm.storeMuxer(makeMuxer(PeerId.random(rng).tryGet(), Direction.In))
+    await cm.storeMuxer(makeMuxer(PeerId.random(rng()).tryGet(), Direction.In))
     check cm.contains(outboundPeer)
     check cm.getConnections().len == 1
     await cm.close()
@@ -681,7 +681,7 @@ suite "Connection Manager: watermark with connection limiting":
     # protecting before storeMuxer ensures the peer is already shielded when
     # trim fires on the 3rd store (peer count 3 > highWater 2).
     for _ in 0 ..< maxConns:
-      let peerId = PeerId.random(rng).tryGet()
+      let peerId = PeerId.random(rng()).tryGet()
       let slot = await connMngr.getIncomingSlot()
       let muxer = makeMuxer(peerId)
       connMngr.protect(peerId, "keep-forever")

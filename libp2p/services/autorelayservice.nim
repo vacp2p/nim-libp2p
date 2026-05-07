@@ -23,7 +23,7 @@ type
     peerAvailable: AsyncEvent
     onReservation: OnReservationHandler
     addressMapper: AddressMapper
-    rng: ref HmacDrbgContext
+    rng: Rng
 
 proc isRunning*(self: AutoRelayService): bool =
   return self.running
@@ -160,7 +160,7 @@ proc new*(
     maxNumRelays: int,
     client: RelayClient,
     onReservation: OnReservationHandler,
-    rng: ref HmacDrbgContext,
+    rng: Rng,
 ): T =
   T(
     maxNumRelays: maxNumRelays,

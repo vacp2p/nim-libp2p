@@ -293,7 +293,7 @@ type TorSwitch* = ref object of Switch
 proc new*(
     T: typedesc[TorSwitch],
     torServer: TransportAddress,
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     addresses: seq[MultiAddress] = @[],
     flags: set[ServerFlags] = {},
 ): TorSwitch {.raises: [LPError].} =

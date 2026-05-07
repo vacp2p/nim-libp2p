@@ -68,7 +68,7 @@ proc invalidCertGenerator*(
     kp: KeyPair
 ): CertificateX509 {.gcsafe, raises: [TLSCertificateError].} =
   try:
-    let keyNew = PrivateKey.random(ECDSA, rng[]).get()
+    let keyNew = PrivateKey.random(ECDSA, rng()).get()
     let pubkey = keyNew.getPublicKey().get()
     # invalidKp has pubkey that does not match seckey
     let invalidKp = KeyPair(seckey: kp.seckey, pubkey: pubkey)
@@ -84,7 +84,7 @@ proc createQuicTransport*(
 ): Future[QuicTransport] {.async.} =
   let key =
     if privateKey.isNone:
-      PrivateKey.random(ECDSA, rng[]).tryGet()
+      PrivateKey.random(ECDSA, rng()).tryGet()
     else:
       privateKey.get()
 

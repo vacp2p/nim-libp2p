@@ -16,7 +16,7 @@ suite "KadDHT Switch Builder":
   asyncTest "Build switch with withKademlia":
     var switch1 = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -26,7 +26,7 @@ suite "KadDHT Switch Builder":
 
     var switch2 = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -45,7 +45,7 @@ suite "KadDHT Switch Builder":
   asyncTest "Use Kad as a client only":
     var switch1 = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()
@@ -55,7 +55,7 @@ suite "KadDHT Switch Builder":
 
     var switch2 = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
       .withTcpTransport()
       .withMplex()

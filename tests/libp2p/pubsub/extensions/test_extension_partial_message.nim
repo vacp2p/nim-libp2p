@@ -89,7 +89,7 @@ proc handlePartialMessage(
   ext.onHandleRPC(peerId, RPCMsg(partialMessageExtension: Opt.some(rpc)))
 
 suite "GossipSub Extensions :: Partial Message Extension":
-  let peerId = PeerId.random(rng).get()
+  let peerId = PeerId.random(rng()).get()
   let groupId = "group-id-1".toBytes
 
   test "isSupported":
@@ -278,7 +278,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
         # but in this test this list is ignored because test is publishing to selected peers.
     )
     var ext = PartialMessageExtension.new(cr.config())
-    let selectedPeerId = PeerId.random(rng).get()
+    let selectedPeerId = PeerId.random(rng()).get()
 
     # must subscribe all peers with partial capability
     ext.subscribe(peerId, topic, true)
@@ -327,7 +327,7 @@ suite "GossipSub Extensions :: Partial Message Extension":
     const topic = "logos-partial"
     var cr = CallbackRecorder()
     var ext = PartialMessageExtension.new(cr.config())
-    let publisherPeerId = PeerId.random(rng).get()
+    let publisherPeerId = PeerId.random(rng()).get()
 
     # publisher sent metadata for this group but is not subscribed to the topic
     ext.handlePartialMessage(
@@ -401,8 +401,8 @@ suite "GossipSub Extensions :: Partial Message Extension":
     # the stateOnlyPeer is intentionally not subscribed, it is reached
     # only through groupState.peerState.keys and receives metadata-only.
     const topic = "logos-partial"
-    let publishTargetPeerId = PeerId.random(rng).get()
-    let stateOnlyPeerId = PeerId.random(rng).get()
+    let publishTargetPeerId = PeerId.random(rng()).get()
+    let stateOnlyPeerId = PeerId.random(rng()).get()
     var cr = CallbackRecorder(publishToPeers: @[publishTargetPeerId])
     var ext = PartialMessageExtension.new(cr.config())
 

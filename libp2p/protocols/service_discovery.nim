@@ -58,7 +58,7 @@ proc new*(
     switch: Switch,
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     config: KadDHTConfig = KadDHTConfig.new(),
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     client: bool = false,
     codec: string = ExtendedServiceDiscoveryCodec,
     services: seq[ServiceInfo] = @[],

@@ -1021,7 +1021,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
-    let privateKey = PrivateKey.random(rng[]).get()
+    let privateKey = PrivateKey.random(rng()).get()
     let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
 
@@ -1051,7 +1051,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
-    let privateKey = PrivateKey.random(rng[]).get()
+    let privateKey = PrivateKey.random(rng()).get()
     let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
 
@@ -1092,7 +1092,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
     let serviceId = makeServiceId()
-    let privateKey = PrivateKey.random(rng[]).get()
+    let privateKey = PrivateKey.random(rng()).get()
     let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
 
@@ -1196,7 +1196,7 @@ suite "Service Discovery Registrar - updateExistingAd":
 
   test "higher seqNo replaces ad, updates timestamps and IP tree, returns true":
     let registrar = Registrar.new()
-    let privateKey = PrivateKey.random(rng[]).get()
+    let privateKey = PrivateKey.random(rng()).get()
     let oldAd = makeAdvertisement(privateKey = privateKey, seqNo = 1)
     let newAd = makeAdvertisement(privateKey = privateKey, seqNo = 2)
     var ads = @[oldAd]
@@ -1215,7 +1215,7 @@ suite "Service Discovery Registrar - updateExistingAd":
 
   test "higher seqNo with address swap removes old IP and inserts new one":
     let registrar = Registrar.new()
-    let privateKey = PrivateKey.random(rng[]).get()
+    let privateKey = PrivateKey.random(rng()).get()
     let oldAd = makeAdvertisement(
       privateKey = privateKey, seqNo = 1, addrs = @[makeMultiAddress("10.0.0.1")]
     )
@@ -1235,7 +1235,7 @@ suite "Service Discovery Registrar - updateExistingAd":
 
   test "lower seqNo leaves cache and timestamps unchanged, returns false":
     let registrar = Registrar.new()
-    let privateKey = PrivateKey.random(rng[]).get()
+    let privateKey = PrivateKey.random(rng()).get()
     let currentAd = makeAdvertisement(privateKey = privateKey, seqNo = 10)
     let staleAd = makeAdvertisement(privateKey = privateKey, seqNo = 5)
     var ads = @[currentAd]
