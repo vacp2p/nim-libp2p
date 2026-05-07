@@ -252,7 +252,11 @@ proc markConnected*(addressBook: AddressBook, peerId: PeerId, ma: MultiAddress) 
   ## If the address is not yet in the book it is added.
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(peerId)
-  let idx = entries.findIt(it.address == ma)
+  var idx = -1
+  for i, e in entries:
+    if e.address == ma:
+      idx = i
+      break
   if idx >= 0:
     entries[idx].confidence = max(entries[idx].confidence, AddressConfidence.High)
     entries[idx].lastUpdated = now
@@ -277,7 +281,11 @@ proc extend*(
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(key)
   for ma in addrs:
-    let idx = entries.findIt(it.address == ma)
+    var idx = -1
+    for i, e in entries:
+      if e.address == ma:
+        idx = i
+        break
     if idx >= 0:
       entries[idx].confidence = max(entries[idx].confidence, confidence)
       entries[idx].lastUpdated = now
