@@ -3,7 +3,6 @@
 
 {.used.}
 
-import std/sets
 import chronos, chronicles
 import
   ../../../libp2p/[

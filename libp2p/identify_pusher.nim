@@ -32,8 +32,9 @@ type
 
   IdentifyPusher* = ref object
     identifyPush*: IdentifyPush
-    pushPeers*: HashSet[PeerId]
-    ongoingSend*: seq[PushSendFut]
+    pushPeers: HashSet[PeerId]
+    started: bool
+    ongoingSend: seq[PushSendFut]
     connManager: ConnManager
     peerStore: PeerStore
     peerInfo: PeerInfo
@@ -48,6 +49,9 @@ proc new*(
     peerInfo: PeerInfo,
 ): T =
   T(connManager: connManager, peerStore: peerStore, peerInfo: peerInfo)
+
+proc pushPeers*(p: IdentifyPusher): seq[PeerId] =
+  return p.pushPeers.toSeq()
 
 proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledError]).} =
   let muxer = p.connManager.selectMuxer(peerId)
@@ -80,7 +84,7 @@ proc broadcast*(p: IdentifyPusher) =
   ## connected peer that advertises the IdentifyPush protocol.
   ## Each send runs as a background future; this proc returns immediately
   ## without blocking the caller.
-  if p.identifyPush.isNil:
+  if not p.started:
     return
 
   for peerId in p.pushPeers.toSeq():
@@ -95,6 +99,10 @@ proc start*(p: IdentifyPusher) =
   ## Construct the IdentifyPush protocol and register the connection manager
   ## hooks that maintain `pushPeers`. The caller is responsible for mounting
   ## `p.identifyPush` on a Switch.
+  if p.started:
+    return
+
+  p.started = true
 
   proc onPeerInfoUpdated(peerInfo: PeerInfo) {.gcsafe, raises: [].} =
     p.broadcast()
@@ -129,6 +137,11 @@ proc start*(p: IdentifyPusher) =
 
 proc stop*(p: IdentifyPusher) {.async: (raises: []).} =
   ## Cancel any in-flight pushes and unregister connection manager hooks.
+  if not p.started:
+    return
+
+  p.started = false
+
   if not p.onIdentifiedHandler.isNil:
     p.connManager.removePeerEventHandler(
       p.onIdentifiedHandler, PeerEventKind.Identified

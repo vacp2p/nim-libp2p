@@ -75,7 +75,7 @@ proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
       for observer in p.observers:
         observer(p)
 
-  var newAddrs = await p.expandAddrs()
+  let newAddrs = await p.expandAddrs()
 
   hasChanged = p.addrs.sorted() != newAddrs.sorted()
   p.addrs = newAddrs
