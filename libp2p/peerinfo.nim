@@ -27,7 +27,7 @@ type
   .} ## A proc that expected to resolve the listen addresses into dialable addresses
 
   PeerInfoObserver* = proc(p: PeerInfo) {.gcsafe, raises: [].}
-    ## Invoked after each `PeerInfo.update()`.
+    ## Invoked after `PeerInfo.update()` changes the resolved `addrs`.
 
   PeerInfo* = ref object
     peerId*: PeerId
