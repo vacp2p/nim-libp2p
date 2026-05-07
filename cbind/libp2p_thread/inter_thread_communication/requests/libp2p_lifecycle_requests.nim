@@ -20,9 +20,6 @@ import ../../../../libp2p/protocols/kademlia
 import ../../../../libp2p/protocols/protocol
 import ../../../../libp2p/protocols/service_discovery
 import ../../../../libp2p/protocols/ping
-import ../../../../libp2p/protocols/mix
-import ../../../../libp2p/protocols/mix/mix_protocol
-import ../../../../libp2p/protocols/mix/mix_node
 import ../../../../libp2p/protocols/connectivity/relay/client
 
 type LifecycleMsgType* = enum
@@ -204,14 +201,6 @@ proc mountKad(libp2p: var LibP2P, config: Libp2pConfig) =
       kad = Opt.some(k)
   libp2p.kad = kad
 
-proc mountMix(libp2p: var LibP2P, config: Libp2pConfig) =
-  var mix = Opt.none(MixProtocol)
-  if config.mountMix != 0 and libp2p.mixNodeInfo.isSome:
-    var mixProto = MixProtocol.new(libp2p.mixNodeInfo.get(), libp2p.switch)
-    libp2p.switch.mount(mixProto)
-    mix = Opt.some(mixProto)
-  libp2p.mix = mix
-
 proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
   if config.mountGossipsub != 0:
     libp2p.mountGossipsub(config)
@@ -219,8 +208,6 @@ proc mountProtocols(libp2p: var LibP2P, config: Libp2pConfig) =
     libp2p.mountKad(config)
 
   libp2p.switch.mount(Ping.new(rng = libp2p.rng))
-
-  libp2p.mountMix(config)
 
 proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let dnsServersAddrs =
@@ -299,8 +286,6 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     rng: rng,
     gossipSub: Opt.none(GossipSub),
     kad: Opt.none(KadDHT),
-    mix: Opt.none(MixProtocol),
-    mixNodeInfo: Opt.none(MixNodeInfo),
     relayClient: relayClientOpt,
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
     connections: initTable[ptr Libp2pStream, Connection](),
@@ -318,7 +303,6 @@ proc init*(T: typedesc[Libp2pConfig]): T =
     mountGossipsub: 1,
     gossipsubTriggerSelf: 1,
     mountKad: 1,
-    mountMix: 0,
     mountServiceDiscovery: 0,
     dnsResolver: nil,
     addrs: nil,
@@ -352,7 +336,6 @@ proc copyConfig(config: ptr Libp2pConfig): Libp2pConfig =
   resolved.mountGossipsub = config[].mountGossipsub
   resolved.gossipsubTriggerSelf = config[].gossipsubTriggerSelf
   resolved.mountKad = config[].mountKad
-  resolved.mountMix = config[].mountMix
   resolved.mountServiceDiscovery = config[].mountServiceDiscovery
   resolved.muxer = config[].muxer
   resolved.transport = config[].transport
