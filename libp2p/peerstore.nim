@@ -64,7 +64,8 @@ type
     ttl*: Duration
     lastUpdated: Table[PeerId, Moment]
 
-  ProtoBook* = ref object of SeqPeerBook[string]
+
+
   KeyBook* = ref object of PeerBook[PublicKey]
 
   AgentBook* = ref object of PeerBook[string]
