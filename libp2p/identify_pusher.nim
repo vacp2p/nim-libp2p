@@ -135,7 +135,7 @@ proc start*(p: IdentifyPusher) =
   p.connManager.addPeerEventHandler(onIdentified, PeerEventKind.Identified)
   p.connManager.addPeerEventHandler(onLeft, PeerEventKind.Left)
 
-proc stop*(p: IdentifyPusher) {.async: (raises: []).} =
+proc stop*(p: IdentifyPusher) {.async: (raises: [CancelledError]).} =
   ## Cancel any in-flight pushes and unregister connection manager hooks.
   if not p.started:
     return
@@ -155,7 +155,7 @@ proc stop*(p: IdentifyPusher) {.async: (raises: []).} =
     p.onPeerInfoUpdated = nil
 
   let pending = move(p.ongoingSend)
-  pending.cancelSoon()
+  await pending.cancelAndWait()
 
   p.pushPeers.clear()
   p.identifyPush = nil
