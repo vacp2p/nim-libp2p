@@ -37,18 +37,19 @@ proc nodePeerId*(id: int): PeerId =
 
 # Message Id
 
+const MsgIdLen* = 8
+
 proc extractMsgId*(data: openArray[byte]): uint64 =
-  ## Extract message ID from the first 8 bytes of message data (big-endian u64).
-  fromBytesBE(uint64, data.toOpenArray(0, 7))
+  ## Extract message ID from the first MsgIdLen bytes of message data (big-endian u64).
+  fromBytesBE(uint64, data.toOpenArray(0, MsgIdLen - 1))
 
 proc interopMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =
   ## Message ID provider for interop tests.
-  ## Reads first 8 bytes of message data as big-endian uint64,
-  ## returns base-10 string representation as bytes.
-  if m.data.len < 8:
+  ## The message ID is the raw first MsgIdLen bytes of the message data (big-endian u64),
+  ## matching the wire format used by the go and rust interop binaries.
+  if m.data.len < MsgIdLen:
     return err(ValidationResult.Reject)
-  let id = extractMsgId(m.data)
-  ok(($id).toBytes())
+  ok(MessageId(@(m.data.toOpenArray(0, MsgIdLen - 1))))
 
 # Node
 
