@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/sequtils
+import std/[sequtils, algorithm]
 import pkg/[chronos, chronicles, results]
 import
   peerid,
@@ -65,17 +65,20 @@ proc expandAddrs*(
   var addrs = p.listenAddrs
   for mapper in p.addressMappers:
     addrs = await mapper(addrs)
-  p.addressPolicy.filterAddrs(addrs)
+  addrs = p.addressPolicy.filterAddrs(addrs)
+  return addrs
 
 proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
+  var hasChanged: bool
   defer:
-    for observer in p.observers:
-      observer(p)
+    if hasChanged:
+      for observer in p.observers:
+        observer(p)
 
-  p.addrs = p.listenAddrs
-  for mapper in p.addressMappers:
-    p.addrs = await mapper(p.addrs)
-  p.addrs = p.addressPolicy.filterAddrs(p.addrs)
+  var newAddrs = await p.expandAddrs()
+
+  hasChanged = p.addrs.sorted() != newAddrs.sorted()
+  p.addrs = newAddrs
 
   p.signedPeerRecord = SignedPeerRecord.init(
     p.privateKey, PeerRecord.init(p.peerId, p.addrs)

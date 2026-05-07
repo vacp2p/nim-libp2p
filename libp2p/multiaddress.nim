@@ -79,6 +79,19 @@ proc data*(ma: MultiAddress): VBuffer =
   ## Returns the data buffer of the MultiAddress.
   return ma.data
 
+proc `<`*(a, b: MultiAddress): bool =
+  let bytesA = a.data.buffer
+  let bytesB = b.data.buffer
+
+  if bytesA.len < bytesB.len:
+    return true
+  if bytesA.len > bytesB.len:
+    return false
+
+  for i in 0 ..< bytesA.len:
+    if bytesA[i] != bytesB[i]:
+      return bytesA[i] < bytesB[i]
+
 proc hash*(a: MultiAddress): Hash =
   var h: Hash = 0
   h = h !& hash(a.data.buffer)

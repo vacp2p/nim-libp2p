@@ -79,7 +79,7 @@ suite "PeerInfo":
   test "Observers fire on update":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()
-      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet()]
+      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").get()]
       peerInfo = PeerInfo.new(seckey, multiAddresses)
 
     var
@@ -98,13 +98,23 @@ suite "PeerInfo":
     peerInfo.addObserver(obsB)
     peerInfo.addObserver(nil) # nil guard: must be no-op
 
+    # updated triggers observers initially 
+    # (PeerInfo.new does not set up  `.addrs` property initially)
     waitFor peerInfo.update()
     check:
       callsA == 1
       callsB == 1
       seenAddrs == peerInfo.addrs
+    
+    # updated won't trigger observers since `.addrs ` was not changed
+    waitFor peerInfo.update()
+    check:
+      callsA == 1
+      callsB == 1
 
+    # removed observer is not triggered with new update
     peerInfo.removeObserver(obsA)
+    peerInfo.listenAddrs &= MultiAddress.init("/ip4/0.0.0.0/tcp/25").get()
     waitFor peerInfo.update()
     check:
       callsA == 1
