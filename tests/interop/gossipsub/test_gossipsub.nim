@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, json, stew/[byteutils]
+import chronos, json
 import
   ../../../libp2p/[peerid, protocols/pubsub/gossipsub, protocols/pubsub/rpc/message]
 import ../../../interop/gossipsub/src/[node, instructions]
