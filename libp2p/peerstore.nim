@@ -293,17 +293,16 @@ proc extend*(
   for handler in addressBook.changeHandlers:
     handler(key)
 
-proc pruneExpired*(addressBook: AddressBook): seq[PeerId] =
+proc pruneExpired*(addressBook: AddressBook) =
   ## Remove all per-address entries whose TTL has elapsed.
-  ## Peers whose last address is pruned are deleted from the book and
-  ## returned so the caller can remove them from other books as well.
+  ## Peers whose last address expires are removed from the AddressBook only;
+  ## other peer metadata (keys, protocols, agent version, etc.) is left intact.
   var pending: seq[(PeerId, seq[AddressEntry])]
   for peerId, entries in addressBook.book:
     let alive = entries.filterIt(not it.isExpired(addressBook.ttls))
     if alive.len < entries.len:
       pending.add((peerId, alive))
 
-  var deleted: seq[PeerId]
   for (peerId, alive) in pending:
     if alive.len > 0:
       addressBook.book[peerId] = alive
@@ -311,8 +310,6 @@ proc pruneExpired*(addressBook: AddressBook): seq[PeerId] =
         handler(peerId)
     else:
       discard addressBook.del(peerId)
-      deleted.add(peerId)
-  deleted
 
 ##################
 # Peer Store API #
@@ -356,8 +353,7 @@ proc addressPruneLoop(
     peerStore: PeerStore, interval: Duration
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "AddressBook TTL pruning", interval, sleepFirst = true:
-    for peerId in peerStore[AddressBook].pruneExpired():
-      peerStore.del(peerId)
+    peerStore[AddressBook].pruneExpired()
 
 proc startAddressPruning*(peerStore: PeerStore) =
   ## Start the periodic per-address TTL pruning loop. No-op if already running.

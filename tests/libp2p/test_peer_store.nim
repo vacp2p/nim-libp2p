@@ -133,3 +133,126 @@ suite "PeerStore":
       peerStore.cleanup(randomPeerId)
 
     check peerStore[AgentBook].len == 30
+
+suite "AddressBook TTL / confidence":
+  let
+    keyPair1 = KeyPair.random(ECDSA, rng()).get()
+    peerId1 = PeerId.init(keyPair1.seckey).get()
+    keyPair2 = KeyPair.random(ECDSA, rng()).get()
+    peerId2 = PeerId.init(keyPair2.seckey).get()
+    addr1 = MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get()
+    addr2 = MultiAddress.init("/ip4/5.6.7.8/tcp/5678").get()
+
+  proc makeBook(low, medium, high: Duration): AddressBook =
+    let b = AddressBook.new()
+    b.ttls = AddressConfidenceTtls(low: low, medium: medium, high: high)
+    b
+
+  test "isExpired - Low expires after low TTL":
+    let ttls = AddressConfidenceTtls(low: 1.seconds, medium: 1.hours, high: 24.hours)
+    let entry = AddressEntry(
+      address: addr1,
+      confidence: AddressConfidence.Low,
+      lastUpdated: Moment.now() - 2.seconds,
+    )
+    check entry.isExpired(ttls) == true
+
+  test "isExpired - Low not expired within TTL":
+    let ttls = AddressConfidenceTtls(low: 1.hours, medium: 1.hours, high: 24.hours)
+    let entry = AddressEntry(
+      address: addr1, confidence: AddressConfidence.Low, lastUpdated: Moment.now()
+    )
+    check entry.isExpired(ttls) == false
+
+  test "isExpired - Medium expires after medium TTL":
+    let ttls = AddressConfidenceTtls(low: 1.hours, medium: 1.seconds, high: 24.hours)
+    let entry = AddressEntry(
+      address: addr1,
+      confidence: AddressConfidence.Medium,
+      lastUpdated: Moment.now() - 2.seconds,
+    )
+    check entry.isExpired(ttls) == true
+
+  test "isExpired - High expires after high TTL":
+    let ttls = AddressConfidenceTtls(low: 1.hours, medium: 1.hours, high: 1.seconds)
+    let entry = AddressEntry(
+      address: addr1,
+      confidence: AddressConfidence.High,
+      lastUpdated: Moment.now() - 2.seconds,
+    )
+    check entry.isExpired(ttls) == true
+
+  test "isExpired - Infinite never expires":
+    let ttls = AddressConfidenceTtls(low: 0.seconds, medium: 0.seconds, high: 0.seconds)
+    let entry = AddressEntry(
+      address: addr1,
+      confidence: AddressConfidence.Infinite,
+      lastUpdated: Moment.now() - 365.days,
+    )
+    check entry.isExpired(ttls) == false
+
+  test "pruneExpired removes only expired entries, keeps live ones":
+    let book = makeBook(1.seconds, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.set(peerId1, @[addr2], AddressConfidence.Medium)
+    # Back-date the Low entry so it's expired
+    book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+    book.pruneExpired()
+    let remaining = book[peerId1]
+    check:
+      addr1 notin remaining
+      addr2 in remaining
+
+  test "pruneExpired removes peer from AddressBook when all addresses expire":
+    let book = makeBook(1.seconds, 1.seconds, 1.seconds)
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+    book.pruneExpired()
+    check peerId1 notin book
+
+  test "pruneExpired leaves other PeerStore books intact":
+    let peerStore = PeerStore.new(nil)
+    peerStore[AgentBook][peerId1] = "go-libp2p"
+    peerStore[KeyBook][peerId1] = keyPair1.pubkey
+    peerStore[AddressBook].set(peerId1, @[addr1], AddressConfidence.Low)
+    peerStore[AddressBook].book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+    peerStore[AddressBook].pruneExpired()
+    check:
+      peerId1 notin peerStore[AddressBook]
+      peerStore[AgentBook][peerId1] == "go-libp2p"
+      peerId1 in peerStore[KeyBook]
+
+  test "markConnected upgrades existing address to High confidence":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.markConnected(peerId1, addr1)
+    check book.entries(peerId1)[0].confidence == AddressConfidence.High
+
+  test "markConnected adds address when not already present":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    book.markConnected(peerId1, addr1)
+    let entries = book.entries(peerId1)
+    check:
+      entries.len == 1
+      entries[0].address == addr1
+      entries[0].confidence == AddressConfidence.High
+
+  test "markConnected refreshes lastUpdated so address is not expired":
+    let book = makeBook(1.seconds, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
+    # Entry is expired as Low; markConnected should refresh it
+    book.markConnected(peerId1, addr1)
+    check not book.entries(peerId1)[0].isExpired(book.ttls)
+
+  test "set does not downgrade High confidence to Low":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1], AddressConfidence.High)
+    book.set(peerId1, @[addr1], AddressConfidence.Low)
+    check book.entries(peerId1)[0].confidence == AddressConfidence.High
+
+  test "extend does not downgrade existing confidence":
+    let book = makeBook(1.hours, 1.hours, 24.hours)
+    book.set(peerId1, @[addr1], AddressConfidence.High)
+    book.extend(peerId1, @[addr1], AddressConfidence.Low)
+    check book.entries(peerId1)[0].confidence == AddressConfidence.High
