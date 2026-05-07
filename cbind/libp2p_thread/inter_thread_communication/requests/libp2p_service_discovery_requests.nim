@@ -67,9 +67,9 @@ proc process*(
   of SD_STOP_ADVERTISING:
     await disco.stopAdvertising($self[].serviceId)
   of SD_START_DISCOVERING:
-    discard disco.startDiscovering($self[].serviceId)
+    discard disco.startDiscovering(ServiceInfo(id: $self[].serviceId))
   of SD_STOP_DISCOVERING:
-    disco.stopDiscovering($self[].serviceId)
+    await disco.stopDiscovering(ServiceInfo(id: $self[].serviceId))
   of SD_LOOKUP:
     raiseAssert "unsupported path, use processLookup"
 
