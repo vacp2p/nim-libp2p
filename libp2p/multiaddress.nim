@@ -947,7 +947,7 @@ proc init*(
 
 proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   ## Initialize empty MultiAddress.
-  result.data = initVBuffer(256) # should be enough to accomodate any multiaddress 
+  result.data = initVBuffer(256) # initial capacity for typical multiaddresses
 
 proc init*(
     mtype: typedesc[MultiAddress],
