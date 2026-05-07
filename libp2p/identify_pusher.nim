@@ -139,6 +139,7 @@ proc stop*(p: IdentifyPusher) {.async: (raises: []).} =
     p.onLeftHandler = nil
   if not p.onPeerInfoUpdated.isNil:
     p.peerInfo.removeObserver(p.onPeerInfoUpdated)
+    p.onPeerInfoUpdated = nil
 
   let pending = move(p.ongoingSend)
   pending.cancelSoon()
