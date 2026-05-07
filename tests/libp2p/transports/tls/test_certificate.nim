@@ -13,7 +13,7 @@ suite "Certificate roundtrip tests":
   test "generate then parse with DER ecoding":
     let schemes = @[Ed25519, Secp256k1, ECDSA]
     for scheme in schemes:
-      let keypair = KeyPair.random(scheme, rng[]).tryGet()
+      let keypair = KeyPair.random(scheme, rng()).tryGet()
       let peerId = PeerId.init(keypair.pubkey).tryGet()
 
       let certX509 = generateX509(keypair, encodingFormat = EncodingFormat.DER)
@@ -24,7 +24,7 @@ suite "Certificate roundtrip tests":
         cert.verify()
 
   test "gnerate with invalid validity time":
-    let keypair = KeyPair.random(Ed25519, rng[]).tryGet()
+    let keypair = KeyPair.random(Ed25519, rng()).tryGet()
 
     # past
     var validFrom = (now() - 3.days).toTime()
@@ -118,7 +118,7 @@ suite "utilities test":
     check 157766400 == dt.toUnix()
 
   test "KeyPair to cert_key_t":
-    let key = KeyPair.random(PKScheme.RSA, rng[]).get()
+    let key = KeyPair.random(PKScheme.RSA, rng()).get()
 
     let rawSeckey: seq[byte] = key.seckey.getRawBytes.valueOr:
       raiseAssert "Failed to get seckey raw bytes (DER)"

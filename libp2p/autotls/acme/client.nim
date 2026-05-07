@@ -27,13 +27,13 @@ when defined(libp2p_autotls_support):
 
   proc new*(
       T: typedesc[ACMEClient],
-      rng: ref HmacDrbgContext,
+      rng: Rng,
       api: ACMEApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURL)),
       key: Opt[KeyPair] = Opt.none(KeyPair),
       kid: Kid = Kid(""),
   ): T {.raises: [].} =
     let key = key.valueOr:
-      KeyPair.random(PKScheme.RSA, rng[]).get()
+      KeyPair.random(PKScheme.RSA, rng).get()
     T(api: api, key: key, kid: kid)
 
   proc getOrInitKid*(
