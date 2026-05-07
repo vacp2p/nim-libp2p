@@ -31,7 +31,7 @@ type
     bandwidthTracking: BandwidthTracking
 
   PreambleExtension* = ref object of Extension
-    rng: ref HmacDrbgContext
+    rng: Rng
     config: PreambleExtensionConfig
     supportingPeers: seq[PeerId]
     preambleBudgetUsed: Table[PeerId, int]
@@ -58,9 +58,7 @@ proc doAssert(config: PreambleExtensionConfig) =
   )
 
 proc new*(
-    T: typedesc[PreambleExtension],
-    config: PreambleExtensionConfig,
-    rng: ref HmacDrbgContext,
+    T: typedesc[PreambleExtension], config: PreambleExtensionConfig, rng: Rng
 ): PreambleExtension =
   config.doAssert()
   PreambleExtension(rng: rng, config: config)

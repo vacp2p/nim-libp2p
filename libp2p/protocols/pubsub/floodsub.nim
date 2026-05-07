@@ -236,6 +236,6 @@ method publish*(
 method initPubSub*(f: FloodSub) {.raises: [InitializationError].} =
   procCall PubSub(f).initPubSub()
   f.seen = TimedCache[SaltedId].init(2.minutes)
-  hmacDrbgGenerate(f.rng[], f.seenSalt)
+  f.rng.generate(f.seenSalt)
 
   f.init()

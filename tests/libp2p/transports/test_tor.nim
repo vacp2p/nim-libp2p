@@ -160,7 +160,7 @@ suite "Tor transport":
       )
       .tryGet()
 
-    let serverSwitch = TorSwitch.new(torServer, rng, @[ma], {ReuseAddr})
+    let serverSwitch = TorSwitch.new(torServer, rng(), @[ma], {ReuseAddr})
 
     # setup the custom proto
     let testProto = TestProto.new()
@@ -173,7 +173,7 @@ suite "Tor transport":
 
     proc startClient() {.async.} =
       let clientSwitch =
-        TorSwitch.new(torServer = torServer, rng = rng, flags = {ReuseAddr})
+        TorSwitch.new(torServer = torServer, rng = rng(), flags = {ReuseAddr})
 
       let conn = await clientSwitch.dial(serverPeerId, serverAddress, TestCodec)
 
@@ -190,7 +190,8 @@ suite "Tor transport":
     await serverSwitch.stop()
 
   test "It's not possible to add another transport in TorSwitch":
-    let torSwitch = TorSwitch.new(torServer = torServer, rng = rng, flags = {ReuseAddr})
+    let torSwitch =
+      TorSwitch.new(torServer = torServer, rng = rng(), flags = {ReuseAddr})
     expect(AssertionDefect):
       torSwitch.addTransport(TcpTransport.new(upgrade = Upgrade()))
     waitFor torSwitch.stop()

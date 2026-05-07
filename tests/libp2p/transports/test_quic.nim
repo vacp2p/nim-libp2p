@@ -14,7 +14,7 @@ import ./utils
 
 proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   try:
-    return QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, rng[]).tryGet())
+    return QuicTransport.new(Upgrade(), PrivateKey.random(ECDSA, rng()).tryGet())
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
@@ -120,7 +120,7 @@ suite "Quic transport":
     let addr1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get()
     let addr2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get()
 
-    let key = PrivateKey.random(ECDSA, rng[]).tryGet()
+    let key = PrivateKey.random(ECDSA, rng()).tryGet()
     let server = QuicTransport.new(Upgrade(), key)
     await server.start(@[addr1, addr2])
     defer:
@@ -171,7 +171,7 @@ suite "Quic transport":
 
   asyncTest "peer ID extraction from certificate":
     # Create server with known private key
-    let serverPrivateKey = PrivateKey.random(ECDSA, rng[]).tryGet()
+    let serverPrivateKey = PrivateKey.random(ECDSA, rng()).tryGet()
     let expectedPeerId = PeerId.init(serverPrivateKey).tryGet()
 
     let server = await createQuicTransport(

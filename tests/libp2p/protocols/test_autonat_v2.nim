@@ -26,7 +26,7 @@ proc setupAutonat(
     src = newStandardSwitchBuilder(addrs = srcAddrs, rng = rng()).build()
     dst =
       newStandardSwitchBuilder(rng = rng()).withAutonatV2Server(config = config).build()
-    client = AutonatV2Client.new(rng)
+    client = AutonatV2Client.new(rng())
 
   client.setup(src)
   src.mount(client)
@@ -272,7 +272,7 @@ suite "AutonatV2":
     let
       src = newStandardSwitchBuilder(rng = rng()).build()
       dst = newStandardSwitchBuilder(rng = rng()).build()
-      client = AutonatV2Client.new(rng)
+      client = AutonatV2Client.new(rng())
       autonatV2Mock = AutonatV2Mock.new()
       reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
 

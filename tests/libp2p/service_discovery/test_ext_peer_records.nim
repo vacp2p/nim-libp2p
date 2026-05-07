@@ -12,7 +12,7 @@ import ../../tools/[unittest, crypto]
 suite "Extended peer record":
   test "Encoding roundtrip test":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
@@ -45,7 +45,7 @@ suite "Extended peer record":
 suite "Signed Extended Peer Record":
   test "Encoding roundtrip test":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
@@ -68,8 +68,8 @@ suite "Signed Extended Peer Record":
 
   test "Can't use mismatched public key":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
-      privKey2 = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
+      privKey2 = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
@@ -90,7 +90,7 @@ suite "Signed Extended Peer Record":
 
   test "Decode doesn't fail if some addresses are invalid":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses =
         @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
@@ -106,7 +106,7 @@ suite "Signed Extended Peer Record":
 
   test "Decode doesn't fail if there are no addresses":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = newSeq[MultiAddress]()
       services = @[ServiceInfo(id: "test_service", data: @[])]
@@ -121,7 +121,7 @@ suite "Signed Extended Peer Record":
 
   test "Decode fails if all addresses are invalid":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses = @[MultiAddress(), MultiAddress()]
       services = @[ServiceInfo(id: "test_service", data: @[])]
@@ -131,7 +131,7 @@ suite "Signed Extended Peer Record":
 
   test "Decode doesn't fail if there are no services":
     let
-      privKey = PrivateKey.random(rng[]).tryGet()
+      privKey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(privKey).tryGet()
       multiAddresses =
         @[MultiAddress(), MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet()]
