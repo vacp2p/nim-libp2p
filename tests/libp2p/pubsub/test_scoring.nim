@@ -371,7 +371,7 @@ suite "GossipSub Scoring":
       check:
         stats.slowPeerPenalty == expectedRetainedPenalty
 
-  asyncTest "Default slow peer penalty settings apply a mild penalty above threshold":
+  asyncTest "Default slow peer penalty settings do not affect score":
     let (gossipSub, conns, peers) = setupGossipSubWithPeers(1, topic)
     defer:
       await teardownGossipSub(gossipSub, conns)
@@ -385,7 +385,7 @@ suite "GossipSub Scoring":
       expectedDecayedPenalty = initialPenalty * slowPeerPenaltyDecay
 
     check:
-      defaultWeight == -0.05
+      defaultWeight == 0.0
       defaultThreshold == 2.0
 
     gossipSub.parameters.slowPeerPenaltyDecay = slowPeerPenaltyDecay

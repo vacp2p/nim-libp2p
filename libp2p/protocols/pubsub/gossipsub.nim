@@ -90,7 +90,7 @@ proc init*(
     appSpecificWeight = 0.0,
     ipColocationFactorWeight = 0.0,
     ipColocationFactorThreshold = 1.0,
-    slowPeerPenaltyWeight = -0.05,
+    slowPeerPenaltyWeight = 0.0,
     slowPeerPenaltyThreshold = 2.0,
     slowPeerPenaltyDecay = 0.2,
     behaviourPenaltyWeight = -1.0,
