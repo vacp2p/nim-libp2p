@@ -105,7 +105,7 @@ suite "PeerInfo":
       callsA == 1
       callsB == 1
       seenAddrs == peerInfo.addrs
-    
+
     # updated won't trigger observers since `.addrs ` was not changed
     waitFor peerInfo.update()
     check:
