@@ -5,13 +5,16 @@
 import chronos, results, std/[sequtils, tables]
 import
   ../../../../libp2p/[
+    peerid,
+    protocols/kademlia/types,
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
     protocols/service_discovery/discoverer,
+    protocols/service_discovery/routing_table_manager,
     protocols/service_discovery/types,
     switch,
   ]
-import ../../../tools/[lifecycle, unittest]
+import ../../../tools/[lifecycle, unittest, topology]
 import ../utils
 
 suite "Service Discovery Component - Advertise Discover":
@@ -73,3 +76,88 @@ suite "Service Discovery Component - Advertise Discover":
 
     discovererNode.stopDiscovering(service.id)
     check not discovererNode.rtManager.hasService(serviceId)
+
+  asyncTest "two advertisers register the same service - both discoverable":
+    # Multiple advertisers at the same registrar use overlapping IPs in tests,
+    # which would otherwise drive the second admission's wait time above the
+    # 30s checkUntilTimeout. Disable IP similarity for this happy-path test.
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, ipSimCoefficient = 0.0)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserA = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserB = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrarNode, advertiserA, advertiserB, discovererNode])
+
+    await connectHub(registrarNode, @[advertiserA, advertiserB, discovererNode])
+
+    let service = makeServiceInfo("shared-service")
+    let serviceId = service.id.hashServiceId()
+
+    advertiserA.addProvidedService(service)
+    advertiserB.addProvidedService(service)
+
+    checkUntilTimeout:
+      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len == 2
+
+    let found = await discovererNode.lookup(serviceId)
+    check:
+      found.get().len == 2
+      found.get().anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId)
+      found.get().anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
+
+  asyncTest "one advertiser provides two services - both discoverable":
+    # TODO: vacp2p/nim-libp2p#2430 service-disco: multi-service registration from one peer trips Sybil protection
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, ipSimCoefficient = 0.0)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
+
+    await connectHub(registrarNode, @[advertiserNode, discovererNode])
+
+    let svcA = makeServiceInfo("service-A")
+    let svcB = makeServiceInfo("service-B")
+    let svcAId = svcA.id.hashServiceId()
+    let svcBId = svcB.id.hashServiceId()
+
+    advertiserNode.addProvidedService(svcA)
+    advertiserNode.addProvidedService(svcB)
+
+    checkUntilTimeout:
+      registrarNode.registrar.cache.getOrDefault(svcAId, @[]).len == 1 and
+        registrarNode.registrar.cache.getOrDefault(svcBId, @[]).len == 1
+
+    let foundA = await discovererNode.lookup(svcAId)
+    let foundB = await discovererNode.lookup(svcBId)
+    check:
+      foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
+      foundA.get().len == 1
+      foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
+      # TODO: vacp2p/nim-libp2p#2431 service-disco: lookup returns duplicates when multiple queried peers hold the same ad
+      foundB.get().len == 2
+
+  asyncTest "advertiser learns closer peers from REGISTER reply":
+    # The registrar's REGISTER reply carries closerPeers.
+    # The advertiser must add them to the service-specific routing table so
+    # subsequent rounds can reach beyond the initially known registrar.
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let otherNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[advertiserNode, registrarNode, otherNode])
+
+    # The registrar already knows the otherNode, the advertiser does not.
+    await connect(registrarNode, otherNode)
+    await connect(registrarNode, advertiserNode)
+
+    let service = makeServiceInfo("service-A")
+    let serviceId = service.id.hashServiceId()
+
+    advertiserNode.addProvidedService(service)
+
+    let otherKey = otherNode.switch.peerInfo.peerId.toKey()
+    checkUntilTimeout:
+      advertiserNode.rtManager.getTable(serviceId).get().buckets.anyIt(
+        it.peers.anyIt(it.nodeId == otherKey)
+      )
+ 
