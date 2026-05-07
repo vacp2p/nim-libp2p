@@ -239,8 +239,9 @@ suite "PeerStore":
   asyncTest "AddressBook TTL - change handler fires on expiry":
     let peerStore = PeerStore.new(nil, addressTtl = 10.milliseconds)
     var changed = false
-    peerStore[AddressBook].addHandler(proc(pid: PeerId) {.gcsafe.} =
-      changed = true
+    peerStore[AddressBook].addHandler(
+      proc(pid: PeerId) {.gcsafe.} =
+        changed = true
     )
     peerStore[AddressBook][peerId1] = @[multiaddr1]
     changed = false # Reset after the set
