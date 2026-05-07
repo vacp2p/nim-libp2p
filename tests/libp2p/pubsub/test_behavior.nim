@@ -149,8 +149,8 @@ suite "GossipSub Behavior":
 
     # And some peers have signed peer records in the SPRBook
     let
-      mockPrivKey0 = PrivateKey.random(ECDSA, rng[]).tryGet()
-      mockPrivKey2 = PrivateKey.random(ECDSA, rng[]).tryGet()
+      mockPrivKey0 = PrivateKey.random(ECDSA, rng()).tryGet()
+      mockPrivKey2 = PrivateKey.random(ECDSA, rng()).tryGet()
       mockAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
       peerRecord0 = PeerRecord.init(peers[0].peerId, @[mockAddr], 1)
       peerRecord2 = PeerRecord.init(peers[2].peerId, @[mockAddr], 1)

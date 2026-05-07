@@ -23,8 +23,8 @@ suite "PeerID Auth":
     checkTrackers()
 
   asyncSetup:
-    client = PeerIDAuthClient.new(rng)
-    peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng[]).get())
+    client = PeerIDAuthClient.new(rng())
+    peerInfo = PeerInfo.new(PrivateKey.random(PKScheme.RSA, rng()).get())
 
   asyncTest "test peerID send":
     let payload = %*{

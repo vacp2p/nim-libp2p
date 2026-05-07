@@ -72,7 +72,7 @@ proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] 
 
 type Node = tuple[switch: Switch, gossip: GossipSub, hostname: string]
 
-proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
+proc oneNode(node: Node, rng: Rng) {.async.} =
   # This procedure will handle one of the node of the network
   node.gossip.addValidator(
     ["metrics"],
@@ -104,10 +104,10 @@ proc oneNode(node: Node, rng: ref HmacDrbgContext) {.async.} =
   for _ in 0 ..< 10:
     await sleepAsync(500.milliseconds)
     var metricList = MetricList(hostname: node.hostname)
-    let metricCount = rng[].generate(uint32) mod 4
+    let metricCount = rng.generate(uint32) mod 4
     for i in 0 ..< metricCount + 1:
       metricList.metrics.add(
-        Metric(name: "metric_" & $i, value: float(rng[].generate(uint16)) / 1000.0)
+        Metric(name: "metric_" & $i, value: float(rng.generate(uint16)) / 1000.0)
       )
 
     discard await node.gossip.publish("metrics", encode(metricList).buffer)

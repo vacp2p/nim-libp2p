@@ -25,7 +25,7 @@ proc createSwitch(
 ): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(rng)
+    .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
     .withTcpTransport()
     .withMaxConnsPerPeer(maxConnsPerPeer)
@@ -105,7 +105,7 @@ proc newService(
         ),
         expectedDials = expectedDials,
       )
-  (AutonatV2Service.new(rng, client = client, config = config), client)
+  (AutonatV2Service.new(rng(), client = client, config = config), client)
 
 const AutonatV2ReachabilityConfidenceMetric =
   "libp2p_autonat_v2_reachability_confidence"

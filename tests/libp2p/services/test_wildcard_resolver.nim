@@ -30,7 +30,7 @@ proc getAddressesMock(
 proc createSwitch(svc: Service, addrs: seq[MultiAddress]): Switch =
   SwitchBuilder
     .new()
-    .withRng(rng)
+    .withRng(rng())
     .withAddresses(addrs, false)
     .withTcpTransport()
     .withMplex()

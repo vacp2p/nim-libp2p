@@ -58,7 +58,7 @@ suite "KadDHT XOR Distance":
 
 suite "Key conversion":
   test "PeerId to DHT Key extracts multihash bytes":
-    let peerId = PeerId.init(KeyPair.random(ECDSA, rng[]).get().pubkey).get()
+    let peerId = PeerId.init(KeyPair.random(ECDSA, rng()).get().pubkey).get()
 
     let key = peerId.toKey()
 

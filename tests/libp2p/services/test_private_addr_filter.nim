@@ -101,7 +101,7 @@ suite "KadDHT updatePeers address policy":
   test "updatePeers stores all addresses with default policy":
     let switch = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")])
       .withTcpTransport()
       .withMplex()
@@ -129,7 +129,7 @@ suite "KadDHT updatePeers address policy":
   test "updatePeers filters private addresses when addressPolicy is set":
     let switch = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")])
       .withTcpTransport()
       .withMplex()
@@ -155,7 +155,7 @@ suite "KadDHT updatePeers address policy":
   test "updatePeers does not add peer to AddressBook when all addresses filtered":
     let switch = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")])
       .withTcpTransport()
       .withMplex()
@@ -183,7 +183,7 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
     # The filter should remove it, leaving no announced addresses.
     let switch = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")], false)
       # disable wildcard resolver
       .withTcpTransport()
@@ -203,7 +203,7 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
     let publicAddr = ma("/ip4/1.2.3.4/tcp/4001")
     let switch = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")], false)
       .withTcpTransport()
       .withMplex()
@@ -227,7 +227,7 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
     # Without calling withPrivateAddressFilter, private addresses pass through
     let switch = SwitchBuilder
       .new()
-      .withRng(rng)
+      .withRng(rng())
       .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")], false)
       .withTcpTransport()
       .withMplex()
