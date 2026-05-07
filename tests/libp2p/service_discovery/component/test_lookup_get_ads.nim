@@ -10,6 +10,7 @@ import
     protocols/service_discovery/registrar,
     protocols/service_discovery/types,
     switch,
+    extended_peer_record,
   ]
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]

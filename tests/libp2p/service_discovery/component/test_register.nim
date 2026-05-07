@@ -5,7 +5,7 @@
 import chronos, results
 import
   ../../../../libp2p/
-    [protocols/service_discovery/advertiser, protocols/service_discovery/types, switch]
+    [protocols/service_discovery/advertiser, protocols/service_discovery/types, switch, extended_peer_record]
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils

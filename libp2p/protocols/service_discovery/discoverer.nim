@@ -161,7 +161,10 @@ proc fetchRemoteAds(
   var found = newSeqOfCap[Advertisement](limit)
   var addedLocal = not includeLocal
 
-  for bucket in searchTable.buckets:
+  # snapshot buckets: insertCloserPeers (called during await) can add
+  # new buckets to the live RoutingTable ref, invalidating the iterator
+  let buckets = searchTable.buckets
+  for bucket in buckets:
     if found.len >= limit:
       break
 
