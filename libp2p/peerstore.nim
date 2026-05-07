@@ -90,6 +90,7 @@ type
 
   KeyBook* = ref object of PeerBook[PublicKey]
 
+  ProtoBook* = ref object of SeqPeerBook[string]
   AgentBook* = ref object of PeerBook[string]
   LastSeenBook* = ref object of PeerBook[Opt[MultiAddress]]
   LastSeenOutboundBook* = ref object of PeerBook[Opt[MultiAddress]]
@@ -115,7 +116,7 @@ const defaultAddressConfidenceTtls* =
 
 proc new*(
     Self: type PeerStore,
-    identify: Identify,
+    identify: Identify = nil,
     capacity = 1000,
     addressTtls = defaultAddressConfidenceTtls,
 ): PeerStore =
@@ -198,11 +199,7 @@ proc set*(
 
   var newEntries = newSeqOfCap[AddressEntry](addrs.len)
   for ma in addrs:
-    let conf =
-      if ma in prevConf:
-        max(prevConf[ma], confidence)
-      else:
-        confidence
+    let conf = max(prevConf.getOrDefault(ma, confidence), confidence)
     newEntries.add(AddressEntry(address: ma, confidence: conf, lastUpdated: now))
 
   if newEntries.len > 0:
@@ -269,11 +266,10 @@ proc extend*(
   for i, entry in entries:
     idxByAddr[entry.address] = i
   for ma in addrs:
-    if ma in idxByAddr:
-      let idx = idxByAddr[ma]
-      entries[idx].confidence = max(entries[idx].confidence, confidence)
-      entries[idx].lastUpdated = now
-    else:
+    idxByAddr.withValue(ma, idxPtr):
+      entries[idxPtr[]].confidence = max(entries[idxPtr[]].confidence, confidence)
+      entries[idxPtr[]].lastUpdated = now
+    do:
       entries.add(AddressEntry(address: ma, confidence: confidence, lastUpdated: now))
   if entries.len > 0:
     addressBook.book[key] = entries
@@ -300,13 +296,6 @@ proc pruneExpired*(addressBook: AddressBook): seq[PeerId] =
     discard addressBook.del(peerId)
   toDelete
 
-proc addressPruneLoop(
-    peerStore: PeerStore, interval: Duration
-) {.async: (raises: [CancelledError]).} =
-  heartbeat "AddressBook TTL pruning", interval, sleepFirst = true:
-    for peerId in peerStore[AddressBook].pruneExpired():
-      peerStore.del(peerId)
-
 ##################
 # Peer Store API #
 ##################
@@ -327,19 +316,6 @@ proc `[]`*(p: PeerStore, _: type[AddressBook]): AddressBook =
     p.books[name] = book
   book
 
-proc startAddressPruning*(peerStore: PeerStore) =
-  ## Start the periodic per-address TTL pruning loop. No-op if already running.
-  ## The loop fires at the Low-confidence TTL interval (shortest possible expiry).
-  if not peerStore.pruneHandle.isNil:
-    return
-  peerStore.pruneHandle = addressPruneLoop(peerStore, peerStore.addressTtls.low)
-
-proc close*(peerStore: PeerStore) =
-  ## Cancel the background TTL-pruning loop, if running.
-  if not peerStore.pruneHandle.isNil:
-    peerStore.pruneHandle.cancelSoon()
-    peerStore.pruneHandle = nil
-
 proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   ## Get a book from the PeerStore (ex: peerStore[AddressBook])
   let name = getTypeName(T)
@@ -357,6 +333,26 @@ proc del*(peerStore: PeerStore, peerId: PeerId) =
   ## Delete the provided peer from every book.
   for _, book in peerStore.books:
     book.deletor(peerId)
+
+proc addressPruneLoop(
+    peerStore: PeerStore, interval: Duration
+) {.async: (raises: [CancelledError]).} =
+  heartbeat "AddressBook TTL pruning", interval, sleepFirst = true:
+    for peerId in peerStore[AddressBook].pruneExpired():
+      peerStore.del(peerId)
+
+proc startAddressPruning*(peerStore: PeerStore) =
+  ## Start the periodic per-address TTL pruning loop. No-op if already running.
+  ## The loop fires at the Low-confidence TTL interval (shortest possible expiry).
+  if not peerStore.pruneHandle.isNil:
+    return
+  peerStore.pruneHandle = addressPruneLoop(peerStore, peerStore.addressTtls.low)
+
+proc close*(peerStore: PeerStore) =
+  ## Cancel the background TTL-pruning loop, if running.
+  if not peerStore.pruneHandle.isNil:
+    peerStore.pruneHandle.cancelSoon()
+    peerStore.pruneHandle = nil
 
 proc updatePeerInfo*(
     peerStore: PeerStore,

@@ -4,6 +4,7 @@
 {.used.}
 
 import std/[tables, sequtils]
+import chronos
 import ../../libp2p/[crypto/crypto, multiaddress, peerid, peerstore]
 import ../tools/[unittest, crypto]
 
@@ -73,7 +74,7 @@ suite "PeerStore":
 
     check:
       toSeq(keys(addressBook.book))[0] == peerId1
-      toSeq(values(addressBook.book))[0] == @[multiaddr1]
+      addressBook[peerId1] == @[multiaddr1]
 
     # Test AddressBook::get
     check:
@@ -94,7 +95,7 @@ suite "PeerStore":
     addressBook[peerId2] = @[multiaddr1, multiaddr2]
     check:
       toSeq(keys(addressBook.book))[0] == peerId2
-      toSeq(values(addressBook.book))[0] == @[multiaddr1, multiaddr2]
+      addressBook[peerId2] == @[multiaddr1, multiaddr2]
 
   test "Pruner - no capacity":
     let peerStore = PeerStore.new(nil, capacity = 0)
