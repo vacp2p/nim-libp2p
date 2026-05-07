@@ -746,9 +746,6 @@ proc toString*(value: MultiAddress): MaResult[string] =
         else:
           res.add('/')
           res.add(part)
-    # Marker has no value
-  if len(res) == 0:
-    res.add('/')
   ok(res)
 
 proc `$`*(value: MultiAddress): string =
@@ -947,7 +944,7 @@ proc init*(
 
 proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   ## Initialize empty MultiAddress.
-  result.data = initVBuffer(256) # initial capacity for typical multiaddresses
+  result.data = initVBuffer(256) # should be enough to accomodate any multiaddress 
 
 proc init*(
     mtype: typedesc[MultiAddress],
@@ -1023,9 +1020,7 @@ proc isEmpty*(ma: MultiAddress): bool =
 proc concat*(m1, m2: MultiAddress): MaResult[MultiAddress] =
   var res: MultiAddress
   res.data = initVBuffer(len(m1.data.buffer) + len(m2.data.buffer))
-  res.data.writeSeq(m1.data.buffer)
-  res.data.writeSeq(m2.data.buffer)
-  res.data.finish()
+  res.data.buffer = m1.data.buffer & m2.data.buffer
   ok(res)
 
 proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
