@@ -42,9 +42,9 @@ proc initVBuffer*(data: openArray[byte], offset = 0): VBuffer =
     copyMem(addr result.buffer[0], unsafeAddr data[0], len(data))
   result.offset = offset
 
-proc initVBuffer*(): VBuffer =
+proc initVBuffer*(cap: int = 128): VBuffer =
   ## Initialize empty VBuffer.
-  result.buffer = newSeqOfCap[byte](128)
+  result.buffer = newSeqOfCap[byte](cap)
 
 proc writePBVarint*(vb: var VBuffer, value: PBSomeUVarint) =
   ## Write ``value`` as variable unsigned integer.
