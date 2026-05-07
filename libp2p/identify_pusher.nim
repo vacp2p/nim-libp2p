@@ -77,7 +77,7 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
     trace "stream error during identify push", peerId, description = e.msg
   finally:
     if not stream.isNil:
-      await stream.closeWithEOF()
+      await noCancel stream.closeWithEOF()
 
 proc broadcast*(p: IdentifyPusher) =
   ## Send an IdentifyPush message with our current `peerInfo` to every
@@ -155,7 +155,7 @@ proc stop*(p: IdentifyPusher) {.async: (raises: [CancelledError]).} =
     p.onPeerInfoUpdated = nil
 
   let pending = move(p.ongoingSend)
-  await pending.cancelAndWait()
+  await noCancel pending.cancelAndWait()
 
   p.pushPeers.clear()
   p.identifyPush = nil
