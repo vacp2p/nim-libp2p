@@ -261,4 +261,8 @@ proc readFieldInto*(
     header: FieldHeader,
     ProtoType: type ProtobufExt,
 ): bool {.raises: [SerializationError, IOError].} =
-  readFieldInto(stream, value.data, header, pbytes)
+  var data = default(seq[byte])
+  if readFieldInto(stream, data, header, pbytes):
+    value.init(data)
+  else:
+    false
