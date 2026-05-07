@@ -362,6 +362,8 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   await s.ms.stop()
 
+  s.peerStore.close()
+
   trace "Switch stopped"
 
 proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
@@ -412,6 +414,8 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   await s.peerInfo.update()
   await s.ms.start()
   s.started = true
+
+  s.peerStore.startAddressPruning()
 
   debug "Started libp2p node", peer = s.peerInfo
 

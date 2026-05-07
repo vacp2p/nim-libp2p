@@ -90,6 +90,8 @@ method dialAndUpgrade*(
 
       doAssert not isNil(mux), "connection died after upgrade " & $dialed.dir
       debug "Dial successful", peerId = mux.connection.peerId
+      if mux.connection.peerId != default(PeerId):
+        self.peerStore[AddressBook].markConnected(mux.connection.peerId, addrs)
       return mux
   return nil
 
