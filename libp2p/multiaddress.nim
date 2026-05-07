@@ -1023,7 +1023,9 @@ proc isEmpty*(ma: MultiAddress): bool =
 proc concat*(m1, m2: MultiAddress): MaResult[MultiAddress] =
   var res: MultiAddress
   res.data = initVBuffer(len(m1.data.buffer) + len(m2.data.buffer))
-  res.data.buffer = m1.data.buffer & m2.data.buffer
+  res.data.writeSeq(m1.data.buffer)
+  res.data.writeSeq(m2.data.buffer)
+  res.data.finish()
   ok(res)
 
 proc append*(m1: var MultiAddress, m2: MultiAddress): MaResult[void] =
