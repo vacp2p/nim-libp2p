@@ -64,8 +64,6 @@ type
     ttl*: Duration
     lastUpdated: Table[PeerId, Moment]
 
-
-
   KeyBook* = ref object of PeerBook[PublicKey]
 
   AgentBook* = ref object of PeerBook[string]
