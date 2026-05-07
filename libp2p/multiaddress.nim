@@ -1047,7 +1047,7 @@ proc `<`*(a, b: MultiAddress): bool =
   for i in 0 ..< bytesA.len:
     if bytesA[i] != bytesB[i]:
       return bytesA[i] < bytesB[i]
-    
+
 proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
   var empty: seq[MultiCodec]
   var pcs = protos

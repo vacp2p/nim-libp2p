@@ -35,7 +35,7 @@ template newFutureCompleted*[T](): auto =
   fut.complete()
   fut
 
-template cancelAndWait*[T](futs: seq[T]): auto =  
+template cancelAndWait*[T](futs: seq[T]): auto =
   var cancelFuts = newSeqOfCap[Future[void]](futs.len)
   for fut in futs:
     cancelFuts.add(fut.cancelAndWait())
