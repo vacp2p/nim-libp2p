@@ -27,7 +27,7 @@ suite "PeerStore":
 
   test "PeerStore API":
     # Set up peer store
-    var peerStore = PeerStore.new()
+    var peerStore = PeerStore.new(nil)
 
     peerStore[AddressBook][peerId1] = @[multiaddr1]
     peerStore[AddressBook][peerId2] = @[multiaddr2]
@@ -46,7 +46,7 @@ suite "PeerStore":
   test "PeerStore listeners":
     # Set up peer store with listener
     var
-      peerStore = PeerStore.new()
+      peerStore = PeerStore.new(nil)
       addrChanged = false
 
     proc addrChange(peerId: PeerId) {.gcsafe.} =
@@ -66,7 +66,7 @@ suite "PeerStore":
 
   test "PeerBook API":
     # Set up address book
-    var addressBook = PeerStore.new()[AddressBook]
+    var addressBook = PeerStore.new(nil)[AddressBook]
 
     # Test AddressBook::add
     addressBook[peerId1] = @[multiaddr1]

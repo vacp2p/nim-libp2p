@@ -5,9 +5,6 @@
 runnableExamples:
   # Will keep info of all connected peers +
   # last 50 disconnected peers
-  # Passing `nil` for `identify` is only safe for simple peer-book usage like
-  # this example. APIs that rely on identify metadata require a real
-  # `Identify` instance when constructing the `PeerStore`.
   import libp2p/peerid
 
   let ps = PeerStore.new(nil, capacity = 50)
@@ -116,7 +113,7 @@ const defaultAddressConfidenceTtls* =
 
 proc new*(
     Self: type PeerStore,
-    identify: Identify = nil,
+    identify: Identify,
     capacity = 1000,
     addressTtls = defaultAddressConfidenceTtls,
 ): PeerStore =
