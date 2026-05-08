@@ -515,4 +515,3 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     switch.mount(kad)
 
   return switch
-

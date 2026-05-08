@@ -4,11 +4,7 @@
 {.used.}
 
 import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
-import ../../../libp2p/[
-  muxers/muxer,
-  connmanager,
-  switch
-]
+import ../../../libp2p/[muxers/muxer, connmanager, switch]
 import
   ../../../libp2p/protocols/pubsub/
     [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]

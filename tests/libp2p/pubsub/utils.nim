@@ -31,7 +31,6 @@ export builders, switch
 
 import ../../tools/[unittest, crypto, bufferstream, futures, builders]
 
-
 randomize()
 
 const connectWarmup = 200.milliseconds

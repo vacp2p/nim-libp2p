@@ -64,8 +64,6 @@ proc fromCint(T: typedesc[TransportType], val: cint): Result[T, string] =
     ok(TransportType.QUIC)
   of ord(TransportType.TCP).cint:
     ok(TransportType.TCP)
-  of ord(TransportType.Memory).cint:
-    ok(TransportType.Memory)
   else:
     err("invalid transport")
 
@@ -247,39 +245,40 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   let transport = TransportType.fromCint(config.transport).valueOr:
     raiseAssert "invalid transport type"
 
-  let connectionLimits =
-    if config.maxIn > 0 and config.maxOut > 0:
-      Opt.some(ConnectionLimits.maxInOut(config.maxIn, config.maxOut))
-    elif config.maxConnections > 0:
-      Opt.some(ConnectionLimits.maxTotal(config.maxConnections))
-    else:
-      Opt.none(ConnectionLimits)
-
   var switchBuilder = SwitchBuilder
     .new()
     .withRng(rng)
-    .withPrivateKey(pkey)
-    .withAddrs(addrs)
-    .withConnectionLimits(connectionLimits)
+    .withAddresses(addrs)
     .withMaxConnsPerPeer(config.maxConnsPerPeer)
     .withNameResolver(dnsResolver)
     .withPeerStore(capacity = peerStoreCapacity)
     .withNoise()
+
+  privKey.withValue(pkey):
+    switchBuilder = switchBuilder.withPrivateKey(pkey)
 
   case transport
   of TransportType.QUIC:
     switchBuilder = switchBuilder.withQuicTransport()
   of TransportType.TCP:
     switchBuilder = switchBuilder.withTcpTransport()
-    
+
     let muxer = MuxerType.fromCint(config.muxer).valueOr:
       raiseAssert "invalid muxer type"
-    case muxer:
+    case muxer
     of MuxerType.Mplex:
       switchBuilder = switchBuilder.withMplex()
-    of MuxerType.Yamux
+    of MuxerType.Yamux:
       switchBuilder = switchBuilder.withYamux()
 
+    if config.maxIn > 0 and config.maxOut > 0:
+      switchBuilder = switchBuilder.withConnectionLimits(
+        ConnectionLimits.maxInOut(config.maxIn, config.maxOut)
+      )
+    elif config.maxConnections > 0:
+      switchBuilder = switchBuilder.withConnectionLimits(
+        ConnectionLimits.maxTotal(config.maxConnections)
+      )
 
   var relayClientOpt = Opt.none(RelayClient)
   if config.circuitRelayClient == 1:
