@@ -269,14 +269,14 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     of MuxerType.Yamux:
       switchBuilder = switchBuilder.withYamux()
 
-    if config.maxIn > 0 and config.maxOut > 0:
-      switchBuilder = switchBuilder.withConnectionLimits(
-        ConnectionLimits.maxInOut(config.maxIn, config.maxOut)
-      )
-    elif config.maxConnections > 0:
-      switchBuilder = switchBuilder.withConnectionLimits(
-        ConnectionLimits.maxTotal(config.maxConnections)
-      )
+  if config.maxIn > 0 and config.maxOut > 0:
+    switchBuilder = switchBuilder.withConnectionLimits(
+      ConnectionLimits.maxInOut(config.maxIn, config.maxOut)
+    )
+  elif config.maxConnections > 0:
+    switchBuilder = switchBuilder.withConnectionLimits(
+      ConnectionLimits.maxTotal(config.maxConnections)
+    )
 
   var relayClientOpt = Opt.none(RelayClient)
   if config.circuitRelayClient == 1:
