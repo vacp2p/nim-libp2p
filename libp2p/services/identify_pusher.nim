@@ -1,11 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-## `IdentifyPusher` — orchestrates the IdentifyPush protocol as a Switch Service.
+## `IdentifyPusher` orchestrates the IdentifyPush protocol as a Switch Service.
 ##
 ## Tracks which connected peers advertise the IdentifyPush codec, keeps that
 ## set in sync with connect / disconnect / re-identify events, and broadcasts
 ## our updated `PeerInfo` to every tracked peer when triggered.
+##
+## ### Lifecycle
+##
+## - **setup**: Initializes the identify push protocol and mounts it to the switch.
+## - **run**: Registers event handlers for peer connect/disconnect and enables
+##   automatic broadcasting when peer info changes.
+## - **stop**: Cleans up event handlers and cancels any pending broadcasts.
+##
+## ### Broadcasting Behavior
+##
+## Broadcasting is triggered automatically when:
+## - The local `PeerInfo` changes (via observer pattern)
+## - A peer connects and supports IdentifyPush
+##
+## It can also be triggered manually via `broadcast`. Each push is fire-and-forget
+## and runs in the background.
 
 {.push raises: [].}
 
@@ -46,10 +62,12 @@ type
 proc new*(T: type IdentifyPusher): T =
   T()
 
-proc pushPeers*(p: IdentifyPusher): seq[PeerId] =
-  return p.pushPeers.toSeq()
-
 proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledError]).} =
+  ## Sends an IdentifyPush message to a single peer.
+  ##
+  ## Opens a new stream via the peer's muxer, negotiates the IdentifyPush protocol,
+  ## and pushes the current peer info. Errors are logged but do not propagate.
+
   let muxer = p.connManager.selectMuxer(peerId)
   if muxer.isNil:
     return
@@ -73,9 +91,12 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
     trace "stream error during identify push", peerId, description = e.msg
   finally:
     if not stream.isNil:
+      # Close the stream unconditionally to prevent resource leaks,
+      # mainly issue in tests and `checkTrackers`.
+      # In production cancelling is fine.
       await noCancel stream.closeWithEOF()
 
-proc broadcast*(p: IdentifyPusher) =
+proc broadcast(p: IdentifyPusher) =
   ## Send an IdentifyPush message with our current `peerInfo` to every
   ## connected peer that advertises the IdentifyPush protocol.
   ## Each send runs as a background future; this proc returns immediately
