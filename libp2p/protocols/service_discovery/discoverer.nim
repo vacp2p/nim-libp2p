@@ -150,8 +150,9 @@ proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
   )
 
 proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
-  ## Drop interest in a service, removing its routing table from the refresh
-  ## loop.
+  ## Drop interest in a service. The per-service routing table is removed
+  ## unless this node is also providing the service, in which case the table
+  ## is kept for advertising.
   let serviceHash = serviceId.hashServiceId()
 
   debug "unregister interest", service = serviceId, serviceId = serviceHash
