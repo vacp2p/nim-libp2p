@@ -1275,8 +1275,8 @@ suite "Switch :: IdentifyPusher Service":
 
   asyncSetup:
     let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()]
-    switch1 = newStandardSwitchBuilder(addrs = ma).withIdentifyPusher().build()
-    switch2 = newStandardSwitchBuilder(addrs = ma).withIdentifyPusher().build()
+    switch1 = newStandardSwitchBuilder(rng(), addrs = ma).withIdentifyPusher().build()
+    switch2 = newStandardSwitchBuilder(rng(), addrs = ma).withIdentifyPusher().build()
     await switch1.start()
     await switch2.start()
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
