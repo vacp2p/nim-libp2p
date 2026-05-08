@@ -3,4 +3,4 @@
 import
   helloworld, circuitrelay, tutorial_1_connect, tutorial_2_customproto,
   tutorial_3_protobuf, tutorial_4_gossipsub, tutorial_5_connmanager,
-  tutorial_6_peerscoring, mix_ping
+  tutorial_6_peerscoring

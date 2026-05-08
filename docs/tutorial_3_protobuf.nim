@@ -135,10 +135,10 @@ proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =
 proc main() {.async.} =
   let rng = newRng()
   proc randomMetricGenerator(): Future[MetricList] {.async: (raises: [CancelledError]).} =
-    let metricCount = rng[].generate(uint32) mod 16
+    let metricCount = rng.generate(uint32) mod 16
     for i in 0 ..< metricCount + 1:
       result.metrics.add(
-        Metric(name: "metric_" & $i, value: float(rng[].generate(uint16)) / 1000.0)
+        Metric(name: "metric_" & $i, value: float(rng.generate(uint16)) / 1000.0)
       )
     return result
 
