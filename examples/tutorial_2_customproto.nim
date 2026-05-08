@@ -45,15 +45,25 @@ proc new(T: typedesc[TestProto]): T =
 proc hello(p: TestProto, conn: Connection) {.async.} =
   await conn.writeLp("Hello p2p!")
 
+proc createSwitch(rng: Rng): Switch {.raises: [LPError].} =
+  return SwitchBuilder
+    .new()
+    .withRng(rng)
+    .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
+
 ## Again, pretty straightforward, we just send a message on the connection.
 ##
 ## We can now create our main procedure:
 proc main() {.async.} =
   let
     rng = newRng()
+    switch1 = createSwitch(rng)
+    switch2 = createSwitch(rng)
     testProto = TestProto.new()
-    switch1 = newStandardSwitch(rng = rng)
-    switch2 = newStandardSwitch(rng = rng)
 
   switch1.mount(testProto)
 

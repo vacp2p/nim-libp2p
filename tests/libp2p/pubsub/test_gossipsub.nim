@@ -4,11 +4,15 @@
 {.used.}
 
 import chronos, chronos/rateLimit, stew/byteutils, utils, sequtils
-import ../../../libp2p/muxers/muxer
+import ../../../libp2p/[
+  muxers/muxer,
+  connmanager,
+  switch
+]
 import
   ../../../libp2p/protocols/pubsub/
     [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]
-import ../../tools/[unittest, bufferstream, crypto]
+import ../../tools/[unittest, bufferstream, crypto, builders]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): RPCMsg =
   RPCMsg.withSubscriptions(topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))

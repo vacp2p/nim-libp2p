@@ -29,7 +29,7 @@ import
     transports/wstransport,
     transports/quictransport,
   ]
-import ../tools/[unittest, trackers, futures, crypto, sync]
+import ../tools/[unittest, trackers, futures, crypto, sync, builders]
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -1250,13 +1250,13 @@ suite "Switch":
     # getting stuck on bootstrap.
     const NumPeers = 85
     let server = newStandardSwitch(
-      connectionLimits = Opt.some(ConnectionLimits.maxTotal(NumPeers))
+      rng = rng(), connectionLimits = Opt.some(ConnectionLimits.maxTotal(NumPeers))
     )
     await server.start()
 
     var clients: seq[Switch]
     for _ in 0 ..< NumPeers:
-      let c = newStandardSwitch()
+      let c = newStandardSwitch(rng = rng())
       await c.start()
       clients.add(c)
     defer:

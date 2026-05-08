@@ -14,7 +14,7 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, builders]
 
 proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder

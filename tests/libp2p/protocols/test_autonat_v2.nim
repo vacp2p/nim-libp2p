@@ -16,7 +16,7 @@ import
     protocols/connectivity/autonatv2/client,
     protocols/connectivity/autonatv2/mockserver,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, builders]
 
 proc setupAutonat(
     srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
