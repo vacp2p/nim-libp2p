@@ -124,6 +124,9 @@ method setup*(
   p.peerInfo = switch.peerInfo
 
   proc onIncomingPush(peerId: PeerId, info: IdentifyInfo) {.async.} =
+    if not p.started:
+      return
+
     p.peerStore.updatePeerInfo(info)
     if IdentifyPushCodec in info.protos:
       p.pushPeers.incl(peerId)
@@ -138,7 +141,8 @@ method setup*(
     trace "could not mount IdentifyPush", msg = e.msg
     hasBeenSetup = false
 
-  await p.run(switch)
+  if hasBeenSetup:
+    await p.run(switch)
   
   return hasBeenSetup
 
@@ -148,21 +152,21 @@ method run*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError
 
   p.started = true
 
-  proc onPeerInfoUpdated(peerInfo: PeerInfo) {.gcsafe, raises: [].} =
+  proc onPeerInfoUpdated(_: PeerInfo) {.gcsafe, raises: [].} =
     p.broadcast()
 
   p.onPeerInfoUpdated = onPeerInfoUpdated
   p.peerInfo.addObserver(p.onPeerInfoUpdated)
 
   proc onIdentified(
-      peerId: PeerId, event: PeerEvent
+      peerId: PeerId, _: PeerEvent
   ) {.async: (raises: [CancelledError]).} =
     if IdentifyPushCodec in p.peerStore[ProtoBook][peerId]:
       p.pushPeers.incl(peerId)
     else:
       p.pushPeers.excl(peerId)
 
-  proc onLeft(peerId: PeerId, event: PeerEvent) {.async: (raises: [CancelledError]).} =
+  proc onLeft(peerId: PeerId, _: PeerEvent) {.async: (raises: [CancelledError]).} =
     p.pushPeers.excl(peerId)
 
   p.onIdentifiedHandler = onIdentified
