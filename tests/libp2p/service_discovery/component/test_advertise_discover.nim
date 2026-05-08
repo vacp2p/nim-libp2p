@@ -96,12 +96,10 @@ suite "Service Discovery Component - Advertise Discover":
     advertiserB.addProvidedService(service)
 
     checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).anyIt(
-        it.data.peerId == advertiserA.switch.peerInfo.peerId
-      )
-      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).anyIt(
-        it.data.peerId == advertiserB.switch.peerInfo.peerId
-      )
+      block:
+        let ads = registrarNode.registrar.cache.getOrDefault(serviceId, @[])
+        ads.anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
+          ads.anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
 
     checkUntilTimeout:
       block:
