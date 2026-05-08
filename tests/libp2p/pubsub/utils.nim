@@ -27,9 +27,9 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-export builders, switch
-
 import ../../tools/[unittest, crypto, bufferstream, futures, switch_builder]
+
+export builders, switch
 
 randomize()
 

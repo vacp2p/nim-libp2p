@@ -5,7 +5,7 @@
 
 from std/times import now, utc
 import chronos
-import ../../../libp2p/[protocols/kademlia, switch, switch_builder]
+import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils
 

@@ -4,7 +4,7 @@
 {.used.}
 
 import chronos, std/sequtils
-import ../../../libp2p/[switch, switch_builder]
+import ../../../libp2p/[switch, builders]
 import ../../../libp2p/protocols/kademlia
 import ../../tools/[unittest, crypto]
 import ./utils.nim
