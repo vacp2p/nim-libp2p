@@ -250,7 +250,6 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     .withAddresses(addrs)
     .withMaxConnsPerPeer(config.maxConnsPerPeer)
     .withNameResolver(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
-    .withPeerStore(capacity = peerStoreCapacity)
     .withNoise()
 
   privKey.withValue(pkey):
