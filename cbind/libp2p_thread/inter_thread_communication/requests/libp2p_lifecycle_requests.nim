@@ -22,6 +22,14 @@ import ../../../../libp2p/protocols/service_discovery
 import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/connectivity/relay/client
 
+type TransportType* {.pure.} = enum
+  QUIC
+  TCP
+
+type MuxerType* {.pure.} = enum
+  MPLEX
+  YAMUX
+
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
   START_NODE
@@ -236,9 +244,6 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
           raiseAssert "invalid listen address: " & $error
         addrs.add(address)
 
-  let muxer = MuxerType.fromCint(config.muxer).valueOr:
-    raiseAssert "invalid muxer type"
-
   let transport = TransportType.fromCint(config.transport).valueOr:
     raiseAssert "invalid transport type"
 
@@ -250,16 +255,31 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     else:
       Opt.none(ConnectionLimits)
 
-  var switchBuilder = newStandardSwitchBuilder(
-    privKey = privKey,
-    addrs = addrs,
-    muxer = muxer,
-    transport = transport,
-    connectionLimits = connectionLimits,
-    maxConnsPerPeer = config.maxConnsPerPeer,
-    nameResolver = dnsResolver,
-    rng = rng,
-  )
+  var switchBuilder = SwitchBuilder
+    .new()
+    .withRng(rng)
+    .withPrivateKey(pkey)
+    .withAddrs(addrs)
+    .withConnectionLimits(connectionLimits)
+    .withMaxConnsPerPeer(config.maxConnsPerPeer)
+    .withNameResolver(dnsResolver)
+    .withPeerStore(capacity = peerStoreCapacity)
+    .withNoise()
+
+  case transport
+  of TransportType.QUIC:
+    switchBuilder = switchBuilder.withQuicTransport()
+  of TransportType.TCP:
+    switchBuilder = switchBuilder.withTcpTransport()
+    
+    let muxer = MuxerType.fromCint(config.muxer).valueOr:
+      raiseAssert "invalid muxer type"
+    case muxer:
+    of MuxerType.Mplex:
+      switchBuilder = switchBuilder.withMplex()
+    of MuxerType.Yamux
+      switchBuilder = switchBuilder.withYamux()
+
 
   var relayClientOpt = Opt.none(RelayClient)
   if config.circuitRelayClient == 1:
