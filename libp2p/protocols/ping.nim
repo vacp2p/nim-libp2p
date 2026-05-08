@@ -6,7 +6,6 @@
 {.push raises: [].}
 
 import chronos, chronicles
-import bearssl/rand
 import
   ../peerinfo,
   ../stream/connection,
@@ -16,7 +15,7 @@ import
   ../protocols/protocol,
   ../errors
 
-export chronicles, rand, connection
+export chronicles, rng, connection
 
 logScope:
   topics = "libp2p ping"
@@ -33,9 +32,9 @@ type
 
   Ping* = ref object of LPProtocol
     pingHandler*: PingHandler
-    rng: ref HmacDrbgContext
+    rng: Rng
 
-proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: ref HmacDrbgContext): T =
+proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: Rng): T =
   let ping = Ping(pinghandler: handler, rng: rng)
   ping.init()
   ping
@@ -72,7 +71,7 @@ proc ping*(
     randomBuf: array[PingSize, byte]
     resultBuf: array[PingSize, byte]
 
-  hmacDrbgGenerate(p.rng[], randomBuf)
+  p.rng.generate(randomBuf)
 
   let startTime = Moment.now()
 

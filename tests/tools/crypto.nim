@@ -4,13 +4,13 @@
 import chronos/streams/tlsstream, stew/byteutils
 import ../../libp2p/[crypto/crypto, transports/tls/certificate]
 
-var rngSingleton {.threadvar.}: ref HmacDrbgContext
+var rngSingleton {.threadvar.}: Rng
 rngSingleton = newRng()
 
-proc getRng(): ref HmacDrbgContext =
+proc getRng(): Rng =
   rngSingleton
 
-template rng*(): ref HmacDrbgContext =
+template rng*(): Rng =
   getRng()
 
 proc tlsCertGenerator*(
@@ -18,7 +18,7 @@ proc tlsCertGenerator*(
 ): (TLSPrivateKey, TLSCertificate) {.gcsafe, raises: [].} =
   try:
     let keyPair = kp.valueOr:
-      KeyPair.random(PKScheme.RSA, rng()[]).get()
+      KeyPair.random(PKScheme.RSA, rng()).get()
     let certX509 = generateX509(keyPair, encodingFormat = EncodingFormat.PEM)
 
     let secureKey = TLSPrivateKey.init(string.fromBytes(certX509.privateKey))

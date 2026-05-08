@@ -20,7 +20,7 @@ export Domain
 
 type PeerIDAuthClient* = ref object of RootObj
   session: HttpSessionRef
-  rng: ref HmacDrbgContext
+  rng: Rng
 
 type PeerIDAuthError* = object of LPError
 
@@ -51,12 +51,10 @@ type SigParam = object
   k: string
   v: seq[byte]
 
-proc new*(T: typedesc[PeerIDAuthClient], rng: ref HmacDrbgContext): PeerIDAuthClient =
+proc new*(T: typedesc[PeerIDAuthClient], rng: Rng): PeerIDAuthClient =
   PeerIDAuthClient(session: HttpSessionRef.new(), rng: rng)
 
-proc sampleChar(
-    ctx: var HmacDrbgContext, choices: string
-): char {.raises: [ValueError].} =
+proc sampleChar(ctx: Rng, choices: string): char {.raises: [ValueError].} =
   ## Samples a random character from the input string using the DRBG context
   if choices.len == 0:
     raise newException(ValueError, "Cannot sample from an empty string")
@@ -65,9 +63,8 @@ proc sampleChar(
   return choices[uint32(idx mod uint32(choices.len))]
 
 proc randomChallenge(
-    rng: ref HmacDrbgContext, challengeLen: int = ChallengeDefaultLen
+    rng: Rng, challengeLen: int = ChallengeDefaultLen
 ): PeerIDAuthChallenge {.raises: [PeerIDAuthError].} =
-  var rng = rng[]
   var challenge = ""
   try:
     for _ in 0 ..< challengeLen:

@@ -19,7 +19,7 @@ import ../../tools/[crypto]
 proc createSwitch*(): Switch =
   SwitchBuilder
     .new()
-    .withRng(rng)
+    .withRng(rng())
     .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
     .withMemoryTransport()
     .withMplex()
@@ -30,7 +30,7 @@ proc createSwitch*(config: RendezVousConfig): RendezVous =
   let switch = SwitchBuilder
     .new()
     .withRendezVous(config)
-    .withRng(rng)
+    .withRng(rng())
     .withAddresses(@[MultiAddress.init(MemoryAutoAddress).tryGet()])
     .withMemoryTransport()
     .withMplex()
@@ -90,7 +90,7 @@ proc populatePeerRegistrations*(
     targetRdv.registered.s.add(record)
 
 proc createCorruptedSignedPeerRecord*(peerId: PeerId): SignedPeerRecord =
-  let wrongPrivKey = PrivateKey.random(rng[]).tryGet()
+  let wrongPrivKey = PrivateKey.random(rng()).tryGet()
   let record = PeerRecord.init(peerId, @[])
   SignedPeerRecord.init(wrongPrivKey, record).tryGet()
 

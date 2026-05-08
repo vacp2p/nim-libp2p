@@ -3,11 +3,11 @@
 
 {.push raises: [].}
 
-import bearssl/rand
 import secp256k1, results, stew/byteutils, nimcrypto/[hash, sha2]
 import ../utils/sequninit
+import rng as libp2p_rng
 
-export sha2, results, rand
+export sha2, results
 
 const
   SkRawPrivateKeySize* = 256 div 8 ## Size of private key in octets (bytes)
@@ -22,18 +22,16 @@ type
   SkSignature* = distinct secp256k1.SkSignature
   SkKeyPair* = distinct secp256k1.SkKeyPair
 
-proc random*(t: typedesc[SkPrivateKey], rng: var HmacDrbgContext): SkPrivateKey =
+proc random*(t: typedesc[SkPrivateKey], rng: libp2p_rng.Rng): SkPrivateKey =
   #TODO is there a better way?
-  var rngPtr = addr rng
   proc callRng(data: var openArray[byte]) =
-    hmacDrbgGenerate(rngPtr[], data)
+    rng.generate(data)
 
   SkPrivateKey(SkSecretKey.random(callRng))
 
-proc random*(t: typedesc[SkKeyPair], rng: var HmacDrbgContext): SkKeyPair =
-  let rngPtr = addr rng
+proc random*(t: typedesc[SkKeyPair], rng: libp2p_rng.Rng): SkKeyPair =
   proc callRng(data: var openArray[byte]) =
-    hmacDrbgGenerate(rngPtr[], data)
+    rng.generate(data)
 
   SkKeyPair(secp256k1.SkKeyPair.random(callRng))
 

@@ -14,7 +14,7 @@ import ../tools/[unittest, crypto]
 
 suite "PeerInfo":
   test "Should init with private key":
-    let seckey = PrivateKey.random(ECDSA, rng[]).get()
+    let seckey = PrivateKey.random(ECDSA, rng()).get()
     var peerInfo = PeerInfo.new(seckey)
     var peerId = PeerId.init(seckey).get()
 
@@ -27,7 +27,7 @@ suite "PeerInfo":
       ExpectedPayloadType = @[(byte) 0x03, (byte) 0x01]
 
     let
-      seckey = PrivateKey.random(rng[]).tryGet()
+      seckey = PrivateKey.random(rng()).tryGet()
       peerId = PeerId.init(seckey).get()
       multiAddresses = @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
@@ -57,7 +57,7 @@ suite "PeerInfo":
 
   test "Public address mapping":
     let
-      seckey = PrivateKey.random(ECDSA, rng[]).get()
+      seckey = PrivateKey.random(ECDSA, rng()).get()
       multiAddresses = @[
         MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet(),
         MultiAddress.init("/ip4/0.0.0.0/tcp/25").tryGet(),
@@ -75,3 +75,68 @@ suite "PeerInfo":
       PeerInfo.new(seckey, multiAddresses, addressMappers = @[addressMapper])
     waitFor peerInfo.update()
     check peerInfo.addrs == multiAddresses2
+
+  test "Observers fire on notifyObservers":
+    let
+      seckey = PrivateKey.random(ECDSA, rng()).get()
+      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").get()]
+      peerInfo = PeerInfo.new(seckey, multiAddresses)
+
+    var
+      callsA = 0
+      callsB = 0
+
+    proc obsA(p: PeerInfo) {.gcsafe, raises: [].} =
+      inc callsA
+
+    proc obsB(p: PeerInfo) {.gcsafe, raises: [].} =
+      inc callsB
+
+    peerInfo.addObserver(obsA)
+    peerInfo.addObserver(obsB)
+    peerInfo.addObserver(nil) # nil guard: must be no-op
+
+    peerInfo.notifyObservers()
+    check:
+      callsA == 1
+      callsB == 1
+
+    peerInfo.notifyObservers()
+    check:
+      callsA == 2
+      callsB == 2
+
+    # removed observer is not triggered
+    peerInfo.removeObserver(obsA)
+    peerInfo.notifyObservers()
+    check:
+      callsA == 2
+      callsB == 3
+
+  test "Observers fire on update":
+    let
+      seckey = PrivateKey.random(ECDSA, rng()).get()
+      multiAddresses = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").get()]
+      peerInfo = PeerInfo.new(seckey, multiAddresses)
+
+    var
+      calls: int
+      seenAddrs: seq[MultiAddress]
+
+    proc obs(p: PeerInfo) {.gcsafe, raises: [].} =
+      inc calls
+      seenAddrs = p.addrs
+
+    peerInfo.addObserver(obs)
+
+    # updated triggers observers initially
+    # (PeerInfo.new does not set up `.addrs` property initially)
+    waitFor peerInfo.update()
+    check:
+      calls == 1
+      seenAddrs == peerInfo.addrs
+
+    # update won't trigger observers since `.addrs` was not changed
+    waitFor peerInfo.update()
+    check:
+      calls == 1

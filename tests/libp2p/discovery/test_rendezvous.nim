@@ -74,16 +74,16 @@ proc new*(
     peerRecordValidator: PeerRecordValidator[CustomPeerRecord] = checkCustomPeerRecord,
 ): T =
   let rdv = T(
-    rng: rng,
+    rng: rng(),
     config: config,
-    salt: string.fromBytes(generateBytes(rng[], 8)),
+    salt: string.fromBytes(generateBytes(rng(), 8)),
     registered: initOffsettedSeq[RegisteredData](),
     expiredDT: Moment.now() - 1.days,
     sema: newAsyncSemaphore(SemaphoreDefaultSize),
     peerRecordValidator: peerRecordValidator,
   )
   let pr = CustomPeerRecord.init(
-    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet(), 0
+    PeerId.init(PrivateKey.random(ECDSA, rng()).get()).tryGet(), 0
   )
   logScope:
     topics = "libp2p discovery rendezvous"

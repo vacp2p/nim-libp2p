@@ -11,9 +11,10 @@
 
 {.push raises: [].}
 
-import bearssl/[ec, rand]
+import bearssl/ec
 import results
 from stew/assign2 import assign
+import rng
 export results
 
 const Curve25519KeySize* = 32
@@ -66,12 +67,10 @@ proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
 proc public*(private: Curve25519Key): Curve25519Key =
   Curve25519.mulgen(result, private)
 
-proc random*(_: type[Curve25519Key], rng: var HmacDrbgContext): Curve25519Key =
+proc random*(_: type[Curve25519Key], rng: Rng): Curve25519Key =
   var res: Curve25519Key
   let defaultBrEc = ecGetDefault()
-  let len = ecKeygen(
-    PrngClassPointerConst(addr rng.vtable), defaultBrEc, nil, addr res[0], EC_curve25519
-  )
+  let len = ecKeygen(bearSslPrng(rng), defaultBrEc, nil, addr res[0], EC_curve25519)
   # Per bearssl documentation, the keygen only fails if the curve is
   # unrecognised -
   doAssert len == Curve25519KeySize, "Could not generate curve"

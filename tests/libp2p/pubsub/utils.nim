@@ -84,7 +84,7 @@ proc voidPeerHandler(
 
 proc randomPeerId*(): PeerId =
   try:
-    PeerId.init(PrivateKey.random(ECDSA, rng[]).get()).tryGet()
+    PeerId.init(PrivateKey.random(ECDSA, rng()).get()).tryGet()
   except CatchableError as exc:
     raise newException(Defect, exc.msg)
 

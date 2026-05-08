@@ -68,8 +68,8 @@ proc receiveIDontWant(ext: PreambleExtension, peerId: PeerId, msgIds: seq[Messag
   ext.onHandleRPC(peerId, RPCMsg.withControl(ControlMessage.withIDontWant(msgIds)))
 
 suite "GossipSub Extensions :: Preamble Extension":
-  let peerId = PeerId.random(rng).get()
-  let peerId2 = PeerId.random(rng).get()
+  let peerId = PeerId.random(rng()).get()
+  let peerId2 = PeerId.random(rng()).get()
   let msgId1: MessageId = @[1'u8, 2, 3]
   let msgId2: MessageId = @[4'u8, 5, 6]
 
@@ -348,7 +348,7 @@ suite "GossipSub Extensions :: Preamble Extension":
   test "preambleMsgReceived: removes message from ongoingIWantReceives":
     var cr = CallbackRecorder() # meshPeers empty → non-mesh
     let ext = PreambleExtension.new(cr.makeConfig(), rng())
-    let nonMeshPeer = PeerId.random(rng).get()
+    let nonMeshPeer = PeerId.random(rng()).get()
     ext.onNegotiated(nonMeshPeer)
 
     ext.receivePreamble(nonMeshPeer, @[makePreamble(msgId1)])

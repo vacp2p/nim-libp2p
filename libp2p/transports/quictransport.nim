@@ -279,7 +279,7 @@ type QuicTransport* = ref object of Transport
   client: Opt[QuicClient]
   privateKey: PrivateKey
   connections: HashSet[P2PConnection]
-  rng: ref HmacDrbgContext
+  rng: Rng
   certGenerator: CertGenerator
 
 proc makeCertificateVerifier(): CertificateVerifier =

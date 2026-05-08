@@ -22,7 +22,7 @@ suite "Message":
   test "signature":
     var seqno = 11'u64
     let
-      peer = PeerInfo.new(PrivateKey.random(ECDSA, rng[]).get())
+      peer = PeerInfo.new(PrivateKey.random(ECDSA, rng()).get())
       msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
 
     check verify(msg)
@@ -30,7 +30,7 @@ suite "Message":
   test "signature with missing key":
     let
       seqno = 11'u64
-      seckey = PrivateKey.random(Ed25519, rng[]).get()
+      seckey = PrivateKey.random(Ed25519, rng()).get()
       peer = PeerInfo.new(seckey)
     check peer.peerId.hasPublicKey() == true
     var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
@@ -41,7 +41,7 @@ suite "Message":
   test "signature without inlined pubkey in peerId":
     let
       seqno = 11'u64
-      peer = PeerInfo.new(PrivateKey.random(RSA, rng[]).get())
+      peer = PeerInfo.new(PrivateKey.random(RSA, rng()).get())
     var msg = Message.init(Opt.some(peer), @[], topic, Opt.some(seqno), sign = true)
     msg.key = @[]
     # shouldn't work since there's no key field

@@ -4,7 +4,7 @@
 {.push raises: [].}
 
 import chronos, chronicles, net, results
-import chronos/apps/http/httpclient, bearssl/rand
+import chronos/apps/http/httpclient
 
 import
   ./acme/client,
@@ -63,7 +63,7 @@ type AutotlsService* = ref object of Service
   config*: AutotlsConfig
   managerFut: Future[void]
   peerInfo: PeerInfo
-  rng*: ref HmacDrbgContext
+  rng*: Rng
 
 when defined(libp2p_autotls_support):
   import json, sequtils, bearssl/pem
@@ -129,9 +129,7 @@ when defined(libp2p_autotls_support):
     )
 
   proc new*(
-      T: typedesc[AutotlsService],
-      rng: ref HmacDrbgContext,
-      config: AutotlsConfig = AutotlsConfig.new(),
+      T: typedesc[AutotlsService], rng: Rng, config: AutotlsConfig = AutotlsConfig.new()
   ): T =
     T(
       acmeClient: ACMEClient.new(
@@ -229,7 +227,7 @@ when defined(libp2p_autotls_support):
       return false
 
     trace "Notifying challenge completion to ACME and downloading cert"
-    let certKeyPair = KeyPair.random(PKScheme.RSA, self.rng[]).get()
+    let certKeyPair = KeyPair.random(PKScheme.RSA, self.rng).get()
 
     let certificate = await acmeClient.getCertificate(
       domain, certKeyPair, dns01Challenge, self.config.acmeRetries,

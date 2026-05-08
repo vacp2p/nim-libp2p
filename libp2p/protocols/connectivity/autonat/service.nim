@@ -33,7 +33,7 @@ type
     answers: Deque[NetworkReachability]
     autonatClient: AutonatClient
     statusAndConfidenceHandler: StatusAndConfidenceHandler
-    rng: ref HmacDrbgContext
+    rng: Rng
     scheduleInterval: Opt[Duration]
     askNewConnectedPeers: bool
     numPeersToAsk: int
@@ -49,7 +49,7 @@ type
 proc new*(
     T: typedesc[AutonatService],
     autonatClient: AutonatClient,
-    rng: ref HmacDrbgContext,
+    rng: Rng,
     scheduleInterval: Opt[Duration] = Opt.none(Duration),
     askNewConnectedPeers = true,
     numPeersToAsk: int = 5,
