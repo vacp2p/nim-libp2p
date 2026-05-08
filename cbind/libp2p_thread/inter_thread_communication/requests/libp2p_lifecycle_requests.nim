@@ -264,9 +264,9 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     let muxer = MuxerType.fromCint(config.muxer).valueOr:
       raiseAssert "invalid muxer type"
     case muxer
-    of MuxerType.Mplex:
+    of MuxerType.MPLEX:
       switchBuilder = switchBuilder.withMplex()
-    of MuxerType.Yamux:
+    of MuxerType.YAMUX:
       switchBuilder = switchBuilder.withYamux()
 
   if config.maxIn > 0 and config.maxOut > 0:
