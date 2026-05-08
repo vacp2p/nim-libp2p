@@ -138,6 +138,8 @@ method setup*(
     trace "could not mount IdentifyPush", msg = e.msg
     hasBeenSetup = false
 
+  await p.run(switch)
+  
   return hasBeenSetup
 
 method run*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =

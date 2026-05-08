@@ -387,9 +387,6 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   await s.peerInfo.update()
 
-  for service in s.services:
-    await service.run(s)
-
   await s.ms.start()
   s.started = true
 
