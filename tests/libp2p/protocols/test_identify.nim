@@ -3,7 +3,6 @@
 
 {.used.}
 
-import std/sets
 import chronos, chronicles
 import
   ../../../libp2p/[
@@ -321,8 +320,8 @@ suite "Identify":
 
     asyncSetup:
       let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()]
-      switch1 = newStandardSwitch(rng = rng(), addrs = ma)
-      switch2 = newStandardSwitch(rng = rng(), addrs = ma)
+      switch1 = newStandardSwitch(rng(), addrs = ma)
+      switch2 = newStandardSwitch(rng(), addrs = ma)
       await switch1.start()
       await switch2.start()
       await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
