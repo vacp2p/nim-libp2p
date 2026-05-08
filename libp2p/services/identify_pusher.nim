@@ -143,7 +143,7 @@ method setup*(
 
   if hasBeenSetup:
     await p.run(switch)
-  
+
   return hasBeenSetup
 
 method run*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =
