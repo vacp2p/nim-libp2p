@@ -1268,7 +1268,7 @@ suite "Switch":
     check await allConnects.withTimeout(30.seconds)
     await allConnects
 
-suite "Auto identify push":
+suite "Switch :: IdentifyPusher Service":
   var
     switch1 {.threadvar.}: Switch
     switch2 {.threadvar.}: Switch
@@ -1291,7 +1291,7 @@ suite "Auto identify push":
       switch2.isConnected(switch1.peerInfo.peerId)
 
     # mount new protocol to switch2
-    let codecs = "/test/new-protocol/1.0.0"
+    let codecs = "/switch/protocol/1.0.0"
     proc dummyHandler(
         conn: Connection, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
