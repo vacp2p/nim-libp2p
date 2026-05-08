@@ -135,20 +135,26 @@ proc collectBucketAds(
 
   return found
 
-proc startDiscovering*(disco: ServiceDiscovery, serviceId: string): bool =
+proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
+  ## Register interest in a service so its routing table is created and kept
+  ## fresh by the refresh loop. No messages are sent and no ads are fetched
+  ## here. This only prepopulates the per-service routing table to make subsequent
+  ## `lookup` calls faster.
   let serviceHash = serviceId.hashServiceId()
 
-  debug "start discovering", service = serviceId, serviceId = serviceHash
+  debug "register interest", service = serviceId, serviceId = serviceHash
 
   disco.rtManager.addService(
     serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
 
-proc stopDiscovering*(disco: ServiceDiscovery, serviceId: string) =
+proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
+  ## Drop interest in a service, removing its routing table from the refresh
+  ## loop.
   let serviceHash = serviceId.hashServiceId()
 
-  debug "stop discovering", service = serviceId, serviceId = serviceHash
+  debug "unregister interest", service = serviceId, serviceId = serviceHash
 
   disco.rtManager.removeService(serviceHash, Interest)
 
