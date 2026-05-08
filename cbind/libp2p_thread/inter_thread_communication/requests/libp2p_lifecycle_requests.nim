@@ -223,7 +223,6 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
       DefaultDnsServers
     else:
       @[initTAddress($config.dnsResolver)]
-  let dnsResolver = Opt.some(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
 
   let rng = newRng()
 
@@ -250,7 +249,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     .withRng(rng)
     .withAddresses(addrs)
     .withMaxConnsPerPeer(config.maxConnsPerPeer)
-    .withNameResolver(dnsResolver)
+    .withNameResolver(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
     .withPeerStore(capacity = peerStoreCapacity)
     .withNoise()
 
