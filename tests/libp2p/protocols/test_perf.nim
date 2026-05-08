@@ -17,7 +17,7 @@ proc createSwitch(
     useYamux: bool = false,
 ): Switch =
   var builder = SwitchBuilder.new()
-  builder = builder.withRng(rng).withNoise()
+  builder = builder.withRng(rng()).withNoise()
 
   if useQuic:
     builder = builder.withQuicTransport().withAddresses(

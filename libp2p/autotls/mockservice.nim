@@ -12,7 +12,7 @@ when defined(libp2p_autotls_support):
 
   proc new*(
       T: typedesc[MockAutotlsService],
-      rng: ref HmacDrbgContext,
+      rng: Rng,
       config: AutotlsConfig = AutotlsConfig.new(),
   ): T =
     T(

@@ -13,7 +13,7 @@ import ../tools/[unittest, crypto]
 proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
   var builder = SwitchBuilder
     .new()
-    .withRng(rng)
+    .withRng(rng())
     .withAddresses(@[MultiAddress.init(address).get()])
     .withTcpTransport()
     .withYamux()

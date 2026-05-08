@@ -354,7 +354,7 @@ suite "RSA 2048/3072/4096 test suite":
   test "[rsa2048] Private key serialize/deserialize test":
     var rkey1, rkey2: RsaPrivateKey
     var skey2 = newSeq[byte](4096)
-    var key = RsaPrivateKey.random(rng[], 2048).expect("random failed")
+    var key = RsaPrivateKey.random(rng(), 2048).expect("random failed")
     var skey1 = key.getBytes().expect("bytes")
     check key.toBytes(skey2).expect("bytes") > 0
     check:
@@ -371,7 +371,7 @@ suite "RSA 2048/3072/4096 test suite":
   test "[rsa3072] Private key serialize/deserialize test":
     var rkey1, rkey2: RsaPrivateKey
     var skey2 = newSeq[byte](4096)
-    var key = RsaPrivateKey.random(rng[], 3072).expect("random failed")
+    var key = RsaPrivateKey.random(rng(), 3072).expect("random failed")
     var skey1 = key.getBytes().expect("bytes")
     check key.toBytes(skey2).expect("bytes") > 0
     check:
@@ -390,7 +390,7 @@ suite "RSA 2048/3072/4096 test suite":
     when defined(release):
       var rkey1, rkey2: RsaPrivateKey
       var skey2 = newSeq[byte](4096)
-      var key = RsaPrivateKey.random(rng[], 4096).expect("random failed")
+      var key = RsaPrivateKey.random(rng(), 4096).expect("random failed")
       var skey1 = key.getBytes().expect("bytes")
       check key.toBytes(skey2).expect("bytes") > 0
       check:
@@ -409,7 +409,7 @@ suite "RSA 2048/3072/4096 test suite":
   test "[rsa2048] Public key serialize/deserialize test":
     var rkey1, rkey2: RsaPublicKey
     var skey2 = newSeq[byte](4096)
-    var pair = RsaKeyPair.random(rng[], 2048).expect("random failed")
+    var pair = RsaKeyPair.random(rng(), 2048).expect("random failed")
     var skey1 = pair.pubkey.getBytes().expect("bytes")
     check:
       pair.pubkey.toBytes(skey2).expect("bytes") > 0
@@ -426,7 +426,7 @@ suite "RSA 2048/3072/4096 test suite":
   test "[rsa3072] Public key serialize/deserialize test":
     var rkey1, rkey2: RsaPublicKey
     var skey2 = newSeq[byte](4096)
-    var pair = RsaKeyPair.random(rng[], 3072).expect("random failed")
+    var pair = RsaKeyPair.random(rng(), 3072).expect("random failed")
     var skey1 = pair.pubkey.getBytes().expect("bytes")
     check:
       pair.pubkey.toBytes(skey2).expect("bytes") > 0
@@ -444,7 +444,7 @@ suite "RSA 2048/3072/4096 test suite":
     when defined(release):
       var rkey1, rkey2: RsaPublicKey
       var skey2 = newSeq[byte](4096)
-      var pair = RsaKeyPair.random(rng[], 4096).expect("random failed")
+      var pair = RsaKeyPair.random(rng(), 4096).expect("random failed")
       var skey1 = pair.pubkey.getBytes().expect("bytes")
       check:
         pair.pubkey.toBytes(skey2).expect("bytes") > 0
@@ -462,7 +462,7 @@ suite "RSA 2048/3072/4096 test suite":
 
   test "[rsa2048] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    var kp = RsaKeyPair.random(rng[], 2048).expect("RsaPrivateKey.random failed")
+    var kp = RsaKeyPair.random(rng(), 2048).expect("RsaPrivateKey.random failed")
     var sig = kp.seckey.sign(message).expect("signature")
     var sersk = kp.seckey.getBytes().expect("bytes")
     var serpk = kp.pubkey.getBytes().expect("bytes")
@@ -477,7 +477,7 @@ suite "RSA 2048/3072/4096 test suite":
 
   test "[rsa3072] Generate/Sign/Serialize/Deserialize/Verify test":
     var message = "message to sign"
-    var kp = RsaKeyPair.random(rng[], 3072).expect("RsaPrivateKey.random failed")
+    var kp = RsaKeyPair.random(rng(), 3072).expect("RsaPrivateKey.random failed")
     var sig = kp.seckey.sign(message).expect("signature")
     var sersk = kp.seckey.getBytes().expect("bytes")
     var serpk = kp.pubkey.getBytes().expect("bytes")
@@ -493,7 +493,7 @@ suite "RSA 2048/3072/4096 test suite":
   test "[rsa4096] Generate/Sign/Serialize/Deserialize/Verify test":
     when defined(release):
       var message = "message to sign"
-      var kp = RsaKeyPair.random(rng[], 4096).expect("RsaPrivateKey.random failed")
+      var kp = RsaKeyPair.random(rng(), 4096).expect("RsaPrivateKey.random failed")
       var sig = kp.seckey.sign(message).expect("signature")
       var sersk = kp.seckey.getBytes().expect("bytes")
       var serpk = kp.pubkey.getBytes().expect("bytes")
@@ -578,7 +578,7 @@ suite "RSA 2048/3072/4096 test suite":
         csig.verify(Messages[4 + (i + 1) mod 2], pubkey) == false
 
   test "[rsa512] not allowed test":
-    var key1 = RsaPrivateKey.random(rng[], 512)
+    var key1 = RsaPrivateKey.random(rng(), 512)
     let prvser = fromHex(stripSpaces(NotAllowedPrivateKeys[0]))
     let pubser = fromHex(stripSpaces(NotAllowedPublicKeys[0]))
     var key2 = RsaPrivateKey.init(prvser)
@@ -592,7 +592,7 @@ suite "RSA 2048/3072/4096 test suite":
       key3.error == RsaKeyIncorrectError
 
   test "[rsa1024] not allowed test":
-    var key1 = RsaPrivateKey.random(rng[], 1024)
+    var key1 = RsaPrivateKey.random(rng(), 1024)
     let prvser = fromHex(stripSpaces(NotAllowedPrivateKeys[1]))
     let pubser = fromHex(stripSpaces(NotAllowedPublicKeys[1]))
     var key2 = RsaPrivateKey.init(prvser)

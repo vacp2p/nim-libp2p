@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import algorithm, sequtils
-import bearssl/rand, chronos, chronicles, results
+import chronos, chronicles, results
 import ./types
 import ./kademlia_metrics
 import ../../peerid
@@ -143,7 +143,7 @@ proc isStale*(bucket: Bucket): bool =
       return true
   return false
 
-proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext): Key =
+proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: Rng): Key =
   var raw = selfId
 
   # zero out higher bits
@@ -161,12 +161,12 @@ proc randomKeyInBucket*(selfId: Key, bucketIndex: int, rng: ref HmacDrbgContext)
   let lsbMask = (1'u8 shl tgtBitInByte) - 1
   if lsbMask != 0:
     var rb: array[1, byte]
-    hmacDrbgGenerate(rng[], rb)
+    rng.generate(rb)
     raw[tgtByte] = (raw[tgtByte] and not lsbMask) or (rb[0] and lsbMask)
 
   # randomize remaining bytes
   if tgtByte + 1 < raw.len:
-    hmacDrbgGenerate(rng[], raw.toOpenArray(tgtByte + 1, raw.len - 1))
+    rng.generate(raw.toOpenArray(tgtByte + 1, raw.len - 1))
 
   return raw
 
@@ -176,7 +176,7 @@ proc allKeys*(bucket: Bucket): seq[Key] {.inline.} =
 proc allKeys*(rtable: RoutingTable): seq[Key] {.inline.} =
   rtable.buckets.mapIt(it.allKeys()).concat()
 
-proc randomKey*(bucket: Bucket, rng: ref HmacDrbgContext): Opt[Key] =
+proc randomKey*(bucket: Bucket, rng: Rng): Opt[Key] =
   rng.pickOne(bucket.peers).map(
     proc(e: NodeEntry): Key =
       e.nodeId

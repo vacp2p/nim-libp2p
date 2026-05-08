@@ -52,7 +52,7 @@ type
     privateKey*: PrivateKey
     autotls*: Opt[AutotlsService]
     connManager*: ConnManager
-    rng*: ref HmacDrbgContext
+    rng*: Rng
 
   SecureProtocol* {.pure.} = enum
     Noise
@@ -67,7 +67,7 @@ type
     secureManagers: seq[SecureProtocol]
     muxers: seq[MuxerProvider]
     transports: seq[TransportBuilder]
-    rng: ref HmacDrbgContext
+    rng: Rng
     maxConnsPerPeer: int
     limits: Opt[ConnectionLimits]
     watermark: Opt[WatermarkPolicy]
@@ -200,7 +200,13 @@ proc withWsTransport*(
   b.withTransport(
     proc(config: TransportConfig): Transport =
       WsTransport.new(
-        config.upgr, tlsPrivateKey, tlsCertificate, config.autotls, tlsFlags, flags
+        config.upgr,
+        tlsPrivateKey,
+        tlsCertificate,
+        config.autotls,
+        rng = config.rng,
+        tlsFlags = tlsFlags,
+        flags = flags,
       )
   )
 
@@ -216,7 +222,7 @@ proc withMemoryTransport*(b: SwitchBuilder): SwitchBuilder =
       MemoryTransport.new(config.upgr, config.rng)
   )
 
-proc withRng*(b: SwitchBuilder, rng: ref HmacDrbgContext): SwitchBuilder =
+proc withRng*(b: SwitchBuilder, rng: Rng): SwitchBuilder =
   b.rng = rng
   b
 
@@ -380,7 +386,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
-  let pkRes = PrivateKey.random(b.rng[])
+  let pkRes = PrivateKey.random(b.rng)
   let seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
 
   if b.secureManagers.len == 0:

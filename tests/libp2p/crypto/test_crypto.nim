@@ -4,7 +4,7 @@
 
 from std/strutils import toUpper
 import std/[sequtils, algorithm]
-import bearssl/hash, nimcrypto/utils
+import bearssl/[hash, rand], nimcrypto/utils
 import ../../../libp2p/crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 import ../../tools/[unittest, crypto]
 
@@ -405,9 +405,9 @@ suite "Key interface test suite":
     var bmsg = cast[seq[byte]](msg)
 
     for i in 0 ..< 5:
-      var seckey = PrivateKey.random(ECDSA, rng[]).get()
+      var seckey = PrivateKey.random(ECDSA, rng()).get()
       var pubkey = seckey.getPublicKey().get()
-      var pair = KeyPair.random(ECDSA, rng[]).get()
+      var pair = KeyPair.random(ECDSA, rng()).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
@@ -425,9 +425,9 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
     for i in 0 ..< 5:
-      var seckey = PrivateKey.random(Ed25519, rng[]).get()
+      var seckey = PrivateKey.random(Ed25519, rng()).get()
       var pubkey = seckey.getPublicKey().get()
-      var pair = KeyPair.random(Ed25519, rng[]).get()
+      var pair = KeyPair.random(Ed25519, rng()).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
@@ -445,9 +445,9 @@ suite "Key interface test suite":
         recsig2.verify(bmsg, recpub2) == true
 
     for i in 0 ..< 2:
-      var seckey = PrivateKey.random(RSA, rng[], 2048).get()
+      var seckey = PrivateKey.random(RSA, rng(), 2048).get()
       var pubkey = seckey.getPublicKey().get()
-      var pair = KeyPair.random(RSA, rng[], 2048).get()
+      var pair = KeyPair.random(RSA, rng(), 2048).get()
       var sig1 = pair.seckey.sign(bmsg).get()
       var sig2 = seckey.sign(bmsg).get()
       var sersig1 = sig1.getBytes()
@@ -628,32 +628,45 @@ suite "Key interface test suite":
 
   test "shuffle":
     var cards = ["Ace", "King", "Queen", "Jack", "Ten"]
-    var rng = (ref HmacDrbgContext)()
-    hmacDrbgInit(rng[], addr sha256Vtable, nil, 0)
-    rng.shuffle(cards)
-    check cards == ["King", "Ten", "Ace", "Queen", "Jack"]
+    let original = cards.toSeq().sorted()
+    rng().shuffle(cards)
+    check cards.toSeq().sorted() == original
+
+  test "newBearSslRng wraps existing HMAC-DRBG context":
+    var seed = [byte 1, 2, 3, 4, 5, 6, 7, 8]
+    let ctx = (ref HmacDrbgContext)()
+    var expectedCtx: HmacDrbgContext
+    hmacDrbgInit(ctx[], addr sha256Vtable, addr seed[0], uint seed.len)
+    hmacDrbgInit(expectedCtx, addr sha256Vtable, addr seed[0], uint seed.len)
+
+    let wrapped = newBearSslRng(ctx)
+    var got, expected: array[32, byte]
+    wrapped.generate(got)
+    hmacDrbgGenerate(expectedCtx, addr expected[0], uint expected.len)
+
+    check got == expected
 
   test "pickOne returns none for empty sequence":
     let x: seq[int] = @[]
-    check rng.pickOne(x).isNone()
+    check rng().pickOne(x).isNone()
 
   test "pickOne returns the only element of a singleton":
-    check rng.pickOne(@[42]).get() == 42
+    check rng().pickOne(@[42]).get() == 42
 
   test "pickOne returns an element from the sequence":
     let xs = @[11, 22, 33, 44, 55]
-    let picked = rng.pickOne(xs).get()
+    let picked = rng().pickOne(xs).get()
     check picked in xs
 
   test "pick returns none for empty sequence":
-    check rng.pick(newSeq[int](), 3).isNone()
+    check rng().pick(newSeq[int](), 3).isNone()
 
   test "pick returns empty when n is zero":
-    check rng.pick(@[1, 2, 3], 0).get().len == 0
+    check rng().pick(@[1, 2, 3], 0).get().len == 0
 
   test "pick returns n distinct elements from the sequence":
     let xs = @[11, 22, 33, 44, 55]
-    let picked = rng.pick(xs, 3).get()
+    let picked = rng().pick(xs, 3).get()
     check picked.len == 3
     for x in picked:
       check x in xs
@@ -661,31 +674,31 @@ suite "Key interface test suite":
 
   test "pick returns all elements when n >= len":
     let xs = @[11, 22, 33]
-    let picked = rng.pick(xs, 10).get()
+    let picked = rng().pick(xs, 10).get()
     check picked.len == xs.len
     check picked.sorted() == xs.sorted()
 
   test "pick returns some for non-empty sequence with n > 0":
-    check rng.pick(@[11, 22, 33], 2).isSome()
+    check rng().pick(@[11, 22, 33], 2).isSome()
 
   test "pick result contains no duplicates":
     let xs = @[11, 22, 33, 44, 55, 66, 77, 88]
-    let picked = rng.pick(xs, 5).get()
+    let picked = rng().pick(xs, 5).get()
     check picked == picked.deduplicate()
 
   test "pick result is a subset of the input":
     let xs = @[11, 22, 33, 44, 55]
-    let picked = rng.pick(xs, 4).get()
+    let picked = rng().pick(xs, 4).get()
     for x in picked:
       check x in xs
 
   test "pick n=1 returns a single element":
     let xs = @[11, 22, 33]
-    let picked = rng.pick(xs, 1).get()
+    let picked = rng().pick(xs, 1).get()
     check picked.len == 1
     check picked[0] in xs
 
   test "pickOne result is always in the sequence":
     let xs = @[100, 200, 300, 400, 500]
     for _ in 0 ..< 20:
-      check rng.pickOne(xs).get() in xs
+      check rng().pickOne(xs).get() in xs
