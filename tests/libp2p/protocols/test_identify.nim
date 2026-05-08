@@ -21,7 +21,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ../../tools/[unittest, crypto, multiaddress, builders]
+import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
 const
   IPv4Tcp = mapAnd(IP4, mapEq("tcp"))

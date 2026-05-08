@@ -5,7 +5,7 @@
 
 import chronos, sequtils, results
 import ../../libp2p/[builders, switch]
-import ../tools/[unittest, futures, crypto, builders]
+import ../tools/[unittest, futures, crypto, switch_builder]
 
 suite "Dialer":
   teardown:

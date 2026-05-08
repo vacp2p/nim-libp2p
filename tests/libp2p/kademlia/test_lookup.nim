@@ -4,7 +4,7 @@
 {.used.}
 
 import tables
-import ../../../libp2p/[protocols/kademlia, switch, builders]
+import ../../../libp2p/[protocols/kademlia, switch, switch_builder]
 import ../../tools/[unittest]
 import ./utils.nim
 

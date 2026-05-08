@@ -29,7 +29,7 @@ import
   ]
 export builders, switch
 
-import ../../tools/[unittest, crypto, bufferstream, futures, builders]
+import ../../tools/[unittest, crypto, bufferstream, futures, switch_builder]
 
 randomize()
 

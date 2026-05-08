@@ -29,7 +29,7 @@ import
     transports/wstransport,
     transports/quictransport,
   ]
-import ../tools/[unittest, trackers, futures, crypto, sync, builders]
+import ../tools/[unittest, trackers, futures, crypto, sync, switch_builder]
 
 const TestCodec = "/test/proto/1.0.0"
 
