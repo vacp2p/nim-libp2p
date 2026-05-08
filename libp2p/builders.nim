@@ -27,7 +27,7 @@ import
     relay/client,
     relay/rtransport,
   ],
-  services/[autorelayservice, hpservice],
+  services/[autorelayservice, hpservice, identify_pusher],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
@@ -88,6 +88,7 @@ type
     rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
     services: seq[Service]
+    identifyPusherEnabled: bool
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
@@ -112,6 +113,7 @@ proc new*(T: type[SwitchBuilder]): T =
     circuitRelay: Opt.none(Relay),
     rdvConfig: Opt.none(RendezVousConfig),
     kad: Opt.none(KadInfo),
+    identifyPusherEnabled: true,
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
   )
@@ -357,6 +359,14 @@ proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
   b.services = services
   b
 
+proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
+  ## When enabled, the IdentifyPush protocol is mounted on the
+  ## switch and an `IdentifyPusher` service tracks which connected peers
+  ## advertise IdentifyPush, broadcasting our updated `PeerInfo` to all
+  ## tracked peers whenever it changes.
+  b.identifyPusherEnabled = enabled
+  b
+
 proc withObservedAddrManager*(
     b: SwitchBuilder, observedAddrManager: ObservedAddrManager
 ): SwitchBuilder =
@@ -466,6 +476,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   b.hpService.withValue(hpservice):
     b.services.add(hpservice)
 
+  if b.identifyPusherEnabled:
+    b.services.add(IdentifyPusher.new()) 
+
   peerStore.addressPolicy = b.addressPolicy
 
   let switch = newSwitch(
@@ -481,7 +494,6 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   )
 
   switch.mount(identify)
-  switch.setupIdentifyPush()
 
   if not isNil(b.autonatV2Client):
     b.autonatV2Client.setup(switch)

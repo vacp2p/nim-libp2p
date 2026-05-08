@@ -35,6 +35,47 @@ const TestCodec = "/test/proto/1.0.0"
 
 type TestProto = ref object of LPProtocol
 
+suite "Auto identify push":
+  var
+    switch1 {.threadvar.}: Switch
+    switch2 {.threadvar.}: Switch
+
+  asyncSetup:
+    let ma = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").get()]
+    switch1 = newStandardSwitchBuilder(addrs = ma).withIdentifyPusher().build()
+    switch2 = newStandardSwitchBuilder(addrs = ma).withIdentifyPusher().build()
+    await switch1.start()
+    await switch2.start()
+    await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
+
+  asyncTeardown:
+    await switch1.stop()
+    await switch2.stop()
+
+  asyncTest "broadcasts on mount of new protocol":
+    checkUntilTimeout:
+      switch1.isConnected(switch2.peerInfo.peerId)
+      switch2.isConnected(switch1.peerInfo.peerId)
+
+    # mount new protocol to switch2
+    let codecs = "/test/new-protocol/1.0.0"
+    proc dummyHandler(
+        conn: Connection, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      await conn.close()
+
+    let dummy = LPProtocol.new(@[codecs], dummyHandler)
+    await dummy.start()
+    switch2.mount(dummy)
+
+    # switch1 should get information about new protocol
+    checkUntilTimeout:
+      codecs in switch1.peerStore[ProtoBook][switch2.peerInfo.peerId]
+
+  asyncTest "broadcasts on PeerInfo.update()":
+    # should be implemented when PeerInfo observer is added
+    discard
+  
 suite "Switch":
   teardown:
     checkTrackers()
@@ -1267,3 +1308,5 @@ suite "Switch":
     let allConnects = allFuturesRaising(connects)
     check await allConnects.withTimeout(30.seconds)
     await allConnects
+
+  
