@@ -105,7 +105,7 @@ suite "Service Discovery Component - Advertise Discover":
       found.get().anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
 
   asyncTest "one advertiser provides two services - both discoverable":
-    # TODO: vacp2p/nim-libp2p#2430 service-disco: multi-service registration from one peer trips Sybil protection
+    # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, ipSimCoefficient = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
