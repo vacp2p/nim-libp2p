@@ -104,8 +104,7 @@ suite "Service Discovery Component - Advertise Discover":
     checkUntilTimeout:
       block:
         let found = await discovererNode.lookup(serviceId)
-        found.isOk() and
-          found.get().len == 2 and
+        found.isOk() and found.get().len == 2 and
           found.get().anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
           found.get().anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
 
