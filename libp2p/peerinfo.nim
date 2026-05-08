@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/sequtils
+import std/[sequtils, algorithm]
 import pkg/[chronos, chronicles, results]
 import
   peerid,
@@ -26,6 +26,15 @@ type
     gcsafe, async: (raises: [CancelledError])
   .} ## A proc that expected to resolve the listen addresses into dialable addresses
 
+  PeerInfoObserver* = proc(p: PeerInfo) {.gcsafe, raises: [].}
+    ## A callback type for observing changes in a `PeerInfo`'s resolved addresses. 
+    ## `PeerInfo` object passed to the observer contains the updated state at the time of the callback.
+    ##
+    ## This observer is invoked in two scenarios:
+    ## 1. Automatically after a call to `PeerInfo.update`, which may change the
+    ##    resolved `addrs` list.
+    ## 2. Manually when `PeerInfo.notifyObservers` is called explicitly.
+
   PeerInfo* = ref object
     peerId*: PeerId
     listenAddrs*: seq[MultiAddress]
@@ -42,6 +51,7 @@ type
     privateKey*: PrivateKey
     publicKey*: PublicKey
     signedPeerRecord*: SignedPeerRecord
+    observers: seq[PeerInfoObserver]
 
 func shortLog*(p: PeerInfo): auto =
   (
@@ -55,19 +65,37 @@ func shortLog*(p: PeerInfo): auto =
 chronicles.formatIt(PeerInfo):
   shortLog(it)
 
+proc addObserver*(p: PeerInfo, observer: PeerInfoObserver) =
+  if observer.isNil:
+    return
+  p.observers.add(observer)
+
+proc removeObserver*(p: PeerInfo, observer: PeerInfoObserver) =
+  p.observers.keepItIf(it != observer)
+
+proc notifyObservers*(p: PeerInfo) =
+  for observer in p.observers:
+    observer(p)
+
 proc expandAddrs*(
     p: PeerInfo
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
   var addrs = p.listenAddrs
   for mapper in p.addressMappers:
     addrs = await mapper(addrs)
-  p.addressPolicy.filterAddrs(addrs)
+  addrs = p.addressPolicy.filterAddrs(addrs)
+  return addrs
 
 proc update*(p: PeerInfo) {.async: (raises: [CancelledError]).} =
-  p.addrs = p.listenAddrs
-  for mapper in p.addressMappers:
-    p.addrs = await mapper(p.addrs)
-  p.addrs = p.addressPolicy.filterAddrs(p.addrs)
+  var hasChanged: bool
+  defer:
+    if hasChanged:
+      p.notifyObservers()
+
+  let newAddrs = await p.expandAddrs()
+
+  hasChanged = p.addrs.sorted() != newAddrs.sorted()
+  p.addrs = newAddrs
 
   p.signedPeerRecord = SignedPeerRecord.init(
     p.privateKey, PeerRecord.init(p.peerId, p.addrs)
