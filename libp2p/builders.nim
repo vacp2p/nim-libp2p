@@ -477,7 +477,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     b.services.add(hpservice)
 
   if b.identifyPusherEnabled:
-    b.services.add(IdentifyPusher.new()) 
+    b.services.add(IdentifyPusher.new())
 
   peerStore.addressPolicy = b.addressPolicy
 

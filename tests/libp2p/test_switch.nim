@@ -75,7 +75,7 @@ suite "Auto identify push":
   asyncTest "broadcasts on PeerInfo.update()":
     # should be implemented when PeerInfo observer is added
     discard
-  
+
 suite "Switch":
   teardown:
     checkTrackers()
@@ -1308,5 +1308,3 @@ suite "Switch":
     let allConnects = allFuturesRaising(connects)
     check await allConnects.withTimeout(30.seconds)
     await allConnects
-
-  

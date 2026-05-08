@@ -119,9 +119,7 @@ method setup*(
 
   return hasBeenSetup
 
-method run*(
-    p: IdentifyPusher, switch: Switch
-) {.async: (raises: [CancelledError]).} =
+method run*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =
   if p.started:
     return
 
