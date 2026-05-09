@@ -84,7 +84,6 @@ typedef uint32_t Libp2pTransport;
 enum {
   LIBP2P_TRANSPORT_QUIC = 0,
   LIBP2P_TRANSPORT_TCP = 1,
-  LIBP2P_TRANSPORT_MEMORY = 2,
 };
 
 // === Data Structures ===

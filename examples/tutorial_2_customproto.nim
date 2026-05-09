@@ -81,7 +81,7 @@ proc main() {.async.} =
   await allFutures(switch1.stop(), switch2.stop())
     # close connections and shutdown all transports
 
-## This is very similar to the first tutorial's `main`, the only noteworthy difference is that we use `newStandardSwitch`, which is similar to the `createSwitch` of the first tutorial, but is bundled directly in libp2p
+## This is very similar to the first tutorial's `main`.
 ##
 ## We can now wrap our program by calling our main proc:
 waitFor(main())
