@@ -54,22 +54,26 @@ Run unit tests:
 
 ```sh
 # run all the unit tests
-nimble test
+make test
 
 # run tests matching a path substring:
 # - Directory name: "transports" matches all tests in transports/
 # - Partial filename: "quic" matches test_quic.nim, test_quic_stream.nim, etc.
 # - Exact filename: "test_ws.nim" matches only that specific file
 # - Full path: "libp2p/transports/test_tcp" matches libp2p/transports/test_tcp.nim
-nimble testpath quic
-nimble testpath transports/test_ws
-nimble testpath mix
+make testpath TEST_PATH=quic
+make testpath TEST_PATH=transports/test_ws
+make testpath TEST_PATH=mix
 # etc ...
 
 # run specific test suites
-nimble testmultiformatexts
-nimble testintegration
+make testmultiformatexts
+make testintegration
 ```
+
+These `make` targets delegate to the existing `nimble` tasks, so `nimble test`,
+`nimble testpath <path>`, `nimble testmultiformatexts`, and
+`nimble testintegration` still work too.
 
 For faster iteration during development, you can bypass nimble overhead by compiling the test file directly:
 

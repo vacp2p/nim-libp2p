@@ -47,6 +47,14 @@ You'll find the nim-libp2p documentation [here](https://vacp2p.github.io/nim-lib
 See the [development guide](docs/development.md) to get started with the project and testing.
 For more details, refer to the [documentation](docs/README.md).
 
+Common test commands are also available via the top-level `Makefile`:
+
+```sh
+make test
+make testpath TEST_PATH=quic
+make testintegration
+```
+
 ## Contributors
 
 Thanks to everyone who has contributed to nim-libp2p. Your support and efforts are greatly appreciated.
