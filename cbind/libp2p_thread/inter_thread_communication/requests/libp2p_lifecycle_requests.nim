@@ -247,10 +247,12 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
   var switchBuilder = SwitchBuilder
     .new()
     .withRng(rng)
-    .withAddresses(addrs)
     .withMaxConnsPerPeer(config.maxConnsPerPeer)
     .withNameResolver(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
     .withNoise()
+
+  if addrs.len > 0:
+    switchBuilder = switchBuilder.withAddresses(addrs)
 
   privKey.withValue(pkey):
     switchBuilder = switchBuilder.withPrivateKey(pkey)
