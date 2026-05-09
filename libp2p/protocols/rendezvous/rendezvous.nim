@@ -9,7 +9,6 @@ import chronos, chronicles, stew/[byteutils, objects]
 import
   ./protobuf,
   ../protocol,
-  ../../protobuf/minprotobuf,
   ../../switch,
   ../../dial,
   ../../routing_record,
@@ -127,7 +126,7 @@ proc sendRegisterResponse*(
       registerResponse: Opt.some(RegisterResponse(status: Ok, ttl: Opt.some(ttl))),
     )
   )
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc sendRegisterResponseError*(
     conn: Connection, status: ResponseStatus, text: string = ""
@@ -138,7 +137,7 @@ proc sendRegisterResponseError*(
       registerResponse: Opt.some(RegisterResponse(status: status, text: Opt.some(text))),
     )
   )
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc sendDiscoverResponse*(
     conn: Connection, s: seq[Register], cookie: Cookie
@@ -147,13 +146,11 @@ proc sendDiscoverResponse*(
     Message(
       msgType: MessageType.DiscoverResponse,
       discoverResponse: Opt.some(
-        DiscoverResponse(
-          status: Ok, registrations: s, cookie: Opt.some(cookie.encode().buffer)
-        )
+        DiscoverResponse(status: Ok, registrations: s, cookie: Opt.some(encode(cookie)))
       ),
     )
   )
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc sendDiscoverResponseError*(
     conn: Connection, status: ResponseStatus, text: string = ""
@@ -164,7 +161,7 @@ proc sendDiscoverResponseError*(
       discoverResponse: Opt.some(DiscoverResponse(status: status, text: Opt.some(text))),
     )
   )
-  await conn.writeLp(msg.buffer)
+  await conn.writeLp(msg)
 
 proc countRegister*[E](rdv: GenericRendezVous[E], peerId: PeerId): int =
   for data in rdv.registered:
@@ -354,7 +351,7 @@ proc advertise*[E](
   let futs = collect(newSeq()):
     for peer in peers:
       trace "Send Advertise", peerId = peer, ns
-      rdv.advertisePeer(peer, msg.buffer).withTimeout(5.seconds)
+      rdv.advertisePeer(peer, msg).withTimeout(5.seconds)
 
   await allFutures(futs)
 
@@ -402,7 +399,7 @@ proc requestPeer[E](
     else:
       Opt.none(seq[byte])
   await conn.writeLp(
-    encode(Message(msgType: MessageType.Discover, discover: Opt.some(d))).buffer
+    encode(Message(msgType: MessageType.Discover, discover: Opt.some(d)))
   )
   let
     buf = await conn.readLp(MaximumMessageLen)
@@ -509,7 +506,7 @@ proc unsubscribe*[E](
       let conn = await rdv.switch.dial(peerId, RendezVousCodec)
       defer:
         await conn.close()
-      await conn.writeLp(msg.buffer)
+      await conn.writeLp(msg)
     except CatchableError as exc:
       trace "exception while unsubscribing", description = exc.msg
 
