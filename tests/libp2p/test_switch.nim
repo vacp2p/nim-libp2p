@@ -709,7 +709,7 @@ suite "Switch":
     await switch1.stop()
 
   asyncTest "connect to inexistent peer":
-    let switch2 = buildStandardSwitch()
+    let switch2 = buildStandardSwitch(transport = TransportType.TCP)
     await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
     let seckey = PrivateKey.random(ECDSA, rng()).get()
