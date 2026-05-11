@@ -4,6 +4,7 @@
 {.used.}
 
 import
+  results,
   ../../libp2p/[
     errors,
     switch,
@@ -31,17 +32,22 @@ proc newStandardSwitchBuilder*(
 
   let addr =
     if address.len > 0:
-      MultiAddress.init(address).tryGet()
+      MultiAddress.init(address).valueOr:
+        raise newException(LPError, error)
     else:
       case transport
       of TransportType.QUIC:
-        MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()
+        MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").valueOr:
+          raise newException(LPError, error)
       of TransportType.TCP:
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+        MultiAddress.init("/ip4/127.0.0.1/tcp/0").valueOr:
+          raise newException(LPError, error)
       of TransportType.Websocket:
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
+        MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").valueOr:
+          raise newException(LPError, error)
       of TransportType.Memory:
-        MultiAddress.init(MemoryAutoAddress).tryGet()
+        MultiAddress.init(MemoryAutoAddress).valueOr:
+          raise newException(LPError, error)
 
   b = b.withAddress(addr)
 
