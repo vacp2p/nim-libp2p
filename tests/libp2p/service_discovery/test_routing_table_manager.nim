@@ -38,8 +38,7 @@ suite "ServiceRoutingTableManager":
 
     check:
       manager.addService(
-        serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest,
-        mainRt.selfId,
+        serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
       )
       manager.count() == 1
       manager.hasService(serviceId)
@@ -50,10 +49,10 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     let addedAgain = manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
     check:
@@ -66,10 +65,10 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     let upgraded = manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
 
     check:
@@ -85,7 +84,7 @@ suite "ServiceRoutingTableManager":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(3)
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
     let table = manager.getTable(serviceId).get()
@@ -102,7 +101,7 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     manager.removeService(serviceId, Interest)
 
@@ -116,10 +115,10 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
     check manager.serviceStatus[serviceId] == Both
 
@@ -135,10 +134,10 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
     check manager.serviceStatus[serviceId] == Both
 
@@ -161,7 +160,7 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
 
     check manager.getTable(serviceId).isSome()
@@ -179,7 +178,7 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(selfId)
 
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
     let peerKey = makeKey(2)
@@ -206,13 +205,13 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      makeKey(1), mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      makeKey(1), mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     check manager.addService(
-      makeKey(2), mainRt, DefaultReplication, DefaultMaxBuckets, Provided, mainRt.selfId
+      makeKey(2), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
     check manager.addService(
-      makeKey(3), mainRt, DefaultReplication, DefaultMaxBuckets, Both, mainRt.selfId
+      makeKey(3), mainRt, DefaultReplication, DefaultMaxBuckets, Both
     )
 
     check manager.count() == 3
@@ -224,7 +223,7 @@ suite "ServiceRoutingTableManager":
 
     for id in ids:
       check manager.addService(
-        id, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+        id, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
       )
 
     check manager.serviceIds().toHashSet() == ids.toHashSet()
@@ -234,10 +233,10 @@ suite "ServiceRoutingTableManager":
     let mainRt = RoutingTable.new(makeKey(0))
 
     check manager.addService(
-      makeKey(1), mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      makeKey(1), mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     check manager.addService(
-      makeKey(2), mainRt, DefaultReplication, DefaultMaxBuckets, Provided, mainRt.selfId
+      makeKey(2), mainRt, DefaultReplication, DefaultMaxBuckets, Provided
     )
 
     manager.clear()
@@ -269,7 +268,7 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     let serviceId = makeServiceId(1)
     let mainRt = RoutingTable.new(makeKey(2))
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
 
     await manager.refreshAllTables(kad)
@@ -289,7 +288,7 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     let serviceIds = @[makeKey(1), makeKey(2), makeKey(3)]
     for id in serviceIds:
       check manager.addService(
-        id, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+        id, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
       )
 
     await manager.refreshAllTables(kad)
@@ -309,10 +308,10 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     let kept = makeKey(1)
     let removed = makeKey(2)
     check manager.addService(
-      kept, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      kept, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     check manager.addService(
-      removed, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      removed, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
     manager.removeService(removed, Interest)
 
@@ -325,7 +324,7 @@ suite "ServiceRoutingTableManager - refreshAllTables":
       kad.findNodeCalls[1] == kept
       removed notin kad.findNodeCalls
 
-  test "addService does not seed local node into service table":
+  test "addService rejects local node insertion into service table":
     let selfId = makeKey(0)
     let peer1 = makeKey(1)
     let peer2 = makeKey(2)
@@ -334,13 +333,15 @@ suite "ServiceRoutingTableManager - refreshAllTables":
     let manager = ServiceRoutingTableManager.new()
     let serviceId = makeServiceId(3)
     check manager.addService(
-      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest, mainRt.selfId
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
     )
+
+    manager.insertPeer(serviceId, selfId)
 
     let table = manager.getTable(serviceId).get()
     let peers = table.allKeys()
 
     check:
-      selfId notin peers # local node must not be seeded
+      selfId notin peers # local node must be rejected
       peer1 in peers
       peer2 in peers

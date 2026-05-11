@@ -31,7 +31,6 @@ proc addService*(
     replication: int,
     bucketsCount: int,
     status: ServiceStatus,
-    localNodeId: Key,
 ): bool =
   # Fast path: service already exists
   manager.serviceStatus.withValue(serviceId, currentStatus):
@@ -49,7 +48,7 @@ proc addService*(
     serviceId,
     config =
       RoutingTableConfig.new(replication = replication, maxBuckets = bucketsCount),
-    localNodeId = Opt.some(localNodeId),
+    localNodeId = Opt.some(mainRoutingTable.localNodeId),
   )
 
   # Seed from main table

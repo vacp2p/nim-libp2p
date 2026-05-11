@@ -143,7 +143,7 @@ proc addProvidedService*(
 
   if not disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Provided, disco.rtable.selfId,
+    Provided,
   ):
     return
 

@@ -147,7 +147,7 @@ proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
 
   disco.rtManager.addService(
     serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest, disco.rtable.selfId,
+    Interest,
   )
 
 proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
@@ -168,7 +168,7 @@ proc lookup*(
 
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest, disco.rtable.selfId,
+    Interest,
   )
 
   let searchTable = disco.rtManager.getTable(serviceId).valueOr:

@@ -385,7 +385,7 @@ proc acceptAdvertisement*(
 ) =
   discard disco.rtManager.addService(
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
-    Interest, disco.rtable.selfId,
+    Interest,
   )
   disco.rtManager.insertPeer(serviceId, ad.data.peerId.toKey())
 
