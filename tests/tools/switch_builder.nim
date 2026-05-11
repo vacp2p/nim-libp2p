@@ -21,6 +21,9 @@ proc newStandardSwitchBuilder*(
     address: MultiAddress | string = "", transport: TransportType = TransportType.QUIC
 ): SwitchBuilder =
   ## Helper for common switch configurations.
+  ## When address is specified builder will create transport matching address. 
+  ## If address in not specified default address for specified transport will be created.
+
   var b = SwitchBuilder.new().withRng(rng()).withNoise()
 
   let addrs =
