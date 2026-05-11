@@ -31,7 +31,7 @@ proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
 
   return builder.build()
 
-proc makeSwitch(): Switch = 
+proc makeSwitch(): Switch =
   return buildStandardSwitch(transport = TransportType.TCP)
 
 proc makeAutonatServicePrivate(): Switch =
