@@ -8,7 +8,6 @@ import
     crypto/crypto,
     multistream,
     peerid,
-    protobuf/minprotobuf,
     protocols/rendezvous,
     protocols/rendezvous/protobuf,
     routing_record,
@@ -62,11 +61,7 @@ proc connect*(dialer: RendezVous, target: RendezVous) {.async.} =
   )
 
 proc buildProtobufCookie*(offset: uint64, namespace: string): seq[byte] =
-  var pb = initProtoBuffer()
-  pb.write(1, offset)
-  pb.write(2, namespace)
-  pb.finish()
-  pb.buffer
+  encode(Cookie(offset: offset, ns: Opt.some(namespace)))
 
 proc injectCookieForPeer*(
     rdv: RendezVous, peerId: PeerId, namespace: string, cookie: seq[byte]

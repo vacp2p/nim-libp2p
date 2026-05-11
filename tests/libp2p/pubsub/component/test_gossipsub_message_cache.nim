@@ -172,12 +172,11 @@ suite "GossipSub Component - Message Cache":
 
     # When Node0 handles the IWant message, it retrieves the message from its message cache using the MessageId
     # Then Node0 relays the original message to NodeOutsideMesh
-    untilTimeout:
-      pre:
+    checkUntilTimeout:
+      block:
         let messages = receivedMessagesNodeOutsideMesh[].mapIt(
           nodeOutsideMesh.msgIdProvider(it).value()
         )
-      check:
         messageId in messages
 
   asyncTest "Published and received messages are added to the seen cache":
