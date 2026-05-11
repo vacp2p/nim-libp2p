@@ -4,7 +4,10 @@
 ## Stores generic informations about peers.
 runnableExamples:
   # Will keep info of all connected peers +
-  # last 50 disconnected peers
+  # last 50 disconnected peers.
+  # Passing `nil` for `identify` is only safe for simple peer-book usage like
+  # this example. APIs that rely on identify metadata require a real
+  # `Identify` instance when constructing the `PeerStore`.
   import libp2p/peerid
 
   let ps = PeerStore.new(nil, capacity = 50)
@@ -78,9 +81,9 @@ type
     lastUpdated*: Moment
 
   AddressConfidenceTtls* = object
-    low*: Duration ## TTL for Low-confidence addresses (default 15 minutes)
-    medium*: Duration ## TTL for Medium-confidence addresses (default 1 hour)
-    high*: Duration ## TTL for High-confidence addresses (default 24 hours)
+    low*: Duration = 15.minutes
+    medium*: Duration = 1.hours
+    high*: Duration = 24.hours
 
   AddressBook* = ref object of PeerBook[seq[AddressEntry]]
     ttls*: AddressConfidenceTtls
@@ -108,14 +111,11 @@ type
     addressTtls*: AddressConfidenceTtls ## Per-confidence TTLs for address expiry.
     pruneHandle: Future[void]
 
-const defaultAddressConfidenceTtls* =
-  AddressConfidenceTtls(low: 15.minutes, medium: 1.hours, high: 24.hours)
-
 proc new*(
     Self: type PeerStore,
     identify: Identify,
     capacity = 1000,
-    addressTtls = defaultAddressConfidenceTtls,
+    addressTtls = AddressConfidenceTtls(),
 ): PeerStore =
   # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
   Self(
@@ -169,27 +169,46 @@ proc len*[T](peerBook: PeerBook[T]): int =
 ################################
 
 proc isExpired*(entry: AddressEntry, ttls: AddressConfidenceTtls): bool =
+  ## Returns true only when the TTL is positive and the elapsed time exceeds it.
+  ## ZeroDuration means "never expires" for that confidence level.
   let elapsed = Moment.now() - entry.lastUpdated
   case entry.confidence
   of AddressConfidence.Low:
-    elapsed > ttls.low
+    ttls.low > ZeroDuration and elapsed > ttls.low
   of AddressConfidence.Medium:
-    elapsed > ttls.medium
+    ttls.medium > ZeroDuration and elapsed > ttls.medium
   of AddressConfidence.High:
-    elapsed > ttls.high
+    ttls.high > ZeroDuration and elapsed > ttls.high
   of AddressConfidence.Infinite:
     false
 
-proc mergeConfidence(
+proc higherConfidence(
     prevConf: Table[MultiAddress, AddressConfidence],
     ma: MultiAddress,
     incoming: AddressConfidence,
 ): AddressConfidence =
-  ## Returns the effective confidence for `ma` after merging the stored value
-  ## with `incoming`. The higher of the two wins, so a previously verified
-  ## (High/Infinite) address is never downgraded by a stale low-confidence
-  ## advertisement, while a new address simply inherits `incoming`.
+  ## Returns the higher of the stored and incoming confidence for `ma`.
+  ## A previously verified (High/Infinite) address is never downgraded.
   max(prevConf.getOrDefault(ma, incoming), incoming)
+
+proc findWithAddress(entries: seq[AddressEntry], ma: MultiAddress): int =
+  for i, e in entries:
+    if e.address == ma:
+      return i
+  -1
+
+proc upsertAddress(
+    entries: var seq[AddressEntry],
+    ma: MultiAddress,
+    confidence: AddressConfidence,
+    now: Moment,
+) =
+  let idx = entries.findWithAddress(ma)
+  if idx >= 0:
+    entries[idx].confidence = max(entries[idx].confidence, confidence)
+    entries[idx].lastUpdated = now
+  else:
+    entries.add(AddressEntry(address: ma, confidence: confidence, lastUpdated: now))
 
 proc set*(
     addressBook: AddressBook,
@@ -210,7 +229,7 @@ proc set*(
     newEntries.add(
       AddressEntry(
         address: ma,
-        confidence: mergeConfidence(prevConf, ma, confidence),
+        confidence: higherConfidence(prevConf, ma, confidence),
         lastUpdated: now,
       )
     )
@@ -249,18 +268,7 @@ proc markConnected*(addressBook: AddressBook, peerId: PeerId, ma: MultiAddress) 
   ## If the address is not yet in the book it is added.
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(peerId)
-  var idx = -1
-  for i, e in entries:
-    if e.address == ma:
-      idx = i
-      break
-  if idx >= 0:
-    entries[idx].confidence = max(entries[idx].confidence, AddressConfidence.High)
-    entries[idx].lastUpdated = now
-  else:
-    entries.add(
-      AddressEntry(address: ma, confidence: AddressConfidence.High, lastUpdated: now)
-    )
+  entries.upsertAddress(ma, AddressConfidence.High, now)
   addressBook.book[peerId] = entries
   for handler in addressBook.changeHandlers:
     handler(peerId)
@@ -278,16 +286,7 @@ proc extend*(
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(key)
   for ma in addrs:
-    var idx = -1
-    for i, e in entries:
-      if e.address == ma:
-        idx = i
-        break
-    if idx >= 0:
-      entries[idx].confidence = max(entries[idx].confidence, confidence)
-      entries[idx].lastUpdated = now
-    else:
-      entries.add(AddressEntry(address: ma, confidence: confidence, lastUpdated: now))
+    entries.upsertAddress(ma, confidence, now)
   if entries.len > 0:
     addressBook.book[key] = entries
   for handler in addressBook.changeHandlers:
@@ -322,26 +321,25 @@ macro getTypeName(t: type): untyped =
 proc `[]`*(p: PeerStore, _: type[AddressBook]): AddressBook =
   ## Get the AddressBook, initialising it with the store's configured TTLs.
   let name = getTypeName(AddressBook)
-  var book = AddressBook(p.books.getOrDefault(name))
-  if book.isNil:
-    book = AddressBook.new()
-    book.ttls = p.addressTtls
-    book.deletor = proc(pid: PeerId) =
-      discard AddressBook(p.books.getOrDefault(name)).del(pid)
-    p.books[name] = book
+  p.books.withValue(name, bookPtr):
+    return AddressBook(bookPtr[])
+  let book = AddressBook.new()
+  book.ttls = p.addressTtls
+  book.deletor = proc(pid: PeerId) =
+    discard AddressBook(p.books.getOrDefault(name)).del(pid)
+  p.books[name] = book
   book
 
 proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   ## Get a book from the PeerStore (ex: peerStore[AddressBook])
   let name = getTypeName(T)
-  var book = T(p.books.getOrDefault(name))
-  if book.isNil:
-    book = T.new()
-    book.deletor = proc(pid: PeerId) =
-      # Manual method because generic method
-      # don't work
-      discard T(p.books.getOrDefault(name)).del(pid)
-    p.books[name] = book
+  p.books.withValue(name, bookPtr):
+    return T(bookPtr[])
+  let book = T.new()
+  book.deletor = proc(pid: PeerId) =
+    # Manual method because generic method don't work
+    discard T(p.books.getOrDefault(name)).del(pid)
+  p.books[name] = book
   book
 
 proc del*(peerStore: PeerStore, peerId: PeerId) =
@@ -357,11 +355,17 @@ proc addressPruneLoop(
 
 proc startAddressPruning*(peerStore: PeerStore) =
   ## Start the periodic per-address TTL pruning loop. No-op if already running.
-  ## The loop fires at the Low-confidence TTL interval (shortest possible expiry).
+  ## Uses the smallest positive TTL across all confidence levels as the interval.
+  ## If all TTLs are zero (non-expiring), the loop is not started.
   if not peerStore.pruneHandle.isNil:
     return
 
-  let interval = peerStore.addressTtls.low
+  let ttls = peerStore.addressTtls
+  var interval = ZeroDuration
+  for t in [ttls.low, ttls.medium, ttls.high]:
+    if t > ZeroDuration and (interval == ZeroDuration or t < interval):
+      interval = t
+
   if interval <= ZeroDuration:
     return
 

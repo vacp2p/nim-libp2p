@@ -194,7 +194,7 @@ suite "AddressBook TTL / confidence":
   test "pruneExpired removes only expired entries, keeps live ones":
     let book = makeBook(1.seconds, 1.hours, 24.hours)
     book.set(peerId1, @[addr1], AddressConfidence.Low)
-    book.set(peerId1, @[addr2], AddressConfidence.Medium)
+    book.extend(peerId1, @[addr2], AddressConfidence.Medium)
     # Back-date the Low entry so it's expired
     book.book[peerId1][0].lastUpdated = Moment.now() - 2.seconds
     book.pruneExpired()
