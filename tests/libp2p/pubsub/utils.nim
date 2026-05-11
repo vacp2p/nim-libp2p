@@ -225,7 +225,7 @@ proc generateNodes*(
     transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
-    let switch = newStandardSwitchBuilder(transport = transport)
+    let switch = makeStandardSwitchBuilder(transport = transport)
       .withSignedPeerRecord(sendSignedPeerRecord)
       .build()
     let pubsub =

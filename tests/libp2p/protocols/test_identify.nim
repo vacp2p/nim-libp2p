@@ -168,11 +168,11 @@ suite "Identify":
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
         MultiAddress.init("/ip6/::/tcp/0").get(),
       ]
-      switch1 = newStandardSwitchBuilder(transport = TransportType.TCP)
+      switch1 = makeStandardSwitchBuilder(transport = TransportType.TCP)
         .withAddresses(ma)
         .withSignedPeerRecord(true)
         .build()
-      switch2 = newStandardSwitchBuilder(transport = TransportType.TCP)
+      switch2 = makeStandardSwitchBuilder(transport = TransportType.TCP)
         .withAddresses(ma)
         .withSignedPeerRecord(true)
         .build()

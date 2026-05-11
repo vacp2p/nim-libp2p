@@ -209,7 +209,7 @@ suite "Switch":
   asyncTest "e2e connect to peer with unknown PeerId":
     let resolver = MockResolver.new()
     let switch1 = makeStandardSwitch()
-    let switch2 = newStandardSwitchBuilder().withNameResolver(resolver).build()
+    let switch2 = makeStandardSwitchBuilder().withNameResolver(resolver).build()
     await switch1.start()
     await switch2.start()
 
@@ -494,13 +494,13 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events only once per peer":
-    let switch1 = newStandardSwitchBuilder().withMaxConnsPerPeer(2).build()
+    let switch1 = makeStandardSwitchBuilder().withMaxConnsPerPeer(2).build()
 
     # use same private keys to emulate two connection from same peer
     let privKey = PrivateKey.random(rng()).tryGet()
-    let switch2 = newStandardSwitchBuilder().withPrivateKey(privKey).build()
+    let switch2 = makeStandardSwitchBuilder().withPrivateKey(privKey).build()
 
-    let switch3 = newStandardSwitchBuilder().withPrivateKey(privKey).build()
+    let switch3 = makeStandardSwitchBuilder().withPrivateKey(privKey).build()
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -582,7 +582,7 @@ suite "Switch":
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
     await switches[0].start()
 
-    switches.add(newStandardSwitchBuilder().withPrivateKey(privateKey).build())
+    switches.add(makeStandardSwitchBuilder().withPrivateKey(privateKey).build())
     await switches[1].connect(switches[0].peerInfo.peerId, switches[0].peerInfo.addrs)
     onConnect.done()
 
@@ -607,7 +607,7 @@ suite "Switch":
 
     # Start first switch
     switches.add(
-      newStandardSwitchBuilder(transport = TransportType.TCP)
+      makeStandardSwitchBuilder(transport = TransportType.TCP)
         .withMaxConnsPerPeer(10)
         .build()
     )
@@ -618,7 +618,7 @@ suite "Switch":
     # Connect remaining switches sequentially
     for i in 1 .. 5:
       switches.add(
-        newStandardSwitchBuilder(transport = TransportType.TCP)
+        makeStandardSwitchBuilder(transport = TransportType.TCP)
           .withPrivateKey(privateKey)
           .build()
       )
@@ -720,7 +720,7 @@ suite "Switch":
 
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitchBuilder(transport = TransportType.TCP)
+    let destSwitch = makeStandardSwitchBuilder(transport = TransportType.TCP)
       .withConnectionLimits(ConnectionLimits.maxTotal(3))
       .build()
     switches.add(destSwitch)
@@ -754,7 +754,7 @@ suite "Switch":
       switches.add(makeStandardSwitch(transport = TransportType.TCP))
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitchBuilder(transport = TransportType.TCP)
+    let srcSwitch = makeStandardSwitchBuilder(transport = TransportType.TCP)
       .withConnectionLimits(ConnectionLimits.maxTotal(3))
       .build()
     await srcSwitch.start()
@@ -776,7 +776,7 @@ suite "Switch":
 
   asyncTest "e2e max incoming connection limits":
     var switches: seq[Switch]
-    let destSwitch = newStandardSwitchBuilder(transport = TransportType.TCP)
+    let destSwitch = makeStandardSwitchBuilder(transport = TransportType.TCP)
       .withConnectionLimits(ConnectionLimits.maxInOut(3, 1))
       .build()
     switches.add(destSwitch)
@@ -810,7 +810,7 @@ suite "Switch":
       switches.add(makeStandardSwitch())
       await switches[i].start()
 
-    let srcSwitch = newStandardSwitchBuilder()
+    let srcSwitch = makeStandardSwitchBuilder()
       .withConnectionLimits(ConnectionLimits.maxInOut(1, 3))
       .build()
     await srcSwitch.start()
@@ -852,7 +852,7 @@ suite "Switch":
     switch1.mount(testProto)
     await switch1.start()
 
-    let switch2 = newStandardSwitchBuilder(transport = TransportType.TCP)
+    let switch2 = makeStandardSwitchBuilder(transport = TransportType.TCP)
       .withPeerStore(capacity = 0)
       .build()
     await switch2.start()
@@ -960,7 +960,7 @@ suite "Switch":
         MultiAddress.init("/ip6/::1/tcp/0").tryGet(),
       ]
 
-      let switch1 = newStandardSwitchBuilder(transport = TransportType.TCP)
+      let switch1 = makeStandardSwitchBuilder(transport = TransportType.TCP)
         .withAddresses(addrs)
         .build()
 
@@ -1007,7 +1007,7 @@ suite "Switch":
     resolver.ipResponses[("localhost", true)] = @["::1"]
 
     let
-      srcSwitch = newStandardSwitchBuilder(transport = TransportType.TCP)
+      srcSwitch = makeStandardSwitchBuilder(transport = TransportType.TCP)
         .withNameResolver(resolver)
         .build()
       destSwitch = makeStandardSwitch(transport = TransportType.TCP)
@@ -1033,9 +1033,9 @@ suite "Switch":
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
       srcTcpSwitch =
-        newStandardSwitchBuilder(tcpAddress).withNameResolver(resolver).build()
+        makeStandardSwitchBuilder(tcpAddress).withNameResolver(resolver).build()
       srcWsSwitch =
-        newStandardSwitchBuilder(wsAddress).withNameResolver(resolver).build()
+        makeStandardSwitchBuilder(wsAddress).withNameResolver(resolver).build()
 
       destSwitch = SwitchBuilder
         .new()
@@ -1172,7 +1172,7 @@ suite "Switch":
     await handleFinished.wait(5.seconds)
 
   asyncTest "switch failing to start stops properly":
-    let switch = newStandardSwitchBuilder(transport = TransportType.TCP)
+    let switch = makeStandardSwitchBuilder(transport = TransportType.TCP)
       .withAddresses(
         @[
           MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
@@ -1198,7 +1198,7 @@ suite "Switch":
     # it when ConcurrentUpgrades (4) were in flight; manifested as 80+ kad nodes
     # getting stuck on bootstrap.
     const NumPeers = 85
-    let server = newStandardSwitchBuilder(transport = TransportType.TCP)
+    let server = makeStandardSwitchBuilder(transport = TransportType.TCP)
       .withConnectionLimits(ConnectionLimits.maxTotal(NumPeers))
       .build()
     await server.start()
@@ -1223,8 +1223,8 @@ suite "Switch :: IdentifyPusher Service":
     switch2 {.threadvar.}: Switch
 
   asyncSetup:
-    switch1 = newStandardSwitchBuilder().withIdentifyPusher().build()
-    switch2 = newStandardSwitchBuilder().withIdentifyPusher().build()
+    switch1 = makeStandardSwitchBuilder().withIdentifyPusher().build()
+    switch2 = makeStandardSwitchBuilder().withIdentifyPusher().build()
     await switch1.start()
     await switch2.start()
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)

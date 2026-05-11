@@ -13,8 +13,8 @@ suite "Dialer":
 
   asyncTest "Connect forces a new connection":
     let
-      src = newStandardSwitchBuilder().withMaxConnsPerPeer(2).build()
-      dst = newStandardSwitchBuilder().withMaxConnsPerPeer(2).build()
+      src = makeStandardSwitchBuilder().withMaxConnsPerPeer(2).build()
+      dst = makeStandardSwitchBuilder().withMaxConnsPerPeer(2).build()
 
     await dst.start()
 
@@ -32,7 +32,7 @@ suite "Dialer":
   asyncTest "Max connections reached":
     var switches: seq[Switch]
 
-    let dst = newStandardSwitchBuilder()
+    let dst = makeStandardSwitchBuilder()
       .withConnectionLimits(ConnectionLimits.maxTotal(2))
       .build()
     await dst.start()

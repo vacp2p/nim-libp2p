@@ -17,7 +17,7 @@ type TransportType* {.pure.} = enum
   Websocket
   Memory
 
-proc newStandardSwitchBuilder*(
+proc makeStandardSwitchBuilder*(
     address: MultiAddress | string = "", transport: TransportType = TransportType.QUIC
 ): SwitchBuilder =
   ## Helper for common switch configurations.
@@ -69,4 +69,4 @@ proc newStandardSwitchBuilder*(
 proc makeStandardSwitch*(
     address: MultiAddress | string = "", transport: TransportType = TransportType.QUIC
 ): Switch {.raises: [LPError].} =
-  return newStandardSwitchBuilder(address, transport).build()
+  return makeStandardSwitchBuilder(address, transport).build()
