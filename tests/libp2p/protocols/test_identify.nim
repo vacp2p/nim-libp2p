@@ -300,7 +300,7 @@ suite "Identify":
         .build()
 
       # Client switch to dial and identify
-      client = buildStandardSwitch(transport = TransportType.TCP)
+      client = makeStandardSwitch(transport = TransportType.TCP)
 
     await server.start()
     await client.start()

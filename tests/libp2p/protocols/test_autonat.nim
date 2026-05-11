@@ -32,7 +32,7 @@ proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   return builder.build()
 
 proc makeSwitch(): Switch =
-  return buildStandardSwitch(transport = TransportType.TCP)
+  return makeStandardSwitch(transport = TransportType.TCP)
 
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol

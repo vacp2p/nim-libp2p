@@ -66,7 +66,7 @@ proc newStandardSwitchBuilder*(
 
   b
 
-proc buildStandardSwitch*(
+proc makeStandardSwitch*(
     address: MultiAddress | string = "", transport: TransportType = TransportType.QUIC
 ): Switch {.raises: [LPError].} =
   return newStandardSwitchBuilder(address, transport).build()

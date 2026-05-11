@@ -11,8 +11,8 @@ import ../../../libp2p/[builders, utils/future]
 import ../../stubs/switchstub
 import ../../tools/[unittest, switch_builder]
 
-proc makeSwitch(): Switch = 
-  return buildStandardSwitch(transport = TransportType.TCP)
+proc makeSwitch(): Switch =
+  return makeStandardSwitch(transport = TransportType.TCP)
 
 suite "Dcutr":
   teardown:

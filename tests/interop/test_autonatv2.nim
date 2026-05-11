@@ -9,7 +9,8 @@ import ../../libp2p/[peerid, switch, wire, protocols/connectivity/autonatv2/serv
 import ../tools/[unittest, crypto, switch_builder]
 
 proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
-  var builder = SwitchBuilder.new()
+  var builder = SwitchBuilder
+    .new()
     .withRng(rng())
     .withAddresses(@[MultiAddress.init(address).get()])
     .withTcpTransport()

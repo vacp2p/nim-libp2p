@@ -274,8 +274,8 @@ suite "AutonatV2":
 
   asyncTest "Server responding with invalid messages":
     let
-      src = buildStandardSwitch()
-      dst = buildStandardSwitch()
+      src = makeStandardSwitch()
+      dst = makeStandardSwitch()
       client = AutonatV2Client.new(rng())
       autonatV2Mock = AutonatV2Mock.new()
       reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
