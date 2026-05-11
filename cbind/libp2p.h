@@ -483,15 +483,15 @@ int libp2p_service_disco_stop_advertising(libp2p_ctx_t *ctx,
                                           Libp2pCallback callback,
                                           void *userData);
 
-int libp2p_service_disco_start_discovering(libp2p_ctx_t *ctx,
+int libp2p_service_disco_register_interest(libp2p_ctx_t *ctx,
                                            const char *serviceId,
                                            Libp2pCallback callback,
                                            void *userData);
 
-int libp2p_service_disco_stop_discovering(libp2p_ctx_t *ctx,
-                                          const char *serviceId,
-                                          Libp2pCallback callback,
-                                          void *userData);
+int libp2p_service_disco_unregister_interest(libp2p_ctx_t *ctx,
+                                             const char *serviceId,
+                                             Libp2pCallback callback,
+                                             void *userData);
 
 int libp2p_service_disco_lookup(libp2p_ctx_t *ctx, const char *serviceId,
                                 const uint8_t *serviceData,

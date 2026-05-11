@@ -5,6 +5,7 @@
 import chronos, results, std/[sequtils, tables]
 import
   ../../../../libp2p/[
+    crypto/crypto,
     peerid,
     protocols/kademlia/types,
     protocols/service_discovery,
@@ -14,7 +15,7 @@ import
     protocols/service_discovery/types,
     switch,
   ]
-import ../../../tools/[lifecycle, unittest, topology]
+import ../../../tools/[crypto, lifecycle, unittest, topology]
 import ../utils
 
 suite "Service Discovery Component - Advertise Discover":
@@ -50,32 +51,37 @@ suite "Service Discovery Component - Advertise Discover":
     check found.get().len >= 1
     check found.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
 
-  asyncTest "startDiscovering sends messages and finds registered peer":
+  asyncTest "registerInterest seeds per-service table from main routing table":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
     let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
+    let peerA = setupServiceDiscoveryNode(discoConfig = conf)
+    let peerB = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[discovererNode, peerA, peerB])
 
-    await connect(registrarNode, advertiserNode)
-    await connect(registrarNode, discovererNode)
+    await connectHub(discovererNode, @[peerA, peerB])
 
-    let service = makeServiceInfo("start-disco-e2e-service")
-    let serviceId = service.id.hashServiceId()
+    let serviceId = "service"
+    let serviceHash = serviceId.hashServiceId()
+    let peerAKey = peerA.switch.peerInfo.peerId.toKey()
+    let peerBKey = peerB.switch.peerInfo.peerId.toKey()
 
-    advertiserNode.addProvidedService(service)
-    checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len > 0
+    check:
+      discovererNode.rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerAKey))
+      discovererNode.rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerBKey))
+      not discovererNode.rtManager.hasService(serviceHash)
 
-    check discovererNode.startDiscovering(service.id)
+    check discovererNode.rtManager.getTable(serviceHash).isNone()
 
-    let found = await discovererNode.lookup(service)
-    check found.isOk()
-    check found.get().len > 0
-    check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
+    check discovererNode.registerInterest(serviceId)
 
-    discovererNode.stopDiscovering(service.id)
-    check not discovererNode.rtManager.hasService(serviceId)
+    let table = discovererNode.rtManager.getTable(serviceHash)
+    check:
+      table.isSome()
+      table.get().buckets.anyIt(it.peers.anyIt(it.nodeId == peerAKey))
+      table.get().buckets.anyIt(it.peers.anyIt(it.nodeId == peerBKey))
+
+    discovererNode.unregisterInterest(serviceId)
+    check not discovererNode.rtManager.hasService(serviceHash)
 
   asyncTest "two advertisers register the same service - both discoverable":
     # Multiple advertisers at the same registrar use overlapping IPs in tests,
@@ -96,13 +102,17 @@ suite "Service Discovery Component - Advertise Discover":
     advertiserB.addProvidedService(service)
 
     checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len == 2
+      block:
+        let ads = registrarNode.registrar.cache.getOrDefault(serviceId, @[])
+        ads.anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
+          ads.anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
 
-    let found = await discovererNode.lookup(serviceId)
-    check:
-      found.get().len == 2
-      found.get().anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId)
-      found.get().anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
+    checkUntilTimeout:
+      block:
+        let found = await discovererNode.lookup(serviceId)
+        found.isOk() and found.get().len == 2 and
+          found.get().anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
+          found.get().anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
 
   asyncTest "one advertiser provides two services - both discoverable":
     # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
@@ -132,8 +142,50 @@ suite "Service Discovery Component - Advertise Discover":
       foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
       foundA.get().len == 1
       foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
-      # TODO: vacp2p/nim-libp2p#2431 service-disco: lookup returns duplicates when multiple queried peers hold the same ad
-      foundB.get().len == 2
+      # Regression for vacp2p/nim-libp2p#2431: this lookup previously returned a duplicate.
+      foundB.get().len == 1
+
+  asyncTest "lookup dedups byte-identical adverts but keeps same (peerId, seqNo) variants":
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    let registrar1 = setupServiceDiscoveryNode(discoConfig = conf)
+    let registrar2 = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrar1, registrar2, discovererNode])
+
+    await connect(registrar1, discovererNode)
+    await connect(registrar2, discovererNode)
+
+    let service = makeServiceInfo("service")
+    let serviceId = service.id.hashServiceId()
+
+    let key = PrivateKey.random(rng()).get()
+    let seqNo = 1234'u64
+    let ad1 = makeAdvertisement(
+      serviceId = service.id,
+      privateKey = key,
+      addrs = @[makeMultiAddress("1.2.3.4")],
+      seqNo = seqNo,
+    )
+    let ad2 = makeAdvertisement(
+      serviceId = service.id,
+      privateKey = key,
+      addrs = @[makeMultiAddress("5.6.7.8")],
+      seqNo = seqNo,
+    )
+    check:
+      ad1.toAdvertisementKey() == ad2.toAdvertisementKey()
+      ad1.envelope.signature.data != ad2.envelope.signature.data
+
+    # ad1 served by both registrars (byte-identical duplicate)
+    # ad2 served only by registrar1, sharing (peerId, seqNo) with ad1.
+    registrar1.registrar.cache[serviceId] = @[ad1, ad2]
+    registrar2.registrar.cache[serviceId] = @[ad1]
+
+    let found = await discovererNode.lookup(serviceId)
+    check:
+      found.get().len == 2
+      found.get().anyIt(it.envelope.signature.data == ad1.envelope.signature.data)
+      found.get().anyIt(it.envelope.signature.data == ad2.envelope.signature.data)
 
   asyncTest "advertiser learns closer peers from REGISTER reply":
     # The registrar's REGISTER reply carries closerPeers.

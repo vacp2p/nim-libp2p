@@ -147,12 +147,11 @@ suite "GossipSub Component - Heartbeat":
 
     # Then during heartbeat Peers with lower than median scores are pruned and max 2 Peers are grafted
 
-    untilTimeout:
-      pre:
+    checkUntilTimeout:
+      block:
         let actualGrafts = node0.mesh[topic].toSeq().filterIt(it notin startingMesh)
-      check:
-        actualGrafts.len == MaxOpportunisticGraftPeers
-        actualGrafts.allIt(it in expectedGrafts)
+        actualGrafts.len == MaxOpportunisticGraftPeers and
+          actualGrafts.allIt(it in expectedGrafts)
 
   asyncTest "Fanout maintenance during heartbeat - expired peers are dropped":
     const

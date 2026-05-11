@@ -323,3 +323,25 @@ suite "ServiceRoutingTableManager - refreshAllTables":
       kad.findNodeCalls.len == 2
       kad.findNodeCalls[1] == kept
       removed notin kad.findNodeCalls
+
+  test "addService rejects local node insertion into service table":
+    let selfId = makeKey(0)
+    let peer1 = makeKey(1)
+    let peer2 = makeKey(2)
+    let mainRt = makeMainTable(selfId, @[peer1, peer2])
+
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(3)
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    manager.insertPeer(serviceId, selfId)
+
+    let table = manager.getTable(serviceId).get()
+    let peers = table.allKeys()
+
+    check:
+      selfId notin peers # local node must be rejected
+      peer1 in peers
+      peer2 in peers

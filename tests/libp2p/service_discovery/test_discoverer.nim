@@ -69,7 +69,7 @@ suite "Discoverer - lookup":
     check res.isOk()
     check disco.rtManager.hasService(serviceId)
 
-suite "Discoverer - start/stop discovering":
+suite "Discoverer - register/unregister interest":
   teardown:
     checkTrackers()
 
@@ -77,7 +77,7 @@ suite "Discoverer - start/stop discovering":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
-    let added = disco.startDiscovering(service.id)
+    let added = disco.registerInterest(service.id)
 
     check added
     check disco.rtManager.hasService(service.id.hashServiceId())
@@ -86,8 +86,8 @@ suite "Discoverer - start/stop discovering":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
-    discard disco.startDiscovering(service.id)
-    let added = disco.startDiscovering(service.id)
+    discard disco.registerInterest(service.id)
+    let added = disco.registerInterest(service.id)
 
     check not added
 
@@ -96,30 +96,30 @@ suite "Discoverer - start/stop discovering":
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
-    discard disco.startDiscovering(s1.id)
-    discard disco.startDiscovering(s2.id)
+    discard disco.registerInterest(s1.id)
+    discard disco.registerInterest(s2.id)
 
     check disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
     check disco.rtManager.count() == 2
 
-  test "removes Interest and returns false when service was tracked":
+  test "unregisterInterest removes Interest entry":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()
 
-    check disco.startDiscovering(service.id)
-    disco.stopDiscovering(service.id)
+    check disco.registerInterest(service.id)
+    disco.unregisterInterest(service.id)
 
     check not disco.rtManager.hasService(service.id.hashServiceId())
 
-  test "stop does not affect a different service":
+  test "unregisterInterest does not affect a different service":
     let disco = setupServiceDiscoveryNode()
     let s1 = makeServiceInfo("svc-1")
     let s2 = makeServiceInfo("svc-2")
 
-    check disco.startDiscovering(s1.id)
-    check disco.startDiscovering(s2.id)
-    disco.stopDiscovering(s1.id)
+    check disco.registerInterest(s1.id)
+    check disco.registerInterest(s2.id)
+    disco.unregisterInterest(s1.id)
 
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
