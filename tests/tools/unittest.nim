@@ -45,10 +45,7 @@ template asyncTest*(name: string, body: untyped): untyped =
     )
 
 template asyncTestRetry*(
-    name: string,
-    retryDelay: Duration = 5.seconds,
-    maxAttempts: int = 3,
-    body: untyped
+    name: string, retryDelay: Duration = 5.seconds, maxAttempts: int = 3, body: untyped
 ): untyped =
   ## Runs the test up to `maxAttempts` times, passing as soon as any attempt succeeds.
   ## Sleeps `retryDelay` between attempts; fails only if all attempts fail.
