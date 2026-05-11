@@ -27,7 +27,7 @@ proc autonatInteropTest*(
       serviceConfig = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds))
     )
     .withTcpTransport()
-    .withYamux()
+    .withMplex()
     .withNoise()
     .build()
 
