@@ -49,7 +49,11 @@ proc setupNode*(
       .withRng(rng)
       .build()
   of TransportType.Websocket:
-    raiseAssert "TransportType.Websocket not supported"
+    switch = newStandardSwitchBuilder(
+      address = address & "/ws", transport = TransportType.Websocket
+    )
+      .withRng(rng)
+      .build()
   of TransportType.QUIC:
     let quicAddress =
       MultiAddress.init(address, IPPROTO_UDP).tryGet() &
@@ -147,7 +151,9 @@ proc resolvePeersAddresses*(
       of TransportType.TCP:
         addresses = resolved.mapIt(MultiAddress.init(it).tryGet())
       of TransportType.Websocket:
-        raiseAssert "TransportType.Websocket not supported"
+        addresses = resolved.mapIt(
+          MultiAddress.init(it).tryGet() & MultiAddress.init("/ws").get()
+        )
       of TransportType.QUIC:
         addresses = resolved.mapIt(
           MultiAddress.init(it, IPPROTO_UDP).tryGet() &
