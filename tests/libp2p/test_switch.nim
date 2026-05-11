@@ -1223,8 +1223,12 @@ suite "Switch :: IdentifyPusher Service":
     switch2 {.threadvar.}: Switch
 
   asyncSetup:
-    switch1 = makeStandardSwitchBuilder().withIdentifyPusher().build()
-    switch2 = makeStandardSwitchBuilder().withIdentifyPusher().build()
+    switch1 = makeStandardSwitchBuilder(transport = TransportType.TCP)
+      .withIdentifyPusher()
+      .build()
+    switch2 = makeStandardSwitchBuilder(transport = TransportType.TCP)
+      .withIdentifyPusher()
+      .build()
     await switch1.start()
     await switch2.start()
     await switch1.connect(switch2.peerInfo.peerId, switch2.peerInfo.addrs)
