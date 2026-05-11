@@ -4,14 +4,7 @@
 {.used.}
 
 import
-  results,
-  ../../libp2p/[
-    errors,
-    switch,
-    builders,
-    multiaddress,
-    transports/wstransport,
-  ]
+  results, ../../libp2p/[errors, switch, builders, multiaddress, transports/wstransport]
 import ./crypto
 
 export builders
@@ -23,14 +16,10 @@ type TransportType* {.pure.} = enum
   Memory
 
 proc newStandardSwitchBuilder*(
-    address = "",
-    transport: TransportType = TransportType.QUIC,
+    address = "", transport: TransportType = TransportType.QUIC
 ): SwitchBuilder {.raises: [LPError].} =
   ## Helper for common switch configurations.
-  var b = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withNoise()
+  var b = SwitchBuilder.new().withRng(rng()).withNoise()
 
   let addrs =
     if address.len > 0:
@@ -70,7 +59,6 @@ proc newStandardSwitchBuilder*(
   b
 
 proc buildStandardSwitch*(
-    address = "",
-    transport: TransportType = TransportType.QUIC,
-): Switch = 
+    address = "", transport: TransportType = TransportType.QUIC
+): Switch =
   return newStandardSwitchBuilder(address, transport).build()
