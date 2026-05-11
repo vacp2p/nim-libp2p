@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, sequtils, results
+import chronos, sequtils
 import ../../libp2p/[builders, switch]
 import ../tools/[unittest, futures, switch_builder]
 

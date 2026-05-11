@@ -6,7 +6,7 @@
 import
   results,
   ../../libp2p/
-    [errors, switch, builders, multiaddress, multicodec, transports/wstransport]
+    [errors, switch, builders, multiaddress, transports/wstransport]
 import ./crypto
 
 export builders
@@ -22,7 +22,7 @@ proc makeStandardSwitchBuilder*(
 ): SwitchBuilder =
   ## Helper for common switch configurations.
   ## When address is specified builder will create transport matching address. 
-  ## If address in not specified default address for specified transport will be created.
+  ## If address is not specified transport with default address is created.
 
   var b = SwitchBuilder.new().withRng(rng()).withNoise()
 
@@ -63,6 +63,8 @@ proc makeStandardSwitchBuilder*(
     b = b.withMplex()
   elif Memory.match(addrs):
     b = b.withMemoryTransport().withMplex()
+  else:
+    raiseAssert "could not infere transport from address"
 
   b
 
