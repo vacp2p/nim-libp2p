@@ -168,10 +168,8 @@ suite "Identify":
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
         MultiAddress.init("/ip6/::/tcp/0").get(),
       ]
-      switch1 =
-        newStandardSwitchBuilder().withAddresses(ma).withSignedPeerRecord(true).build()
-      switch2 =
-        newStandardSwitchBuilder().withAddresses(ma).withSignedPeerRecord(true).build()
+      switch1 = newStandardSwitchBuilder(transport = TransportType.TCP).withAddresses(ma).withSignedPeerRecord(true).build()
+      switch2 = newStandardSwitchBuilder(transport = TransportType.TCP).withAddresses(ma).withSignedPeerRecord(true).build()
 
       proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
@@ -296,7 +294,7 @@ suite "Identify":
         .build()
 
       # Client switch to dial and identify
-      client = newStandardSwitchBuilder().withAddresses(@[tcpAddress]).build()
+      client = buildStandardSwitch(transport = TransportType.TCP)
 
     await server.start()
     await client.start()

@@ -22,13 +22,13 @@ proc setupAutonat(
     srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
     config: AutonatV2Config = AutonatV2Config.new(),
 ): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
-  var srcBuilder = newStandardSwitchBuilder()
+  var srcBuilder = newStandardSwitchBuilder(transport = TransportType.TCP)
   if srcAddrs.len > 0:
     srcBuilder = srcBuilder.withAddresses(srcAddrs)
 
   let
     src = srcBuilder.build()
-    dst = newStandardSwitchBuilder().withAutonatV2Server(config).build()
+    dst = newStandardSwitchBuilder(transport = TransportType.TCP).withAutonatV2Server(config).build()
     client = AutonatV2Client.new(rng())
 
   client.setup(src)
