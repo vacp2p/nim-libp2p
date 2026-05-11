@@ -51,32 +51,37 @@ suite "Service Discovery Component - Advertise Discover":
     check found.get().len >= 1
     check found.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
 
-  asyncTest "startDiscovering sends messages and finds registered peer":
+  asyncTest "registerInterest seeds per-service table from main routing table":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
     let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
+    let peerA = setupServiceDiscoveryNode(discoConfig = conf)
+    let peerB = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[discovererNode, peerA, peerB])
 
-    await connect(registrarNode, advertiserNode)
-    await connect(registrarNode, discovererNode)
+    await connectHub(discovererNode, @[peerA, peerB])
 
-    let service = makeServiceInfo("start-disco-e2e-service")
-    let serviceId = service.id.hashServiceId()
+    let serviceId = "service"
+    let serviceHash = serviceId.hashServiceId()
+    let peerAKey = peerA.switch.peerInfo.peerId.toKey()
+    let peerBKey = peerB.switch.peerInfo.peerId.toKey()
 
-    advertiserNode.addProvidedService(service)
-    checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(serviceId, @[]).len > 0
+    check:
+      discovererNode.rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerAKey))
+      discovererNode.rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerBKey))
+      not discovererNode.rtManager.hasService(serviceHash)
 
-    check discovererNode.startDiscovering(service.id)
+    check discovererNode.rtManager.getTable(serviceHash).isNone()
 
-    let found = await discovererNode.lookup(service)
-    check found.isOk()
-    check found.get().len > 0
-    check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
+    check discovererNode.registerInterest(serviceId)
 
-    discovererNode.stopDiscovering(service.id)
-    check not discovererNode.rtManager.hasService(serviceId)
+    let table = discovererNode.rtManager.getTable(serviceHash)
+    check:
+      table.isSome()
+      table.get().buckets.anyIt(it.peers.anyIt(it.nodeId == peerAKey))
+      table.get().buckets.anyIt(it.peers.anyIt(it.nodeId == peerBKey))
+
+    discovererNode.unregisterInterest(serviceId)
+    check not discovererNode.rtManager.hasService(serviceHash)
 
   asyncTest "two advertisers register the same service - both discoverable":
     # Multiple advertisers at the same registrar use overlapping IPs in tests,
