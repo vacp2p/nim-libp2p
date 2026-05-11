@@ -64,8 +64,7 @@ template asyncTestRetry*(
             except Exception as e:
               lastError = e
               checkpoint(
-                "Retry attempt " & $attempt & "/" & $maxAttempts &
-                " failed: " & e.msg
+                "Retry attempt " & $attempt & "/" & $maxAttempts & " failed: " & e.msg
               )
               if attempt < maxAttempts:
                 await sleepAsync(retryDelay)
