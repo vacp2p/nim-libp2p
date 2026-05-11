@@ -15,8 +15,8 @@ type ServiceDiscoveryMsgType* = enum
   SD_STOP
   SD_START_ADVERTISING
   SD_STOP_ADVERTISING
-  SD_START_DISCOVERING
-  SD_STOP_DISCOVERING
+  SD_REGISTER_INTEREST
+  SD_UNREGISTER_INTEREST
   SD_LOOKUP
 
 type ServiceDiscoveryRequest* = object
@@ -66,10 +66,10 @@ proc process*(
     disco.startAdvertising(service)
   of SD_STOP_ADVERTISING:
     await disco.stopAdvertising($self[].serviceId)
-  of SD_START_DISCOVERING:
-    discard disco.startDiscovering($self[].serviceId)
-  of SD_STOP_DISCOVERING:
-    disco.stopDiscovering($self[].serviceId)
+  of SD_REGISTER_INTEREST:
+    discard disco.registerInterest($self[].serviceId)
+  of SD_UNREGISTER_INTEREST:
+    disco.unregisterInterest($self[].serviceId)
   of SD_LOOKUP:
     raiseAssert "unsupported path, use processLookup"
 
