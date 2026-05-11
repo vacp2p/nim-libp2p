@@ -16,15 +16,17 @@ import strutils
 import strformat
 import tables
 import ../../libp2p
+import ../../libp2p/builders
 import ../../libp2p/protocols/pubsub/rpc/messages
 import ../../libp2p/muxers/mplex/lpchannel
 import ../../libp2p/protocols/ping
 import ../../tests/tools/unittest
-import ../../tests/tools/switch_builder
 import ../runner
 import ../types
 
-export TransportType
+type TransportType* {.pure.} = enum
+  QUIC
+  TCP
 
 const
   topic* = "test"
@@ -45,25 +47,23 @@ proc setupNode*(
 
   case transport
   of TransportType.TCP:
-    switch = newStandardSwitchBuilder(address = address, transport = TransportType.TCP)
+    switch = SwitchBuilder.new()
       .withRng(rng)
-      .build()
-  of TransportType.Websocket:
-    let wsAddress = MultiAddress.init(address).tryGet() & MultiAddress.init("/ws").get()
-    switch = newStandardSwitchBuilder(transport = TransportType.Websocket)
-      .withAddress(wsAddress)
-      .withRng(rng)
+      .withNoise()
+      .withAddress(MultiAddress.init(address).get())
+      .withTcpTransport()
+      .withMplex()
       .build()
   of TransportType.QUIC:
     let quicAddress =
       MultiAddress.init(address, IPPROTO_UDP).tryGet() &
       MultiAddress.init("/quic-v1").get()
-    switch = newStandardSwitchBuilder(transport = TransportType.QUIC)
-      .withAddress(quicAddress)
+    switch = SwitchBuilder.new()
       .withRng(rng)
+      .withNoise()
+      .withAddress(quicAddress)
+      .withQuicTransport()
       .build()
-  of TransportType.Memory:
-    raiseAssert "TransportType.Memory not supported"
 
   let
     gossipSub = GossipSub.init(
@@ -150,17 +150,11 @@ proc resolvePeersAddresses*(
       case transport
       of TransportType.TCP:
         addresses = resolved.mapIt(MultiAddress.init(it).tryGet())
-      of TransportType.Websocket:
-        addresses = resolved.mapIt(
-          MultiAddress.init(it).tryGet() & MultiAddress.init("/ws").get()
-        )
       of TransportType.QUIC:
         addresses = resolved.mapIt(
           MultiAddress.init(it, IPPROTO_UDP).tryGet() &
             MultiAddress.init("/quic-v1").get()
         )
-      of TransportType.Memory:
-        raiseAssert "TransportType.Memory not supported"
 
       addrs.add(addresses)
 
