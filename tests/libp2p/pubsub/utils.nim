@@ -27,7 +27,7 @@ import
   ]
 import ../../tools/[unittest, crypto, bufferstream, futures, switch_builder]
 
-export builders, switch
+export switch
 
 randomize()
 
@@ -112,7 +112,8 @@ proc setupGossipSubWithPeers*(
     populateFanout: bool = false,
 ): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
   let gossipSub = TestGossipSub.init(
-    newStandardSwitchBuilder(transport = TransportType.QUIC).build(), rng = rng()
+    newStandardSwitchBuilder().build(),
+    rng = rng()
   )
 
   for topic in topics:

@@ -22,7 +22,6 @@ import
     muxers/mplex/lpchannel,
     stream/lpstream,
     nameresolving/mockresolver,
-    nameresolving/nameresolver,
     stream/chronosstream,
     transports/tcptransport,
     transports/wstransport,
@@ -1034,7 +1033,7 @@ suite "Switch":
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
       srcTcpSwitch =
-        newStandardSwitchBuilder().withNameResolver(resolver).build()
+        newStandardSwitchBuilder(transport = TransportType.TCP).withNameResolver(resolver).build()
       srcWsSwitch = newStandardSwitchBuilder(transport = TransportType.Websocket)
         .withAddress(wsAddress)
         .withNameResolver(resolver)

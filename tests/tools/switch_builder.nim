@@ -14,6 +14,8 @@ import
   ]
 import ./crypto
 
+export builders
+
 type TransportType* {.pure.} = enum
   QUIC
   TCP
@@ -22,7 +24,7 @@ type TransportType* {.pure.} = enum
 
 proc newStandardSwitchBuilder*(
     address = "",
-    transport: TransportType = TransportType.TCP,
+    transport: TransportType = TransportType.QUIC,
 ): SwitchBuilder {.raises: [LPError].} =
   ## Helper for common switch configurations.
   var b = SwitchBuilder
@@ -30,7 +32,7 @@ proc newStandardSwitchBuilder*(
     .withRng(rng())
     .withNoise()
 
-  let addr =
+  let addrs =
     if address.len > 0:
       MultiAddress.init(address).valueOr:
         raise newException(LPError, error)
@@ -49,7 +51,7 @@ proc newStandardSwitchBuilder*(
         MultiAddress.init(MemoryAutoAddress).valueOr:
           raise newException(LPError, error)
 
-  b = b.withAddress(addr)
+  b = b.withAddress(addrs)
 
   case transport
   of TransportType.QUIC:

@@ -309,7 +309,7 @@ suite "GossipSub":
 
   asyncTest "rpcHandler - subscription limits":
     let gossipSub = TestGossipSub.init(
-      newStandardSwitchBuilder(transport = TransportType.QUIC).build(), rng = rng()
+      newStandardSwitchBuilder().build(), rng = rng()
     )
     gossipSub.topicsHigh = 10
 
@@ -333,7 +333,7 @@ suite "GossipSub":
 
   asyncTest "rpcHandler - invalid message bytes":
     let gossipSub = TestGossipSub.init(
-      newStandardSwitchBuilder(transport = TransportType.QUIC).build(), rng = rng()
+      newStandardSwitchBuilder().build(), rng = rng()
     )
 
     let peerId = randomPeerId()
