@@ -111,10 +111,7 @@ proc setupGossipSubWithPeers*(
     populateMesh: bool = false,
     populateFanout: bool = false,
 ): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
-  let gossipSub = TestGossipSub.init(
-    newStandardSwitchBuilder().build(),
-    rng = rng()
-  )
+  let gossipSub = TestGossipSub.init(buildStandardSwitch(), rng = rng())
 
   for topic in topics:
     gossipSub.subscribe(topic, voidTopicHandler)

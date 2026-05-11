@@ -68,3 +68,9 @@ proc newStandardSwitchBuilder*(
     b = b.withMemoryTransport().withMplex()
 
   b
+
+proc buildStandardSwitch*(
+    address = "",
+    transport: TransportType = TransportType.QUIC,
+): Switch = 
+  return newStandardSwitchBuilder(address, transport).build()

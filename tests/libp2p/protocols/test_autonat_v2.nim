@@ -28,7 +28,7 @@ proc setupAutonat(
 
   let
     src = srcBuilder.build()
-    dst = newStandardSwitchBuilder().withAutonatV2Server(config = config).build()
+    dst = newStandardSwitchBuilder().withAutonatV2Server(config).build()
     client = AutonatV2Client.new(rng())
 
   client.setup(src)
@@ -172,14 +172,13 @@ suite "AutonatV2":
       )
 
   asyncTest "Instantiate server":
-    let serverSwitch =
-      newStandardSwitchBuilder().withAutonatV2Server().build()
+    let serverSwitch = newStandardSwitchBuilder().withAutonatV2Server().build()
     await serverSwitch.start()
     await serverSwitch.stop()
 
   asyncTest "Instantiate server with config":
     let serverSwitch = newStandardSwitchBuilder()
-      .withAutonatV2Server(config = AutonatV2Config.new(allowPrivateAddresses = true))
+      .withAutonatV2Server(AutonatV2Config.new(allowPrivateAddresses = true))
       .build()
 
     await serverSwitch.start()
@@ -187,7 +186,7 @@ suite "AutonatV2":
 
   asyncTest "Successful DialRequest":
     let (src, dst, client) =
-      await setupAutonat(config = AutonatV2Config.new(allowPrivateAddresses = true))
+      await setupAutonat(AutonatV2Config.new(allowPrivateAddresses = true))
     defer:
       await allFutures(src.stop(), dst.stop())
 
@@ -273,8 +272,8 @@ suite "AutonatV2":
 
   asyncTest "Server responding with invalid messages":
     let
-      src = newStandardSwitchBuilder().build()
-      dst = newStandardSwitchBuilder().build()
+      src = buildStandardSwitch()
+      dst = buildStandardSwitch()
       client = AutonatV2Client.new(rng())
       autonatV2Mock = AutonatV2Mock.new()
       reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]

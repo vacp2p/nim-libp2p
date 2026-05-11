@@ -40,8 +40,8 @@ suite "Dcutr":
     check syncMsg == syncMsgDecoded
 
   asyncTest "DCUtR establishes a new connection":
-    let behindNATSwitch = newStandardSwitchBuilder().build()
-    let publicSwitch = newStandardSwitchBuilder().build()
+    let behindNATSwitch = buildStandardSwitch()
+    let publicSwitch = buildStandardSwitch()
 
     let dcutrProto = Dcutr.new(publicSwitch)
     publicSwitch.mount(dcutrProto)
@@ -106,9 +106,8 @@ suite "Dcutr":
     ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
       await sleepAsync(50.millis)
 
-    let behindNATSwitch =
-      SwitchStub.new(newStandardSwitchBuilder().build(), connectTimeoutProc)
-    let publicSwitch = newStandardSwitchBuilder().build()
+    let behindNATSwitch = SwitchStub.new(buildStandardSwitch(), connectTimeoutProc)
+    let publicSwitch = buildStandardSwitch()
     ductrClientTest(behindNATSwitch, publicSwitch):
       try:
         let client = DcutrClient.new(connectTimeout = 5.millis)
@@ -129,9 +128,8 @@ suite "Dcutr":
     ): Future[void] {.async: (raises: [DialFailedError, CancelledError]).} =
       raise newException(DialFailedError, "error")
 
-    let behindNATSwitch =
-      SwitchStub.new(newStandardSwitchBuilder().build(), connectErrorProc)
-    let publicSwitch = newStandardSwitchBuilder().build()
+    let behindNATSwitch = SwitchStub.new(buildStandardSwitch(), connectErrorProc)
+    let publicSwitch = buildStandardSwitch()
     ductrClientTest(behindNATSwitch, publicSwitch):
       try:
         let client = DcutrClient.new(connectTimeout = 5.millis)
@@ -142,8 +140,8 @@ suite "Dcutr":
         check err.parent of AllFuturesFailedError
 
   proc ductrServerTest(connectStub: connectStubType) {.async.} =
-    let behindNATSwitch = newStandardSwitchBuilder().build()
-    let publicSwitch = SwitchStub.new(newStandardSwitchBuilder().build())
+    let behindNATSwitch = buildStandardSwitch()
+    let publicSwitch = SwitchStub.new(buildStandardSwitch())
 
     let dcutrProto = Dcutr.new(publicSwitch, connectTimeout = 5.millis)
     publicSwitch.mount(dcutrProto)

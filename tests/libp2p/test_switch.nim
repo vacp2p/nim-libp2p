@@ -54,10 +54,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitchBuilder().build()
+    let switch2 = buildStandardSwitch()
     await switch1.start()
     await switch2.start()
 
@@ -101,12 +101,10 @@ suite "Switch":
     proc match(proto: string): bool {.gcsafe.} =
       return proto == callProto
 
-    let switch1 =
-      newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
     switch1.mount(testProto, match)
 
-    let switch2 =
-      newStandardSwitchBuilder().build()
+    let switch2 = buildStandardSwitch()
     await switch1.start()
     await switch2.start()
 
@@ -145,10 +143,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitchBuilder().build()
+    let switch2 = buildStandardSwitch()
     await switch1.start()
     await switch2.start()
 
@@ -185,12 +183,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 =
-      newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 =
-      newStandardSwitchBuilder().build()
+    let switch2 = buildStandardSwitch()
     await switch1.start()
     await switch2.start()
 
@@ -212,8 +208,7 @@ suite "Switch":
 
   asyncTest "e2e connect to peer with unknown PeerId":
     let resolver = MockResolver.new()
-    let switch1 =
-      newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
     let switch2 = newStandardSwitchBuilder().withNameResolver(resolver).build()
     await switch1.start()
     await switch2.start()
@@ -237,10 +232,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e connect to peer with known PeerId":
-    let switch1 =
-      newStandardSwitchBuilder().build()
-    let switch2 =
-      newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
+    let switch2 = buildStandardSwitch()
     await switch1.start()
     await switch2.start()
 
@@ -269,8 +262,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should not leak on peer disconnect":
-    let switch1 = newStandardSwitchBuilder().build()
-    let switch2 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
+    let switch2 = buildStandardSwitch()
     await switch1.start()
     await switch2.start()
 
@@ -307,8 +300,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger connection events (remote)":
-    let switch1 = newStandardSwitchBuilder().build()
-    let switch2 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
+    let switch2 = buildStandardSwitch()
 
     var step = 0
     var kinds: set[ConnEventKind]
@@ -355,8 +348,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger connection events (local)":
-    let switch1 = newStandardSwitchBuilder().build()
-    let switch2 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
+    let switch2 = buildStandardSwitch()
 
     var step = 0
     var kinds: set[ConnEventKind]
@@ -403,8 +396,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events (remote)":
-    let switch1 = newStandardSwitchBuilder().build()
-    let switch2 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
+    let switch2 = buildStandardSwitch()
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -452,8 +445,8 @@ suite "Switch":
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
   asyncTest "e2e should trigger peer events (local)":
-    let switch1 = newStandardSwitchBuilder().build()
-    let switch2 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
+    let switch2 = buildStandardSwitch()
 
     var step = 0
     var kinds: set[PeerEventKind]
@@ -583,7 +576,7 @@ suite "Switch":
       except DialFailedError:
         raiseAssert "Unexpected DialFailedError in connection event hook"
 
-    switches.add(newStandardSwitchBuilder().build())
+    switches.add(buildStandardSwitch())
 
     switches[0].addConnEventHandler(hook, ConnEventKind.Connected)
     switches[0].addConnEventHandler(hook, ConnEventKind.Disconnected)
@@ -652,7 +645,7 @@ suite "Switch":
       await conn.closeWithEOF()
 
     let handlerWait = acceptHandler()
-    let switch = newStandardSwitchBuilder().build()
+    let switch = buildStandardSwitch()
 
     await switch.start()
 
@@ -679,12 +672,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 =
-      newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 =
-      newStandardSwitchBuilder().build()
+    let switch2 = buildStandardSwitch()
 
     await switch1.start()
 
@@ -710,8 +701,7 @@ suite "Switch":
     await switch1.stop()
 
   asyncTest "connect to inexistent peer":
-    let switch2 =
-      newStandardSwitchBuilder().build()
+    let switch2 = buildStandardSwitch()
     await switch2.start()
     let someAddr = MultiAddress.init("/ip4/127.128.0.99").get()
     let seckey = PrivateKey.random(ECDSA, rng()).get()
@@ -730,7 +720,7 @@ suite "Switch":
 
     let destPeerInfo = destSwitch.peerInfo
     for i in 0 ..< 3:
-      let switch = newStandardSwitchBuilder().build()
+      let switch = buildStandardSwitch()
       switches.add(switch)
       await switch.start()
 
@@ -738,7 +728,7 @@ suite "Switch":
         1000.millis
       )
 
-    let switchFail = newStandardSwitchBuilder().build()
+    let switchFail = buildStandardSwitch()
     switches.add(switchFail)
     await switchFail.start()
 
@@ -753,7 +743,7 @@ suite "Switch":
   asyncTest "e2e total connection limits on incoming connections":
     var switches: seq[Switch]
     for i in 0 ..< 3:
-      switches.add(newStandardSwitchBuilder().build())
+      switches.add(buildStandardSwitch())
       await switches[i].start()
 
     let srcSwitch = newStandardSwitchBuilder()
@@ -761,7 +751,7 @@ suite "Switch":
       .build()
     await srcSwitch.start()
 
-    let dstSwitch = newStandardSwitchBuilder().build()
+    let dstSwitch = buildStandardSwitch()
     await dstSwitch.start()
 
     for s in switches:
@@ -787,7 +777,7 @@ suite "Switch":
 
     let destPeerInfo = destSwitch.peerInfo
     for i in 0 ..< 3:
-      let switch = newStandardSwitchBuilder().build()
+      let switch = buildStandardSwitch()
       switches.add(switch)
       await switch.start()
 
@@ -795,7 +785,7 @@ suite "Switch":
         1000.millis
       )
 
-    let switchFail = newStandardSwitchBuilder().build()
+    let switchFail = buildStandardSwitch()
     switches.add(switchFail)
     await switchFail.start()
 
@@ -810,7 +800,7 @@ suite "Switch":
   asyncTest "e2e max outgoing connection limits":
     var switches: seq[Switch]
     for i in 0 ..< 3:
-      switches.add(newStandardSwitchBuilder().build())
+      switches.add(buildStandardSwitch())
       await switches[i].start()
 
     let srcSwitch = newStandardSwitchBuilder()
@@ -818,7 +808,7 @@ suite "Switch":
       .build()
     await srcSwitch.start()
 
-    let dstSwitch = newStandardSwitchBuilder().build()
+    let dstSwitch = buildStandardSwitch()
     await dstSwitch.start()
 
     for s in switches:
@@ -851,7 +841,7 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
     switch1.mount(testProto)
 
     let switch2 = newStandardSwitchBuilder().withPeerStore(capacity = 0).build()
@@ -902,10 +892,10 @@ suite "Switch":
     testProto.codec = TestCodec
     testProto.handler = handle
 
-    let switch1 = newStandardSwitchBuilder().build()
+    let switch1 = buildStandardSwitch()
     switch1.mount(testProto)
 
-    let switch2 = newStandardSwitchBuilder().build()
+    let switch2 = buildStandardSwitch()
     await switch1.start()
     await switch2.start()
 
@@ -965,7 +955,7 @@ suite "Switch":
 
       switch1.mount(testProto)
 
-      let switch2 = newStandardSwitchBuilder().build()
+      let switch2 = buildStandardSwitch()
       let switch3 = newStandardSwitchBuilder()
         .withAddress(MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet())
         .build()
@@ -1008,9 +998,8 @@ suite "Switch":
     resolver.ipResponses[("localhost", true)] = @["::1"]
 
     let
-      srcSwitch =
-        newStandardSwitchBuilder().withNameResolver(resolver).build()
-      destSwitch = newStandardSwitchBuilder().build()
+      srcSwitch = newStandardSwitchBuilder().withNameResolver(resolver).build()
+      destSwitch = buildStandardSwitch()
 
     await destSwitch.start()
     await srcSwitch.start()
@@ -1032,8 +1021,9 @@ suite "Switch":
       wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
-      srcTcpSwitch =
-        newStandardSwitchBuilder(transport = TransportType.TCP).withNameResolver(resolver).build()
+      srcTcpSwitch = newStandardSwitchBuilder(transport = TransportType.TCP)
+        .withNameResolver(resolver)
+        .build()
       srcWsSwitch = newStandardSwitchBuilder(transport = TransportType.Websocket)
         .withAddress(wsAddress)
         .withNameResolver(resolver)
@@ -1173,8 +1163,8 @@ suite "Switch":
         handleFinished.done()
 
     let
-      src = newStandardSwitchBuilder().build()
-      dst = newStandardSwitchBuilder().build()
+      src = buildStandardSwitch()
+      dst = buildStandardSwitch()
       testProto = new TestProto
     testProto.codec = TestCodec
     testProto.handler = handle
@@ -1231,7 +1221,7 @@ suite "Switch":
 
     var clients: seq[Switch]
     for _ in 0 ..< NumPeers:
-      let c = newStandardSwitchBuilder().build()
+      let c = buildStandardSwitch()
       await c.start()
       clients.add(c)
     defer:

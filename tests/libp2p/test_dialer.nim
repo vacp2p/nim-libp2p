@@ -39,12 +39,12 @@ suite "Dialer":
     switches.add(dst)
 
     for i in 1 ..< 3:
-      let src = newStandardSwitchBuilder().build()
+      let src = buildStandardSwitch()
       switches.add(src)
       await src.start()
       await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs, true, false)
 
-    let src = newStandardSwitchBuilder().build()
+    let src = buildStandardSwitch()
     switches.add(src)
     await src.start()
     check not await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs).withTimeout(
