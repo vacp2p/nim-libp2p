@@ -7,7 +7,7 @@ import chronos, std/[sequtils, enumerate], stew/byteutils, sugar, chronicles
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, pubsubpeer, timedcache, rpc/message]
-import ../../../tools/[lifecycle, topology, unittest, futures, sync]
+import ../../../tools/[lifecycle, topology, unittest, futures, sync, switch_builder]
 import ../utils
 
 const MsgIdSuccess = "msg id gen success"

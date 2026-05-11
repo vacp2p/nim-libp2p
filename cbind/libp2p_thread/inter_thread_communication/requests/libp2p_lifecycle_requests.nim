@@ -22,6 +22,14 @@ import ../../../../libp2p/protocols/service_discovery
 import ../../../../libp2p/protocols/ping
 import ../../../../libp2p/protocols/connectivity/relay/client
 
+type TransportType* {.pure.} = enum
+  QUIC
+  TCP
+
+type MuxerType* {.pure.} = enum
+  MPLEX
+  YAMUX
+
 type LifecycleMsgType* = enum
   CREATE_LIBP2P
   START_NODE
@@ -56,8 +64,6 @@ proc fromCint(T: typedesc[TransportType], val: cint): Result[T, string] =
     ok(TransportType.QUIC)
   of ord(TransportType.TCP).cint:
     ok(TransportType.TCP)
-  of ord(TransportType.Memory).cint:
-    ok(TransportType.Memory)
   else:
     err("invalid transport")
 
@@ -217,7 +223,6 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
       DefaultDnsServers
     else:
       @[initTAddress($config.dnsResolver)]
-  let dnsResolver = Opt.some(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
 
   let rng = newRng()
 
@@ -236,30 +241,44 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
           raiseAssert "invalid listen address: " & $error
         addrs.add(address)
 
-  let muxer = MuxerType.fromCint(config.muxer).valueOr:
-    raiseAssert "invalid muxer type"
-
   let transport = TransportType.fromCint(config.transport).valueOr:
     raiseAssert "invalid transport type"
 
-  let connectionLimits =
-    if config.maxIn > 0 and config.maxOut > 0:
-      Opt.some(ConnectionLimits.maxInOut(config.maxIn, config.maxOut))
-    elif config.maxConnections > 0:
-      Opt.some(ConnectionLimits.maxTotal(config.maxConnections))
-    else:
-      Opt.none(ConnectionLimits)
+  var switchBuilder = SwitchBuilder
+    .new()
+    .withRng(rng)
+    .withMaxConnsPerPeer(config.maxConnsPerPeer)
+    .withNameResolver(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
+    .withNoise()
 
-  var switchBuilder = newStandardSwitchBuilder(
-    privKey = privKey,
-    addrs = addrs,
-    muxer = muxer,
-    transport = transport,
-    connectionLimits = connectionLimits,
-    maxConnsPerPeer = config.maxConnsPerPeer,
-    nameResolver = dnsResolver,
-    rng = rng,
-  )
+  if addrs.len > 0:
+    switchBuilder = switchBuilder.withAddresses(addrs)
+
+  privKey.withValue(pkey):
+    switchBuilder = switchBuilder.withPrivateKey(pkey)
+
+  case transport
+  of TransportType.QUIC:
+    switchBuilder = switchBuilder.withQuicTransport()
+  of TransportType.TCP:
+    switchBuilder = switchBuilder.withTcpTransport()
+
+    let muxer = MuxerType.fromCint(config.muxer).valueOr:
+      raiseAssert "invalid muxer type"
+    case muxer
+    of MuxerType.MPLEX:
+      switchBuilder = switchBuilder.withMplex()
+    of MuxerType.YAMUX:
+      switchBuilder = switchBuilder.withYamux()
+
+  if config.maxIn > 0 and config.maxOut > 0:
+    switchBuilder = switchBuilder.withConnectionLimits(
+      ConnectionLimits.maxInOut(config.maxIn, config.maxOut)
+    )
+  elif config.maxConnections > 0:
+    switchBuilder = switchBuilder.withConnectionLimits(
+      ConnectionLimits.maxTotal(config.maxConnections)
+    )
 
   var relayClientOpt = Opt.none(RelayClient)
   if config.circuitRelayClient == 1:

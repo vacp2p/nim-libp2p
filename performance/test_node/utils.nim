@@ -20,6 +20,7 @@ import ../../libp2p/protocols/pubsub/rpc/messages
 import ../../libp2p/muxers/mplex/lpchannel
 import ../../libp2p/protocols/ping
 import ../../tests/tools/unittest
+import ../../tests/tools/switch_builder
 import ../runner
 import ../types
 
