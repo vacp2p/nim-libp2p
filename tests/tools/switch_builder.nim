@@ -58,8 +58,8 @@ proc newStandardSwitchBuilder*(
     b = b.withTcpTransport().withMplex()
   of TransportType.Websocket:
     b = b.withTransport(
-      proc(config: TransportConfig): Transport =
-        WsTransport.new(config.upgr, config.rng)
+      proc(transportConfig: TransportConfig): Transport =
+        WsTransport.new(transportConfig.upgr, transportConfig.rng)
     )
     b = b.withMplex()
   of TransportType.Memory:

@@ -49,9 +49,9 @@ proc setupNode*(
       .withRng(rng)
       .build()
   of TransportType.Websocket:
-    switch = newStandardSwitchBuilder(
-      address = address & "/ws", transport = TransportType.Websocket
-    )
+    let wsAddress = MultiAddress.init(address).tryGet() & MultiAddress.init("/ws").get()
+    switch = newStandardSwitchBuilder(transport = TransportType.Websocket)
+      .withAddress(wsAddress)
       .withRng(rng)
       .build()
   of TransportType.QUIC:
