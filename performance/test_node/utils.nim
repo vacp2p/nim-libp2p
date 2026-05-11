@@ -45,19 +45,19 @@ proc setupNode*(
 
   case transport
   of TransportType.TCP:
-    switch = newStandardSwitch(
-      rng = rng,
-      addrs = MultiAddress.init(address).tryGet(),
-      transport = TransportType.TCP,
-    )
+    switch = newStandardSwitchBuilder(address = address, transport = TransportType.TCP)
+      .withRng(rng)
+      .build()
+  of TransportType.Websocket:
+    raiseAssert "TransportType.Websocket not supported"
   of TransportType.QUIC:
-    switch = newStandardSwitch(
-      rng = rng,
-      addrs =
-        MultiAddress.init(address, IPPROTO_UDP).tryGet() &
-        MultiAddress.init("/quic-v1").get(),
-      transport = TransportType.QUIC,
-    )
+    let quicAddress =
+      MultiAddress.init(address, IPPROTO_UDP).tryGet() &
+      MultiAddress.init("/quic-v1").get()
+    switch = newStandardSwitchBuilder(transport = TransportType.QUIC)
+      .withAddress(quicAddress)
+      .withRng(rng)
+      .build()
   of TransportType.Memory:
     raiseAssert "TransportType.Memory not supported"
 
@@ -146,6 +146,8 @@ proc resolvePeersAddresses*(
       case transport
       of TransportType.TCP:
         addresses = resolved.mapIt(MultiAddress.init(it).tryGet())
+      of TransportType.Websocket:
+        raiseAssert "TransportType.Websocket not supported"
       of TransportType.QUIC:
         addresses = resolved.mapIt(
           MultiAddress.init(it, IPPROTO_UDP).tryGet() &

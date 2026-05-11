@@ -6,18 +6,11 @@
 import chronos
 import ./autonatv2
 import
-  ../../libp2p/
-    [builders, peerid, switch, wire, protocols/connectivity/autonatv2/service]
-import ../tools/[unittest, crypto]
+  ../../libp2p/[peerid, switch, wire, protocols/connectivity/autonatv2/service]
+import ../tools/[unittest, crypto, switch_builder]
 
 proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
-  var builder = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init(address).get()])
-    .withTcpTransport()
-    .withYamux()
-    .withNoise()
+  var builder = newStandardSwitchBuilder(address = address, transport = TransportType.TCP)
 
   if withAutonatV2:
     builder = builder.withAutonatV2Server().withAutonatV2(

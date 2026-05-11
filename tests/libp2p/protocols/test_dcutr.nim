@@ -9,7 +9,7 @@ import ../../../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../../../libp2p/protocols/connectivity/autonat/types import NetworkReachability
 import ../../../libp2p/[builders, utils/future]
 import ../../stubs/switchstub
-import ../../tools/[unittest, crypto, switch_builder]
+import ../../tools/[unittest, switch_builder]
 
 suite "Dcutr":
   teardown:
@@ -40,8 +40,8 @@ suite "Dcutr":
     check syncMsg == syncMsgDecoded
 
   asyncTest "DCUtR establishes a new connection":
-    let behindNATSwitch = newStandardSwitch(rng = rng())
-    let publicSwitch = newStandardSwitch(rng = rng())
+    let behindNATSwitch = newStandardSwitchBuilder().build()
+    let publicSwitch = newStandardSwitchBuilder().build()
 
     let dcutrProto = Dcutr.new(publicSwitch)
     publicSwitch.mount(dcutrProto)
@@ -107,8 +107,8 @@ suite "Dcutr":
       await sleepAsync(50.millis)
 
     let behindNATSwitch =
-      SwitchStub.new(newStandardSwitch(rng = rng()), connectTimeoutProc)
-    let publicSwitch = newStandardSwitch(rng = rng())
+      SwitchStub.new(newStandardSwitchBuilder().build(), connectTimeoutProc)
+    let publicSwitch = newStandardSwitchBuilder().build()
     ductrClientTest(behindNATSwitch, publicSwitch):
       try:
         let client = DcutrClient.new(connectTimeout = 5.millis)
@@ -130,8 +130,8 @@ suite "Dcutr":
       raise newException(DialFailedError, "error")
 
     let behindNATSwitch =
-      SwitchStub.new(newStandardSwitch(rng = rng()), connectErrorProc)
-    let publicSwitch = newStandardSwitch(rng = rng())
+      SwitchStub.new(newStandardSwitchBuilder().build(), connectErrorProc)
+    let publicSwitch = newStandardSwitchBuilder().build()
     ductrClientTest(behindNATSwitch, publicSwitch):
       try:
         let client = DcutrClient.new(connectTimeout = 5.millis)
@@ -142,8 +142,8 @@ suite "Dcutr":
         check err.parent of AllFuturesFailedError
 
   proc ductrServerTest(connectStub: connectStubType) {.async.} =
-    let behindNATSwitch = newStandardSwitch(rng = rng())
-    let publicSwitch = SwitchStub.new(newStandardSwitch(rng = rng()))
+    let behindNATSwitch = newStandardSwitchBuilder().build()
+    let publicSwitch = SwitchStub.new(newStandardSwitchBuilder().build())
 
     let dcutrProto = Dcutr.new(publicSwitch, connectTimeout = 5.millis)
     publicSwitch.mount(dcutrProto)
