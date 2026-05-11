@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/sequtils
+import std/[sequtils, sets]
 import chronos, chronicles, results
 import ../../[peerid, switch, multiaddress, extended_peer_record]
 import ../kademlia
@@ -79,15 +79,16 @@ proc processResponse(
     disco: ServiceDiscovery,
     serviceId: ServiceId,
     response: GetAdsResult,
-    found: var seq[Advertisement],
+    found: var HashSet[Advertisement],
     limit: int,
 ) =
   disco.updatePeers(response.closerPeers)
 
   disco.insertCloserPeers(serviceId, response.closerPeers.mapIt(it.peerId))
-  let remaining = limit - found.len
-  if remaining > 0:
-    found.add(response.ads[0 ..< min(remaining, response.ads.len)])
+  for ad in response.ads:
+    if found.len >= limit:
+      break
+    found.incl(ad)
 
 proc drainCompletedPeers(
     disco: ServiceDiscovery,
@@ -101,8 +102,8 @@ proc drainCompletedPeers(
 
 proc collectBucketAds(
     disco: ServiceDiscovery, serviceId: ServiceId, peers: seq[PeerId], limit: int
-): Future[seq[Advertisement]] {.async: (raises: [CancelledError]).} =
-  var found = newSeqOfCap[Advertisement](limit)
+): Future[HashSet[Advertisement]] {.async: (raises: [CancelledError]).} =
+  var found = initHashSet[Advertisement]()
   var pending: seq[Future[Result[GetAdsResult, string]]] = peers.mapIt(
     Future[Result[GetAdsResult, string]](dispatchGetAds(disco, it, serviceId))
   )
@@ -135,20 +136,27 @@ proc collectBucketAds(
 
   return found
 
-proc startDiscovering*(disco: ServiceDiscovery, serviceId: string): bool =
+proc registerInterest*(disco: ServiceDiscovery, serviceId: string): bool =
+  ## Register interest in a service so its routing table is created and kept
+  ## fresh by the refresh loop. No messages are sent and no ads are fetched
+  ## here. This only prepopulates the per-service routing table to make subsequent
+  ## `lookup` calls faster.
   let serviceHash = serviceId.hashServiceId()
 
-  debug "start discovering", service = serviceId, serviceId = serviceHash
+  debug "register interest", service = serviceId, serviceId = serviceHash
 
   disco.rtManager.addService(
     serviceHash, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
 
-proc stopDiscovering*(disco: ServiceDiscovery, serviceId: string) =
+proc unregisterInterest*(disco: ServiceDiscovery, serviceId: string) =
+  ## Drop interest in a service. The per-service routing table is removed
+  ## unless this node is also providing the service, in which case the table
+  ## is kept for advertising.
   let serviceHash = serviceId.hashServiceId()
 
-  debug "stop discovering", service = serviceId, serviceId = serviceHash
+  debug "unregister interest", service = serviceId, serviceId = serviceHash
 
   disco.rtManager.removeService(serviceHash, Interest)
 
@@ -166,7 +174,7 @@ proc lookup*(
   let searchTable = disco.rtManager.getTable(serviceId).valueOr:
     return err("service table not found for service id: " & $serviceId)
 
-  var found = newSeqOfCap[Advertisement](disco.discoConfig.fLookup)
+  var found = initHashSet[Advertisement]()
   var once = true
 
   let buckets = searchTable.buckets
@@ -184,7 +192,7 @@ proc lookup*(
       once = false
 
     let remaining = disco.discoConfig.fLookup - found.len
-    found.add(await disco.collectBucketAds(serviceId, peers, remaining))
+    found.incl(await disco.collectBucketAds(serviceId, peers, remaining))
 
   cd_lookup_peers_found.inc(found.len.int64)
-  return ok(found)
+  return ok(found.toSeq)

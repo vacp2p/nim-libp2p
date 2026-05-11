@@ -1087,7 +1087,7 @@ proc libp2p_service_disco_stop_advertising(
 
   RET_OK.cint
 
-proc libp2p_service_disco_start_discovering(
+proc libp2p_service_disco_register_interest(
     ctx: ptr LibP2PContext,
     serviceId: cstring,
     callback: Libp2pCallback,
@@ -1103,7 +1103,7 @@ proc libp2p_service_disco_start_discovering(
     ctx,
     RequestType.SERVICE_DISCOVERY,
     ServiceDiscoveryRequest.createShared(
-      ServiceDiscoveryMsgType.SD_START_DISCOVERING, serviceId = serviceId
+      ServiceDiscoveryMsgType.SD_REGISTER_INTEREST, serviceId = serviceId
     ),
     callback,
     userData,
@@ -1112,7 +1112,7 @@ proc libp2p_service_disco_start_discovering(
 
   RET_OK.cint
 
-proc libp2p_service_disco_stop_discovering(
+proc libp2p_service_disco_unregister_interest(
     ctx: ptr LibP2PContext,
     serviceId: cstring,
     callback: Libp2pCallback,
@@ -1128,7 +1128,7 @@ proc libp2p_service_disco_stop_discovering(
     ctx,
     RequestType.SERVICE_DISCOVERY,
     ServiceDiscoveryRequest.createShared(
-      ServiceDiscoveryMsgType.SD_STOP_DISCOVERING, serviceId = serviceId
+      ServiceDiscoveryMsgType.SD_UNREGISTER_INTEREST, serviceId = serviceId
     ),
     callback,
     userData,

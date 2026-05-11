@@ -45,10 +45,9 @@ suite "GossipSub Component - Extensions":
     await connect(nodes[0], nodes[1])
 
     let nodesPeerIdSorted = pluckPeerId(nodes).sorted()
-    untilTimeout:
-      pre:
+    checkUntilTimeout:
+      block:
         let negotiatedPeersSorted = negotiatedPeers.sorted()
-      check:
         negotiatedPeersSorted == nodesPeerIdSorted
 
   asyncTest "Extensions control is sent before subscriptions on stream open":
