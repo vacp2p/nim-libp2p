@@ -33,23 +33,26 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       let acmeApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       defer:
         await acmeApi.close()
-      let registerResponse = await acmeApi.requestRegister(key)
-      # account was registered (kid set)
-      check registerResponse.kid != ""
-      if registerResponse.kid == "":
-        raiseAssert "unable to register acme account"
+      try:
+        let registerResponse = await acmeApi.requestRegister(key)
+        # account was registered (kid set)
+        check registerResponse.kid != ""
+        if registerResponse.kid == "":
+          raiseAssert "unable to register acme account"
 
-      # challenge requested
-      let challenge = await acmeApi.requestChallenge(
-        @["some.dummy.domain.com"], key, registerResponse.kid
-      )
-      check challenge.finalize.len > 0
-      check challenge.order.len > 0
+        # challenge requested
+        let challenge = await acmeApi.requestChallenge(
+          @["some.dummy.domain.com"], key, registerResponse.kid
+        )
+        check challenge.finalize.len > 0
+        check challenge.order.len > 0
 
-      check challenge.dns01.url.len > 0
-      check challenge.dns01.`type` == ACMEChallengeType.DNS01
-      check challenge.dns01.status == ACMEChallengeStatus.PENDING
-      check challenge.dns01.token.len > 0
+        check challenge.dns01.url.len > 0
+        check challenge.dns01.`type` == ACMEChallengeType.DNS01
+        check challenge.dns01.status == ACMEChallengeStatus.PENDING
+        check challenge.dns01.token.len > 0
+      except ACMENetworkError:
+        skip()
 
     asyncTestRetry "request challenge with ACMEClient":
       let acme = ACMEClient.new(
@@ -57,16 +60,18 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       )
       defer:
         await acme.close()
+      try:
+        let challenge = await acme.getChallenge(@["some.dummy.domain.com"])
 
-      let challenge = await acme.getChallenge(@["some.dummy.domain.com"])
-
-      check:
-        challenge.finalize.len > 0
-        challenge.order.len > 0
-        challenge.dns01.url.len > 0
-        challenge.dns01.`type` == ACMEChallengeType.DNS01
-        challenge.dns01.status == ACMEChallengeStatus.PENDING
-        challenge.dns01.token.len > 0
+        check:
+          challenge.finalize.len > 0
+          challenge.order.len > 0
+          challenge.dns01.url.len > 0
+          challenge.dns01.`type` == ACMEChallengeType.DNS01
+          challenge.dns01.status == ACMEChallengeStatus.PENDING
+          challenge.dns01.token.len > 0
+      except ACMENetworkError:
+        skip()
 
     asyncTestRetry "AutotlsService correctly downloads challenges":
       if not hasPublicIPAddress():
