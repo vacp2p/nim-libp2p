@@ -44,32 +44,6 @@ template asyncTest*(name: string, body: untyped): untyped =
       )()
     )
 
-template asyncTestRetry*(
-    name: string, retryDelay: Duration = 5.seconds, maxAttempts: int = 3, body: untyped
-): untyped =
-  ## Runs the test up to `maxAttempts` times, passing as soon as any attempt succeeds.
-  ## Sleeps `retryDelay` between attempts; fails only if all attempts fail.
-  test name:
-    waitFor(
-      (
-        proc() {.async.} =
-          var lastError: ref Exception = nil
-          for attempt in 1 .. maxAttempts:
-            try:
-              body
-              return
-            except Exception as e:
-              lastError = e
-              checkpoint(
-                "Retry attempt " & $attempt & "/" & $maxAttempts & " failed: " & e.msg
-              )
-              if attempt < maxAttempts:
-                await sleepAsync(retryDelay)
-          if lastError != nil:
-            raise lastError
-      )()
-    )
-
 proc buildAndExpr(n: NimNode): NimNode =
   # Helper proc to recursively build a combined boolean expression
 
