@@ -1032,12 +1032,10 @@ suite "Switch":
       wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
       tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
 
-      srcTcpSwitch = newStandardSwitchBuilder(tcpAddress)
-        .withNameResolver(resolver)
-        .build()
-      srcWsSwitch = newStandardSwitchBuilder(wsAddress)
-        .withNameResolver(resolver)
-        .build()
+      srcTcpSwitch =
+        newStandardSwitchBuilder(tcpAddress).withNameResolver(resolver).build()
+      srcWsSwitch =
+        newStandardSwitchBuilder(wsAddress).withNameResolver(resolver).build()
 
       destSwitch = SwitchBuilder
         .new()

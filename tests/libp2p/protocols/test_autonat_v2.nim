@@ -28,7 +28,9 @@ proc setupAutonat(
 
   let
     src = srcBuilder.build()
-    dst = newStandardSwitchBuilder(transport = TransportType.TCP).withAutonatV2Server(config).build()
+    dst = newStandardSwitchBuilder(transport = TransportType.TCP)
+      .withAutonatV2Server(config)
+      .build()
     client = AutonatV2Client.new(rng())
 
   client.setup(src)

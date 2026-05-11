@@ -47,7 +47,8 @@ proc setupNode*(
 
   case transport
   of TransportType.TCP:
-    switch = SwitchBuilder.new()
+    switch = SwitchBuilder
+      .new()
       .withRng(rng)
       .withNoise()
       .withAddress(MultiAddress.init(address).get())
@@ -58,7 +59,8 @@ proc setupNode*(
     let quicAddress =
       MultiAddress.init(address, IPPROTO_UDP).tryGet() &
       MultiAddress.init("/quic-v1").get()
-    switch = SwitchBuilder.new()
+    switch = SwitchBuilder
+      .new()
       .withRng(rng)
       .withNoise()
       .withAddress(quicAddress)

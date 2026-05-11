@@ -168,8 +168,14 @@ suite "Identify":
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
         MultiAddress.init("/ip6/::/tcp/0").get(),
       ]
-      switch1 = newStandardSwitchBuilder(transport = TransportType.TCP).withAddresses(ma).withSignedPeerRecord(true).build()
-      switch2 = newStandardSwitchBuilder(transport = TransportType.TCP).withAddresses(ma).withSignedPeerRecord(true).build()
+      switch1 = newStandardSwitchBuilder(transport = TransportType.TCP)
+        .withAddresses(ma)
+        .withSignedPeerRecord(true)
+        .build()
+      switch2 = newStandardSwitchBuilder(transport = TransportType.TCP)
+        .withAddresses(ma)
+        .withSignedPeerRecord(true)
+        .build()
 
       proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
