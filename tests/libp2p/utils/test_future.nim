@@ -96,6 +96,35 @@ suite "Future":
     check f1.completed()
     check f2.failed()
 
+  asyncTest "cancelAndWait cancels pending futures":
+    var f1 = newFuture[void]()
+    var f2 = newFuture[void]()
+    var f3 = newFuture[void]()
+
+    check not f1.finished()
+    check not f2.finished()
+    check not f3.finished()
+
+    await @[f1, f2, f3].cancelAndWait()
+
+    check f1.cancelled()
+    check f2.cancelled()
+    check f3.cancelled()
+
+  asyncTest "cancelAndWait is no-op for completed futures":
+    var f1 = newFuture[void]()
+    var f2 = newFuture[void]()
+    f1.complete()
+    f2.fail(newException(CatchableError, "error"))
+
+    check f1.completed()
+    check f2.failed()
+
+    await @[f1, f2].cancelAndWait()
+
+    check f1.completed()
+    check f2.failed()
+
   asyncTest "allFuturesWaitOrTimeout completes all futures within timeout":
     proc work() {.async.} =
       await sleepAsync(10.milliseconds)

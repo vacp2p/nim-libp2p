@@ -29,6 +29,7 @@ import
   errors,
   utility,
   dialer,
+  utils/future,
   crypto/rng
 
 export connmanager, upgrade, dialer, peerstore
@@ -318,7 +319,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
   try:
     # Stop accepting incoming connections
-    await allFutures(s.acceptFuts.mapIt(it.cancelAndWait())).wait(1.seconds)
+    await s.acceptFuts.cancelAndWait().wait(1.seconds)
   except CatchableError as exc:
     debug "Cannot cancel accepts", description = exc.msg
 
