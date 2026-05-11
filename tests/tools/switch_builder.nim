@@ -4,9 +4,7 @@
 {.used.}
 
 import
-  results,
-  ../../libp2p/
-    [errors, switch, builders, multiaddress, transports/wstransport]
+  results, ../../libp2p/[errors, switch, builders, multiaddress, transports/wstransport]
 import ./crypto
 
 export builders
