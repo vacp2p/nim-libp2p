@@ -170,6 +170,7 @@ type
 
   RoutingTable* = ref object
     selfId*: Key
+    localNodeId*: Key
     buckets*: seq[Bucket]
     config*: RoutingTableConfig
 

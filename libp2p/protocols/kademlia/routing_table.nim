@@ -29,8 +29,11 @@ proc new*(
     T: typedesc[RoutingTable],
     selfId: Key,
     config: RoutingTableConfig = RoutingTableConfig.new(),
+    localNodeId: Opt[Key] = Opt.none(Key),
 ): T =
-  RoutingTable(selfId: selfId, buckets: @[], config: config)
+  RoutingTable(
+    selfId: selfId, localNodeId: localNodeId.get(selfId), buckets: @[], config: config
+  )
 
 proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
   return xorDistance(selfId, key, hasher).leadingZeros
@@ -76,7 +79,7 @@ proc updateRoutingTableMetrics*(rtable: RoutingTable) =
   kad_routing_table_buckets.set(rtable.buckets.len.float64)
 
 proc insert*(rtable: RoutingTable, nodeId: Key): bool =
-  if nodeId == rtable.selfId:
+  if nodeId == rtable.selfId or nodeId == rtable.localNodeId:
     debug "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
 

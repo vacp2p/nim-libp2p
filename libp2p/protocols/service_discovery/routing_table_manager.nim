@@ -48,6 +48,7 @@ proc addService*(
     serviceId,
     config =
       RoutingTableConfig.new(replication = replication, maxBuckets = bucketsCount),
+    localNodeId = Opt.some(mainRoutingTable.localNodeId),
   )
 
   # Seed from main table
