@@ -170,17 +170,21 @@ proc len*[T](peerBook: PeerBook[T]): int =
 
 proc isExpired*(entry: AddressEntry, ttls: AddressConfidenceTtls): bool =
   ## Returns true only when the TTL is positive and the elapsed time exceeds it.
-  ## ZeroDuration means "never expires" for that confidence level.
-  let elapsed = Moment.now() - entry.lastUpdated
-  case entry.confidence
-  of AddressConfidence.Low:
-    ttls.low > ZeroDuration and elapsed > ttls.low
-  of AddressConfidence.Medium:
-    ttls.medium > ZeroDuration and elapsed > ttls.medium
-  of AddressConfidence.High:
-    ttls.high > ZeroDuration and elapsed > ttls.high
-  of AddressConfidence.Infinite:
-    false
+  let ttl =
+    case entry.confidence
+    of AddressConfidence.Low:
+      ttls.low
+    of AddressConfidence.Medium:
+      ttls.medium
+    of AddressConfidence.High:
+      ttls.high
+    of AddressConfidence.Infinite:
+      return false
+
+  if ttl <= ZeroDuration:
+    return false
+
+  Moment.now() - entry.lastUpdated > ttl
 
 proc higherConfidence(
     prevConf: Table[MultiAddress, AddressConfidence],

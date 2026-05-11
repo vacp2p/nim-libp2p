@@ -4,6 +4,7 @@
 {.used.}
 
 import std/[tables, sequtils]
+import chronos
 import ../../libp2p/[crypto/crypto, multiaddress, peerid, peerstore]
 import ../tools/[unittest, crypto]
 
