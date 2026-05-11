@@ -186,7 +186,7 @@ suite "AutonatV2":
 
   asyncTest "Successful DialRequest":
     let (src, dst, client) =
-      await setupAutonat(AutonatV2Config.new(allowPrivateAddresses = true))
+      await setupAutonat(config = AutonatV2Config.new(allowPrivateAddresses = true))
     defer:
       await allFutures(src.stop(), dst.stop())
 
