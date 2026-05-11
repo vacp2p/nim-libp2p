@@ -27,7 +27,7 @@ import
     relay/client,
     relay/rtransport,
   ],
-  services/[autorelayservice, hpservice],
+  services/[autorelayservice, hpservice, identify_pusher],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
@@ -89,6 +89,7 @@ type
     rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
     services: seq[Service]
+    identifyPusherEnabled: bool
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
     addressPolicy: PeerAddressPolicy
@@ -113,6 +114,7 @@ proc new*(T: type[SwitchBuilder]): T =
     circuitRelay: Opt.none(Relay),
     rdvConfig: Opt.none(RendezVousConfig),
     kad: Opt.none(KadInfo),
+    identifyPusherEnabled: true,
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
     addressTtls: AddressConfidenceTtls(),
@@ -366,6 +368,14 @@ proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
   b.services = services
   b
 
+proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
+  ## When enabled, the IdentifyPush protocol is mounted on the
+  ## switch and an `IdentifyPusher` service tracks which connected peers
+  ## advertise IdentifyPush, broadcasting our updated `PeerInfo` to all
+  ## tracked peers whenever it changes.
+  b.identifyPusherEnabled = enabled
+  b
+
 proc withObservedAddrManager*(
     b: SwitchBuilder, observedAddrManager: ObservedAddrManager
 ): SwitchBuilder =
@@ -475,6 +485,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   b.hpService.withValue(hpservice):
     b.services.add(hpservice)
 
+  if b.identifyPusherEnabled:
+    b.services.add(IdentifyPusher.new())
+
   peerStore.addressPolicy = b.addressPolicy
 
   let switch = newSwitch(
@@ -490,7 +503,6 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   )
 
   switch.mount(identify)
-  switch.setupIdentifyPush()
 
   if not isNil(b.autonatV2Client):
     b.autonatV2Client.setup(switch)
@@ -524,111 +536,3 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     switch.mount(kad)
 
   return switch
-
-type TransportType* {.pure.} = enum
-  QUIC
-  TCP
-  Memory
-
-type MuxerType* {.pure.} = enum
-  MPLEX
-  YAMUX
-
-proc newStandardSwitchBuilder*(
-    privKey = Opt.none(PrivateKey),
-    addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
-    transport: TransportType = TransportType.TCP,
-    transportFlags: set[ServerFlags] = {},
-    muxer: MuxerType = MuxerType.MPLEX,
-    rng = newRng(),
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
-    inTimeout: Duration = 5.minutes,
-    outTimeout: Duration = 5.minutes,
-    connectionLimits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
-    maxConnsPerPeer = -1,
-    nameResolver = Opt.none(NameResolver),
-    sendSignedPeerRecord = false,
-    peerStoreCapacity = 1000,
-): SwitchBuilder {.raises: [LPError].} =
-  ## Helper for common switch configurations.
-  var b = SwitchBuilder
-    .new()
-    .withRng(rng)
-    .withSignedPeerRecord(sendSignedPeerRecord)
-    .withPeerStore(capacity = peerStoreCapacity)
-    .withNoise()
-
-  connectionLimits.withValue(cfg):
-    b = b.withConnectionLimits(cfg)
-
-  if maxConnsPerPeer > 0:
-    b = b.withMaxConnsPerPeer(maxConnsPerPeer)
-
-  privKey.withValue(pkey):
-    b = b.withPrivateKey(pkey)
-
-  nameResolver.withValue(nr):
-    b = b.withNameResolver(nr)
-
-  var addrs =
-    when addrs is MultiAddress:
-      @[addrs]
-    else:
-      addrs
-
-  case transport
-  of TransportType.QUIC:
-    if addrs.len == 0:
-      addrs = @[MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").tryGet()]
-    b = b.withQuicTransport().withAddresses(addrs)
-    return b # quic does not use a muxer
-  of TransportType.TCP:
-    if addrs.len == 0:
-      addrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()]
-    b = b.withTcpTransport(transportFlags).withAddresses(addrs)
-  of TransportType.Memory:
-    if addrs.len == 0:
-      addrs = @[MultiAddress.init(MemoryAutoAddress).tryGet()]
-    b = b.withMemoryTransport().withAddresses(addrs)
-
-  case muxer
-  of MuxerType.MPLEX:
-    b = b.withMplex(inTimeout, outTimeout)
-  of MuxerType.YAMUX:
-    b = b.withYamux(inTimeout = inTimeout, outTimeout = outTimeout)
-
-  b
-
-proc newStandardSwitch*(
-    privKey = Opt.none(PrivateKey),
-    addrs: MultiAddress | seq[MultiAddress] = newSeq[MultiAddress](),
-    transport: TransportType = TransportType.TCP,
-    transportFlags: set[ServerFlags] = {},
-    muxer: MuxerType = MuxerType.MPLEX,
-    rng = newRng(),
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
-    inTimeout: Duration = 5.minutes,
-    outTimeout: Duration = 5.minutes,
-    connectionLimits: Opt[ConnectionLimits] = Opt.none(ConnectionLimits),
-    maxConnsPerPeer = -1,
-    nameResolver = Opt.none(NameResolver),
-    sendSignedPeerRecord = false,
-    peerStoreCapacity = 1000,
-): Switch {.raises: [LPError].} =
-  newStandardSwitchBuilder(
-    privKey = privKey,
-    addrs = addrs,
-    transport = transport,
-    transportFlags = transportFlags,
-    muxer = muxer,
-    rng = rng,
-    secureManagers = secureManagers,
-    inTimeout = inTimeout,
-    outTimeout = outTimeout,
-    connectionLimits = connectionLimits,
-    maxConnsPerPeer = maxConnsPerPeer,
-    nameResolver = nameResolver,
-    sendSignedPeerRecord = sendSignedPeerRecord,
-    peerStoreCapacity = peerStoreCapacity,
-  )
-    .build()

@@ -106,7 +106,7 @@ suite "RendezVous Errors":
 
       let
         peerNode = peerNodes[0]
-        messageBuf = encode(getMessage(peerNode)).buffer
+        messageBuf = encode(getMessage(peerNode))
 
       let
         responseBuf = await sendRdvMessage(peerNode, rendezvousNode, messageBuf)
@@ -136,7 +136,7 @@ suite "RendezVous Errors":
       prepareRegisterMessage(
         namespace, peerNodes[0].switch.peerInfo.signedPeerRecord.encode().get, 2.hours
       )
-    ).buffer
+    )
 
     let responseBuf = await sendRdvMessage(peerNodes[0], rendezvousNode, messageBuf)
     let responseMessage = Message.decode(responseBuf).tryGet()

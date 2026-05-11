@@ -124,6 +124,9 @@ proc hash*(t: AdvertiseTask): Hash =
 proc toAdvertisementKey*(ad: Advertisement): AdvertisementKey {.raises: [].} =
   (peerId: ad.data.peerId, seqNo: ad.data.seqNo)
 
+proc hash*(ad: Advertisement): Hash {.raises: [].} =
+  hash(ad.envelope.signature.data)
+
 proc encode*(ads: seq[Advertisement], fReturn: int): seq[seq[byte]] {.raises: [].} =
   var adBytes: seq[seq[byte]]
   for ad in ads:
