@@ -15,6 +15,7 @@ import
   chronos/ratelimit
 import
   ../../../libp2p/[
+    switch,
     builders,
     protocols/pubsub/errors,
     protocols/pubsub/pubsub,
@@ -26,9 +27,9 @@ import
     protocols/pubsub/rpc/messages,
     protocols/secure/secure,
   ]
-import ../../tools/[unittest, crypto, bufferstream, futures]
+import ../../tools/[unittest, crypto, bufferstream, futures, switch_builder]
 
-export builders
+export builders, switch
 
 randomize()
 

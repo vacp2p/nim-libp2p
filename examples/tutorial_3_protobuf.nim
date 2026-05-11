@@ -131,6 +131,16 @@ proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =
   # It's useful to bridge between exception-world and result-world
   return MetricList.decode(protobuf).tryGet()
 
+proc createSwitch(rng: Rng): Switch {.raises: [LPError].} =
+  return SwitchBuilder
+    .new()
+    .withRng(rng)
+    .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
+
 ## We can now create our main procedure:
 proc main() {.async.} =
   let rng = newRng()
@@ -145,8 +155,8 @@ proc main() {.async.} =
   let
     metricProto1 = MetricProto.new(randomMetricGenerator)
     metricProto2 = MetricProto.new(randomMetricGenerator)
-    switch1 = newStandardSwitch(rng = rng)
-    switch2 = newStandardSwitch(rng = rng)
+    switch1 = createSwitch(rng)
+    switch2 = createSwitch(rng)
 
   switch1.mount(metricProto1)
 
