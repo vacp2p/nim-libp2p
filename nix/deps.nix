@@ -40,8 +40,8 @@
 
   stew = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-stew";
-    rev = "4382b18f04b3c43c8409bfcd6b62063773b2bbaa";
-    sha256 = "0mx9g5m636h3sk5pllcpylk51brf7lx91izx3gc23k3ih3hrxyk2";
+    rev = "b66168735d6f3841c5239c3169d3fe5fe98b1257";
+    sha256 = "10n71vfa6klzd9dmal96jy0hiqk04gaj8wc9g91z6fclryf0yq92";
     fetchSubmodules = true;
   };
 
@@ -54,15 +54,15 @@
 
   serialization = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-serialization";
-    rev = "b0f2fa32960ea532a184394b0f27be37bd80248b";
-    sha256 = "0wip1fjx7ka39ck1g1xvmyarzq1p5dlngpqil6zff8k8z5skiz27";
+    rev = "f80cfd8657f272a2abd063d070b77f2a74f704cd";
+    sha256 = "0yc0wha180xnyffr13gnqy303bm6ghgyrgw5h353zscmll2qbm4c";
     fetchSubmodules = true;
   };
 
   json_serialization = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-json-serialization";
-    rev = "c343b0e243d9e17e2c40f3a8a24340f7c4a71d44";
-    sha256 = "0i8sq51nqj8lshf6bfixaz9a7sq0ahsbvq3chkxdvv4khsqvam91";
+    rev = "a6dcf03e04e179127a5fcb7e495d19a821d56c17";
+    sha256 = "0nn1kllp5khsmy4a412w425pycdsn1x7gfhjl9wmlvvsvjvkw7rm";
     fetchSubmodules = true;
   };
 
