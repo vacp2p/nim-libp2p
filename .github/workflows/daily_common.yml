@@ -163,11 +163,11 @@ jobs:
           if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
-          nimble test -- -d:chronicles_log_level=DEBUG
+          export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
+          make test
 
       - name: Run integration tests
         if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}
         run: |
-          nim --version
-          nimble --version
-          nim r -d:libp2p_autotls_support -d:chronicles_log_level=DEBUG tests/integration/test_all.nim
+          export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
+          make testintegration
