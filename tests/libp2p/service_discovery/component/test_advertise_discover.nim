@@ -41,10 +41,8 @@ suite "Service Discovery Component - Advertise Discover":
     advertiserNode.addProvidedService(service)
 
     checkUntilTimeout:
-      (
-        registrarNode1.registrar.cache.getOrDefault(serviceId, @[]).len == 1 or
-        registrarNode2.registrar.cache.getOrDefault(serviceId, @[]).len == 1
-      )
+      registrarNode1.countAdsInCache(serviceId) == 1 or
+        registrarNode2.countAdsInCache(serviceId) == 1
 
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()
@@ -103,14 +101,14 @@ suite "Service Discovery Component - Advertise Discover":
 
     checkUntilTimeout:
       block:
-        let ads = registrarNode.registrar.cache.getOrDefault(serviceId, @[])
+        let ads = registrarNode.getAdsInCache(serviceId)
         ads.anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
           ads.anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
 
     checkUntilTimeout:
       block:
         let found = await discovererNode.lookup(serviceId)
-        found.isOk() and found.get().len == 2 and
+        found.get().len == 2 and
           found.get().anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
           found.get().anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
 
@@ -133,8 +131,8 @@ suite "Service Discovery Component - Advertise Discover":
     advertiserNode.addProvidedService(svcB)
 
     checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(svcAId, @[]).len == 1 and
-        registrarNode.registrar.cache.getOrDefault(svcBId, @[]).len == 1
+      registrarNode.countAdsInCache(svcAId) == 1
+      registrarNode.countAdsInCache(svcBId) == 1
 
     let foundA = await discovererNode.lookup(svcAId)
     let foundB = await discovererNode.lookup(svcBId)
@@ -222,7 +220,7 @@ suite "Service Discovery Component - Advertise Discover":
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
-    let service = makeServiceInfo("wait-then-confirm")
+    let service = makeServiceInfo("service")
     let serviceId = service.id.hashServiceId()
 
     advertiserNode.addProvidedService(service)
