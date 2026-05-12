@@ -108,9 +108,13 @@ suite "Service Discovery Component - Advertise Discover":
     checkUntilTimeout:
       block:
         let found = await discovererNode.lookup(serviceId)
-        found.get().len == 2 and
-          found.get().anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
-          found.get().anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
+        if found.isOk():
+          let adverts = found.get()
+          adverts.len == 2 and
+            adverts.anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
+            adverts.anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
+        else:
+          false
 
   asyncTest "one advertiser provides two services - both discoverable":
     # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
