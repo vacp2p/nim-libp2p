@@ -308,9 +308,7 @@ suite "GossipSub":
     check gossipSub.mcache.msgs.len == 0
 
   asyncTest "rpcHandler - subscription limits":
-    let gossipSub = TestGossipSub.init(
-      newStandardSwitch(transport = TransportType.QUIC, rng = rng()), rng = rng()
-    )
+    let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
     gossipSub.topicsHigh = 10
 
     var tooManyTopics: seq[string]
@@ -332,9 +330,7 @@ suite "GossipSub":
     await conn.close()
 
   asyncTest "rpcHandler - invalid message bytes":
-    let gossipSub = TestGossipSub.init(
-      newStandardSwitch(transport = TransportType.QUIC, rng = rng()), rng = rng()
-    )
+    let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
 
     let peerId = randomPeerId()
     let peer = gossipSub.getPubSubPeer(peerId)

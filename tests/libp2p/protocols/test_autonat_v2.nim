@@ -22,10 +22,15 @@ proc setupAutonat(
     srcAddrs: seq[MultiAddress] = newSeq[MultiAddress](),
     config: AutonatV2Config = AutonatV2Config.new(),
 ): Future[(Switch, Switch, AutonatV2Client)] {.async.} =
+  var srcBuilder = makeStandardSwitchBuilder(transport = TransportType.TCP)
+  if srcAddrs.len > 0:
+    srcBuilder = srcBuilder.withAddresses(srcAddrs)
+
   let
-    src = newStandardSwitchBuilder(addrs = srcAddrs, rng = rng()).build()
-    dst =
-      newStandardSwitchBuilder(rng = rng()).withAutonatV2Server(config = config).build()
+    src = srcBuilder.build()
+    dst = makeStandardSwitchBuilder(transport = TransportType.TCP)
+      .withAutonatV2Server(config)
+      .build()
     client = AutonatV2Client.new(rng())
 
   client.setup(src)
@@ -169,14 +174,13 @@ suite "AutonatV2":
       )
 
   asyncTest "Instantiate server":
-    let serverSwitch =
-      newStandardSwitchBuilder(rng = rng()).withAutonatV2Server().build()
+    let serverSwitch = makeStandardSwitchBuilder().withAutonatV2Server().build()
     await serverSwitch.start()
     await serverSwitch.stop()
 
   asyncTest "Instantiate server with config":
-    let serverSwitch = newStandardSwitchBuilder(rng = rng())
-      .withAutonatV2Server(config = AutonatV2Config.new(allowPrivateAddresses = true))
+    let serverSwitch = makeStandardSwitchBuilder()
+      .withAutonatV2Server(AutonatV2Config.new(allowPrivateAddresses = true))
       .build()
 
     await serverSwitch.start()
@@ -270,8 +274,8 @@ suite "AutonatV2":
 
   asyncTest "Server responding with invalid messages":
     let
-      src = newStandardSwitchBuilder(rng = rng()).build()
-      dst = newStandardSwitchBuilder(rng = rng()).build()
+      src = makeStandardSwitch()
+      dst = makeStandardSwitch()
       client = AutonatV2Client.new(rng())
       autonatV2Mock = AutonatV2Mock.new()
       reqAddrs = @[MultiAddress.init("/ip4/127.0.0.1/tcp/4040").get()]
