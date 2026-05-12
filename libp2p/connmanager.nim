@@ -454,7 +454,7 @@ proc storeMuxer*(
       peerId, PeerEvent(kind: PeerEventKind.Joined, initiator: dir == Direction.Out)
     )
 
-  trace "Stored muxer",
+  debug "Stored muxer",
     muxer, direction = $muxer.connection.dir, peers = c.muxerStore.countPeers()
 
 proc getIncomingSlot*(
@@ -534,7 +534,7 @@ proc getStream*(
 proc dropPeer*(c: ConnManager, peerId: PeerId) {.async: (raises: [CancelledError]).} =
   ## drop connections and cleanup resources for peer
 
-  trace "Dropping peer", peerId
+  debug "Dropping peer", peerId
 
   let muxers = c.muxerStore.remove(peerId)
   if muxers.len > 0:
