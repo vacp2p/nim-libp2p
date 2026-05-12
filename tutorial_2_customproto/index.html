@@ -641,15 +641,25 @@ In our handle, we simply read a message from the connection and <code>echo</code
 <p>We can now create our client part:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">hello</span><span class="p">(</span><span class="n">p</span><span class="p">:</span><span class="w"> </span><span class="n">TestProto</span><span class="p">,</span><span class="w"> </span><span class="n">conn</span><span class="p">:</span><span class="w"> </span><span class="n">Connection</span><span class="p">)</span><span class="w"> </span><span class="sx">{.async.}</span><span class="w"> </span><span class="o">=</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">conn</span><span class="p">.</span><span class="n">writeLp</span><span class="p">(</span><span class="s">&quot;Hello p2p!&quot;</span><span class="p">)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">proc</span><span class="w"> </span><span class="nf">createSwitch</span><span class="p">(</span><span class="n">rng</span><span class="p">:</span><span class="w"> </span><span class="n">Rng</span><span class="p">):</span><span class="w"> </span><span class="n">Switch</span><span class="w"> </span><span class="sx">{.raises</span>:<span class="w"> </span><span class="sx">[LPError].} =</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="sx">  return</span><span class="w"> </span><span class="sx">SwitchBuilder</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="sx">.new()</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="sx">    .withRng(rng)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="sx">    .withAddress(MultiAddress.init(&quot;/ip4/0.0.0.0/tcp/0&quot;).tryGet())</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="sx">    .withTcpTransport()</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="sx">    .withMplex()</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="sx">    .withNoise()</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="sx">    .build()</span>
 </code></pre></div>
 Again, pretty straightforward, we just send a message on the connection.</p>
 <p>We can now create our main procedure:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="sx">{.async.}</span><span class="w"> </span><span class="o">=</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="k">let</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">newRng</span><span class="p">()</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="n">testProto</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TestProto</span><span class="p">.</span><span class="n">new</span><span class="p">()</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="n">switch1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">newStandardSwitch</span><span class="p">(</span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="n">switch2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">newStandardSwitch</span><span class="p">(</span><span class="n">rng</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rng</span><span class="p">)</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="n">switch1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createSwitch</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="n">switch2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">createSwitch</span><span class="p">(</span><span class="n">rng</span><span class="p">)</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="n">testProto</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TestProto</span><span class="p">.</span><span class="n">new</span><span class="p">()</span>
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="n">switch1</span><span class="p">.</span><span class="n">mount</span><span class="p">(</span><span class="n">testProto</span><span class="p">)</span>
 <a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
@@ -667,7 +677,7 @@ Again, pretty straightforward, we just send a message on the connection.</p>
 <a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">  </span><span class="n">await</span><span class="w"> </span><span class="n">allFutures</span><span class="p">(</span><span class="n">switch1</span><span class="p">.</span><span class="n">stop</span><span class="p">(),</span><span class="w"> </span><span class="n">switch2</span><span class="p">.</span><span class="n">stop</span><span class="p">())</span>
 <a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">    </span><span class="c"># close connections and shutdown all transports</span>
 </code></pre></div>
-This is very similar to the first tutorial's <code>main</code>, the only noteworthy difference is that we use <code>newStandardSwitch</code>, which is similar to the <code>createSwitch</code> of the first tutorial, but is bundled directly in libp2p</p>
+This is very similar to the first tutorial's <code>main</code>.</p>
 <p>We can now wrap our program by calling our main proc:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">waitFor</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
 </code></pre></div>

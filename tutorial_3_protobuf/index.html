@@ -835,6 +835,16 @@ that you may or may not prefer.</p>
 <a id="__codelineno-4-26" name="__codelineno-4-26" href="#__codelineno-4-26"></a><span class="w">  </span><span class="c"># tryGet will raise an exception if the Result contains an error.</span>
 <a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a><span class="w">  </span><span class="c"># It&#39;s useful to bridge between exception-world and result-world</span>
 <a id="__codelineno-4-28" name="__codelineno-4-28" href="#__codelineno-4-28"></a><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">MetricList</span><span class="p">.</span><span class="n">decode</span><span class="p">(</span><span class="n">protobuf</span><span class="p">).</span><span class="n">tryGet</span><span class="p">()</span>
+<a id="__codelineno-4-29" name="__codelineno-4-29" href="#__codelineno-4-29"></a>
+<a id="__codelineno-4-30" name="__codelineno-4-30" href="#__codelineno-4-30"></a><span class="k">proc</span><span class="w"> </span><span class="nf">createSwitch</span><span class="p">(</span><span class="n">rng</span><span class="p">:</span><span class="w"> </span><span class="n">Rng</span><span class="p">):</span><span class="w"> </span><span class="n">Switch</span><span class="w"> </span><span class="sx">{.raises</span>:<span class="w"> </span><span class="sx">[LPError].} =</span>
+<a id="__codelineno-4-31" name="__codelineno-4-31" href="#__codelineno-4-31"></a><span class="sx">  return</span><span class="w"> </span><span class="sx">SwitchBuilder</span>
+<a id="__codelineno-4-32" name="__codelineno-4-32" href="#__codelineno-4-32"></a><span class="w">    </span><span class="sx">.new()</span>
+<a id="__codelineno-4-33" name="__codelineno-4-33" href="#__codelineno-4-33"></a><span class="sx">    .withRng(rng)</span>
+<a id="__codelineno-4-34" name="__codelineno-4-34" href="#__codelineno-4-34"></a><span class="sx">    .withAddress(MultiAddress.init(&quot;/ip4/0.0.0.0/tcp/0&quot;).tryGet())</span>
+<a id="__codelineno-4-35" name="__codelineno-4-35" href="#__codelineno-4-35"></a><span class="sx">    .withTcpTransport()</span>
+<a id="__codelineno-4-36" name="__codelineno-4-36" href="#__codelineno-4-36"></a><span class="sx">    .withMplex()</span>
+<a id="__codelineno-4-37" name="__codelineno-4-37" href="#__codelineno-4-37"></a><span class="sx">    .withNoise()</span>
+<a id="__codelineno-4-38" name="__codelineno-4-38" href="#__codelineno-4-38"></a><span class="sx">    .build()</span>
 </code></pre></div>
 We can now create our main procedure:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">proc</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="sx">{.async.}</span><span class="w"> </span><span class="o">=</span>
@@ -850,8 +860,8 @@ We can now create our main procedure:
 <a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="sx">let</span>
 <a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="sx">metricProto1</span><span class="w"> </span><span class="sx">= MetricProto.new(randomMetricGenerator)</span>
 <a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="sx">    metricProto2</span><span class="w"> </span><span class="sx">= MetricProto.new(randomMetricGenerator)</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="sx">    switch1</span><span class="w"> </span><span class="sx">= newStandardSwitch(rng</span><span class="w"> </span><span class="sx">= rng)</span>
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="sx">    switch2</span><span class="w"> </span><span class="sx">= newStandardSwitch(rng</span><span class="w"> </span><span class="sx">= rng)</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="sx">    switch1</span><span class="w"> </span><span class="sx">= createSwitch(rng)</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="sx">    switch2</span><span class="w"> </span><span class="sx">= createSwitch(rng)</span>
 <a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>
 <a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="sx">  switch1.mount(metricProto1)</span>
 <a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>
