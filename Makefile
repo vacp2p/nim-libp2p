@@ -1,5 +1,8 @@
-.PHONY: all build deps cbind clean test _test_all testmultiformatexts testintegration testpath \
-        install_pinned pin unpin gen_multicodec format
+.PHONY: all build deps cbind clean test _test_all test_multiformat_exts test_integration \
+        install_pinned pin unpin gen_multicodec format clean-nim
+
+NIM_VERSION  ?= 2.2.10
+NPH_VERSION  ?= 0.7.0
 
 NIMC     ?= nim
 NIMFLAGS ?=
@@ -22,6 +25,17 @@ NIM_FLAGS = \
   $(NIMFLAGS)
 
 RUNNER_FLAGS = --output-level=VERBOSE --console
+
+# Allow: make test [path]
+# Captures the optional path argument and synthesises a do-nothing rule for it
+# so Make does not complain about a missing target.
+ifeq ($(firstword $(MAKECMDGOALS)),test)
+  _TEST_PATH_ARG := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  ifneq ($(_TEST_PATH_ARG),)
+    override TEST_PATH := $(_TEST_PATH_ARG)
+    $(eval $(_TEST_PATH_ARG):;@true)
+  endif
+endif
 
 TEST_PATH ?=
 
@@ -65,15 +79,26 @@ nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs
 	  done; \
 	done
 
-test: nimble.paths _test_all testmultiformatexts
+test: nimble.paths
+ifeq ($(TEST_PATH),)
+	$(MAKE) _test_all
+	$(MAKE) test_multiformat_exts
+else
+	$(NIMC) c $(NIM_FLAGS) \
+	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
+	  -d:path=$(TEST_PATH) \
+	  tests/test_all.nim
+	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
+endif
 
 _test_all: nimble.paths
-	$(NIMC) r $(NIM_FLAGS) \
+	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
-	  tests/test_all.nim -- $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
+	  tests/test_all.nim
+	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
 
-testmultiformatexts: nimble.paths
-	$(NIMC) r $(NIM_FLAGS) \
+test_multiformat_exts: nimble.paths
+	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/test_all_multiformat,) \
 	  -d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim \
 	  -d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim \
@@ -81,23 +106,15 @@ testmultiformatexts: nimble.paths
 	  -d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim \
 	  -d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim \
 	  -d:path=multiformat_exts \
-	  tests/test_all.nim -- $(RUNNER_FLAGS) --xml:tests/results_test_all_multiformat.xml
+	  tests/test_all.nim
+	./tests/test_all $(RUNNER_FLAGS) --xml:tests/results_test_all_multiformat.xml
 
-testintegration: nimble.paths
-	$(NIMC) r $(NIM_FLAGS) \
+test_integration: nimble.paths
+	$(NIMC) c $(NIM_FLAGS) \
 	  $(if $(CICOV),--nimcache:nimcache/integration,) \
-	  tests/integration/test_all.nim -- $(RUNNER_FLAGS) --xml:tests/results_integration.xml
+	  tests/integration/test_all.nim
+	./tests/integration/test_all $(RUNNER_FLAGS) --xml:tests/results_integration.xml
 
-testpath: nimble.paths
-ifeq ($(TEST_PATH),)
-	$(error TEST_PATH is required. Usage: make testpath TEST_PATH=quic)
-endif
-	$(NIMC) r $(NIM_FLAGS) \
-	  $(if $(CICOV),--nimcache:nimcache/test_all,) \
-	  -d:path=$(TEST_PATH) \
-	  tests/test_all.nim -- $(RUNNER_FLAGS) --xml:tests/results_test_all.xml
-
-# Tasks that still require nimble
 install_pinned:
 	nimble install_pinned
 
@@ -111,4 +128,11 @@ gen_multicodec:
 	nimble gen_multicodec
 
 format:
-	nimble format
+	find . -name '*.nim' -not -path './nimbledeps/*' | xargs nph
+
+clean-nim:
+	rm -rf ~/.nimble/pkgs2 ~/.nimble/pkgcache
+	[ ! -d nimbledeps ] || rm -rf nimbledeps
+	choosenim $(NIM_VERSION)
+	nimble install nimble
+	nimble install nph@$(NPH_VERSION)
