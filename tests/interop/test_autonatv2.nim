@@ -5,10 +5,8 @@
 
 import chronos
 import ./autonatv2
-import
-  ../../libp2p/
-    [builders, peerid, switch, wire, protocols/connectivity/autonatv2/service]
-import ../tools/[unittest, crypto]
+import ../../libp2p/[peerid, switch, wire, protocols/connectivity/autonatv2/service]
+import ../tools/[unittest, crypto, switch_builder]
 
 proc createSwitch(address: string, withAutonatV2: bool = true): Switch =
   var builder = SwitchBuilder

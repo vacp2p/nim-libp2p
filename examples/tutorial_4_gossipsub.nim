@@ -113,6 +113,16 @@ proc oneNode(node: Node, rng: Rng) {.async.} =
     discard await node.gossip.publish("metrics", encode(metricList).buffer)
   await node.switch.stop()
 
+proc createSwitch(rng: Rng): Switch {.raises: [LPError].} =
+  return SwitchBuilder
+    .new()
+    .withRng(rng)
+    .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
+
 ## For our main procedure, we'll create a few nodes, and connect them together.
 ## Note that they are not all interconnected, but GossipSub will take care of
 ## broadcasting to the full network nonetheless.
@@ -122,7 +132,7 @@ proc main() {.async.} =
 
   for hostname in ["John", "Walter", "David", "Thuy", "Amy"]:
     let
-      switch = newStandardSwitch(rng = rng)
+      switch = createSwitch(rng)
       gossip = GossipSub.init(switch = switch, triggerSelf = true, rng = rng)
     switch.mount(gossip)
     await switch.start()
