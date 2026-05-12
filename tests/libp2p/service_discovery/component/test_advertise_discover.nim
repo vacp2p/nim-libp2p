@@ -211,3 +211,52 @@ suite "Service Discovery Component - Advertise Discover":
       advertiserNode.rtManager.getTable(serviceId).get().buckets.anyIt(
         it.peers.anyIt(it.nodeId == otherKey)
       )
+
+  asyncTest "advertiser retries with the ticket after Wait and gets Confirmed":
+    # First REGISTER gets Wait + ticket, advertiser sleeps then retries
+    # with the ticket and the registrar admits the ad. The registration
+    # window is widened to 10s so the retry's handshake has time to complete.
+    let conf = ServiceDiscoveryConfig.new(registrationWindow = 10.secs)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let service = makeServiceInfo("wait-then-confirm")
+    let serviceId = service.id.hashServiceId()
+
+    advertiserNode.addProvidedService(service)
+
+    checkUntilTimeout:
+      registrarNode.countAdsInCache(serviceId) == 1
+
+    let ads = registrarNode.getAdsInCache(serviceId)
+    check ads[0].data.peerId == advertiserNode.switch.peerInfo.peerId
+
+  asyncTest "advertiser stops after the registrar replies Rejected":
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let serviceId = makeServiceId()
+
+    # Seed the per-service table directly so we skip the bucket-iteration
+    # tasks that addProvidedService would start.
+    check advertiserNode.rtManager.addService(
+      serviceId, advertiserNode.rtable, advertiserNode.config.replication,
+      advertiserNode.discoConfig.bucketsCount, Provided,
+    )
+
+    # Malformed bytes force a Rejected reply.
+    let badAdvert = Opt.some(@[1'u8, 2, 3, 4])
+
+    # The advertiser should hit Rejected, break its retry loop, and return.
+    await wait(
+      advertiserNode.advertiseToRegistrar(
+        serviceId, registrarNode.switch.peerInfo.peerId, Opt.none(Ticket), badAdvert
+      ),
+      5.seconds,
+    )
+
+    check registrarNode.countAdsInCache(serviceId) == 0

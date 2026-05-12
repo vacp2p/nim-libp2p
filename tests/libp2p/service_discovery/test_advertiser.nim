@@ -42,6 +42,37 @@ suite "Advertiser - addProvidedService":
 
     check disco.advertiser.running.len() == disco.discoConfig.kRegister + 1 #local action
 
+  test "scheduling caps at kRegister tasks per populated bucket":
+    let kRegister = 3
+    let conf = ServiceDiscoveryConfig.new(kRegister = kRegister)
+    let disco = setupServiceDiscoveryNode(discoConfig = conf)
+    # Fill the routing table with random peers.
+    disco.populateRoutingTable(100)
+
+    let service = makeServiceInfo()
+    let serviceId = service.id.hashServiceId()
+
+    # Seed the per-service table from the main one.
+    check disco.rtManager.addService(
+      serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
+      Interest,
+    )
+
+    # Empty every bucket that wouldn't exercise the cap, keep only overpopulated buckets.
+    let table = disco.rtManager.getTable(serviceId).get()
+    var overpopulatedBuckets = 0
+    for bucket in mitems(table.buckets):
+      if bucket.peers.len <= kRegister:
+        bucket.peers = @[]
+      else:
+        overpopulatedBuckets.inc
+    check overpopulatedBuckets > 0
+
+    disco.addProvidedService(service)
+
+    # Each remaining bucket must contribute exactly kRegister tasks, plus 1 local self-advertise.
+    check disco.advertiser.running.len() == overpopulatedBuckets * kRegister + 1
+
   test "adding same service twice is idempotent":
     let disco = setupServiceDiscoveryNode()
     let service = makeServiceInfo()

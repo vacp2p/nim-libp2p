@@ -1318,3 +1318,77 @@ suite "Service Discovery Registrar - insertNewAd":
     check oldestAd.toAdvertisementKey() notin disco.registrar.cacheTimestamps
     check newAd.toAdvertisementKey() in disco.registrar.cacheTimestamps
     check ads.len == 1
+
+suite "Service Discovery Registrar - registration response":
+  test "wait response records the wait time and does not cache the ad":
+    let disco = setupServiceDiscoveryNode()
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let adBytes = makeAdvertisement(serviceName).encode().get()
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.none(Ticket),
+        )
+      ),
+    )
+
+    let reply = disco.registration(inMsg).register.get()
+
+    check:
+      reply.status.get() == kadprotobuf.RegistrationStatus.Wait
+      reply.ticket.isSome()
+      disco.countAdsInCache(serviceId) == 0
+      serviceId in disco.registrar.boundService
+      serviceId in disco.registrar.timestampService
+
+    let ticket = reply.ticket.get()
+    let registrarPubKey = disco.switch.peerInfo.privateKey.getPublicKey().get()
+    check:
+      ticket.advertisement == adBytes
+      ticket.tWaitFor > ZeroDuration
+      ticket.verify(registrarPubKey)
+
+  test "retrying with a valid ticket inside the window caches the ad":
+    let conf = ServiceDiscoveryConfig.new(registrationWindow = 10.secs)
+    let disco = setupServiceDiscoveryNode(discoConfig = conf)
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let advertiserKey = PrivateKey.random(rng()).get()
+    let advertiserId = PeerId.init(advertiserKey).get()
+    let adBytes = makeAdvertisement(serviceName, advertiserKey).encode().get()
+
+    # Sign a ticket whose retry window is already open
+    let pastNow = Moment.now() - 5.secs
+    var ticket = Ticket(
+      advertisement: adBytes,
+      tInit: pastNow,
+      tMod: pastNow,
+      tWaitFor: 1.secs,
+      signature: @[],
+    )
+    check ticket.sign(disco.switch.peerInfo.privateKey).isOk()
+
+    let inMsg = kadprotobuf.Message(
+      msgType: kadprotobuf.MessageType.register,
+      key: serviceId,
+      register: Opt.some(
+        kadprotobuf.RegisterMessage(
+          advertisement: adBytes,
+          status: Opt.none(kadprotobuf.RegistrationStatus),
+          ticket: Opt.some(ticket),
+        )
+      ),
+    )
+
+    let reply = disco.registration(inMsg).register.get()
+
+    check:
+      reply.status.get() == kadprotobuf.RegistrationStatus.Confirmed
+      disco.countAdsInCache(serviceId) == 1
+      disco.getAdsInCache(serviceId)[0].data.peerId == advertiserId
