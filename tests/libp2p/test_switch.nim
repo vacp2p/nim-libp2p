@@ -807,15 +807,15 @@ suite "Switch":
   asyncTest "e2e max outgoing connection limits":
     var switches: seq[Switch]
     for i in 0 ..< 3:
-      switches.add(makeStandardSwitch())
+      switches.add(makeStandardSwitch(transport = TransportType.TCP))
       await switches[i].start()
 
-    let srcSwitch = makeStandardSwitchBuilder()
+    let srcSwitch = makeStandardSwitchBuilder(transport = TransportType.TCP)
       .withConnectionLimits(ConnectionLimits.maxInOut(1, 3))
       .build()
     await srcSwitch.start()
 
-    let dstSwitch = makeStandardSwitch()
+    let dstSwitch = makeStandardSwitch(transport = TransportType.TCP)
     await dstSwitch.start()
 
     for s in switches:
