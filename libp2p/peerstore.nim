@@ -161,6 +161,10 @@ proc addHandler*[T](peerBook: PeerBook[T], handler: PeerBookChangeHandler) =
   ## Adds a callback that will be called everytime the book changes
   peerBook.changeHandlers.add(handler)
 
+proc notifyChangeHandlers(addressBook: AddressBook, peerId: PeerId) =
+  for handler in addressBook.changeHandlers:
+    handler(peerId)
+
 proc len*[T](peerBook: PeerBook[T]): int =
   peerBook.book.len
 
@@ -223,6 +227,16 @@ proc set*(
   ## Replace the address list for `peerId`. For addresses that already exist
   ## the confidence is upgraded to `max(existing, confidence)` so that a
   ## high-confidence entry is never downgraded by a lower-confidence update.
+  ## High/Infinite entries absent from the incoming list are preserved so that
+  ## a verified dial address is never evicted by a later Identify update.
+  defer:
+    addressBook.notifyChangeHandlers(peerId)
+
+  if addrs.len == 0:
+    if peerId in addressBook.book:
+      addressBook.book.del(peerId)
+    return
+
   let now = Moment.now()
   var prevConf: Table[MultiAddress, AddressConfidence]
   for entry in addressBook.book.getOrDefault(peerId):
@@ -238,13 +252,12 @@ proc set*(
       )
     )
 
-  if newEntries.len > 0:
-    addressBook.book[peerId] = newEntries
-  elif peerId in addressBook.book:
-    addressBook.book.del(peerId)
+  for entry in addressBook.book.getOrDefault(peerId):
+    if entry.confidence >= AddressConfidence.High and
+        newEntries.findWithAddress(entry.address) < 0:
+      newEntries.add(entry)
 
-  for handler in addressBook.changeHandlers:
-    handler(peerId)
+  addressBook.book[peerId] = newEntries
 
 proc `[]=`*(addressBook: AddressBook, peerId: PeerId, addrs: seq[MultiAddress]) =
   addressBook.set(peerId, addrs)
@@ -270,12 +283,13 @@ proc markConnected*(addressBook: AddressBook, peerId: PeerId, ma: MultiAddress) 
   ## Called after a successful outbound connection to `ma`.
   ## Upgrades the address to High confidence and refreshes its lastUpdated.
   ## If the address is not yet in the book it is added.
+  defer:
+    addressBook.notifyChangeHandlers(peerId)
+
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(peerId)
   entries.upsertAddress(ma, AddressConfidence.High, now)
   addressBook.book[peerId] = entries
-  for handler in addressBook.changeHandlers:
-    handler(peerId)
 
 proc extend*(
     addressBook: AddressBook,
@@ -287,14 +301,15 @@ proc extend*(
   ## For addresses already present the confidence is upgraded to
   ## `max(existing, confidence)` and lastUpdated is refreshed.
   ## New addresses are added with `confidence`.
+  defer:
+    addressBook.notifyChangeHandlers(key)
+
   let now = Moment.now()
   var entries = addressBook.book.getOrDefault(key)
   for ma in addrs:
     entries.upsertAddress(ma, confidence, now)
   if entries.len > 0:
     addressBook.book[key] = entries
-  for handler in addressBook.changeHandlers:
-    handler(key)
 
 proc pruneExpired*(addressBook: AddressBook) =
   ## Remove all per-address entries whose TTL has elapsed.
@@ -309,8 +324,7 @@ proc pruneExpired*(addressBook: AddressBook) =
   for (peerId, alive) in pending:
     if alive.len > 0:
       addressBook.book[peerId] = alive
-      for handler in addressBook.changeHandlers:
-        handler(peerId)
+      addressBook.notifyChangeHandlers(peerId)
     else:
       discard addressBook.del(peerId)
 
@@ -327,6 +341,7 @@ proc `[]`*(p: PeerStore, _: type[AddressBook]): AddressBook =
   let name = getTypeName(AddressBook)
   p.books.withValue(name, bookPtr):
     return AddressBook(bookPtr[])
+
   let book = AddressBook.new()
   book.ttls = p.addressTtls
   book.deletor = proc(pid: PeerId) =
@@ -339,6 +354,7 @@ proc `[]`*[T](p: PeerStore, typ: type[T]): T =
   let name = getTypeName(T)
   p.books.withValue(name, bookPtr):
     return T(bookPtr[])
+
   let book = T.new()
   book.deletor = proc(pid: PeerId) =
     # Manual method because generic method don't work
@@ -365,13 +381,11 @@ proc startAddressPruning*(peerStore: PeerStore) =
     return
 
   let ttls = peerStore.addressTtls
-  var interval = ZeroDuration
-  for t in [ttls.low, ttls.medium, ttls.high]:
-    if t > ZeroDuration and (interval == ZeroDuration or t < interval):
-      interval = t
-
-  if interval <= ZeroDuration:
+  let ttlsSeq = [ttls.low, ttls.medium, ttls.high].filterIt(it > ZeroDuration)
+  if ttlsSeq.len == 0:
     return
+
+  let interval = ttlsSeq.foldl(min(a, b))
 
   peerStore.pruneHandle = addressPruneLoop(peerStore, interval)
 
