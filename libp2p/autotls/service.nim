@@ -153,11 +153,11 @@ when defined(libp2p_autotls_support):
         self.config.ipAddress = Opt.some(getPublicIPAddress())
       except ValueError as e:
         raise newException(
-          ServiceSetupError, "Failed to get public IP address. Reason" & $e.msg
+          ServiceSetupError, "Failed to get public IP address. Reason: " & $e.msg
         )
       except OSError as e:
         raise newException(
-          ServiceSetupError, "Failed to get public IP address. Reason" & $e.msg
+          ServiceSetupError, "Failed to get public IP address. Reason: " & $e.msg
         )
 
   method issueCertificate(
