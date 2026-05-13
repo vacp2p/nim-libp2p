@@ -448,6 +448,7 @@ proc identify*(
   if stream == nil:
     return
 
+  var cancelled = false
   try:
     if (await MultistreamSelect.select(stream, peerStore.identify.codec())):
       let info = await peerStore.identify.identify(stream, stream.peerId)
@@ -462,8 +463,14 @@ proc identify*(
         muxer.setShortAgent(knownAgent)
 
       peerStore.updatePeerInfo(info, stream.observedAddr, Opt.some(dir))
+  except CancelledError as exc:
+    cancelled = true
+    raise exc
   finally:
-    await stream.closeWithEOF()
+    if cancelled:
+      await noCancel stream.reset()
+    else:
+      await noCancel stream.closeWithEOF()
 
 proc getMostObservedProtosAndPorts*(self: PeerStore): seq[MultiAddress] =
   return self.identify.observedAddrManager.getMostObservedProtosAndPorts()

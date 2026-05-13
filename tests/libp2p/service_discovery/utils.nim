@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, chronicles, results, sequtils
+import chronos, chronicles, results, sequtils, tables
 import
   ../../../libp2p/[
     builders,
@@ -24,8 +24,11 @@ export protobuf, registrar, routing_table_manager, types
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
+proc randomKey*(): PrivateKey =
+  PrivateKey.random(rng()).get()
+
 proc randomPeerId*(): PeerId =
-  PeerId.init(PrivateKey.random(rng()).get()).get()
+  PeerId.init(randomKey()).get()
 
 proc makeServiceId*(id: byte = 1'u8): ServiceId =
   @[id, 2'u8, 3, 4]
@@ -134,3 +137,9 @@ proc populateAdvertisementTable*(disco: ServiceDiscovery, serviceId: ServiceId) 
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
+
+proc getAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): seq[Advertisement] =
+  disco.registrar.cache.getOrDefault(serviceId, @[])
+
+proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
+  disco.getAdsInCache(serviceId).len
