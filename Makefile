@@ -131,8 +131,5 @@ format:
 	find . -name '*.nim' -not -path './nimbledeps/*' | xargs nph
 
 clean-nim:
-	rm -rf ~/.nimble/pkgs2 ~/.nimble/pkgcache
 	[ ! -d nimbledeps ] || rm -rf nimbledeps
-	choosenim $(NIM_VERSION)
-	nimble install nimble
-	nimble install nph@$(NPH_VERSION)
+	rm nimble.locks nimble.paths 2>/dev/null || true

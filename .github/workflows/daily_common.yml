@@ -170,4 +170,4 @@ jobs:
         if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}
         run: |
           export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
-          make testintegration
+          make test_integration
