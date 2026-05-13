@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, chronicles, results, sequtils
+import chronos, chronicles, results, sequtils, tables
 import
   ../../../libp2p/[
     builders,
@@ -134,3 +134,9 @@ proc populateAdvertisementTable*(disco: ServiceDiscovery, serviceId: ServiceId) 
     serviceId, disco.rtable, disco.config.replication, disco.discoConfig.bucketsCount,
     Interest,
   )
+
+proc getAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): seq[Advertisement] =
+  disco.registrar.cache.getOrDefault(serviceId, @[])
+
+proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
+  disco.getAdsInCache(serviceId).len
