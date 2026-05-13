@@ -13,7 +13,7 @@ requires "nim >= 2.2.4",
   "https://github.com/vacp2p/nim-boringssl >= 0.0.4", "chronicles >= 0.11.0",
   "chronos >= 4.2.2", "metrics", "secp256k1", "stew >= 0.4.2", "unittest2", "results",
   "serialization", "lsquic >= 0.4.1",
-  "https://github.com/status-im/nim-websock#42c37b4172519566db016810eccfce8a02cc1cdf",
+  "https://github.com/status-im/nim-websock#02616eccd5c826b83c580fa092e9675da04491c7",
   "https://github.com/vacp2p/nim-jwt.git#057ec95eb5af0eea9c49bfe9025b3312c95dc5f2",
   "https://github.com/status-im/nim-protobuf-serialization#46753f2b90365035bc0f75c6894e160c35880be1"
 
