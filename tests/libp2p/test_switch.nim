@@ -1097,11 +1097,11 @@ suite "Switch":
         .withAddresses(@[tcpAddress, wsAddress, quicAddress])
         .withRng(rng())
         .withMplex()
+        .withTcpTransport()
         .withTransport(
           proc(config: TransportConfig): Transport =
             WsTransport.new(config.upgr, config.rng)
         )
-        .withTcpTransport()
         .withQuicTransport()
         .withNoise()
         .build()
