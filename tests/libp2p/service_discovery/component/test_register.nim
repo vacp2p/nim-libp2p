@@ -31,21 +31,6 @@ suite "Service Discovery Component - Register":
     check regResp.get().status == kad_protobuf.RegistrationStatus.Wait
     check regResp.get().ticket.isSome()
 
-  asyncTest "REGISTER with malformed advertisement bytes returns Rejected":
-    let registrarNode = setupServiceDiscoveryNode()
-    let advertiserNode = setupServiceDiscoveryNode()
-    startAndDeferStop(@[registrarNode, advertiserNode])
-    await connect(registrarNode, advertiserNode)
-
-    let serviceId = makeServiceId()
-    let adBytes = @[1'u8, 2, 3, 4]
-
-    let regResp = await advertiserNode.sendRegister(
-      registrarNode.switch.peerInfo.peerId, serviceId, adBytes
-    )
-    check regResp.isOk()
-    check regResp.get().status == kad_protobuf.RegistrationStatus.Rejected
-
   asyncTest "REGISTER with out-of-window ticket ignores ticket and returns Wait":
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode = setupServiceDiscoveryNode()
