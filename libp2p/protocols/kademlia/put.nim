@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[times, sequtils, tables]
+import std/[sequtils, tables]
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../../utils/[heartbeat, future]
@@ -20,18 +20,16 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
       return selectedIdx == 0
   return true
 
-proc isExpired*(record: EntryRecord, interval: chronos.Duration): bool =
+proc isExpired*(
+    record: EntryRecord, interval: chronos.Duration
+): bool {.gcsafe, raises: [].} =
   ## Returns true when the record's stored timestamp is older than `interval`.
   ## Records whose timestamp cannot be parsed are treated as expired.
-  try:
-    let stored = times.parse(record.time, TimeStampFormat, utc())
-    let storedUnix = stored.toTime().toUnix()
-    let nowUnix = times.now().utc.toTime().toUnix()
-    let maxAgeSec = interval.nanoseconds div 1_000_000_000
-    (nowUnix - storedUnix) > maxAgeSec
-  except TimeParseError:
+  let storedUnix = record.time.toUnixSeconds().valueOr:
     warn "Failed to parse record timestamp, treating as expired", time = record.time
-    true
+    return true
+
+  (nowUnixSeconds() - storedUnix) > interval.seconds
 
 proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Periodically scans `dataTable` and evicts entries that are older than

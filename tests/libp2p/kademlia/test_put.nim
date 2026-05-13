@@ -240,9 +240,11 @@ suite "KadDHT Put":
     let oneHourAgo = now - times.initDuration(hours = 1)
     let twoDaysAgo = now - times.initDuration(hours = 48)
 
-    let freshRecord = EntryRecord(value: @[1.byte], time: $now)
-    let oldRecord = EntryRecord(value: @[1.byte], time: $oneHourAgo)
-    let veryOldRecord = EntryRecord(value: @[1.byte], time: $twoDaysAgo)
+    let freshRecord = EntryRecord(value: @[1.byte], time: now.format(TimeStampFormat))
+    let oldRecord =
+      EntryRecord(value: @[1.byte], time: oneHourAgo.format(TimeStampFormat))
+    let veryOldRecord =
+      EntryRecord(value: @[1.byte], time: twoDaysAgo.format(TimeStampFormat))
 
     # Fresh record should not be expired even with short intervals
     check not isExpired(freshRecord, chronos.minutes(30))
