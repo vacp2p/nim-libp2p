@@ -89,10 +89,9 @@ suite "WebSocket transport":
   connectionTransportTest(wsSecureTransProvider, wsSecureAddress)
 
   asyncTest "slow WebSocket headers do not block valid accepts":
-    let server =
-      WsTransport.new(
-        Upgrade(), rng(), headersTimeout = 3.seconds, concurrentAccepts = 2
-      )
+    let server = WsTransport.new(
+      Upgrade(), rng(), headersTimeout = 3.seconds, concurrentAccepts = 2
+    )
     await server.start(@[MultiAddress.init(wsAddress).get()])
     defer:
       await server.stop()
@@ -100,13 +99,22 @@ suite "WebSocket transport":
     let rawAddr = server.addrs[0].initTAddress().tryGet()
     let slow = await connect(rawAddr)
     var slowClosed = false
-    defer:
-      if not slowClosed:
-        slow.close()
+    proc closeSlow() {.async: (raises: []).} =
+      if slowClosed:
+        return
 
-    # Give the server time to wait for this stream in header parsing.
+      slowClosed = true
+      try:
+        await noCancel slow.closeWait()
+      except CatchableError:
+        discard
+
+    defer:
+      await closeSlow()
+
+    # Keep this raw stream open with incomplete headers while a valid
+    # WebSocket handshake is accepted.
     discard await slow.write("GET / HTTP/1.1\r\nUpgrade: websocket\r\n")
-    await sleepAsync(500.millis)
 
     let client = wsTransProvider()
     defer:
@@ -117,8 +125,7 @@ suite "WebSocket transport":
     let inbound = await server.accept().wait(1.seconds)
     let outbound = await outboundFut.wait(1.seconds)
 
-    slow.close()
-    slowClosed = true
+    await closeSlow()
 
     let outboundClosing = outbound.close()
     await inbound.close()

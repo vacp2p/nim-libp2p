@@ -505,7 +505,6 @@ template streamTransportTest*(
     const chunkCount = 32
     const messageSize = chunkSize * chunkCount
     const numConnections = 5
-    const errorClientId: byte = 0xff
     var serverReadOrder: seq[byte] = @[]
 
     # Track when stream handlers complete
@@ -537,11 +536,8 @@ template streamTransportTest*(
                 await sleepAsync(rand(20 .. 100).milliseconds)
 
               # Concurrent transports may accept clients in a different order.
-              let clientId =
-                if receivedData.len > 0:
-                  receivedData[0]
-                else:
-                  errorClientId
+              require receivedData.len > 0
+              let clientId = receivedData[0]
               check:
                 clientId.int < numConnections
                 receivedData == newData(messageSize, clientId)
