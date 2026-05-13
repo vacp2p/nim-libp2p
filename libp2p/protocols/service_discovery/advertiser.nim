@@ -96,9 +96,9 @@ proc advertiseToRegistrar*(
 
   var currentTicket = ticket
 
-  while true:
-    debug "registering advert", serviceId, registrar
+  debug "registering advert", serviceId, registrar
 
+  while true:
     let response = (
       await disco.sendRegister(registrar, serviceId, advertBuff, currentTicket)
     ).valueOr:
