@@ -5,7 +5,13 @@
 import chronos, results
 import
   ../../../../libp2p/
-    [protobuf/minprotobuf, protocols/service_discovery/types, stream/connection, switch]
+    [
+      protobuf/minprotobuf,
+      protocols/service_discovery/advertiser,
+      protocols/service_discovery/types,
+      stream/connection,
+      switch,
+    ]
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils
@@ -96,6 +102,23 @@ suite "Service Discovery Component - Error Handling":
     let response = await clientNode.sendMessage(registrarNode, msg)
     check:
       response.register.get().status.get() == kad_protobuf.RegistrationStatus.Rejected
+      registrarNode.countAdsInCache(serviceId) == 0
+
+  asyncTest "REGISTER with malformed advertisement bytes returns Rejected":
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let serviceId = makeServiceId()
+    let adBytes = @[1'u8, 2, 3, 4]
+
+    let regResp = await advertiserNode.sendRegister(
+      registrarNode.switch.peerInfo.peerId, serviceId, adBytes
+    )
+    require regResp.isOk()
+    check:
+      regResp.get().status == kad_protobuf.RegistrationStatus.Rejected
       registrarNode.countAdsInCache(serviceId) == 0
 
   asyncTest "REGISTER with advertisement for another service returns Rejected":
