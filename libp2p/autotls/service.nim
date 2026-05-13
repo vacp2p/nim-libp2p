@@ -153,9 +153,10 @@ when defined(libp2p_autotls_support):
         self.config.ipAddress = Opt.some(getPublicIPAddress())
       except ValueError, OSError:
         raise newException(
-          ServiceSetupError, "Failed to get public IP address. Reason: " & getCurrentExceptionMsg()
+          ServiceSetupError,
+          "Failed to get public IP address. Reason: " & getCurrentExceptionMsg(),
         )
-        
+
   method issueCertificate(
       self: AutotlsService
   ): Future[bool] {.
