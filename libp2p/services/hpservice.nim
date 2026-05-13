@@ -89,6 +89,7 @@ proc newConnectedPeerHandler(
 
 method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   self.autonatService.setup(switch)
+  self.autoRelayService.setup(switch)
 
   try:
     let dcutrProto = Dcutr.new(switch)
