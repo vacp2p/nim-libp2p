@@ -92,3 +92,32 @@ suite "Service Discovery Component - Register":
     )
     check regResp.isOk()
     check regResp.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+  asyncTest "back-to-back REGISTERs return identical waits":
+    # Anti-grinding: tMod + tWaitFor (eligibility moment) must never move earlier across retries.
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let adBytes = makeAdvertisement(
+        serviceName, advertiserNode.switch.peerInfo.privateKey
+      )
+      .encode()
+      .get()
+    let registrarPeerId = registrarNode.switch.peerInfo.peerId
+
+    proc requestTicket(): Future[Ticket] {.async.} =
+      let response: RegistrationResponse =
+        (await advertiserNode.sendRegister(registrarPeerId, serviceId, adBytes)).get()
+      check response.status == kad_protobuf.RegistrationStatus.Wait
+      check response.ticket.isSome()
+      return response.ticket.get()
+
+    let first = await requestTicket()
+    let second = await requestTicket()
+    check:
+      second.tWaitFor == first.tWaitFor
+      second.tMod >= first.tMod
