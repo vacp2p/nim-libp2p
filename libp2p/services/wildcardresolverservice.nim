@@ -204,9 +204,6 @@ method stop*(
   ## Parameters:
   ## - `self`: The instance of the WildcardAddressResolverService.
   ## - `switch`: The Switch object associated with the service.
-  ##
-  ## Returns:
-  ## - A future that resolves to `true` if the service was successfully stopped, otherwise `false`.
   debug "Stopping WildcardAddressResolverService"
 
   switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
