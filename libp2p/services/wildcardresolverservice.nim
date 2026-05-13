@@ -181,7 +181,7 @@ method setup*(
 
   switch.peerInfo.addressMappers.add(self.addressMapper)
 
-method run*(
+method start*(
     self: WildcardAddressResolverService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   ## Runs the WildcardAddressResolverService for a given switch.

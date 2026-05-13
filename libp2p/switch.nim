@@ -71,8 +71,10 @@ method setup*(
 ) {.base, gcsafe, raises: [ServiceSetupError].} =
   raiseAssert "[Service.setup] abstract method not implemented!"
 
-method run*(self: Service, switch: Switch) {.base, async: (raises: [CancelledError]).} =
-  raiseAssert "[Service.run] abstract method not implemented!"
+method start*(
+    self: Service, switch: Switch
+) {.base, async: (raises: [CancelledError]).} =
+  raiseAssert "[Service.start] abstract method not implemented!"
 
 method stop*(
     self: Service, switch: Switch
@@ -348,7 +350,7 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   debug "starting switch for peer", peerInfo = s.peerInfo
 
   for service in s.services:
-    await service.run(s)
+    await service.start(s)
 
   var startFuts: seq[Future[void]]
   for t in s.transports:

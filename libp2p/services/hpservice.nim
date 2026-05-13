@@ -113,7 +113,7 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
   ) {.async: (raises: [CancelledError]).} =
     if networkReachability == NetworkReachability.NotReachable and
         not self.autoRelayService.isRunning():
-      await self.autoRelayService.run(switch)
+      await self.autoRelayService.start(switch)
     elif networkReachability == NetworkReachability.Reachable and
         self.autoRelayService.isRunning():
       await self.autoRelayService.stop(switch)
@@ -124,8 +124,8 @@ method setup*(self: HPService, switch: Switch) {.raises: [ServiceSetupError].} =
 
   self.autonatService.statusAndConfidenceHandler(self.onNewStatusHandler)
 
-method run*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
-  await self.autonatService.run(switch)
+method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
+  await self.autonatService.start(switch)
 
 method stop*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   await self.autonatService.stop(switch)

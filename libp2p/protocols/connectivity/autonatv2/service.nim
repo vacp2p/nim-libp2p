@@ -239,7 +239,7 @@ method setup*(self: AutonatV2Service, switch: Switch) {.raises: [ServiceSetupErr
   if self.config.enableAddressMapper:
     switch.peerInfo.addressMappers.add(self.addressMapper)
 
-method run*(
+method start*(
     self: AutonatV2Service, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   trace "Running AutonatV2Service"

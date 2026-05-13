@@ -500,7 +500,7 @@ suite "AutonatV2 Service":
     await switches[3].connect(switch.peerInfo.peerId, switch.peerInfo.addrs)
     # switch1 is now full, should stick to last observation
     awaiter = newFuture[void]()
-    await service.run(switch)
+    await service.start(switch)
 
     await sleepAsync(100.millis)
 

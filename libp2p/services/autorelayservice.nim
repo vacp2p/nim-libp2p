@@ -126,7 +126,7 @@ proc innerRun(
     else:
       await self.peerAvailable.wait()
 
-method run*(
+method start*(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   if self.running:

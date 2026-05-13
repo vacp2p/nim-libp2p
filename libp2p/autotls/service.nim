@@ -266,7 +266,7 @@ when defined(libp2p_autotls_support):
       await sleepAsync(self.config.issueRetryTime)
     error "Failed to issue certificate"
 
-  method run*(
+  method start*(
       self: AutotlsService, switch: Switch
   ) {.async: (raises: [CancelledError]).} =
     trace "Starting Autotls management"

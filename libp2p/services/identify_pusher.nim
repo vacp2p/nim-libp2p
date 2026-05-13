@@ -10,7 +10,7 @@
 ## ### Lifecycle
 ##
 ## - **setup**: Initializes the identify push protocol and mounts it to the switch.
-## - **run**: Registers event handlers for peer connect/disconnect and enables
+## - **start**: Registers event handlers for peer connect/disconnect and enables
 ##   automatic broadcasting when peer info changes. Called by the switch after
 ##   it has been fully started.
 ## - **stop**: Cleans up event handlers and cancels any pending broadcasts.
@@ -138,7 +138,7 @@ method setup*(p: IdentifyPusher, switch: Switch) {.raises: [ServiceSetupError].}
       "IdentifyPusher could not mount IdentifyPush. Reason: " & $e.msg,
     )
 
-method run*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =
+method start*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =
   if p.started:
     return
 
