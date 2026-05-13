@@ -254,11 +254,10 @@ suite "Service Discovery Component - Advertise Discover":
     let badAdvert = Opt.some(@[1'u8, 2, 3, 4])
 
     # The advertiser should hit Rejected, break its retry loop, and return.
-    await wait(
-      advertiserNode.advertiseToRegistrar(
+    await advertiserNode
+      .advertiseToRegistrar(
         serviceId, registrarNode.switch.peerInfo.peerId, Opt.none(Ticket), badAdvert
-      ),
-      5.seconds,
-    )
+      )
+      .wait(5.seconds)
 
     check registrarNode.countAdsInCache(serviceId) == 0

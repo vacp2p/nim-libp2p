@@ -24,8 +24,11 @@ export protobuf, registrar, routing_table_manager, types
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
 
+proc randomKey*(): PrivateKey =
+  PrivateKey.random(rng()).get()
+
 proc randomPeerId*(): PeerId =
-  PeerId.init(PrivateKey.random(rng()).get()).get()
+  PeerId.init(randomKey()).get()
 
 proc makeServiceId*(id: byte = 1'u8): ServiceId =
   @[id, 2'u8, 3, 4]
