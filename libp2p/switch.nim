@@ -349,24 +349,12 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   debug "starting switch for peer", peerInfo = s.peerInfo
 
-  for service in s.services:
-    await service.start(s)
-
   var startFuts: seq[Future[void]]
   for t in s.transports:
     let addrs = s.peerInfo.listenAddrs.filterIt(t.handles(it))
-
     s.peerInfo.listenAddrs.keepItIf(it notin addrs)
 
-    if addrs.len > 0 or t.running:
-      let fut = t.start(addrs)
-      startFuts.add(fut)
-      if t of TcpTransport:
-        await fut
-        let ready = newAsyncEvent()
-        s.acceptFuts.add(s.accept(t, some(ready)))
-        s.peerInfo.listenAddrs &= t.addrs
-        await ready.wait()
+    startFuts.add(t.start(addrs))
 
   await allFutures(startFuts)
 
@@ -377,16 +365,16 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
         LPError, "starting transports failed: " & $fut.error.msg, fut.error
       )
 
-  for t in s.transports: # for each transport
-    if t.addrs.len > 0 or t.running:
-      if t of TcpTransport:
-        continue # already added previously
-      s.acceptFuts.add(s.accept(t))
-      s.peerInfo.listenAddrs &= t.addrs
+  for t in s.transports:
+    s.acceptFuts.add(s.accept(t))
+    s.peerInfo.listenAddrs &= t.addrs
 
   await s.peerInfo.update()
-
   await s.ms.start()
+
+  for service in s.services:
+    await service.start(s)
+
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
