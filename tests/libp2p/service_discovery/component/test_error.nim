@@ -4,14 +4,13 @@
 
 import chronos, results
 import
-  ../../../../libp2p/
-    [
-      protobuf/minprotobuf,
-      protocols/service_discovery/advertiser,
-      protocols/service_discovery/types,
-      stream/connection,
-      switch,
-    ]
+  ../../../../libp2p/[
+    protobuf/minprotobuf,
+    protocols/service_discovery/advertiser,
+    protocols/service_discovery/types,
+    stream/connection,
+    switch,
+  ]
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils
