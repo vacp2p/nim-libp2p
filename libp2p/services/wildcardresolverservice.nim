@@ -171,7 +171,7 @@ method setup*(
   ## - `switch`: The switch context in which the service operates.
   ##
   ## Returns:
-  ## - A `Future[bool]` that resolves to `true` if the setup was successful, otherwise `false`.
+  ## - No value. If setup fails, a `ServiceSetupError` is raised.
   debug "Setting up WildcardAddressResolverService"
 
   self.addressMapper = proc(
