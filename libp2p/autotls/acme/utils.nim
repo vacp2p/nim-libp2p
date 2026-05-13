@@ -4,6 +4,7 @@
 import ../../errors
 
 type ACMEError* = object of LPError
+type ACMENetworkError* = object of ACMEError
 
 when defined(libp2p_autotls_support):
   import base64, strutils, chronos/apps/http/httpclient, json
