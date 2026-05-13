@@ -9,7 +9,7 @@ import ./utils
 import ../../crypto/crypto
 import ../../crypto/rsa
 
-export ACMEError
+export ACMEError, ACMENetworkError
 
 logScope:
   topics = "libp2p acme api"
@@ -181,7 +181,8 @@ when defined(libp2p_autotls_support):
     except ValueError as exc:
       raise newException(ACMEError, msg & ": Failed to decode JSON", exc)
     except HttpError as exc:
-      raise newException(ACMEError, msg & ": Failed to connect to ACME server", exc)
+      raise
+        newException(ACMENetworkError, msg & ": Failed to connect to ACME server", exc)
     except CatchableError as exc:
       raise newException(ACMEError, msg & ": Unexpected error", exc)
 

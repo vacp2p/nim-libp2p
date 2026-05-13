@@ -16,6 +16,7 @@ import strutils
 import strformat
 import tables
 import ../../libp2p
+import ../../libp2p/builders
 import ../../libp2p/protocols/pubsub/rpc/messages
 import ../../libp2p/muxers/mplex/lpchannel
 import ../../libp2p/protocols/ping
@@ -23,7 +24,9 @@ import ../../tests/tools/unittest
 import ../runner
 import ../types
 
-export TransportType
+type TransportType* {.pure.} = enum
+  QUIC
+  TCP
 
 const
   topic* = "test"
@@ -44,21 +47,25 @@ proc setupNode*(
 
   case transport
   of TransportType.TCP:
-    switch = newStandardSwitch(
-      rng = rng,
-      addrs = MultiAddress.init(address).tryGet(),
-      transport = TransportType.TCP,
-    )
+    switch = SwitchBuilder
+      .new()
+      .withRng(rng)
+      .withNoise()
+      .withAddress(MultiAddress.init(address).get())
+      .withTcpTransport()
+      .withMplex()
+      .build()
   of TransportType.QUIC:
-    switch = newStandardSwitch(
-      rng = rng,
-      addrs =
-        MultiAddress.init(address, IPPROTO_UDP).tryGet() &
-        MultiAddress.init("/quic-v1").get(),
-      transport = TransportType.QUIC,
-    )
-  of TransportType.Memory:
-    raiseAssert "TransportType.Memory not supported"
+    let quicAddress =
+      MultiAddress.init(address, IPPROTO_UDP).tryGet() &
+      MultiAddress.init("/quic-v1").get()
+    switch = SwitchBuilder
+      .new()
+      .withRng(rng)
+      .withNoise()
+      .withAddress(quicAddress)
+      .withQuicTransport()
+      .build()
 
   let
     gossipSub = GossipSub.init(
@@ -150,8 +157,6 @@ proc resolvePeersAddresses*(
           MultiAddress.init(it, IPPROTO_UDP).tryGet() &
             MultiAddress.init("/quic-v1").get()
         )
-      of TransportType.Memory:
-        raiseAssert "TransportType.Memory not supported"
 
       addrs.add(addresses)
 

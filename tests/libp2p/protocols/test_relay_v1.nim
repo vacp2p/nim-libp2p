@@ -22,7 +22,7 @@ import
     upgrademngrs/upgrade,
     varint,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, switch_builder]
 
 proc new(T: typedesc[RelayTransport], relay: Relay): T =
   T.new(relay = relay, upgrader = relay.switch.transports[0].upgrader)
@@ -281,7 +281,7 @@ suite "Circuit Relay":
     r.maxCircuitPerPeer = tmp
     await conn.close()
 
-    let dst2 = newStandardSwitch(rng = rng())
+    let dst2 = makeStandardSwitch(transport = TransportType.TCP)
     await dst2.start()
     await srelay.connect(dst2.peerInfo.peerId, dst2.peerInfo.addrs)
 

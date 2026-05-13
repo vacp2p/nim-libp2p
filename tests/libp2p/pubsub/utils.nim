@@ -15,7 +15,7 @@ import
   chronos/ratelimit
 import
   ../../../libp2p/[
-    builders,
+    switch,
     protocols/pubsub/errors,
     protocols/pubsub/pubsub,
     protocols/pubsub/pubsubpeer,
@@ -24,11 +24,10 @@ import
     protocols/pubsub/gossipsub/extensions,
     protocols/pubsub/floodsub,
     protocols/pubsub/rpc/messages,
-    protocols/secure/secure,
   ]
-import ../../tools/[unittest, crypto, bufferstream, futures]
+import ../../tools/[unittest, crypto, bufferstream, futures, switch_builder]
 
-export builders
+export switch
 
 randomize()
 
@@ -112,9 +111,7 @@ proc setupGossipSubWithPeers*(
     populateMesh: bool = false,
     populateFanout: bool = false,
 ): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
-  let gossipSub = TestGossipSub.init(
-    newStandardSwitch(transport = TransportType.QUIC, rng = rng()), rng = rng()
-  )
+  let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
 
   for topic in topics:
     gossipSub.subscribe(topic, voidTopicHandler)
@@ -190,7 +187,6 @@ proc applyDValues*(parameters: var GossipSubParams, dValues: Opt[DValues]) =
 
 proc generateNodes*(
     num: Natural,
-    secureManagers: openArray[SecureProtocol] = [SecureProtocol.Noise],
     msgIdProvider: MsgIdProvider = defaultMsgIdProvider,
     gossip: bool = false,
     triggerSelf: bool = false,
@@ -229,12 +225,9 @@ proc generateNodes*(
     transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
   for i in 0 ..< num:
-    let switch = newStandardSwitch(
-      rng = rng(),
-      secureManagers = secureManagers,
-      sendSignedPeerRecord = sendSignedPeerRecord,
-      transport = transport,
-    )
+    let switch = makeStandardSwitchBuilder(transport = transport)
+      .withSignedPeerRecord(sendSignedPeerRecord)
+      .build()
     let pubsub =
       if gossip:
         let g = GossipSub.init(

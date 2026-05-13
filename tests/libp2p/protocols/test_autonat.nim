@@ -14,9 +14,9 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, switch_builder]
 
-proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
+proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
   var builder = SwitchBuilder
     .new()
     .withRng(rng())
@@ -30,6 +30,9 @@ proc createAutonatSwitch(nameResolver: NameResolver = nil): Switch =
     builder = builder.withNameResolver(nameResolver)
 
   return builder.build()
+
+proc makeSwitch(): Switch =
+  return makeStandardSwitch(transport = TransportType.TCP)
 
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol
@@ -48,7 +51,7 @@ proc makeAutonatServicePrivate(): Switch =
     finally:
       await conn.close()
   autonatProtocol.codec = AutonatCodec
-  result = newStandardSwitch(rng = rng())
+  result = makeSwitch()
   result.mount(autonatProtocol)
 
 suite "Autonat":
@@ -57,8 +60,8 @@ suite "Autonat":
 
   asyncTest "dialMe returns public address":
     let
-      src = newStandardSwitch(rng = rng())
-      dst = createAutonatSwitch()
+      src = makeSwitch()
+      dst = makeAutonatSwitch()
     await src.start()
     await dst.start()
 
@@ -70,7 +73,7 @@ suite "Autonat":
 
   asyncTest "dialMe handles dial error msg":
     let
-      src = newStandardSwitch(rng = rng())
+      src = makeSwitch()
       dst = makeAutonatServicePrivate()
 
     await src.start()
@@ -84,8 +87,8 @@ suite "Autonat":
 
   asyncTest "Timeout is triggered in autonat handle":
     let
-      src = newStandardSwitch(rng = rng())
-      dst = newStandardSwitch(rng = rng())
+      src = makeSwitch()
+      dst = makeSwitch()
       autonat = Autonat.new(dst, dialTimeout = 1.seconds)
       doesNothingListener = TcpTransport.new(upgrade = Upgrade())
 
@@ -115,8 +118,8 @@ suite "Autonat":
 
   asyncTest "dialMe dials dns and returns public address":
     let
-      src = newStandardSwitch(rng = rng())
-      dst = createAutonatSwitch(nameResolver = MockResolver.default())
+      src = makeSwitch()
+      dst = makeAutonatSwitch(nameResolver = MockResolver.default())
 
     await src.start()
     await dst.start()

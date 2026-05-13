@@ -20,7 +20,7 @@ import
     crypto/crypto,
     upgrademngrs/upgrade,
   ]
-import ../../tools/[unittest, crypto, multiaddress]
+import ../../tools/[unittest, crypto, multiaddress, switch_builder]
 
 const
   IPv4Tcp = mapAnd(IP4, mapEq("tcp"))
@@ -168,8 +168,14 @@ suite "Identify":
         MultiAddress.init("/ip4/0.0.0.0/tcp/0").get(),
         MultiAddress.init("/ip6/::/tcp/0").get(),
       ]
-      switch1 = newStandardSwitch(sendSignedPeerRecord = true, addrs = ma, rng = rng())
-      switch2 = newStandardSwitch(sendSignedPeerRecord = true, addrs = ma, rng = rng())
+      switch1 = makeStandardSwitchBuilder(transport = TransportType.TCP)
+        .withAddresses(ma)
+        .withSignedPeerRecord(true)
+        .build()
+      switch2 = makeStandardSwitchBuilder(transport = TransportType.TCP)
+        .withAddresses(ma)
+        .withSignedPeerRecord(true)
+        .build()
 
       proc updateStore1(peerId: PeerId, info: IdentifyInfo) {.async.} =
         switch1.peerStore.updatePeerInfo(info)
@@ -294,7 +300,7 @@ suite "Identify":
         .build()
 
       # Client switch to dial and identify
-      client = newStandardSwitch(addrs = @[tcpAddress], rng = rng())
+      client = makeStandardSwitch(transport = TransportType.TCP)
 
     await server.start()
     await client.start()
