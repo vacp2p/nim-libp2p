@@ -62,29 +62,22 @@ type
 
   UpgradeError* = object of LPError
 
+  ServiceSetupError* = object of LPError
+
   Service* = ref object of RootObj
-    inUse: bool
 
 method setup*(
     self: Service, switch: Switch
-): Future[bool] {.base, async: (raises: [CancelledError]).} =
-  if self.inUse:
-    warn "service setup has already been called"
-    return false
-  self.inUse = true
-  return true
+) {.base, gcsafe, raises: [ServiceSetupError].} =
+  raiseAssert "[Service.setup] abstract method not implemented!"
 
 method run*(self: Service, switch: Switch) {.base, async: (raises: [CancelledError]).} =
-  doAssert(false, "[Service.run] abstract method not implemented!")
+  raiseAssert "[Service.run] abstract method not implemented!"
 
 method stop*(
     self: Service, switch: Switch
-): Future[bool] {.base, async: (raises: [CancelledError]).} =
-  if not self.inUse:
-    warn "service is already stopped"
-    return false
-  self.inUse = false
-  return true
+) {.base, async: (raises: [CancelledError]).} =
+  raiseAssert "[Service.stop] abstract method not implemented!"
 
 proc addConnEventHandler*(s: Switch, handler: ConnEventHandler, kind: ConnEventKind) =
   ## Adds a ConnEventHandler, which will be triggered when
@@ -185,6 +178,10 @@ proc dial*(
   ## with the specified `proto`
 
   dial(s, peerId, addrs, @[proto])
+
+proc setupServices*(s: Switch) {.raises: [ServiceSetupError].} =
+  for service in s.services:
+    service.setup(s)
 
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
@@ -324,7 +321,7 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
     debug "Cannot cancel accepts", description = exc.msg
 
   for service in s.services:
-    discard await service.stop(s)
+    await service.stop(s)
 
   # close and cleanup all connections
   await s.connManager.close()
@@ -349,6 +346,10 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
     return
 
   debug "starting switch for peer", peerInfo = s.peerInfo
+
+  for service in s.services:
+    await service.run(s)
+
   var startFuts: seq[Future[void]]
   for t in s.transports:
     let addrs = s.peerInfo.listenAddrs.filterIt(t.handles(it))
@@ -364,11 +365,6 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
         s.acceptFuts.add(s.accept(t, some(ready)))
         s.peerInfo.listenAddrs &= t.addrs
         await ready.wait()
-
-  # some transports require some services to be running
-  # in order to finish their startup process
-  for service in s.services:
-    discard await service.setup(s)
 
   await allFutures(startFuts)
 

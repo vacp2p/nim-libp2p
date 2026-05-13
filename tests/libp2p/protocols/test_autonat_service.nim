@@ -273,20 +273,6 @@ suite "Autonat Service":
       switch1.stop(), switch2.stop(), switch3.stop(), switch4.stop()
     )
 
-  asyncTest "Calling setup and stop twice must work":
-    let switch = createSwitch()
-    let autonatService = AutonatService.new(
-      AutonatClientStub.new(expectedDials = 0), rng(), Opt.some(1.seconds)
-    )
-
-    check (await autonatService.setup(switch)) == true
-    check (await autonatService.setup(switch)) == false
-
-    check (await autonatService.stop(switch)) == true
-    check (await autonatService.stop(switch)) == false
-
-    await allFuturesRaising(switch.stop())
-
   asyncTest "Must bypass maxConnectionsPerPeer limit":
     let autonatService = AutonatService.new(
       AutonatClient.new(), rng(), Opt.some(1.seconds), maxQueueSize = 1

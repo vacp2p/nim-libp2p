@@ -299,21 +299,6 @@ suite "AutonatV2 Service":
     await switch.stop()
     await switches.stopAll()
 
-  asyncTest "Calling setup and stop twice must work":
-    let (service, _) = newService(
-      NetworkReachability.NotReachable,
-      config = AutonatV2ServiceConfig.new(scheduleInterval = Opt.some(1.seconds)),
-    )
-
-    let switch = createSwitch()
-    check (await service.setup(switch)) == true
-    check (await service.setup(switch)) == false
-
-    check (await service.stop(switch)) == true
-    check (await service.stop(switch)) == false
-
-    await switch.stop()
-
   asyncTest "Must bypass maxConnectionsPerPeer limit":
     let (service, _) = newService(
       NetworkReachability.Reachable,

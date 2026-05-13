@@ -11,7 +11,8 @@
 ##
 ## - **setup**: Initializes the identify push protocol and mounts it to the switch.
 ## - **run**: Registers event handlers for peer connect/disconnect and enables
-##   automatic broadcasting when peer info changes.
+##   automatic broadcasting when peer info changes. Called by the switch after
+##   it has been fully started.
 ## - **stop**: Cleans up event handlers and cancels any pending broadcasts.
 ##
 ## ### Broadcasting Behavior
@@ -112,13 +113,7 @@ proc broadcast(p: IdentifyPusher) =
       if idx >= 0:
         p.ongoingSend.del(idx)
 
-method setup*(
-    p: IdentifyPusher, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
-  var hasBeenSetup = await procCall Service(p).setup(switch)
-  if not hasBeenSetup:
-    return
-
+method setup*(p: IdentifyPusher, switch: Switch) {.raises: [ServiceSetupError].} =
   p.peerStore = switch.peerStore
   p.connManager = switch.connManager
   p.peerInfo = switch.peerInfo
@@ -138,13 +133,10 @@ method setup*(
   try:
     switch.mount(p.identifyPush)
   except LPError as e:
-    trace "could not mount IdentifyPush", msg = e.msg
-    hasBeenSetup = false
-
-  if hasBeenSetup:
-    await p.run(switch)
-
-  return hasBeenSetup
+    raise newException(
+      ServiceSetupError,
+      "IdentifyPusher could not mount IdentifyPush. Reason: " & $e.msg,
+    )
 
 method run*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =
   if p.started:
@@ -174,31 +166,25 @@ method run*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError
   p.connManager.addPeerEventHandler(onIdentified, PeerEventKind.Identified)
   p.connManager.addPeerEventHandler(onLeft, PeerEventKind.Left)
 
-method stop*(
-    p: IdentifyPusher, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
-  let hasBeenStopped = await procCall Service(p).stop(switch)
-  if hasBeenStopped:
-    if not p.started:
-      return hasBeenStopped
+method stop*(p: IdentifyPusher, switch: Switch) {.async: (raises: [CancelledError]).} =
+  if not p.started:
+    return
 
-    p.started = false
+  p.started = false
 
-    if not p.onIdentifiedHandler.isNil:
-      p.connManager.removePeerEventHandler(
-        p.onIdentifiedHandler, PeerEventKind.Identified
-      )
-      p.onIdentifiedHandler = nil
-    if not p.onLeftHandler.isNil:
-      p.connManager.removePeerEventHandler(p.onLeftHandler, PeerEventKind.Left)
-      p.onLeftHandler = nil
-    if not p.onPeerInfoUpdated.isNil:
-      p.peerInfo.removeObserver(p.onPeerInfoUpdated)
-      p.onPeerInfoUpdated = nil
+  if not p.onIdentifiedHandler.isNil:
+    p.connManager.removePeerEventHandler(
+      p.onIdentifiedHandler, PeerEventKind.Identified
+    )
+    p.onIdentifiedHandler = nil
+  if not p.onLeftHandler.isNil:
+    p.connManager.removePeerEventHandler(p.onLeftHandler, PeerEventKind.Left)
+    p.onLeftHandler = nil
+  if not p.onPeerInfoUpdated.isNil:
+    p.peerInfo.removeObserver(p.onPeerInfoUpdated)
+    p.onPeerInfoUpdated = nil
 
-    let pending = move(p.ongoingSend)
-    await pending.cancelAndWait()
+  let pending = move(p.ongoingSend)
+  await pending.cancelAndWait()
 
-    p.pushPeers.clear()
-
-  return hasBeenStopped
+  p.pushPeers.clear()
