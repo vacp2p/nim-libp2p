@@ -175,7 +175,7 @@ proc schedule(
     service: AutonatService, switch: Switch, interval: Duration
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "Scheduling AutonatService run", interval:
-    await service.run(switch)
+    await service.askConnectedPeers(switch)
 
 proc addressMapper(
     self: AutonatService, peerStore: PeerStore, listenAddrs: seq[MultiAddress]
@@ -224,7 +224,6 @@ method run*(
   self.scheduleInterval.withValue(interval):
     if self.scheduleHandle.isNil:
       self.scheduleHandle = schedule(self, switch, interval)
-  await askConnectedPeers(self, switch)
 
 method stop*(
     self: AutonatService, switch: Switch
