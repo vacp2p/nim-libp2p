@@ -240,10 +240,10 @@ method start*(
   switch.connManager.addPeerEventHandler(
     self.newConnectedPeerHandler, PeerEventKind.Joined
   )
-  
+
   if self.config.enableAddressMapper:
     switch.peerInfo.addressMappers.add(self.addressMapper)
-  
+
   self.config.scheduleInterval.withValue(interval):
     if self.scheduleHandle.isNil:
       self.scheduleHandle = schedule(self, switch, interval)

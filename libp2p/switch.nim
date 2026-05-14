@@ -249,9 +249,7 @@ proc upgradeMonitor(
       except AsyncSemaphoreError:
         raiseAssert "semaphore released without acquire"
 
-proc accept(
-    s: Switch, transport: Transport,
-) {.async: (raises: []).} =
+proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
@@ -340,10 +338,10 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   # start services and transports without await to prevent any
   # issues when one needs another to start first.
   var startFuts: seq[Future[void]]
-  
+
   for service in s.services:
     startFuts.add(service.start(s))
- 
+
   for t in s.transports:
     let addrs = s.peerInfo.listenAddrs.filterIt(t.handles(it))
     s.peerInfo.listenAddrs.keepItIf(it notin addrs)

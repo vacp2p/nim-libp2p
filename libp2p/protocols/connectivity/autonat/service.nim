@@ -210,7 +210,6 @@ method setup*(self: AutonatService, switch: Switch) {.raises: [ServiceSetupError
     ): Future[void] {.async: (raises: [CancelledError]).} =
       discard askPeer(self, switch, peerId)
 
-
 method start*(
     self: AutonatService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
@@ -219,7 +218,7 @@ method start*(
   switch.connManager.addPeerEventHandler(
     self.newConnectedPeerHandler, PeerEventKind.Joined
   )
-  
+
   if self.enableAddressMapper:
     switch.peerInfo.addressMappers.add(self.addressMapper)
 
