@@ -17,70 +17,9 @@ requires "nim >= 2.2.4",
   "https://github.com/vacp2p/nim-jwt.git#057ec95eb5af0eea9c49bfe9025b3312c95dc5f2",
   "https://github.com/status-im/nim-protobuf-serialization#46753f2b90365035bc0f75c6894e160c35880be1"
 
-import hashes, os, sequtils, strutils
+import os, sequtils, strutils
 
-let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
-let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
-let flags = getEnv("NIMFLAGS", "") # Extra flags for the compiler
-let verbose = getEnv("V", "") notin ["", "0"]
-
-# changes in run configs should be also reflected on flake.nix
-let cfg =
-  " --styleCheck:usages --styleCheck:error" & (if verbose: "" else: " --verbosity:0") &
-  " --skipUserCfg -f" & " --threads:on --opt:speed"
-
-proc runTest(filename: string, moreoptions: string = "") =
-  var compileCmd = nimc & " " & lang & " " & cfg & " " & flags
-  if getEnv("CICOV").len > 0:
-    compileCmd &= " --nimcache:nimcache/" & filename & "-" & $compileCmd.hash
-  compileCmd &= " -d:libp2p_autotls_support"
-  compileCmd &= " " & moreoptions & " "
-
-  var runnerArgs = " --output-level=VERBOSE"
-  runnerArgs &= " --console"
-  runnerArgs &= " --xml:tests/results_" & $hash(filename & $compileCmd) & ".xml"
-
-  # step 1: compile test binary
-  exec compileCmd & " tests/" & filename
-  # step 2: run binary
-  exec "./tests/" & filename.toExe & runnerArgs
-  # step 3: remove binary
-  rmFile "tests/" & filename.toExe
-
-task testmultiformatexts, "Run multiformat extensions tests":
-  let opts =
-    "-d:libp2p_multicodec_exts=../tests/libp2p/multiformat_exts/multicodec_exts.nim " &
-    "-d:libp2p_multiaddress_exts=../tests/libp2p/multiformat_exts/multiaddress_exts.nim " &
-    "-d:libp2p_multihash_exts=../tests/libp2p/multiformat_exts/multihash_exts.nim " &
-    "-d:libp2p_multibase_exts=../tests/libp2p/multiformat_exts/multibase_exts.nim " &
-    "-d:libp2p_contentids_exts=../tests/libp2p/multiformat_exts/contentids_exts.nim " &
-    "-d:path=multiformat_exts"
-  runTest("test_all", opts)
-
-task testintegration, "Runs integration tests":
-  runTest("integration/test_all")
-
-task test, "Runs the test suite":
-  runTest("test_all")
-  testmultiformatextsTask()
-
-task testpath, "Run tests matching a specific path":
-  var testPathArg = ""
-
-  # Extract arguments after task name
-  let params = commandLineParams()
-  let taskIdx = params.find("testpath")
-
-  if taskIdx >= 0 and taskIdx < params.len - 1:
-    testPathArg = params[taskIdx + 1]
-
-  if testPathArg == "":
-    echo "Error: Please provide a test path argument"
-    echo "Usage: nimble testpath <path>"
-    echo "Example: nimble testpath quic"
-    quit(1)
-
-  runTest("test_all", "-d:path=" & testPathArg)
+let nimc = getEnv("NIMC", "nim")
 
 # pin system
 # while nimble lockfile
@@ -88,9 +27,6 @@ task testpath, "Run tests matching a specific path":
 
 const PinFile = ".pinned"
 task pin, "Create a lockfile":
-  # pinner.nim was originally here
-  # but you can't read output from
-  # a command in a nimscript
   exec nimc & " c -r tools/pinner.nim"
 
 task install_pinned, "Reads the lockfile":
@@ -122,6 +58,3 @@ task unpin, "Restore global package use":
 task gen_multicodec,
   "Download the multicodec CSV and regenerate libp2p/multicodec_table.nim":
   exec nimc & " c -r tools/gen_multicodec.nim"
-
-task format, "Format nim code using nph":
-  exec "nph ./. *.nim"
