@@ -243,6 +243,7 @@ method start*(
 
   if self.config.enableAddressMapper:
     switch.peerInfo.addressMappers.add(self.addressMapper)
+    await switch.peerInfo.update()
 
   self.config.scheduleInterval.withValue(interval):
     if self.scheduleHandle.isNil:

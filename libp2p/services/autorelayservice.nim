@@ -132,6 +132,7 @@ method start*(
     return
   self.running = true
   switch.peerInfo.addressMappers.add(self.addressMapper)
+  await switch.peerInfo.update()
   self.runner = self.innerRun(switch)
 
 method stop*(

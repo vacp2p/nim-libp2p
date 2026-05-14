@@ -240,7 +240,7 @@ proc upgradeMonitor(
     trace "Connection upgrade failed", description = e.msg, conn
     libp2p_failed_upgrades_incoming.inc()
   finally:
-    deadlineFut.cancel()
+    deadlineFut.cancelSoon()
     if (not upgradeSuccessful) and (not isNil(conn)):
       await conn.close()
     if semAcquired:
