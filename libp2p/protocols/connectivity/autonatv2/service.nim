@@ -232,18 +232,18 @@ method setup*(self: AutonatV2Service, switch: Switch) {.raises: [ServiceSetupErr
     ): Future[void] {.async: (raises: [CancelledError]).} =
       discard askPeer(self, switch, peerId)
 
-    switch.connManager.addPeerEventHandler(
-      self.newConnectedPeerHandler, PeerEventKind.Joined
-    )
-
 method start*(
     self: AutonatV2Service, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   trace "Running AutonatV2Service"
 
+  switch.connManager.addPeerEventHandler(
+    self.newConnectedPeerHandler, PeerEventKind.Joined
+  )
+  
   if self.config.enableAddressMapper:
     switch.peerInfo.addressMappers.add(self.addressMapper)
-
+  
   self.config.scheduleInterval.withValue(interval):
     if self.scheduleHandle.isNil:
       self.scheduleHandle = schedule(self, switch, interval)
