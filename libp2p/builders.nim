@@ -472,6 +472,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
       PeerStore.new(identify, capacity, b.addressTtls)
     else:
       PeerStore.new(identify, addressTtls = b.addressTtls)
+  peerStore.addressPolicy = b.addressPolicy
 
   if b.enableWildcardResolver:
     b.services.add(WildcardAddressResolverService.new())
@@ -488,8 +489,6 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.identifyPusherEnabled:
     b.services.add(IdentifyPusher.new())
 
-  peerStore.addressPolicy = b.addressPolicy
-
   let switch = newSwitch(
     peerInfo = peerInfo,
     transports = transports,
@@ -501,6 +500,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     services = b.services,
     rng = b.rng,
   )
+  switch.setupServices()
 
   switch.mount(identify)
 
