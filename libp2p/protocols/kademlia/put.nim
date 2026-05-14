@@ -21,7 +21,9 @@ proc isBestValue(kad: KadDHT, key: Key, record: EntryRecord): bool =
   return true
 
 proc isExpired*(
-    record: EntryRecord, interval: chronos.Duration
+    record: EntryRecord,
+    interval: chronos.Duration,
+    currentUnixSeconds = nowUnixSeconds(),
 ): bool {.gcsafe, raises: [].} =
   ## Returns true when the record's stored timestamp is older than `interval`.
   ## Records whose timestamp cannot be parsed are treated as expired.
@@ -29,16 +31,17 @@ proc isExpired*(
     warn "Failed to parse record timestamp, treating as expired", time = record.time
     return true
 
-  (nowUnixSeconds() - storedUnix) > interval.seconds
+  (currentUnixSeconds - storedUnix) > interval.seconds
 
 proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Periodically scans `dataTable` and evicts entries that are older than
   ## `config.recordExpirationInterval`. Runs indefinitely as a heartbeat
   ## loop until cancelled (e.g. via `cancelSoon` or `cancelAndWait`).
   heartbeat "cleanup expired data entries", kad.config.cleanupDataEntriesInterval:
+    let currentUnixSeconds = nowUnixSeconds()
     var toRemove: seq[Key]
     for key, record in kad.dataTable:
-      if record.isExpired(kad.config.recordExpirationInterval):
+      if record.isExpired(kad.config.recordExpirationInterval, currentUnixSeconds):
         toRemove.add(key)
     for key in toRemove:
       kad.dataTable.del(key)

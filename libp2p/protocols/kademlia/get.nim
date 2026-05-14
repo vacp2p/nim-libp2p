@@ -155,12 +155,14 @@ method handleGetValue*(
 
   # Evict the entry eagerly if it has expired so the `valueOr` below treats it
   # as absent and sends the standard "no record found" response.
-  kad.dataTable.get(key).withValue(record):
+  var entryRecordOpt = kad.dataTable.get(key)
+  entryRecordOpt.withValue(record):
     if record.isExpired(kad.config.recordExpirationInterval):
       debug "record expired, dropping", key = key
       kad.dataTable.del(key)
+      entryRecordOpt = Opt.none(EntryRecord)
 
-  let entryRecord = kad.dataTable.get(key).valueOr:
+  let entryRecord = entryRecordOpt.valueOr:
     let response = Message(
       msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
     )
