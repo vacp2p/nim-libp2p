@@ -153,6 +153,12 @@ type WsTransport* = ref object of Transport
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
 
+proc websockRng(rng: Rng): RandomBytesRng {.raises: [].} =
+  doAssert not rng.isNil, "Rng cannot be nil"
+  proc(dst: var openArray[byte]): bool {.closure, gcsafe, raises: [].} =
+    rng.generate(dst)
+    true
+
 proc notifyAcceptClosed(self: WsTransport) {.raises: [].} =
   if self.acceptResults.isNil:
     return
@@ -341,8 +347,7 @@ method start*(
         except TLSStreamProtocolError as e:
           raise newException(LPError, e.msg, e)
 
-  self.wsserver =
-    WSServer.new(factories = self.factories, rng = bearSslDrbgRef(self.rng))
+  self.wsserver = WSServer.new(factories = self.factories, rng = websockRng(self.rng))
 
   var resolvedAddrs = addrs
   for i, ma in addrs:
@@ -516,7 +521,7 @@ method dial*(
       secure = secure,
       hostName = hostname,
       flags = self.tlsFlags,
-      rng = bearSslDrbgRef(self.rng),
+      rng = websockRng(self.rng),
     )
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:
