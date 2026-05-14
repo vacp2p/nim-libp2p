@@ -210,7 +210,11 @@ suite "AddressBook TTL / confidence":
     check peerId1 notin book
 
   test "pruneExpired leaves other PeerStore books intact":
-    let peerStore = PeerStore.new(nil)
+    let peerStore = PeerStore.new(
+      nil,
+      addressTtls =
+        AddressConfidenceTtls(low: 1.seconds, medium: 1.seconds, high: 1.seconds),
+    )
     peerStore[AgentBook][peerId1] = "go-libp2p"
     peerStore[KeyBook][peerId1] = peerId1.getPubKey().get()
     peerStore[AddressBook].set(peerId1, @[addr1], AddressConfidence.Low)
