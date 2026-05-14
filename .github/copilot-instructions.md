@@ -123,7 +123,6 @@ switch("warningAsError", "UnusedImport:on")
 switch("warningAsError", "UseBase:on")
 switch("hintAsError", "ConvFromXtoItselfNotNeeded:on")
 switch("hintAsError", "DuplicateModuleImport:on")
-switch("hintAsError", "XCannotRaiseY:on")
 --styleCheck: usages
 --styleCheck: error
 --mm: refc          # Reference counting (not ORC yet)
