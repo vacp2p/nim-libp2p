@@ -174,3 +174,29 @@ suite "Service Discovery Component - Lookup Get Ads":
     check:
       found.get().len == 1
       found.get()[0].data.peerId == PeerId.init(firstBucketKey).get()
+
+  asyncTest "discoverer learns closer peers from GET_ADS reply":
+    let discovererNode = setupServiceDiscoveryNode()
+    let registrarNode = setupServiceDiscoveryNode()
+    let otherNode = setupServiceDiscoveryNode()
+
+    startAndDeferStop(@[discovererNode, registrarNode, otherNode])
+    await connect(registrarNode, otherNode)
+    await connect(registrarNode, discovererNode)
+
+    let
+      serviceId = "service".hashServiceId()
+      otherKey = otherNode.switch.peerInfo.peerId.toKey()
+
+    check:
+      not discovererNode.rtable.hasPeer(otherKey)
+      discovererNode.rtManager.getTable(serviceId).isNone()
+
+    let found = await discovererNode.lookup(serviceId)
+    check:
+      found.get().len == 0
+
+    let serviceTable = discovererNode.rtManager.getTable(serviceId).get()
+    check:
+      serviceTable.hasPeer(otherKey)
+      discovererNode.rtable.hasPeer(otherKey)

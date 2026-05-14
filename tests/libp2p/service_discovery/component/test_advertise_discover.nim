@@ -210,9 +210,7 @@ suite "Service Discovery Component - Advertise Discover":
 
     let otherKey = otherNode.switch.peerInfo.peerId.toKey()
     checkUntilTimeout:
-      advertiserNode.rtManager.getTable(serviceId).get().buckets.anyIt(
-        it.peers.anyIt(it.nodeId == otherKey)
-      )
+      advertiserNode.rtManager.getTable(serviceId).get().hasPeer(otherKey)
 
   asyncTest "advertiser retries with the ticket after Wait and gets Confirmed":
     # First REGISTER gets Wait + ticket, advertiser sleeps then retries
