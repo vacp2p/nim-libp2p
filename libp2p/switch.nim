@@ -240,7 +240,7 @@ proc upgradeMonitor(
     trace "Connection upgrade failed", description = e.msg, conn
     libp2p_failed_upgrades_incoming.inc()
   finally:
-    await deadlineFut.cancelAndWait()
+    deadlineFut.cancel()
     if (not upgradeSuccessful) and (not isNil(conn)):
       await conn.close()
     if semAcquired:
@@ -250,26 +250,18 @@ proc upgradeMonitor(
         raiseAssert "semaphore released without acquire"
 
 proc accept(
-    s: Switch, transport: Transport, ready: Option[AsyncEvent] = none(AsyncEvent)
+    s: Switch, transport: Transport,
 ) {.async: (raises: []).} =
   ## switch accept loop, ran for every transport
   ##
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
-  var readyOnce = ready
 
   while transport.running:
     var conn: Connection
     try:
       debug "About to accept incoming connection"
       let slot = await s.connManager.getIncomingSlot()
-      # Signal readiness after acquiring the slot but before awaiting
-      # transport.accept(). In chronos, fire() schedules the waiter
-      # callback without suspending here, so the loop continues
-      # synchronously into transport.accept() — on Windows this posts
-      # AcceptEx before switch.start() returns to the caller.
-      if readyOnce.isSome:
-        readyOnce.get().fire()
-        readyOnce = none(AsyncEvent)
+
       conn =
         try:
           await transport.accept()
@@ -298,9 +290,6 @@ proc accept(
       debug "Accepted an incoming connection", conn
       asyncSpawn s.upgradeMonitor(transport, conn, upgrades)
     except CancelledError:
-      if readyOnce.isSome:
-        readyOnce.get().fire()
-        readyOnce = none(AsyncEvent)
       return
     except CatchableError as exc:
       error "Exception in accept loop, exiting", description = exc.msg
