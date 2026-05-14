@@ -77,7 +77,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()
     check found.get().len == 1
-    check found.get()[0].data.peerId == advertiserNode.switch.peerInfo.peerId
+    check found.containsPeer(advertiserNode)
 
   asyncTest "GET_ADS respects F_return limit":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, fReturn = 2)

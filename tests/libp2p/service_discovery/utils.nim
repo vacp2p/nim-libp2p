@@ -148,3 +148,10 @@ proc getAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): seq[Advertis
 
 proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
   disco.getAdsInCache(serviceId).len
+
+proc containsPeer*(
+    response: Result[seq[Advertisement], string], node: ServiceDiscovery
+): bool =
+  response.isOk() and response.get().anyIt(
+    it.data.peerId == node.switch.peerInfo.peerId
+  )

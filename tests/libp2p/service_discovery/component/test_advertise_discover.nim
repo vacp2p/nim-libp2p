@@ -47,7 +47,7 @@ suite "Service Discovery Component - Advertise Discover":
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()
     check found.get().len >= 1
-    check found.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
+    check found.containsPeer(advertiserNode)
 
   asyncTest "registerInterest seeds per-service table from main routing table":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
@@ -108,13 +108,8 @@ suite "Service Discovery Component - Advertise Discover":
     checkUntilTimeout:
       block:
         let found = await discovererNode.lookup(serviceId)
-        if found.isOk():
-          let adverts = found.get()
-          adverts.len == 2 and
-            adverts.anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
-            adverts.anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
-        else:
-          false
+        found.get().len == 2 and found.containsPeer(advertiserA) and
+          found.containsPeer(advertiserB)
 
   asyncTest "one advertiser provides two services - both discoverable":
     # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
@@ -141,9 +136,9 @@ suite "Service Discovery Component - Advertise Discover":
     let foundA = await discovererNode.lookup(svcAId)
     let foundB = await discovererNode.lookup(svcBId)
     check:
-      foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
+      foundA.containsPeer(advertiserNode)
       foundA.get().len == 1
-      foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
+      foundB.containsPeer(advertiserNode)
       # Regression for vacp2p/nim-libp2p#2431: this lookup previously returned a duplicate.
       foundB.get().len == 1
 
@@ -274,7 +269,7 @@ suite "Service Discovery Component - Advertise Discover":
     let serviceB = makeServiceInfo("service-B")
     let serviceAId = serviceA.id.hashServiceId()
     let serviceBId = serviceB.id.hashServiceId()
-    
+
     let advertiserNode = setupServiceDiscoveryNode(
       discoConfig = conf,
       bootstrapNodes =
@@ -288,6 +283,4 @@ suite "Service Discovery Component - Advertise Discover":
       block:
         let foundA = await discovererNode.lookup(serviceAId)
         let foundB = await discovererNode.lookup(serviceBId)
-        foundA.isOk() and foundB.isOk() and
-          foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
-          foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
+        foundA.containsPeer(advertiserNode) and foundB.containsPeer(advertiserNode)
