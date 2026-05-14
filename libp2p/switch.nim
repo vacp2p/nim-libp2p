@@ -366,33 +366,3 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   s.started = true
 
   debug "Started libp2p node", peer = s.peerInfo
-
-proc newSwitch*(
-    peerInfo: PeerInfo,
-    transports: seq[Transport],
-    secureManagers: openArray[Secure] = [],
-    connManager: ConnManager,
-    ms: MultistreamSelect,
-    peerStore: PeerStore,
-    nameResolver: NameResolver = nil,
-    services = newSeq[Service](),
-    rng: Rng = nil,
-): Switch {.raises: [LPError].} =
-  if secureManagers.len == 0:
-    raise newException(LPError, "Provide at least one secure manager")
-
-  let switch = Switch(
-    peerInfo: peerInfo,
-    ms: ms,
-    transports: transports,
-    connManager: connManager,
-    peerStore: peerStore,
-    dialer:
-      Dialer.new(peerInfo.peerId, connManager, peerStore, transports, nameResolver),
-    nameResolver: nameResolver,
-    services: services,
-    rng: rng,
-  )
-
-  switch.connManager.peerStore = peerStore
-  return switch

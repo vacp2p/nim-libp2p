@@ -421,12 +421,20 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     else:
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
-  let connManager = ConnManager.new(
+  var peerStore = block:
+    b.peerStoreCapacity.withValue(capacity):
+      PeerStore.new(identify, capacity)
+    else:
+      PeerStore.new(identify)
+  peerStore.addressPolicy = b.addressPolicy
+
+  var connManager = ConnManager.new(
     maxConnsPerPeer = b.maxConnsPerPeer,
     limits = b.limits,
     watermark = b.watermark,
     scoring = b.scoring,
   )
+  connManager.peerStore = peerStore
 
   let ms = MultistreamSelect.new()
   let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
@@ -435,9 +443,6 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   when defined(libp2p_autotls_support):
     b.autotlsConfig.withValue(config):
       autotlsOpt = Opt.some(AutotlsService.new(b.rng, config))
-
-  autotlsOpt.withValue(autotlsSvc):
-    b.services.add(autotlsSvc)
 
   let transports = block:
     var transports: seq[Transport]
@@ -458,12 +463,11 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
 
-  let peerStore = block:
-    b.peerStoreCapacity.withValue(capacity):
-      PeerStore.new(identify, capacity)
-    else:
-      PeerStore.new(identify)
-  peerStore.addressPolicy = b.addressPolicy
+  let dialer =
+    Dialer.new(peerInfo.peerId, connManager, peerStore, transports, b.nameResolver)
+
+  autotlsOpt.withValue(autotlsSvc):
+    b.services.add(autotlsSvc)
 
   if b.enableWildcardResolver:
     b.services.add(WildcardAddressResolverService.new())
@@ -480,24 +484,33 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.identifyPusherEnabled:
     b.services.add(IdentifyPusher.new())
 
-  let switch = newSwitch(
-    peerInfo = peerInfo,
-    transports = transports,
-    secureManagers = secureManagerInstances,
-    connManager = connManager,
-    ms = ms,
-    nameResolver = b.nameResolver,
-    peerStore = peerStore,
-    services = b.services,
-    rng = b.rng,
+  var protocols: seq[LPProtocol]
+  protocols.add(identify)
+
+  if not isNil(b.autonatV2Client):
+    protocols.add(b.autonatV2Client)
+
+  b.rdvConfig.withValue(rdvCfg):
+    protocols.add(RendezVous.new(b.rng, rdvCfg))
+
+  let switch = Switch(
+    peerInfo: peerInfo,
+    ms: ms,
+    transports: transports,
+    connManager: connManager,
+    peerStore: peerStore,
+    dialer: dialer,
+    nameResolver: b.nameResolver,
+    services: b.services,
+    rng: b.rng,
   )
   switch.setupServices()
 
-  switch.mount(identify)
-
-  if not isNil(b.autonatV2Client):
-    b.autonatV2Client.setup(switch)
-    switch.mount(b.autonatV2Client)
+  for p in protocols:
+    when compiles(p.setup(switch)):
+      p.setup(switch)
+    
+    switch.mount(p)
 
   b.autonatV2ServerConfig.withValue(config):
     switch.mount(AutonatV2.new(switch, config = config))
@@ -510,11 +523,6 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
       switch.addTransport(RelayTransport.new(RelayClient(relay), muxedUpgrade))
     relay.setup(switch)
     switch.mount(relay)
-
-  b.rdvConfig.withValue(rdvCfg):
-    let rdvService = RendezVous.new(b.rng, rdvCfg)
-    rdvService.setup(switch)
-    switch.mount(rdvService)
 
   b.kad.withValue(kadInfo):
     kadInfo.config.addressPolicy = b.addressPolicy
