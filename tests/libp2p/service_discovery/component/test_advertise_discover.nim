@@ -41,10 +41,8 @@ suite "Service Discovery Component - Advertise Discover":
     advertiserNode.addProvidedService(service)
 
     checkUntilTimeout:
-      (
-        registrarNode1.registrar.cache.getOrDefault(serviceId, @[]).len == 1 or
-        registrarNode2.registrar.cache.getOrDefault(serviceId, @[]).len == 1
-      )
+      registrarNode1.countAdsInCache(serviceId) == 1 or
+        registrarNode2.countAdsInCache(serviceId) == 1
 
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()
@@ -103,16 +101,20 @@ suite "Service Discovery Component - Advertise Discover":
 
     checkUntilTimeout:
       block:
-        let ads = registrarNode.registrar.cache.getOrDefault(serviceId, @[])
+        let ads = registrarNode.getAdsInCache(serviceId)
         ads.anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
           ads.anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
 
     checkUntilTimeout:
       block:
         let found = await discovererNode.lookup(serviceId)
-        found.isOk() and found.get().len == 2 and
-          found.get().anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
-          found.get().anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
+        if found.isOk():
+          let adverts = found.get()
+          adverts.len == 2 and
+            adverts.anyIt(it.data.peerId == advertiserA.switch.peerInfo.peerId) and
+            adverts.anyIt(it.data.peerId == advertiserB.switch.peerInfo.peerId)
+        else:
+          false
 
   asyncTest "one advertiser provides two services - both discoverable":
     # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
@@ -133,8 +135,8 @@ suite "Service Discovery Component - Advertise Discover":
     advertiserNode.addProvidedService(svcB)
 
     checkUntilTimeout:
-      registrarNode.registrar.cache.getOrDefault(svcAId, @[]).len == 1 and
-        registrarNode.registrar.cache.getOrDefault(svcBId, @[]).len == 1
+      registrarNode.countAdsInCache(svcAId) == 1
+      registrarNode.countAdsInCache(svcBId) == 1
 
     let foundA = await discovererNode.lookup(svcAId)
     let foundB = await discovererNode.lookup(svcBId)
@@ -211,3 +213,51 @@ suite "Service Discovery Component - Advertise Discover":
       advertiserNode.rtManager.getTable(serviceId).get().buckets.anyIt(
         it.peers.anyIt(it.nodeId == otherKey)
       )
+
+  asyncTest "advertiser retries with the ticket after Wait and gets Confirmed":
+    # First REGISTER gets Wait + ticket, advertiser sleeps then retries
+    # with the ticket and the registrar admits the ad. The registration
+    # window is widened to 10s so the retry's handshake has time to complete.
+    let conf = ServiceDiscoveryConfig.new(registrationWindow = 10.secs)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let service = makeServiceInfo("service")
+    let serviceId = service.id.hashServiceId()
+
+    advertiserNode.addProvidedService(service)
+
+    checkUntilTimeout:
+      registrarNode.countAdsInCache(serviceId) == 1
+
+    let ads = registrarNode.getAdsInCache(serviceId)
+    check ads[0].data.peerId == advertiserNode.switch.peerInfo.peerId
+
+  asyncTest "advertiser stops after the registrar replies Rejected":
+    let registrarNode = setupServiceDiscoveryNode()
+    let advertiserNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let serviceId = makeServiceId()
+
+    # Seed the per-service table directly so we skip the bucket-iteration
+    # tasks that addProvidedService would start.
+    check advertiserNode.rtManager.addService(
+      serviceId, advertiserNode.rtable, advertiserNode.config.replication,
+      advertiserNode.discoConfig.bucketsCount, Provided,
+    )
+
+    # Malformed bytes force a Rejected reply.
+    let badAdvert = Opt.some(@[1'u8, 2, 3, 4])
+
+    # The advertiser should hit Rejected, break its retry loop, and return.
+    await advertiserNode
+      .advertiseToRegistrar(
+        serviceId, registrarNode.switch.peerInfo.peerId, Opt.none(Ticket), badAdvert
+      )
+      .wait(5.seconds)
+
+    check registrarNode.countAdsInCache(serviceId) == 0
