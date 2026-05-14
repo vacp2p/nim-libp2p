@@ -115,9 +115,12 @@ proc hashProtocol(name: string): MDigest[256] =
   else:
     result = sha256.digest(name)
 
-proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
+proc dh(
+    priv: Curve25519Key, pub: Curve25519Key
+): Curve25519Key {.raises: [NoiseHandshakeError].} =
   result = pub
-  Curve25519.mul(result, priv)
+  if not Curve25519.mul(result, priv):
+    raise (ref NoiseHandshakeError)(msg: "Noise DH failed.")
 
 # Cipherstate
 
@@ -153,17 +156,14 @@ proc decryptWithAd(
     state: var CipherState, ad, data: openArray[byte]
 ): seq[byte] {.raises: [NoiseDecryptTagError, NoiseNonceMaxError].} =
   var
-    tagIn = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
-    tagOut: ChaChaPolyTag
+    tag = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
     nonce: ChaChaPolyNonce
   nonce[4 ..< 12] = toBytesLE(state.n)
   result = data[0 .. (data.high - ChaChaPolyTag.len)]
-  ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
-  trace "decryptWithAd",
-    tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
-  if tagIn != tagOut:
+  if not ChaChaPoly.decrypt(state.k, nonce, tag, result, ad):
     debug "decryptWithAd failed", data = shortLog(data)
     raise (ref NoiseDecryptTagError)(msg: "decryptWithAd failed tag authentication.")
+  trace "decryptWithAd", tag = tag.shortLog, nonce = state.n
   inc state.n
   if state.n > NonceMax:
     raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")

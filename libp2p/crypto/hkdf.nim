@@ -6,7 +6,7 @@
 {.push raises: [].}
 
 import nimcrypto
-import bearssl/[kdf, hash]
+import boringssl
 
 type HkdfResult*[len: static int] = array[len, byte]
 
@@ -15,33 +15,31 @@ proc hkdf*[T: sha256, len: static int](
     salt, ikm, info: openArray[byte],
     outputs: var openArray[HkdfResult[len]],
 ) =
-  var ctx: HkdfContext
-  hkdfInit(
-    ctx,
-    addr sha256Vtable,
-    if salt.len > 0:
-      unsafeAddr salt[0]
-    else:
-      nil,
-    csize_t(salt.len),
-  )
-  hkdfInject(
-    ctx,
+  if outputs.len == 0:
+    return
+
+  let totalLen = outputs.len * len
+  if totalLen == 0:
+    return
+
+  let res = HKDF(
+    addr outputs[0][0],
+    csize_t(totalLen),
+    EVP_sha256(),
     if ikm.len > 0:
       unsafeAddr ikm[0]
     else:
       nil,
     csize_t(ikm.len),
+    if salt.len > 0:
+      unsafeAddr salt[0]
+    else:
+      nil,
+    csize_t(salt.len),
+    if info.len > 0:
+      unsafeAddr info[0]
+    else:
+      nil,
+    csize_t(info.len),
   )
-  hkdfFlip(ctx)
-  for i in 0 .. outputs.high:
-    discard hkdfProduce(
-      ctx,
-      if info.len > 0:
-        unsafeAddr info[0]
-      else:
-        nil,
-      csize_t(info.len),
-      addr outputs[i][0],
-      csize_t(outputs[i].len),
-    )
+  doAssert res == 1, "HKDF failed"

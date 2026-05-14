@@ -505,7 +505,7 @@ suite "Key interface test suite":
     ChaChaPoly.encrypt(key, nonce, ntag, text, aed)
     check text.toHex == cipher.toHex
     check ntag.toHex == tag.toHex
-    ChaChaPoly.decrypt(key, nonce, ntag, text, aed)
+    check ChaChaPoly.decrypt(key, nonce, ntag, text, aed)
     check text.toHex == plain.toHex
     check ntag.toHex == tag.toHex
 
@@ -516,7 +516,7 @@ suite "Key interface test suite":
       noaed: array[0, byte]
     ChaChaPoly.encrypt(key, nonce, btag, smallPlain, noaed)
     ntag = btag
-    ChaChaPoly.decrypt(key, nonce, btag, smallPlain, noaed)
+    check ChaChaPoly.decrypt(key, nonce, btag, smallPlain, noaed)
     check ntag.toHex == btag.toHex
 
     # ensure even a 0 byte array works
@@ -527,7 +527,7 @@ suite "Key interface test suite":
         noaed: array[0, byte]
       ChaChaPoly.encrypt(key, nonce, btag, emptyPlain, noaed)
       ntag = btag
-      ChaChaPoly.decrypt(key, nonce, btag, emptyPlain, noaed)
+      check ChaChaPoly.decrypt(key, nonce, btag, emptyPlain, noaed)
       check ntag.toHex == btag.toHex
 
   test "Curve25519":
@@ -546,7 +546,7 @@ suite "Key interface test suite":
         )
         .intoCurve25519Key()
 
-    Curve25519.mul(bearIn, bearOp)
+    check Curve25519.mul(bearIn, bearOp)
     check bearIn == bearOut
 
     # from https://github.com/golang/crypto/blob/1d94cc7ab1c630336ab82ccb9c9cda72a875c382/curve25519/vectors_test.go#L26
@@ -567,7 +567,7 @@ suite "Key interface test suite":
         0xfb, 0x3e, 0xb, 0x40, 0x74,
       ]
 
-    Curve25519.mul(base, private1)
+    check Curve25519.mul(base, private1)
     check base.toHex == public1Test.toHex
 
     # RFC vectors
@@ -598,9 +598,18 @@ suite "Key interface test suite":
     var
       secret1 = p2Pub
       secret2 = p1Pub
-    Curve25519.mul(secret1, private1)
-    Curve25519.mul(secret2, private2)
+    check Curve25519.mul(secret1, private1)
+    check Curve25519.mul(secret2, private2)
     check secret1.toHex == secret2.toHex
+
+    # BoringSSL rejects low-order public points by returning 0 from X25519.
+    # The wrapper should report failure without modifying the caller's point.
+    let lowOrderPoint = fromHex(
+      "e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800"
+    ).intoCurve25519Key
+    var point = lowOrderPoint
+    check Curve25519.mul(point, private1) == false
+    check point == lowOrderPoint
 
   test "HKDF 1":
     let
