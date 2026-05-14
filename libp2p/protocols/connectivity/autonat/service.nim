@@ -214,13 +214,14 @@ method setup*(self: AutonatService, switch: Switch) {.raises: [ServiceSetupError
       self.newConnectedPeerHandler, PeerEventKind.Joined
     )
 
-  if self.enableAddressMapper:
-    switch.peerInfo.addressMappers.add(self.addressMapper)
-
 method start*(
     self: AutonatService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   trace "Running AutonatService"
+
+  if self.enableAddressMapper:
+    switch.peerInfo.addressMappers.add(self.addressMapper)
+
   self.scheduleInterval.withValue(interval):
     if self.scheduleHandle.isNil:
       self.scheduleHandle = schedule(self, switch, interval)

@@ -179,8 +179,6 @@ method setup*(
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return expandWildcardAddresses(self.networkInterfaceProvider, listenAddrs)
 
-  switch.peerInfo.addressMappers.add(self.addressMapper)
-
 method start*(
     self: WildcardAddressResolverService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
@@ -190,6 +188,7 @@ method start*(
   ## address mappers that are registered with the switch will also be run.
   ##
   trace "Running WildcardAddressResolverService"
+  switch.peerInfo.addressMappers.add(self.addressMapper)
   await switch.peerInfo.update()
 
 method stop*(

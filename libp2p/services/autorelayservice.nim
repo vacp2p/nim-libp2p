@@ -76,7 +76,6 @@ method setup*(self: AutoRelayService, switch: Switch) {.raises: [ServiceSetupErr
 
   switch.addPeerEventHandler(handlePeerIdentified, Identified)
   switch.addPeerEventHandler(handlePeerLeft, Left)
-  switch.peerInfo.addressMappers.add(self.addressMapper)
 
 proc manageBackedOff(
     self: AutoRelayService, pid: PeerId
@@ -133,11 +132,14 @@ method start*(
     trace "Autorelay is already running"
     return
   self.running = true
+  switch.peerInfo.addressMappers.add(self.addressMapper)
   self.runner = self.innerRun(switch)
 
 method stop*(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
+  if not self.running:
+    return
   self.running = false
   self.runner.cancelSoon()
   switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
