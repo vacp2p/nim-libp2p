@@ -129,7 +129,6 @@ method start*(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   if self.running:
-    trace "Autorelay is already running"
     return
   self.running = true
   switch.peerInfo.addressMappers.add(self.addressMapper)
