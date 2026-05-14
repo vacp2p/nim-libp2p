@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, sets, algorithm]
+import std/[tables, sequtils, algorithm]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
@@ -176,7 +176,7 @@ proc updatePeers*(
     if addrs.len == 0:
       continue
     if rtable.insert(p.peerId):
-      switch.peerStore[AddressBook].extend(p.peerId, addrs)
+      switch.peerStore[AddressBook].extend(p.peerId, addrs, AddressConfidence.Low)
 
 proc updatePeers*(kad: KadDHT, peerInfos: seq[PeerInfo]) {.raises: [].} =
   updatePeers(kad.switch, kad.config.addressPolicy, kad.rtable, peerInfos)

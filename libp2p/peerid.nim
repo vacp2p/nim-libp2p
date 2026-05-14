@@ -134,6 +134,14 @@ func extractPublicKey*(pid: PeerId, pubkey: var PublicKey): bool =
         let length = len(mh.data.buffer)
         result = pubkey.init(mh.data.buffer.toOpenArray(mh.dpos, length - 1))
 
+func getPubKey*(pid: PeerId): Opt[PublicKey] =
+  ## Extract the public key embedded in `pid`, or `none` if not present.
+  var pubkey: PublicKey
+  if pid.extractPublicKey(pubkey):
+    Opt.some(pubkey)
+  else:
+    Opt.none(PublicKey)
+
 func init*(pid: var PeerId, data: openArray[byte]): bool =
   ## Initialize peer id from raw binary representation ``data``.
   ##
