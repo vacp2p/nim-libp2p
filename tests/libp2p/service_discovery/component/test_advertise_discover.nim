@@ -259,3 +259,35 @@ suite "Service Discovery Component - Advertise Discover":
       .wait(5.seconds)
 
     check registrarNode.countAdsInCache(serviceId) == 0
+
+  asyncTest "auto-advertise on start":
+    # Using ipSimCoefficient = 0.0 to not trigger sybil protection when advertising multiple services
+    # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, ipSimCoefficient = 0.0)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
+
+    startAndDeferStop(@[registrarNode, discovererNode])
+    await connect(registrarNode, discovererNode)
+
+    let serviceA = makeServiceInfo("service-A")
+    let serviceB = makeServiceInfo("service-B")
+    let serviceAId = serviceA.id.hashServiceId()
+    let serviceBId = serviceB.id.hashServiceId()
+    
+    let advertiserNode = setupServiceDiscoveryNode(
+      discoConfig = conf,
+      bootstrapNodes =
+        @[(registrarNode.switch.peerInfo.peerId, registrarNode.switch.peerInfo.addrs)],
+      services = @[serviceA, serviceB],
+    )
+
+    startAndDeferStop(@[advertiserNode])
+
+    checkUntilTimeout:
+      block:
+        let foundA = await discovererNode.lookup(serviceAId)
+        let foundB = await discovererNode.lookup(serviceBId)
+        foundA.isOk() and foundB.isOk() and
+          foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
+          foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId)
