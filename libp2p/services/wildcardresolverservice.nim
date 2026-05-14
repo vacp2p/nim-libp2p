@@ -161,7 +161,7 @@ proc expandWildcardAddresses(
 
 method setup*(
     self: WildcardAddressResolverService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
+) {.raises: [ServiceSetupError].} =
   ## Sets up the `WildcardAddressResolverService`.
   ##
   ## This method adds the address mapper to the peer's list of address mappers.
@@ -171,19 +171,15 @@ method setup*(
   ## - `switch`: The switch context in which the service operates.
   ##
   ## Returns:
-  ## - A `Future[bool]` that resolves to `true` if the setup was successful, otherwise `false`.
+  ## - No value. If setup fails, a `ServiceSetupError` is raised.
+  debug "Setting up WildcardAddressResolverService"
+
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return expandWildcardAddresses(self.networkInterfaceProvider, listenAddrs)
 
-  debug "Setting up WildcardAddressResolverService"
-  let hasBeenSetup = await procCall Service(self).setup(switch)
-  if hasBeenSetup:
-    switch.peerInfo.addressMappers.add(self.addressMapper)
-  return hasBeenSetup
-
-method run*(
+method start*(
     self: WildcardAddressResolverService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   ## Runs the WildcardAddressResolverService for a given switch.
@@ -192,11 +188,12 @@ method run*(
   ## address mappers that are registered with the switch will also be run.
   ##
   trace "Running WildcardAddressResolverService"
+  switch.peerInfo.addressMappers.add(self.addressMapper)
   await switch.peerInfo.update()
 
 method stop*(
     self: WildcardAddressResolverService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   ## Stops the WildcardAddressResolverService.
   ##
   ## Handles the shutdown process of the WildcardAddressResolverService for a given switch.
@@ -206,12 +203,7 @@ method stop*(
   ## Parameters:
   ## - `self`: The instance of the WildcardAddressResolverService.
   ## - `switch`: The Switch object associated with the service.
-  ##
-  ## Returns:
-  ## - A future that resolves to `true` if the service was successfully stopped, otherwise `false`.
   debug "Stopping WildcardAddressResolverService"
-  let hasBeenStopped = await procCall Service(self).stop(switch)
-  if hasBeenStopped:
-    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-    await switch.peerInfo.update()
-  return hasBeenStopped
+
+  switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+  await switch.peerInfo.update()

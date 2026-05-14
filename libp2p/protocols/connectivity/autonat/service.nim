@@ -175,7 +175,7 @@ proc schedule(
     service: AutonatService, switch: Switch, interval: Duration
 ) {.async: (raises: [CancelledError]).} =
   heartbeat "Scheduling AutonatService run", interval:
-    await service.run(switch)
+    await service.askConnectedPeers(switch)
 
 proc addressMapper(
     self: AutonatService, peerStore: PeerStore, listenAddrs: seq[MultiAddress]
@@ -196,58 +196,51 @@ proc addressMapper(
     addrs.add(processedMA)
   return addrs
 
-method setup*(
-    self: AutonatService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
+method setup*(self: AutonatService, switch: Switch) {.raises: [ServiceSetupError].} =
+  info "Setting up AutonatService"
+
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return await addressMapper(self, switch.peerStore, listenAddrs)
 
-  info "Setting up AutonatService"
-  let hasBeenSetup = await procCall Service(self).setup(switch)
-  if hasBeenSetup:
-    if self.askNewConnectedPeers:
-      self.newConnectedPeerHandler = proc(
-          peerId: PeerId, event: PeerEvent
-      ): Future[void] {.async: (raises: [CancelledError]).} =
-        discard askPeer(self, switch, peerId)
+  if self.askNewConnectedPeers:
+    self.newConnectedPeerHandler = proc(
+        peerId: PeerId, event: PeerEvent
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      discard askPeer(self, switch, peerId)
 
-      switch.connManager.addPeerEventHandler(
-        self.newConnectedPeerHandler, PeerEventKind.Joined
-      )
-
-    self.scheduleInterval.withValue(interval):
-      self.scheduleHandle = schedule(self, switch, interval)
-
-    if self.enableAddressMapper:
-      switch.peerInfo.addressMappers.add(self.addressMapper)
-
-  return hasBeenSetup
-
-method run*(
+method start*(
     self: AutonatService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   trace "Running AutonatService"
-  await askConnectedPeers(self, switch)
+
+  switch.connManager.addPeerEventHandler(
+    self.newConnectedPeerHandler, PeerEventKind.Joined
+  )
+
+  if self.enableAddressMapper:
+    switch.peerInfo.addressMappers.add(self.addressMapper)
+    await switch.peerInfo.update()
+
+  self.scheduleInterval.withValue(interval):
+    if self.scheduleHandle.isNil:
+      self.scheduleHandle = schedule(self, switch, interval)
 
 method stop*(
     self: AutonatService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
+) {.async: (raises: [CancelledError]).} =
   info "Stopping AutonatService"
-  let hasBeenStopped = await procCall Service(self).stop(switch)
-  if hasBeenStopped:
-    if not isNil(self.scheduleHandle):
-      self.scheduleHandle.cancelSoon()
-      self.scheduleHandle = nil
-    if not isNil(self.newConnectedPeerHandler):
-      switch.connManager.removePeerEventHandler(
-        self.newConnectedPeerHandler, PeerEventKind.Joined
-      )
-    if self.enableAddressMapper:
-      switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-    await switch.peerInfo.update()
-  return hasBeenStopped
+  if not isNil(self.scheduleHandle):
+    self.scheduleHandle.cancelSoon()
+    self.scheduleHandle = nil
+  if not isNil(self.newConnectedPeerHandler):
+    switch.connManager.removePeerEventHandler(
+      self.newConnectedPeerHandler, PeerEventKind.Joined
+    )
+  if self.enableAddressMapper:
+    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+  await switch.peerInfo.update()
 
 proc statusAndConfidenceHandler*(
     self: AutonatService, statusAndConfidenceHandler: StatusAndConfidenceHandler

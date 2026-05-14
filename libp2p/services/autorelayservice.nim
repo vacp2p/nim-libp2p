@@ -54,35 +54,28 @@ proc reserveAndUpdate(
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
-method setup*(
-    self: AutoRelayService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
+method setup*(self: AutoRelayService, switch: Switch) {.raises: [ServiceSetupError].} =
   self.addressMapper = proc(
       listenAddrs: seq[MultiAddress]
   ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
     return await addressMapper(self, listenAddrs)
 
-  let hasBeenSetUp = await procCall Service(self).setup(switch)
-  if hasBeenSetUp:
-    proc handlePeerIdentified(
-        peerId: PeerId, event: PeerEvent
-    ) {.async: (raises: [CancelledError]).} =
-      trace "Peer Identified", peerId
-      if self.relayPeers.len < self.maxNumRelays:
-        self.peerAvailable.fire()
+  proc handlePeerIdentified(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    trace "Peer Identified", peerId
+    if self.relayPeers.len < self.maxNumRelays:
+      self.peerAvailable.fire()
 
-    proc handlePeerLeft(
-        peerId: PeerId, event: PeerEvent
-    ) {.async: (raises: [CancelledError]).} =
-      trace "Peer Left", peerId
-      self.relayPeers.withValue(peerId, future):
-        future[].cancelSoon()
+  proc handlePeerLeft(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    trace "Peer Left", peerId
+    self.relayPeers.withValue(peerId, future):
+      future[].cancelSoon()
 
-    switch.addPeerEventHandler(handlePeerIdentified, Identified)
-    switch.addPeerEventHandler(handlePeerLeft, Left)
-    switch.peerInfo.addressMappers.add(self.addressMapper)
-    await self.run(switch)
-  return hasBeenSetUp
+  switch.addPeerEventHandler(handlePeerIdentified, Identified)
+  switch.addPeerEventHandler(handlePeerLeft, Left)
 
 proc manageBackedOff(
     self: AutoRelayService, pid: PeerId
@@ -132,25 +125,25 @@ proc innerRun(
     else:
       await self.peerAvailable.wait()
 
-method run*(
+method start*(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
   if self.running:
-    trace "Autorelay is already running"
     return
   self.running = true
+  switch.peerInfo.addressMappers.add(self.addressMapper)
+  await switch.peerInfo.update()
   self.runner = self.innerRun(switch)
 
 method stop*(
     self: AutoRelayService, switch: Switch
-): Future[bool] {.async: (raises: [CancelledError]).} =
-  let hasBeenStopped = await procCall Service(self).stop(switch)
-  if hasBeenStopped:
-    self.running = false
-    self.runner.cancelSoon()
-    switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-    await switch.peerInfo.update()
-  return hasBeenStopped
+) {.async: (raises: [CancelledError]).} =
+  if not self.running:
+    return
+  self.running = false
+  self.runner.cancelSoon()
+  switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
+  await switch.peerInfo.update()
 
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =
   result = concat(toSeq(self.relayAddresses.values))
