@@ -535,10 +535,15 @@ template streamTransportTest*(
                 # Doing this improves likelihood of parallel data transition on the connections.
                 await sleepAsync(rand(20 .. 100).milliseconds)
 
-              check receivedData == newData(messageSize, byte(handlerIndex))
+              # Concurrent transports may accept clients in a different order.
+              require receivedData.len > 0
+              let clientId = receivedData[0]
+              check:
+                clientId.int < numConnections
+                receivedData == newData(messageSize, clientId)
 
               # Send back ID
-              await stream.write(@[byte(receivedData[0])])
+              await stream.write(@[clientId])
 
               # Signal that this stream handler is done
               serverStreamHandlerFuts[handlerIndex].complete()
