@@ -342,18 +342,22 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
 
 proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   ## Start listening on every transport
-
   if s.started:
     warn "Switch has already been started"
     return
 
   debug "starting switch for peer", peerInfo = s.peerInfo
 
+  # start services and transports without await to prevent any
+  # issues when one needs another to start first.
   var startFuts: seq[Future[void]]
+  
+  for service in s.services:
+    startFuts.add(service.start(s))
+ 
   for t in s.transports:
     let addrs = s.peerInfo.listenAddrs.filterIt(t.handles(it))
     s.peerInfo.listenAddrs.keepItIf(it notin addrs)
-
     startFuts.add(t.start(addrs))
 
   await allFutures(startFuts)
@@ -362,7 +366,7 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
     if fut.failed:
       await s.stop()
       raise newException(
-        LPError, "starting transports failed: " & $fut.error.msg, fut.error
+        LPError, "starting services and transports failed: " & $fut.error.msg, fut.error
       )
 
   for t in s.transports:
@@ -371,9 +375,6 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
 
   await s.peerInfo.update()
   await s.ms.start()
-
-  for service in s.services:
-    await service.start(s)
 
   s.started = true
 
