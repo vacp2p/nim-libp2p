@@ -28,6 +28,8 @@ export transport, websock, results
 
 const
   DefaultHeadersTimeout = 3.seconds
+  DefaultConcurrentAccepts = 200
+  DefaultAcceptFailureBackoff = 100.millis
   DefaultAutotlsWaitTimeout = 3.seconds
   DefaultAutotlsRetries = 3
 
@@ -133,19 +135,179 @@ type WsTransport* = ref object of Transport
   httpservers: seq[HttpServer]
   wsserver: WSServer
   connections: array[Direction, seq[WsStream]]
-  acceptFuts: seq[Future[HttpRequest]]
+  acceptLoop: Future[void]
+  handshakeFuts: seq[Future[void]]
+  acceptResults: AsyncQueue[Connection]
+  acceptSem: AsyncSemaphore
 
   tlsPrivateKey*: TLSPrivateKey
   tlsCertificate*: TLSCertificate
   autotls: Opt[AutotlsService]
   tlsFlags: set[TLSFlags]
   flags: set[ServerFlags]
-  handshakeTimeout: Duration
+  headersTimeout: Duration
+  concurrentAccepts: int
   factories: seq[ExtFactory]
   rng: Rng
 
 proc secure*(self: WsTransport): bool =
   not (isNil(self.tlsPrivateKey) or isNil(self.tlsCertificate))
+
+proc notifyAcceptClosed(self: WsTransport) {.raises: [].} =
+  if self.acceptResults.isNil:
+    return
+
+  try:
+    self.acceptResults.addLastNoWait(nil)
+  except AsyncQueueFullError:
+    trace "Queue is full"
+
+proc releaseAcceptSlot(self: WsTransport) {.raises: [].} =
+  try:
+    self.acceptSem.release()
+  except AsyncSemaphoreError as e:
+    trace "Error releasing WS accept semaphore", description = e.msg
+
+proc closeHttpStream(stream: AsyncStream) {.async: (raises: []).} =
+  try:
+    await noCancel stream.closeWait()
+  except CatchableError as e:
+    trace "Error closing HTTP stream", description = e.msg
+
+proc connHandler(
+  self: WsTransport, stream: WSSession, secure: bool, dir: Direction
+): Future[Connection] {.async: (raises: [CatchableError]).}
+
+proc wsHandshakeWorker(
+    self: WsTransport, server: HttpServer, stream: AsyncStream
+) {.async: (raises: [CancelledError]).} =
+  var accepted = false
+  defer:
+    self.releaseAcceptSlot()
+
+  try:
+    let conn = await (
+      proc(): Future[Connection] {.async: (raises: [CatchableError]).} =
+        let req = await readHttpRequest(stream, server.headersTimeout)
+        let wstransp = await self.wsserver.handleRequest(req)
+        return await self.connHandler(wstransp, server.secure, Direction.In)
+    )()
+      .wait(self.headersTimeout)
+
+    await self.acceptResults.addLast(conn)
+    accepted = true
+  except WebSocketError as e:
+    debug "Websocket Error", description = e.msg
+  except HttpError as e:
+    debug "Http Error", description = e.msg
+  except AsyncStreamError as e:
+    debug "AsyncStream Error", description = e.msg
+  except AsyncTimeoutError as e:
+    debug "Timed out", description = e.msg
+  except CancelledError as e:
+    if not accepted:
+      await noCancel closeHttpStream(stream)
+    raise e
+  except CatchableError as e:
+    debug "Unexpected error accepting websocket connection", description = e.msg
+
+  if not accepted:
+    await closeHttpStream(stream)
+
+proc wsAcceptDispatcher(self: WsTransport) {.async: (raises: []).} =
+  var acceptServers = self.httpservers
+  var acceptFuts = acceptServers.mapIt(it.acceptStream())
+  var notifyOnClose = false
+
+  if acceptFuts.len == 0:
+    self.notifyAcceptClosed()
+    return
+
+  try:
+    while self.running:
+      self.handshakeFuts.keepItIf(not it.finished)
+
+      var acquired = false
+      try:
+        await self.acceptSem.acquire()
+        acquired = true
+
+        let finished =
+          try:
+            await one(acceptFuts)
+          except ValueError:
+            raiseAssert("accept futures should not be empty")
+
+        let index = acceptFuts.find(finished)
+        let server = acceptServers[index]
+
+        if finished.completed():
+          let stream = finished.read()
+          acceptFuts[index] = server.acceptStream()
+          self.handshakeFuts.add(self.wsHandshakeWorker(server, stream))
+          acquired = false
+        elif finished.failed():
+          let exc = finished.error()
+          if exc of TransportUseClosedError:
+            debug "Server was closed", description = exc.msg
+          elif exc of TransportTooManyError:
+            debug "Too many files opened", description = exc.msg
+          elif exc of TransportAbortedError:
+            debug "Connection aborted", description = exc.msg
+          elif exc of TransportOsError:
+            debug "OS Error", description = exc.msg
+          else:
+            info "Unexpected error accepting websocket stream", description = exc.msg
+
+          if acquired:
+            self.releaseAcceptSlot()
+            acquired = false
+
+          if exc of TransportUseClosedError:
+            acceptFuts.delete(index)
+            acceptServers.delete(index)
+            if acceptFuts.len == 0:
+              self.running = false
+              notifyOnClose = true
+              break
+          elif self.running:
+            await sleepAsync(DefaultAcceptFailureBackoff)
+            if self.running:
+              acceptFuts[index] = server.acceptStream()
+      except CancelledError:
+        if acquired:
+          self.releaseAcceptSlot()
+        break
+      except CatchableError as e:
+        if acquired:
+          self.releaseAcceptSlot()
+        if self.running:
+          info "Unexpected error in websocket accept dispatcher", description = e.msg
+        else:
+          break
+  finally:
+    for fut in acceptFuts:
+      if not fut.finished:
+        await noCancel fut.cancelAndWait()
+      elif fut.completed():
+        try:
+          await closeHttpStream(fut.read())
+        except CatchableError as e:
+          trace "Error reading completed WS accept stream", description = e.msg
+
+    if notifyOnClose:
+      var toWait: seq[Future[void]]
+      for fut in self.handshakeFuts:
+        if not fut.finished:
+          toWait.add(fut.cancelAndWait())
+
+      if toWait.len > 0:
+        try:
+          await noCancel allFutures(toWait)
+        except CatchableError as e:
+          trace "Error stopping WS handshake workers", description = e.msg
+
+      self.notifyAcceptClosed()
 
 method start*(
     self: WsTransport, addrs: seq[MultiAddress]
@@ -174,16 +336,15 @@ method start*(
           let autotlsCert = await autotls.getCertWhenReady()
           self.tlsCertificate = autotlsCert.cert
           self.tlsPrivateKey = autotlsCert.privkey
-        except AutoTLSError as exc:
-          raise newException(LPError, exc.msg, exc)
-        except TLSStreamProtocolError as exc:
-          raise newException(LPError, exc.msg, exc)
-
-  await procCall Transport(self).start(addrs)
+        except AutoTLSError as e:
+          raise newException(LPError, e.msg, e)
+        except TLSStreamProtocolError as e:
+          raise newException(LPError, e.msg, e)
 
   self.wsserver =
     WSServer.new(factories = self.factories, rng = bearSslDrbgRef(self.rng))
 
+  var resolvedAddrs = addrs
   for i, ma in addrs:
     let isWss =
       if WSS.match(ma):
@@ -199,19 +360,18 @@ method start*(
       try:
         let address = addrsTa[i]
         if isWss:
-          TlsHttpServer.create(
+          HttpServer.create(
             address = address,
             tlsPrivateKey = self.tlsPrivateKey,
             tlsCertificate = self.tlsCertificate,
             flags = self.flags,
-            headersTimeout = self.handshakeTimeout,
+            headersTimeout = self.headersTimeout,
           )
         else:
-          HttpServer.create(address, headersTimeout = self.handshakeTimeout)
-      except CatchableError as exc:
-        raise (ref WsTransportError)(
-          msg: "error in WsTransport start: " & exc.msg, parent: exc
-        )
+          HttpServer.create(address, headersTimeout = self.headersTimeout)
+      except CatchableError as e:
+        raise
+          (ref WsTransportError)(msg: "error in WsTransport start: " & e.msg, parent: e)
 
     self.httpservers &= httpserver
 
@@ -225,8 +385,15 @@ method start*(
         MultiAddress.init("/ws")
 
     # always get the resolved address in case we're bound to 0.0.0.0:0
-    self.addrs[i] =
+    resolvedAddrs[i] =
       MultiAddress.init(httpserver.localAddress()).tryGet() & codec.tryGet()
+
+  self.acceptSem = newAsyncSemaphore(self.concurrentAccepts)
+  self.acceptResults = newAsyncQueue[Connection](self.concurrentAccepts)
+  self.handshakeFuts = @[]
+
+  await procCall Transport(self).start(resolvedAddrs)
+  self.acceptLoop = self.wsAcceptDispatcher()
 
   trace "Listening on", addresses = self.addrs
 
@@ -240,17 +407,13 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     trace "Stopping WS transport"
     await procCall Transport(self).stop() # call base
 
-    discard await allFinished(
-      self.connections[Direction.In].mapIt(it.close()) &
-        self.connections[Direction.Out].mapIt(it.close())
-    )
-
     var toWait: seq[Future[void]]
-    for fut in self.acceptFuts:
+    if not isNil(self.acceptLoop) and not self.acceptLoop.finished:
+      toWait.add(self.acceptLoop.cancelAndWait())
+
+    for fut in self.handshakeFuts:
       if not fut.finished:
         toWait.add(fut.cancelAndWait())
-      elif fut.completed:
-        toWait.add(fut.read().stream.closeWait())
 
     for server in self.httpservers:
       server.stop()
@@ -258,10 +421,19 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
 
     await allFutures(toWait)
 
+    discard await allFinished(
+      self.connections[Direction.In].mapIt(it.close()) &
+        self.connections[Direction.Out].mapIt(it.close())
+    )
+
     self.httpservers = @[]
+    self.handshakeFuts = @[]
+    self.acceptLoop = nil
     trace "Transport stopped"
-  except CatchableError as exc:
-    trace "Error shutting down ws transport", description = exc.msg
+  except CatchableError as e:
+    trace "Error shutting down ws transport", description = e.msg
+  finally:
+    self.notifyAcceptClosed()
 
 proc connHandler(
     self: WsTransport, stream: WSSession, secure: bool, dir: Direction
@@ -283,11 +455,11 @@ proc connHandler(
         MultiAddress.init(remoteAddr).tryGet() & codec.tryGet(),
         MultiAddress.init(localAddr).tryGet() & codec.tryGet(),
       )
-    except CatchableError as exc:
-      trace "Failed to create observedAddr or listenAddr", description = exc.msg
+    except CatchableError as e:
+      trace "Failed to create observedAddr or listenAddr", description = e.msg
       if not (isNil(stream) and stream.stream.reader.closed):
         safeClose(stream)
-      raise exc
+      raise e
 
   let conn = WsStream.new(stream, dir, Opt.some(observedAddr), Opt.some(localAddr))
 
@@ -306,7 +478,7 @@ method accept*(
   trace "WsTransport accept"
 
   # wstransport can only start accepting connections after autotls is done
-  # if autotls is not present, self.running will be true right after start is called
+  # if autotls is not present, self.running is true after listener setup completes
   var retries = 0
   while not self.running and retries < DefaultAutotlsRetries:
     retries += 1
@@ -315,58 +487,11 @@ method accept*(
   if not self.running:
     raise newTransportClosedError()
 
-  if self.acceptFuts.len <= 0:
-    self.acceptFuts = self.httpservers.mapIt(it.accept())
+  let conn = await self.acceptResults.popFirst()
+  if not conn.isNil:
+    return conn
 
-  if self.acceptFuts.len <= 0:
-    return
-
-  let finished =
-    try:
-      await one(self.acceptFuts)
-    except ValueError:
-      raiseAssert("already checked with if")
-    except CancelledError as e:
-      raise e
-
-  let index = self.acceptFuts.find(finished)
-  self.acceptFuts[index] = self.httpservers[index].accept()
-
-  try:
-    let req = await finished
-
-    try:
-      let wstransp = await self.wsserver.handleRequest(req).wait(self.handshakeTimeout)
-      let isSecure = self.httpservers[index].secure
-
-      return await self.connHandler(wstransp, isSecure, Direction.In)
-    except CatchableError as exc:
-      await noCancel req.stream.closeWait()
-      raise exc
-  except WebSocketError as exc:
-    debug "Websocket Error", description = exc.msg
-  except HttpError as exc:
-    debug "Http Error", description = exc.msg
-  except AsyncStreamError as exc:
-    debug "AsyncStream Error", description = exc.msg
-  except TransportTooManyError as exc:
-    debug "Too many files opened", description = exc.msg
-  except TransportAbortedError as exc:
-    debug "Connection aborted", description = exc.msg
-  except AsyncTimeoutError as exc:
-    debug "Timed out", description = exc.msg
-  except TransportUseClosedError as exc:
-    debug "Server was closed", description = exc.msg
-    raise newTransportClosedError(exc)
-  except CancelledError as exc:
-    raise exc
-  except TransportOsError as exc:
-    debug "OS Error", description = exc.msg
-  except CatchableError as exc:
-    info "Unexpected error accepting connection", description = exc.msg
-    raise newException(
-      transport.TransportError, "Error in WsTransport accept: " & exc.msg, exc
-    )
+  raise newTransportClosedError()
 
 method dial*(
     self: WsTransport,
@@ -418,9 +543,11 @@ proc new*(
     tlsFlags: set[TLSFlags] = {},
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
-    handshakeTimeout = DefaultHeadersTimeout,
+    headersTimeout = DefaultHeadersTimeout,
+    concurrentAccepts = DefaultConcurrentAccepts,
 ): T {.raises: [].} =
   ## Creates a secure WebSocket transport
+  doAssert concurrentAccepts > 0, "concurrentAccepts must be positive"
 
   doAssert not rng.isNil, "Rng is nil"
 
@@ -433,7 +560,8 @@ proc new*(
     flags: flags,
     factories: @factories,
     rng: rng,
-    handshakeTimeout: handshakeTimeout,
+    headersTimeout: headersTimeout,
+    concurrentAccepts: concurrentAccepts,
   )
   procCall Transport(self).initialize()
   self
@@ -444,7 +572,8 @@ proc new*(
     rng: Rng,
     flags: set[ServerFlags] = {},
     factories: openArray[ExtFactory] = [],
-    handshakeTimeout = DefaultHeadersTimeout,
+    headersTimeout = DefaultHeadersTimeout,
+    concurrentAccepts = DefaultConcurrentAccepts,
 ): T {.raises: [].} =
   ## Creates a clear-text WebSocket transport
 
@@ -456,5 +585,6 @@ proc new*(
     flags = flags,
     factories = @factories,
     rng = rng,
-    handshakeTimeout = handshakeTimeout,
+    headersTimeout = headersTimeout,
+    concurrentAccepts = concurrentAccepts,
   )

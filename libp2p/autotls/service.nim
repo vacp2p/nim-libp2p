@@ -146,23 +146,16 @@ when defined(libp2p_autotls_support):
       rng: rng,
     )
 
-  method setup*(
-      self: AutotlsService, switch: Switch
-  ): Future[bool] {.async: (raises: [CancelledError]).} =
+  method setup*(self: AutotlsService, switch: Switch) {.raises: [ServiceSetupError].} =
     trace "Setting up AutotlsService"
-    let hasBeenSetup = await procCall Service(self).setup(switch)
-    if hasBeenSetup:
-      if self.config.ipAddress.isNone():
-        try:
-          self.config.ipAddress = Opt.some(getPublicIPAddress())
-        except ValueError as exc:
-          error "Failed to get public IP address", err = exc.msg
-          return false
-        except OSError as exc:
-          error "Failed to get public IP address", err = exc.msg
-          return false
-      self.managerFut = self.run(switch)
-    return hasBeenSetup
+    if self.config.ipAddress.isNone():
+      try:
+        self.config.ipAddress = Opt.some(getPublicIPAddress())
+      except ValueError, OSError:
+        raise newException(
+          ServiceSetupError,
+          "Failed to get public IP address. Reason: " & getCurrentExceptionMsg(),
+        )
 
   method issueCertificate(
       self: AutotlsService
@@ -270,7 +263,7 @@ when defined(libp2p_autotls_support):
       await sleepAsync(self.config.issueRetryTime)
     error "Failed to issue certificate"
 
-  method run*(
+  method start*(
       self: AutotlsService, switch: Switch
   ) {.async: (raises: [CancelledError]).} =
     trace "Starting Autotls management"
@@ -283,28 +276,31 @@ when defined(libp2p_autotls_support):
       error "Could not find a running TcpTransport in switch"
       return
 
-    heartbeat "Certificate Management", self.config.renewCheckTime:
-      if self.cert.isNone():
-        await self.tryIssueCertificate()
+    proc manageCert() {.async: (raises: []).} =
+      try:
+        heartbeat "Certificate Management", self.config.renewCheckTime:
+          if self.cert.isNone():
+            await self.tryIssueCertificate()
 
-      # AutotlsService will renew the cert 1h before it expires
-      let cert = self.cert.valueOr:
-        error "Could not issue certificate"
-        return
-      let waitTime = cert.expiry - Moment.now - self.config.renewBufferTime
-      if waitTime <= self.config.renewBufferTime:
-        await self.tryIssueCertificate()
+          # AutotlsService will renew the cert 1h before it expires
+          let cert = self.cert.valueOr:
+            error "Could not issue certificate"
+            return
+          let waitTime = cert.expiry - Moment.now - self.config.renewBufferTime
+          if waitTime <= self.config.renewBufferTime:
+            await self.tryIssueCertificate()
+      except CancelledError:
+        trace "Autotls management cancelled"
+
+    self.managerFut = manageCert()
 
   method stop*(
       self: AutotlsService, switch: Switch
-  ): Future[bool] {.async: (raises: [CancelledError]).} =
-    let hasBeenStopped = await procCall Service(self).stop(switch)
-    if hasBeenStopped:
-      if not self.acmeClient.isNil():
-        await self.acmeClient.close()
-      if not self.brokerClient.isNil():
-        await self.brokerClient.close()
-      if not self.managerFut.isNil():
-        await self.managerFut.cancelAndWait()
-        self.managerFut = nil
-    return hasBeenStopped
+  ) {.async: (raises: [CancelledError]).} =
+    if not self.acmeClient.isNil():
+      await self.acmeClient.close()
+    if not self.brokerClient.isNil():
+      await self.brokerClient.close()
+    if not self.managerFut.isNil():
+      await self.managerFut.cancelAndWait()
+      self.managerFut = nil
