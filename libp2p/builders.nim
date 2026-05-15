@@ -389,7 +389,7 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## Circuit relay and DNS addresses are never filtered.
   b.withAddressPolicy(publicRoutableAddressPolicy)
 
-proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
+proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if isNil(b.rng):
     b.rng = newRng()
 
@@ -442,23 +442,23 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   var autotlsOpt = Opt.none(AutotlsService)
   when defined(libp2p_autotls_support):
     b.autotlsConfig.withValue(config):
-      autotlsOpt = Opt.some(AutotlsService.new(b.rng, config))
+      let autotlsService = AutotlsService.new(b.rng, config)
+      autotlsOpt = Opt.some(autotlsService)
+      b.services.add(autotlsService)
 
-  let transports = block:
-    var transports: seq[Transport]
-    for tProvider in b.transports:
-      transports.add(
-        tProvider(
-          TransportConfig(
-            upgr: muxedUpgrade,
-            privateKey: seckey,
-            autotls: autotlsOpt,
-            connManager: connManager,
-            rng: b.rng,
-          )
+  var transports: seq[Transport]
+  for tProvider in b.transports:
+    transports.add(
+      tProvider(
+        TransportConfig(
+          upgr: muxedUpgrade,
+          privateKey: seckey,
+          autotls: autotlsOpt,
+          connManager: connManager,
+          rng: b.rng,
         )
       )
-    transports
+    )
 
   if b.secureManagers.len == 0:
     b.secureManagers &= SecureProtocol.Noise
@@ -466,9 +466,21 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   let dialer =
     Dialer.new(peerInfo.peerId, connManager, peerStore, transports, b.nameResolver)
 
-  autotlsOpt.withValue(autotlsSvc):
-    b.services.add(autotlsSvc)
+  let switch = Switch(
+    peerInfo: peerInfo,
+    ms: ms,
+    transports: transports,
+    connManager: connManager,
+    peerStore: peerStore,
+    dialer: dialer,
+    nameResolver: b.nameResolver,
+    rng: b.rng,
+    muxedUpgrade: muxedUpgrade,
+  )
 
+  return switch
+
+proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
     b.services.add(WildcardAddressResolverService.new())
 
@@ -484,33 +496,22 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.identifyPusherEnabled:
     b.services.add(IdentifyPusher.new())
 
-  var protocols: seq[LPProtocol]
-  protocols.add(identify)
+  switch.services = b.services
+  for service in switch.services:
+    service.setup(switch)
 
-  if not isNil(b.autonatV2Client):
-    protocols.add(b.autonatV2Client)
+proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
+  if not switch.peerStore.identify.isNil:
+    switch.mount(switch.peerStore.identify)
+
+  if not b.autonatV2Client.isNil:
+    b.autonatV2Client.setup(switch)
+    switch.mount(b.autonatV2Client)
 
   b.rdvConfig.withValue(rdvCfg):
-    protocols.add(RendezVous.new(b.rng, rdvCfg))
-
-  let switch = Switch(
-    peerInfo: peerInfo,
-    ms: ms,
-    transports: transports,
-    connManager: connManager,
-    peerStore: peerStore,
-    dialer: dialer,
-    nameResolver: b.nameResolver,
-    services: b.services,
-    rng: b.rng,
-  )
-  switch.setupServices()
-
-  for p in protocols:
-    when compiles(p.setup(switch)):
-      p.setup(switch)
-    
-    switch.mount(p)
+    let rend = RendezVous.new(b.rng, rdvCfg)
+    rend.setup(switch)
+    switch.mount(rend)
 
   b.autonatV2ServerConfig.withValue(config):
     switch.mount(AutonatV2.new(switch, config = config))
@@ -520,7 +521,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   b.circuitRelay.withValue(relay):
     if relay of RelayClient:
-      switch.addTransport(RelayTransport.new(RelayClient(relay), muxedUpgrade))
+      switch.addTransport(RelayTransport.new(RelayClient(relay), switch.muxedUpgrade))
     relay.setup(switch)
     switch.mount(relay)
 
@@ -533,5 +534,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
       rng = b.rng,
     )
     switch.mount(kad)
+
+proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
+  var switch = b.buildSwitch()
+  b.setupServices(switch)
+  b.mountProtocols(switch)
 
   return switch

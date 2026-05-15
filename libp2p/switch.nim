@@ -23,6 +23,7 @@ import
   peerinfo,
   ./muxers/muxer,
   connmanager,
+  upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   peerid,
   peerstore,
@@ -51,6 +52,7 @@ type
     peerInfo*: PeerInfo
     connManager*: ConnManager
     transports*: seq[Transport]
+    muxedUpgrade*: MuxedUpgrade
     ms*: MultistreamSelect
     acceptFuts: seq[Future[void]]
     dialer*: Dial
@@ -180,10 +182,6 @@ proc dial*(
   ## with the specified `proto`
 
   dial(s, peerId, addrs, @[proto])
-
-proc setupServices*(s: Switch) {.raises: [ServiceSetupError].} =
-  for service in s.services:
-    service.setup(s)
 
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
