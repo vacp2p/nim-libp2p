@@ -410,12 +410,11 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     await procCall Transport(self).stop() # call base
 
     var toWait: seq[Future[void]]
-    if not isNil(self.acceptLoop) and not self.acceptLoop.finished:
+    if not self.acceptLoop.isNil:
       toWait.add(self.acceptLoop.cancelAndWait())
 
     for fut in self.handshakeFuts:
-      if not fut.finished:
-        toWait.add(fut.cancelAndWait())
+      toWait.add(fut.cancelAndWait())
 
     for server in self.httpservers:
       server.stop()
@@ -423,12 +422,13 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
 
     await allFutures(toWait)
 
-    discard await allFinished(
+    # stop connections and wait for them to be closed
+    await allFutures(
       self.connections[Direction.In].mapIt(it.close()) &
         self.connections[Direction.Out].mapIt(it.close())
     )
     self.connectionCleanupFuts.keepItIf(not it.finished)
-    await noCancel allFutures(self.connectionCleanupFuts)
+    await allFutures(self.connectionCleanupFuts)
 
     self.httpservers = @[]
     self.handshakeFuts = @[]
@@ -476,6 +476,7 @@ proc connHandler(
 
   self.connectionCleanupFuts.keepItIf(not it.finished)
   self.connectionCleanupFuts.add(onClose())
+
   return conn
 
 method accept*(
