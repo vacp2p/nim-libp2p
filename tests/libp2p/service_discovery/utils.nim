@@ -93,6 +93,8 @@ proc setupServiceDiscoveryNode*(
     discoConfig: ServiceDiscoveryConfig = ServiceDiscoveryConfig.new(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     xprPublishing: bool = true,
+    services: seq[ServiceInfo] = @[],
+    client: bool = false,
 ): ServiceDiscovery =
   let switch = createSwitch()
   let node = ServiceDiscovery.new(
@@ -100,10 +102,13 @@ proc setupServiceDiscoveryNode*(
     bootstrapNodes = bootstrapNodes,
     config = testKadDHTConfig(),
     rng = rng(),
+    services = services,
+    client = client,
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  switch.mount(node)
+  if not client:
+    switch.mount(node)
   node
 
 proc setupServiceDiscoveryNodes*(
@@ -126,6 +131,9 @@ proc connect*(disco1, disco2: ServiceDiscovery) {.async.} =
   disco2.switch.peerStore[AddressBook][disco1.switch.peerInfo.peerId] =
     disco1.switch.peerInfo.addrs
 
+proc hasPeer*(rtable: RoutingTable, peerKey: Key): bool =
+  rtable.buckets.anyIt(it.peers.anyIt(it.nodeId == peerKey))
+
 proc populateRoutingTable*(disco: ServiceDiscovery, count: int) =
   for i in 0 ..< count:
     discard disco.rtable.insert(randomPeerId())
@@ -143,3 +151,10 @@ proc getAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): seq[Advertis
 
 proc countAdsInCache*(disco: ServiceDiscovery, serviceId: ServiceId): int =
   disco.getAdsInCache(serviceId).len
+
+proc containsPeer*(
+    response: Result[seq[Advertisement], string], node: ServiceDiscovery
+): bool =
+  response.isOk() and response.get().anyIt(
+    it.data.peerId == node.switch.peerInfo.peerId
+  )
