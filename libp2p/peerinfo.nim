@@ -117,7 +117,7 @@ proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
 proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
   let p2pPart = ?ma[^1]
   if ?p2pPart.protoCode != p2pMultiCodec:
-    return err("Missing p2p part from multiaddress!")
+    return err("missing p2p part from multiaddress")
 
   let peerId = ?PeerId.init(?p2pPart.protoArgument()).orErr("invalid peerid")
 
