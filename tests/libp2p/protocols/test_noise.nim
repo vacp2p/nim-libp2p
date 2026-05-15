@@ -50,15 +50,13 @@ method init(p: TestProto) {.gcsafe.} =
 
 {.pop.}
 
-proc createSwitch(
-    ma: MultiAddress, outgoing: bool, plaintext: bool = false
-): (Switch, PeerInfo) =
+proc makeSwitch(ma: MultiAddress, outgoing: bool, plaintext: bool = false): Switch =
   var
     privateKey = PrivateKey.random(ECDSA, rng()).get()
     peerInfo = PeerInfo.new(privateKey, @[ma])
 
   proc createMplex(conn: Connection): Muxer =
-    result = Mplex.new(conn)
+    Mplex.new(conn)
 
   let
     identify = Identify.new(peerInfo)
@@ -75,17 +73,17 @@ proc createSwitch(
     muxedUpgrade = MuxedUpgrade.new(muxers, secureManagers, ms)
     transports = @[Transport(TcpTransport.new(upgrade = muxedUpgrade))]
 
-  let switch =
-    newSwitch(peerInfo, transports, secureManagers, connManager, ms, peerStore)
-  result = (switch, peerInfo)
+  newSwitch(peerInfo, transports, secureManagers, connManager, ms, peerStore)
 
 suite "Noise":
   teardown:
     checkTrackers()
 
+  let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").get()
+
   asyncTest "e2e: handle write + noise":
     let
-      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      server = @[ma]
       serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
@@ -124,7 +122,7 @@ suite "Noise":
 
   asyncTest "e2e: handle write + noise (wrong prologue)":
     let
-      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      server = @[ma]
       serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
 
@@ -159,7 +157,7 @@ suite "Noise":
 
   asyncTest "e2e: handle read + noise":
     let
-      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      server = @[ma]
       serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
@@ -195,7 +193,7 @@ suite "Noise":
 
   asyncTest "e2e: handle read + noise fragmented":
     let
-      server = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
+      server = @[ma]
       serverPrivKey = PrivateKey.random(ECDSA, rng()).get()
       serverInfo = PeerInfo.new(serverPrivKey, server)
       serverNoise = Noise.new(rng(), serverPrivKey, outgoing = false)
@@ -236,20 +234,14 @@ suite "Noise":
     await transport1.stop()
     await listenFut
 
-  asyncTest "e2e use switch dial proto string":
-    let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-    var peerInfo1, peerInfo2: PeerInfo
-    var switch1, switch2: Switch
-
-    (switch1, peerInfo1) = createSwitch(ma1, false)
+  asyncTest "e2e: use switch dial proto string":
+    var switch1 = makeSwitch(ma, false)
+    var switch2 = makeSwitch(ma, true)
 
     let testProto = new TestProto
     testProto.init()
     testProto.codec = TestCodec
     switch1.mount(testProto)
-    (switch2, peerInfo2) = createSwitch(ma2, true)
     await switch1.start()
     await switch2.start()
     let conn =
@@ -261,20 +253,15 @@ suite "Noise":
 
     await allFuturesRaising(switch1.stop(), switch2.stop())
 
-  asyncTest "e2e test wrong secure negotiation":
-    let ma1 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-    let ma2 = MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
-
-    var peerInfo1, peerInfo2: PeerInfo
-    var switch1, switch2: Switch
-
-    (switch1, peerInfo1) = createSwitch(ma1, false)
+  asyncTest "e2e: test wrong secure negotiation":
+    var switch1 = makeSwitch(ma, false)
+    var switch2 = makeSwitch(ma, true, true)
+      # PlainText enabled; mismatched with Noise, so we want this to fail
 
     let testProto = new TestProto
     testProto.init()
     testProto.codec = TestCodec
     switch1.mount(testProto)
-    (switch2, peerInfo2) = createSwitch(ma2, true, true) # secio, we want to fail
     await switch1.start()
     await switch2.start()
     expect DialFailedError:

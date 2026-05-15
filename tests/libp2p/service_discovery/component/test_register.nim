@@ -106,3 +106,76 @@ suite "Service Discovery Component - Register":
     check:
       second.tWaitFor == first.tWaitFor
       second.tMod >= first.tMod
+
+  asyncTest "REGISTER preserves registrar cache seqNo semantics":
+    # Use a non-zero subsecond expiry: the waiting-time formula rounds it down
+    # to zero seconds, while registrar maintenance still has a real interval.
+    let conf = ServiceDiscoveryConfig.new(advertExpiry = 999.millis)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+
+    startAndDeferStop(@[registrarNode, advertiserNode])
+    await connect(registrarNode, advertiserNode)
+
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let registrarPeerId = registrarNode.switch.peerInfo.peerId
+    let advertiserKey = advertiserNode.switch.peerInfo.privateKey
+    let addrA = makeMultiAddress("10.0.0.1")
+    let addrB = makeMultiAddress("10.0.0.2")
+    let addrC = makeMultiAddress("10.0.0.3")
+
+    let originalAd =
+      makeAdvertisement(serviceName, advertiserKey, addrs = @[addrA], seqNo = 1)
+    let duplicateSameSeqAd =
+      makeAdvertisement(serviceName, advertiserKey, addrs = @[addrB], seqNo = 1)
+    let newerSeqAd =
+      makeAdvertisement(serviceName, advertiserKey, addrs = @[addrB], seqNo = 2)
+    let staleLowerSeqAd =
+      makeAdvertisement(serviceName, advertiserKey, addrs = @[addrC], seqNo = 1)
+
+    # First REGISTER stores the advertiser's initial seqNo/address pair.
+    var registerResponse = await advertiserNode.sendRegister(
+      registrarPeerId, serviceId, originalAd.encode().get()
+    )
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+    var cachedAd = registrarNode.getAdsInCache(serviceId)[0]
+    check:
+      cachedAd.data.seqNo == 1
+      cachedAd.data.addresses[0].address == addrA
+
+    # Same peer and same seqNo is a duplicate, even if the payload differs.
+    # The registrar must keep the exact original advertisement.
+    registerResponse = await advertiserNode.sendRegister(
+      registrarPeerId, serviceId, duplicateSameSeqAd.encode().get()
+    )
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+    cachedAd = registrarNode.getAdsInCache(serviceId)[0]
+    check:
+      cachedAd.envelope.signature.data == originalAd.envelope.signature.data
+      cachedAd.data.seqNo == 1
+      cachedAd.data.addresses[0].address == addrA
+
+    # Same peer with a higher seqNo is newer state, so it replaces the cache.
+    registerResponse = await advertiserNode.sendRegister(
+      registrarPeerId, serviceId, newerSeqAd.encode().get()
+    )
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+    cachedAd = registrarNode.getAdsInCache(serviceId)[0]
+    check:
+      cachedAd.data.seqNo == 2
+      cachedAd.data.addresses[0].address == addrB
+
+    # Same peer with a lower seqNo is stale and must not replace newer state.
+    registerResponse = await advertiserNode.sendRegister(
+      registrarPeerId, serviceId, staleLowerSeqAd.encode().get()
+    )
+    check registerResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+    cachedAd = registrarNode.getAdsInCache(serviceId)[0]
+    check:
+      cachedAd.data.seqNo == 2
+      cachedAd.data.addresses[0].address == addrB
