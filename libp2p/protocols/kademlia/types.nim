@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/[tables, sequtils, sets, heapqueue]
-from times import now
+from std/times import format, now, parse, toTime, toUnix, utc
 import chronos, chronicles, results, sugar, stew/arrayOps, nimcrypto/sha2
 import ../../[peerid, switch, multihash, cid, multicodec, peeraddrpolicy]
 import ../protocol
@@ -26,6 +26,9 @@ const
   DefaultRepublishInterval* = 10.minutes # same as bootstrap
   DefaultCleanupProvidersInterval* = 10.minutes # same as bootstrap
   DefaultProviderExpirationInterval* = 30.minutes # recommended by the spec
+  DefaultRecordExpirationInterval* = 24.hours
+    # KV entries older than this are considered stale and will be evicted
+  DefaultCleanupDataEntriesInterval* = 1.hours # how often to scan for stale KV entries
 
   MaxMsgSize* = 4096
 
@@ -215,16 +218,30 @@ proc toPeerIds*(entries: seq[NodeEntry]): seq[PeerId] =
 
 ## Currently a string, because for some reason, that's what is chosen at the protobuf level
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
-type TimeStamp* = string
+type Timestamp* = string
+
+const TimestampFormat* = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+
+proc now*(T: typedesc[Timestamp]): Timestamp {.gcsafe, raises: [].} =
+  T(now().utc.format(TimestampFormat))
+
+proc toUnixSeconds*(
+    time: Timestamp
+): Result[int64, ref CatchableError] {.gcsafe, raises: [].} =
+  catch:
+    parse(time, TimestampFormat, utc()).toTime().toUnix()
+
+proc nowUnixSeconds*(): int64 {.gcsafe, raises: [].} =
+  now().utc.toTime().toUnix()
 
 type EntryRecord* = object
   value*: seq[byte]
-  time*: TimeStamp
+  time*: Timestamp
 
 proc init*(
-    T: typedesc[EntryRecord], value: Key, time: Opt[TimeStamp]
+    T: typedesc[EntryRecord], value: Key, time: Opt[Timestamp]
 ): EntryRecord {.gcsafe, raises: [].} =
-  EntryRecord(value: value, time: time.get(TimeStamp(ts: $times.now().utc)))
+  EntryRecord(value: value, time: time.get(Timestamp.now()))
 
 type
   ReceivedTable* = TableRef[PeerId, Opt[EntryRecord]]
@@ -232,7 +249,7 @@ type
   LocalTable* = Table[Key, EntryRecord]
 
 proc insert*(
-    self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
+    self: var LocalTable, key: Key, value: sink seq[byte], time: Timestamp
 ) {.raises: [].} =
   debug "Local table insertion", key = key, value = value
   self[key] = EntryRecord(value: value, time: time)
@@ -306,6 +323,8 @@ type KadDHTConfig* = ref object
   republishProvidedKeysInterval*: chronos.Duration
   cleanupProvidersInterval*: chronos.Duration
   providerExpirationInterval*: chronos.Duration
+  recordExpirationInterval*: chronos.Duration
+  cleanupDataEntriesInterval*: chronos.Duration
   addressPolicy*: PeerAddressPolicy
   hideConnectionStatus*: bool
   disableBootstrapping*: bool
@@ -333,6 +352,8 @@ proc new*(
     republishProvidedKeysInterval: chronos.Duration = DefaultRepublishInterval,
     cleanupProvidersInterval: chronos.Duration = DefaultCleanupProvidersInterval,
     providerExpirationInterval: chronos.Duration = DefaultProviderExpirationInterval,
+    recordExpirationInterval: chronos.Duration = DefaultRecordExpirationInterval,
+    cleanupDataEntriesInterval: chronos.Duration = DefaultCleanupDataEntriesInterval,
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
@@ -355,6 +376,8 @@ proc new*(
     republishProvidedKeysInterval: republishProvidedKeysInterval,
     cleanupProvidersInterval: cleanupProvidersInterval,
     providerExpirationInterval: providerExpirationInterval,
+    recordExpirationInterval: recordExpirationInterval,
+    cleanupDataEntriesInterval: cleanupDataEntriesInterval,
     addressPolicy: addressPolicy,
     hideConnectionStatus: hideConnectionStatus,
     disableBootstrapping: disableBootstrapping,
@@ -369,6 +392,7 @@ type KadDHT* = ref object of LPProtocol
   maintenanceLoop*: Future[void]
   republishLoop*: Future[void]
   expiredLoop*: Future[void]
+  recordExpirationLoop*: Future[void]
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig

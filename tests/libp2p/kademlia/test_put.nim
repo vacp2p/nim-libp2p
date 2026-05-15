@@ -3,7 +3,9 @@
 
 {.used.}
 
-import std/[times, tables], chronos
+import std/tables
+import std/times except hours, milliseconds, minutes, seconds
+import chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders, multihash]
 import ../../tools/[lifecycle, unittest]
 import ./utils.nim
@@ -207,3 +209,57 @@ suite "KadDHT Put":
 
     discard await kads[1].putValue(key, value)
     check kads[0].containsData(key, value)
+
+  asyncTest "PUT_VALUE entries expire after recordExpirationInterval":
+    # Use a short expiration interval so the test doesn't take long.
+    # The stored timestamp has second-level precision, so we use 2s to avoid
+    # sub-second rounding causing premature expiry in the containsData check.
+    let kads = setupKadSwitches(
+      2,
+      recordExpirationInterval = 2.seconds,
+      cleanupDataEntriesInterval = 100.milliseconds,
+    )
+    startAndDeferStop(kads)
+
+    await connect(kads[0], kads[1])
+
+    let key = kads[0].rtable.selfId
+    let value = @[1.byte, 2, 3, 4, 5]
+    discard await kads[1].putValue(key, value)
+
+    # Value is present right after insertion
+    check:
+      kads[0].containsData(key, value)
+      kads[1].containsData(key, value)
+
+    # Wait until both the expiration interval AND a cleanup cycle have elapsed
+    checkUntilTimeout:
+      kads[0].containsNoData(key)
+      kads[1].containsNoData(key)
+
+  asyncTest "isExpired returns correct values for various intervals":
+    let now = times.now().utc
+    let oneHourAgo = now - times.initDuration(hours = 1)
+    let twoDaysAgo = now - times.initDuration(hours = 48)
+
+    let freshRecord = EntryRecord(value: @[1.byte], time: now.format(TimestampFormat))
+    let oldRecord =
+      EntryRecord(value: @[1.byte], time: oneHourAgo.format(TimestampFormat))
+    let veryOldRecord =
+      EntryRecord(value: @[1.byte], time: twoDaysAgo.format(TimestampFormat))
+
+    # Fresh record should not be expired even with short intervals
+    check not isExpired(freshRecord, 30.minutes)
+    check not isExpired(freshRecord, 24.hours)
+
+    # 1-hour-old record: expired with 30-minute TTL, not with 2-hour TTL
+    check isExpired(oldRecord, 30.minutes)
+    check not isExpired(oldRecord, 2.hours)
+
+    # 2-day-old record: always expired for any sane TTL including default 24h
+    check isExpired(veryOldRecord, 24.hours)
+    check isExpired(veryOldRecord, 2.hours)
+
+    # Record with an unparseable timestamp is treated as expired
+    let badRecord = EntryRecord(value: @[1.byte], time: "not-a-timestamp")
+    check isExpired(badRecord, 24.hours)
