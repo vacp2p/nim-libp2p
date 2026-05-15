@@ -94,6 +94,7 @@ proc setupServiceDiscoveryNode*(
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
     xprPublishing: bool = true,
     services: seq[ServiceInfo] = @[],
+    client: bool = false,
 ): ServiceDiscovery =
   let switch = createSwitch()
   let node = ServiceDiscovery.new(
@@ -102,10 +103,12 @@ proc setupServiceDiscoveryNode*(
     config = testKadDHTConfig(),
     rng = rng(),
     services = services,
+    client = client,
     discoConfig = discoConfig,
     xprPublishing = xprPublishing,
   )
-  switch.mount(node)
+  if not client:
+    switch.mount(node)
   node
 
 proc setupServiceDiscoveryNodes*(

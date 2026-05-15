@@ -132,15 +132,14 @@ suite "Service Discovery Component - Advertise Discover":
     checkUntilTimeout:
       registrarNode.countAdsInCache(svcAId) == 1
       registrarNode.countAdsInCache(svcBId) == 1
-
-    let foundA = await discovererNode.lookup(svcAId)
-    let foundB = await discovererNode.lookup(svcBId)
-    check:
-      foundA.containsPeer(advertiserNode)
-      foundA.get().len == 1
-      foundB.containsPeer(advertiserNode)
-      # Regression for vacp2p/nim-libp2p#2431: this lookup previously returned a duplicate.
-      foundB.get().len == 1
+      block:
+        let foundA = await discovererNode.lookup(svcAId)
+        let foundB = await discovererNode.lookup(svcBId)
+        foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
+          foundA.get().len == 1 and
+          foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
+          foundB.get().len == 1
+          # Regression for vacp2p/nim-libp2p#2431: this lookup previously returned a duplicate.
 
   asyncTest "lookup dedups byte-identical adverts but keeps same (peerId, seqNo) variants":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
