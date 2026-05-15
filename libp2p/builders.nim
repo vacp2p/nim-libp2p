@@ -460,9 +460,6 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
       )
     )
 
-  if b.secureManagers.len == 0:
-    b.secureManagers &= SecureProtocol.Noise
-
   let dialer =
     Dialer.new(peerInfo.peerId, connManager, peerStore, transports, b.nameResolver)
 
