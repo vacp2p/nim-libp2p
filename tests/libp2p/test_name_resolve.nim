@@ -4,7 +4,7 @@
 {.used.}
 
 import std/[sequtils, tables]
-import chronos, chronicles
+import chronos
 import
   ../../libp2p/[
     stream/connection,
@@ -22,7 +22,7 @@ const unixPlatform =
   defined(netbsd) or defined(openbsd) or defined(dragonfly)
 
 when unixPlatform:
-  import std/strutils
+  import std/strutils, chronicles
 
 proc guessOsNameServers(): seq[TransportAddress] {.raises: [].} =
   when unixPlatform:
