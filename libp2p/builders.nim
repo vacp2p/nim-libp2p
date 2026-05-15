@@ -77,6 +77,7 @@ type
     agentVersion: string
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
+    addressTtls: AddressConfidenceTtls
     autonat: bool
     autonatService*: Opt[AutonatService]
     autonatV2ServerConfig: Opt[AutonatV2Config]
@@ -116,6 +117,7 @@ proc new*(T: type[SwitchBuilder]): T =
     identifyPusherEnabled: true,
     enableWildcardResolver: true,
     addressPolicy: defaultAddressPolicy,
+    addressTtls: AddressConfidenceTtls(),
   )
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
@@ -286,6 +288,13 @@ proc withPeerStore*(b: SwitchBuilder, capacity: int): SwitchBuilder =
   b.peerStoreCapacity = Opt.some(capacity)
   b
 
+proc withAddressConfidenceTtls*(
+    b: SwitchBuilder, ttls: AddressConfidenceTtls
+): SwitchBuilder =
+  ## Override the per-confidence TTLs used to expire peer addresses.
+  b.addressTtls = ttls
+  b
+
 proc withProtoVersion*(b: SwitchBuilder, protoVersion: string): SwitchBuilder =
   b.protoVersion = protoVersion
   b
@@ -423,9 +432,9 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   var peerStore = block:
     b.peerStoreCapacity.withValue(capacity):
-      PeerStore.new(identify, capacity)
+      PeerStore.new(identify, capacity, b.addressTtls)
     else:
-      PeerStore.new(identify)
+      PeerStore.new(identify, addressTtls = b.addressTtls)
   peerStore.addressPolicy = b.addressPolicy
 
   var connManager = ConnManager.new(

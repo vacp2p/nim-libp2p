@@ -23,8 +23,20 @@ jobs:
     name: Delete github action cache
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      actions: write
     steps:
-      - uses: toshimaru/delete-action-cache@main
+      - name: Delete caches for this ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -u
+          gh cache list -R "$REPO" --ref "$REF" --limit 100 --json id --jq '.[].id' \
+            | while read -r id; do
+                gh cache delete -R "$REPO" "$id" || echo "skipped $id (already gone)"
+              done
 
   resolve_deps:
     name: Resolve newest dependencies
@@ -163,11 +175,11 @@ jobs:
           if [[ '${{ matrix.config.cc }}' == 'clang' ]]; then
             export NIMFLAGS="${NIMFLAGS} --cc:clang"
           fi
-          nimble test -- -d:chronicles_log_level=DEBUG
+          export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
+          make test
 
       - name: Run integration tests
         if: ${{ matrix.config.os == 'linux' && matrix.config.cpu == 'amd64' }}
         run: |
-          nim --version
-          nimble --version
-          nim r -d:libp2p_autotls_support -d:chronicles_log_level=DEBUG tests/integration/test_all.nim
+          export NIMFLAGS="${NIMFLAGS} -d:chronicles_log_level=DEBUG"
+          make test_integration

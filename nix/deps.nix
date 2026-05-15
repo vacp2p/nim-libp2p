@@ -26,8 +26,8 @@
 
   boringssl = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-boringssl";
-    rev = "1c91a4a2579123597df43bbdea70cc575957bdea";
-    sha256 = "0vh26cdski46jaaqfxqz8pfzjxxnkr3znvyqdgn5m6q4xkbb1jqz";
+    rev = "03bd48b54bc2bdc12d8c1bd9c95a32951f2c5962";
+    sha256 = "0idisahaqbl88lccsdngpvaliah6dj3gnm76k83jnjv1gjnih2dj";
     fetchSubmodules = true;
   };
 
@@ -40,8 +40,8 @@
 
   stew = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-stew";
-    rev = "b66168735d6f3841c5239c3169d3fe5fe98b1257";
-    sha256 = "10n71vfa6klzd9dmal96jy0hiqk04gaj8wc9g91z6fclryf0yq92";
+    rev = "4382b18f04b3c43c8409bfcd6b62063773b2bbaa";
+    sha256 = "0mx9g5m636h3sk5pllcpylk51brf7lx91izx3gc23k3ih3hrxyk2";
     fetchSubmodules = true;
   };
 
@@ -54,15 +54,15 @@
 
   serialization = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-serialization";
-    rev = "f80cfd8657f272a2abd063d070b77f2a74f704cd";
-    sha256 = "0yc0wha180xnyffr13gnqy303bm6ghgyrgw5h353zscmll2qbm4c";
+    rev = "b0f2fa32960ea532a184394b0f27be37bd80248b";
+    sha256 = "0wip1fjx7ka39ck1g1xvmyarzq1p5dlngpqil6zff8k8z5skiz27";
     fetchSubmodules = true;
   };
 
   json_serialization = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-json-serialization";
-    rev = "a6dcf03e04e179127a5fcb7e495d19a821d56c17";
-    sha256 = "0nn1kllp5khsmy4a412w425pycdsn1x7gfhjl9wmlvvsvjvkw7rm";
+    rev = "c343b0e243d9e17e2c40f3a8a24340f7c4a71d44";
+    sha256 = "0i8sq51nqj8lshf6bfixaz9a7sq0ahsbvq3chkxdvv4khsqvam91";
     fetchSubmodules = true;
   };
 
@@ -110,8 +110,8 @@
 
   zlib = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-zlib";
-    rev = "e680f269fb01af2c34a2ba879ff281795a5258fe";
-    sha256 = "1xw9f1gjsgqihdg7kdkbaq1wankgnx2vn9l3ihc6nqk2jzv5bvk5";
+    rev = "c9e64574438e69f3dd9b64da048f9fffc89e2809";
+    sha256 = "1yj9d3z96pyad0dnb1a1cbl4rwgrzqmbjk8wc7ynh4sbh7nwxh4q";
     fetchSubmodules = true;
   };
 
@@ -159,8 +159,8 @@
 
   websock = pkgs.fetchgit {
     url = "https://github.com/status-im/nim-websock";
-    rev = "42c37b4172519566db016810eccfce8a02cc1cdf";
-    sha256 = "1l5laqyvfbldiii1vrp1crx56lvbdn1xm5hbnl3mcihbn18lzvxg";
+    rev = "387a8eb7e961e8fdd3b1a717d36bc53b55e4dc5d";
+    sha256 = "1v0m3x96fbp9jdzsys6mbxxc2xw3k3dqiv7wksfla89gc6z8w377";
     fetchSubmodules = true;
   };
 
