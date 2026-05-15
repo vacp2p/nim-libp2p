@@ -422,12 +422,12 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
     await allFutures(toWait)
 
     # stop connections and wait for them to be closed
-    await allFutures(
+    discard await allFinished(
       self.connections[Direction.In].mapIt(it.close()) &
         self.connections[Direction.Out].mapIt(it.close())
     )
     self.connectionCleanupFuts.keepItIf(not it.finished)
-    await allFutures(self.connectionCleanupFuts)
+    discard await allFinished(self.connectionCleanupFuts)
 
     self.httpservers = @[]
     self.handshakeFuts = @[]
