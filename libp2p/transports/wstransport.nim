@@ -427,8 +427,6 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
       self.connections[Direction.In].mapIt(it.close()) &
         self.connections[Direction.Out].mapIt(it.close())
     )
-    # Keep only still-running cleanup futures before waiting, so stop() waits
-    # precisely for pending per-connection reader-join cleanup.
     self.connectionCleanupFuts.keepItIf(not it.finished)
     await allFutures(self.connectionCleanupFuts)
 
