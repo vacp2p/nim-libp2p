@@ -17,14 +17,14 @@ import
 
 export peerid, multiaddress, crypto, routing_record, peeraddrpolicy, errors, results
 
-## Our local peer info
+const p2pMultiCodec = multiCodec("p2p")
 
 type
   PeerInfoError* = object of LPError
 
   AddressMapper* = proc(listenAddrs: seq[MultiAddress]): Future[seq[MultiAddress]] {.
     gcsafe, async: (raises: [CancelledError])
-  .} ## A proc that expected to resolve the listen addresses into dialable addresses
+  .} ## A proc that resolves listen addresses into dialable addresses.
 
   PeerInfoObserver* = proc(p: PeerInfo) {.gcsafe, raises: [].}
     ## A callback type for observing changes in a `PeerInfo`'s resolved addresses.
@@ -35,7 +35,7 @@ type
     ##    resolved `addrs` list.
     ## 2. Manually when `PeerInfo.notifyObservers` is called explicitly.
 
-  PeerInfo* = ref object
+  PeerInfo* = ref object ## PeerInfo represents our local peer info
     peerId*: PeerId
     listenAddrs*: seq[MultiAddress]
     ## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).
@@ -62,6 +62,7 @@ func shortLog*(p: PeerInfo): auto =
     protoVersion: p.protoVersion,
     agentVersion: p.agentVersion,
   )
+
 chronicles.formatIt(PeerInfo):
   shortLog(it)
 
@@ -107,7 +108,7 @@ proc addrs*(p: PeerInfo): seq[MultiAddress] =
   p.addrs
 
 proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
-  let peerIdPart = ?MultiAddress.init(multiCodec("p2p"), p.peerId.data)
+  let peerIdPart = ?MultiAddress.init(p2pMultiCodec, p.peerId.data)
   var res = newSeqOfCap[MultiAddress](p.addrs.len)
   for address in p.addrs:
     res.add(?concat(address, peerIdPart))
@@ -115,7 +116,7 @@ proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
 
 proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
   let p2pPart = ?ma[^1]
-  if ?p2pPart.protoCode != multiCodec("p2p"):
+  if ?p2pPart.protoCode != p2pMultiCodec:
     return err("Missing p2p part from multiaddress!")
 
   let peerId = ?PeerId.init(?p2pPart.protoArgument()).orErr("invalid peerid")
@@ -126,7 +127,7 @@ proc parseFullAddress*(ma: string | seq[byte]): MaResult[(PeerId, MultiAddress)]
   parseFullAddress(?MultiAddress.init(ma))
 
 proc toFullAddress*(peerId: PeerId, ma: MultiAddress): MaResult[MultiAddress] =
-  let peerIdPart = ?MultiAddress.init(multiCodec("p2p"), peerId.data)
+  let peerIdPart = ?MultiAddress.init(p2pMultiCodec, peerId.data)
   concat(ma, peerIdPart)
 
 proc new*(
