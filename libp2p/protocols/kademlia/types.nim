@@ -218,30 +218,30 @@ proc toPeerIds*(entries: seq[NodeEntry]): seq[PeerId] =
 
 ## Currently a string, because for some reason, that's what is chosen at the protobuf level
 ## TODO: convert between RFC3339 strings and use of integers (i.e. the _correct_ way)
-type TimeStamp* = string
+type Timestamp* = string
 
-const TimeStampFormat* = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+const TimestampFormat* = "yyyy-MM-dd'T'HH:mm:ss'Z'"
 
-proc nowRFC3339*(): TimeStamp {.gcsafe, raises: [].} =
-  TimeStamp(now().utc.format(TimeStampFormat))
+proc now*(T: typedesc[Timestamp]): Timestamp {.gcsafe, raises: [].} =
+  T(now().utc.format(TimestampFormat))
 
 proc toUnixSeconds*(
-    time: TimeStamp
+    time: Timestamp
 ): Result[int64, ref CatchableError] {.gcsafe, raises: [].} =
   catch:
-    parse(time, TimeStampFormat, utc()).toTime().toUnix()
+    parse(time, TimestampFormat, utc()).toTime().toUnix()
 
 proc nowUnixSeconds*(): int64 {.gcsafe, raises: [].} =
   now().utc.toTime().toUnix()
 
 type EntryRecord* = object
   value*: seq[byte]
-  time*: TimeStamp
+  time*: Timestamp
 
 proc init*(
-    T: typedesc[EntryRecord], value: Key, time: Opt[TimeStamp]
+    T: typedesc[EntryRecord], value: Key, time: Opt[Timestamp]
 ): EntryRecord {.gcsafe, raises: [].} =
-  EntryRecord(value: value, time: time.get(nowRFC3339()))
+  EntryRecord(value: value, time: time.get(Timestamp.now()))
 
 type
   ReceivedTable* = TableRef[PeerId, Opt[EntryRecord]]
@@ -249,7 +249,7 @@ type
   LocalTable* = Table[Key, EntryRecord]
 
 proc insert*(
-    self: var LocalTable, key: Key, value: sink seq[byte], time: TimeStamp
+    self: var LocalTable, key: Key, value: sink seq[byte], time: Timestamp
 ) {.raises: [].} =
   debug "Local table insertion", key = key, value = value
   self[key] = EntryRecord(value: value, time: time)

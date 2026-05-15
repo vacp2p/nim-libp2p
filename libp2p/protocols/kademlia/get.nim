@@ -116,7 +116,7 @@ proc getValue*(
     let time = record.timeReceived.valueOr:
       debug "GetValue returned record with no timeReceived, using current time instead",
         reply = reply
-      nowRFC3339()
+      Timestamp.now()
 
     received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
@@ -128,7 +128,7 @@ proc getValue*(
   let best = ?kad.bestValidRecord(key, received, quorum)
 
   # insert value to our localtable
-  kad.dataTable.insert(key, best.value, nowRFC3339())
+  kad.dataTable.insert(key, best.value, Timestamp.now())
 
   # update peers that
   # - don't have best value

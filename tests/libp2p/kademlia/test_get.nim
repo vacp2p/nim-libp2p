@@ -22,7 +22,7 @@ suite "KadDHT Get":
       key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kads[0].dataTable.insert(key, value, nowRFC3339())
+    kads[0].dataTable.insert(key, value, Timestamp.now())
 
     check:
       kads[0].containsData(key, value)
@@ -43,7 +43,7 @@ suite "KadDHT Get":
       key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kads[0].dataTable.insert(key, value, nowRFC3339())
+    kads[0].dataTable.insert(key, value, Timestamp.now())
 
     check:
       kads[0].containsData(key, value)
@@ -60,10 +60,10 @@ suite "KadDHT Get":
       bestValue = @[1.byte, 2, 3, 4, 5]
       worstValue = @[1.byte, 2, 3, 4, 6]
 
-    kads[1].dataTable.insert(key, bestValue, nowRFC3339())
-    kads[2].dataTable.insert(key, worstValue, nowRFC3339())
-    kads[3].dataTable.insert(key, bestValue, nowRFC3339())
-    kads[4].dataTable.insert(key, bestValue, nowRFC3339())
+    kads[1].dataTable.insert(key, bestValue, Timestamp.now())
+    kads[2].dataTable.insert(key, worstValue, Timestamp.now())
+    kads[3].dataTable.insert(key, bestValue, Timestamp.now())
+    kads[4].dataTable.insert(key, bestValue, Timestamp.now())
 
     check:
       kads[0].containsNoData(key)
@@ -93,7 +93,7 @@ suite "KadDHT Get":
       key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kads[1].dataTable.insert(key, value, nowRFC3339())
+    kads[1].dataTable.insert(key, value, Timestamp.now())
 
     check:
       kads[0].containsNoData(key)
@@ -116,7 +116,7 @@ suite "KadDHT Get":
       key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kads[1].dataTable.insert(key, value, nowRFC3339())
+    kads[1].dataTable.insert(key, value, Timestamp.now())
 
     check:
       kads[0].containsNoData(key)
@@ -173,7 +173,7 @@ suite "KadDHT Get":
       key = kads[0].rtable.selfId
       value = @[1.byte, 2, 3, 4, 5]
 
-    kads[0].dataTable.insert(key, value, nowRFC3339())
+    kads[0].dataTable.insert(key, value, Timestamp.now())
 
     check:
       kads[2].hasKey(kads[0].rtable.selfId)
@@ -201,9 +201,9 @@ suite "KadDHT Get":
       valueRemote = @[2.byte, 2, 2, 2, 2]
 
     # kad2 and kad3 have different values than kad1
-    kads[0].dataTable.insert(key, valueLocal, nowRFC3339())
-    kads[1].dataTable.insert(key, valueRemote, nowRFC3339())
-    kads[2].dataTable.insert(key, valueRemote, nowRFC3339())
+    kads[0].dataTable.insert(key, valueLocal, Timestamp.now())
+    kads[1].dataTable.insert(key, valueRemote, Timestamp.now())
+    kads[2].dataTable.insert(key, valueRemote, Timestamp.now())
 
     # but when quorum is 0 or 1 we ignore remote values and use local value
 
@@ -227,7 +227,7 @@ suite "KadDHT Get":
             protobuf.Record(
               key: wrongKey, # get value response with mismatched recored key
               value: Opt.some(@[1.byte, 2, 3, 4]),
-              timeReceived: Opt.some(nowRFC3339()),
+              timeReceived: Opt.some(Timestamp.now()),
             )
           ),
           closerPeers: @[],
@@ -293,7 +293,7 @@ suite "KadDHT Get":
             protobuf.Record(
               key: key,
               value: Opt.none(seq[byte]), # get value response with empty record value
-              timeReceived: Opt.some(nowRFC3339()),
+              timeReceived: Opt.some(Timestamp.now()),
             )
           ),
           closerPeers: @[],
@@ -330,7 +330,7 @@ suite "KadDHT Get":
             protobuf.Record(
               key: wrongKey, # get value response with mismatched recored key
               value: Opt.some(value),
-              timeReceived: Opt.some(nowRFC3339()),
+              timeReceived: Opt.some(Timestamp.now()),
             )
           ),
           closerPeers: @[],
@@ -344,8 +344,8 @@ suite "KadDHT Get":
     await connectHub(kads[0], kads[1 ..^ 1] & mockKad)
 
     # Compliant nodes have valid records
-    kads[1].dataTable.insert(key, value, nowRFC3339())
-    kads[2].dataTable.insert(key, value, nowRFC3339())
+    kads[1].dataTable.insert(key, value, Timestamp.now())
+    kads[2].dataTable.insert(key, value, Timestamp.now())
     # mockKad will return mismatched key
 
     let record = await kads[0].getValue(key, quorumOverride = Opt.some(2))
@@ -367,7 +367,7 @@ suite "KadDHT Get":
       value = @[1.byte, 2, 3, 4, 5]
 
     # Insert directly into dataTable
-    kads[1].dataTable.insert(key, value, nowRFC3339())
+    kads[1].dataTable.insert(key, value, Timestamp.now())
 
     check:
       kads[1].containsData(key, value)
@@ -391,9 +391,9 @@ suite "KadDHT Get":
       value = @[1.byte, 2, 3, 4, 5]
 
     # All peers have the record
-    kads[1].dataTable.insert(key, value, nowRFC3339())
-    kads[2].dataTable.insert(key, value, nowRFC3339())
-    kads[3].dataTable.insert(key, value, nowRFC3339())
+    kads[1].dataTable.insert(key, value, Timestamp.now())
+    kads[2].dataTable.insert(key, value, Timestamp.now())
+    kads[3].dataTable.insert(key, value, Timestamp.now())
 
     # Stop one peer before query
     await kads[3].switch.stop()
@@ -415,9 +415,9 @@ suite "KadDHT Get":
       value = @[1.byte, 2, 3, 4, 5]
 
     # All peers have the record
-    kads[1].dataTable.insert(key, value, nowRFC3339())
-    kads[2].dataTable.insert(key, value, nowRFC3339())
-    kads[3].dataTable.insert(key, value, nowRFC3339())
+    kads[1].dataTable.insert(key, value, Timestamp.now())
+    kads[2].dataTable.insert(key, value, Timestamp.now())
+    kads[3].dataTable.insert(key, value, Timestamp.now())
 
     # Stop two peers before query
     await kads[2].switch.stop()
@@ -439,7 +439,7 @@ suite "KadDHT Get":
       key = kads[0].rtable.selfId
       value = @[0.byte, 0xFF, 0, 0xFF]
 
-    kads[0].dataTable.insert(key, value, nowRFC3339())
+    kads[0].dataTable.insert(key, value, Timestamp.now())
 
     let record = await kads[1].getValue(key, quorumOverride = Opt.some(1))
 

@@ -3,7 +3,9 @@
 
 {.used.}
 
-import std/[times, tables], chronos
+import std/tables
+import std/times except hours, milliseconds, minutes, seconds
+import chronos
 import ../../../libp2p/[protocols/kademlia, switch, builders, multihash]
 import ../../tools/[lifecycle, unittest]
 import ./utils.nim
@@ -214,8 +216,8 @@ suite "KadDHT Put":
     # sub-second rounding causing premature expiry in the containsData check.
     let kads = setupKadSwitches(
       2,
-      recordExpirationInterval = chronos.seconds(2),
-      cleanupDataEntriesInterval = chronos.milliseconds(100),
+      recordExpirationInterval = 2.seconds,
+      cleanupDataEntriesInterval = 100.milliseconds,
     )
     startAndDeferStop(kads)
 
@@ -240,24 +242,24 @@ suite "KadDHT Put":
     let oneHourAgo = now - times.initDuration(hours = 1)
     let twoDaysAgo = now - times.initDuration(hours = 48)
 
-    let freshRecord = EntryRecord(value: @[1.byte], time: now.format(TimeStampFormat))
+    let freshRecord = EntryRecord(value: @[1.byte], time: now.format(TimestampFormat))
     let oldRecord =
-      EntryRecord(value: @[1.byte], time: oneHourAgo.format(TimeStampFormat))
+      EntryRecord(value: @[1.byte], time: oneHourAgo.format(TimestampFormat))
     let veryOldRecord =
-      EntryRecord(value: @[1.byte], time: twoDaysAgo.format(TimeStampFormat))
+      EntryRecord(value: @[1.byte], time: twoDaysAgo.format(TimestampFormat))
 
     # Fresh record should not be expired even with short intervals
-    check not isExpired(freshRecord, chronos.minutes(30))
-    check not isExpired(freshRecord, chronos.hours(24))
+    check not isExpired(freshRecord, 30.minutes)
+    check not isExpired(freshRecord, 24.hours)
 
     # 1-hour-old record: expired with 30-minute TTL, not with 2-hour TTL
-    check isExpired(oldRecord, chronos.minutes(30))
-    check not isExpired(oldRecord, chronos.hours(2))
+    check isExpired(oldRecord, 30.minutes)
+    check not isExpired(oldRecord, 2.hours)
 
     # 2-day-old record: always expired for any sane TTL including default 24h
-    check isExpired(veryOldRecord, chronos.hours(24))
-    check isExpired(veryOldRecord, chronos.hours(2))
+    check isExpired(veryOldRecord, 24.hours)
+    check isExpired(veryOldRecord, 2.hours)
 
     # Record with an unparseable timestamp is treated as expired
     let badRecord = EntryRecord(value: @[1.byte], time: "not-a-timestamp")
-    check isExpired(badRecord, chronos.hours(24))
+    check isExpired(badRecord, 24.hours)

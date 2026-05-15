@@ -31,7 +31,7 @@ proc isExpired*(
     warn "Failed to parse record timestamp, treating as expired", time = record.time
     return true
 
-  (currentUnixSeconds - storedUnix) > interval.seconds
+  (currentUnixSeconds - storedUnix).seconds > interval
 
 proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   ## Periodically scans `dataTable` and evicts entries that are older than
@@ -96,7 +96,7 @@ proc dispatchPutVal*(
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let record = EntryRecord(value: value, time: nowRFC3339())
+  let record = EntryRecord(value: value, time: Timestamp.now())
 
   if not kad.config.validator.isValid(key, record):
     return err("invalid key/value pair")
@@ -106,7 +106,7 @@ proc putValue*(
 
   let peers = await kad.findNode(key)
 
-  kad.dataTable.insert(key, value, nowRFC3339())
+  kad.dataTable.insert(key, value, Timestamp.now())
 
   for chunk in peers.toChunks(kad.config.alpha):
     let batch = chunk.mapIt(kad.switch.dispatchPutVal(it, key, value, kad.codec))
@@ -129,7 +129,7 @@ proc handlePutValue*(
     error "No value in record", msg = msg, conn = conn
     return
 
-  let entryRecord = EntryRecord(value: value, time: nowRFC3339())
+  let entryRecord = EntryRecord(value: value, time: Timestamp.now())
 
   # Value sanitisation done. Start insertion process
   if not kad.config.validator.isValid(msg.key, entryRecord):
@@ -140,7 +140,7 @@ proc handlePutValue*(
     error "Dropping received value, we have a better one"
     return
 
-  kad.dataTable.insert(msg.key, entryRecord.value, nowRFC3339())
+  kad.dataTable.insert(msg.key, entryRecord.value, Timestamp.now())
   # consistent with following link, echo message without change
   # https://github.com/libp2p/js-libp2p/blob/cf9aab5c841ec08bc023b9f49083c95ad78a7a07/packages/kad-dht/src/rpc/handlers/put-value.ts#L22
   let encoded = msg.encode(kad.config.hideConnectionStatus)
