@@ -175,6 +175,10 @@ proc closeHttpStream(stream: AsyncStream) {.async: (raises: []).} =
   except CatchableError as e:
     trace "Error closing HTTP stream", description = e.msg
 
+proc makeConnectionCleanupCallback(self: WsTransport): CallbackFunc =
+  proc(_: pointer) {.gcsafe, raises: [].} =
+    self.connectionCleanupFuts.keepItIf(not it.finished)
+
 proc connHandler(
   self: WsTransport, stream: WSSession, secure: bool, dir: Direction
 ): Future[Connection] {.async: (raises: [CatchableError]).}
@@ -475,7 +479,9 @@ proc connHandler(
     trace "Cleaned up client"
 
   self.connectionCleanupFuts.keepItIf(not it.finished)
-  self.connectionCleanupFuts.add(onClose())
+  let onCloseFut = onClose()
+  onCloseFut.addCallback(self.makeConnectionCleanupCallback())
+  self.connectionCleanupFuts.add(onCloseFut)
   return conn
 
 method accept*(
