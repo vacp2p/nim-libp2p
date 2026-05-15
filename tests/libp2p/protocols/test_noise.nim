@@ -255,7 +255,8 @@ suite "Noise":
 
   asyncTest "e2e: test wrong secure negotiation":
     var switch1 = makeSwitch(ma, false)
-    var switch2 = makeSwitch(ma, true, true) # PlainText enabled; mismatched with Noise, so we want this to fail
+    var switch2 = makeSwitch(ma, true, true)
+      # PlainText enabled; mismatched with Noise, so we want this to fail
 
     let testProto = new TestProto
     testProto.init()
