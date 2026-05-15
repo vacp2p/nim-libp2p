@@ -135,6 +135,7 @@ type WsTransport* = ref object of Transport
   httpservers: seq[HttpServer]
   wsserver: WSServer
   connections: array[Direction, seq[WsStream]]
+  connectionCleanupFuts: seq[Future[void]]
   acceptLoop: Future[void]
   handshakeFuts: seq[Future[void]]
   acceptResults: AsyncQueue[Connection]
@@ -391,6 +392,7 @@ method start*(
   self.acceptSem = newAsyncSemaphore(self.concurrentAccepts)
   self.acceptResults = newAsyncQueue[Connection](self.concurrentAccepts)
   self.handshakeFuts = @[]
+  self.connectionCleanupFuts = @[]
 
   await procCall Transport(self).start(resolvedAddrs)
   self.acceptLoop = self.wsAcceptDispatcher()
@@ -425,9 +427,12 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
       self.connections[Direction.In].mapIt(it.close()) &
         self.connections[Direction.Out].mapIt(it.close())
     )
+    self.connectionCleanupFuts.keepItIf(not it.finished)
+    await noCancel allFutures(self.connectionCleanupFuts)
 
     self.httpservers = @[]
     self.handshakeFuts = @[]
+    self.connectionCleanupFuts = @[]
     self.acceptLoop = nil
     trace "Transport stopped"
   except CatchableError as e:
@@ -469,7 +474,8 @@ proc connHandler(
     self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
 
-  asyncSpawn onClose()
+  self.connectionCleanupFuts.keepItIf(not it.finished)
+  self.connectionCleanupFuts.add(onClose())
   return conn
 
 method accept*(

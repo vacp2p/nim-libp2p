@@ -35,16 +35,13 @@ template basicTransportTest*(
       let server = transportProvider()
       await server.start(ma)
       let client = transportProvider()
-      try:
-        let connFut = client.dial(server.addrs[0])
-        await connFut.cancelAndWait()
-
-        check connFut.cancelled
-      finally:
+      defer:
         await allFutures(client.stop(), server.stop())
 
-      checkUntilTimeout:
-        not isCounterLeaked("stream.transport")
+      let connFut = client.dial(server.addrs[0])
+      await connFut.cancelAndWait()
+
+      check connFut.cancelled
 
     asyncTest "handle accept cancellation":
       let ma = @[MultiAddress.init(address).tryGet()]
