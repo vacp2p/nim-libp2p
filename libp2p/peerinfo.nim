@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[sequtils, algorithm]
+import std/[algorithm, sequtils]
 import pkg/[chronos, chronicles, results]
 import
   peerid,
@@ -27,7 +27,7 @@ type
   .} ## A proc that expected to resolve the listen addresses into dialable addresses
 
   PeerInfoObserver* = proc(p: PeerInfo) {.gcsafe, raises: [].}
-    ## A callback type for observing changes in a `PeerInfo`'s resolved addresses. 
+    ## A callback type for observing changes in a `PeerInfo`'s resolved addresses.
     ## `PeerInfo` object passed to the observer contains the updated state at the time of the callback.
     ##
     ## This observer is invoked in two scenarios:
@@ -56,9 +56,9 @@ type
 func shortLog*(p: PeerInfo): auto =
   (
     peerId: $p.peerId,
-    listenAddrs: mapIt(p.listenAddrs, $it),
-    addrs: mapIt(p.addrs, $it),
-    protocols: mapIt(p.protocols, $it),
+    listenAddrs: p.listenAddrs.mapIt($it),
+    addrs: p.addrs.mapIt($it),
+    protocols: p.protocols.mapIt($it),
     protoVersion: p.protoVersion,
     agentVersion: p.agentVersion,
   )
@@ -108,7 +108,7 @@ proc addrs*(p: PeerInfo): seq[MultiAddress] =
 
 proc fullAddrs*(p: PeerInfo): MaResult[seq[MultiAddress]] =
   let peerIdPart = ?MultiAddress.init(multiCodec("p2p"), p.peerId.data)
-  var res: seq[MultiAddress]
+  var res = newSeqOfCap[MultiAddress](p.addrs.len)
   for address in p.addrs:
     res.add(?concat(address, peerIdPart))
   ok(res)
@@ -118,9 +118,9 @@ proc parseFullAddress*(ma: MultiAddress): MaResult[(PeerId, MultiAddress)] =
   if ?p2pPart.protoCode != multiCodec("p2p"):
     return err("Missing p2p part from multiaddress!")
 
-  let res =
-    (?PeerId.init(?p2pPart.protoArgument()).orErr("invalid peerid"), ?ma[0 .. ^2])
-  ok(res)
+  let peerId = ?PeerId.init(?p2pPart.protoArgument()).orErr("invalid peerid")
+
+  ok((peerId, ?ma[0 .. ^2]))
 
 proc parseFullAddress*(ma: string | seq[byte]): MaResult[(PeerId, MultiAddress)] =
   parseFullAddress(?MultiAddress.init(ma))
@@ -147,10 +147,8 @@ proc new*(
         PeerInfoError, "invalid private key creating PeerInfo: " & e.msg, e
       )
 
-  let peerId = PeerId.init(key).tryGet()
-
-  let peerInfo = PeerInfo(
-    peerId: peerId,
+  PeerInfo(
+    peerId: PeerId.init(key).tryGet(),
     publicKey: pubkey,
     privateKey: key,
     protoVersion: protoVersion,
@@ -160,5 +158,3 @@ proc new*(
     addressMappers: addressMappers,
     addressPolicy: addressPolicy,
   )
-
-  return peerInfo
