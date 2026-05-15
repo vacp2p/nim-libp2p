@@ -478,7 +478,6 @@ proc connHandler(
     self.connections[dir].keepItIf(it != conn)
     trace "Cleaned up client"
 
-  self.connectionCleanupFuts.keepItIf(not it.finished)
   let onCloseFut = onClose()
   onCloseFut.addCallback(self.makeConnectionCleanupCallback())
   self.connectionCleanupFuts.add(onCloseFut)
