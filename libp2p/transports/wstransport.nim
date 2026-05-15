@@ -392,7 +392,6 @@ method start*(
   self.acceptSem = newAsyncSemaphore(self.concurrentAccepts)
   self.acceptResults = newAsyncQueue[Connection](self.concurrentAccepts)
   self.handshakeFuts = @[]
-  self.connectionCleanupFuts = @[]
 
   await procCall Transport(self).start(resolvedAddrs)
   self.acceptLoop = self.wsAcceptDispatcher()
