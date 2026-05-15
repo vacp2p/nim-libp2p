@@ -520,10 +520,10 @@ method dial*(
     )
     return await self.connHandler(transp, secure, Direction.Out)
   except CancelledError as e:
-    safeCloseWait(transp)
+    safeClose(transp)
     raise e
   except CatchableError as e:
-    safeCloseWait(transp)
+    safeClose(transp)
     raise newException(
       transport.TransportDialError, "error in WsTransport dial: " & e.msg, e
     )
