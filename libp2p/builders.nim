@@ -509,22 +509,19 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
 proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
-    switch.services.add(WildcardAddressResolverService.new())
+    switch.add(WildcardAddressResolverService.new())
 
   b.autonatV2Service.withValue(autonatV2Service):
-    switch.services.add(autonatV2Service)
+    switch.add(autonatV2Service)
 
   b.autonatService.withValue(autonatService):
-    switch.services.add(autonatService)
+    switch.add(autonatService)
 
   b.hpService.withValue(hpservice):
-    switch.services.add(hpservice)
+    switch.add(hpservice)
 
   if b.identifyPusherEnabled:
-    switch.services.add(IdentifyPusher.new())
-
-  for service in switch.services:
-    service.setup(switch)
+    switch.add(IdentifyPusher.new())
 
 proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if not switch.peerStore.identify.isNil:
