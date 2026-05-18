@@ -343,12 +343,12 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-  if config.isNil:
-    b.autotlsConfig = Opt.none(AutotlsConfig)
-  else:
-    b.autotlsConfig = Opt.some(config)
-  
-  b
+    if config.isNil:
+      b.autotlsConfig = Opt.none(AutotlsConfig)
+    else:
+      b.autotlsConfig = Opt.some(config)
+    
+    b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   if r.isNil:
