@@ -17,7 +17,7 @@ import
 import ../../tools/[unittest, crypto, switch_builder]
 
 proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
-  var builder = SwitchBuilder
+  return SwitchBuilder
     .new()
     .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
@@ -25,11 +25,8 @@ proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
     .withMplex()
     .withAutonat()
     .withNoise()
-
-  if nameResolver != nil:
-    builder = builder.withNameResolver(nameResolver)
-
-  return builder.build()
+    .withNameResolver(nameResolver)
+    .build()
 
 proc makeSwitch(): Switch =
   return makeStandardSwitch(transport = TransportType.TCP)
