@@ -11,6 +11,7 @@ import
     stream/connection,
     switch,
   ]
+from ../../../../libp2p/protocols/kademlia/types import MaxMsgSize
 import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils
@@ -27,7 +28,7 @@ proc sendRawMessage(
 
   await conn.writeLp(msgBytes)
 
-  return await conn.readLp(4096)
+  return await conn.readLp(MaxMsgSize)
 
 proc sendMessage(
     clientNode, registrarNode: ServiceDiscovery, msg: kad_protobuf.Message
@@ -148,3 +149,18 @@ suite "Service Discovery Component - Error Handling":
     check:
       response.register.get().status.get() == kad_protobuf.RegistrationStatus.Rejected
       registrarNode.countAdsInCache(serviceId) == 0
+
+  asyncTest "oversized frame is rejected without a reply":
+    let registrarNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode])
+
+    let clientSwitch = createSwitch()
+    await clientSwitch.start()
+    defer:
+      await clientSwitch.stop()
+
+    let oversizedMsg = newSeq[byte](MaxMsgSize + 1)
+
+    expect LPStreamError:
+      discard
+        await clientSwitch.sendRawMessage(registrarNode, oversizedMsg).wait(2.seconds)

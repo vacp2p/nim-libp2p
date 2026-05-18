@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, math, results, sequtils, tables
+import chronos, math, results, tables
 import
   ../../../libp2p/[
     crypto/crypto,
@@ -15,7 +15,6 @@ import
     signed_envelope,
     utils/iptree,
   ]
-from ../../../libp2p/protocols/kademlia/types import MaxMsgSize
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
 import ../../tools/[crypto, unittest]
 import ./utils
@@ -815,48 +814,6 @@ suite "Service Discovery Registrar - Register Message Validation":
       decoded.isSome()
       decoded.get().data.peerId == ad.data.peerId
       decoded.get().data.services.len == 3
-
-  test "validateRegisterMessage does not enforce service data size limit":
-    let dataLen = MaxMsgSize + 1
-    let data = newSeq[byte](dataLen)
-
-    let service = ServiceInfo(id: "service", data: data)
-    let serviceId = service.id.hashServiceId()
-    let ad = makeAdvertisementWithServices(@[service])
-    let adBuf = ad.encode().get()
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.none(Ticket),
-    )
-
-    let decoded = validateRegisterMessage(regMsg, serviceId)
-
-    check:
-      dataLen > MaxMsgSize
-      decoded.isSome()
-      decoded.get().data.services[0].data.len == dataLen
-
-  test "validateRegisterMessage does not enforce encoded XPR size limit":
-    let serviceName = "service"
-    let serviceId = serviceName.hashServiceId()
-    # Repeating the same address to get oversized message
-    # 328 repeats is the first value over MaxMsgSize
-    let addrs = repeat(makeMultiAddress("10.0.0.1"), 328)
-    let adBuf = makeAdvertisement(serviceName, addrs = addrs).encode().get()
-
-    let regMsg = kadprotobuf.RegisterMessage(
-      advertisement: adBuf,
-      status: Opt.none(kadprotobuf.RegistrationStatus),
-      ticket: Opt.none(Ticket),
-    )
-
-    let decoded = validateRegisterMessage(regMsg, serviceId)
-
-    check:
-      adBuf.len > MaxMsgSize
-      decoded.isSome()
-      decoded.get().data.addresses.len == addrs.len
 
 suite "Service Discovery Registrar - Retry Ticket Processing":
   test "processRetryTicket returns original wait time when no ticket is present":
