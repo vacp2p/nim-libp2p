@@ -343,21 +343,29 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
+  if config.isNil:
+    b.autotlsConfig = Opt.none(AutotlsConfig)
+  else:
     b.autotlsConfig = Opt.some(config)
-    b
+  
+  b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   if r.isNil:
     b.circuitRelay = Opt.none(Relay)
   else:
     b.circuitRelay = Opt.some(r)
-
+    
   b
 
 proc withRendezVous*(
     b: SwitchBuilder, config: RendezVousConfig = RendezVousConfig.new()
 ): SwitchBuilder =
-  b.rdvConfig = Opt.some(config)
+  if config.isNil:
+    b.rdvConfig = Opt.none(RendezVousConfig)
+  else:
+    b.rdvConfig = Opt.some(config)
+
   b
 
 proc withKademlia*(
