@@ -27,12 +27,10 @@ proc createSwitch(
   var builder = buildBaseSwitch(config, tcpFlags = {ServerFlags.TcpNoDelay})
     .withObservedAddrManager(ObservedAddrManager.new(maxSize = 1, minCount = 1))
     .withAutonat()
+    .withCircuitRelay(relayClient)
 
   if hpService != nil:
     builder = builder.withServices(@[hpService])
-
-  if relayClient != nil:
-    builder = builder.withCircuitRelay(relayClient)
 
   let s = builder.build()
   s.mount(Ping.new(rng = rng()))

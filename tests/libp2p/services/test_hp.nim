@@ -26,16 +26,13 @@ proc createSwitch(
     .withMplex()
     .withAutonat()
     .withNoise()
-    .withMaxConnsPerPeer(2) # HP needs relay + direct to coexist briefly during upgrade
+    .withMaxConnsPerPeer(2)
+    # HP needs relay + direct to coexist briefly during upgrade
+    .withCircuitRelay(r)
+    .withNameResolver(nameResolver)
 
   if hpService != nil:
     builder = builder.withServices(@[hpService])
-
-  if r != nil:
-    builder = builder.withCircuitRelay(r)
-
-  if nameResolver != nil:
-    builder = builder.withNameResolver(nameResolver)
 
   return builder.build()
 

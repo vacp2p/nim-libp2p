@@ -21,16 +21,15 @@ proc createSwitch(r: Relay = nil, useYamux: bool = false): Switch =
     .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
     .withTcpTransport()
+    .withCircuitRelay(r)
+    .withNoise()
 
   if useYamux:
     builder = builder.withYamux()
   else:
     builder = builder.withMplex()
 
-  if r != nil:
-    builder = builder.withCircuitRelay(r)
-
-  return builder.withNoise().build()
+  return builder.build()
 
 suite "Circuit Relay V2":
   suite "Reservation":
