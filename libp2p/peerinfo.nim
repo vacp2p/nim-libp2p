@@ -39,6 +39,11 @@ type
     peerId*: PeerId
     listenAddrs*: seq[MultiAddress]
     ## contains addresses the node listens on, which may include wildcard and private addresses (not directly reachable).
+    announcedAddrs*: seq[MultiAddress]
+    ## explicit addresses to announce to peers, distinct from listenAddrs.
+    ## When non-empty, these replace the output of the addressMappers chain in `expandAddrs`,
+    ## allowing a node to advertise (e.g.) a public NAT-mapped address while binding locally.
+    ## The addressPolicy filter is still applied. Leave empty to use mapper-chain output.
     addrs*: seq[MultiAddress]
     ## contains resolved addresses that other peers can use to connect, including public-facing NAT and port-forwarded addresses.
     addressMappers*: seq[AddressMapper]
@@ -81,9 +86,13 @@ proc notifyObservers*(p: PeerInfo) =
 proc expandAddrs*(
     p: PeerInfo
 ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-  var addrs = p.listenAddrs
-  for mapper in p.addressMappers:
-    addrs = await mapper(addrs)
+  var addrs: seq[MultiAddress]
+  if p.announcedAddrs.len > 0:
+    addrs = p.announcedAddrs
+  else:
+    addrs = p.listenAddrs
+    for mapper in p.addressMappers:
+      addrs = await mapper(addrs)
   addrs = p.addressPolicy.filterAddrs(addrs)
   return addrs
 
@@ -139,6 +148,7 @@ proc new*(
     agentVersion: string = "",
     addressMappers = newSeq[AddressMapper](),
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
+    announcedAddrs: openArray[MultiAddress] = [],
 ): PeerInfo {.raises: [LPError].} =
   let pubkey =
     try:
@@ -155,6 +165,7 @@ proc new*(
     protoVersion: protoVersion,
     agentVersion: agentVersion,
     listenAddrs: @listenAddrs,
+    announcedAddrs: @announcedAddrs,
     protocols: @protocols,
     addressMappers: addressMappers,
     addressPolicy: addressPolicy,
