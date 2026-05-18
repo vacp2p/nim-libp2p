@@ -795,11 +795,11 @@ suite "Service Discovery Registrar - Register Message Validation":
 
   test "validateRegisterMessage accepts multi-service advertisement":
     let services = @[
-      makeServiceInfo("other-service-a"),
-      makeServiceInfo("service"),
-      makeServiceInfo("other-service-b"),
+      makeServiceInfo("service-a"),
+      makeServiceInfo("service-b"),
+      makeServiceInfo("service-c"),
     ]
-    let serviceId = services[1].id.hashServiceId()
+    let serviceId = services[0].id.hashServiceId()
     let ad = makeAdvertisementWithServices(services)
     let adBuf = ad.encode().get()
     let regMsg = kadprotobuf.RegisterMessage(
