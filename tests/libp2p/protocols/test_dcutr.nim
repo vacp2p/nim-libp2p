@@ -40,7 +40,7 @@ suite "Dcutr":
 
     let pb = syncMsg.encode()
     let syncMsgDecoded = DcutrMsg.decode(pb).valueOr:
-       raise newException(DcutrError, "Failed to decode a Sync message.")
+      raise newException(DcutrError, "Failed to decode a Sync message.")
 
     check syncMsg == syncMsgDecoded
 

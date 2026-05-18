@@ -11,7 +11,7 @@ import varint, strutils
 import ./utils/sequninit
 
 type VBuffer* {.proto2.} = object
-  buffer* {.fieldNumber: 1, required .}: seq[byte]
+  buffer* {.fieldNumber: 1, required.}: seq[byte]
   offset* {.fieldNumber: 2, required, sint.}: int64
 
 template isEmpty*(vb: VBuffer): bool =
