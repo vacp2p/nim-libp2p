@@ -26,7 +26,8 @@ suite "Dcutr":
     let connectMsg = DcutrMsg(msgType: MsgType.Connect, addrs: addrs)
 
     let pb = connectMsg.encode()
-    let connectMsgDecoded = DcutrMsg.decode(pb.buffer)
+    let connectMsgDecoded = DcutrMsg.decode(pb).valueOr:
+      raise newException(DcutrError, "Failed to decode a Connect message.")
 
     check connectMsg == connectMsgDecoded
 
@@ -38,7 +39,8 @@ suite "Dcutr":
     let syncMsg = DcutrMsg(msgType: MsgType.Sync, addrs: addrs)
 
     let pb = syncMsg.encode()
-    let syncMsgDecoded = DcutrMsg.decode(pb.buffer)
+    let syncMsgDecoded = DcutrMsg.decode(pb).valueOr:
+       raise newException(DcutrError, "Failed to decode a Sync message.")
 
     check syncMsg == syncMsgDecoded
 
