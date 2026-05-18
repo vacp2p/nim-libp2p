@@ -102,7 +102,7 @@ type
   ####################
   PeerStore* = ref object
     books: Table[string, BasePeerBook]
-    identify: Identify
+    identify*: Identify
     capacity*: int
     toClean*: seq[PeerId]
     addressPolicy*: PeerAddressPolicy
