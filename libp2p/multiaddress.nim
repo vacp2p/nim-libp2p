@@ -5,7 +5,7 @@
 
 {.push raises: [].}
 
-import pkg/[chronos, chronicles, results]
+import pkg/[chronos, chronicles, results, protobuf_serialization]
 import std/[nativesockets, net, hashes]
 import tables, strutils, sets
 import
@@ -39,8 +39,8 @@ type
     kind: MAKind
     coder*: Transcoder
 
-  MultiAddress* = object
-    data: VBuffer
+  MultiAddress* {.proto2.} = object
+    data {.fieldNumber: 1, required.}: VBuffer
 
   MaPatternOp* = enum
     Eq
@@ -1132,6 +1132,7 @@ proc bytes*(value: MultiAddress): seq[byte] =
 proc write*(pb: var ProtoBuffer, field: int, value: MultiAddress) {.inline.} =
   write(pb, field, value.data.buffer)
 
+# Rewrite for nim_protobuf_serialization. See peerid.nim.
 proc getField*(
     pb: ProtoBuffer, field: int, value: var MultiAddress
 ): ProtoResult[bool] {.inline.} =
@@ -1144,6 +1145,7 @@ proc getField*(
       return err(ProtoError.IncorrectBlob)
     ok(true)
 
+# Probably can be removed.
 proc getRepeatedField*(
     pb: ProtoBuffer, field: int, value: var seq[MultiAddress]
 ): ProtoResult[bool] {.inline.} =
