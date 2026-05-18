@@ -22,14 +22,14 @@ proc new*(
 ): T =
   let autonatV2 = T(config: config)
   proc handleStream(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     defer:
-      await conn.close()
+      await stream.close()
 
     try:
       let msg = AutonatV2Msg.decode(
-        initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
+        initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))
       ).valueOr:
         return
       if msg.msgType != MsgType.DialRequest:
@@ -39,7 +39,7 @@ proc new*(
 
     try:
       # return mocked message
-      await conn.writeLp(autonatV2.response.buffer)
+      await stream.writeLp(autonatV2.response.buffer)
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError:

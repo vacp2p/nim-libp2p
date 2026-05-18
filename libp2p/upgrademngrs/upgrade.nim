@@ -43,7 +43,7 @@ method upgrade*(
 
 proc secure*(
     self: Upgrade, conn: RawConn, peerId: Opt[PeerId]
-): Future[Stream] {.async: (raises: [CancelledError, LPError]).} =
+): Future[SecureConn] {.async: (raises: [CancelledError, LPError]).} =
   if self.secureManagers.len <= 0:
     raise (ref UpgradeFailedError)(msg: "No secure managers registered!")
 

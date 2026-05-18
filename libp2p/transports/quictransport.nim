@@ -525,22 +525,22 @@ method upgrade*(
     self: QuicTransport, conn: RawConn, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   let muxer = QuicMuxer.new(conn, peerId)
-  muxer.streamHandler = proc(conn: MuxedStream) {.async: (raises: []).} =
+  muxer.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
     trace "Starting stream handler"
     try:
       let quicUpgrader = QuicUpgrade(self.upgrader)
       quicUpgrader.connManager.withValue(connManager):
-        let ready = await connManager.waitForPeerReady(conn.peerId)
+        let ready = await connManager.waitForPeerReady(stream.peerId)
         if not ready:
-          debug "Timed out waiting for peer ready before handling stream", conn
+          debug "Timed out waiting for peer ready before handling stream", stream
           return
-      await self.upgrader.ms.handle(conn) # handle incoming connection
+      await self.upgrader.ms.handle(stream) # handle incoming stream
     except CancelledError:
       return
     except CatchableError as exc:
-      trace "exception in stream handler", conn, msg = exc.msg
+      trace "exception in stream handler", stream, msg = exc.msg
     finally:
-      await conn.closeWithEOF()
-      trace "Stream handler done", conn
+      await stream.closeWithEOF()
+      trace "Stream handler done", stream
   muxer.handleFut = muxer.handle()
   return muxer

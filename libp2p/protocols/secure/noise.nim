@@ -299,7 +299,7 @@ template read_s(): untyped =
   rsLen
 
 proc readFrame(
-    sconn: Connection
+    sconn: RawConn
 ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError]).} =
   var besize {.noinit.}: array[2, byte]
   await sconn.readExactly(addr besize[0], besize.len)
@@ -313,11 +313,11 @@ proc readFrame(
   return buffer
 
 proc receiveHSMessage(
-    sconn: Connection
+    sconn: RawConn
 ): Future[seq[byte]] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   readFrame(sconn)
 
-template sendHSMessage(sconn: Connection, parts: varargs[seq[byte]]): untyped =
+template sendHSMessage(sconn: RawConn, parts: varargs[seq[byte]]): untyped =
   # sends message (message frame) using multiple seq[byte] that 
   # concatenated represent entire mesage.
 
@@ -333,7 +333,7 @@ template sendHSMessage(sconn: Connection, parts: varargs[seq[byte]]): untyped =
     await sconn.write(p)
 
 proc handshakeXXOutbound(
-    p: Noise, conn: Connection, p2pSecret: seq[byte]
+    p: Noise, conn: RawConn, p2pSecret: seq[byte]
 ): Future[HandshakeResult] {.async: (raises: [CancelledError, LPStreamError]).} =
   const initiator = true
   var hs = HandshakeState.init()
@@ -373,7 +373,7 @@ proc handshakeXXOutbound(
     burnMem(hs)
 
 proc handshakeXXInbound(
-    p: Noise, conn: Connection, p2pSecret: seq[byte]
+    p: Noise, conn: RawConn, p2pSecret: seq[byte]
 ): Future[HandshakeResult] {.async: (raises: [CancelledError, LPStreamError]).} =
   const initiator = false
 
@@ -489,7 +489,7 @@ method write*(
   sconn.stream.write(cipherFrames)
 
 method handshake*(
-    p: Noise, conn: Connection, initiator: bool, peerId: Opt[PeerId]
+    p: Noise, conn: RawConn, initiator: bool, peerId: Opt[PeerId]
 ): Future[SecureConn] {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Starting Noise handshake", conn, initiator
 

@@ -50,13 +50,13 @@ proc manageExpiredRecords*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
 proc dispatchPutVal*(
     switch: Switch, peer: PeerId, key: Key, value: seq[byte], codec: string
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
-  let connRes = catch:
+  let streamRes = catch:
     await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
-  if connRes.isErr:
-    return err(connRes.error.msg)
-  let conn = connRes.value()
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
   defer:
-    await conn.close()
+    await stream.close()
   let msg = Message(
     msgType: MessageType.putValue,
     key: key,
@@ -73,8 +73,8 @@ proc dispatchPutVal*(
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.putValue]):
     ioRes = catch:
-      await conn.writeLp(encoded.buffer)
-      replyBuf = await conn.readLp(MaxMsgSize)
+      await stream.writeLp(encoded.buffer)
+      replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
 
@@ -85,11 +85,11 @@ proc dispatchPutVal*(
   let reply = Message.decode(replyBuf).valueOr:
     return err("PutValue reply decode fail")
 
-  debug "Got PutValue reply", msg = msg, reply = reply, conn = conn
+  debug "Got PutValue reply", msg = msg, reply = reply, stream = stream
 
   if reply != msg:
     error "Unexpected change between msg and reply: ",
-      msg = msg, reply = reply, conn = conn
+      msg = msg, reply = reply, stream = stream
 
   return ok()
 
@@ -115,18 +115,18 @@ proc putValue*(
   ok()
 
 proc handlePutValue*(
-    kad: KadDHT, conn: Connection, msg: Message
+    kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   let record = msg.record.valueOr:
-    error "No record in message buffer", msg = msg, conn = conn
+    error "No record in message buffer", msg = msg, stream = stream
     return
 
   if record.key != msg.key:
-    error "Record key is different than Message key", msg = msg, conn = conn
+    error "Record key is different than Message key", msg = msg, stream = stream
     return
 
   let value = record.value.valueOr:
-    error "No value in record", msg = msg, conn = conn
+    error "No value in record", msg = msg, stream = stream
     return
 
   let entryRecord = EntryRecord(value: value, time: Timestamp.now())
@@ -148,7 +148,7 @@ proc handlePutValue*(
     encoded.buffer.len.int64, labelValues = [$MessageType.putValue]
   )
   try:
-    await conn.writeLp(encoded.buffer)
+    await stream.writeLp(encoded.buffer)
   except LPStreamError as exc:
-    debug "Failed to send find-node RPC reply", conn = conn, err = exc.msg
+    debug "Failed to send find-node RPC reply", stream = stream, err = exc.msg
     return

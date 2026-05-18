@@ -53,7 +53,7 @@ proc tryStartingDirectConn(
       continue
   return false
 
-proc closeRelayConn(relayedConn: Connection) {.async: (raises: [CancelledError]).} =
+proc closeRelayConn(relayedConn: RawConn) {.async: (raises: [CancelledError]).} =
   await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
   await relayedConn.close()
 

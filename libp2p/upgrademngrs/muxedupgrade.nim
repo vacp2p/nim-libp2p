@@ -29,31 +29,31 @@ func getMuxerByCodec(self: MuxedUpgrade, muxerName: string): Opt[MuxerProvider] 
   Opt.none(MuxerProvider)
 
 proc mux(
-    self: MuxedUpgrade, conn: Stream
+    self: MuxedUpgrade, secureConn: SecureConn
 ): Future[Opt[Muxer]] {.
     async: (raises: [CancelledError, LPStreamError, MultiStreamError])
 .} =
-  ## mux connection
-  trace "Muxing connection", conn
+  ## mux secure connection
+  trace "Muxing connection", secureConn
   if self.muxers.len == 0:
-    warn "no muxers registered, skipping upgrade flow", conn
+    warn "no muxers registered, skipping upgrade flow", secureConn
     return Opt.none(Muxer)
 
   let
     muxerName =
-      case conn.dir
+      case secureConn.dir
       of Direction.Out:
-        await self.ms.select(conn, self.muxers.mapIt(it.codec))
+        await self.ms.select(secureConn, self.muxers.mapIt(it.codec))
       of Direction.In:
-        await MultistreamSelect.handle(conn, self.muxers.mapIt(it.codec))
+        await MultistreamSelect.handle(secureConn, self.muxers.mapIt(it.codec))
     muxerProvider = self.getMuxerByCodec(muxerName).valueOr:
-      debug "no muxer available, early exit", conn, muxerName
+      debug "no muxer available, early exit", secureConn, muxerName
       return Opt.none(Muxer)
 
-  trace "Found a muxer", conn, muxerName
+  trace "Found a muxer", secureConn, muxerName
 
   # create new muxer for connection
-  let muxer = muxerProvider.newMuxer(conn)
+  let muxer = muxerProvider.newMuxer(secureConn)
 
   # install stream handler
   muxer.streamHandler = self.streamHandler
@@ -94,20 +94,20 @@ proc new*(
   let upgrader =
     T(muxers: muxers, secureManagers: @secureManagers, ms: ms, connManager: connManager)
 
-  upgrader.streamHandler = proc(conn: MuxedStream) {.async: (raises: []).} =
-    trace "Starting stream handler", conn
+  upgrader.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
+    trace "Starting stream handler", stream
     try:
       upgrader.connManager.withValue(connManager):
-        let ready = await connManager.waitForPeerReady(conn.peerId)
+        let ready = await connManager.waitForPeerReady(stream.peerId)
         if not ready:
-          debug "Timed out waiting for peer ready before handling stream", conn
+          debug "Timed out waiting for peer ready before handling stream", stream
           return
-      await upgrader.ms.handle(conn) # handle incoming connection
+      await upgrader.ms.handle(stream) # handle incoming stream
     except CancelledError:
       return
     finally:
-      await conn.closeWithEOF()
-    trace "Stream handler done", conn
+      await stream.closeWithEOF()
+    trace "Stream handler done", stream
 
   return upgrader
 

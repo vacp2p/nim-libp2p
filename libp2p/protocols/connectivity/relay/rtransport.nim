@@ -31,7 +31,7 @@ method start*(
     return
 
   self.client.onNewConnection = proc(
-      conn: Connection, duration: uint32 = 0, data: uint64 = 0
+      conn: RawConn, duration: uint32 = 0, data: uint64 = 0
   ) {.async: (raises: [CancelledError]).} =
     await self.queue.addLast(RelayConnection.new(conn, duration, data))
     await conn.join()
@@ -131,6 +131,6 @@ proc new*(Self: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): S
   # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on
   let self = Self(client: cl, upgrader: upgrader)
   self.running = true
-  self.queue = newAsyncQueue[Connection](0)
+  self.queue = newAsyncQueue[RawConn](0)
   procCall Transport(self).initialize()
   self

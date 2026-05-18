@@ -140,7 +140,7 @@ type
     sendWindow: int
     maxRecvWindow: int
     maxSendQueueSize: int
-    conn: Connection
+    conn: RawConn
     isSrc: bool
     opened: bool
     isSending: bool

@@ -284,17 +284,17 @@ method connect*(
     (await self.internalConnect(Opt.none(PeerId), @[address], false)).connection.peerId
 
 method negotiateStream*(
-    self: Dialer, conn: Stream, protos: seq[string]
+    self: Dialer, stream: Stream, protos: seq[string]
 ): Future[Stream] {.async: (raises: [CatchableError]).} =
-  trace "Negotiating stream", conn, protos
-  let selected = await MultistreamSelect.select(conn, protos)
+  trace "Negotiating stream", stream, protos
+  let selected = await MultistreamSelect.select(stream, protos)
   if not protos.contains(selected):
-    await conn.closeWithEOF()
+    await stream.closeWithEOF()
     raise newException(
       DialFailedError,
       "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
     )
-  return conn
+  return stream
 
 method tryDial*(
     self: Dialer, peerId: PeerId, addrs: seq[MultiAddress]

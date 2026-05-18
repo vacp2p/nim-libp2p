@@ -389,7 +389,7 @@ method start*(
       MultiAddress.init(httpserver.localAddress()).tryGet() & codec.tryGet()
 
   self.acceptSem = newAsyncSemaphore(self.concurrentAccepts)
-  self.acceptResults = newAsyncQueue[Connection](self.concurrentAccepts)
+  self.acceptResults = newAsyncQueue[RawConn](self.concurrentAccepts)
   self.handshakeFuts = @[]
 
   await procCall Transport(self).start(resolvedAddrs)

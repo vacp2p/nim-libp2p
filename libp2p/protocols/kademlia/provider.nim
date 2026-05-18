@@ -111,13 +111,13 @@ proc dispatchAddProvider(
     replyTimeout: Duration,
     providerRejection: bool,
 ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
-  let connRes = catch:
+  let streamRes = catch:
     await switch.dial(peer, switch.peerStore[AddressBook][peer], codec)
-  if connRes.isErr:
-    return err(connRes.error.msg)
-  let conn = connRes.value()
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
   defer:
-    await conn.close()
+    await stream.close()
 
   let msg = Message(
     msgType: MessageType.addProvider,
@@ -130,14 +130,14 @@ proc dispatchAddProvider(
     encoded.buffer.len.int64, labelValues = [$MessageType.addProvider]
   )
   let writeRes = catch:
-    await conn.writeLp(encoded.buffer)
+    await stream.writeLp(encoded.buffer)
   if writeRes.isErr:
     return err(writeRes.error.msg)
 
   if not providerRejection:
     return ok(AddProviderStatus.accepted)
 
-  let readFut = conn.readLp(MaxMsgSize)
+  let readFut = stream.readLp(MaxMsgSize)
   if not (await readFut.withTimeout(replyTimeout)):
     return ok(AddProviderStatus.accepted)
   let readRes = catch:
@@ -237,27 +237,28 @@ proc manageExpiredProviders*(kad: KadDHT) {.async: (raises: [CancelledError]).} 
       kad.providerManager.removeProviderRecord(expired)
 
 proc sendAddProviderResponse(
-    conn: Connection, kad: KadDHT, status: AddProviderStatus
+    stream: Stream, kad: KadDHT, status: AddProviderStatus
 ) {.async: (raises: [CancelledError]).} =
   let response =
     Message(msgType: MessageType.addProvider, providerStatus: Opt.some(status))
   try:
-    await conn.writeLp(response.encode(kad.config.hideConnectionStatus).buffer)
+    await stream.writeLp(response.encode(kad.config.hideConnectionStatus).buffer)
   except LPStreamError as exc:
     debug "Failed to send add-provider response",
-      conn = conn, err = exc.msg, status = status
+      stream = stream, err = exc.msg, status = status
 
 method handleAddProvider*(
-    kad: KadDHT, conn: Connection, msg: Message
+    kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   if not MultiHash.validate(msg.key):
-    error "Received key is an invalid Multihash", msg = msg, conn = conn, key = msg.key
+    error "Received key is an invalid Multihash",
+      msg = msg, stream = stream, key = msg.key
     if kad.config.providerRejection:
-      await conn.sendAddProviderResponse(kad, AddProviderStatus.rejected)
+      await stream.sendAddProviderResponse(kad, AddProviderStatus.rejected)
     return
 
   # filter out infos that do not match sender's
-  let peerBytes = conn.peerId.getBytes()
+  let peerBytes = stream.peerId.getBytes()
   let validPeers =
     msg.providerPeers.filterIt(it.id == peerBytes and PeerId.init(it.id).isOk())
 
@@ -271,7 +272,7 @@ method handleAddProvider*(
         kad_provider_rejections_sent.inc()
         debug "ADD_PROVIDER rejected: per-key limit reached",
           key = msg.key, limit = limit
-        await conn.sendAddProviderResponse(kad, AddProviderStatus.rejected)
+        await stream.sendAddProviderResponse(kad, AddProviderStatus.rejected)
         return
 
   for peer in validPeers:
@@ -287,18 +288,18 @@ method handleAddProvider*(
   if kad.config.providerRejection:
     let status =
       if validPeers.len > 0: AddProviderStatus.accepted else: AddProviderStatus.rejected
-    await conn.sendAddProviderResponse(kad, status)
+    await stream.sendAddProviderResponse(kad, status)
 
 proc dispatchGetProviders*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let connRes = catch:
+  let streamRes = catch:
     await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-  if connRes.isErr:
-    return err(connRes.error.msg)
-  let conn = connRes.value()
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
   defer:
-    await conn.close()
+    await stream.close()
   let msg = Message(msgType: MessageType.getProviders, key: key)
   let encoded = msg.encode(kad.config.hideConnectionStatus)
 
@@ -311,8 +312,8 @@ proc dispatchGetProviders*(
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.getProviders]):
     ioRes = catch:
-      await conn.writeLp(encoded.buffer)
-      replyBuf = await conn.readLp(MaxMsgSize)
+      await stream.writeLp(encoded.buffer)
+      replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
 
@@ -328,8 +329,8 @@ proc dispatchGetProviders*(
 
   debug "Received reply for GetProviders", peer = peer, reply = reply
 
-  conn.observedAddr.withValue(observedAddr):
-    kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
+  stream.observedAddr.withValue(observedAddr):
+    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
 
   return ok(reply)
 
@@ -366,7 +367,7 @@ proc getProviders*(
   return allProviders
 
 proc handleGetProviders*(
-    kad: KadDHT, conn: Connection, msg: Message
+    kad: KadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   var providers =
     kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
@@ -386,6 +387,6 @@ proc handleGetProviders*(
     encoded.buffer.len.int64, labelValues = [$MessageType.getProviders]
   )
   try:
-    await conn.writeLp(encoded.buffer)
+    await stream.writeLp(encoded.buffer)
   except LPStreamError as exc:
-    debug "Failed to send get-providers RPC reply", conn = conn, err = exc.msg
+    debug "Failed to send get-providers RPC reply", stream = stream, err = exc.msg
