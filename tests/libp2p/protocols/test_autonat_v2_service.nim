@@ -42,7 +42,7 @@ proc createSwitch(
   autonatV2Service.withValue(s):
     switch.add(s)
 
-  return swith
+  return switch
 
 proc createSwitches(n: int): seq[Switch] =
   var switches: seq[Switch]
