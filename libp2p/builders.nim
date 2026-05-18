@@ -155,9 +155,7 @@ proc withAnnouncedAddresses*(
   b.announcedAddrs = addresses
   b
 
-proc withAnnouncedAddress*(
-    b: SwitchBuilder, address: MultiAddress
-): SwitchBuilder =
+proc withAnnouncedAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
   ## Set a single announced address. See `withAnnouncedAddresses`.
   b.withAnnouncedAddresses(@[address])
 
