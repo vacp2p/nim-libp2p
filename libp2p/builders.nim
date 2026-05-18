@@ -79,11 +79,11 @@ type
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
     autonat: bool
-    autonatService*: Opt[AutonatService]
+    autonatService: Opt[AutonatService]
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
-    autonatV2Service*: Opt[AutonatV2Service]
-    hpService*: Opt[HPService]
+    autonatV2Service: Opt[AutonatV2Service]
+    hpService: Opt[HPService]
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
@@ -311,6 +311,12 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
+proc withAutonatService*(
+    b: SwitchBuilder, autonatService: Opt[AutonatService] = Opt.none(AutonatService)
+): SwitchBuilder =
+  b.autonatService = autonatService
+  b
+
 proc withAutonatV2Server*(
     b: SwitchBuilder, config: AutonatV2Config = AutonatV2Config.new()
 ): SwitchBuilder =
@@ -325,6 +331,13 @@ proc withAutonatV2*(
   b.autonatV2Service = Opt.some(
     AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
   )
+  b
+
+proc withAutonatV2Service*(
+    b: SwitchBuilder,
+    autonatV2Service: Opt[AutonatV2Service] = Opt.none(AutonatV2Service),
+): SwitchBuilder =
+  b.autonatV2Service = autonatV2Service
   b
 
 proc withHolePunching*(
@@ -343,17 +356,29 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-    b.autotlsConfig = Opt.some(config)
+    if config.isNil:
+      b.autotlsConfig = Opt.none(AutotlsConfig)
+    else:
+      b.autotlsConfig = Opt.some(config)
+
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
-  b.circuitRelay = Opt.some(r)
+  if r.isNil:
+    b.circuitRelay = Opt.none(Relay)
+  else:
+    b.circuitRelay = Opt.some(r)
+
   b
 
 proc withRendezVous*(
     b: SwitchBuilder, config: RendezVousConfig = RendezVousConfig.new()
 ): SwitchBuilder =
-  b.rdvConfig = Opt.some(config)
+  if config.isNil:
+    b.rdvConfig = Opt.none(RendezVousConfig)
+  else:
+    b.rdvConfig = Opt.some(config)
+
   b
 
 proc withKademlia*(

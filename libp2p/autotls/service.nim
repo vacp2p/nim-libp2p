@@ -36,7 +36,7 @@ type AutotlsCert* = ref object
   privkey*: TLSPrivateKey
   expiry*: Moment
 
-type AutotlsConfig* = ref object
+type AutotlsConfig* = ref object # todo: should not be ref object
   acmeServerURL*: Uri
   nameResolver*: NameResolver
   ipAddress: Opt[IpAddress]
