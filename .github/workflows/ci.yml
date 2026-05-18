@@ -153,6 +153,13 @@ jobs:
         run: |
           nimble install_pinned
 
+      - name: Save cache immediately
+        if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v5
+        with:
+          path: nimbledeps
+          key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}
+
       - name: Run tests
         id: run-tests
         run: |
