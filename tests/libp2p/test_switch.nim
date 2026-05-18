@@ -1215,8 +1215,8 @@ suite "Switch":
     defer:
       await switch.stop()
 
-    # Transport actually bound a local socket — listenAddrs is populated and
-    # is the *original* zero-port address has been resolved to something else.
+    # Transport actually bound a local socket — listenAddrs is populated, and
+    # the *original* zero-port address has been resolved to something else.
     check switch.peerInfo.listenAddrs.len == 1
     check switch.peerInfo.listenAddrs[0] != listenAddr
 
