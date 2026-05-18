@@ -32,13 +32,11 @@ proc createSwitch(
     .withMaxConnections(maxConns)
     .withYamux()
     .withNoise()
+    .withNameResolver(nameResolver)
 
   if withAutonat:
     builder = builder.withAutonatV2()
     builder.autonatV2Service = autonatV2Service
-
-  if nameResolver != nil:
-    builder = builder.withNameResolver(nameResolver)
 
   return builder.build()
 

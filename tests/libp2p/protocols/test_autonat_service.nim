@@ -32,13 +32,11 @@ proc createSwitch(
     .withMaxConnections(maxConns)
     .withMplex()
     .withNoise()
+    .withNameResolver(nameResolver)
 
   if withAutonat:
     builder = builder.withAutonat()
     builder.autonatService = autonatSvc
-
-  if nameResolver != nil:
-    builder = builder.withNameResolver(nameResolver)
 
   return builder.build()
 
