@@ -368,7 +368,7 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
     b.circuitRelay = Opt.none(Relay)
   else:
     b.circuitRelay = Opt.some(r)
-
+    
   b
 
 proc withRendezVous*(
