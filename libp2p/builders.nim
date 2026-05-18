@@ -508,6 +508,9 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   return switch
 
 proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
+  for service in switch.services:
+    service.setup(switch)
+
   if b.enableWildcardResolver:
     switch.add(WildcardAddressResolverService.new())
 
