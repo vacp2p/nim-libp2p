@@ -13,16 +13,14 @@ import chronos, chronicles, metrics
 import
   stream/connection,
   transports/transport,
-  transports/tcptransport,
   upgrademngrs/upgrade,
   multistream,
   multiaddress,
   protocols/protocol,
   protocols/identify,
-  protocols/secure/secure,
   peerinfo,
-  ./muxers/muxer,
   connmanager,
+  upgrademngrs/muxedupgrade,
   nameresolving/nameresolver,
   peerid,
   peerstore,
@@ -51,6 +49,7 @@ type
     peerInfo*: PeerInfo
     connManager*: ConnManager
     transports*: seq[Transport]
+    muxedUpgrade*: MuxedUpgrade
     ms*: MultistreamSelect
     acceptFuts: seq[Future[void]]
     dialer*: Dial
@@ -180,10 +179,6 @@ proc dial*(
   ## with the specified `proto`
 
   dial(s, peerId, addrs, @[proto])
-
-proc setupServices*(s: Switch) {.raises: [ServiceSetupError].} =
-  for service in s.services:
-    service.setup(s)
 
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
@@ -370,33 +365,3 @@ proc start*(s: Switch) {.async: (raises: [CancelledError, LPError]).} =
   s.peerStore.startAddressPruning()
 
   debug "Started libp2p node", peer = s.peerInfo
-
-proc newSwitch*(
-    peerInfo: PeerInfo,
-    transports: seq[Transport],
-    secureManagers: openArray[Secure] = [],
-    connManager: ConnManager,
-    ms: MultistreamSelect,
-    peerStore: PeerStore,
-    nameResolver: NameResolver = nil,
-    services = newSeq[Service](),
-    rng: Rng = nil,
-): Switch {.raises: [LPError].} =
-  if secureManagers.len == 0:
-    raise newException(LPError, "Provide at least one secure manager")
-
-  let switch = Switch(
-    peerInfo: peerInfo,
-    ms: ms,
-    transports: transports,
-    connManager: connManager,
-    peerStore: peerStore,
-    dialer:
-      Dialer.new(peerInfo.peerId, connManager, peerStore, transports, nameResolver),
-    nameResolver: nameResolver,
-    services: services,
-    rng: rng,
-  )
-
-  switch.connManager.peerStore = peerStore
-  return switch
