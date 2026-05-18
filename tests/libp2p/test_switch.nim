@@ -1193,6 +1193,36 @@ suite "Switch":
 
     await allFuturesRaising(switch.stop())
 
+  asyncTest "withAnnouncedAddresses overrides what peers see":
+    # Bind locally, but advertise a fake public address. Listen addrs must
+    # reflect the actual bound socket; announced addrs must be returned by
+    # peerInfo.addrs verbatim regardless of the mapper chain (including the
+    # wildcard resolver, which would normally rewrite/expand listenAddrs).
+    let
+      listenAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+      announcedAddr = MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet()
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng())
+        .withAddresses(@[listenAddr])
+        .withAnnouncedAddresses(@[announcedAddr])
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .build()
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    # Transport actually bound a local socket — listenAddrs is populated, and
+    # the *original* zero-port address has been resolved to something else.
+    check switch.peerInfo.listenAddrs.len == 1
+    check switch.peerInfo.listenAddrs[0] != listenAddr
+
+    # Announced set wins regardless of wildcard-resolver or other mappers.
+    check switch.peerInfo.addrs == @[announcedAddr]
+
   asyncTest "accept loop not blocked by upgrade semaphore":
     # Regression: old code held the upgrade semaphore in the accept loop, blocking
     # it when ConcurrentUpgrades (4) were in flight; manifested as 80+ kad nodes
