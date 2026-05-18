@@ -64,9 +64,7 @@ method stop*(self: Transport) {.base, async: (raises: []).} =
 
 method accept*(
     self: Transport
-): Future[Connection] {.
-    gcsafe, base, async: (raises: [TransportError, CancelledError])
-.} =
+): Future[RawConn] {.gcsafe, base, async: (raises: [TransportError, CancelledError]).} =
   ## accept incoming connections
   ##
 
@@ -77,9 +75,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.
-    base, gcsafe, async: (raises: [TransportError, CancelledError])
-.} =
+): Future[RawConn] {.base, gcsafe, async: (raises: [TransportError, CancelledError]).} =
   ## dial a peer
   ##
 
@@ -87,11 +83,11 @@ method dial*(
 
 proc dial*(
     self: Transport, address: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
-): Future[Connection] {.gcsafe.} =
+): Future[RawConn] {.gcsafe.} =
   self.dial("", address)
 
 method upgrade*(
-    self: Transport, conn: Connection, peerId: Opt[PeerId]
+    self: Transport, conn: RawConn, peerId: Opt[PeerId]
 ): Future[Muxer] {.base, async: (raises: [CancelledError, LPError], raw: true).} =
   ## base upgrade method that the transport uses to perform
   ## transport specific upgrades

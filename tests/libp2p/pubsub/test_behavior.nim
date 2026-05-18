@@ -580,7 +580,7 @@ suite "GossipSub Behavior":
       await teardownGossipSub(gossipSub, conns)
 
     for peer in peers:
-      peer.sendConn.transportDir = Direction.In
+      peer.sendStream.transportDir = Direction.In
 
     # And configure dHigh to current mesh size, dOut higher than current outbound count
     gossipSub.parameters.dHigh = 5
@@ -588,7 +588,7 @@ suite "GossipSub Behavior":
 
     # And Peer to graft is outbound and not in the mesh
     gossipSub.mesh.removePeer(topic, peer)
-    peer.sendConn.transportDir = Direction.Out
+    peer.sendStream.transportDir = Direction.Out
 
     # And initially mesh has 5 peers at dHigh, but 0 outbound peers < dOut (2)
     check:
@@ -616,10 +616,10 @@ suite "GossipSub Behavior":
 
     # Configure some existing peers as outbound to meet dOut threshold, peer to graft + 2 in the mesh
     for i in 0 ..< 3:
-      peers[i].sendConn.transportDir = Direction.Out
+      peers[i].sendStream.transportDir = Direction.Out
     # Rest as inbound
     for i in 3 ..< 6:
-      peers[i].sendConn.transportDir = Direction.In
+      peers[i].sendStream.transportDir = Direction.In
 
     # And configure dHigh to current mesh size, dOut to current outbound count
     gossipSub.parameters.dHigh = 5
@@ -1014,7 +1014,7 @@ suite "GossipSub Behavior":
     check gossipSub.mesh[topic].len > gossipSub.parameters.dLow
     var outbound = 0
     for peer in gossipSub.mesh[topic]:
-      if peer.sendConn.transportDir == Direction.Out:
+      if peer.sendStream.transportDir == Direction.Out:
         inc outbound
     # ensure we give priority and keep at least dOut outbound peers
     check outbound >= gossipSub.parameters.dOut

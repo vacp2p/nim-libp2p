@@ -141,41 +141,41 @@ proc new*(
   identify
 
 method init*(p: Identify) =
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     try:
-      trace "handling identify request", conn
-      let pb = encodeMsg(p.peerInfo, conn.observedAddr, p.sendSignedPeerRecord)
-      await conn.writeLp(pb.buffer)
-      debug "identify: info sent", conn, info = p.peerInfo
+      trace "handling identify request", stream
+      let pb = encodeMsg(p.peerInfo, stream.observedAddr, p.sendSignedPeerRecord)
+      await stream.writeLp(pb.buffer)
+      debug "identify: info sent", stream, info = p.peerInfo
     except CancelledError as exc:
       trace "cancelled identify handler"
       raise exc
     except CatchableError as exc:
-      trace "exception in identify handler", description = exc.msg, conn
+      trace "exception in identify handler", description = exc.msg, stream
     finally:
-      trace "exiting identify handler", conn
-      await conn.closeWithEOF()
+      trace "exiting identify handler", stream
+      await stream.closeWithEOF()
 
   p.handler = handle
   p.codec = IdentifyCodec
 
 proc identify*(
-    self: Identify, conn: Connection, remotePeerId: PeerId
+    self: Identify, stream: Stream, remotePeerId: PeerId
 ): Future[IdentifyInfo] {.
     async: (
       raises:
         [IdentityInvalidMsgError, IdentityNoMatchError, LPStreamError, CancelledError]
     )
 .} =
-  trace "initiating identify", conn
-  var message = await conn.readLp(maxMsgSize)
+  trace "initiating identify", stream
+  var message = await stream.readLp(maxMsgSize)
   if len(message) == 0:
-    trace "identify: Empty message received!", conn
+    trace "identify: Empty message received!", stream
     raise newException(IdentityInvalidMsgError, "Empty message received!")
 
   var info = decodeMsg(message).valueOr:
     raise newException(IdentityInvalidMsgError, "Incorrect message received!")
-  debug "identify: info received", conn, info
+  debug "identify: info received", stream, info
   let
     pubkey = info.pubkey.valueOr:
       raise newException(IdentityInvalidMsgError, "No pubkey in identify")
@@ -205,41 +205,41 @@ proc new*(T: typedesc[IdentifyPush], handler: IdentifyPushHandler = nil): T =
   identifypush
 
 proc init*(p: IdentifyPush) =
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
-    trace "handling identify push", conn
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
+    trace "handling identify push", stream
     try:
-      var message = await conn.readLp(maxMsgSize)
+      var message = await stream.readLp(maxMsgSize)
 
       var identInfo = decodeMsg(message).valueOr:
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
-      debug "identify push: info received", conn, identInfo
+      debug "identify push: info received", stream, identInfo
 
       identInfo.pubkey.withValue(pubkey):
         let receivedPeerId = PeerId.init(pubkey).tryGet()
-        if receivedPeerId != conn.peerId:
+        if receivedPeerId != stream.peerId:
           raise newException(IdentityNoMatchError, "Peer ids don't match")
         identInfo.peerId = receivedPeerId
       else:
-        identInfo.peerId = conn.peerId
+        identInfo.peerId = stream.peerId
 
-      trace "triggering peer event", peerInfo = conn.peerId
+      trace "triggering peer event", peerInfo = stream.peerId
       if not isNil(p.identifyHandler):
-        await p.identifyHandler(conn.peerId, identInfo)
+        await p.identifyHandler(stream.peerId, identInfo)
     except CancelledError as exc:
       trace "cancelled identify push handler"
       raise exc
     except CatchableError as exc:
-      info "exception in identify push handler", description = exc.msg, conn
+      info "exception in identify push handler", description = exc.msg, stream
     finally:
-      trace "exiting identify push handler", conn
-      await conn.closeWithEOF()
+      trace "exiting identify push handler", stream
+      await stream.closeWithEOF()
 
   p.handler = handle
   p.codec = IdentifyPushCodec
 
 proc push*(
-    p: IdentifyPush, peerInfo: PeerInfo, conn: Connection
+    p: IdentifyPush, peerInfo: PeerInfo, stream: Stream
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   ## Send new `peerInfo`s to a connection
-  let pb = encodeMsg(peerInfo, conn.observedAddr, true)
-  await conn.writeLp(pb.buffer)
+  let pb = encodeMsg(peerInfo, stream.observedAddr, true)
+  await stream.writeLp(pb.buffer)

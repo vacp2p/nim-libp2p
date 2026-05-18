@@ -40,7 +40,7 @@ proc wsSecureTransProvider(): Transport {.gcsafe, raises: [].} =
     tlsFlags = {TLSFlags.NoVerifyHost, TLSFlags.NoVerifyServerName},
   )
 
-proc streamProvider(conn: Connection, handle: bool = true): Muxer =
+proc streamProvider(conn: RawConn, handle: bool = true): Muxer =
   let muxer = Mplex.new(conn)
   if handle:
     asyncSpawn muxer.handle()

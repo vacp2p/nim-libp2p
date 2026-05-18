@@ -11,7 +11,7 @@ proc newData*(size: int, val: byte = byte(0xFF)): seq[byte] =
   data
 
 proc readStreamByChunkTillEOF*(
-    stream: Connection, chunkSize: int, maxBytes: int = int.high
+    stream: Stream, chunkSize: int, maxBytes: int = int.high
 ): Future[seq[byte]] {.async.} =
   ## Reads from stream until EOF is reached or the received data size meets/exceeds maxBytes
   var receivedData: seq[byte] = @[]

@@ -21,7 +21,7 @@ logScope:
 type ScriptRunner* = ref object
   nodeId*: int
   node*: GossipSub
-  logStream*: Stream
+  logStream*: streams.Stream
   resolveAddr*: proc(nodeId: int): MultiAddress {.gcsafe, raises: [CatchableError].}
   startTime: Moment
   messages*: Table[string, InteropPartialMessage]
@@ -100,7 +100,7 @@ proc makePartialMessageConfig(runner: ScriptRunner): PartialMessageExtensionConf
 
 proc newScriptRunner*(
     nodeId: int,
-    logStream: Stream,
+    logStream: streams.Stream,
     listenAddr: MultiAddress,
     gossipSubParams: GossipSubParams = GossipSubParams.init(),
     resolveAddr: proc(nodeId: int): MultiAddress {.gcsafe, raises: [CatchableError].} =

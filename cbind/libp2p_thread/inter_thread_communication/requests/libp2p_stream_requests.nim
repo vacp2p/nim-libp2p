@@ -22,7 +22,7 @@ type StreamRequest* = object
   peerId: cstring
   multiaddr: cstring
   proto: cstring
-  connHandle: ptr Libp2pStream
+  streamHandle: ptr Libp2pStream
   data: SharedSeq[byte] ## Only used for WRITE/WRITELP
   readLen: csize_t ## Only used for READEXACTLY
   maxSize: int64 ## Only used for READLP
@@ -33,7 +33,7 @@ proc createShared*(
     peerId: cstring = "",
     multiaddr: cstring = "",
     proto: cstring = "",
-    conn: ptr Libp2pStream = nil,
+    stream: ptr Libp2pStream = nil,
     data: ptr byte = nil,
     dataLen: csize_t = 0,
     readLen: csize_t = 0,
@@ -44,7 +44,7 @@ proc createShared*(
   ret[].peerId = peerId.alloc()
   ret[].multiaddr = multiaddr.alloc()
   ret[].proto = proto.alloc()
-  ret[].connHandle = conn
+  ret[].streamHandle = stream
   ret[].data = allocSharedSeqFromCArray(data, dataLen.int)
   ret[].readLen = readLen
   ret[].maxSize = maxSize
@@ -65,15 +65,15 @@ proc processDial*(
 
   let peerId = PeerId.init($self[].peerId).valueOr:
     return err($error)
-  let conn =
+  let stream =
     try:
       await libp2p.switch.dial(peerId, $self[].proto)
     except DialFailedError as exc:
       return err(exc.msg)
 
   let handle = cast[ptr Libp2pStream](createShared(Libp2pStream, 1))
-  handle[].conn = cast[pointer](conn)
-  libp2p[].connections[handle] = conn
+  handle[].stream = cast[pointer](stream)
+  libp2p[].streams[handle] = stream
 
   return ok(handle)
 
@@ -88,15 +88,15 @@ proc processDialCircuitRelay*(
   let relayCircuitAddr = MultiAddress.init($self[].multiaddr).valueOr:
     return err($error)
 
-  let conn =
+  let stream =
     try:
       await libp2p.switch.dial(dstPeerId, @[relayCircuitAddr], $self[].proto)
     except DialFailedError as exc:
       return err(exc.msg)
 
   let handle = cast[ptr Libp2pStream](createShared(Libp2pStream, 1))
-  handle[].conn = cast[pointer](conn)
-  libp2p[].connections[handle] = conn
+  handle[].stream = cast[pointer](stream)
+  libp2p[].streams[handle] = stream
   return ok(handle)
 
 proc processClose*(
@@ -105,19 +105,19 @@ proc processClose*(
   defer:
     destroyShared(self)
 
-  let handle = self[].connHandle
+  let handle = self[].streamHandle
   if handle.isNil():
-    return err("invalid connection handle")
+    return err("invalid stream handle")
 
-  let conn = libp2p[].connections.getOrDefault(handle, nil)
-  if conn.isNil():
-    return err("unknown connection handle")
+  let stream = libp2p[].streams.getOrDefault(handle, nil)
+  if stream.isNil():
+    return err("unknown stream handle")
 
   case self.operation
   of CLOSE:
-    await conn.close()
+    await stream.close()
   of CLOSE_WITH_EOF:
-    await conn.closeWithEOF()
+    await stream.closeWithEOF()
   else:
     raiseAssert "unsupported operation"
 
@@ -129,12 +129,12 @@ proc processRelease*(
   defer:
     destroyShared(self)
 
-  let handle = self[].connHandle
+  let handle = self[].streamHandle
   if handle.isNil():
-    return err("invalid connection handle")
+    return err("invalid stream handle")
 
-  if not libp2p[].connections.hasKey(handle):
-    return err("unknown connection handle")
+  if not libp2p[].streams.hasKey(handle):
+    return err("unknown stream handle")
 
   # For incoming custom-protocol streams, release completes the Nim protocol
   # handler that has been waiting for C to finish its callback chain.
@@ -148,7 +148,7 @@ proc processRelease*(
     if not releaseWaiter.finished:
       releaseWaiter.complete()
 
-  libp2p[].connections.del(handle)
+  libp2p[].streams.del(handle)
   deallocShared(handle)
 
   return ok()
@@ -159,20 +159,20 @@ proc processWrite*(
   defer:
     destroyShared(self)
 
-  let handle = self[].connHandle
+  let handle = self[].streamHandle
   if handle.isNil():
-    return err("invalid connection handle")
+    return err("invalid stream handle")
 
-  let conn = libp2p[].connections.getOrDefault(handle, nil)
-  if conn.isNil():
-    return err("unknown connection handle")
+  let stream = libp2p[].streams.getOrDefault(handle, nil)
+  if stream.isNil():
+    return err("unknown stream handle")
 
   try:
     case self.operation
     of WRITE:
-      await conn.write(self[].data.toSeq())
+      await stream.write(self[].data.toSeq())
     of WRITELP:
-      await conn.writeLp(self[].data.toSeq())
+      await stream.writeLp(self[].data.toSeq())
     else:
       raiseAssert "unsupported operation in processWrite"
   except LPStreamError as exc:
@@ -186,13 +186,13 @@ proc processRead*(
   defer:
     destroyShared(self)
 
-  let handle = self[].connHandle
+  let handle = self[].streamHandle
   if handle.isNil():
-    return err("invalid connection handle")
+    return err("invalid stream handle")
 
-  let conn = libp2p[].connections.getOrDefault(handle, nil)
-  if conn.isNil():
-    return err("unknown connection handle")
+  let stream = libp2p[].streams.getOrDefault(handle, nil)
+  if stream.isNil():
+    return err("unknown stream handle")
 
   try:
     case self.operation
@@ -203,12 +203,12 @@ proc processRead*(
       if expected == 0:
         return ok(allocReadResponse(@[]))
       var buf = newSeqUninit[byte](expected)
-      await conn.readExactly(addr buf[0], expected)
+      await stream.readExactly(addr buf[0], expected)
       return ok(allocReadResponse(buf))
     of READLP:
       if self[].maxSize > int64(int.high) or self[].maxSize < int64(int.low):
         return err("maxSize out of range")
-      let data = await conn.readLp(int(self[].maxSize))
+      let data = await stream.readLp(int(self[].maxSize))
       return ok(allocReadResponse(data))
     else:
       raiseAssert "unsupported operation in processRead"

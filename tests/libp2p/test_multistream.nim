@@ -189,7 +189,7 @@ proc newTestNaStream(na: NaHandler): TestNaStream =
   result.step = 1
 
 proc noReachHandler(
-    conn: Connection, proto: string
+    stream: Stream, proto: string
 ): Future[void] {.async: (raises: [CancelledError]).} =
   raiseAssert "must not be reached"
 
@@ -199,79 +199,79 @@ suite "Multistream select":
 
   asyncTest "test select custom proto":
     let ms = MultistreamSelect.new()
-    let conn = newTestSelectStream()
-    check (await ms.select(conn, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
-    await conn.close()
+    let stream = newTestSelectStream()
+    check (await ms.select(stream, @["/test/proto/1.0.0"])) == "/test/proto/1.0.0"
+    await stream.close()
 
   asyncTest "test handle custom proto":
     let ms = MultistreamSelect.new()
-    let conn = newTestSelectStream()
+    let stream = newTestSelectStream()
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(
-        conn: Connection, proto: string
+        stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       check proto == "/test/proto/1.0.0"
-      await conn.close()
+      await stream.close()
 
     protocol.handler = testHandler
     ms.addHandler("/test/proto/1.0.0", protocol)
-    await ms.handle(conn)
+    await ms.handle(stream)
 
   asyncTest "test handle `ls`":
     let ms = MultistreamSelect.new()
 
-    var conn: Connection = nil
+    var stream: Stream = nil
     let done = newFuture[void]()
     proc testLsHandler(
         proto: seq[byte]
     ) {.async: (raises: [CancelledError, LPStreamError]).} =
       var strProto: string = string.fromBytes(proto)
       check strProto == "\x26/test/proto1/1.0.0\n/test/proto2/1.0.0\n"
-      await conn.close()
+      await stream.close()
       done.complete()
 
-    conn = Connection(newTestLsStream(testLsHandler))
+    stream = Connection(newTestLsStream(testLsHandler))
 
     var protocol: LPProtocol = new LPProtocol
     protocol.handler = noReachHandler
     ms.addHandler("/test/proto1/1.0.0", protocol)
     ms.addHandler("/test/proto2/1.0.0", protocol)
-    await ms.handle(conn)
+    await ms.handle(stream)
     await done.wait(5.seconds)
 
   asyncTest "test handle `na`":
     let ms = MultistreamSelect.new()
 
-    var conn: Connection = nil
+    var stream: Stream = nil
     proc testNaHandler(
         msg: string
     ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
       check msg == "\x03na\n"
-      await conn.close()
+      await stream.close()
 
-    conn = newTestNaStream(testNaHandler)
+    stream = newTestNaStream(testNaHandler)
 
     var protocol: LPProtocol = new LPProtocol
     protocol.handler = noReachHandler
     ms.addHandler("/unabvailable/proto/1.0.0", protocol)
 
-    await ms.handle(conn)
+    await ms.handle(stream)
 
   asyncTest "e2e - handle":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(
-        conn: Connection, proto: string
+        stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       check proto == "/test/proto/1.0.0"
       try:
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "LPStreamError while handling connection"
       finally:
-        await conn.close()
+        await stream.close()
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
@@ -281,21 +281,21 @@ suite "Multistream select":
     asyncSpawn transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async.} =
-      let conn = await transport1.accept()
-      await msListen.handle(conn)
-      await conn.close()
+      let stream = await transport1.accept()
+      await msListen.handle(stream)
+      await stream.close()
 
     let handlerWait = acceptHandler()
 
     let msDial = MultistreamSelect.new()
     let transport2 = TcpTransport.new(upgrade = Upgrade())
-    let conn = await transport2.dial(transport1.addrs[0])
+    let stream = await transport2.dial(transport1.addrs[0])
 
-    check (await msDial.select(conn, "/test/proto/1.0.0")) == true
+    check (await msDial.select(stream, "/test/proto/1.0.0")) == true
 
-    let hello = string.fromBytes(await conn.readLp(1024))
+    let hello = string.fromBytes(await stream.readLp(1024))
     check hello == "Hello!"
-    await conn.close()
+    await stream.close()
 
     await transport2.stop()
     await transport1.stop()
@@ -310,15 +310,15 @@ suite "Multistream select":
     # Try to start a new one, which should fail
     # Unblock the 5 streams, check that we can open a new one
     proc testHandler(
-        conn: Connection, proto: string
+        stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       try:
         await blocker.wait()
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "LPStreamError while handling connection"
       finally:
-        await conn.close()
+        await stream.close()
 
     var protocol: LPProtocol =
       LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxIncomingStreams = 5)
@@ -330,14 +330,14 @@ suite "Multistream select":
     let transport1 = TcpTransport.new(upgrade = Upgrade())
     await transport1.start(ma)
 
-    proc acceptedOne(c: Connection) {.async.} =
+    proc acceptedOne(c: Stream) {.async.} =
       await msListen.handle(c)
       await c.close()
 
     proc acceptHandler() {.async.} =
       while true:
-        let conn = await transport1.accept()
-        asyncSpawn acceptedOne(conn)
+        let stream = await transport1.accept()
+        asyncSpawn acceptedOne(stream)
 
     var handlerWait = acceptHandler()
 
@@ -345,12 +345,12 @@ suite "Multistream select":
     let transport2 = TcpTransport.new(upgrade = Upgrade())
 
     proc connector() {.async.} =
-      let conn = await transport2.dial(transport1.addrs[0])
+      let stream = await transport2.dial(transport1.addrs[0])
       check:
-        (await msDial.select(conn, "/test/proto/1.0.0")) == true
+        (await msDial.select(stream, "/test/proto/1.0.0")) == true
       check:
-        string.fromBytes(await conn.readLp(1024)) == "Hello!"
-      await conn.close()
+        string.fromBytes(await stream.readLp(1024)) == "Hello!"
+      await stream.close()
 
     # Fill up the 5 allowed streams
     var dialers: seq[Future[void]]
@@ -392,27 +392,27 @@ suite "Multistream select":
     let listenFut = transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async.} =
-      let conn = await transport1.accept()
+      let stream = await transport1.accept()
       try:
-        await msListen.handle(conn)
+        await msListen.handle(stream)
       except LPStreamEOFError as e:
         raiseAssert "unexpected error: " & e.msg
       except LPStreamClosedError as e:
         raiseAssert "unexpected error: " & e.msg
       finally:
-        await conn.close()
+        await stream.close()
 
     let acceptFut = acceptHandler()
     let msDial = MultistreamSelect.new()
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    let conn = await transport2.dial(transport1.addrs[0])
+    let stream = await transport2.dial(transport1.addrs[0])
 
-    let ls = await msDial.list(conn)
+    let ls = await msDial.list(stream)
     let protos: seq[string] = @["/test/proto1/1.0.0", "/test/proto2/1.0.0"]
 
     check ls == protos
 
-    await conn.close()
+    await stream.close()
     await acceptFut
     await transport2.stop()
     await transport1.stop()
@@ -423,15 +423,15 @@ suite "Multistream select":
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(
-        conn: Connection, proto: string
+        stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       check proto == "/test/proto/1.0.0"
       try:
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "LPStreamError while handling connection"
       finally:
-        await conn.close()
+        await stream.close()
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
@@ -441,21 +441,21 @@ suite "Multistream select":
     asyncSpawn transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async.} =
-      let conn = await transport1.accept()
-      await msListen.handle(conn)
+      let stream = await transport1.accept()
+      await msListen.handle(stream)
 
     let acceptFut = acceptHandler()
     let msDial = MultistreamSelect.new()
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    let conn = await transport2.dial(transport1.addrs[0])
+    let stream = await transport2.dial(transport1.addrs[0])
 
-    check (await msDial.select(conn, @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) ==
+    check (await msDial.select(stream, @["/test/proto/1.0.0", "/test/no/proto/1.0.0"])) ==
       "/test/proto/1.0.0"
 
-    let hello = string.fromBytes(await conn.readLp(1024))
+    let hello = string.fromBytes(await stream.readLp(1024))
     check hello == "Hello!"
 
-    await conn.close()
+    await stream.close()
     await acceptFut
     await transport2.stop()
     await transport1.stop()
@@ -465,14 +465,14 @@ suite "Multistream select":
 
     var protocol: LPProtocol = new LPProtocol
     proc testHandler(
-        conn: Connection, proto: string
+        stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
       try:
-        await conn.writeLp(&"Hello from {proto}!")
+        await stream.writeLp(&"Hello from {proto}!")
       except LPStreamError:
         raiseAssert "LPStreamError while handling connection"
       finally:
-        await conn.close()
+        await stream.close()
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
@@ -483,20 +483,20 @@ suite "Multistream select":
     asyncSpawn transport1.start(ma)
 
     proc acceptHandler(): Future[void] {.async.} =
-      let conn = await transport1.accept()
-      await msListen.handle(conn)
+      let stream = await transport1.accept()
+      await msListen.handle(stream)
 
     let acceptFut = acceptHandler()
     let msDial = MultistreamSelect.new()
     let transport2: TcpTransport = TcpTransport.new(upgrade = Upgrade())
-    let conn = await transport2.dial(transport1.addrs[0])
+    let stream = await transport2.dial(transport1.addrs[0])
 
-    check (await msDial.select(conn, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) ==
+    check (await msDial.select(stream, @["/test/proto2/1.0.0", "/test/proto1/1.0.0"])) ==
       "/test/proto2/1.0.0"
 
-    check string.fromBytes(await conn.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
+    check string.fromBytes(await stream.readLp(1024)) == "Hello from /test/proto2/1.0.0!"
 
-    await conn.close()
+    await stream.close()
     await acceptFut
     await transport2.stop()
     await transport1.stop()

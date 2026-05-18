@@ -98,11 +98,11 @@ type RandomRecordsCallback* = proc(
 ) {.cdecl, gcsafe, raises: [].}
 
 type Libp2pStream* = object
-  conn*: pointer
+  stream*: pointer
 
-type ConnectionCallback* = proc(
+type StreamCallback* = proc(
   callerRet: cint,
-  conn: ptr Libp2pStream,
+  stream: ptr Libp2pStream,
   msg: ptr cchar,
   len: csize_t,
   userData: pointer,

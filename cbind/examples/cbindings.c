@@ -54,8 +54,8 @@ static void peerstore_entry_handler(int callerRet,
                                     const char *msg, size_t len,
                                     void *userData);
 
-static void connection_handler(int callerRet, libp2p_stream_t *conn,
-                               const char *msg, size_t len, void *userData);
+static void stream_handler(int callerRet, libp2p_stream_t *stream,
+                           const char *msg, size_t len, void *userData);
 static void create_cid_handler(int callerRet, const char *msg, size_t len,
                                void *userData);
 static void read_handler(int callerRet, const uint8_t *data, size_t dataLen,
@@ -156,8 +156,7 @@ int main(int argc, char **argv) {
   libp2p_connected_peers(ctx1, Direction_In, peers_handler, NULL);
   waitForCallback();
 
-  libp2p_dial(ctx1, pInfo2.peerId, "/ipfs/ping/1.0.0", connection_handler,
-              NULL);
+  libp2p_dial(ctx1, pInfo2.peerId, "/ipfs/ping/1.0.0", stream_handler, NULL);
   waitForCallback();
 
   uint8_t ping_payload[32] = {0};
@@ -497,14 +496,14 @@ static void get_providers_handler(int callerRet,
   signal_callback_executed();
 }
 
-static void connection_handler(int callerRet, libp2p_stream_t *conn,
-                               const char *msg, size_t len, void *userData) {
+static void stream_handler(int callerRet, libp2p_stream_t *stream,
+                           const char *msg, size_t len, void *userData) {
   if (callerRet != RET_OK) {
     printf("Error(%d): %.*s\n", callerRet, (int)len, msg != NULL ? msg : "");
     exit(1);
   }
 
-  ping_stream = conn;
+  ping_stream = stream;
 
   signal_callback_executed();
 }

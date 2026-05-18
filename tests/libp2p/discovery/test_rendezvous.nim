@@ -76,21 +76,21 @@ proc new*(
   logScope:
     topics = "libp2p discovery rendezvous"
   proc handleStream(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
       let
-        buf = await conn.readLp(4096)
+        buf = await stream.readLp(4096)
         msg = Message.decode(buf).tryGet()
       case msg.msgType
       of MessageType.Register:
-        await rdv.register(conn, msg.register.tryGet(), pr)
+        await rdv.register(stream, msg.register.tryGet(), pr)
       of MessageType.RegisterResponse:
         trace "Got an unexpected Register Response", response = msg.registerResponse
       of MessageType.Unregister:
-        rdv.unregister(conn, msg.unregister.tryGet())
+        rdv.unregister(stream, msg.unregister.tryGet())
       of MessageType.Discover:
-        await rdv.discover(conn, msg.discover.tryGet())
+        await rdv.discover(stream, msg.discover.tryGet())
       of MessageType.DiscoverResponse:
         trace "Got an unexpected Discover Response", response = msg.discoverResponse
     except CancelledError as exc:
@@ -99,7 +99,7 @@ proc new*(
     except CatchableError as exc:
       trace "exception in rendezvous handler", description = exc.msg
     finally:
-      await conn.close()
+      await stream.close()
 
   rdv.handler = handleStream
   rdv.codec = "/cust-rendezvous/1.0.0"

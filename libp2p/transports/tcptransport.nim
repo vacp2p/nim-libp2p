@@ -44,7 +44,7 @@ proc connHandler*(
     observedAddr: Opt[MultiAddress],
     localAddr: Opt[MultiAddress],
     dir: Direction,
-): Connection =
+): RawConn =
   trace "Handling tcp connection",
     address = $observedAddr,
     dir = $dir,
@@ -197,7 +197,7 @@ method stop*(self: TcpTransport): Future[void] {.async: (raises: []).} =
 
 method accept*(
     self: TcpTransport
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## accept a new TCP connection, returning nil on non-fatal errors
   ##
   ## Raises an exception when the transport is broken and cannot be used for
@@ -280,7 +280,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
   if self.stopping:
     raise newTransportClosedError()

@@ -33,6 +33,12 @@ type
     when defined(libp2p_agents_metrics):
       shortAgent*: string
 
+  ## Semantic aliases for stream endpoints at different stages of the stack.
+  ## These are aliases, not distinct types.
+  Stream* = Connection
+  RawConn* = Stream
+  MuxedStream* = Stream
+
 proc timeoutMonitor(s: Connection) {.async: (raises: []).}
 
 method closeWrite*(s: Connection): Future[void] {.base, async: (raises: []).} =

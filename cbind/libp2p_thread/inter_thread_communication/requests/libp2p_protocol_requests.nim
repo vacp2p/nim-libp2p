@@ -61,18 +61,18 @@ proc processMount*(
     protocolUserData = self[].protocolUserData
 
   proc handle(
-      conn: Connection, selectedProto: string
+      stream: Stream, selectedProto: string
   ) {.async: (raises: [CancelledError]).} =
-    let stream = cast[ptr Libp2pStream](createShared(Libp2pStream, 1))
-    stream[].conn = cast[pointer](conn)
+    let streamHandle = cast[ptr Libp2pStream](createShared(Libp2pStream, 1))
+    streamHandle[].stream = cast[pointer](stream)
     # The C handler is callback-based and returns before read/write callbacks
     # finish. Waiting here prevents multistream from closing the incoming stream
     # until C explicitly releases its stream handle.
     let releaseWaiter =
       Future[void].Raising([CancelledError]).init("cbind custom protocol release")
 
-    libp2p[].connections[stream] = conn
-    libp2p[].streamReleaseWaiters[stream] = releaseWaiter
+    libp2p[].streams[streamHandle] = stream
+    libp2p[].streamReleaseWaiters[streamHandle] = releaseWaiter
 
     try:
       foreignThreadGc:
@@ -82,17 +82,21 @@ proc processMount*(
           else:
             cast[ptr cchar](nil)
         handler(
-          ctx, stream, protoPtr, cast[csize_t](selectedProto.len), protocolUserData
+          ctx,
+          streamHandle,
+          protoPtr,
+          cast[csize_t](selectedProto.len),
+          protocolUserData,
         )
 
       await releaseWaiter
     finally:
-      if libp2p[].streamReleaseWaiters.hasKey(stream):
-        libp2p[].streamReleaseWaiters.del(stream)
+      if libp2p[].streamReleaseWaiters.hasKey(streamHandle):
+        libp2p[].streamReleaseWaiters.del(streamHandle)
 
-      if libp2p[].connections.hasKey(stream):
-        libp2p[].connections.del(stream)
-        deallocShared(stream)
+      if libp2p[].streams.hasKey(streamHandle):
+        libp2p[].streams.del(streamHandle)
+        deallocShared(streamHandle)
 
   let mountedProtocol = LPProtocol.new(codecs = @[proto], handler = handle)
   await mountedProtocol.start()

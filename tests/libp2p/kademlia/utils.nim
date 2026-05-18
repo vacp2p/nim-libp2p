@@ -227,25 +227,25 @@ proc addRandomPeers*(
 proc sendAddProviderAndGetStatus*(
     sender: KadDHT, receiver: KadDHT, key: Key
 ): Future[Result[AddProviderStatus, string]] {.async: (raises: [CancelledError]).} =
-  let connRes = catch:
+  let streamRes = catch:
     await sender.switch.dial(
       receiver.switch.peerInfo.peerId, receiver.switch.peerInfo.addrs, sender.codec
     )
-  if connRes.isErr:
-    return err(connRes.error.msg)
-  let conn = connRes.value()
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
   defer:
-    await conn.close()
+    await stream.close()
   let msg = Message(
     msgType: MessageType.addProvider,
     key: key,
     providerPeers: @[sender.switch.peerInfo.toPeer()],
   )
   let writeRes = catch:
-    await conn.writeLp(msg.encode(sender.config.hideConnectionStatus).buffer)
+    await stream.writeLp(msg.encode(sender.config.hideConnectionStatus).buffer)
   if writeRes.isErr:
     return err(writeRes.error.msg)
-  let readFut = conn.readLp(MaxMsgSize)
+  let readFut = stream.readLp(MaxMsgSize)
   if not (await readFut.withTimeout(sender.config.timeout)):
     return ok(AddProviderStatus.accepted)
   let readRes = catch:

@@ -11,7 +11,7 @@ const PlainTextCodec* = "/plaintext/1.0.0"
 type PlainText* = ref object of Secure
 
 method init(p: PlainText) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     ## plain text doesn't do anything
     discard
 
