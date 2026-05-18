@@ -5,12 +5,14 @@
 
 {.push raises: [].}
 
+import protobuf_serialization
+
 import varint, strutils
 import ./utils/sequninit
 
-type VBuffer* = object
-  buffer*: seq[byte]
-  offset*: int
+type VBuffer* {.proto2.} = object
+  buffer* {.fieldNumber: 1, required .}: seq[byte]
+  offset* {.fieldNumber: 2, required, sint.}: int64
 
 template isEmpty*(vb: VBuffer): bool =
   ## Returns ``true`` if buffer ``vb`` is empty.
