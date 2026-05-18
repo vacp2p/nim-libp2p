@@ -181,7 +181,7 @@ proc dial*(
   dial(s, peerId, addrs, @[proto])
 
 proc add*(s: Switch, service: Service) =
-  if s.isNil:
+  if service.isNil:
     return
   s.services.add(service)
   service.setup(service)
