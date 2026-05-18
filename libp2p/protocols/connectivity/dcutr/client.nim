@@ -46,7 +46,8 @@ proc startSync*(
     await stream.send(MsgType.Connect, addrs)
     debug "Dcutr initiator has sent a Connect message."
     let rttStart = Moment.now()
-    let connectAnswer = DcutrMsg.decode(await stream.readLp(1024))
+    let connectAnswer = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
+      raise newException(DcutrError, "Failed to decode a Connect message answer.")
 
     peerDialableAddrs = getHolePunchableAddrs(connectAnswer.addrs)
     if peerDialableAddrs.len == 0:

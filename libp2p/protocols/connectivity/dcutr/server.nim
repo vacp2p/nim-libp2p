@@ -29,7 +29,9 @@ proc new*(
   ) {.async: (raises: [CancelledError]).} =
     var peerDialableAddrs: seq[MultiAddress]
     try:
-      let connectMsg = DcutrMsg.decode(await stream.readLp(1024))
+      let connectMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
+        raise newException(DcutrError, "Failed to decode a Connect message.")
+
       debug "Dcutr receiver received a Connect message.", connectMsg
 
       var ourAddrs = switch.peerStore.getMostObservedProtosAndPorts()
@@ -46,7 +48,8 @@ proc new*(
 
       await stream.send(MsgType.Connect, ourAddrs)
       debug "Dcutr receiver has sent a Connect message back."
-      let syncMsg = DcutrMsg.decode(await stream.readLp(1024))
+      let syncMsg = DcutrMsg.decode(await stream.readLp(1024)).valueOr:
+        raise newException(DcutrError, "Failed to decode a Sync message.")
       debug "Dcutr receiver has received a Sync message.", syncMsg
 
       peerDialableAddrs = getHolePunchableAddrs(connectMsg.addrs)
