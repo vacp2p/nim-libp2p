@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}
+          key: nimbledeps-${{ hashFiles('.pinned') }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
@@ -158,7 +158,7 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}
+          key: nimbledeps-${{ hashFiles('.pinned') }}
 
       - name: Run tests
         id: run-tests

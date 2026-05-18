@@ -10,8 +10,6 @@ permissions:
 
 jobs:
   runnable-examples:
-    env:
-      NIMBLE_COMMIT: 9207e8b2bbdf66b5a4d1020214cff44d2d30df92 # v0.20.1
     timeout-minutes: 30
     defaults:
       run:
@@ -38,7 +36,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}
+          key: nimbledeps-${{ hashFiles('.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
