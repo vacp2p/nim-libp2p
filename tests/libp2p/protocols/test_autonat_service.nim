@@ -17,13 +17,12 @@ import ../../stubs/autonatclientstub
 import ../../tools/[unittest, futures, crypto]
 
 proc createSwitch(
-    autonatSvc: Opt[AutonatService] = Opt.none(AutonatService),
     withAutonat = true,
     maxConnsPerPeer = 1,
     maxConns = 100,
     nameResolver: NameResolver = nil,
 ): Switch =
-  var builder = SwitchBuilder
+  return SwitchBuilder
     .new()
     .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
@@ -33,11 +32,8 @@ proc createSwitch(
     .withMplex()
     .withNoise()
     .withNameResolver(nameResolver)
-
-  if withAutonat:
-    builder = builder.withAutonat().withAutonatService(autonatSvc)
-
-  return builder.build()
+    .withAutonat(withAutonat)
+    .build()
 
 const AutonatReachabilityConfidenceMetric = "libp2p_autonat_reachability_confidence"
 

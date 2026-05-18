@@ -306,14 +306,8 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
-proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
-  b.autonat = true
-  b
-
-proc withAutonatService*(
-    b: SwitchBuilder, autonatService: Opt[AutonatService] = Opt.none(AutonatService)
-): SwitchBuilder =
-  b.autonatService = autonatService
+proc withAutonat*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
+  b.autonat = enabled
   b
 
 proc withAutonatV2Server*(
@@ -330,13 +324,6 @@ proc withAutonatV2*(
   b.autonatV2Service = Opt.some(
     AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
   )
-  b
-
-proc withAutonatV2Service*(
-    b: SwitchBuilder,
-    autonatV2Service: Opt[AutonatV2Service] = Opt.none(AutonatV2Service),
-): SwitchBuilder =
-  b.autonatV2Service = autonatV2Service
   b
 
 proc withHolePunching*(
