@@ -184,7 +184,7 @@ proc add*(s: Switch, service: Service) =
   if service.isNil:
     return
   s.services.add(service)
-  service.setup(service)
+  service.setup(s)
 
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
