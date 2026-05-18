@@ -360,7 +360,6 @@ when defined(libp2p_autotls_support):
       b.autotlsConfig = Opt.none(AutotlsConfig)
     else:
       b.autotlsConfig = Opt.some(config)
-
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
