@@ -83,7 +83,7 @@ type
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
     autonatV2Service: Opt[AutonatV2Service]
-    hpService*: Opt[HPService]
+    hpService: Opt[HPService]
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
