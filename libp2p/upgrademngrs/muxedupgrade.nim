@@ -29,7 +29,7 @@ func getMuxerByCodec(self: MuxedUpgrade, muxerName: string): Opt[MuxerProvider] 
   Opt.none(MuxerProvider)
 
 proc mux(
-    self: MuxedUpgrade, conn: Connection
+    self: MuxedUpgrade, conn: Stream
 ): Future[Opt[Muxer]] {.
     async: (raises: [CancelledError, LPStreamError, MultiStreamError])
 .} =
@@ -61,7 +61,7 @@ proc mux(
   Opt.some(muxer)
 
 method upgrade*(
-    self: MuxedUpgrade, conn: Connection, peerId: Opt[PeerId]
+    self: MuxedUpgrade, conn: RawConn, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   trace "Upgrading connection", conn, direction = conn.dir
 
@@ -94,7 +94,7 @@ proc new*(
   let upgrader =
     T(muxers: muxers, secureManagers: @secureManagers, ms: ms, connManager: connManager)
 
-  upgrader.streamHandler = proc(conn: Connection) {.async: (raises: []).} =
+  upgrader.streamHandler = proc(conn: MuxedStream) {.async: (raises: []).} =
     trace "Starting stream handler", conn
     try:
       upgrader.connManager.withValue(connManager):

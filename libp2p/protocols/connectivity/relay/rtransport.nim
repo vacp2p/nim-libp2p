@@ -20,7 +20,7 @@ logScope:
 
 type RelayTransport* = ref object of Transport
   client*: RelayClient
-  queue: AsyncQueue[Connection]
+  queue: AsyncQueue[RawConn]
   selfRunning: bool
 
 method start*(
@@ -51,12 +51,12 @@ method stop*(self: RelayTransport) {.async: (raises: []).} =
 
 method accept*(
     self: RelayTransport
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   result = await self.queue.popFirst()
 
 proc dial*(
     self: RelayTransport, ma: MultiAddress
-): Future[Connection] {.async: (raises: [RelayDialError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [RelayDialError, CancelledError]).} =
   var
     relayAddrs: MultiAddress
     relayPeerId: PeerId
@@ -107,7 +107,7 @@ method dial*(
     hostname: string,
     ma: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   peerId.withValue(pid):
     try:
       let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()

@@ -42,7 +42,7 @@ template validateSuffix(str: string): untyped =
     raise (ref MultiStreamError)(msg: "MultistreamSelect failed, malformed message")
 
 proc select*(
-    _: MultistreamSelect | type MultistreamSelect, conn: Connection, proto: seq[string]
+    _: MultistreamSelect | type MultistreamSelect, conn: Stream, proto: seq[string]
 ): Future[string] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
   trace "initiating handshake", conn, codec = Codec
   ## select a remote protocol
@@ -89,7 +89,7 @@ proc select*(
       return ""
 
 proc select*(
-    _: MultistreamSelect | type MultistreamSelect, conn: Connection, proto: string
+    _: MultistreamSelect | type MultistreamSelect, conn: Stream, proto: string
 ): Future[bool] {.async: (raises: [CancelledError, LPStreamError, MultiStreamError]).} =
   if proto.len > 0:
     (await MultistreamSelect.select(conn, @[proto])) == proto
@@ -97,14 +97,14 @@ proc select*(
     (await MultistreamSelect.select(conn, @[])) == Codec
 
 proc select*(
-    m: MultistreamSelect, conn: Connection
+    m: MultistreamSelect, conn: Stream
 ): Future[bool] {.
     async: (raises: [CancelledError, LPStreamError, MultiStreamError], raw: true)
 .} =
   m.select(conn, "")
 
 proc list*(
-    m: MultistreamSelect, conn: Connection
+    m: MultistreamSelect, conn: Stream
 ): Future[seq[string]] {.
     async: (raises: [CancelledError, LPStreamError, MultiStreamError])
 .} =
@@ -124,7 +124,7 @@ proc list*(
 
 proc handle*(
     _: type MultistreamSelect,
-    conn: Connection,
+    conn: Stream,
     protos: seq[string],
     matchers = newSeq[Matcher](),
     active: bool = false,
@@ -170,7 +170,7 @@ proc handle*(
       await conn.writeLp(Na)
 
 proc handle*(
-    m: MultistreamSelect, conn: Connection, active: bool = false
+    m: MultistreamSelect, conn: Stream, active: bool = false
 ) {.async: (raises: [CancelledError]).} =
   trace "Starting multistream handler", conn, handshaked = active
   var
@@ -230,8 +230,7 @@ proc addHandler*[E](
     m: MultistreamSelect,
     codec: string,
     handler:
-      LPProtoHandler |
-      proc(conn: Connection, proto: string): InternalRaisesFuture[void, E],
+      LPProtoHandler | proc(conn: Stream, proto: string): InternalRaisesFuture[void, E],
     matcher: Matcher = nil,
 ) =
   ## helper to allow registering pure handlers

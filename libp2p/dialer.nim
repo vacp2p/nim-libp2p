@@ -284,8 +284,8 @@ method connect*(
     (await self.internalConnect(Opt.none(PeerId), @[address], false)).connection.peerId
 
 method negotiateStream*(
-    self: Dialer, conn: Connection, protos: seq[string]
-): Future[Connection] {.async: (raises: [CatchableError]).} =
+    self: Dialer, conn: Stream, protos: seq[string]
+): Future[Stream] {.async: (raises: [CatchableError]).} =
   trace "Negotiating stream", conn, protos
   let selected = await MultistreamSelect.select(conn, protos)
   if not protos.contains(selected):
@@ -318,7 +318,7 @@ method tryDial*(
 
 method dial*(
     self: Dialer, peerId: PeerId, protos: seq[string]
-): Future[Connection] {.async: (raises: [DialFailedError, CancelledError]).} =
+): Future[Stream] {.async: (raises: [DialFailedError, CancelledError]).} =
   ## create a protocol stream over an
   ## existing connection
   ##
@@ -346,14 +346,14 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
-): Future[Connection] {.async: (raises: [DialFailedError, CancelledError]).} =
+): Future[Stream] {.async: (raises: [DialFailedError, CancelledError]).} =
   ## create a protocol stream and establish
   ## a connection if one doesn't exist already
   ##
 
   var
     conn: Muxer
-    stream: Connection
+    stream: Stream
 
   proc cleanup() {.async: (raises: []).} =
     if not (isNil(stream)):

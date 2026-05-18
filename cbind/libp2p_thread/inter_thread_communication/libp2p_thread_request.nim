@@ -37,7 +37,7 @@ type CallbackKind* {.pure.} = enum
   GET_PROVIDERS
   RANDOM_RECORDS
   CONNECTED_PEERS
-  CONNECTION
+  STREAM
   READ
   RESERVATION
 
@@ -414,22 +414,22 @@ proc processKademlia(
   else:
     handleRes(await kadReq.process(kad), request)
 
-proc handleConnectionRes(
+proc handleStreamRes(
     res: Result[ptr Libp2pStream, string], request: ptr LibP2PThreadRequest
 ) =
   defer:
     deallocShared(request)
 
-  let cb = cast[ConnectionCallback](request[].callback)
+  let cb = cast[ffi_types.StreamCallback](request[].callback)
 
-  let conn = res.valueOr:
+  let stream = res.valueOr:
     foreignThreadGc:
       let msg = $error
       cb(RET_ERR.cint, nil, msg[0].addr, cast[csize_t](len(msg)), request[].userData)
     return
 
   foreignThreadGc:
-    cb(RET_OK.cint, conn, nil, 0, request[].userData)
+    cb(RET_OK.cint, stream, nil, 0, request[].userData)
 
 proc processStream(
     request: ptr LibP2PThreadRequest, libp2p: ptr LibP2P
@@ -437,9 +437,9 @@ proc processStream(
   let req = cast[ptr StreamRequest](request[].reqContent)
   case req[].operation
   of StreamMsgType.DIAL:
-    handleConnectionRes(await req.processDial(libp2p), request)
+    handleStreamRes(await req.processDial(libp2p), request)
   of StreamMsgType.DIAL_CIRCUIT_RELAY:
-    handleConnectionRes(await req.processDialCircuitRelay(libp2p), request)
+    handleStreamRes(await req.processDialCircuitRelay(libp2p), request)
   of StreamMsgType.CLOSE, StreamMsgType.CLOSE_WITH_EOF:
     handleRes(await req.processClose(libp2p), request)
   of StreamMsgType.RELEASE:
