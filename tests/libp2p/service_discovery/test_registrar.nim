@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, math, results, tables
+import chronos, math, results, sequtils, tables
 import
   ../../../libp2p/[
     crypto/crypto,
@@ -15,6 +15,7 @@ import
     signed_envelope,
     utils/iptree,
   ]
+from ../../../libp2p/protocols/kademlia/types import MaxMsgSize
 import ../../../libp2p/protocols/kademlia/protobuf as kadprotobuf
 import ../../tools/[crypto, unittest]
 import ./utils
@@ -24,6 +25,22 @@ func initMoment(secs: int64): Moment =
 
 func inFloatSecs(d: Duration): float64 =
   d.secs.float64
+
+proc makeAdvertisementWithServices(
+    services: seq[ServiceInfo],
+    privateKey: PrivateKey = PrivateKey.random(rng()).get(),
+    addrs: seq[MultiAddress] = @[],
+    seqNo: uint64 = Moment.now().epochSeconds.uint64,
+): Advertisement =
+  let peerId = PeerId.init(privateKey).get()
+  var addressInfos: seq[AddressInfo]
+  for address in addrs:
+    addressInfos.add(AddressInfo(address: address))
+
+  let extRecord = ExtendedPeerRecord(
+    peerId: peerId, seqNo: seqNo, addresses: addressInfos, services: services
+  )
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
 suite "Service Discovery Registrar - Waiting Time Calculation":
   test "waitingTime returns low value for empty cache with no IP similarity":
@@ -752,6 +769,94 @@ suite "Service Discovery Registrar - Register Message Validation":
     check decoded.isSome()
     check decoded.get().data.peerId == ad.data.peerId
     check decoded.get().data.seqNo == ad.data.seqNo
+
+  test "validateRegisterMessage rejects advertisement for different service":
+    let serviceId = "service".hashServiceId()
+    let ad = makeAdvertisement("other-service")
+    let adBuf = ad.encode().get()
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    check validateRegisterMessage(regMsg, serviceId).isNone()
+
+  test "validateRegisterMessage rejects advertisement with no services":
+    let serviceId = "service".hashServiceId()
+    let ad = makeAdvertisementWithServices(@[])
+    let adBuf = ad.encode().get()
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    check validateRegisterMessage(regMsg, serviceId).isNone()
+
+  test "validateRegisterMessage accepts multi-service advertisement":
+    let services = @[
+      makeServiceInfo("other-service-a"),
+      makeServiceInfo("service"),
+      makeServiceInfo("other-service-b"),
+    ]
+    let serviceId = services[1].id.hashServiceId()
+    let ad = makeAdvertisementWithServices(services)
+    let adBuf = ad.encode().get()
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    let decoded = validateRegisterMessage(regMsg, serviceId)
+
+    check:
+      decoded.isSome()
+      decoded.get().data.peerId == ad.data.peerId
+      decoded.get().data.services.len == 3
+
+  test "validateRegisterMessage does not enforce service data size limit":
+    let dataLen = MaxMsgSize + 1
+    let data = newSeq[byte](dataLen)
+
+    let service = ServiceInfo(id: "service", data: data)
+    let serviceId = service.id.hashServiceId()
+    let ad = makeAdvertisementWithServices(@[service])
+    let adBuf = ad.encode().get()
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    let decoded = validateRegisterMessage(regMsg, serviceId)
+
+    check:
+      dataLen > MaxMsgSize
+      decoded.isSome()
+      decoded.get().data.services[0].data.len == dataLen
+
+  test "validateRegisterMessage does not enforce encoded XPR size limit":
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    # Repeating the same address to get oversized message
+    # 328 repeats is the first value over MaxMsgSize
+    let addrs = repeat(makeMultiAddress("10.0.0.1"), 328)
+    let adBuf = makeAdvertisement(serviceName, addrs = addrs).encode().get()
+
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    let decoded = validateRegisterMessage(regMsg, serviceId)
+
+    check:
+      adBuf.len > MaxMsgSize
+      decoded.isSome()
+      decoded.get().data.addresses.len == addrs.len
 
 suite "Service Discovery Registrar - Retry Ticket Processing":
   test "processRetryTicket returns original wait time when no ticket is present":
