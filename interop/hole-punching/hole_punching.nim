@@ -24,15 +24,13 @@ logScope:
 proc createSwitch(
     config: BaseConfig, relayClient: Relay = nil, hpService: Service = nil
 ): Switch =
-  var builder = buildBaseSwitch(config, tcpFlags = {ServerFlags.TcpNoDelay})
+  let s = buildBaseSwitch(config, tcpFlags = {ServerFlags.TcpNoDelay})
     .withObservedAddrManager(ObservedAddrManager.new(maxSize = 1, minCount = 1))
     .withAutonat()
     .withCircuitRelay(relayClient)
+    .build()
 
-  if hpService != nil:
-    builder = builder.withServices(@[hpService])
-
-  let s = builder.build()
+  s.add(hpService)
   s.mount(Ping.new(rng = rng()))
   s
 

@@ -180,6 +180,12 @@ proc dial*(
 
   dial(s, peerId, addrs, @[proto])
 
+proc add*(s: Switch, service: Service) =
+  if s.isNil:
+    return
+  s.services.add(service)
+  service.setup(service)
+
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil
 ) {.gcsafe, raises: [LPError].} =

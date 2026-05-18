@@ -88,7 +88,6 @@ type
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
-    services: seq[Service]
     identifyPusherEnabled: bool
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
@@ -388,10 +387,6 @@ proc withKademlia*(
   b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes))
   b
 
-proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
-  b.services = services
-  b
-
 proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
   ## When enabled, the IdentifyPush protocol is mounted on the
   ## switch and an `IdentifyPusher` service tracks which connected peers
@@ -472,12 +467,13 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   let ms = MultistreamSelect.new()
   let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
 
+  var services: seq[Service]
   var autotlsOpt = Opt.none(AutotlsService)
   when defined(libp2p_autotls_support):
     b.autotlsConfig.withValue(config):
       let autotlsService = AutotlsService.new(b.rng, config)
       autotlsOpt = Opt.some(autotlsService)
-      b.services.add(autotlsService)
+      services.add(autotlsService)
 
   var transports: seq[Transport]
   for tProvider in b.transports:
@@ -506,27 +502,27 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     nameResolver: b.nameResolver,
     rng: b.rng,
     muxedUpgrade: muxedUpgrade,
+    services: services,
   )
 
   return switch
 
 proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
-    b.services.add(WildcardAddressResolverService.new())
+    switch.services.add(WildcardAddressResolverService.new())
 
   b.autonatV2Service.withValue(autonatV2Service):
-    b.services.add(autonatV2Service)
+    switch.services.add(autonatV2Service)
 
   b.autonatService.withValue(autonatService):
-    b.services.add(autonatService)
+    switch.services.add(autonatService)
 
   b.hpService.withValue(hpservice):
-    b.services.add(hpservice)
+    switch.services.add(hpservice)
 
   if b.identifyPusherEnabled:
-    b.services.add(IdentifyPusher.new())
+    switch.services.add(IdentifyPusher.new())
 
-  switch.services = b.services
   for service in switch.services:
     service.setup(switch)
 
