@@ -180,10 +180,10 @@ proc dial*(
 
   dial(s, peerId, addrs, @[proto])
 
-proc add*(s: Switch, service: Service): {.raises:[ServiceSetupError].} =
+proc add*(s: Switch, service: Service) {.raises: [ServiceSetupError].} =
   if service.isNil:
     return
-  
+
   s.services.add(service)
   service.setup(s)
 
