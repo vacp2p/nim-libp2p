@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: nimbledeps
-          key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}
+          key: nimbledeps-${{ hashFiles('.pinned') }}
 
       - name: Install deps
         if: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
