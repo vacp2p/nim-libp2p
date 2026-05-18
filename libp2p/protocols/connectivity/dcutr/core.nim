@@ -7,48 +7,35 @@ import std/sequtils
 
 import chronos
 import stew/objects
+import protobuf_serialization, protobuf_serialization/std/enums
 
 import ../../../multiaddress, ../../../errors, ../../../stream/connection
-import ../../../protobuf/minprotobuf
+import ../../../protobuf/utils
 
 export multiaddress
 
 const DcutrCodec* = "/libp2p/dcutr"
 
+# Implements https://github.com/libp2p/specs/blob/master/relay/DCUtR.md#rpc-messages
+
 type
-  MsgType* = enum
+  MsgType* {.pure.} = enum
     Connect = 100
     Sync = 300
 
-  DcutrMsg* = object
-    msgType*: MsgType
-    addrs*: seq[MultiAddress]
+  DcutrMsg* {.proto2.} = object
+    msgType* {.fieldNumber: 1, required, ext.}: MsgType
+    addrs* {.fieldNumber: 2.}: seq[MultiAddress]
 
   DcutrError* = object of LPError
 
-proc encode*(msg: DcutrMsg): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, msg.msgType.uint)
-  for addr in msg.addrs:
-    result.write(2, addr)
-  result.finish()
-
-proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [DcutrError].} =
-  var
-    msgTypeOrd: uint32
-    dcutrMsg: DcutrMsg
-  var pb = initProtoBuffer(buf)
-  var r1 = pb.getField(1, msgTypeOrd)
-  let r2 = pb.getRepeatedField(2, dcutrMsg.addrs)
-  if r1.isErr or r2.isErr or not checkedEnumAssign(dcutrMsg.msgType, msgTypeOrd):
-    raise newException(DcutrError, "Received malformed message")
-  return dcutrMsg
+Protobuf.serializerFor([DcutrMsg])
 
 proc send*(
     conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
-  await conn.writeLp(pb.buffer)
+  await conn.writeLp(pb)
 
 proc getHolePunchableAddrs*(
     addrs: seq[MultiAddress]
