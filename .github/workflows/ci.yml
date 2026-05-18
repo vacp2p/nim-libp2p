@@ -101,9 +101,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: nimbledeps
-          # Using nim.ref as a simple way to differentiate between nimble using the "pkgs" or "pkgs2" directories.
-          # The change happened on Nimble v0.14.0. Also forcing the deps to be reinstalled on each os and cpu.
-          key: nimbledeps-${{ matrix.nim.ref }}-${{ matrix.builder }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }} # hashFiles returns a different value on windows
+          key: nimbledeps-${{ hashFiles('.pinned') }}-${{ env.NIMBLE_COMMIT }}
 
       - name: Restore llvm-mingw (Windows) from cache
         if: runner.os == 'Windows' && matrix.platform.cc == 'clang'
