@@ -64,6 +64,7 @@ type
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
     addresses: seq[MultiAddress]
+    announcedAddrs: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
     muxers: seq[MuxerProvider]
     transports: seq[TransportBuilder]
@@ -142,6 +143,21 @@ proc withAddress*(
   ## | Set the listening address of the switch
   ## | Calling it multiple time will override the value
   b.withAddresses(@[address], enableWildcardResolver)
+
+proc withAnnouncedAddresses*(
+    b: SwitchBuilder, addresses: seq[MultiAddress]
+): SwitchBuilder =
+  ## Set explicit addresses to advertise to peers, distinct from the
+  ## switch's listening addresses. When non-empty, these replace the output
+  ## of the address mapper chain (the `addressPolicy` filter is still applied).
+  ## Use this to announce a public NAT-mapped address while binding locally.
+  ## Calling it multiple times overrides the previous value.
+  b.announcedAddrs = addresses
+  b
+
+proc withAnnouncedAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
+  ## Set a single announced address. See `withAnnouncedAddresses`.
+  b.withAnnouncedAddresses(@[address])
 
 proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
   b.sendSignedPeerRecord = sendIt
@@ -447,6 +463,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     protoVersion = b.protoVersion,
     agentVersion = b.agentVersion,
     addressPolicy = b.addressPolicy,
+    announcedAddrs = b.announcedAddrs,
   )
 
   let identify =
