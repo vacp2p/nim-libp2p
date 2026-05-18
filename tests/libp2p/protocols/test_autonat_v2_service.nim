@@ -17,6 +17,7 @@ import
 import ../../tools/[unittest, futures, crypto]
 
 proc createSwitch(
+    autonatV2Service: Opt[AutonatV2Service] = Opt.none(AutonatV2Service),
     withAutonat = true,
     maxConnsPerPeer = 1,
     maxConns = 100,
@@ -36,7 +37,12 @@ proc createSwitch(
   if withAutonat:
     builder = builder.withAutonatV2()
 
-  return builder.build()
+  var switch = builder.build()
+
+  autonatV2Service.withValue(s):
+    switch.add(s)
+
+  return swith
 
 proc createSwitches(n: int): seq[Switch] =
   var switches: seq[Switch]
