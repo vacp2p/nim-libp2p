@@ -150,7 +150,7 @@ suite "Service Discovery Component - Error Handling":
       response.register.get().status.get() == kad_protobuf.RegistrationStatus.Rejected
       registrarNode.countAdsInCache(serviceId) == 0
 
-  asyncTest "oversized frame is rejected without a reply":
+  asyncTest "oversized message is rejected without a reply":
     let registrarNode = setupServiceDiscoveryNode()
     startAndDeferStop(@[registrarNode])
 
