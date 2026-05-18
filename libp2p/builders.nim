@@ -349,7 +349,7 @@ when defined(libp2p_autotls_support):
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   if r.isNil:
     return
-   
+
   b.circuitRelay = Opt.some(r)
   b
 
