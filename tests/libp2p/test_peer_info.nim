@@ -117,10 +117,7 @@ suite "PeerInfo":
       ma == publicAddr
 
     let peerInfo = PeerInfo.new(
-      seckey,
-      [],
-      addressPolicy = onlyPublic,
-      announcedAddrs = announcedAddrs,
+      seckey, [], addressPolicy = onlyPublic, announcedAddrs = announcedAddrs
     )
     waitFor peerInfo.update()
 
