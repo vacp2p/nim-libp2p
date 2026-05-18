@@ -135,6 +135,7 @@ method start*(kad: KadDHT) {.async: (raises: [CancelledError]).} =
   kad.maintenanceLoop = kad.maintainBuckets()
   kad.republishLoop = kad.manageRepublishProvidedKeys()
   kad.expiredLoop = kad.manageExpiredProviders()
+  kad.recordExpirationLoop = kad.manageExpiredRecords()
 
   kad.started = true
 
@@ -154,3 +155,6 @@ method stop*(kad: KadDHT) {.async: (raises: []).} =
 
   kad.expiredLoop.cancelSoon()
   kad.expiredLoop = nil
+
+  kad.recordExpirationLoop.cancelSoon()
+  kad.recordExpirationLoop = nil

@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/tables
-from std/times import now, utc
 import chronos, chronicles, results
 import ../../[peerid, switch, multihash]
 import ../../utils/future
@@ -81,9 +80,13 @@ proc getValue*(
 ): Future[Result[EntryRecord, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let received = ReceivedTable()
 
-  # if locally present
-  if kad.dataTable.hasKey(key):
-    received[kad.switch.peerInfo.peerId] = kad.dataTable.get(key)
+  # if locally present and not expired, include our own copy
+  kad.dataTable.get(key).withValue(localRecord):
+    if not localRecord.isExpired(kad.config.recordExpirationInterval):
+      received[kad.switch.peerInfo.peerId] = Opt.some(localRecord)
+    else:
+      kad.dataTable.del(key)
+      debug "Local record expired on read", key = key
 
   let quorum = quorumOverride.valueOr:
     kad.config.quorum
@@ -113,7 +116,7 @@ proc getValue*(
     let time = record.timeReceived.valueOr:
       debug "GetValue returned record with no timeReceived, using current time instead",
         reply = reply
-      TimeStamp($times.now().utc)
+      Timestamp.now()
 
     received[peer] = Opt.some(EntryRecord(value: value, time: time))
 
@@ -125,7 +128,7 @@ proc getValue*(
   let best = ?kad.bestValidRecord(key, received, quorum)
 
   # insert value to our localtable
-  kad.dataTable.insert(key, best.value, $times.now().utc)
+  kad.dataTable.insert(key, best.value, Timestamp.now())
 
   # update peers that
   # - don't have best value
@@ -150,7 +153,16 @@ method handleGetValue*(
 ) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key
 
-  let entryRecord = kad.dataTable.get(key).valueOr:
+  # Evict the entry eagerly if it has expired so the `valueOr` below treats it
+  # as absent and sends the standard "no record found" response.
+  var entryRecordOpt = kad.dataTable.get(key)
+  entryRecordOpt.withValue(record):
+    if record.isExpired(kad.config.recordExpirationInterval):
+      debug "record expired, dropping", key = key
+      kad.dataTable.del(key)
+      entryRecordOpt = Opt.none(EntryRecord)
+
+  let entryRecord = entryRecordOpt.valueOr:
     let response = Message(
       msgType: MessageType.getValue, key: key, closerPeers: kad.findClosestPeers(key)
     )
