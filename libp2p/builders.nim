@@ -82,7 +82,7 @@ type
     autonatService: Opt[AutonatService]
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
-    autonatV2Service*: Opt[AutonatV2Service]
+    autonatV2Service: Opt[AutonatV2Service]
     hpService*: Opt[HPService]
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
@@ -331,6 +331,13 @@ proc withAutonatV2*(
   b.autonatV2Service = Opt.some(
     AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
   )
+  b
+
+proc withAutonatV2Service*(
+    b: SwitchBuilder,
+    autonatV2Service: Opt[AutonatV2Service] = Opt.none(AutonatV2Service),
+): SwitchBuilder =
+  b.autonatV2Service = autonatV2Service
   b
 
 proc withHolePunching*(

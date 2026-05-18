@@ -35,8 +35,7 @@ proc createSwitch(
     .withNameResolver(nameResolver)
 
   if withAutonat:
-    builder = builder.withAutonatV2()
-    builder.autonatV2Service = autonatV2Service
+    builder = builder.withAutonatV2().withAutonatV2Service(autonatV2Service)
 
   return builder.build()
 
