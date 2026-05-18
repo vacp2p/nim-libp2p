@@ -24,7 +24,7 @@ logScope:
 proc createSwitch(
     config: BaseConfig, relayClient: Relay = nil, hpService: Service = nil
 ): Switch =
-  let s = buildBaseSwitch(config, tcpFlags = {ServerFlags.TcpNoDelay})
+  var s = buildBaseSwitch(config, tcpFlags = {ServerFlags.TcpNoDelay})
     .withObservedAddrManager(ObservedAddrManager.new(maxSize = 1, minCount = 1))
     .withAutonat()
     .withCircuitRelay(relayClient)
