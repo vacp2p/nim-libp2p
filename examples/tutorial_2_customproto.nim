@@ -25,25 +25,25 @@ type TestProto = ref object of LPProtocol
 ## Let's start with the server part:
 
 proc new(T: typedesc[TestProto]): T =
-  # every incoming connections will in be handled in this closure
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
-    # Read up to 1024 bytes from this connection, and transform them into
+  # every incoming stream will be handled in this closure
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
+    # Read up to 1024 bytes from this stream, and transform them into
     # a string
     try:
-      echo "Got from remote - ", string.fromBytes(await conn.readLp(1024))
+      echo "Got from remote - ", string.fromBytes(await stream.readLp(1024))
     except LPStreamError as exc:
       echo "exception in handler", exc.msg
     finally:
-      await conn.close()
+      await stream.close()
 
   return T.new(codecs = @[TestCodec], handler = handle)
 
 ## This is a constructor for our `TestProto`, that will specify our `codecs` and a `handler`, which will be called for each incoming peer asking for this protocol.
-## In our handle, we simply read a message from the connection and `echo` it.
+## In our handle, we simply read a message from the stream and `echo` it.
 ##
 ## We can now create our client part:
-proc hello(p: TestProto, conn: Connection) {.async.} =
-  await conn.writeLp("Hello p2p!")
+proc hello(p: TestProto, stream: Stream) {.async.} =
+  await stream.writeLp("Hello p2p!")
 
 proc createSwitch(rng: Rng): Switch {.raises: [LPError].} =
   return SwitchBuilder
@@ -55,7 +55,7 @@ proc createSwitch(rng: Rng): Switch {.raises: [LPError].} =
     .withNoise()
     .build()
 
-## Again, pretty straightforward, we just send a message on the connection.
+## Again, pretty straightforward, we just send a message on the stream.
 ##
 ## We can now create our main procedure:
 proc main() {.async.} =
@@ -70,13 +70,13 @@ proc main() {.async.} =
   await switch1.start()
   await switch2.start()
 
-  let conn =
+  let stream =
     await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
-  await testProto.hello(conn)
+  await testProto.hello(stream)
 
-  # We must close the connection ourselves when we're done with it
-  await conn.close()
+  # We must close the stream ourselves when we're done with it
+  await stream.close()
 
   await allFutures(switch1.stop(), switch2.stop())
     # close connections and shutdown all transports

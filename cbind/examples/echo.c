@@ -36,8 +36,8 @@ static void event_handler(int callerRet, const char *msg, size_t len,
                           void *userData);
 static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
                              const char *msg, size_t len, void *userData);
-static void connection_handler(int callerRet, libp2p_stream_t *conn,
-                               const char *msg, size_t len, void *userData);
+static void stream_handler(int callerRet, libp2p_stream_t *stream,
+                           const char *msg, size_t len, void *userData);
 static void client_read_handler(int callerRet, const uint8_t *data,
                                 size_t dataLen, const char *msg, size_t len,
                                 void *userData);
@@ -110,7 +110,7 @@ int main(void) {
                  serverInfo.addrCount, 0, event_handler, NULL);
   waitForCallback();
 
-  libp2p_dial(client, serverInfo.peerId, ECHO_PROTO, connection_handler, NULL);
+  libp2p_dial(client, serverInfo.peerId, ECHO_PROTO, stream_handler, NULL);
   waitForCallback();
   if (client_stream == NULL) {
     printf("Error: dial did not return a stream\n");
@@ -223,8 +223,8 @@ static void peerinfo_handler(int callerRet, const Libp2pPeerInfo *info,
   signal_callback_executed();
 }
 
-static void connection_handler(int callerRet, libp2p_stream_t *conn,
-                               const char *msg, size_t len, void *userData) {
+static void stream_handler(int callerRet, libp2p_stream_t *stream,
+                           const char *msg, size_t len, void *userData) {
   (void)userData;
   if (callerRet != RET_OK) {
     printf("Dial error(%d): %.*s\n", callerRet, (int)len,
@@ -232,7 +232,7 @@ static void connection_handler(int callerRet, libp2p_stream_t *conn,
     exit(1);
   }
 
-  client_stream = conn;
+  client_stream = stream;
   signal_callback_executed();
 }
 

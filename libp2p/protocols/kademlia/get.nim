@@ -14,13 +14,13 @@ logScope:
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let connRes = catch:
+  let streamRes = catch:
     await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-  if connRes.isErr:
-    return err(connRes.error.msg)
-  let conn = connRes.value()
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
   defer:
-    await conn.close()
+    await stream.close()
 
   let msg = Message(msgType: MessageType.getValue, key: key)
   let encoded = msg.encode(kad.config.hideConnectionStatus)
@@ -34,8 +34,8 @@ proc dispatchGetVal*(
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
     ioRes = catch:
-      await conn.writeLp(encoded.buffer)
-      replyBuf = await conn.readLp(MaxMsgSize)
+      await stream.writeLp(encoded.buffer)
+      replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
 
@@ -49,8 +49,8 @@ proc dispatchGetVal*(
   if reply.closerPeers.len > 0:
     kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
 
-  conn.observedAddr.withValue(observedAddr):
-    kad.updatePeers(@[PeerInfo(peerId: conn.peerId, addrs: @[observedAddr])])
+  stream.observedAddr.withValue(observedAddr):
+    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
 
   return ok(reply)
 
@@ -149,7 +149,7 @@ proc getValue*(
   ok(best)
 
 method handleGetValue*(
-    kad: KadDHT, conn: Connection, msg: Message
+    kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let key = msg.key
 
@@ -171,9 +171,9 @@ method handleGetValue*(
       encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
     )
     try:
-      await conn.writeLp(encoded.buffer)
+      await stream.writeLp(encoded.buffer)
     except LPStreamError as exc:
-      debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+      debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return
 
   let response = Message(
@@ -193,7 +193,7 @@ method handleGetValue*(
     encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
   )
   try:
-    await conn.writeLp(encoded.buffer)
+    await stream.writeLp(encoded.buffer)
   except LPStreamError as exc:
-    debug "Failed to send get-value RPC reply", conn = conn, err = exc.msg
+    debug "Failed to send get-value RPC reply", stream = stream, err = exc.msg
     return

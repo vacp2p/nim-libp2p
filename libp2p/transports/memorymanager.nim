@@ -15,7 +15,7 @@ type
 
 type MemoryListener* = object
   address: string
-  accept: Future[Connection]
+  accept: Future[RawConn]
   onListenerEnd: proc(address: string) {.closure, gcsafe, raises: [].}
 
 proc init(
@@ -24,7 +24,7 @@ proc init(
     onListenerEnd: proc(address: string) {.closure, gcsafe, raises: [].},
 ): MemoryListener =
   return MemoryListener(
-    accept: newFuture[Connection]("MemoryListener.accept"),
+    accept: newFuture[RawConn]("MemoryListener.accept"),
     address: address,
     onListenerEnd: onListenerEnd,
   )
@@ -34,23 +34,23 @@ proc close*(self: MemoryListener) =
     self.accept.fail(newException(MemoryTransportAcceptStopped, "Listener closed"))
     self.onListenerEnd(self.address)
 
-proc accept*(self: MemoryListener): Future[Connection] {.gcsafe, raises: [].} =
+proc accept*(self: MemoryListener): Future[RawConn] {.gcsafe, raises: [].} =
   return self.accept
 
-proc dial*(self: MemoryListener): Future[Connection] {.gcsafe, raises: [].} =
+proc dial*(self: MemoryListener): Future[RawConn] {.gcsafe, raises: [].} =
   let (connA, connB) = bridgedConnections()
 
   self.onListenerEnd(self.address)
   self.accept.complete(connA)
 
-  let dFut = newFuture[Connection]("MemoryListener.dial")
+  let dFut = newFuture[RawConn]("MemoryListener.dial")
   dFut.complete(connB)
 
   return dFut
 
 type memoryConnManager = ref object
   listeners: Table[string, MemoryListener]
-  connections: Table[string, Connection]
+  connections: Table[string, RawConn]
   lock: Lock
 
 proc init(_: type[memoryConnManager]): memoryConnManager =

@@ -18,7 +18,7 @@ proc quicTransProvider(): Transport {.gcsafe, raises: [].} =
   except ResultError[crypto.CryptoError]:
     raiseAssert "should not happen"
 
-proc streamProvider(conn: Connection, handle: bool = true): Muxer {.raises: [].} =
+proc streamProvider(conn: RawConn, handle: bool = true): Muxer {.raises: [].} =
   try:
     return QuicMuxer.new(conn)
   except CatchableError:
@@ -53,14 +53,14 @@ suite "Quic transport":
   asyncTest "Connection.reset aborts the initiator stream":
     var serverResetDone = newFuture[void]()
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         let msg = await stream.readLp(100)
         check msg == fromHex("1234")
         await stream.reset()
         serverResetDone.complete()
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         await stream.writeLp(fromHex("1234"))
         await serverResetDone

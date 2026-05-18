@@ -32,10 +32,10 @@ type
 Protobuf.serializerFor([DcutrMsg])
 
 proc send*(
-    conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]
+    stream: Stream, msgType: MsgType, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
-  await conn.writeLp(pb)
+  await stream.writeLp(pb)
 
 proc getHolePunchableAddrs*(
     addrs: seq[MultiAddress]

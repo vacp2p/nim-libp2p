@@ -128,13 +128,13 @@ proc dispatchFindNode*(
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
   let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
-  let connRes = catch:
+  let streamRes = catch:
     await kad.switch.dial(peer, addrs, kad.codec)
-  if connRes.isErr:
-    return err(connRes.error.msg)
-  let conn = connRes.value()
+  if streamRes.isErr:
+    return err(streamRes.error.msg)
+  let stream = streamRes.value()
   defer:
-    await conn.close()
+    await stream.close()
 
   let msg = Message(msgType: MessageType.findNode, key: target)
   let encoded = msg.encode(kad.config.hideConnectionStatus)
@@ -148,8 +148,8 @@ proc dispatchFindNode*(
   var ioRes: Result[void, ref CatchableError]
   kad_message_duration_ms.time(labelValues = [$MessageType.findNode]):
     ioRes = catch:
-      await conn.writeLp(encoded.buffer)
-      replyBuf = await conn.readLp(MaxMsgSize)
+      await stream.writeLp(encoded.buffer)
+      replyBuf = await stream.readLp(MaxMsgSize)
   if ioRes.isErr:
     return err(ioRes.error.msg)
 
@@ -319,7 +319,7 @@ proc findClosestPeers*(kad: KadDHT, target: Key): seq[Peer] =
   return kad.switch.toPeers(closestPeerKeys)
 
 method handleFindNode*(
-    kad: KadDHT, conn: Connection, msg: Message
+    kad: KadDHT, stream: Stream, msg: Message
 ) {.base, async: (raises: [CancelledError]).} =
   let target = msg.key
 
@@ -330,10 +330,11 @@ method handleFindNode*(
     encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
   )
   try:
-    await conn.writeLp(encoded.buffer)
+    await stream.writeLp(encoded.buffer)
   except LPStreamError as exc:
-    debug "Write error when writing kad find-node RPC reply", conn = conn, err = exc.msg
+    debug "Write error when writing kad find-node RPC reply",
+      stream = stream, err = exc.msg
     return
 
   # Peer is useful. adding to rtable
-  discard kad.rtable.insert(conn.peerId)
+  discard kad.rtable.insert(stream.peerId)

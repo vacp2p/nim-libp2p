@@ -140,7 +140,7 @@ type
     sendWindow: int
     maxRecvWindow: int
     maxSendQueueSize: int
-    conn: Connection
+    conn: RawConn
     isSrc: bool
     opened: bool
     isSending: bool
@@ -672,13 +672,13 @@ method handle*(m: Yamux) {.async: (raises: []).} =
     await m.close()
   trace "Stopped yamux handler"
 
-method getStreams*(m: Yamux): seq[Connection] {.gcsafe.} =
+method getStreams*(m: Yamux): seq[MuxedStream] {.gcsafe.} =
   for c in m.channels.values:
     result.add(c)
 
 method newStream*(
     m: Yamux, name: string = "", lazy: bool = false
-): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
+): Future[MuxedStream] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   if m.channels.len > m.maxChannCount - 1:
     raise newException(TooManyChannels, "max allowed channel count exceeded")
   let stream = m.createStream(m.currentId, true, m.windowSize, m.maxSendQueueSize)
@@ -689,7 +689,7 @@ method newStream*(
 
 proc new*(
     T: type[Yamux],
-    conn: Connection,
+    conn: RawConn,
     maxChannCount: int = MaxChannelCount,
     windowSize: int = YamuxDefaultWindowSize,
     maxSendQueueSize: int = MaxSendQueueSize,

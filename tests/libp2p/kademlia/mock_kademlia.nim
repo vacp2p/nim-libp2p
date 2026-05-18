@@ -30,28 +30,28 @@ method findNode*(
   return kad.rtable.findClosestPeerIds(target, kad.config.replication)
 
 method handleGetValue*(
-    kad: MockKadDHT, conn: Connection, msg: Message
+    kad: MockKadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   let response = kad.getValueResponse.valueOr:
-    await procCall handleGetValue(KadDHT(kad), conn, msg)
+    await procCall handleGetValue(KadDHT(kad), stream, msg)
     return
 
   try:
-    await conn.writeLp(response.encode().buffer)
+    await stream.writeLp(response.encode().buffer)
   except LPStreamError as exc:
-    debug "Failed to send malicious get-value response", conn = conn, err = exc.msg
+    debug "Failed to send malicious get-value response", stream = stream, err = exc.msg
 
 method handleAddProvider*(
-    kad: MockKadDHT, conn: Connection, msg: Message
+    kad: MockKadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   await procCall handleAddProvider(
-    KadDHT(kad), conn, kad.handleAddProviderMessage.valueOr(msg)
+    KadDHT(kad), stream, kad.handleAddProviderMessage.valueOr(msg)
   )
 
 method handleFindNode*(
-    kad: MockKadDHT, conn: Connection, msg: Message
+    kad: MockKadDHT, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   kad.handleFindNodeCalls.inc()
   if kad.handleFindNodeDelay > ZeroDuration:
     await sleepAsync(kad.handleFindNodeDelay)
-  await procCall handleFindNode(KadDHT(kad), conn, msg)
+  await procCall handleFindNode(KadDHT(kad), stream, msg)

@@ -19,10 +19,10 @@ proc send*(
 
   let connRes = catch:
     await disco.switch.dial(peerId, addrs, disco.codec)
-  let conn = connRes.valueOr:
+  let stream = connRes.valueOr:
     return err("dialing peer failed: " & error.msg)
   defer:
-    await conn.close()
+    await stream.close()
 
   let encodedMsg = msg.encode().buffer
 
@@ -33,9 +33,9 @@ proc send*(
   var readRes: Result[seq[byte], ref CatchableError]
   cd_message_duration_ms.time(labelValues = [$msg.msgType]):
     writeRes = catch:
-      await conn.writeLp(encodedMsg)
+      await stream.writeLp(encodedMsg)
     readRes = catch:
-      await conn.readLp(MaxMsgSize)
+      await stream.readLp(MaxMsgSize)
 
   if writeRes.isErr:
     return err("connection writing failed: " & writeRes.error.msg)
@@ -51,7 +51,7 @@ proc send*(
   return ok(reply)
 
 proc handleMessage*(
-    disco: ServiceDiscovery, conn: Connection, msg: Message
+    disco: ServiceDiscovery, stream: Stream, msg: Message
 ) {.async: (raises: [CancelledError]).} =
   cd_messages_received.inc(labelValues = [$msg.msgType])
 
@@ -67,6 +67,6 @@ proc handleMessage*(
   cd_message_bytes_sent.inc(bytes.len.float64, labelValues = [$msg.msgType])
 
   let writeRes = catch:
-    await conn.writeLp(bytes)
+    await stream.writeLp(bytes)
   if writeRes.isErr:
     error "failed to send message response", error = writeRes.error.msg

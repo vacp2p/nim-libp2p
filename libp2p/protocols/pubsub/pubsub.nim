@@ -146,9 +146,9 @@ type
     ## This callback can be used to reject topic we're not interested in
 
   PublishParams* = object
-    ## Used to indicate whether a message will be broadcasted using a custom connection
-    ## defined when instantiating Pubsub, or if it will use the normal connection
-    useCustomConn*: bool
+    ## Used to indicate whether a message will be broadcasted using a custom stream
+    ## defined when instantiating Pubsub, or if it will use the normal send stream
+    useCustomStream*: bool
 
     ## Can be used to avoid having the node reply to IWANT messages when initially 
     ## broadcasting a message, it's only after relaying its own message that the
@@ -199,7 +199,7 @@ type
     rng*: Rng
 
     knownTopics*: HashSet[string]
-    customConnCallbacks*: Opt[CustomConnectionCallbacks]
+    customStreamCallbacks*: Opt[CustomStreamCallbacks]
 
 proc topicLabel*(p: PubSub, topic: string): string {.inline.} =
   ## returns value to be used for `topic` labels.
@@ -221,7 +221,7 @@ proc send*(
     peer: PubSubPeer,
     msg: RPCMsg,
     priority: MessagePriority,
-    useCustomConn: bool = false,
+    useCustomStream: bool = false,
 ) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to the specified remote peer in the PubSub network.
   ##
@@ -234,14 +234,14 @@ proc send*(
   ##   and sent only after all high priority messages have been sent.
 
   trace "sending pubsub message to peer", peer, rpcMsg = shortLog(msg)
-  peer.send(msg, p.anonymize, priority, useCustomConn)
+  peer.send(msg, p.anonymize, priority, useCustomStream)
 
 proc broadcast*(
     p: PubSub,
     sendPeers: auto, # Iteratble[PubSubPeer]
     msg: RPCMsg,
     priority: MessagePriority,
-    useCustomConn: bool = false,
+    useCustomStream: bool = false,
 ) {.raises: [].} =
   ## This procedure attempts to send a `msg` (of type `RPCMsg`) to a specified group of peers in the PubSub network.
   ##
@@ -289,12 +289,12 @@ proc broadcast*(
 
   if anyIt(sendPeers, it.hasObservers):
     for peer in sendPeers:
-      p.send(peer, msg, priority, useCustomConn)
+      p.send(peer, msg, priority, useCustomStream)
   else:
     # Fast path that only encodes message once
     let encoded = encodeRpcMsg(msg, p.anonymize)
     for peer in sendPeers:
-      asyncSpawn peer.sendEncoded(encoded, priority, useCustomConn)
+      asyncSpawn peer.sendEncoded(encoded, priority, useCustomStream)
 
 proc sendSubs*(
     p: PubSub, peer: PubSubPeer, subTopics: openArray[string], subscribe: bool
@@ -356,7 +356,7 @@ method onNewPeer(p: PubSub, peer: PubSubPeer) {.base, gcsafe.} =
 method onPubSubPeerEvent*(
     p: PubSub, peer: PubSubPeer, event: PubSubPeerEvent
 ) {.base, gcsafe.} =
-  # Peer event is raised for the send connection in particular
+  # Peer event is raised for the send stream in particular
   case event.kind
   of PubSubPeerEventKind.StreamOpened:
     if p.topics.len > 0:
@@ -380,13 +380,13 @@ method getOrCreatePeer*(
     else:
       protosToDial
 
-  proc getConn(): Future[Connection] {.
-      async: (raises: [CancelledError, GetConnDialError])
+  proc getStream(): Future[Stream] {.
+      async: (raises: [CancelledError, GetStreamDialError])
   .} =
     try:
       return await p.switch.dial(peerId, protos)
     except DialFailedError as e:
-      raise (ref GetConnDialError)(parent: e, msg: e.msg)
+      raise (ref GetStreamDialError)(parent: e, msg: e.msg)
 
   proc onEvent(peer: PubSubPeer, event: PubSubPeerEvent) {.gcsafe.} =
     p.onPubSubPeerEvent(peer, event)
@@ -394,11 +394,11 @@ method getOrCreatePeer*(
   # create new pubsub peer
   let pubSubPeer = PubSubPeer.new(
     peerId,
-    getConn,
+    getStream,
     onEvent,
     protoNegotiated,
     p.maxMessageSize,
-    customConnCallbacks = p.customConnCallbacks,
+    customStreamCallbacks = p.customStreamCallbacks,
   )
   debug "created new pubsub peer", peerId
 
@@ -451,7 +451,7 @@ template handleSelfPublishing*(p: PubSub, topic: string, data: seq[byte]) =
     await handleData(p, topic, data)
 
 method handleConn*(
-    p: PubSub, conn: Connection, proto: string
+    p: PubSub, stream: Stream, proto: string
 ) {.base, async: (raises: [CancelledError]).} =
   ## handle incoming connections
   ##
@@ -471,23 +471,23 @@ method handleConn*(
       await p.rpcHandler(peer, data)
     except PeerMessageDecodeError as e:
       trace "failed to decode message in peerHandler",
-        description = e.msg, conn, peer = peer
+        description = e.msg, stream, peer = peer
       # loop continues and invalid messages are swallowed
     except PeerRateLimitError as e:
       trace "peer rate limit exceeded in peerHandler",
-        description = e.msg, conn, peer = peer
+        description = e.msg, stream, peer = peer
       # loop needs to stop. we are doing this by closing connection
-      await conn.closeWithEOF()
+      await stream.closeWithEOF()
 
-  let peer = p.getOrCreatePeer(conn.peerId, @[], proto)
+  let peer = p.getOrCreatePeer(stream.peerId, @[], proto)
 
   try:
     peer.handler = peerHandler
-    await peer.runHandleLoop(conn)
+    await peer.runHandleLoop(stream)
   except CancelledError as exc:
     raise exc
   finally:
-    await conn.closeWithEOF()
+    await stream.closeWithEOF()
 
 method subscribePeer*(p: PubSub, peer: PeerId) {.base, gcsafe.} =
   ## subscribe to remote peer to receive/send pubsub
@@ -524,10 +524,10 @@ method onTopicSubscription*(
 
   # Notify others that we are no longer interested in the topic
   for _, peer in p.peers:
-    # If we don't have a sendConn yet, we will
-    # send the full sub list when we get the sendConn,
+    # If we don't have a sendStream yet, we will
+    # send the full sub list when we get the sendStream,
     # so no need to send it here
-    if peer.hasSendConn:
+    if peer.hasSendStream:
       p.sendSubs(peer, [topic], subscribed)
 
   if subscribed:
@@ -702,8 +702,7 @@ proc init*[PubParams: object | bool](
     maxMessageSize: int = 1024 * 1024,
     rng: Rng,
     parameters: PubParams = false,
-    customConnCallbacks: Opt[CustomConnectionCallbacks] =
-      Opt.none(CustomConnectionCallbacks),
+    customStreamCallbacks: Opt[CustomStreamCallbacks] = Opt.none(CustomStreamCallbacks),
 ): P {.raises: [InitializationError].} =
   let pubsub =
     when PubParams is bool:
@@ -719,7 +718,7 @@ proc init*[PubParams: object | bool](
         maxMessageSize: maxMessageSize,
         rng: rng,
         topicsHigh: int.high,
-        customConnCallbacks: customConnCallbacks,
+        customStreamCallbacks: customStreamCallbacks,
       )
     else:
       P(
@@ -735,7 +734,7 @@ proc init*[PubParams: object | bool](
         maxMessageSize: maxMessageSize,
         rng: rng,
         topicsHigh: int.high,
-        customConnCallbacks: customConnCallbacks,
+        customStreamCallbacks: customStreamCallbacks,
       )
 
   proc peerEventHandler(
