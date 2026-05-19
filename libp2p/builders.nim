@@ -78,7 +78,7 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
-    autonat: bool
+    autonatEnabled: bool
     autonatService: Opt[AutonatService]
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
@@ -307,7 +307,7 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b
 
 proc withAutonat*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
-  b.autonat = enabled
+  b.autonatEnabled = enabled
   b
 
 proc withAutonatV2Server*(
@@ -529,7 +529,7 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   b.autonatV2ServerConfig.withValue(config):
     switch.mount(AutonatV2.new(switch, config = config))
 
-  if b.autonat:
+  if b.autonatEnabled:
     switch.mount(Autonat.new(switch))
 
   b.circuitRelay.withValue(relay):
