@@ -12,7 +12,7 @@
 import bearssl/[rsa, rand, hash]
 import minasn1
 import results
-import stew/ctops
+import stew/[bitops2, ctops]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import ../utils/sequninit
@@ -97,6 +97,13 @@ template trimZeroes(b: seq[byte], pt, ptlen: untyped) =
     pt = cast[ptr byte](cast[uint](pt) + 1)
     ptlen -= 1
 
+proc bitLength(field: Asn1Field): int =
+  if len(field) == 0:
+    return 0
+
+  let first = field.buffer[field.offset]
+  ((len(field) - 1) shl 3) + bitWidth(first)
+
 proc random*[T: RsaKP](
     t: typedesc[T], rng: Rng, bits = DefaultKeySize, pubexp = DefaultPublicExponent
 ): RsaResult[T] =
@@ -106,7 +113,7 @@ proc random*[T: RsaKP](
   ## ``bits`` number of bits in RSA key, must be in
   ## range [2048, 4096] (default = 3072).
   ##
-  ## ``pubexp`` is RSA public exponent, which must be prime (default = 3).
+  ## ``pubexp`` is RSA public exponent, which must be prime (default = 65537).
   if bits < MinKeySize:
     return err(RsaLowSecurityError)
 
@@ -448,8 +455,9 @@ proc init*(key: var RsaPrivateKey, data: openArray[byte]): Result[void, Asn1Erro
   if rawiq.kind != Asn1Tag.Integer:
     return err(Asn1Error.Incorrect)
 
-  if len(rawn) >= (MinKeySize shr 3) and len(rawp) > 0 and len(rawq) > 0 and
-      len(rawdp) > 0 and len(rawdq) > 0 and len(rawiq) > 0:
+  let nBitlen = bitLength(rawn)
+  if nBitlen >= MinKeySize and len(rawp) > 0 and len(rawq) > 0 and len(rawdp) > 0 and
+      len(rawdq) > 0 and len(rawiq) > 0:
     key = new RsaPrivateKey
     key.buffer = @data
     key.pubk.n = addr key.buffer[rawn.offset]
@@ -468,7 +476,7 @@ proc init*(key: var RsaPrivateKey, data: openArray[byte]): Result[void, Asn1Erro
     key.seck.dqlen = uint(len(rawdq))
     key.seck.iqlen = uint(len(rawiq))
     key.pexplen = uint(len(rawprie))
-    key.seck.nBitlen = cast[uint32](len(rawn) shl 3)
+    key.seck.nBitlen = cast[uint32](nBitlen)
     ok()
   else:
     err(Asn1Error.Incorrect)
@@ -531,7 +539,7 @@ proc init*(key: var RsaPublicKey, data: openArray[byte]): Result[void, Asn1Error
   if rawe.kind != Asn1Tag.Integer:
     return err(Asn1Error.Incorrect)
 
-  if len(rawn) >= (MinKeySize shr 3) and len(rawe) > 0:
+  if bitLength(rawn) >= MinKeySize and len(rawe) > 0:
     key = new RsaPublicKey
     key.buffer = @data
     key.key.n = addr key.buffer[rawn.offset]
