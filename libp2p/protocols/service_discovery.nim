@@ -94,19 +94,19 @@ proc new*(
     return disco
 
   disco.handler = proc(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     defer:
-      await conn.close()
-    while not conn.atEof:
+      await stream.close()
+    while not stream.atEof:
       let buf =
         try:
-          await conn.readLp(MaxMsgSize)
+          await stream.readLp(MaxMsgSize)
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
           debug "Read error when handling service-discovery RPC",
-            conn = conn, err = exc.msg
+            stream = stream, err = exc.msg
           return
       let msg = Message.decode(buf).valueOr:
         debug "Failed to decode message", err = error
@@ -114,19 +114,19 @@ proc new*(
 
       case msg.msgType
       of MessageType.findNode:
-        await disco.handleFindNode(conn, msg)
+        await disco.handleFindNode(stream, msg)
       of MessageType.putValue:
-        await disco.handlePutValue(conn, msg)
+        await disco.handlePutValue(stream, msg)
       of MessageType.getValue:
-        await disco.handleGetValue(conn, msg)
+        await disco.handleGetValue(stream, msg)
       of MessageType.addProvider:
-        await disco.handleAddProvider(conn, msg)
+        await disco.handleAddProvider(stream, msg)
       of MessageType.getProviders:
-        await disco.handleGetProviders(conn, msg)
+        await disco.handleGetProviders(stream, msg)
       of MessageType.ping:
-        await disco.handlePing(conn, msg)
+        await disco.handlePing(stream, msg)
       else:
-        await disco.handleMessage(conn, msg)
+        await disco.handleMessage(stream, msg)
 
   return disco
 

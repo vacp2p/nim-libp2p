@@ -88,15 +88,16 @@ proc randomPeerId*(): PeerId =
     raise newException(Defect, exc.msg)
 
 proc getPubSubPeer*(p: TestGossipSub, peerId: PeerId): PubSubPeer =
-  proc getConn(): Future[Connection] {.
-      async: (raises: [CancelledError, GetConnDialError])
+  proc getStream(): Future[Stream] {.
+      async: (raises: [CancelledError, GetStreamDialError])
   .} =
     try:
       return await p.switch.dial(peerId, GossipSubCodec_12)
     except DialFailedError as e:
-      raise (ref GetConnDialError)(parent: e, msg: e.msg)
+      raise (ref GetStreamDialError)(parent: e, msg: e.msg)
 
-  let pubSubPeer = PubSubPeer.new(peerId, getConn, nil, GossipSubCodec_12, 1024 * 1024)
+  let pubSubPeer =
+    PubSubPeer.new(peerId, getStream, nil, GossipSubCodec_12, 1024 * 1024)
   debug "created new pubsub peer", peerId
 
   p.peers[peerId] = pubSubPeer
@@ -110,7 +111,7 @@ proc setupGossipSubWithPeers*(
     populateGossipsub: bool = false,
     populateMesh: bool = false,
     populateFanout: bool = false,
-): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
+): (TestGossipSub, seq[Stream], seq[PubSubPeer]) =
   let gossipSub = TestGossipSub.init(makeStandardSwitch(), rng = rng())
 
   for topic in topics:
@@ -120,7 +121,7 @@ proc setupGossipSubWithPeers*(
     gossipSub.gossipsub[topic] = initHashSet[PubSubPeer]()
     gossipSub.fanout[topic] = initHashSet[PubSubPeer]()
 
-  var conns = newSeq[Connection]()
+  var conns = newSeq[Stream]()
   var peers = newSeq[PubSubPeer]()
   for i in 0 ..< numPeers:
     let conn = TestBufferStream.new(noop)
@@ -128,7 +129,7 @@ proc setupGossipSubWithPeers*(
     let peerId = randomPeerId()
     conn.peerId = peerId
     let peer = gossipSub.getPubSubPeer(peerId)
-    peer.sendConn = conn
+    peer.sendStream = conn
     peer.handler = voidPeerHandler
     peers &= peer
     for topic in topics:
@@ -148,12 +149,12 @@ proc setupGossipSubWithPeers*(
     populateGossipsub: bool = false,
     populateMesh: bool = false,
     populateFanout: bool = false,
-): (TestGossipSub, seq[Connection], seq[PubSubPeer]) =
+): (TestGossipSub, seq[Stream], seq[PubSubPeer]) =
   return setupGossipSubWithPeers(
     numPeers, @[topic], populateGossipsub, populateMesh, populateFanout
   )
 
-proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Connection]) {.async.} =
+proc teardownGossipSub*(gossipSub: TestGossipSub, conns: seq[Stream]) {.async.} =
   await allFuturesRaising(conns.mapIt(it.close()))
 
 func defaultMsgIdProvider*(m: Message): Result[MessageId, ValidationResult] =

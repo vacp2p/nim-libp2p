@@ -82,18 +82,18 @@ proc new*(
     return kad
 
   kad.handler = proc(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     defer:
-      await conn.close()
-    while not conn.atEof:
+      await stream.close()
+    while not stream.atEof:
       let buf =
         try:
-          await conn.readLp(MaxMsgSize)
+          await stream.readLp(MaxMsgSize)
         except LPStreamEOFError:
           return
         except LPStreamError as exc:
-          debug "Read error when handling kademlia RPC", conn = conn, err = exc.msg
+          debug "Read error when handling kademlia RPC", stream = stream, err = exc.msg
           return
       let msg = Message.decode(buf).valueOr:
         debug "Failed to decode message", err = error
@@ -104,17 +104,17 @@ proc new*(
 
       case msg.msgType
       of MessageType.findNode:
-        await kad.handleFindNode(conn, msg)
+        await kad.handleFindNode(stream, msg)
       of MessageType.putValue:
-        await kad.handlePutValue(conn, msg)
+        await kad.handlePutValue(stream, msg)
       of MessageType.getValue:
-        await kad.handleGetValue(conn, msg)
+        await kad.handleGetValue(stream, msg)
       of MessageType.addProvider:
-        await kad.handleAddProvider(conn, msg)
+        await kad.handleAddProvider(stream, msg)
       of MessageType.getProviders:
-        await kad.handleGetProviders(conn, msg)
+        await kad.handleGetProviders(stream, msg)
       of MessageType.ping:
-        await kad.handlePing(conn, msg)
+        await kad.handlePing(stream, msg)
       of MessageType.register:
         trace "Unsupported message REGISTER"
         continue

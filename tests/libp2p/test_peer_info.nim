@@ -76,6 +76,53 @@ suite "PeerInfo":
     waitFor peerInfo.update()
     check peerInfo.addrs == multiAddresses2
 
+  test "Announced addresses override mapper chain":
+    let
+      seckey = PrivateKey.random(ECDSA, rng()).get()
+      listenAddrs = @[MultiAddress.init("/ip4/0.0.0.0/tcp/24").tryGet()]
+      mapperAddrs = @[MultiAddress.init("/ip4/8.8.8.8/tcp/33").tryGet()]
+      announcedAddrs = @[
+        MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet(),
+        MultiAddress.init("/ip4/203.0.113.7/udp/9000/quic-v1").tryGet(),
+      ]
+
+    var mapperCalled = false
+    proc addressMapper(
+        input: seq[MultiAddress]
+    ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+      mapperCalled = true
+      return mapperAddrs
+
+    let peerInfo = PeerInfo.new(
+      seckey,
+      listenAddrs,
+      addressMappers = @[addressMapper],
+      announcedAddrs = announcedAddrs,
+    )
+    waitFor peerInfo.update()
+
+    # announcedAddrs wins: mapper chain is bypassed entirely
+    check:
+      peerInfo.addrs == announcedAddrs
+      mapperCalled == false
+
+  test "addressPolicy still filters announced addresses":
+    let
+      seckey = PrivateKey.random(ECDSA, rng()).get()
+      publicAddr = MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet()
+      privateAddr = MultiAddress.init("/ip4/192.168.1.42/tcp/9000").tryGet()
+      announcedAddrs = @[publicAddr, privateAddr]
+
+    proc onlyPublic(ma: MultiAddress): bool {.gcsafe, raises: [].} =
+      ma == publicAddr
+
+    let peerInfo = PeerInfo.new(
+      seckey, [], addressPolicy = onlyPublic, announcedAddrs = announcedAddrs
+    )
+    waitFor peerInfo.update()
+
+    check peerInfo.addrs == @[publicAddr]
+
   test "Observers fire on notifyObservers":
     let
       seckey = PrivateKey.random(ECDSA, rng()).get()

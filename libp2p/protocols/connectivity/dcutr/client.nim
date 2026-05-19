@@ -34,7 +34,7 @@ proc startSync*(
 
   var
     peerDialableAddrs: seq[MultiAddress]
-    stream: Connection
+    stream: Stream
   try:
     var ourDialableAddrs = getHolePunchableAddrs(addrs)
     if ourDialableAddrs.len == 0:

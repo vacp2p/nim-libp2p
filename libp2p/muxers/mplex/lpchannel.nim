@@ -44,7 +44,7 @@ const
 type LPChannel* = ref object of BufferStream
   id*: uint64 # channel id
   name*: string # name of the channel (for debugging)
-  conn*: Connection # wrapped connection used to for writing
+  conn*: RawConn # wrapped connection used to for writing
   initiator*: bool # initiated remotely or locally flag
   isOpen*: bool # has channel been opened
   closedLocal*: bool # has channel been closed locally
@@ -291,7 +291,7 @@ method getWrapped*(s: LPChannel): Connection =
 proc init*(
     L: type LPChannel,
     id: uint64,
-    conn: Connection,
+    conn: RawConn,
     initiator: bool,
     name: string = "",
     timeout: Duration = DefaultChanTimeout,

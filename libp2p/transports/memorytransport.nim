@@ -23,7 +23,7 @@ logScope:
 
 type MemoryTransport* = ref object of Transport
   rng: Rng
-  connections: seq[Connection]
+  connections: seq[RawConn]
   listener: Opt[MemoryListener]
 
 proc new*(T: typedesc[MemoryTransport], upgrade: Upgrade = Upgrade(), rng: Rng): T =
@@ -72,7 +72,7 @@ method stop*(self: MemoryTransport) {.async: (raises: []).} =
 
 method accept*(
     self: MemoryTransport
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   if not self.running:
     raise newException(MemoryTransportError, "Transport closed, no more connections!")
 
@@ -97,7 +97,7 @@ method dial*(
     hostname: string,
     ma: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   try:
     let listener = getInstance().dial($ma)
     let conn = await listener.dial()
@@ -112,7 +112,7 @@ method dial*(
 
 proc dial*(
     self: MemoryTransport, ma: MultiAddress, peerId: Opt[PeerId] = Opt.none(PeerId)
-): Future[Connection] {.gcsafe.} =
+): Future[RawConn] {.gcsafe.} =
   self.dial("", ma)
 
 method handles*(self: MemoryTransport, ma: MultiAddress): bool {.gcsafe, raises: [].} =

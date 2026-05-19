@@ -9,10 +9,10 @@ import ../../../libp2p/protocols/pubsub/gossipsub/types
 import ../../../libp2p/peerid
 import ../../tools/[unittest, crypto]
 
-proc dummyGetConn(): Future[Connection] {.
-    async: (raises: [CancelledError, GetConnDialError])
+proc dummyGetConn(): Future[Stream] {.
+    async: (raises: [CancelledError, GetStreamDialError])
 .} =
-  raise newException(GetConnDialError, "this is not a real connection")
+  raise newException(GetStreamDialError, "this is not a real connection")
 
 type PendingConnection = ref object of Connection
   # These futures never finish, they're used to grow the high priority queue
@@ -137,7 +137,7 @@ suite "Priority queue behavior":
     defer:
       peer.stopSendNonHighPriorityTask()
 
-    peer.sendConn = conn
+    peer.sendStream = conn
 
     # These sends stay pending, keeping the high-priority backlog visible until
     # the underlying transport write completes.
@@ -156,7 +156,7 @@ suite "Priority queue behavior":
       not conn.pendingWrites[1].finished
       not conn.pendingWrites[2].finished
       not disconnectRequestedForTest[]
-      peer.hasSendConn()
+      peer.hasSendStream()
 
     await conn.close()
     let drain1 = callbacksDrained(conn.pendingWrites[0])
@@ -178,7 +178,7 @@ suite "Priority queue behavior":
     defer:
       peer.stopSendNonHighPriorityTask()
 
-    peer.sendConn = conn
+    peer.sendStream = conn
 
     let highMsg = @[1'u8, 2, 3]
     let mediumMsgs = @[@[10'u8, 0, 0], @[11'u8, 0, 0]]
@@ -201,7 +201,7 @@ suite "Priority queue behavior":
 
     check:
       not disconnectRequestedForTest[]
-      peer.hasSendConn()
+      peer.hasSendStream()
 
   asyncTest "Low priority messages wait while high priority send is pending":
     let disconnectRequestedForTest = new bool
@@ -213,7 +213,7 @@ suite "Priority queue behavior":
     defer:
       peer.stopSendNonHighPriorityTask()
 
-    peer.sendConn = conn
+    peer.sendStream = conn
 
     let highMsg = @[1'u8, 2, 3]
     let lowMsgs = @[@[20'u8, 0, 0], @[21'u8, 0, 0]]
@@ -236,7 +236,7 @@ suite "Priority queue behavior":
 
     check:
       not disconnectRequestedForTest[]
-      peer.hasSendConn()
+      peer.hasSendStream()
 
   asyncTest "Empty queues fast-path medium and low sends while returning completed futures":
     let mediumPeer = createTestPeer()
@@ -248,8 +248,8 @@ suite "Priority queue behavior":
       lowPeer.stopSendNonHighPriorityTask()
 
     # This is required so we can test the send path
-    mediumPeer.sendConn = mediumConn
-    lowPeer.sendConn = lowConn
+    mediumPeer.sendStream = mediumConn
+    lowPeer.sendStream = lowConn
 
     let mediumFut = mediumPeer.sendEncoded(@[1'u8, 2, 3], MessagePriority.Medium)
     let lowFut = lowPeer.sendEncoded(@[4'u8, 5, 6], MessagePriority.Low)
@@ -259,8 +259,8 @@ suite "Priority queue behavior":
       lowFut.finished
       mediumConn.pendingWrites.len == 1
       lowConn.pendingWrites.len == 1
-      mediumPeer.hasSendConn()
-      lowPeer.hasSendConn()
+      mediumPeer.hasSendStream()
+      lowPeer.hasSendStream()
 
     await mediumConn.close()
     await lowConn.close()

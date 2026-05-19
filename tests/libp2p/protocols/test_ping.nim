@@ -30,7 +30,7 @@ suite "Ping":
     transport2 {.threadvar.}: Transport
     msListen {.threadvar.}: MultistreamSelect
     msDial {.threadvar.}: MultistreamSelect
-    conn {.threadvar.}: Connection
+    stream {.threadvar.}: Stream
     pingReceivedCount {.threadvar.}: int
 
   asyncSetup:
@@ -51,7 +51,7 @@ suite "Ping":
     pingReceivedCount = 0
 
   asyncTeardown:
-    await conn.close()
+    await stream.close()
     await acceptFut
     await transport1.stop()
     await serverFut
@@ -66,10 +66,10 @@ suite "Ping":
       await msListen.handle(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.addrs[0])
+    stream = await transport2.dial(transport1.addrs[0])
 
-    discard await msDial.select(conn, PingCodec)
-    let time = await pingProto2.ping(conn)
+    discard await msDial.select(stream, PingCodec)
+    let time = await pingProto2.ping(stream)
 
     check not time.isZero()
 
@@ -82,23 +82,23 @@ suite "Ping":
       discard await pingProto1.ping(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.addrs[0])
+    stream = await transport2.dial(transport1.addrs[0])
 
-    await msDial.handle(conn)
+    await msDial.handle(stream)
     check pingReceivedCount == 1
 
   asyncTest "bad ping data ack":
     type FakePing = ref object of LPProtocol
     let fakePingProto = FakePing()
     proc fakeHandle(
-        conn: Connection, proto: string
+        stream: Stream, proto: string
     ) {.async: (raises: [CancelledError]).} =
       try:
         var
           buf: array[32, byte]
           fakebuf: array[32, byte]
-        await conn.readExactly(addr buf[0], 32)
-        await conn.write(@fakebuf)
+        await stream.readExactly(addr buf[0], 32)
+        await stream.write(@fakebuf)
       except LPStreamError:
         raiseAssert "LPStreamError while handling connection"
 
@@ -112,9 +112,9 @@ suite "Ping":
       await msListen.handle(c)
 
     acceptFut = acceptHandler()
-    conn = await transport2.dial(transport1.addrs[0])
+    stream = await transport2.dial(transport1.addrs[0])
 
-    discard await msDial.select(conn, PingCodec)
+    discard await msDial.select(stream, PingCodec)
 
     expect WrongPingAckError:
-      discard await pingProto2.ping(conn)
+      discard await pingProto2.ping(stream)

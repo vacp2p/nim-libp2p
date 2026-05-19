@@ -4,7 +4,7 @@
 import std/[tables, sequtils]
 from peerinfo import PeerId
 from muxers/muxer import Muxer
-from stream/connection import Connection, Direction
+from stream/connection import Direction
 
 type MuxerStore* = ref object
   muxed: Table[PeerId, seq[Muxer]]

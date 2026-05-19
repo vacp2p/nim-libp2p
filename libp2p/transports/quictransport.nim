@@ -28,13 +28,14 @@ logScope:
 type
   P2PConnection = connection.Connection
   QuicConnection = lsquic.Connection
+  LsquicStream = lsquic.Stream
   QuicTransportError* = object of transport.TransportError
   QuicTransportDialError* = object of transport.TransportDialError
   QuicTransportAcceptStopped* = object of QuicTransportError
 
   QuicStream* = ref object of P2PConnection
     session: QuicSession
-    stream: Stream
+    stream: LsquicStream
 
   QuicSession* = ref object of P2PConnection
     connection: QuicConnection
@@ -51,7 +52,7 @@ initializeLsquic()
 
 proc new(
     _: type QuicStream,
-    stream: Stream,
+    stream: LsquicStream,
     dir: Direction,
     session: QuicSession,
     oaddr: Opt[MultiAddress],
@@ -170,7 +171,7 @@ proc getStream(
   if session.closed:
     raise newException(ConnectionClosedError, "session is closed")
 
-  var stream: Stream
+  var stream: LsquicStream
   case direction
   of Direction.In:
     stream = await session.connection.incomingStream()
@@ -218,16 +219,14 @@ when defined(libp2p_agents_metrics):
 
 method newStream*(
     m: QuicMuxer, name: string = "", lazy: bool = false
-): Future[P2PConnection] {.
-    async: (raises: [CancelledError, LPStreamError, MuxerError])
-.} =
+): Future[MuxedStream] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   try:
     return await m.session.getStream(Direction.Out)
   except ConnectionError as e:
     raise newException(MuxerError, "error in newStream: " & e.msg, e)
 
-method getStreams*(m: QuicMuxer): seq[connection.Connection] {.gcsafe.} =
-  var streams = newSeqOfCap[connection.Connection](m.session.streams.len)
+method getStreams*(m: QuicMuxer): seq[MuxedStream] {.gcsafe.} =
+  var streams = newSeqOfCap[MuxedStream](m.session.streams.len)
   for s in m.session.streams:
     streams.add(s)
   return streams
@@ -446,9 +445,7 @@ proc wrapConnection(
 
 method accept*(
     self: QuicTransport
-): Future[connection.Connection] {.
-    async: (raises: [transport.TransportError, CancelledError])
-.} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   if not self.running:
     # stop accept only when transport is stopped (not when error occurs)
     raise newException(QuicTransportAcceptStopped, "Quic transport stopped")
@@ -493,9 +490,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[connection.Connection] {.
-    async: (raises: [transport.TransportError, CancelledError])
-.} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   let taAddress =
     try:
       initTAddress(address).tryGet
@@ -527,25 +522,25 @@ method dial*(
     raise newException(QuicTransportDialError, "error in quic dial:" & e.msg, e)
 
 method upgrade*(
-    self: QuicTransport, conn: P2PConnection, peerId: Opt[PeerId]
+    self: QuicTransport, conn: RawConn, peerId: Opt[PeerId]
 ): Future[Muxer] {.async: (raises: [CancelledError, LPError]).} =
   let muxer = QuicMuxer.new(conn, peerId)
-  muxer.streamHandler = proc(conn: P2PConnection) {.async: (raises: []).} =
+  muxer.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
     trace "Starting stream handler"
     try:
       let quicUpgrader = QuicUpgrade(self.upgrader)
       quicUpgrader.connManager.withValue(connManager):
-        let ready = await connManager.waitForPeerReady(conn.peerId)
+        let ready = await connManager.waitForPeerReady(stream.peerId)
         if not ready:
-          debug "Timed out waiting for peer ready before handling stream", conn
+          debug "Timed out waiting for peer ready before handling stream", stream
           return
-      await self.upgrader.ms.handle(conn) # handle incoming connection
+      await self.upgrader.ms.handle(stream) # handle incoming stream
     except CancelledError:
       return
     except CatchableError as exc:
-      trace "exception in stream handler", conn, msg = exc.msg
+      trace "exception in stream handler", stream, msg = exc.msg
     finally:
-      await conn.closeWithEOF()
-      trace "Stream handler done", conn
+      await stream.closeWithEOF()
+      trace "Stream handler done", stream
   muxer.handleFut = muxer.handle()
   return muxer

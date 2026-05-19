@@ -307,7 +307,7 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     kad: Opt.none(KadDHT),
     relayClient: relayClientOpt,
     topicHandlers: initTable[PubsubTopicPair, TopicHandlerEntry](),
-    connections: initTable[ptr Libp2pStream, Connection](),
+    streams: initTable[ptr Libp2pStream, Stream](),
     streamReleaseWaiters:
       initTable[ptr Libp2pStream, Future[void].Raising([CancelledError])](),
     customProtocols: initTable[string, LPProtocol](),

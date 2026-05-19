@@ -25,7 +25,7 @@ proc new*(
     maxDialableAddrs = 8,
 ): T =
   proc handleStream(
-      stream: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     var peerDialableAddrs: seq[MultiAddress]
     try:
@@ -35,9 +35,14 @@ proc new*(
       var ourAddrs = switch.peerStore.getMostObservedProtosAndPorts()
         # likely empty when the peer is reachable
       if ourAddrs.len == 0:
-        # this list should be the same as the peer's public addrs when it is reachable
+        # this list should be the same as the peer's public addrs when it is reachable;
+        # prefer the explicit/expanded announce set (withAnnouncedAddresses, UPnP,
+        # autonat mappers) over a per-listen-addr guess when one is available
         ourAddrs =
-          switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+          if switch.peerInfo.addrs.len > 0:
+            switch.peerInfo.addrs
+          else:
+            switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
       var ourDialableAddrs = getHolePunchableAddrs(ourAddrs)
       if ourDialableAddrs.len == 0:
         debug "Dcutr receiver has no supported dialable addresses. Aborting Dcutr.",

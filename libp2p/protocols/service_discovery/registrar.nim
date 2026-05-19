@@ -270,7 +270,7 @@ proc processRetryTicket*(
   return t_wait
 
 proc sendRegisterResponse*(
-    conn: Connection,
+    stream: Stream,
     status: RegistrationStatus,
     closerPeers: seq[Peer],
     ticket: Opt[Ticket] = Opt.none(Ticket),
@@ -284,7 +284,7 @@ proc sendRegisterResponse*(
   )
   let bytes = msg.encode().buffer
   let writeRes = catch:
-    await conn.writeLp(bytes)
+    await stream.writeLp(bytes)
   if writeRes.isErr:
     error "failed to send register response", err = writeRes.error.msg
 

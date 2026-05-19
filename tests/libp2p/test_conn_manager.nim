@@ -16,7 +16,7 @@ type TestMuxer = ref object of Muxer
 
 method newStream*(
     m: TestMuxer, name: string = "", lazy: bool = false
-): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
+): Future[MuxedStream] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   Connection.new(m.peerId, Direction.Out)
 
 proc newMaxTotal(maxConnections = 10, maxConnsPerPeer = 1): ConnManager =
