@@ -35,15 +35,15 @@ type TestProto = ref object of LPProtocol
 {.push raises: [].}
 
 method init(p: TestProto) {.gcsafe.} =
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     try:
-      let msg = string.fromBytes(await conn.readLp(1024))
+      let msg = string.fromBytes(await stream.readLp(1024))
       check "Hello!" == msg
-      await conn.writeLp("Hello!")
+      await stream.writeLp("Hello!")
     except LPStreamError:
       raiseAssert "LPStreamError while handling connection"
     finally:
-      await conn.close()
+      await stream.close()
 
   p.codec = TestCodec
   p.handler = handle
@@ -55,7 +55,7 @@ proc makeSwitch(ma: MultiAddress, outgoing: bool, plaintext: bool = false): Swit
     privateKey = PrivateKey.random(ECDSA, rng()).get()
     peerInfo = PeerInfo.new(privateKey, @[ma])
 
-  proc createMplex(conn: Connection): Muxer =
+  proc createMplex(conn: RawConn): Muxer =
     Mplex.new(conn)
 
   let
@@ -140,7 +140,7 @@ suite "Noise":
     asyncSpawn transport1.start(server)
 
     proc acceptHandler() {.async.} =
-      var conn: Connection
+      var conn: RawConn
       expect LPStreamError:
         conn = await transport1.accept()
         discard await serverNoise.secure(conn, Opt.none(PeerId))
@@ -155,7 +155,7 @@ suite "Noise":
       )
       conn = await transport2.dial(transport1.addrs[0])
 
-    var sconn: Connection = nil
+    var sconn: SecureConn = nil
     expect NoiseDecryptTagError:
       sconn = await clientNoise.secure(conn, Opt.some(conn.peerId))
 

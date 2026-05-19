@@ -26,9 +26,9 @@ proc currentStats*(p: PerfClient): Stats =
   return p.stats
 
 proc perf*(
-    p: PerfClient, conn: Connection, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0
+    p: PerfClient, stream: Stream, sizeToWrite: uint64 = 0, sizeToRead: uint64 = 0
 ): Future[Duration] {.async: (raises: [CancelledError, LPStreamError]).} =
-  trace "starting performance benchmark", conn, sizeToWrite, sizeToRead
+  trace "starting performance benchmark", stream, sizeToWrite, sizeToRead
 
   p.stats = Stats()
 
@@ -39,10 +39,10 @@ proc perf*(
 
     let start = Moment.now()
 
-    await conn.write(toSeq(toBytesBE(sizeToRead)))
+    await stream.write(toSeq(toBytesBE(sizeToRead)))
     while size > 0:
       let toWrite = min(size, PerfSize)
-      await conn.write(buf[0 ..< toWrite])
+      await stream.write(buf[0 ..< toWrite])
       size -= toWrite.uint
 
       # set stats using copy value to avoid race condition
@@ -52,13 +52,13 @@ proc perf*(
       p.stats = statsCopy
 
     # Close write side of the stream (half-close) to signal EOF to server
-    await conn.closeWrite()
+    await stream.closeWrite()
 
     size = sizeToRead
 
     while size > 0:
       let toRead = min(size, PerfSize)
-      await conn.readExactly(addr buf[0], toRead.int)
+      await stream.readExactly(addr buf[0], toRead.int)
       size = size - toRead.uint
 
       # set stats using copy value to avoid race condition
@@ -68,7 +68,7 @@ proc perf*(
       p.stats = statsCopy
 
     # Close the connection after reading
-    await conn.close()
+    await stream.close()
   except CancelledError as e:
     raise e
   except LPStreamError as e:

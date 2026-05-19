@@ -31,7 +31,7 @@ suite "Tor transport":
   proc torTransProvider(): Transport =
     TorTransport.new(torServer, {ReuseAddr}, Upgrade())
 
-  proc streamProvider(conn: Connection, handle: bool = true): Muxer =
+  proc streamProvider(conn: RawConn, handle: bool = true): Muxer =
     let muxer = Mplex.new(conn)
     if handle:
       asyncSpawn muxer.handle()
@@ -139,18 +139,16 @@ suite "Tor transport":
 
     proc new(T: typedesc[TestProto]): T =
       # every incoming connections will be in handled in this closure
-      proc handle(
-          conn: Connection, proto: string
-      ) {.async: (raises: [CancelledError]).} =
+      proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
         try:
           var resp: array[6, byte]
-          await conn.readExactly(addr resp, 6)
+          await stream.readExactly(addr resp, 6)
           check string.fromBytes(resp) == "client"
-          await conn.write("server")
+          await stream.write("server")
         except LPStreamError:
           raiseAssert "Unexpected LPStreamError in Tor onion3 test handler"
         finally:
-          await conn.close()
+          await stream.close()
 
       return T.new(codecs = @[TestCodec], handler = handle)
 

@@ -105,9 +105,9 @@ proc createQuicTransport*(
 type TransportProvider* = proc(): Transport {.gcsafe, raises: [].}
 
 type StreamProvider* =
-  proc(conn: Connection, handle: bool = true): Muxer {.gcsafe, raises: [].}
+  proc(conn: RawConn, handle: bool = true): Muxer {.gcsafe, raises: [].}
 
-type StreamHandler* = proc(stream: Connection) {.async: (raises: []).}
+type StreamHandler* = proc(stream: MuxedStream) {.async: (raises: []).}
 
 proc extractPort*(ma: MultiAddress): int =
   var codec =
@@ -123,7 +123,7 @@ proc extractPort*(ma: MultiAddress): int =
   let port = int(fromBytesBE(uint16, portBytes))
   port
 
-template noExceptionWithStreamClose*(stream: Connection, body) =
+template noExceptionWithStreamClose*(stream: Stream, body) =
   try:
     body
   except CatchableError as exc:

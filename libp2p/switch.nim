@@ -150,14 +150,14 @@ method connect*(
 
 method dial*(
     s: Switch, peerId: PeerId, protos: seq[string]
-): Future[Connection] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
+): Future[Stream] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Open a stream to a connected peer with the specified `protos`
 
   s.dialer.dial(peerId, protos)
 
 proc dial*(
     s: Switch, peerId: PeerId, proto: string
-): Future[Connection] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
+): Future[Stream] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Open a stream to a connected peer with the specified `proto`
 
   dial(s, peerId, @[proto])
@@ -168,7 +168,7 @@ method dial*(
     addrs: seq[MultiAddress],
     protos: seq[string],
     forceDial = false,
-): Future[Connection] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
+): Future[Stream] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Connected to a peer and open a stream
   ## with the specified `protos`
 
@@ -176,7 +176,7 @@ method dial*(
 
 proc dial*(
     s: Switch, peerId: PeerId, addrs: seq[MultiAddress], proto: string
-): Future[Connection] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
+): Future[Stream] {.async: (raises: [DialFailedError, CancelledError], raw: true).} =
   ## Connected to a peer and open a stream
   ## with the specified `proto`
 
@@ -213,7 +213,7 @@ proc mount*[T: LPProtocol](
   s.peerInfo.notifyObservers()
 
 proc upgrader(
-    switch: Switch, trans: Transport, conn: Connection
+    switch: Switch, trans: Transport, conn: RawConn
 ) {.async: (raises: [CancelledError, UpgradeError]).} =
   try:
     let muxed = await trans.upgrade(conn, Opt.none(PeerId))
@@ -229,7 +229,7 @@ proc upgrader(
     raise newException(UpgradeError, "catchable error upgrader: " & e.msg, e)
 
 proc upgradeMonitor(
-    switch: Switch, trans: Transport, conn: Connection, upgrades: AsyncSemaphore
+    switch: Switch, trans: Transport, conn: RawConn, upgrades: AsyncSemaphore
 ) {.async: (raises: []).} =
   var semAcquired = false
   var upgradeSuccessful = false
@@ -264,7 +264,7 @@ proc accept(s: Switch, transport: Transport) {.async: (raises: []).} =
   let upgrades = newAsyncSemaphore(ConcurrentUpgrades)
 
   while transport.running:
-    var conn: Connection
+    var conn: RawConn
     try:
       debug "About to accept incoming connection"
       let slot = await s.connManager.getIncomingSlot()

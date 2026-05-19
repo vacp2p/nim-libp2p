@@ -40,32 +40,32 @@ proc new*(T: typedesc[Ping], handler: PingHandler = nil, rng: Rng): T =
   ping
 
 method init*(p: Ping) =
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     try:
-      trace "handling ping", conn
+      trace "handling ping", stream
       var buf: array[PingSize, byte]
-      await conn.readExactly(addr buf[0], PingSize)
-      trace "echoing ping", conn, pingData = @buf
-      await conn.write(@buf)
+      await stream.readExactly(addr buf[0], PingSize)
+      trace "echoing ping", stream, pingData = @buf
+      await stream.write(@buf)
       if not isNil(p.pingHandler):
-        await p.pingHandler(conn.peerId)
+        await p.pingHandler(stream.peerId)
     except CancelledError as exc:
       trace "cancelled ping handler"
       raise exc
     except CatchableError as exc:
-      trace "exception in ping handler", description = exc.msg, conn
+      trace "exception in ping handler", description = exc.msg, stream
 
   p.handler = handle
   p.codec = PingCodec
 
 proc ping*(
-    p: Ping, conn: Connection
+    p: Ping, stream: Stream
 ): Future[Duration] {.
     async: (raises: [CancelledError, LPStreamError, WrongPingAckError])
 .} =
-  ## Sends ping to `conn`, returns the delay
+  ## Sends ping to `stream`, returns the delay
 
-  trace "initiating ping", conn
+  trace "initiating ping", stream
 
   var
     randomBuf: array[PingSize, byte]
@@ -75,18 +75,18 @@ proc ping*(
 
   let startTime = Moment.now()
 
-  trace "sending ping", conn
-  await conn.write(@randomBuf)
+  trace "sending ping", stream
+  await stream.write(@randomBuf)
 
-  await conn.readExactly(addr resultBuf[0], PingSize)
+  await stream.readExactly(addr resultBuf[0], PingSize)
 
   let responseDur = Moment.now() - startTime
 
-  trace "got ping response", conn, responseDur
+  trace "got ping response", stream, responseDur
 
   for i in 0 ..< randomBuf.len:
     if randomBuf[i] != resultBuf[i]:
       raise newException(WrongPingAckError, "Incorrect ping data from peer!")
 
-  trace "valid ping response", conn
+  trace "valid ping response", stream
   return responseDur

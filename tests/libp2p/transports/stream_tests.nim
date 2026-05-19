@@ -17,7 +17,7 @@ template runTransportTest(
     streamProvider: StreamProvider,
     address: MultiAddress,
 ) =
-  proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+  proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
     noExceptionWithStreamClose(stream):
       var buffer: array[clientMessage.len, byte]
       await stream.readExactly(addr buffer, clientMessage.len)
@@ -25,7 +25,7 @@ template runTransportTest(
 
       await stream.write(serverMessage)
 
-  proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+  proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
     noExceptionWithStreamClose(stream):
       await stream.write(clientMessage)
 
@@ -58,12 +58,12 @@ template streamTransportTest*(
     runTransportTest(transportProvider, streamProvider, addressIP6.get())
 
   asyncTest "read/write Lp":
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         check (await stream.readLp(100)) == fromHex("1234")
         await stream.writeLp(fromHex("5678"))
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         await stream.writeLp(fromHex("1234"))
         check (await stream.readLp(100)) == fromHex("5678")
@@ -79,7 +79,7 @@ template streamTransportTest*(
   asyncTest "EOF handling - first readOnce at EOF + repeated reads":
     var serverHandlerDone = newFuture[void]()
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         var buffer: array[serverMessage.len, byte]
         await stream.readExactly(addr buffer, serverMessage.len)
@@ -99,7 +99,7 @@ template streamTransportTest*(
 
         serverHandlerDone.complete()
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         await stream.write(serverMessage)
         await stream.closeWrite()
@@ -118,7 +118,7 @@ template streamTransportTest*(
     var clientHandlerDone = newFuture[void]()
     var serverReadDone = newFuture[void]()
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # step 2: read message from client (ensure connection is established)
         var buffer: array[serverMessage.len, byte]
@@ -182,7 +182,7 @@ template streamTransportTest*(
   asyncTest "incomplete read":
     var serverHandlerDone = newFuture[void]()
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         var buffer: array[2 * serverMessage.len, byte]
 
@@ -194,7 +194,7 @@ template streamTransportTest*(
 
         serverHandlerDone.complete()
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         await stream.write(serverMessage)
         await stream.closeWrite()
@@ -209,7 +209,7 @@ template streamTransportTest*(
     )
 
   asyncTest "client closeWrite - server can still write":
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Client reads server data
         var buffer: array[serverMessage.len, byte]
@@ -223,7 +223,7 @@ template streamTransportTest*(
         # Client should still be able to write back to server
         await stream.write(clientMessage)
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Server sends data and closes its write side
         await stream.write(serverMessage)
@@ -247,14 +247,14 @@ template streamTransportTest*(
     )
 
   asyncTest "multiple empty writes before closeWrite":
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Even with multiple empty writes, reading should eventually get EOF
         var buffer: array[1, byte]
         let bytesRead = await stream.readOnce(addr buffer[0], 1)
         check bytesRead == 0 # Should get EOF
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Multiple empty writes
         await stream.write(@[])
@@ -271,14 +271,14 @@ template streamTransportTest*(
     )
 
   asyncTest "closeWrite immediately after newStream":
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Should get EOF immediately
         var buffer: array[1, byte]
         let bytesRead = await stream.readOnce(addr buffer[0], 1)
         check bytesRead == 0
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         # Close write immediately without any data
         await stream.closeWrite()
@@ -297,7 +297,7 @@ template streamTransportTest*(
     const numComplete = numStreams - numIncomplete
     let successfulReadsWG = newWaitGroup(numComplete)
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         try:
           var buffer: array[clientMessage.len, byte]
@@ -349,14 +349,14 @@ template streamTransportTest*(
     let message = newData(messageSize)
     var serverHandlerDone = newFuture[void]()
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         let receivedData =
           await readStreamByChunkTillEOF(stream, chunkSize, messageSize)
         check receivedData == message
         serverHandlerDone.complete()
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         await stream.write(message)
         await serverHandlerDone
@@ -375,7 +375,7 @@ template streamTransportTest*(
     const parallelWrites = 10
     var serverHandlerDone = newFuture[void]()
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         const expectedSize = messageSize * parallelWrites
         let receivedData =
@@ -396,7 +396,7 @@ template streamTransportTest*(
 
         serverHandlerDone.complete()
 
-    proc clientStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc clientStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         var writeFuts: seq[Future[void]] = @[]
         for i in 0 ..< parallelWrites:
@@ -423,7 +423,7 @@ template streamTransportTest*(
     var serverReadOrder: seq[byte] = @[]
     let serverHandlerWG = newWaitGroup(numStreams)
 
-    proc serverStreamHandler(stream: Connection) {.async: (raises: []).} =
+    proc serverStreamHandler(stream: MuxedStream) {.async: (raises: []).} =
       noExceptionWithStreamClose(stream):
         var receivedData: seq[byte] = @[]
 
@@ -455,7 +455,7 @@ template streamTransportTest*(
 
         # Use a capturing proc to properly bind loop variables
         proc startWriteAndClose(
-            stream: Connection, streamId: int
+            stream: MuxedStream, streamId: int
         ): Future[void] {.async.} =
           # Write data in chunks with random delays
           for j in 0 ..< chunkCount:
@@ -517,9 +517,9 @@ template streamTransportTest*(
       var futs: seq[Future[void]]
       for i in 0 ..< numConnections:
         # Use a proc to properly capture loop index
-        proc setupConnection(conn: Connection, handlerIndex: int) =
+        proc setupConnection(conn: RawConn, handlerIndex: int) =
           let muxer = streamProvider(conn, false)
-          muxer.streamHandler = proc(stream: Connection) {.async: (raises: []).} =
+          muxer.streamHandler = proc(stream: MuxedStream) {.async: (raises: []).} =
             noExceptionWithStreamClose(stream):
               # Read data in chunks with random delay
               var receivedData: seq[byte] = @[]

@@ -190,7 +190,7 @@ method handle*(m: Mplex) {.async: (raises: []).} =
 
 proc new*(
     M: type Mplex,
-    conn: Connection,
+    conn: RawConn,
     inTimeout: Duration = DefaultChanTimeout,
     outTimeout: Duration = DefaultChanTimeout,
     maxChannCount: int = MaxChannelCount,
@@ -205,7 +205,7 @@ proc new*(
 
 method newStream*(
     m: Mplex, name: string = "", lazy: bool = false
-): Future[Connection] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
+): Future[MuxedStream] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   let channel = m.newStreamInternal(timeout = m.inChannTimeout)
 
   if not lazy:
@@ -241,7 +241,7 @@ method close*(m: Mplex) {.async: (raises: []).} =
 
   trace "Closed mplex", m
 
-method getStreams*(m: Mplex): seq[Connection] {.gcsafe.} =
+method getStreams*(m: Mplex): seq[MuxedStream] {.gcsafe.} =
   for c in m.channels[false].values:
     result.add(c)
   for c in m.channels[true].values:

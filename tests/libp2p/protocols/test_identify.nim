@@ -43,7 +43,7 @@ suite "Identify":
       transport2 {.threadvar.}: Transport
       msListen {.threadvar.}: MultistreamSelect
       msDial {.threadvar.}: MultistreamSelect
-      conn {.threadvar.}: Connection
+      conn {.threadvar.}: RawConn
 
     asyncSetup:
       ma = @[
@@ -118,7 +118,7 @@ suite "Identify":
       msListen.addHandler(IdentifyCodec, identifyProto1)
 
       proc acceptHandler() {.async: (raises: [CancelledError]).} =
-        var conn: Connection
+        var conn: RawConn
         try:
           conn = await transport1.accept()
           await msListen.handle(conn)
@@ -161,7 +161,7 @@ suite "Identify":
       switch2 {.threadvar.}: Switch
       identifyPush1 {.threadvar.}: IdentifyPush
       identifyPush2 {.threadvar.}: IdentifyPush
-      conn {.threadvar.}: Connection
+      stream {.threadvar.}: Stream
 
     asyncSetup:
       let ma = @[
@@ -192,7 +192,7 @@ suite "Identify":
       await switch1.start()
       await switch2.start()
 
-      conn = await switch2.dial(
+      stream = await switch2.dial(
         switch1.peerInfo.peerId, switch1.peerInfo.addrs, IdentifyPushCodec
       )
 
@@ -232,7 +232,7 @@ suite "Identify":
           switch1.peerInfo.signedPeerRecord.envelope
 
     proc closeAll() {.async.} =
-      await conn.close()
+      await stream.close()
 
       await switch1.stop()
       await switch2.stop()
@@ -246,7 +246,7 @@ suite "Identify":
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] !=
           switch2.peerInfo.protocols
 
-      await identifyPush2.push(switch2.peerInfo, conn)
+      await identifyPush2.push(switch2.peerInfo, stream)
 
       checkUntilTimeout:
         switch1.peerStore[ProtoBook][switch2.peerInfo.peerId] ==
@@ -268,7 +268,7 @@ suite "Identify":
       let oldPeerId = switch2.peerInfo.peerId
       switch2.peerInfo = PeerInfo.new(PrivateKey.random(rng()).get())
 
-      await identifyPush2.push(switch2.peerInfo, conn)
+      await identifyPush2.push(switch2.peerInfo, stream)
 
       # We have no way to know when the message will is received
       # because it will fail validation inside push identify itself

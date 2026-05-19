@@ -39,15 +39,15 @@ suite "Switch":
 
   asyncTest "e2e use switch dial proto string":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in protocol handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
@@ -61,16 +61,16 @@ suite "Switch":
     await switch1.start()
     await switch2.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -81,15 +81,15 @@ suite "Switch":
 
   asyncTest "e2e use switch dial proto string with custom matcher":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in custom matcher protocol handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
@@ -108,16 +108,16 @@ suite "Switch":
     await switch1.start()
     await switch2.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, callProto)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -128,15 +128,15 @@ suite "Switch":
 
   asyncTest "e2e should not leak bufferstreams and connections on channel close":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in bufferstream leak test handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
@@ -150,16 +150,16 @@ suite "Switch":
     await switch1.start()
     await switch2.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -169,15 +169,15 @@ suite "Switch":
     check not switch2.isConnected(switch1.peerInfo.peerId)
 
   asyncTest "e2e use connect then dial":
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in connect-then-dial test handler"
       finally:
-        await conn.close()
+        await stream.close()
 
     let testProto = new TestProto
     testProto.codec = TestCodec
@@ -191,17 +191,17 @@ suite "Switch":
     await switch2.start()
 
     await switch2.connect(switch1.peerInfo.peerId, switch1.peerInfo.addrs)
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
 
-    await allFuturesRaising(conn.close(), switch1.stop(), switch2.stop())
+    await allFuturesRaising(stream.close(), switch1.stop(), switch2.stop())
 
     check not switch1.isConnected(switch2.peerInfo.peerId)
     check not switch2.isConnected(switch1.peerInfo.peerId)
@@ -642,15 +642,15 @@ suite "Switch":
 
     await allFuturesRaising(switches[0].stop())
 
-  asyncTest "e2e closing remote conn should not leak":
+  asyncTest "e2e closing remote raw connection should not leak":
     let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()]
 
     let transport = TcpTransport.new(upgrade = Upgrade())
     await transport.start(ma)
 
     proc acceptHandler() {.async.} =
-      let conn = await transport.accept()
-      await conn.closeWithEOF()
+      let rawConn = await transport.accept()
+      await rawConn.closeWithEOF()
 
     let handlerWait = acceptHandler()
     let switch = makeStandardSwitch(transport = TransportType.TCP)
@@ -670,9 +670,9 @@ suite "Switch":
     await allFuturesRaising(transport.stop(), switch.stop())
 
   asyncTest "e2e calling closeWithEOF on the same stream should not assert":
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        discard await conn.readLp(100)
+        discard await stream.readLp(100)
       except LPStreamError:
         check true # should be here
 
@@ -687,11 +687,11 @@ suite "Switch":
 
     await switch1.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     proc closeReader() {.async.} =
-      await conn.closeWithEOF()
+      await stream.closeWithEOF()
 
     var readers: seq[Future[void]]
     for i in 0 .. 10:
@@ -833,15 +833,15 @@ suite "Switch":
 
   asyncTest "e2e peer store":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in peer store test handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
@@ -857,16 +857,16 @@ suite "Switch":
       .build()
     await switch2.start()
 
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -886,15 +886,15 @@ suite "Switch":
 
   asyncTest "e2e LastSeenOutboundBook tracks outbound connections":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        let msg = string.fromBytes(await conn.readLp(1024))
+        let msg = string.fromBytes(await stream.readLp(1024))
         check "Hello!" == msg
-        await conn.writeLp("Hello!")
+        await stream.writeLp("Hello!")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in LastSeenOutboundBook test handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let testProto = new TestProto
@@ -909,16 +909,16 @@ suite "Switch":
     await switch2.start()
 
     # Switch2 dials switch1 (outbound from switch2's perspective)
-    let conn =
+    let stream =
       await switch2.dial(switch1.peerInfo.peerId, switch1.peerInfo.addrs, TestCodec)
 
     check switch1.isConnected(switch2.peerInfo.peerId)
     check switch2.isConnected(switch1.peerInfo.peerId)
 
-    await conn.writeLp("Hello!")
-    let msg = string.fromBytes(await conn.readLp(1024))
+    await stream.writeLp("Hello!")
+    let msg = string.fromBytes(await stream.readLp(1024))
     check "Hello!" == msg
-    await conn.close()
+    await stream.close()
 
     await allFuturesRaising(
       handleFinished.wait(5.seconds), switch1.stop(), switch2.stop()
@@ -939,17 +939,15 @@ suite "Switch":
       # this randomly locks the Windows CI job
       skip()
     else:
-      proc handle(
-          conn: Connection, proto: string
-      ) {.async: (raises: [CancelledError]).} =
+      proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
         try:
-          let msg = string.fromBytes(await conn.readLp(1024))
+          let msg = string.fromBytes(await stream.readLp(1024))
           check "Hello!" == msg
-          await conn.writeLp("Hello!")
+          await stream.writeLp("Hello!")
         except LPStreamError:
           raiseAssert "Unexpected LPStreamError in multiple local addresses test handler"
         finally:
-          await conn.close()
+          await stream.close()
 
       let testProto = new TestProto
       testProto.codec = TestCodec
@@ -974,16 +972,16 @@ suite "Switch":
       check IP4.matchPartial(switch1.peerInfo.addrs[0])
       check IP6.matchPartial(switch1.peerInfo.addrs[1])
 
-      let conn = await switch2.dial(
+      let stream = await switch2.dial(
         switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[0]], TestCodec
       )
 
       check switch1.isConnected(switch2.peerInfo.peerId)
       check switch2.isConnected(switch1.peerInfo.peerId)
 
-      await conn.writeLp("Hello!")
-      check "Hello!" == string.fromBytes(await conn.readLp(1024))
-      await conn.close()
+      await stream.writeLp("Hello!")
+      check "Hello!" == string.fromBytes(await stream.readLp(1024))
+      await stream.close()
 
       let connv6 = await switch3.dial(
         switch1.peerInfo.peerId, @[switch1.peerInfo.addrs[1]], TestCodec
@@ -1138,14 +1136,14 @@ suite "Switch":
 
   asyncTest "mount unstarted protocol":
     let handleFinished = newWaitGroup(1)
-    proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+    proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
       try:
-        check "test123" == string.fromBytes(await conn.readLp(1024))
-        await conn.writeLp("test456")
+        check "test123" == string.fromBytes(await stream.readLp(1024))
+        await stream.writeLp("test456")
       except LPStreamError:
         raiseAssert "Unexpected LPStreamError in mount unstarted protocol test handler"
       finally:
-        await conn.close()
+        await stream.close()
         handleFinished.done()
 
     let
@@ -1164,11 +1162,11 @@ suite "Switch":
     await testProto.start()
     dst.mount(testProto)
 
-    let conn = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
+    let stream = await src.dial(dst.peerInfo.peerId, dst.peerInfo.addrs, TestCodec)
 
-    await conn.writeLp("test123")
-    check "test456" == string.fromBytes(await conn.readLp(1024))
-    await conn.close()
+    await stream.writeLp("test123")
+    check "test456" == string.fromBytes(await stream.readLp(1024))
+    await stream.close()
     await handleFinished.wait(5.seconds)
 
   asyncTest "switch failing to start stops properly":
@@ -1192,6 +1190,36 @@ suite "Switch":
     await switch.start()
 
     await allFuturesRaising(switch.stop())
+
+  asyncTest "withAnnouncedAddresses overrides what peers see":
+    # Bind locally, but advertise a fake public address. Listen addrs must
+    # reflect the actual bound socket; announced addrs must be returned by
+    # peerInfo.addrs verbatim regardless of the mapper chain (including the
+    # wildcard resolver, which would normally rewrite/expand listenAddrs).
+    let
+      listenAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+      announcedAddr = MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet()
+      switch = SwitchBuilder
+        .new()
+        .withRng(rng())
+        .withAddresses(@[listenAddr])
+        .withAnnouncedAddresses(@[announcedAddr])
+        .withTcpTransport()
+        .withMplex()
+        .withNoise()
+        .build()
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    # Transport actually bound a local socket — listenAddrs is populated, and
+    # the *original* zero-port address has been resolved to something else.
+    check switch.peerInfo.listenAddrs.len == 1
+    check switch.peerInfo.listenAddrs[0] != listenAddr
+
+    # Announced set wins regardless of wildcard-resolver or other mappers.
+    check switch.peerInfo.addrs == @[announcedAddr]
 
   asyncTest "accept loop not blocked by upgrade semaphore":
     # Regression: old code held the upgrade semaphore in the accept loop, blocking
@@ -1245,9 +1273,9 @@ suite "Switch :: IdentifyPusher Service":
     # mount new protocol to switch2
     let codecs = "/switch/protocol/1.0.0"
     proc dummyHandler(
-        conn: Connection, proto: string
+        stream: Stream, proto: string
     ): Future[void] {.async: (raises: [CancelledError]).} =
-      await conn.close()
+      await stream.close()
 
     let dummy = LPProtocol.new(@[codecs], dummyHandler)
     await dummy.start()

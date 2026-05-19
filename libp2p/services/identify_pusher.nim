@@ -72,7 +72,7 @@ proc sendOne(p: IdentifyPusher, peerId: PeerId) {.async: (raises: [CancelledErro
   let muxer = p.connManager.selectMuxer(peerId)
   if muxer.isNil:
     return
-  var stream: Connection
+  var stream: Stream
   try:
     stream = await muxer.newStream()
     if stream.isNil:
