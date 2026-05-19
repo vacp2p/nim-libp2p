@@ -79,8 +79,7 @@ type
     nameResolver: NameResolver
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
-    autonat: bool
-    autonatService: Opt[AutonatService]
+    autonatEnabled: bool
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
     autonatV2Service: Opt[AutonatV2Service]
@@ -89,7 +88,6 @@ type
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
     kad: Opt[KadInfo]
-    services: seq[Service]
     identifyPusherEnabled: bool
     observedAddrManager: ObservedAddrManager
     enableWildcardResolver: bool
@@ -323,14 +321,8 @@ proc withNameResolver*(b: SwitchBuilder, nameResolver: NameResolver): SwitchBuil
   b.nameResolver = nameResolver
   b
 
-proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
-  b.autonat = true
-  b
-
-proc withAutonatService*(
-    b: SwitchBuilder, autonatService: Opt[AutonatService] = Opt.none(AutonatService)
-): SwitchBuilder =
-  b.autonatService = autonatService
+proc withAutonat*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
+  b.autonatEnabled = enabled
   b
 
 proc withAutonatV2Server*(
@@ -347,13 +339,6 @@ proc withAutonatV2*(
   b.autonatV2Service = Opt.some(
     AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
   )
-  b
-
-proc withAutonatV2Service*(
-    b: SwitchBuilder,
-    autonatV2Service: Opt[AutonatV2Service] = Opt.none(AutonatV2Service),
-): SwitchBuilder =
-  b.autonatV2Service = autonatV2Service
   b
 
 proc withHolePunching*(
@@ -376,7 +361,6 @@ when defined(libp2p_autotls_support):
       b.autotlsConfig = Opt.none(AutotlsConfig)
     else:
       b.autotlsConfig = Opt.some(config)
-
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
@@ -403,10 +387,6 @@ proc withKademlia*(
     config: KadDHTConfig = KadDHTConfig.new(),
 ): SwitchBuilder =
   b.kad = Opt.some(KadInfo(config: config, bootstrapNodes: bootstrapNodes))
-  b
-
-proc withServices*(b: SwitchBuilder, services: seq[Service]): SwitchBuilder =
-  b.services = services
   b
 
 proc withIdentifyPusher*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
@@ -490,12 +470,13 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   let ms = MultistreamSelect.new()
   let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
 
+  var services: seq[Service]
   var autotlsOpt = Opt.none(AutotlsService)
   when defined(libp2p_autotls_support):
     b.autotlsConfig.withValue(config):
       let autotlsService = AutotlsService.new(b.rng, config)
       autotlsOpt = Opt.some(autotlsService)
-      b.services.add(autotlsService)
+      services.add(autotlsService)
 
   var transports: seq[Transport]
   for tProvider in b.transports:
@@ -524,27 +505,24 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     nameResolver: b.nameResolver,
     rng: b.rng,
     muxedUpgrade: muxedUpgrade,
+    services: services,
   )
 
   return switch
 
 proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
-    b.services.add(WildcardAddressResolverService.new())
+    switch.services.add(WildcardAddressResolverService.new())
 
   b.autonatV2Service.withValue(autonatV2Service):
-    b.services.add(autonatV2Service)
-
-  b.autonatService.withValue(autonatService):
-    b.services.add(autonatService)
+    switch.services.add(autonatV2Service)
 
   b.hpService.withValue(hpservice):
-    b.services.add(hpservice)
+    switch.services.add(hpservice)
 
   if b.identifyPusherEnabled:
-    b.services.add(IdentifyPusher.new())
+    switch.services.add(IdentifyPusher.new())
 
-  switch.services = b.services
   for service in switch.services:
     service.setup(switch)
 
@@ -564,7 +542,7 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   b.autonatV2ServerConfig.withValue(config):
     switch.mount(AutonatV2.new(switch, config = config))
 
-  if b.autonat:
+  if b.autonatEnabled:
     switch.mount(Autonat.new(switch))
 
   b.circuitRelay.withValue(relay):

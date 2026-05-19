@@ -16,7 +16,7 @@ import
 import ../../tools/[unittest, crypto]
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
-  var builder = SwitchBuilder
+  var switch = SwitchBuilder
     .new()
     .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
@@ -24,9 +24,11 @@ proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
     .withMplex()
     .withNoise()
     .withCircuitRelay(r)
-  if not autorelay.isNil():
-    builder = builder.withServices(@[autorelay])
-  builder.build()
+    .build()
+
+  switch.add(autorelay)
+
+  return switch
 
 proc buildRelayMA(switchRelay: Switch, switchClient: Switch): seq[MultiAddress] =
   result = newSeq[MultiAddress]()
