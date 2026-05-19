@@ -254,12 +254,12 @@ proc sendRequestToLibP2PThread*(
     ctx: ptr LibP2PContext,
     reqType: RequestType,
     reqContent: pointer,
-    callback: ConnectionCallback,
+    callback: ffi_types.StreamCallback,
     userData: pointer,
 ): Result[void, string] =
-  ## Sends a request to the LibP2P thread for connection callbacks
+  ## Sends a request to the LibP2P thread for stream callbacks
   sendRequest(
-    ctx, reqType, reqContent, userData, CallbackKind.CONNECTION, cast[pointer](callback)
+    ctx, reqType, reqContent, userData, CallbackKind.STREAM, cast[pointer](callback)
   )
 
 proc sendRequestToLibP2PThread*(

@@ -64,19 +64,19 @@ template failWithBufferMsg(
   callback(RET_ERR.cint, nil, 0, msgPtr, msgLen, userData)
   return RET_ERR.cint
 
-template failIfConnNil(
-    conn: ptr Libp2pStream, callback: Libp2pCallback, userData: pointer, msg: string
+template failIfStreamNil(
+    stream: ptr Libp2pStream, callback: Libp2pCallback, userData: pointer, msg: string
 ) =
-  if conn.isNil():
+  if stream.isNil():
     failWithMsg(callback, userData, msg)
 
-template failIfConnNil(
-    conn: ptr Libp2pStream,
+template failIfStreamNil(
+    stream: ptr Libp2pStream,
     callback: Libp2pBufferCallback,
     userData: pointer,
     msg: string,
 ) =
-  if conn.isNil():
+  if stream.isNil():
     failWithBufferMsg(callback, userData, msg)
 
 template failIfDataMissing(
@@ -444,7 +444,7 @@ proc libp2p_dial(
     ctx: ptr LibP2PContext,
     peerId: cstring,
     proto: cstring,
-    callback: ConnectionCallback,
+    callback: ffi_types.StreamCallback,
     userData: pointer,
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
@@ -515,7 +515,7 @@ proc libp2p_public_key(
 
 proc libp2p_stream_readExactly(
     ctx: ptr LibP2PContext,
-    conn: ptr Libp2pStream,
+    stream: ptr Libp2pStream,
     dataLen: csize_t,
     callback: Libp2pBufferCallback,
     userData: pointer,
@@ -523,13 +523,13 @@ proc libp2p_stream_readExactly(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  failIfConnNil(conn, callback, userData, "connection is not set 1")
+  failIfStreamNil(stream, callback, userData, "stream is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
     RequestType.STREAM,
     StreamRequest.createShared(
-      StreamMsgType.READEXACTLY, conn = conn, readLen = dataLen
+      StreamMsgType.READEXACTLY, stream = stream, readLen = dataLen
     ),
     callback,
     CallbackKind.READ,
@@ -543,7 +543,7 @@ proc libp2p_stream_readExactly(
 
 proc libp2p_stream_readLp(
     ctx: ptr LibP2PContext,
-    conn: ptr Libp2pStream,
+    stream: ptr Libp2pStream,
     maxSize: int64,
     callback: Libp2pBufferCallback,
     userData: pointer,
@@ -551,12 +551,12 @@ proc libp2p_stream_readLp(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  failIfConnNil(conn, callback, userData, "connection is not set")
+  failIfStreamNil(stream, callback, userData, "stream is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
     RequestType.STREAM,
-    StreamRequest.createShared(StreamMsgType.READLP, conn = conn, maxSize = maxSize),
+    StreamRequest.createShared(StreamMsgType.READLP, stream = stream, maxSize = maxSize),
     callback,
     CallbackKind.READ,
     userData,
@@ -569,7 +569,7 @@ proc libp2p_stream_readLp(
 
 proc libp2p_stream_write(
     ctx: ptr LibP2PContext,
-    conn: ptr Libp2pStream,
+    stream: ptr Libp2pStream,
     data: ptr byte,
     dataLen: csize_t,
     callback: Libp2pCallback,
@@ -578,7 +578,7 @@ proc libp2p_stream_write(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  failIfConnNil(conn, callback, userData, "connection is not set")
+  failIfStreamNil(stream, callback, userData, "stream is not set")
 
   failIfDataMissing(data, dataLen, callback, userData)
 
@@ -586,7 +586,7 @@ proc libp2p_stream_write(
     ctx,
     RequestType.STREAM,
     StreamRequest.createShared(
-      StreamMsgType.WRITE, conn = conn, data = data, dataLen = dataLen
+      StreamMsgType.WRITE, stream = stream, data = data, dataLen = dataLen
     ),
     callback,
     userData,
@@ -599,7 +599,7 @@ proc libp2p_stream_write(
 
 proc libp2p_stream_writeLp(
     ctx: ptr LibP2PContext,
-    conn: ptr Libp2pStream,
+    stream: ptr Libp2pStream,
     data: ptr byte,
     dataLen: csize_t,
     callback: Libp2pCallback,
@@ -608,7 +608,7 @@ proc libp2p_stream_writeLp(
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  failIfConnNil(conn, callback, userData, "connection is not set")
+  failIfStreamNil(stream, callback, userData, "stream is not set")
 
   failIfDataMissing(data, dataLen, callback, userData)
 
@@ -616,7 +616,7 @@ proc libp2p_stream_writeLp(
     ctx,
     RequestType.STREAM,
     StreamRequest.createShared(
-      StreamMsgType.WRITELP, conn = conn, data = data, dataLen = dataLen
+      StreamMsgType.WRITELP, stream = stream, data = data, dataLen = dataLen
     ),
     callback,
     userData,
@@ -627,19 +627,19 @@ proc libp2p_stream_writeLp(
 
 proc libp2p_stream_close(
     ctx: ptr LibP2PContext,
-    conn: ptr Libp2pStream,
+    stream: ptr Libp2pStream,
     callback: Libp2pCallback,
     userData: pointer,
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  failIfConnNil(conn, callback, userData, "connection is not set")
+  failIfStreamNil(stream, callback, userData, "stream is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
     RequestType.STREAM,
-    StreamRequest.createShared(StreamMsgType.CLOSE, conn = conn),
+    StreamRequest.createShared(StreamMsgType.CLOSE, stream = stream),
     callback,
     userData,
   ).isOkOr:
@@ -649,19 +649,19 @@ proc libp2p_stream_close(
 
 proc libp2p_stream_closeWithEOF(
     ctx: ptr LibP2PContext,
-    conn: ptr Libp2pStream,
+    stream: ptr Libp2pStream,
     callback: Libp2pCallback,
     userData: pointer,
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  failIfConnNil(conn, callback, userData, "connection is not set")
+  failIfStreamNil(stream, callback, userData, "stream is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
     RequestType.STREAM,
-    StreamRequest.createShared(StreamMsgType.CLOSE_WITH_EOF, conn = conn),
+    StreamRequest.createShared(StreamMsgType.CLOSE_WITH_EOF, stream = stream),
     callback,
     userData,
   ).isOkOr:
@@ -671,19 +671,19 @@ proc libp2p_stream_closeWithEOF(
 
 proc libp2p_stream_release(
     ctx: ptr LibP2PContext,
-    conn: ptr Libp2pStream,
+    stream: ptr Libp2pStream,
     callback: Libp2pCallback,
     userData: pointer,
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()
   checkLibParams(ctx, callback, userData)
 
-  failIfConnNil(conn, callback, userData, "connection is not set")
+  failIfStreamNil(stream, callback, userData, "stream is not set")
 
   libp2p_thread.sendRequestToLibP2PThread(
     ctx,
     RequestType.STREAM,
-    StreamRequest.createShared(StreamMsgType.RELEASE, conn = conn),
+    StreamRequest.createShared(StreamMsgType.RELEASE, stream = stream),
     callback,
     userData,
   ).isOkOr:
@@ -1195,7 +1195,7 @@ proc libp2p_dial_circuit_relay(
     peerId: cstring,
     multiaddr: cstring,
     proto: cstring,
-    callback: ConnectionCallback,
+    callback: ffi_types.StreamCallback,
     userData: pointer,
 ): cint {.dynlib, exportc, cdecl.} =
   initializeLibrary()

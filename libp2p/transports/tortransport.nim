@@ -221,7 +221,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
   ##
   if not handlesDial(address):
@@ -271,7 +271,7 @@ method start*(
 
 method accept*(
     self: TorTransport
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## accept a new Tor connection
   ##
   let conn = await self.tcpTransport.accept()

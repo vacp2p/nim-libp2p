@@ -235,15 +235,15 @@ proc validateParameters*(parameters: TopicParams): Result[void, cstring] =
     ok()
 
 method init*(g: GossipSub) =
-  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handler(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
     try:
-      await g.handleConn(conn, proto)
+      await g.handleConn(stream, proto)
     except CancelledError as exc:
-      trace "gossipsub handler cancelled", conn
+      trace "gossipsub handler cancelled", stream
       raise exc
 
   g.handler = handler
@@ -755,15 +755,15 @@ method onTopicSubscription*(g: GossipSub, topic: string, subscribed: bool) =
     # Send unsubscribe (in reverse order to sub/graft)
     procCall PubSub(g).onTopicSubscription(topic, subscribed)
 
-proc makePeersForPublishUsingCustomConn(
+proc makePeersForPublishUsingCustomStream(
     g: GossipSub, topic: string
 ): HashSet[PubSubPeer] =
-  assert g.customConnCallbacks.isSome,
-    "GossipSub misconfiguration: useCustomConn was true, but no customConnCallbacks provided"
+  assert g.customStreamCallbacks.isSome,
+    "GossipSub misconfiguration: useCustomStream was true, but no customStreamCallbacks provided"
 
-  trace "Selecting peers via custom connection callback"
+  trace "Selecting peers via custom stream callback"
 
-  return g.customConnCallbacks.get().customPeerSelectionCB(
+  return g.customStreamCallbacks.get().customPeerSelectionCB(
       g.gossipsub.getOrDefault(topic),
       g.subscribedDirectPeers.getOrDefault(topic),
       g.mesh.getOrDefault(topic),
@@ -847,8 +847,8 @@ method publish*(
   let pubParams = publishParams.get(PublishParams())
 
   var peers =
-    if pubParams.useCustomConn:
-      g.makePeersForPublishUsingCustomConn(topic)
+    if pubParams.useCustomStream:
+      g.makePeersForPublishUsingCustomStream(topic)
     else:
       g.makePeersForPublishDefault(topic, data.len)
 
@@ -907,7 +907,7 @@ method publish*(
     peers,
     RPCMsg.withMessages(msg),
     MessagePriority.Medium,
-    useCustomConn = pubParams.useCustomConn,
+    useCustomStream = pubParams.useCustomStream,
   )
 
   libp2p_pubsub_messages_published.inc(

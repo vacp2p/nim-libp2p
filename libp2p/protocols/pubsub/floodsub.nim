@@ -171,15 +171,15 @@ method rpcHandler*(
   f.updateMetrics(rpcMsg)
 
 method init*(f: FloodSub) =
-  proc handler(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handler(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     ## main protocol handler that gets triggered on every
     ## connection for a protocol string
     ## e.g. ``/floodsub/1.0.0``, etc...
     ##
     try:
-      await f.handleConn(conn, proto)
+      await f.handleConn(stream, proto)
     except CancelledError as exc:
-      trace "floodsub handler cancelled", conn
+      trace "floodsub handler cancelled", stream
       raise exc
 
   f.handler = handler

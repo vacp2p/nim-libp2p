@@ -252,10 +252,10 @@ typedef void (*PeersCallback)(int callerRet, const char **peerIds,
                               size_t peerIdsLen, const char *msg, size_t len,
                               void *userData);
 
-// ConnectionCallback returns a stream handle that must be released with
+// StreamCallback returns a stream handle that must be released with
 // libp2p_stream_release when no longer needed.
-typedef void (*ConnectionCallback)(int callerRet, libp2p_stream_t *conn,
-                                   const char *msg, size_t len, void *userData);
+typedef void (*StreamCallback)(int callerRet, libp2p_stream_t *stream,
+                               const char *msg, size_t len, void *userData);
 
 // Protocol handlers run on the libp2p worker thread. They must not block while
 // waiting for libp2p callbacks. Use the asynchronous libp2p_stream_* APIs and
@@ -347,7 +347,7 @@ int libp2p_start(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
 int libp2p_stop(libp2p_ctx_t *ctx, Libp2pCallback callback, void *userData);
 
-// === Connection APIs ===
+// === Peer Connection APIs ===
 
 int libp2p_connect(libp2p_ctx_t *ctx, const char *peerId,
                    const char **multiaddrs, size_t multiaddrsLen,
@@ -367,7 +367,7 @@ int libp2p_connected_peers(libp2p_ctx_t *ctx, Direction dir,
 // === Stream APIs ===
 
 int libp2p_dial(libp2p_ctx_t *ctx, const char *peerId, const char *proto,
-                ConnectionCallback callback, void *userData);
+                StreamCallback callback, void *userData);
 
 // Mounts a custom protocol handler. The handler receives incoming streams for
 // proto and must eventually call libp2p_stream_release on each stream.
@@ -376,34 +376,34 @@ int libp2p_mount_protocol(libp2p_ctx_t *ctx, const char *proto,
                           Libp2pCallback callback, void *userData);
 
 // Read callbacks receive a buffer that is freed immediately after the callback.
-int libp2p_stream_readExactly(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_readExactly(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                               size_t dataLen, Libp2pBufferCallback callback,
                               void *userData);
 
-int libp2p_stream_readLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_readLp(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                          int64_t maxSize, Libp2pBufferCallback callback,
                          void *userData);
 
 // Write calls copy the input buffer before enqueueing; data can be freed after
 // the function returns.
-int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_write(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                         const uint8_t *data, size_t dataLen,
                         Libp2pCallback callback, void *userData);
 
-int libp2p_stream_writeLp(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_writeLp(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                           const uint8_t *data, size_t dataLen,
                           Libp2pCallback callback, void *userData);
 
-int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_close(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                         Libp2pCallback callback, void *userData);
 
 // Closes the stream and then sends EOF to the remote side.
-int libp2p_stream_closeWithEOF(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_closeWithEOF(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                                Libp2pCallback callback, void *userData);
 
-// Releases the local stream handle. After this, conn must not be used again.
+// Releases the local stream handle. After this, stream must not be used again.
 // You usually call close/closeWithEOF first, then release.
-int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *conn,
+int libp2p_stream_release(libp2p_ctx_t *ctx, libp2p_stream_t *stream,
                           Libp2pCallback callback, void *userData);
 
 // === Pubsub APIs ===
@@ -512,7 +512,7 @@ int libp2p_public_key(libp2p_ctx_t *ctx, Libp2pBufferCallback callback,
 // from libp2p_circuit_relay_reserve with "/p2p-circuit" appended by the caller.
 int libp2p_dial_circuit_relay(libp2p_ctx_t *ctx, const char *dstPeerId,
                               const char *multiaddr, const char *proto,
-                              ConnectionCallback callback, void *userData);
+                              StreamCallback callback, void *userData);
 
 // Reserves a relay slot on relayPeerId, requires circuit_relay_client=1.
 // The callback receives relay addresses (without /p2p-circuit suffix).

@@ -138,7 +138,7 @@ type WsTransport* = ref object of Transport
   connectionCleanupFuts: seq[Future[void]]
   acceptLoop: Future[void]
   handshakeFuts: seq[Future[void]]
-  acceptResults: AsyncQueue[Connection]
+  acceptResults: AsyncQueue[RawConn]
   acceptSem: AsyncSemaphore
 
   tlsPrivateKey*: TLSPrivateKey
@@ -177,7 +177,7 @@ proc closeHttpStream(stream: AsyncStream) {.async: (raises: []).} =
 
 proc connHandler(
   self: WsTransport, stream: WSSession, secure: bool, dir: Direction
-): Future[Connection] {.async: (raises: [CatchableError]).}
+): Future[RawConn] {.async: (raises: [CatchableError]).}
 
 proc wsHandshakeWorker(
     self: WsTransport, server: HttpServer, stream: AsyncStream
@@ -188,7 +188,7 @@ proc wsHandshakeWorker(
 
   try:
     let conn = await (
-      proc(): Future[Connection] {.async: (raises: [CatchableError]).} =
+      proc(): Future[RawConn] {.async: (raises: [CatchableError]).} =
         let req = await readHttpRequest(stream, server.headersTimeout)
         let wstransp = await self.wsserver.handleRequest(req)
         return await self.connHandler(wstransp, server.secure, Direction.In)
@@ -390,7 +390,7 @@ method start*(
       MultiAddress.init(httpserver.localAddress()).tryGet() & codec.tryGet()
 
   self.acceptSem = newAsyncSemaphore(self.concurrentAccepts)
-  self.acceptResults = newAsyncQueue[Connection](self.concurrentAccepts)
+  self.acceptResults = newAsyncQueue[RawConn](self.concurrentAccepts)
   self.handshakeFuts = @[]
 
   await procCall Transport(self).start(resolvedAddrs)
@@ -441,7 +441,7 @@ method stop*(self: WsTransport) {.async: (raises: []).} =
 
 proc connHandler(
     self: WsTransport, stream: WSSession, secure: bool, dir: Direction
-): Future[Connection] {.async: (raises: [CatchableError]).} =
+): Future[RawConn] {.async: (raises: [CatchableError]).} =
   ## Returning CatchableError is fine because we later handle different exceptions.
 
   let (observedAddr, localAddr) =
@@ -480,7 +480,7 @@ proc connHandler(
 
 method accept*(
     self: WsTransport
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   trace "WsTransport accept"
 
   # wstransport can only start accepting connections after autotls is done
@@ -504,7 +504,7 @@ method dial*(
     hostname: string,
     address: MultiAddress,
     peerId: Opt[PeerId] = Opt.none(PeerId),
-): Future[Connection] {.async: (raises: [transport.TransportError, CancelledError]).} =
+): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
   ## dial a peer
   ##
 

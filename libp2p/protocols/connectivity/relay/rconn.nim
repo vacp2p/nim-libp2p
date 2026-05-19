@@ -8,7 +8,7 @@ import chronos
 import ../../../stream/connection
 
 type RelayConnection* = ref object of Connection
-  conn*: Connection
+  stream*: Stream
   limitDuration*: uint32
   limitData*: uint64
   dataSent*: uint64
@@ -17,7 +17,7 @@ method readOnce*(
     self: RelayConnection, pbytes: pointer, nbytes: int
 ): Future[int] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   self.activity = true
-  self.conn.readOnce(pbytes, nbytes)
+  self.stream.readOnce(pbytes, nbytes)
 
 method write*(
     self: RelayConnection, msg: seq[byte]
@@ -27,34 +27,34 @@ method write*(
     await self.close()
     return
   self.activity = true
-  await self.conn.write(msg)
+  await self.stream.write(msg)
 
 method closeImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
-  await self.conn.close()
+  await self.stream.close()
   await procCall Connection(self).closeImpl()
 
 method resetImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
-  await self.conn.reset()
+  await self.stream.reset()
   await procCall Connection(self).closeImpl()
 
 method getWrapped*(self: RelayConnection): Connection =
-  self.conn
+  self.stream
 
 proc new*(
     T: typedesc[RelayConnection],
-    conn: Connection,
+    stream: Stream,
     limitDuration: uint32,
     limitData: uint64,
 ): T =
-  let rc = T(conn: conn, limitDuration: limitDuration, limitData: limitData)
-  rc.dir = conn.dir
+  let rc = T(stream: stream, limitDuration: limitDuration, limitData: limitData)
+  rc.dir = stream.dir
   rc.initStream()
   if limitDuration > 0:
     proc checkDurationConnection() {.async: (raises: []).} =
       try:
-        await noCancel conn.join().wait(limitDuration.seconds())
+        await noCancel stream.join().wait(limitDuration.seconds())
       except AsyncTimeoutError:
-        await conn.close()
+        await stream.close()
 
     asyncSpawn checkDurationConnection()
   return rc

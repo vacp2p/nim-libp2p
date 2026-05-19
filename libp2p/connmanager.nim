@@ -515,7 +515,7 @@ proc release*(cs: ConnectionSlot) =
   except AsyncSemaphoreError:
     raiseAssert "semaphore released without acquire"
 
-proc trackConnection*(cs: ConnectionSlot, conn: Connection) =
+proc trackConnection*(cs: ConnectionSlot, conn: RawConn) =
   proc semaphoreMonitor() {.async: (raises: [CancelledError]).} =
     try:
       await conn.join()
@@ -531,7 +531,7 @@ proc trackMuxer*(cs: ConnectionSlot, mux: Muxer) =
 
 proc getStream*(
     c: ConnManager, muxer: Muxer
-): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
+): Future[MuxedStream] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed muxer
   if not muxer.isNil:
     return await muxer.newStream()
@@ -539,14 +539,14 @@ proc getStream*(
 
 proc getStream*(
     c: ConnManager, peerId: PeerId
-): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
+): Future[MuxedStream] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed peer from any connection
 
   return await c.getStream(c.selectMuxer(peerId))
 
 proc getStream*(
     c: ConnManager, peerId: PeerId, dir: Direction
-): Future[Connection] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
+): Future[MuxedStream] {.async: (raises: [LPStreamError, MuxerError, CancelledError]).} =
   ## get a muxed stream for the passed peer from a connection with `dir`
 
   return await c.getStream(c.selectMuxer(peerId, dir))

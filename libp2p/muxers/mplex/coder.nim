@@ -30,7 +30,7 @@ proc newInvalidMplexMsgType*(): ref InvalidMplexMsgType =
   newException(InvalidMplexMsgType, "invalid message type")
 
 proc readMsg*(
-    conn: Connection
+    conn: RawConn
 ): Future[Msg] {.async: (raises: [CancelledError, LPStreamError, MuxerError]).} =
   let header = await conn.readVarint()
   trace "read header varint", varint = header, conn
@@ -45,7 +45,7 @@ proc readMsg*(
   return (header shr 3, MessageType(msgType), data)
 
 proc writeMsg*(
-    conn: Connection, id: uint64, msgType: MessageType, data: seq[byte] = @[]
+    conn: RawConn, id: uint64, msgType: MessageType, data: seq[byte] = @[]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   var
     left = data.len
@@ -76,6 +76,6 @@ proc writeMsg*(
   conn.write(buf.buffer)
 
 proc writeMsg*(
-    conn: Connection, id: uint64, msgType: MessageType, data: string
+    conn: RawConn, id: uint64, msgType: MessageType, data: string
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   conn.writeMsg(id, msgType, data.toBytes())

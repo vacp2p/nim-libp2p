@@ -45,10 +45,10 @@ proc decode*(_: typedesc[DcutrMsg], buf: seq[byte]): DcutrMsg {.raises: [DcutrEr
   return dcutrMsg
 
 proc send*(
-    conn: Connection, msgType: MsgType, addrs: seq[MultiAddress]
+    stream: Stream, msgType: MsgType, addrs: seq[MultiAddress]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   let pb = DcutrMsg(msgType: msgType, addrs: addrs).encode()
-  await conn.writeLp(pb.buffer)
+  await stream.writeLp(pb.buffer)
 
 proc getHolePunchableAddrs*(
     addrs: seq[MultiAddress]

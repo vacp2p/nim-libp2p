@@ -29,6 +29,6 @@ type LibP2P* = ref object
   kad*: Opt[KadDHT]
   relayClient*: Opt[RelayClient]
   topicHandlers*: Table[PubsubTopicPair, TopicHandlerEntry]
-  connections*: Table[ptr Libp2pStream, Connection]
+  streams*: Table[ptr Libp2pStream, Stream]
   streamReleaseWaiters*: Table[ptr Libp2pStream, Future[void].Raising([CancelledError])]
   customProtocols*: Table[string, LPProtocol]

@@ -30,16 +30,16 @@ type AutonatV2Client* = ref object of LPProtocol
   expectedNonces: Table[Nonce, Opt[MultiAddress]]
 
 proc handleDialBack(
-    self: AutonatV2Client, conn: Connection, dialBack: DialBack
+    self: AutonatV2Client, stream: Stream, dialBack: DialBack
 ) {.async: (raises: [CancelledError, AutonatV2Error, LPStreamError]).} =
   debug "Handling DialBack",
-    conn = conn, localAddr = conn.localAddr, observedAddr = conn.observedAddr
+    stream = stream, localAddr = stream.localAddr, observedAddr = stream.observedAddr
 
   if not self.expectedNonces.hasKey(dialBack.nonce):
     error "Not expecting this nonce", nonce = dialBack.nonce
     return
 
-  conn.localAddr.withValue(localAddr):
+  stream.localAddr.withValue(localAddr):
     debug "Setting expectedNonces",
       nonce = dialBack.nonce, localAddr = Opt.some(localAddr)
     self.expectedNonces[dialBack.nonce] = Opt.some(localAddr)
@@ -48,7 +48,7 @@ proc handleDialBack(
     return
 
   trace "Sending DialBackResponse"
-  await conn.writeLp(DialBackResponse(status: DialBackStatus.Ok).encode().buffer)
+  await stream.writeLp(DialBackResponse(status: DialBackStatus.Ok).encode().buffer)
 
 proc new*(
     T: typedesc[AutonatV2Client],
@@ -59,22 +59,24 @@ proc new*(
 
   # handler for DialBack messages
   proc handleStream(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      let dialBack = DialBack.decode(initProtoBuffer(await conn.readLp(DialBackLpSize))).valueOr:
+      let dialBack = DialBack.decode(
+        initProtoBuffer(await stream.readLp(DialBackLpSize))
+      ).valueOr:
         trace "Unable to decode DialBack"
         return
-      if not await client.handleDialBack(conn, dialBack).withTimeout(
+      if not await client.handleDialBack(stream, dialBack).withTimeout(
         client.dialBackTimeout
       ):
         trace "Sending DialBackResponse timed out"
     except CancelledError as exc:
       raise exc
     except LPStreamRemoteClosedError as exc:
-      debug "Connection closed by peer", description = exc.msg, peer = conn.peerId
+      debug "Stream closed by peer", description = exc.msg, peer = stream.peerId
     except LPStreamError as exc:
-      debug "Connection closed by peer", description = exc.msg, peer = conn.peerId
+      debug "Stream closed by peer", description = exc.msg, peer = stream.peerId
 
   client.handler = handleStream
   client.codec = $AutonatV2Codec.DialBack
@@ -84,7 +86,7 @@ proc setup*(self: AutonatV2Client, switch: Switch) =
   self.dialer = switch.dialer
 
 proc handleDialDataRequest*(
-    conn: Connection, req: DialDataRequest
+    stream: Stream, req: DialDataRequest
 ): Future[DialResponse] {.
     async: (raises: [CancelledError, AutonatV2Error, LPStreamError])
 .} =
@@ -104,11 +106,11 @@ proc handleDialDataRequest*(
   let messagesToSend =
     (req.numBytes + MaxDialDataResponsePayload - 1) div MaxDialDataResponsePayload
   for i in 0 ..< messagesToSend:
-    await conn.writeLp(msg.encode().buffer)
+    await stream.writeLp(msg.encode().buffer)
     debug "Sending DialDataResponse", i = i, messagesToSend = messagesToSend
 
   # get DialResponse
-  msg = AutonatV2Msg.decode(initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))).valueOr:
+  msg = AutonatV2Msg.decode(initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))).valueOr:
     raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
 
   debug "Received message", msgType = msg.msgType
@@ -152,19 +154,19 @@ method sendDialRequest*(
 
   var dialResp: DialResponse
   try:
-    let conn = await self.dialer.dial(pid, @[$AutonatV2Codec.DialRequest])
+    let stream = await self.dialer.dial(pid, @[$AutonatV2Codec.DialRequest])
     defer:
-      await conn.close()
+      await stream.close()
 
     # send dialRequest
-    await conn.writeLp(
+    await stream.writeLp(
       AutonatV2Msg(
         msgType: MsgType.DialRequest,
         dialReq: DialRequest(addrs: testAddrs, nonce: nonce),
       ).encode().buffer
     )
     let msg = AutonatV2Msg.decode(
-      initProtoBuffer(await conn.readLp(AutonatV2MsgLpSize))
+      initProtoBuffer(await stream.readLp(AutonatV2MsgLpSize))
     ).valueOr:
       raise newException(AutonatV2Error, "Unable to decode AutonatV2Msg")
 
@@ -173,7 +175,7 @@ method sendDialRequest*(
       of MsgType.DialResponse:
         msg.dialResp
       of MsgType.DialDataRequest:
-        await conn.handleDialDataRequest(msg.dialDataReq)
+        await stream.handleDialDataRequest(msg.dialDataReq)
       else:
         raise newException(
           AutonatV2Error,

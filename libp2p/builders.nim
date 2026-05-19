@@ -64,6 +64,7 @@ type
   SwitchBuilder* = ref object
     privKey: Opt[PrivateKey]
     addresses: seq[MultiAddress]
+    announcedAddrs: seq[MultiAddress]
     secureManagers: seq[SecureProtocol]
     muxers: seq[MuxerProvider]
     transports: seq[TransportBuilder]
@@ -79,11 +80,11 @@ type
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
     autonat: bool
-    autonatService*: Opt[AutonatService]
+    autonatService: Opt[AutonatService]
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
-    autonatV2Service*: Opt[AutonatV2Service]
-    hpService*: Opt[HPService]
+    autonatV2Service: Opt[AutonatV2Service]
+    hpService: Opt[HPService]
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
@@ -143,6 +144,21 @@ proc withAddress*(
   ## | Calling it multiple time will override the value
   b.withAddresses(@[address], enableWildcardResolver)
 
+proc withAnnouncedAddresses*(
+    b: SwitchBuilder, addresses: seq[MultiAddress]
+): SwitchBuilder =
+  ## Set explicit addresses to advertise to peers, distinct from the
+  ## switch's listening addresses. When non-empty, these replace the output
+  ## of the address mapper chain (the `addressPolicy` filter is still applied).
+  ## Use this to announce a public NAT-mapped address while binding locally.
+  ## Calling it multiple times overrides the previous value.
+  b.announcedAddrs = addresses
+  b
+
+proc withAnnouncedAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
+  ## Set a single announced address. See `withAnnouncedAddresses`.
+  b.withAnnouncedAddresses(@[address])
+
 proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
   b.sendSignedPeerRecord = sendIt
   b
@@ -152,7 +168,7 @@ proc withMplex*(
 ): SwitchBuilder =
   ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
   ## | `Timeout` is the duration after which a inactive connection will be closed
-  proc newMuxer(conn: Connection): Muxer =
+  proc newMuxer(conn: RawConn): Muxer =
     Mplex.new(conn, inTimeout, outTimeout, maxChannCount)
 
   assert b.muxers.countIt(it.codec == MplexCodec) == 0, "Mplex build multiple times"
@@ -166,7 +182,7 @@ proc withYamux*(
     inTimeout: Duration = 5.minutes,
     outTimeout: Duration = 5.minutes,
 ): SwitchBuilder =
-  proc newMuxer(conn: Connection): Muxer =
+  proc newMuxer(conn: RawConn): Muxer =
     Yamux.new(
       conn,
       maxChannCount = maxChannCount,
@@ -311,6 +327,12 @@ proc withAutonat*(b: SwitchBuilder): SwitchBuilder =
   b.autonat = true
   b
 
+proc withAutonatService*(
+    b: SwitchBuilder, autonatService: Opt[AutonatService] = Opt.none(AutonatService)
+): SwitchBuilder =
+  b.autonatService = autonatService
+  b
+
 proc withAutonatV2Server*(
     b: SwitchBuilder, config: AutonatV2Config = AutonatV2Config.new()
 ): SwitchBuilder =
@@ -325,6 +347,13 @@ proc withAutonatV2*(
   b.autonatV2Service = Opt.some(
     AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
   )
+  b
+
+proc withAutonatV2Service*(
+    b: SwitchBuilder,
+    autonatV2Service: Opt[AutonatV2Service] = Opt.none(AutonatV2Service),
+): SwitchBuilder =
+  b.autonatV2Service = autonatV2Service
   b
 
 proc withHolePunching*(
@@ -343,17 +372,29 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-    b.autotlsConfig = Opt.some(config)
+    if config.isNil:
+      b.autotlsConfig = Opt.none(AutotlsConfig)
+    else:
+      b.autotlsConfig = Opt.some(config)
+
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
-  b.circuitRelay = Opt.some(r)
+  if r.isNil:
+    b.circuitRelay = Opt.none(Relay)
+  else:
+    b.circuitRelay = Opt.some(r)
+
   b
 
 proc withRendezVous*(
     b: SwitchBuilder, config: RendezVousConfig = RendezVousConfig.new()
 ): SwitchBuilder =
-  b.rdvConfig = Opt.some(config)
+  if config.isNil:
+    b.rdvConfig = Opt.none(RendezVousConfig)
+  else:
+    b.rdvConfig = Opt.some(config)
+
   b
 
 proc withKademlia*(
@@ -398,7 +439,7 @@ proc withPrivateAddressFilter*(b: SwitchBuilder): SwitchBuilder =
   ## Circuit relay and DNS addresses are never filtered.
   b.withAddressPolicy(publicRoutableAddressPolicy)
 
-proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
+proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if isNil(b.rng):
     b.rng = newRng()
 
@@ -422,6 +463,7 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     protoVersion = b.protoVersion,
     agentVersion = b.agentVersion,
     addressPolicy = b.addressPolicy,
+    announcedAddrs = b.announcedAddrs,
   )
 
   let identify =
@@ -430,12 +472,20 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
     else:
       Identify.new(peerInfo, b.sendSignedPeerRecord)
 
-  let connManager = ConnManager.new(
+  var peerStore = block:
+    b.peerStoreCapacity.withValue(capacity):
+      PeerStore.new(identify, capacity, b.addressTtls)
+    else:
+      PeerStore.new(identify, addressTtls = b.addressTtls)
+  peerStore.addressPolicy = b.addressPolicy
+
+  var connManager = ConnManager.new(
     maxConnsPerPeer = b.maxConnsPerPeer,
     limits = b.limits,
     watermark = b.watermark,
     scoring = b.scoring,
   )
+  connManager.peerStore = peerStore
 
   let ms = MultistreamSelect.new()
   let muxedUpgrade = MuxedUpgrade.new(b.muxers, secureManagerInstances, ms, connManager)
@@ -443,37 +493,42 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   var autotlsOpt = Opt.none(AutotlsService)
   when defined(libp2p_autotls_support):
     b.autotlsConfig.withValue(config):
-      autotlsOpt = Opt.some(AutotlsService.new(b.rng, config))
+      let autotlsService = AutotlsService.new(b.rng, config)
+      autotlsOpt = Opt.some(autotlsService)
+      b.services.add(autotlsService)
 
-  autotlsOpt.withValue(autotlsSvc):
-    b.services.add(autotlsSvc)
-
-  let transports = block:
-    var transports: seq[Transport]
-    for tProvider in b.transports:
-      transports.add(
-        tProvider(
-          TransportConfig(
-            upgr: muxedUpgrade,
-            privateKey: seckey,
-            autotls: autotlsOpt,
-            connManager: connManager,
-            rng: b.rng,
-          )
+  var transports: seq[Transport]
+  for tProvider in b.transports:
+    transports.add(
+      tProvider(
+        TransportConfig(
+          upgr: muxedUpgrade,
+          privateKey: seckey,
+          autotls: autotlsOpt,
+          connManager: connManager,
+          rng: b.rng,
         )
       )
-    transports
+    )
 
-  if b.secureManagers.len == 0:
-    b.secureManagers &= SecureProtocol.Noise
+  let dialer =
+    Dialer.new(peerInfo.peerId, connManager, peerStore, transports, b.nameResolver)
 
-  let peerStore = block:
-    b.peerStoreCapacity.withValue(capacity):
-      PeerStore.new(identify, capacity, b.addressTtls)
-    else:
-      PeerStore.new(identify, addressTtls = b.addressTtls)
-  peerStore.addressPolicy = b.addressPolicy
+  let switch = Switch(
+    peerInfo: peerInfo,
+    ms: ms,
+    transports: transports,
+    connManager: connManager,
+    peerStore: peerStore,
+    dialer: dialer,
+    nameResolver: b.nameResolver,
+    rng: b.rng,
+    muxedUpgrade: muxedUpgrade,
+  )
 
+  return switch
+
+proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
     b.services.add(WildcardAddressResolverService.new())
 
@@ -489,24 +544,22 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.identifyPusherEnabled:
     b.services.add(IdentifyPusher.new())
 
-  let switch = newSwitch(
-    peerInfo = peerInfo,
-    transports = transports,
-    secureManagers = secureManagerInstances,
-    connManager = connManager,
-    ms = ms,
-    nameResolver = b.nameResolver,
-    peerStore = peerStore,
-    services = b.services,
-    rng = b.rng,
-  )
-  switch.setupServices()
+  switch.services = b.services
+  for service in switch.services:
+    service.setup(switch)
 
-  switch.mount(identify)
+proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
+  if not switch.peerStore.identify.isNil:
+    switch.mount(switch.peerStore.identify)
 
-  if not isNil(b.autonatV2Client):
+  if not b.autonatV2Client.isNil:
     b.autonatV2Client.setup(switch)
     switch.mount(b.autonatV2Client)
+
+  b.rdvConfig.withValue(rdvCfg):
+    let rend = RendezVous.new(b.rng, rdvCfg)
+    rend.setup(switch)
+    switch.mount(rend)
 
   b.autonatV2ServerConfig.withValue(config):
     switch.mount(AutonatV2.new(switch, config = config))
@@ -516,14 +569,9 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   b.circuitRelay.withValue(relay):
     if relay of RelayClient:
-      switch.addTransport(RelayTransport.new(RelayClient(relay), muxedUpgrade))
+      switch.addTransport(RelayTransport.new(RelayClient(relay), switch.muxedUpgrade))
     relay.setup(switch)
     switch.mount(relay)
-
-  b.rdvConfig.withValue(rdvCfg):
-    let rdvService = RendezVous.new(b.rng, rdvCfg)
-    rdvService.setup(switch)
-    switch.mount(rdvService)
 
   b.kad.withValue(kadInfo):
     kadInfo.config.addressPolicy = b.addressPolicy
@@ -534,5 +582,10 @@ proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
       rng = b.rng,
     )
     switch.mount(kad)
+
+proc build*(b: SwitchBuilder): Switch {.raises: [LPError].} =
+  var switch = b.buildSwitch()
+  b.setupServices(switch)
+  b.mountProtocols(switch)
 
   return switch

@@ -25,7 +25,7 @@ type
   Secure* = ref object of LPProtocol # base type for secure managers
 
   SecureConn* = ref object of Connection
-    stream*: Connection
+    stream*: RawConn
     buf: ZeroQueue
 
 func shortLog*(conn: SecureConn): auto =
@@ -42,7 +42,7 @@ chronicles.formatIt(SecureConn):
 
 proc new*(
     T: type SecureConn,
-    conn: Connection,
+    conn: RawConn,
     peerId: PeerId,
     observedAddr: Opt[MultiAddress],
     localAddr: Opt[MultiAddress],
@@ -90,15 +90,15 @@ method getWrapped*(s: SecureConn): Connection =
   s.stream
 
 method handshake*(
-    s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]
+    s: Secure, conn: RawConn, initiator: bool, peerId: Opt[PeerId]
 ): Future[SecureConn] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
   raiseAssert("[Secure.handshake] abstract method not implemented!")
 
 proc handleConn(
-    s: Secure, conn: Connection, initiator: bool, peerId: Opt[PeerId]
-): Future[Connection] {.async: (raises: [CancelledError, LPStreamError]).} =
+    s: Secure, conn: RawConn, initiator: bool, peerId: Opt[PeerId]
+): Future[SecureConn] {.async: (raises: [CancelledError, LPStreamError]).} =
   var sconn = await s.handshake(conn, initiator, peerId)
   # mark connection bottom level transport direction
   # this is the safest place to do this
@@ -145,26 +145,26 @@ proc handleConn(
 method init*(s: Secure) =
   procCall LPProtocol(s).init()
 
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
-    trace "handling connection upgrade", proto, conn
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
+    trace "handling connection upgrade", proto, stream
     try:
       # We don't need the result but we
       # definitely need to await the handshake
-      discard await s.handleConn(conn, false, Opt.none(PeerId))
-      trace "connection secured", conn
+      discard await s.handleConn(stream, false, Opt.none(PeerId))
+      trace "connection secured", stream
     except CancelledError as exc:
-      warn "securing connection canceled", conn
+      warn "securing connection canceled", stream
       raise exc
     except LPStreamError as exc:
-      warn "securing connection failed", description = exc.msg, conn
+      warn "securing connection failed", description = exc.msg, stream
     finally:
-      await conn.close()
+      await stream.close()
 
   s.handler = handle
 
 method secure*(
-    s: Secure, conn: Connection, peerId: Opt[PeerId]
-): Future[Connection] {.
+    s: Secure, conn: RawConn, peerId: Opt[PeerId]
+): Future[SecureConn] {.
     async: (raises: [CancelledError, LPStreamError], raw: true), base
 .} =
   s.handleConn(conn, conn.dir == Direction.Out, peerId)

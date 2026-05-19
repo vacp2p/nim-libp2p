@@ -17,7 +17,7 @@ import
 import ../../tools/[unittest, crypto, switch_builder]
 
 proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
-  var builder = SwitchBuilder
+  return SwitchBuilder
     .new()
     .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
@@ -25,11 +25,8 @@ proc makeAutonatSwitch(nameResolver: NameResolver = nil): Switch =
     .withMplex()
     .withAutonat()
     .withNoise()
-
-  if nameResolver != nil:
-    builder = builder.withNameResolver(nameResolver)
-
-  return builder.build()
+    .withNameResolver(nameResolver)
+    .build()
 
 proc makeSwitch(): Switch =
   return makeStandardSwitch(transport = TransportType.TCP)
@@ -37,11 +34,11 @@ proc makeSwitch(): Switch =
 proc makeAutonatServicePrivate(): Switch =
   var autonatProtocol = new LPProtocol
   autonatProtocol.handler = proc(
-      conn: Connection, proto: string
+      stream: Stream, proto: string
   ) {.async: (raises: [CancelledError]).} =
     try:
-      discard await conn.readLp(1024)
-      await conn.writeLp(
+      discard await stream.readLp(1024)
+      await stream.writeLp(
         AutonatDialResponse(
           status: DialError, text: Opt.some("dial failed"), ma: Opt.none(MultiAddress)
         ).encode().buffer
@@ -49,7 +46,7 @@ proc makeAutonatServicePrivate(): Switch =
     except LPStreamError:
       raiseAssert "Unexpected LPStreamError in autonat private service handler"
     finally:
-      await conn.close()
+      await stream.close()
   autonatProtocol.codec = AutonatCodec
   result = makeSwitch()
   result.mount(autonatProtocol)
@@ -98,7 +95,7 @@ suite "Autonat":
     await doesNothingListener.start(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
 
     await src.connect(dst.peerInfo.peerId, dst.peerInfo.addrs)
-    let conn = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
+    let stream = await src.dial(dst.peerInfo.peerId, @[AutonatCodec])
     let buffer = AutonatDial(
       peerInfo: Opt.some(
         AutonatPeerInfo(
@@ -108,8 +105,8 @@ suite "Autonat":
         )
       )
     ).encode().buffer
-    await conn.writeLp(buffer)
-    let response = AutonatMsg.decode(await conn.readLp(1024)).get().response.get()
+    await stream.writeLp(buffer)
+    let response = AutonatMsg.decode(await stream.readLp(1024)).get().response.get()
     check:
       response.status == DialError
       response.text.get() == "Dial timeout"

@@ -10,33 +10,33 @@ import
 import ../../../tools/[lifecycle, topology, unittest]
 import ../utils
 
-type DummyConnection* = ref object of Connection
+type DummyStream* = ref object of Connection
   data: seq[byte]
 
 method write*(
-    self: DummyConnection, msg: seq[byte]
+    self: DummyStream, msg: seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   self.data.add(msg)
 
-suite "GossipSub Component - Custom Connection Support":
+suite "GossipSub Component - Custom Stream Support":
   const topic = "foobar"
 
   teardown:
     checkTrackers()
 
-  asyncTest "publish with useCustomConn triggers custom connection and peer selection":
+  asyncTest "publish with useCustomStream triggers custom stream and peer selection":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     var
-      dummyConn = DummyConnection()
+      dummyStream = DummyStream()
       peerSelectionCalled = false
 
-    nodes[0].customConnCallbacks = Opt.some(
-      CustomConnectionCallbacks(
-        customConnCreationCB: proc(
+    nodes[0].customStreamCallbacks = Opt.some(
+      CustomStreamCallbacks(
+        customStreamCreationCB: proc(
             destAddr: Opt[MultiAddress], destPeerId: PeerId, codec: string
-        ): Connection =
-          return dummyConn,
+        ): Stream =
+          return dummyStream,
         customPeerSelectionCB: proc(
             allPeers: HashSet[PubSubPeer],
             directPeers: HashSet[PubSubPeer],
@@ -57,14 +57,14 @@ suite "GossipSub Component - Custom Connection Support":
     tryPublish await nodes[0].publish(
       topic,
       "hello".toBytes(),
-      publishParams = Opt.some(PublishParams(useCustomConn: true)),
+      publishParams = Opt.some(PublishParams(useCustomStream: true)),
     ), 1
 
     check:
       peerSelectionCalled
-      dummyConn.data.len > 0
+      dummyStream.data.len > 0
 
-  asyncTest "publish with useCustomConn triggers assertion if custom callbacks not set":
+  asyncTest "publish with useCustomStream triggers assertion if custom callbacks not set":
     let nodes = generateNodes(2, gossip = true).toGossipSub()
 
     startAndDeferStop(nodes)
@@ -77,5 +77,5 @@ suite "GossipSub Component - Custom Connection Support":
       discard await nodes[0].publish(
         topic,
         "hello".toBytes(),
-        publishParams = Opt.some(PublishParams(useCustomConn: true)),
+        publishParams = Opt.some(PublishParams(useCustomStream: true)),
       )
