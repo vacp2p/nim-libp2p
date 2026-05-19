@@ -15,9 +15,6 @@ logScope:
 type
   WildcardAddressResolverService* = ref object of Service
     ## Service used to resolve wildcard addresses of the type "0.0.0.0" for IPv4 or "::" for IPv6.
-    ## When used with a `Switch`, this service will be automatically set up and stopped
-    ## when the switch starts and stops. This is facilitated by adding the service to the switch's
-    ## list of services using the `.add(service)` method in the `Switch`.
     networkInterfaceProvider: NetworkInterfaceProvider
     ## Provides a list of network addresses.
     addressMapper: AddressMapper

@@ -64,6 +64,8 @@ type
   ServiceSetupError* = object of LPError
 
   Service* = ref object of RootObj
+    ## Service is internal component of Switch. Service is automatically started and stopped
+    ## when the Switch starts and stops.
 
 method setup*(
     self: Service, switch: Switch
