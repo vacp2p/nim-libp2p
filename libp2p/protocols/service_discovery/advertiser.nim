@@ -103,7 +103,10 @@ proc advertiseToRegistrar*(
       await disco.sendRegister(registrar, serviceId, advertBuff, currentTicket)
     ).valueOr:
       error "failed to register ad", error
-      return
+      # Network errors are transient (e.g. concurrent-dial races); retry after a
+      # short delay rather than giving up permanently.
+      await sleepAsync(5.seconds)
+      continue
 
     disco.updatePeers(response.closerPeers)
 
