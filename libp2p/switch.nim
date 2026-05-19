@@ -64,6 +64,8 @@ type
   ServiceSetupError* = object of LPError
 
   Service* = ref object of RootObj
+    ## Service is internal component of Switch. Service is automatically started and stopped
+    ## when the Switch starts and stops.
 
 method setup*(
     self: Service, switch: Switch
@@ -179,6 +181,18 @@ proc dial*(
   ## with the specified `proto`
 
   dial(s, peerId, addrs, @[proto])
+
+proc add*(
+    s: Switch, service: Service
+) {.
+    raises: [ServiceSetupError],
+    deprecated: "externally created services should not be added to Switch"
+.} =
+  if service.isNil:
+    return
+
+  s.services.add(service)
+  service.setup(s)
 
 proc mount*[T: LPProtocol](
     s: Switch, proto: T, matcher: Matcher = nil

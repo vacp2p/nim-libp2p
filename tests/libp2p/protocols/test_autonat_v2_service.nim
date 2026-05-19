@@ -35,9 +35,14 @@ proc createSwitch(
     .withNameResolver(nameResolver)
 
   if withAutonat:
-    builder = builder.withAutonatV2().withAutonatV2Service(autonatV2Service)
+    builder = builder.withAutonatV2()
 
-  return builder.build()
+  var switch = builder.build()
+
+  autonatV2Service.withValue(s):
+    switch.add(s)
+
+  return switch
 
 proc createSwitches(n: int): seq[Switch] =
   var switches: seq[Switch]

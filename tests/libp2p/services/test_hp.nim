@@ -18,7 +18,7 @@ import ../../tools/[unittest, futures, resolver, crypto]
 proc createSwitch(
     r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil
 ): Switch {.raises: [LPError].} =
-  var builder = SwitchBuilder
+  var switch = SwitchBuilder
     .new()
     .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
@@ -30,11 +30,11 @@ proc createSwitch(
     # HP needs relay + direct to coexist briefly during upgrade
     .withCircuitRelay(r)
     .withNameResolver(nameResolver)
+    .build()
 
-  if hpService != nil:
-    builder = builder.withServices(@[hpService])
+  switch.add(hpService)
 
-  return builder.build()
+  return switch
 
 suite "Hole Punching":
   teardown:
