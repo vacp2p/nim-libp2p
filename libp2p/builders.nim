@@ -80,7 +80,6 @@ type
     peerStoreCapacity: Opt[int]
     addressTtls: AddressConfidenceTtls
     autonatEnabled: bool
-    autonatService: Opt[AutonatService]
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Client: AutonatV2Client
     autonatV2Service: Opt[AutonatV2Service]
@@ -517,9 +516,6 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
 
   b.autonatV2Service.withValue(autonatV2Service):
     switch.services.add(autonatV2Service)
-
-  b.autonatService.withValue(autonatService):
-    switch.services.add(autonatService)
 
   b.hpService.withValue(hpservice):
     switch.services.add(hpservice)
