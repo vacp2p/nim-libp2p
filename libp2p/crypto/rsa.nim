@@ -27,6 +27,9 @@ const
   MinKeySize* = 2048
     ## Minimal allowed RSA key size in bits.
     ## https://github.com/libp2p/go-libp2p-core/blob/master/crypto/rsa_common.go#L13
+  MaxKeySize* = 4096
+    ## Maximal allowed RSA key size in bits.
+    ## This matches BearSSL's BR_MAX_RSA_SIZE.
   DefaultKeySize* = 3072 ## Default RSA key size in bits.
 
   RsaOidSha1* = [byte 0x05, 0x2B, 0x0E, 0x03, 0x02, 0x1A]
@@ -65,6 +68,7 @@ type
     RsaKeyIncorrectError
     RsaSignatureError
     RsaLowSecurityError
+    RsaKeyTooLargeError
 
   RsaResult*[T] = Result[T, RsaError]
 
@@ -104,6 +108,9 @@ proc bitLength(field: Asn1Field): int =
   let first = field.buffer[field.offset]
   ((len(field) - 1) shl 3) + bitWidth(first)
 
+func validKeySize(bits: int): bool =
+  bits >= MinKeySize and bits <= MaxKeySize
+
 proc random*[T: RsaKP](
     t: typedesc[T], rng: Rng, bits = DefaultKeySize, pubexp = DefaultPublicExponent
 ): RsaResult[T] =
@@ -116,6 +123,8 @@ proc random*[T: RsaKP](
   ## ``pubexp`` is RSA public exponent, which must be prime (default = 65537).
   if bits < MinKeySize:
     return err(RsaLowSecurityError)
+  if bits > MaxKeySize:
+    return err(RsaKeyTooLargeError)
 
   let
     sko = 0
@@ -456,7 +465,7 @@ proc init*(key: var RsaPrivateKey, data: openArray[byte]): Result[void, Asn1Erro
     return err(Asn1Error.Incorrect)
 
   let nBitlen = bitLength(rawn)
-  if nBitlen >= MinKeySize and len(rawp) > 0 and len(rawq) > 0 and len(rawdp) > 0 and
+  if validKeySize(nBitlen) and len(rawp) > 0 and len(rawq) > 0 and len(rawdp) > 0 and
       len(rawdq) > 0 and len(rawiq) > 0:
     key = new RsaPrivateKey
     key.buffer = @data
@@ -539,7 +548,7 @@ proc init*(key: var RsaPublicKey, data: openArray[byte]): Result[void, Asn1Error
   if rawe.kind != Asn1Tag.Integer:
     return err(Asn1Error.Incorrect)
 
-  if bitLength(rawn) >= MinKeySize and len(rawe) > 0:
+  if validKeySize(bitLength(rawn)) and len(rawe) > 0:
     key = new RsaPublicKey
     key.buffer = @data
     key.key.n = addr key.buffer[rawn.offset]
