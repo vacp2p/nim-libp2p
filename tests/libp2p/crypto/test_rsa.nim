@@ -608,9 +608,11 @@ suite "RSA 2048/3072/4096 test suite":
   proc rsa2047BitModulus(): array[MinKeySize shr 3, byte] =
     # 256 octets used to satisfy the old byte-length check, but the leading
     # 0x7f makes this a 2047-bit RSA modulus.
-    result[0] = 0x7F'u8
-    for i in 1 .. result.high:
-      result[i] = 0xFF'u8
+    var modulus: array[MinKeySize shr 3, byte]
+    modulus[0] = 0x7F'u8
+    for i in 1 .. modulus.high:
+      modulus[i] = 0xFF'u8
+    return modulus
 
   proc pkcs1PrivateKeyDer(modulus: openArray[byte]): seq[byte] =
     var b = Asn1Buffer.init()
