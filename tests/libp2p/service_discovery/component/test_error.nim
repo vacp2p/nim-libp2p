@@ -177,9 +177,7 @@ suite "Service Discovery Component - Error Handling":
       makeAdvertisement("service", clientNode.switch.peerInfo.privateKey).encode().get()
 
     for keyLen in [0, 31, 33, 64]:
-      var key = newSeq[byte](keyLen)
-      for i in 0 ..< keyLen:
-        key[i] = i.byte
+      let key = newSeq[byte](keyLen)
 
       let msg = kad_protobuf.Message(
         msgType: kad_protobuf.MessageType.register,
@@ -207,9 +205,7 @@ suite "Service Discovery Component - Error Handling":
     await connect(registrarNode, clientNode)
 
     for keyLen in [0, 31, 33, 64]:
-      var key = newSeq[byte](keyLen)
-      for i in 0 ..< keyLen:
-        key[i] = i.byte
+      let key = newSeq[byte](keyLen)
 
       let msg = kad_protobuf.Message(msgType: kad_protobuf.MessageType.getAds, key: key)
 
