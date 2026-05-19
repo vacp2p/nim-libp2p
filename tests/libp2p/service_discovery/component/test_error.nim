@@ -164,3 +164,53 @@ suite "Service Discovery Component - Error Handling":
     expect LPStreamError:
       discard
         await clientSwitch.sendRawMessage(registrarNode, oversizedMsg).wait(2.seconds)
+
+  asyncTest "REGISTER with non-32-byte key returns Rejected":
+    # Spec calls for rejection on bad key length.
+    # Impl has no length check, the key reaches the service-membership check.
+    let registrarNode = setupServiceDiscoveryNode()
+    let clientNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode, clientNode])
+    await connect(registrarNode, clientNode)
+
+    let adBytes =
+      makeAdvertisement("service", clientNode.switch.peerInfo.privateKey).encode().get()
+
+    for keyLen in [0, 31, 33, 64]:
+      let key = newSeq[byte](keyLen)
+
+      let msg = kad_protobuf.Message(
+        msgType: kad_protobuf.MessageType.register,
+        key: key,
+        register: Opt.some(
+          kad_protobuf.RegisterMessage(
+            advertisement: adBytes,
+            status: Opt.none(kad_protobuf.RegistrationStatus),
+            ticket: Opt.none(kad_protobuf.Ticket),
+          )
+        ),
+      )
+
+      let response = await clientNode.sendMessage(registrarNode, msg)
+      check:
+        response.register.get().status.get() == kad_protobuf.RegistrationStatus.Rejected
+        registrarNode.countAdsInCache(key) == 0
+
+  asyncTest "GET_ADS with non-32-byte key returns empty response":
+    # Spec calls for rejection on bad key length.
+    # Impl has no length check, cache lookup misses on the arbitrary key.
+    let registrarNode = setupServiceDiscoveryNode()
+    let clientNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[registrarNode, clientNode])
+    await connect(registrarNode, clientNode)
+
+    for keyLen in [0, 31, 33, 64]:
+      let key = newSeq[byte](keyLen)
+
+      let msg = kad_protobuf.Message(msgType: kad_protobuf.MessageType.getAds, key: key)
+
+      let response = await clientNode.sendMessage(registrarNode, msg)
+      check:
+        response.msgType == kad_protobuf.MessageType.getAds
+        response.getAds.isSome()
+        response.getAds.get().advertisements.len == 0

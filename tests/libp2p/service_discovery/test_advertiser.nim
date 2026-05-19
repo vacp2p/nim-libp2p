@@ -159,6 +159,7 @@ suite "Advertiser - record creation":
     checkTrackers()
 
   test "record creation does not enforce service data size limit":
+    # TODO: nim-libp2p#2487 service-disco: add size validation for ServiceInfo.data and encoded XPR
     let serviceData = newSeq[byte](MaxMsgSize + 1)
     let disco = setupServiceDiscoveryNode(
       services = @[ServiceInfo(id: "service", data: serviceData)]
@@ -174,6 +175,7 @@ suite "Advertiser - record creation":
       record.get().data.services[0].data.len == serviceData.len
 
   test "record creation does not enforce encoded XPR size limit":
+    # TODO: nim-libp2p#2487 service-disco: add size validation for ServiceInfo.data and encoded XPR
     let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
     # Repeating the same address is just a simple way to make a large valid XPR.
     # With this address, 328 repeats is the first value over MaxMsgSize.
