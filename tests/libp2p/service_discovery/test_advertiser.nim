@@ -2,8 +2,14 @@
 # Copyright (c) Status Research & Development GmbH
 {.used.}
 
-import chronos, sets
-import ../../../libp2p/protocols/[service_discovery, service_discovery/advertiser]
+import chronos, results, sequtils, sets
+import
+  ../../../libp2p/[
+    extended_peer_record,
+    protocols/service_discovery,
+    protocols/service_discovery/advertiser,
+  ]
+from ../../../libp2p/protocols/kademlia/types import MaxMsgSize
 import ../../tools/unittest
 import ./utils
 
@@ -146,3 +152,40 @@ suite "Advertiser - removeProvidedService":
 
     check not disco.rtManager.hasService(s1.id.hashServiceId())
     check disco.rtManager.hasService(s2.id.hashServiceId())
+
+# ===========================================================================
+suite "Advertiser - record creation":
+  teardown:
+    checkTrackers()
+
+  test "record creation does not enforce service data size limit":
+    let serviceData = newSeq[byte](MaxMsgSize + 1)
+    let disco = setupServiceDiscoveryNode(
+      services = @[ServiceInfo(id: "service", data: serviceData)]
+    )
+
+    let record = disco.record()
+
+    check:
+      serviceData.len > MaxMsgSize
+      record.isOk()
+      record.get().data.services.len == 1
+      record.get().data.services[0].id == "service"
+      record.get().data.services[0].data.len == serviceData.len
+
+  test "record creation does not enforce encoded XPR size limit":
+    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    # Repeating the same address is just a simple way to make a large valid XPR.
+    # With this address, 328 repeats is the first value over MaxMsgSize.
+    let addrs = makeMultiAddress("10.0.0.1").repeat(328)
+    disco.switch.peerInfo.addrs = addrs
+
+    let record = disco.record()
+    check record.isOk()
+
+    let encoded = record.get().encode()
+
+    check:
+      encoded.isOk()
+      encoded.get().len > MaxMsgSize
+      record.get().data.addresses.len == addrs.len
