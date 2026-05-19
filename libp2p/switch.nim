@@ -182,7 +182,12 @@ proc dial*(
 
   dial(s, peerId, addrs, @[proto])
 
-proc add*(s: Switch, service: Service) {.raises: [ServiceSetupError].} =
+proc add*(
+    s: Switch, service: Service
+) {.
+    raises: [ServiceSetupError],
+    deprecated: "externally created services should not be added to Switch"
+.} =
   if service.isNil:
     return
 
