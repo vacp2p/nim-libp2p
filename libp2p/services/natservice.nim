@@ -116,6 +116,9 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
   trace "Stopping NATService"
   if self.addressMapper != nil:
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-  # Clear the explicit announce so the switch reverts to mapper-chain output.
+  # Clear the explicit announce owned by this service, but do not trigger
+  # peerInfo.update() during shutdown because it may notify observers and
+  # cause them to publish address changes while the switch is tearing down.
+  # Address recalculation is deferred until the next Switch.start or an
+  # explicit refresh performed at a safe lifecycle point.
   switch.peerInfo.announcedAddrs = @[]
-  await switch.peerInfo.update()
