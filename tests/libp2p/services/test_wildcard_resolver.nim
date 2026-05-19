@@ -28,15 +28,18 @@ proc getAddressesMock(
     fail()
 
 proc createSwitch(svc: Service, addrs: seq[MultiAddress]): Switch =
-  SwitchBuilder
+  var switch = SwitchBuilder
     .new()
     .withRng(rng())
     .withAddresses(addrs, false)
     .withTcpTransport()
     .withMplex()
     .withNoise()
-    .withServices(@[svc])
     .build()
+
+  switch.add(svc)
+
+  return switch
 
 suite "WildcardAddressResolverService":
   teardown:

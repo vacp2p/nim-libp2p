@@ -23,7 +23,7 @@ proc createSwitch(
     maxConns = 100,
     nameResolver: NameResolver = nil,
 ): Switch =
-  var builder = SwitchBuilder
+  var switch = SwitchBuilder
     .new()
     .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], false)
@@ -33,11 +33,13 @@ proc createSwitch(
     .withMplex()
     .withNoise()
     .withNameResolver(nameResolver)
+    .withAutonat(withAutonat)
+    .build()
 
-  if withAutonat:
-    builder = builder.withAutonat().withAutonatService(autonatSvc)
+  autonatSvc.withValue(s):
+    switch.add(s)
 
-  return builder.build()
+  return switch
 
 const AutonatReachabilityConfidenceMetric = "libp2p_autonat_reachability_confidence"
 
