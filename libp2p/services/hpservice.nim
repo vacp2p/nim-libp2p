@@ -48,6 +48,8 @@ proc tryStartingDirectConn(
       let isRelayed = address.contains(multiCodec("p2p-circuit"))
       if not isRelayed.get(false) and address.isPublicMA():
         return await tryConnect(address)
+    except CancelledError as err:
+      raise err
     except CatchableError as err:
       debug "Failed to create direct connection.", description = err.msg
       continue

@@ -286,7 +286,7 @@ proc discover*[E](
 proc advertisePeer[E](
     rdv: GenericRendezVous[E], peer: PeerId, msg: seq[byte]
 ) {.async: (raises: [CancelledError]).} =
-  proc advertiseWrap() {.async: (raises: []).} =
+  proc advertiseWrap() {.async: (raises: [CancelledError]).} =
     try:
       let stream = await rdv.switch.dial(peer, rdv.codec)
       defer:
@@ -301,6 +301,8 @@ proc advertisePeer[E](
         trace "Refuse to register", peer, response = msgRecv.registerResponse
       else:
         trace "Successfully registered", peer, response = msgRecv.registerResponse
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "exception in the advertise", description = exc.msg
     finally:
@@ -501,12 +503,14 @@ proc unsubscribe*[E](
     Message(msgType: MessageType.Unregister, unregister: Opt.some(Unregister(ns: ns)))
   )
 
-  proc unsubscribePeer(peerId: PeerId) {.async: (raises: []).} =
+  proc unsubscribePeer(peerId: PeerId) {.async: (raises: [CancelledError]).} =
     try:
       let stream = await rdv.switch.dial(peerId, RendezVousCodec)
       defer:
         await stream.close()
       await stream.writeLp(msg)
+    except CancelledError as exc:
+      raise exc
     except CatchableError as exc:
       trace "exception while unsubscribing", description = exc.msg
 
