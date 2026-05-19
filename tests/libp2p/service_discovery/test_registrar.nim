@@ -25,6 +25,22 @@ func initMoment(secs: int64): Moment =
 func inFloatSecs(d: Duration): float64 =
   d.secs.float64
 
+proc makeAdvertisementWithServices(
+    services: seq[ServiceInfo],
+    privateKey: PrivateKey = PrivateKey.random(rng()).get(),
+    addrs: seq[MultiAddress] = @[],
+    seqNo: uint64 = Moment.now().epochSeconds.uint64,
+): Advertisement =
+  let peerId = PeerId.init(privateKey).get()
+  var addressInfos: seq[AddressInfo]
+  for address in addrs:
+    addressInfos.add(AddressInfo(address: address))
+
+  let extRecord = ExtendedPeerRecord(
+    peerId: peerId, seqNo: seqNo, addresses: addressInfos, services: services
+  )
+  SignedExtendedPeerRecord.init(privateKey, extRecord).get()
+
 suite "Service Discovery Registrar - Waiting Time Calculation":
   test "waitingTime returns low value for empty cache with no IP similarity":
     let registrar = Registrar.new()
@@ -752,6 +768,52 @@ suite "Service Discovery Registrar - Register Message Validation":
     check decoded.isSome()
     check decoded.get().data.peerId == ad.data.peerId
     check decoded.get().data.seqNo == ad.data.seqNo
+
+  test "validateRegisterMessage rejects advertisement for different service":
+    let serviceId = "service".hashServiceId()
+    let ad = makeAdvertisement("other-service")
+    let adBuf = ad.encode().get()
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    check validateRegisterMessage(regMsg, serviceId).isNone()
+
+  test "validateRegisterMessage rejects advertisement with no services":
+    let serviceId = "service".hashServiceId()
+    let ad = makeAdvertisementWithServices(@[])
+    let adBuf = ad.encode().get()
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    check validateRegisterMessage(regMsg, serviceId).isNone()
+
+  test "validateRegisterMessage accepts multi-service advertisement":
+    let services = @[
+      makeServiceInfo("service-a"),
+      makeServiceInfo("service-b"),
+      makeServiceInfo("service-c"),
+    ]
+    let serviceId = services[0].id.hashServiceId()
+    let ad = makeAdvertisementWithServices(services)
+    let adBuf = ad.encode().get()
+    let regMsg = kadprotobuf.RegisterMessage(
+      advertisement: adBuf,
+      status: Opt.none(kadprotobuf.RegistrationStatus),
+      ticket: Opt.none(Ticket),
+    )
+
+    let decoded = validateRegisterMessage(regMsg, serviceId)
+
+    check:
+      decoded.isSome()
+      decoded.get().data.peerId == ad.data.peerId
+      decoded.get().data.services.len == 3
 
 suite "Service Discovery Registrar - Retry Ticket Processing":
   test "processRetryTicket returns original wait time when no ticket is present":
