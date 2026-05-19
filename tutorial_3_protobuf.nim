@@ -110,23 +110,23 @@ type
 
 proc new(_: typedesc[MetricProto], cb: MetricCallback): MetricProto =
   var res: MetricProto
-  proc handle(conn: Connection, proto: string) {.async: (raises: [CancelledError]).} =
+  proc handle(stream: Stream, proto: string) {.async: (raises: [CancelledError]).} =
     try:
       let
         metrics = await res.metricGetter()
         asProtobuf = metrics.encode()
-      await conn.writeLp(asProtobuf.buffer)
+      await stream.writeLp(asProtobuf.buffer)
     except LPStreamError as exc:
       echo "exception in handler", exc.msg
     finally:
-      await conn.close()
+      await stream.close()
 
   res = MetricProto.new(@["/metric-getter/1.0.0"], handle)
   res.metricGetter = cb
   return res
 
-proc fetch(p: MetricProto, conn: Connection): Future[MetricList] {.async.} =
-  let protobuf = await conn.readLp(2048)
+proc fetch(p: MetricProto, stream: Stream): Future[MetricList] {.async.} =
+  let protobuf = await stream.readLp(2048)
   # tryGet will raise an exception if the Result contains an error.
   # It's useful to bridge between exception-world and result-world
   return MetricList.decode(protobuf).tryGet()
@@ -164,11 +164,11 @@ proc main() {.async.} =
   await switch2.start()
 
   let
-    conn = await switch2.dial(
+    stream = await switch2.dial(
       switch1.peerInfo.peerId, switch1.peerInfo.addrs, metricProto2.codecs
     )
-    metrics = await metricProto2.fetch(conn)
-  await conn.close()
+    metrics = await metricProto2.fetch(stream)
+  await stream.close()
 
   for metric in metrics.metrics:
     echo metric.name, " = ", metric.value
