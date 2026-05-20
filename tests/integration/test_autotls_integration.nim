@@ -4,8 +4,6 @@
 {.used.}
 
 when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
-  {.push raises: [].}
-
   import chronos, chronos/apps/http/httpclient
   import
     ../../libp2p/[
@@ -18,11 +16,20 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       multiaddress,
       utils/ipaddr,
       switch,
-      builders,
       nameresolving/dnsresolver,
       wire,
     ]
-  import ../tools/[unittest, crypto]
+  import ../tools/[unittest, crypto, switch_builder]
+
+  template assertChallenge(challenge: ACMEChallengeResponseWrapper): auto =
+    check:
+      challenge.finalize.len > 0
+      challenge.order.len > 0
+      challenge.dns01.url.len > 0
+      challenge.dns01.`type` == ACMEChallengeType.DNS01 or
+        challenge.dns01.`type` == ACMEChallengeType.DNSPersist01
+      challenge.dns01.status == ACMEChallengeStatus.PENDING
+      challenge.dns01.token.len > 0
 
   suite "AutoTLS Integration":
     asyncTeardown:
@@ -33,26 +40,24 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       let acmeApi = ACMEApi.new(acmeServerURL = parseUri(LetsEncryptURLStaging))
       defer:
         await acmeApi.close()
-      try:
-        let registerResponse = await acmeApi.requestRegister(key)
-        # account was registered (kid set)
-        check registerResponse.kid != ""
-        if registerResponse.kid == "":
-          raiseAssert "unable to register acme account"
 
-        # challenge requested
-        let challenge = await acmeApi.requestChallenge(
-          @["some.dummy.domain.com"], key, registerResponse.kid
-        )
-        check challenge.finalize.len > 0
-        check challenge.order.len > 0
+      let challenge =
+        try:
+          let registerResponse = await acmeApi.requestRegister(key)
+          # account was registered (kid set)
+          check registerResponse.kid != ""
+          if registerResponse.kid == "":
+            raiseAssert "unable to register acme account"
 
-        check challenge.dns01.url.len > 0
-        check challenge.dns01.`type` == ACMEChallengeType.DNS01
-        check challenge.dns01.status == ACMEChallengeStatus.PENDING
-        check challenge.dns01.token.len > 0
-      except ACMENetworkError:
-        skip()
+          # challenge requested
+          await acmeApi.requestChallenge(
+            @["some.dummy.domain.com"], key, registerResponse.kid
+          )
+        except ACMENetworkError:
+          skip()
+          return
+
+      assertChallenge(challenge)
 
     asyncTest "request challenge with ACMEClient":
       let acme = ACMEClient.new(
@@ -60,36 +65,29 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       )
       defer:
         await acme.close()
-      try:
-        let challenge = await acme.getChallenge(@["some.dummy.domain.com"])
 
-        check:
-          challenge.finalize.len > 0
-          challenge.order.len > 0
-          challenge.dns01.url.len > 0
-          challenge.dns01.`type` == ACMEChallengeType.DNS01
-          challenge.dns01.status == ACMEChallengeStatus.PENDING
-          challenge.dns01.token.len > 0
-      except ACMENetworkError:
-        skip()
+      let challenge =
+        try:
+          await acme.getChallenge(@["some.dummy.domain.com"])
+        except ACMENetworkError:
+          skip()
+          return
+
+      assertChallenge(challenge)
 
     asyncTest "AutotlsService correctly downloads challenges":
       if not hasPublicIPAddress():
         skip()
         return
 
-      let switch = SwitchBuilder
-        .new()
+      let switch = makeStandardSwitchBuilder(
+          MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()
+        )
         .withAutotls(
           config = AutotlsConfig.new(
             acmeServerURL = parseUri(LetsEncryptURLStaging), renewCheckTime = 1.seconds
           )
         )
-        .withRng(rng())
-        .withAddress(MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet())
-        .withTcpTransport()
-        .withYamux()
-        .withNoise()
         .build()
 
       await switch.start()
