@@ -616,11 +616,12 @@ suite "RSA 2048/3072/4096 test suite":
     return modulus
 
   proc rsaOversizedModulus(): seq[byte] =
-    let bits = MaxKeySize + 1
-    result = newSeq[byte]((bits + 7) shr 3)
-    result[0] = 0x01'u8
-    for i in 1 .. result.high:
-      result[i] = 0xFF'u8
+    let cap = (MaxKeySize + 1 + 7) shr 3
+    var modulus = newSeq[byte](cap)
+    modulus[0] = 0x01'u8
+    for i in 1 ..< cap:
+      modulus[i] = 0xFF'u8
+    modulus
 
   proc pkcs1PrivateKeyDer(modulus: openArray[byte]): seq[byte] =
     var b = Asn1Buffer.init()
