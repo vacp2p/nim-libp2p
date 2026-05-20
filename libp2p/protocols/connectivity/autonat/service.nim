@@ -145,6 +145,8 @@ proc askPeer(
     except AsyncTimeoutError as error:
       debug "dialMe timed out", description = error.msg
       Unknown
+    except CancelledError as error:
+      raise error
     except CatchableError as error:
       debug "dialMe unexpected error", description = error.msg
       Unknown
