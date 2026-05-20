@@ -92,14 +92,14 @@ proc encode*(msg: AutonatMsg): ProtoBuffer =
   msg.response.withValue(res):
     return encode(res)
 
-proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Opt[AutonatMsg] =
+proc decode*(_: typedesc[AutonatMsg], buf: sink seq[byte]): Opt[AutonatMsg] =
   var
     msgTypeOrd: uint32
     pbDial: ProtoBuffer
     pbResponse: ProtoBuffer
     msg: AutonatMsg
 
-  let pb = initProtoBuffer(buf)
+  let pb = initProtoBuffer(move(buf))
 
   if ?pb.getField(1, msgTypeOrd).toOpt() and
       not checkedEnumAssign(msg.msgType, msgTypeOrd):
