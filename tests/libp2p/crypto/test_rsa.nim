@@ -5,6 +5,7 @@
 
 import nimcrypto/utils
 import ../../../libp2p/crypto/[crypto, minasn1, rsa]
+import ../../../libp2p/protobuf/minprotobuf
 import ../../tools/[unittest, crypto]
 
 const
@@ -614,6 +615,14 @@ suite "RSA 2048/3072/4096 test suite":
       modulus[i] = 0xFF'u8
     return modulus
 
+  proc rsaOversizedModulus(): seq[byte] =
+    let cap = (MaxKeySize + 1 + 7) shr 3
+    var modulus = newSeq[byte](cap)
+    modulus[0] = 0x01'u8
+    for i in 1 ..< cap:
+      modulus[i] = 0xFF'u8
+    modulus
+
   proc pkcs1PrivateKeyDer(modulus: openArray[byte]): seq[byte] =
     var b = Asn1Buffer.init()
     var p = Asn1Composite.init(Asn1Tag.Sequence)
@@ -650,6 +659,13 @@ suite "RSA 2048/3072/4096 test suite":
     b.finish()
     b.buffer
 
+  proc libp2pPublicKeyBytes(rawDer: openArray[byte]): seq[byte] =
+    var pb = initProtoBuffer()
+    pb.write(1, uint64(PKScheme.RSA))
+    pb.write(2, rawDer)
+    pb.finish()
+    pb.buffer
+
   test "[rsa2047] DER imports rejected":
     let modulus = rsa2047BitModulus()
     var key1 = RsaPrivateKey.init(pkcs1PrivateKeyDer(modulus))
@@ -659,3 +675,20 @@ suite "RSA 2048/3072/4096 test suite":
       key2.isErr() == true
       key1.error == RsaKeyIncorrectError
       key2.error == RsaKeyIncorrectError
+
+  test "[rsa4097] not allowed test":
+    let modulus = rsaOversizedModulus()
+    let pubDer = spkiPublicKeyDer(modulus)
+    var key1 = RsaPrivateKey.random(rng(), MaxKeySize + 1)
+    var key2 = RsaPrivateKey.init(pkcs1PrivateKeyDer(modulus))
+    var key3 = RsaPublicKey.init(pubDer)
+    var key4 = PublicKey.init(libp2pPublicKeyBytes(pubDer))
+    check:
+      key1.isErr() == true
+      key2.isErr() == true
+      key3.isErr() == true
+      key4.isErr() == true
+      key1.error == RsaKeyTooLargeError
+      key2.error == RsaKeyIncorrectError
+      key3.error == RsaKeyIncorrectError
+      key4.error == KeyError
