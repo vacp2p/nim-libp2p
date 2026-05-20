@@ -308,7 +308,7 @@ proc runHandleLoop*(
   while not stream.atEof:
     trace "waiting for data", stream, peer = p, closed = stream.closed
 
-    let data =
+    var data =
       try:
         await stream.readLp(p.maxMessageSize)
       except LPStreamEOFError:
@@ -321,7 +321,7 @@ proc runHandleLoop*(
     trace "read data from peer",
       stream, peer = p, closed = stream.closed, data = data.shortLog
 
-    await p.handler(p, data)
+    await p.handler(p, move(data))
 
 proc closeSendStream(
     p: PubSubPeer, event: PubSubPeerEventKind
@@ -445,7 +445,9 @@ proc sendMsgContinue(
     # will be recycled
     await stream.close() # This will clean up the send stream
 
-proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledError]).} =
+proc sendMsgSlow(
+    p: PubSubPeer, msg: sink seq[byte]
+) {.async: (raises: [CancelledError]).} =
   # Slow path where msg is held in memory while send stream is being set up.
   if p.sendStream == nil:
     # Wait for a send stream to be setup. `connectOnce` will
@@ -461,7 +463,7 @@ proc sendMsgSlow(p: PubSubPeer, msg: seq[byte]) {.async: (raises: [CancelledErro
   await sendMsgContinue(stream, stream.writeLp(msg))
 
 proc sendMsg(
-    p: PubSubPeer, msg: seq[byte], useCustomStream: bool = false
+    p: PubSubPeer, msg: sink seq[byte], useCustomStream: bool = false
 ): Future[void] {.async: (raises: [CancelledError]).} =
   ## Starts a transport write and returns its lifecycle future for internal
   ## queue accounting. Do not await this from receive-handler paths.
@@ -491,7 +493,7 @@ proc sendMsg(
     await sendMsgContinue(stream, f)
   else:
     trace "sending encoded msg to peer via slow path"
-    await sendMsgSlow(p, msg)
+    await sendMsgSlow(p, move(msg))
 
 proc disconnectPeer(p: PubSubPeer): Future[void] =
   if not p.disconnected:
@@ -503,9 +505,9 @@ proc disconnectPeer(p: PubSubPeer): Future[void] =
   return newFutureCompleted[void]()
 
 proc sendHighPriorityMessage(
-    p: PubSubPeer, msg: seq[byte], useCustomStream: bool
+    p: PubSubPeer, msg: sink seq[byte], useCustomStream: bool
 ): Future[void] =
-  let f = p.sendMsg(msg, useCustomStream)
+  let f = p.sendMsg(move(msg), useCustomStream)
   if not f.finished:
     p.rpcmessagequeue.sendPriorityQueue.addLast(f)
     when defined(pubsubpeer_queue_metrics):
@@ -513,9 +515,9 @@ proc sendHighPriorityMessage(
   return newFutureCompleted[void]()
 
 proc enqueueNonHighPriorityMessage(
-    p: PubSubPeer, msg: seq[byte], useCustomStream: bool, priority: MessagePriority
+    p: PubSubPeer, msg: sink seq[byte], useCustomStream: bool, priority: MessagePriority
 ): Future[void] =
-  let queuedMsg = QueuedMessage(data: msg, useCustomStream: useCustomStream)
+  let queuedMsg = QueuedMessage(data: move(msg), useCustomStream: useCustomStream)
   case priority
   of MessagePriority.Medium:
     p.rpcmessagequeue.mediumPriorityQueue.addLast(queuedMsg)
@@ -550,7 +552,7 @@ proc dropNonHighPriorityMessage(
 
 proc sendEncoded*(
     p: PubSubPeer,
-    msg: seq[byte],
+    msg: sink seq[byte],
     priority: MessagePriority,
     useCustomStream: bool = false,
 ): Future[void] =
@@ -587,12 +589,12 @@ proc sendEncoded*(
     case action.priority
     of High:
       if action.send:
-        p.sendHighPriorityMessage(msg, useCustomStream)
+        p.sendHighPriorityMessage(move(msg), useCustomStream)
       else:
         p.disconnectPeer()
     of Medium, Low:
       if action.send:
-        p.enqueueNonHighPriorityMessage(msg, useCustomStream, action.priority)
+        p.enqueueNonHighPriorityMessage(move(msg), useCustomStream, action.priority)
       else:
         p.dropNonHighPriorityMessage(action.slowPeerPenaltyDelta, action.priority)
 
@@ -650,7 +652,7 @@ proc send*(
   # or malicious data on the wire - in particular, re-encoding protects against
   # some forms of valid but redundantly encoded protobufs with unknown or
   # duplicated fields
-  let encoded =
+  var encoded =
     if p.hasObservers():
       var mm = msg
       # trigger send hooks
@@ -668,11 +670,12 @@ proc send*(
 
   if encoded.len > maxEncodedMsgSize and msg.messages.len > 1:
     for encodedSplitMsg in splitRPCMsg(p, msg, maxEncodedMsgSize, anonymize):
-      asyncSpawn p.sendEncoded(encodedSplitMsg, priority, useCustomStream)
+      var ownedEncodedSplitMsg = encodedSplitMsg
+      asyncSpawn p.sendEncoded(move(ownedEncodedSplitMsg), priority, useCustomStream)
   else:
     # If the message size is within limits, send it as is
     trace "sending msg to peer", peer = p, rpcMsg = shortLog(msg)
-    asyncSpawn p.sendEncoded(encoded, priority, useCustomStream)
+    asyncSpawn p.sendEncoded(move(encoded), priority, useCustomStream)
 
 proc canAskIWant*(p: PubSubPeer, msgId: MessageId): bool =
   for sentIHave in p.sentIHaves.mitems():
@@ -690,7 +693,7 @@ proc sendNonHighPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).
       p.rpcmessagequeue.dataAvailableEvent.clear()
 
     var priority = MessagePriority.Low
-    let msg =
+    var msg =
       if p.rpcmessagequeue.mediumPriorityQueue.len != 0:
         priority = MessagePriority.Medium
         p.rpcmessagequeue.mediumPriorityQueue.popFirst()
@@ -715,7 +718,8 @@ proc sendNonHighPriorityTask(p: PubSubPeer) {.async: (raises: [CancelledError]).
       else:
         libp2p_gossipsub_low_priority_queue_size.dec(labelValues = [$p.peerId])
 
-    await p.sendMsg(msg.data, msg.useCustomStream)
+    let useCustomStream = msg.useCustomStream
+    await p.sendMsg(move(msg.data), useCustomStream)
 
 proc startSendNonHighPriorityTask(p: PubSubPeer) =
   debug "starting sendNonHighPriorityTask", p
