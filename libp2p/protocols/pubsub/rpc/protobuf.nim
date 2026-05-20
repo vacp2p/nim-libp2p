@@ -602,9 +602,9 @@ proc decodePartialMessageExtensionRPC*(
 
   ok(Opt.some(pme))
 
-proc decodeRpcMsg*(msg: seq[byte]): ProtoResult[RPCMsg] {.inline.} =
+proc decodeRpcMsg*(msg: sink seq[byte]): ProtoResult[RPCMsg] {.inline.} =
   trace "decodeRpcMsg: decoding message", encodedData = msg.shortLog()
-  var pb = initProtoBuffer(msg)
+  var pb = initProtoBuffer(move(msg))
   var rpcMsg = RPCMsg()
   assign(rpcMsg.messages, ?pb.decodeMessages())
   assign(rpcMsg.subscriptions, ?pb.decodeSubscriptions())
