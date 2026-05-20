@@ -19,22 +19,50 @@ import ../../../../libp2p/protocols/kademlia/protobuf as kad_protobuf
 import ../../../tools/[lifecycle, unittest]
 import ../utils
 
+const MaxRegistrarSetupAttempts = 1000
+
+proc bucketOf(r: ServiceDiscovery, serviceId: ServiceId): int =
+  bucketIndex(serviceId, r.switch.peerInfo.peerId.toKey(), Opt.none(XorDHasher))
+
 proc setupRegistrarsInDistinctBuckets(
     conf: ServiceDiscoveryConfig, serviceId: ServiceId
 ): tuple[queriedFirst, queriedSecond: ServiceDiscovery] =
   ## Two registrars in distinct buckets of the routing table rooted at `serviceId`.
   ## Returned in the order `lookup()` would visit them (lower bucket index first).
-  proc bucketOf(r: ServiceDiscovery): int =
-    bucketIndex(serviceId, r.switch.peerInfo.peerId.toKey(), Opt.none(XorDHasher))
-
   var a = setupServiceDiscoveryNode(discoConfig = conf)
   var b = setupServiceDiscoveryNode(discoConfig = conf)
-  while bucketOf(a) == bucketOf(b):
+  for _ in 0 ..< MaxRegistrarSetupAttempts:
+    if bucketOf(a, serviceId) != bucketOf(b, serviceId):
+      if bucketOf(a, serviceId) < bucketOf(b, serviceId):
+        return (a, b)
+      else:
+        return (b, a)
+
     b = setupServiceDiscoveryNode(discoConfig = conf)
-  if bucketOf(a) < bucketOf(b):
-    (a, b)
-  else:
-    (b, a)
+
+  raiseAssert "could not find registrars in distinct buckets"
+
+proc setupRegistrarsInSameBucket(
+    conf: ServiceDiscoveryConfig, serviceId: ServiceId, count: int
+): seq[ServiceDiscovery] =
+  ## Registrars that land in one service routing table bucket.
+  doAssert count > 0, "count must be > 0"
+
+  var registrarsByBucket = initTable[int, seq[ServiceDiscovery]]()
+  for _ in 0 ..< MaxRegistrarSetupAttempts:
+    let registrar = setupServiceDiscoveryNode(discoConfig = conf)
+    let bucket = bucketOf(registrar, serviceId)
+    if bucket >= conf.bucketsCount:
+      continue
+
+    if not registrarsByBucket.hasKey(bucket):
+      registrarsByBucket[bucket] = @[]
+    registrarsByBucket[bucket].add(registrar)
+
+    if registrarsByBucket[bucket].len == count:
+      return registrarsByBucket[bucket]
+
+  raiseAssert "could not find enough registrars in one bucket"
 
 suite "Service Discovery Component - Lookup Get Ads":
   teardown:
@@ -148,6 +176,27 @@ suite "Service Discovery Component - Lookup Get Ads":
     check:
       found.get().len == fLookup
       not found.get().anyIt(it.data.peerId == otherPeerId)
+
+  asyncTest "lookup queries K_lookup registrars per bucket":
+    const kLookup = 2
+    let conf = ServiceDiscoveryConfig.new(
+      safetyParam = 0.0, kLookup = kLookup, fLookup = 30, fReturn = 1
+    )
+    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
+
+    let serviceName = "service"
+    let serviceId = serviceName.hashServiceId()
+    let registrars = setupRegistrarsInSameBucket(conf, serviceId, kLookup + 2)
+
+    startAndDeferStop(@[discovererNode] & registrars)
+    for registrar in registrars:
+      await connect(discovererNode, registrar)
+      registrar.registrar.cache[serviceId] = @[makeAdvertisement(serviceName)]
+
+    let found = await discovererNode.lookup(serviceId)
+    check:
+      found.isOk()
+      found.get().len == kLookup
 
   asyncTest "lookup iterates buckets from farthest to closest":
     # fLookup=1, only the first-queried registrar's ad is returned

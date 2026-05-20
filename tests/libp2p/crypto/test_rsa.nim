@@ -4,7 +4,7 @@
 {.used.}
 
 import nimcrypto/utils
-import ../../../libp2p/crypto/[crypto, rsa]
+import ../../../libp2p/crypto/[crypto, minasn1, rsa]
 import ../../tools/[unittest, crypto]
 
 const
@@ -604,3 +604,58 @@ suite "RSA 2048/3072/4096 test suite":
       key1.error == RsaLowSecurityError
       key2.error == RsaKeyIncorrectError
       key3.error == RsaKeyIncorrectError
+
+  proc rsa2047BitModulus(): array[MinKeySize shr 3, byte] =
+    # 256 octets used to satisfy the old byte-length check, but the leading
+    # 0x7f makes this a 2047-bit RSA modulus.
+    var modulus: array[MinKeySize shr 3, byte]
+    modulus[0] = 0x7F'u8
+    for i in 1 .. modulus.high:
+      modulus[i] = 0xFF'u8
+    return modulus
+
+  proc pkcs1PrivateKeyDer(modulus: openArray[byte]): seq[byte] =
+    var b = Asn1Buffer.init()
+    var p = Asn1Composite.init(Asn1Tag.Sequence)
+    p.write(0'u64)
+    p.write(Asn1Tag.Integer, modulus)
+    p.write(uint64(DefaultPublicExponent))
+    # The RSA importer checks these fields are present before accepting the key.
+    # Placeholder values keep the fixture small; the modulus-size check must fail first.
+    for _ in 0 ..< 6:
+      p.write(1'u64)
+    p.finish()
+    b.write(p)
+    b.finish()
+    b.buffer
+
+  proc spkiPublicKeyDer(modulus: openArray[byte]): seq[byte] =
+    var b = Asn1Buffer.init()
+    var p = Asn1Composite.init(Asn1Tag.Sequence)
+    var c0 = Asn1Composite.init(Asn1Tag.Sequence)
+    var c1 = Asn1Composite.init(Asn1Tag.BitString)
+    var c10 = Asn1Composite.init(Asn1Tag.Sequence)
+    c0.write(Asn1Tag.Oid, Asn1OidRsaEncryption)
+    c0.write(Asn1Tag.Null)
+    c0.finish()
+    c10.write(Asn1Tag.Integer, modulus)
+    c10.write(uint64(DefaultPublicExponent))
+    c10.finish()
+    c1.write(c10)
+    c1.finish()
+    p.write(c0)
+    p.write(c1)
+    p.finish()
+    b.write(p)
+    b.finish()
+    b.buffer
+
+  test "[rsa2047] DER imports rejected":
+    let modulus = rsa2047BitModulus()
+    var key1 = RsaPrivateKey.init(pkcs1PrivateKeyDer(modulus))
+    var key2 = RsaPublicKey.init(spkiPublicKeyDer(modulus))
+    check:
+      key1.isErr() == true
+      key2.isErr() == true
+      key1.error == RsaKeyIncorrectError
+      key2.error == RsaKeyIncorrectError
