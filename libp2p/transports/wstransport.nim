@@ -111,15 +111,16 @@ method readOnce*(
   return res
 
 method write*(
-    s: WsStream, msg: seq[byte]
+    s: WsStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
+  let msgLen = msg.len
   mapExceptions(await s.session.send(msg, Opcode.Binary))
   s.activity = true # reset activity flag
-  libp2p_network_bytes.inc(msg.len.int64, labelValues = ["out"])
+  libp2p_network_bytes.inc(msgLen.int64, labelValues = ["out"])
   when defined(libp2p_agents_metrics):
     s.trackPeerIdentity()
     if s.tracked:
-      libp2p_peers_traffic_write.inc(msg.len.int64, labelValues = [s.shortAgent])
+      libp2p_peers_traffic_write.inc(msgLen.int64, labelValues = [s.shortAgent])
 
 method closeImpl*(s: WsStream): Future[void] {.async: (raises: []).} =
   try:

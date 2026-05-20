@@ -383,7 +383,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
 
     trace "try to send the buffer", h = $header
     try:
-      await channel.conn.write(sendBuffer)
+      await channel.conn.write(move(sendBuffer))
       channel.sendWindow.dec(inBuffer)
     except CancelledError:
       ## Just for compiler. This should never happen as sendLoop is started by asyncSpawn.
@@ -403,7 +403,7 @@ proc sendLoop(channel: YamuxChannel) {.async: (raises: []).} =
     channel.activity = true
 
 method write*(
-    channel: YamuxChannel, msg: seq[byte]
+    channel: YamuxChannel, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   ## Write to yamux channel
   ##
@@ -422,7 +422,7 @@ method write*(
     resFut.complete()
     return resFut
 
-  channel.sendQueue.add(ToSend(data: msg, sent: 0, fut: resFut))
+  channel.sendQueue.add(ToSend(data: move(msg), sent: 0, fut: resFut))
 
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_send_queue.observe(channel.lengthSendQueue().int64)

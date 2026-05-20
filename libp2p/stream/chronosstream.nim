@@ -125,10 +125,11 @@ proc completeWrite(
         libp2p_peers_traffic_write.inc(msgLen.int64, labelValues = [s.shortAgent])
 
 method write*(
-    s: ChronosStream, msg: seq[byte]
+    s: ChronosStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
   # drives up memory usage
+  let msgLen = msg.len
   if msg.len == 0:
     trace "Empty byte seq, nothing to write"
     let fut = newFuture[void]("chronosstream.write.empty")
@@ -139,7 +140,7 @@ method write*(
     fut.fail(newLPStreamClosedError())
     return fut
 
-  s.completeWrite(s.client.write(msg), msg.len)
+  s.completeWrite(s.client.write(msg), msgLen)
 
 method closed*(s: ChronosStream): bool =
   s.client.closed
