@@ -377,27 +377,20 @@ when defined(libp2p_autotls_support):
       raise
         newException(ACMEError, "Invalid new order status: " & $orderResponse.status)
 
-    let authorizationsResponse =
-      await self.requestAuthorizations(orderResponse.authorizations, key, kid)
+    let resp = await self.requestAuthorizations(orderResponse.authorizations, key, kid)
 
-    var dns01challenges = authorizationsResponse.challenges.filterIt(
-      it.`type` == ACMEChallengeType.DNS01
-    )
-    if dns01challenges.len == 0:
+    var challenges = resp.challenges.filterIt(it.`type` == ACMEChallengeType.DNS01)
+    if challenges.len == 0:
       # if there are no DNS01 use DNSPersist01
-      dns01challenges = authorizationsResponse.challenges.filterIt(
-        it.`type` == ACMEChallengeType.DNSPersist01
-      )
-    if dns01challenges.len == 0:
+      challenges = resp.challenges.filterIt(it.`type` == ACMEChallengeType.DNSPersist01)
+    if challenges.len == 0:
       raise newException(
         ACMEError,
         "Could not find supported DNS challenge type (dns-01 or dns-persist-01)",
       )
 
     return ACMEChallengeResponseWrapper(
-      finalize: orderResponse.finalize,
-      order: orderResponse.order,
-      dns01: dns01challenges[0],
+      finalize: orderResponse.finalize, order: orderResponse.order, dns01: challenges[0]
     )
 
   proc requestCheck*(
