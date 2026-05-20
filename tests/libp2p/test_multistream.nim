@@ -57,7 +57,7 @@ method readOnce*(
   fut
 
 method write*(
-    s: TestSelectStream, msg: seq[byte]
+    s: TestSelectStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   newFutureCompleted[void]()
 
@@ -113,7 +113,7 @@ method readOnce*(
   fut
 
 method write*(
-    s: TestLsStream, msg: seq[byte]
+    s: TestLsStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
     return s.ls(msg)
@@ -172,7 +172,7 @@ method readOnce*(
   fut
 
 method write*(
-    s: TestNaStream, msg: seq[byte]
+    s: TestNaStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   if s.step == 4:
     return s.na(string.fromBytes(msg))
