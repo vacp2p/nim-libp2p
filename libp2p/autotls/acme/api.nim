@@ -54,6 +54,7 @@ type ACMEChallengeType* {.pure.} = enum
   DNS01 = "dns-01"
   HTTP01 = "http-01"
   TLSALPN01 = "tls-alpn-01"
+  DNSPersist01 = "dns-persist-01"
 
 type ACMEChallengeToken* = string
 
@@ -356,7 +357,8 @@ when defined(libp2p_autotls_support):
         try:
           challenges.add(challenge.to(ACMEChallenge))
         except ValueError, JsonKindError:
-          debug "Skipping challenge with unrecognized fields", challenge = $challenge
+          debug "Skipping challenge with unrecognized fields",
+            challenge = $challenge, msg = getCurrentExceptionMsg()
 
       if challenges.len == 0:
         raise newException(ACMEError, "No challenges received")
@@ -368,23 +370,27 @@ when defined(libp2p_autotls_support):
   ): Future[ACMEChallengeResponseWrapper] {.
       async: (raises: [ACMEError, CancelledError])
   .} =
-    let orderResponse = await self.requestNewOrder(domains, key, kid)
-    if orderResponse.status != ACMEOrderStatus.PENDING and
-        orderResponse.status != ACMEOrderStatus.READY:
-      # ready is a valid status when renewing certs before expiry
-      raise
-        newException(ACMEError, "Invalid new order status: " & $orderResponse.status)
+    let orderResp = await self.requestNewOrder(domains, key, kid)
 
-    let authorizationsResponse =
-      await self.requestAuthorizations(orderResponse.authorizations, key, kid)
+    let validRenewStatus = @[ACMEOrderStatus.PENDING, ACMEOrderStatus.READY]
+    if orderResp.status notin validRenewStatus:
+      raise newException(ACMEError, "Invalid new order status: " & $orderResp.status)
+
+    let authResp = await self.requestAuthorizations(orderResp.authorizations, key, kid)
+
+    var challenges = authResp.challenges.filterIt(it.`type` == ACMEChallengeType.DNS01)
+    if challenges.len == 0:
+      # if there are no DNS01 use DNSPersist01
+      challenges =
+        authResp.challenges.filterIt(it.`type` == ACMEChallengeType.DNSPersist01)
+    if challenges.len == 0:
+      raise newException(
+        ACMEError,
+        "Could not find supported DNS challenge type (dns-01 or dns-persist-01)",
+      )
 
     return ACMEChallengeResponseWrapper(
-      finalize: orderResponse.finalize,
-      order: orderResponse.order,
-      dns01: authorizationsResponse.challenges.filterIt(
-        it.`type` == ACMEChallengeType.DNS01
-      )[0],
-        # getting the first element is safe since we checked that authorizationsResponse.challenges.len != 0
+      finalize: orderResp.finalize, order: orderResp.order, dns01: challenges[0]
     )
 
   proc requestCheck*(
