@@ -4,8 +4,6 @@
 {.used.}
 
 when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
-  {.push raises: [].}
-
   import chronos, chronos/apps/http/httpclient
   import
     ../../libp2p/[
