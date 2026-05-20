@@ -253,6 +253,7 @@ The test runner (`libp2p.nimble`) always compiles with:
 - If you must use exceptions, use specific exception types. Avoid raising or capturing `CatchableError`. Catching `CatchableError` implies that all errors are funnelled through the same exception handler.
 - Do not catch `CancelledError`. By not catching, it is propagated by default. Sometimes this exception is captured and re-raised which is fine.
 - Use `e` as error variable name in `except` clause like `except LPStreamEOFError as e`
+- Code in `except` blocks must always add raised error message, from `e.msg` property or `getCurrentExceptionMsg()` proc, to logs or append it to new error if it is being raised. Do not do this in case of `CancelledError` as those error messages never add value.
 
 #### Result
 - Use explicit error-signalling types (`bool`, `Opt`, `Result`) over implicit mechanisms like exceptions or status codes
