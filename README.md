@@ -64,6 +64,7 @@ nim-libp2p is used by:
 - [Nimbus](https://github.com/status-im/nimbus-eth2), an Ethereum client
 - [logos-delivery](https://github.com/logos-messaging/logos-delivery), a decentralized messaging protocols
 - [logos-storage](https://github.com/logos-storage/logos-storage-nim), a decentralized storage protocols
+- [Mix Protocol](https://github.com/logos-co/nim-libp2p-mix), a decentralized anonymous message routing layer for libp2p networks
 - (open a pull request if you want to be included here)
 
 ## Stability
