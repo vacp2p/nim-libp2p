@@ -103,14 +103,7 @@ proc advertiseToRegistrar*(
       await disco.sendRegister(registrar, serviceId, advertBuff, currentTicket)
     ).valueOr:
       error "failed to register ad", error
-      # Network errors (e.g. a lost race on concurrent dials to the same registrar)
-      # are transient.  We cannot use a condition-based wait here because there is
-      # no in-process state to observe — the failure is at the network layer.
-      # sleepAsync is therefore the appropriate tool: it introduces a brief pause
-      # before the next attempt so we do not busy-retry the dial, while still
-      # ensuring eventual registration once the connection stabilises.
-      await sleepAsync(5.seconds)
-      continue
+      return
 
     disco.updatePeers(response.closerPeers)
 
