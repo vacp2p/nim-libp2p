@@ -315,6 +315,8 @@ proc stop*(s: Switch) {.async: (raises: [CancelledError]).} =
   try:
     # Stop accepting incoming connections
     await s.acceptFuts.cancelAndWait().wait(1.seconds)
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     debug "Cannot cancel accepts", description = exc.msg
 
