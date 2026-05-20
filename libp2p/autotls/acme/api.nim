@@ -384,7 +384,10 @@ when defined(libp2p_autotls_support):
       it.`type` == ACMEChallengeType.DNS01 or it.`type` == ACMEChallengeType.DNSPersist01
     )
     if dns01challenges.len == 0:
-      raise newException(ACMEError, "Could not find DNS01 challenge type")
+      raise newException(
+        ACMEError,
+        "Could not find supported DNS challenge type (dns-01 or dns-persist-01)",
+      )
 
     return ACMEChallengeResponseWrapper(
       finalize: orderResponse.finalize,
