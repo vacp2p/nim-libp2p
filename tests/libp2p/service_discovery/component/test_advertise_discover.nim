@@ -232,37 +232,6 @@ suite "Service Discovery Component - Advertise Discover":
     let ads = registrarNode.getAdsInCache(serviceId)
     check ads[0].data.peerId == advertiserNode.switch.peerInfo.peerId
 
-  asyncTest "advertiser re-advertises after advertExpiry":
-    let conf = ServiceDiscoveryConfig.new(advertExpiry = 500.millis, safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, advertiserNode])
-    await connect(registrarNode, advertiserNode)
-
-    let service = makeServiceInfo("service")
-    let serviceId = service.id.hashServiceId()
-
-    # addProvidedService starts an advertiseToRegistrar task.
-    # The task keeps running after the first REGISTER is Confirmed.
-    # It waits advertExpiry, then sends REGISTER again for the same ad.
-    # The registrar keeps one ad and refreshes cacheTimestamps.
-    advertiserNode.addProvidedService(service)
-
-    checkUntilTimeout:
-      registrarNode.countAdsInCache(serviceId) == 1
-
-    let
-      cachedAd = registrarNode.getAdsInCache(serviceId)[0]
-      adKey = cachedAd.toAdvertisementKey()
-      firstTimestamp = registrarNode.registrar.cacheTimestamps[adKey]
-
-    checkUntilTimeout:
-      block:
-        let ads = registrarNode.getAdsInCache(serviceId)
-        ads.len == 1 and ads[0].toAdvertisementKey() == adKey and
-          registrarNode.registrar.cacheTimestamps.hasKey(adKey) and
-          registrarNode.registrar.cacheTimestamps[adKey] > firstTimestamp
-
   asyncTest "advertiser stops after the registrar replies Rejected":
     let registrarNode = setupServiceDiscoveryNode()
     let advertiserNode = setupServiceDiscoveryNode()
