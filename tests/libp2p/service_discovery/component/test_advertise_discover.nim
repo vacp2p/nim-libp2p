@@ -322,7 +322,7 @@ suite "Service Discovery Component - Advertise Discover":
         foundA.containsPeer(advertiserNode) and foundB.containsPeer(advertiserNode)
 
   asyncTest "addProvidedService drops a known registrar at Kad bucketIndex 16":
-    # TODO: nim-libp2p#2499 service-disco: valid service registrars are dropped when Kad bucketIndex is 16 or higher
+    # TODO: nim-libp2p#2499 service-disco: valid service-table peers are dropped when Kad bucketIndex is 16 or higher
     # Precomputed private key to pin the registrar identity and service name.
     # Their Kad bucketIndex is exactly 16 for this serviceId.
     # A ServiceDiscovery service table accepts indexes 0 through 15.
