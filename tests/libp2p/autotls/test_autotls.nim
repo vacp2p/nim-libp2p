@@ -284,7 +284,7 @@ when defined(libp2p_autotls_support):
       )
 
       let mixedAuthResp = await api.requestAuthorizations(@["auth-3"], key, "kid")
-      check mixedAuthResp.challenges.len == 1
+      check mixedAuthResp.challenges.len == 2
 
       # replenish invalid responses for the remaining expect(ACMEError) blocks
       for _ in 0 .. 5:
