@@ -380,9 +380,14 @@ when defined(libp2p_autotls_support):
     let authorizationsResponse =
       await self.requestAuthorizations(orderResponse.authorizations, key, kid)
 
-    let dns01challenges = authorizationsResponse.challenges.filterIt(
-      it.`type` == ACMEChallengeType.DNS01 or it.`type` == ACMEChallengeType.DNSPersist01
+    var dns01challenges = authorizationsResponse.challenges.filterIt(
+      it.`type` == ACMEChallengeType.DNS01
     )
+    if dns01challenges.len == 0:
+      # if there are no DNS01 use DNSPersist01
+      dns01challenges = authorizationsResponse.challenges.filterIt(
+        it.`type` == ACMEChallengeType.DNSPersist01
+      )
     if dns01challenges.len == 0:
       raise newException(
         ACMEError,
