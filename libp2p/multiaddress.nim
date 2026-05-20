@@ -1249,6 +1249,43 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
       cursor.offset = cursor.offset + skipLen
     # Marker - nothing to skip
 
+proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
+  ## Returns a copy of ``ma`` with its leading IP4/IP6 component replaced by
+  ## ``ip``. The remainder of the multiaddress (transport, port, and any
+  ## suffix such as ``/quic-v1``, ``/ws``, ``/wss``, ``/tls/ws``) is
+  ## preserved. Returns an error if ``ma`` has no IP component or its IP
+  ## family does not match ``ip``.
+  let
+    ip4 = multiCodec("ip4")
+    ip6 = multiCodec("ip6")
+    targetCodec =
+      case ip.family
+      of IpAddressFamily.IPv4: ip4
+      of IpAddressFamily.IPv6: ip6
+    newIp =
+      case ip.family
+      of IpAddressFamily.IPv4:
+        ?MultiAddress.init(targetCodec, ip.address_v4)
+      of IpAddressFamily.IPv6:
+        ?MultiAddress.init(targetCodec, ip.address_v6)
+
+  var
+    found = false
+    res = MultiAddress.init()
+  for item in ma.items:
+    let part = ?item
+    let code = ?part.protoCode
+    if not found and (code == ip4 or code == ip6):
+      if code != targetCodec:
+        return err("multiaddress: IP family mismatch")
+      ?res.append(newIp)
+      found = true
+    else:
+      ?res.append(part)
+  if not found:
+    return err("multiaddress: no IP component to replace")
+  ok(res)
+
 const AvgMultiAddressStringLength = 32
 
 func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =

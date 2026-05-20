@@ -4,11 +4,9 @@
 {.push raises: [].}
 
 import std/[net, sequtils]
-import stew/endians2
 import chronos, chronicles, results
-import ../[multiaddress, multicodec]
+import ../[multiaddress]
 import ../switch
-import ./wildcardresolverservice
 
 logScope:
   topics = "libp2p natservice"
@@ -20,12 +18,15 @@ type
       ## is performed.
       ## TODO: In this skeleton it is a no-op;
     natModeExplicitIp
-      ## Static external IP, no probing. The configured `explicitIp` is combined
-      ## with the bound listen ports to produce `peerInfo.announcedAddrs`.
+      ## Static external IP, no probing. The configured ``explicitIp`` is combined
+      ## with the bound listen addresses to produce the announced address set.
 
   NATConfig* = object
-    mode*: NATMode
-    explicitIp*: Opt[IpAddress]
+    case mode*: NATMode
+    of natModeExplicitIp:
+      explicitIp*: IpAddress
+    of natModeAuto:
+      discard
 
   NATService* = ref object of Service
     config: NATConfig
@@ -34,53 +35,18 @@ type
 proc new*(T: typedesc[NATService], config: NATConfig): T =
   T(config: config)
 
-proc init*(
-    T: typedesc[NATConfig],
-    mode: NATMode,
-    explicitIp: Opt[IpAddress] = Opt.none(IpAddress),
-): T =
-  T(mode: mode, explicitIp: explicitIp)
-
-proc explicitIpMultiAddrs(
+proc explicitIpMapped(
     listenAddrs: seq[MultiAddress], explicitIp: IpAddress
 ): seq[MultiAddress] =
-  ## For each TCP-over-IP or QUIC-v1-over-IP listen address whose family matches
-  ## `explicitIp`, emit a copy with the IP swapped to `explicitIp` and the
-  ## transport/port preserved. Other addresses are dropped (e.g. memory transport,
-  ## or a family mismatch).
+  ## For each listen address that carries an IP component matching the family
+  ## of ``explicitIp``, emit a copy with the IP swapped to ``explicitIp``.
+  ## Transport, port, and any suffix (e.g. ``/quic-v1``, ``/ws``, ``/wss``,
+  ## ``/tls/ws``) are preserved. Addresses without an IP component, or with a
+  ## mismatching family, are dropped.
   var addrs: seq[MultiAddress]
   for listenAddr in listenAddrs:
-    let
-      tcpMatch = TCP_IP.matchPartial(listenAddr)
-      quicMatch = QUIC_V1_IP.matchPartial(listenAddr)
-    if not (tcpMatch or quicMatch):
-      continue
-
-    let isIp4 = IP4.matchPartial(listenAddr)
-    let isIp6 = IP6.matchPartial(listenAddr)
-    if isIp4 and explicitIp.family != IpAddressFamily.IPv4:
-      continue
-    if isIp6 and explicitIp.family != IpAddressFamily.IPv6:
-      continue
-    if not (isIp4 or isIp6):
-      continue
-
-    let (netCodec, transportProto, isQuic) =
-      if tcpMatch:
-        (multiCodec("tcp"), tcpProtocol, false)
-      else:
-        (multiCodec("udp"), udpProtocol, true)
-
-    listenAddr.getProtocolArgument(netCodec).withValue(portArg):
-      let port = Port(uint16.fromBytesBE(portArg))
-      let base = MultiAddress.init(explicitIp, transportProto, port)
-      if isQuic:
-        let quicV1 = MultiAddress.init("/quic-v1").valueOr:
-          continue
-        base.concat(quicV1).withValue(maddress):
-          addrs.add(maddress)
-      else:
-        addrs.add(base)
+    listenAddr.replaceIp(explicitIp).withValue(remapped):
+      addrs.add(remapped)
   addrs
 
 method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
@@ -91,19 +57,11 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
     # TODO: wire autonat / hole-punching in here.
     discard
   of natModeExplicitIp:
-    let explicitIp = self.config.explicitIp.valueOr:
-      raise newException(
-        ServiceSetupError, "NATService natModeExplicitIp requires explicitIp to be set"
-      )
-
+    let explicitIp = self.config.explicitIp
     self.addressMapper = proc(
         listenAddrs: seq[MultiAddress]
     ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-      let announced = explicitIpMultiAddrs(listenAddrs, explicitIp)
-      # Freeze the result into announcedAddrs so subsequent expandAddrs short-
-      # circuits the mapper chain and downstream consumers see a stable set.
-      switch.peerInfo.announcedAddrs = announced
-      return announced
+      return explicitIpMapped(listenAddrs, explicitIp)
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
   trace "Starting NATService", mode = self.config.mode
@@ -116,9 +74,7 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
   trace "Stopping NATService"
   if self.addressMapper != nil:
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-  # Clear the explicit announce owned by this service, but do not trigger
-  # peerInfo.update() during shutdown because it may notify observers and
-  # cause them to publish address changes while the switch is tearing down.
-  # Address recalculation is deferred until the next Switch.start or an
-  # explicit refresh performed at a safe lifecycle point.
-  switch.peerInfo.announcedAddrs = @[]
+  # Do not touch peerInfo.announcedAddrs here: those may have been set by the
+  # user via withAnnouncedAddresses, and triggering peerInfo.update during
+  # shutdown can cause observers (e.g. IdentifyPusher) to broadcast while the
+  # switch is tearing down.

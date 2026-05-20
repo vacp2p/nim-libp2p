@@ -40,7 +40,7 @@ import services/wildcardresolverservice
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
-  connmanager.maxTotal, connmanager.maxInOut
+  connmanager.maxTotal, connmanager.maxInOut, natservice
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
