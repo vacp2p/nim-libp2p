@@ -114,7 +114,9 @@ proc checkScalar(scalar: openArray[byte], curve: cint): uint32 =
       c = c or (-(cast[int32](EQ0(c))) and CMP(scalar[i], order[i]))
   else:
     c = -1
-  NEQ(z, 0'u32) and LT0(c)(key: openArray[byte], curve: cint): uint32 =
+  NEQ(z, 0'u32) and LT0(c)
+
+proc checkPublic(key: openArray[byte], curve: cint): uint32 =
   ## Return ``1`` if public key ``key`` is on curve.
   var ckey = @key
   var x = [byte 0x00, 0x01]
