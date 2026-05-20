@@ -111,40 +111,44 @@ suite "Service Discovery Component - Advertise Discover":
         found.get().len == 2 and found.containsPeer(advertiserA) and
           found.containsPeer(advertiserB)
 
-  asyncTest "one advertiser provides two services - both discoverable":
-    # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
-    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, ipSimCoefficient = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
+  for i in 0 ..< 10:
+    asyncTest "one advertiser provides two services - both discoverable" & $i:
+      # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
+      let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, ipSimCoefficient = 0.0)
+      let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+      let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+      let discovererNode = setupServiceDiscoveryNode(discoConfig = conf)
+      startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
 
-    await connectHub(registrarNode, @[advertiserNode, discovererNode])
+      await connectHub(registrarNode, @[advertiserNode, discovererNode])
 
-    let svcA = makeServiceInfo("service-A")
-    let svcB = makeServiceInfo("service-B")
-    let svcAId = svcA.id.hashServiceId()
-    let svcBId = svcB.id.hashServiceId()
+      let svcA = makeServiceInfo("service-A")
+      let svcB = makeServiceInfo("service-B")
+      let svcAId = svcA.id.hashServiceId()
+      let svcBId = svcB.id.hashServiceId()
 
-    advertiserNode.addProvidedService(svcA)
+      advertiserNode.addProvidedService(svcA)
 
-    checkUntilTimeout:
-      registrarNode.countAdsInCache(svcAId) == 1
+      checkUntilTimeout:
+        registrarNode.countAdsInCache(svcAId) == 1
 
-    advertiserNode.addProvidedService(svcB)
+      advertiserNode.addProvidedService(svcB)
 
-    checkUntilTimeout:
-      registrarNode.countAdsInCache(svcBId) == 1
+      checkUntilTimeout:
+        registrarNode.countAdsInCache(svcBId) == 1
 
-    checkUntilTimeout:
-      block:
-        let foundA = await discovererNode.lookup(svcAId)
-        let foundB = await discovererNode.lookup(svcBId)
-        foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
-          foundA.get().len == 1 and
+      checkUntilTimeout:
+        block:
+          let foundA = await discovererNode.lookup(svcAId)
+          echo foundA
+          foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
+            foundA.get().len == 1
+        block:
+          let foundB = await discovererNode.lookup(svcBId)
+          echo foundB
           foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
-          foundB.get().len == 1
-          # Regression for vacp2p/nim-libp2p#2431: this lookup previously returned a duplicate.
+            foundB.get().len == 1
+            # Regression for vacp2p/nim-libp2p#2431: this lookup previously returned a duplicate.
 
   asyncTest "lookup dedups byte-identical adverts but keeps same (peerId, seqNo) variants":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
