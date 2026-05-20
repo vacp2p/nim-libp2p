@@ -5,7 +5,7 @@ import chronos
 import ../../libp2p/stream/[chronosstream, bufferstream, lpstream]
 
 type
-  WriteHandler* = proc(data: seq[byte]): Future[void] {.
+  WriteHandler* = proc(data: sink seq[byte]): Future[void] {.
     async: (raises: [CancelledError, LPStreamError])
   .}
 
@@ -13,9 +13,9 @@ type
     writeHandler*: WriteHandler
 
 method write*(
-    s: TestBufferStream, msg: seq[byte]
+    s: TestBufferStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
-  s.writeHandler(msg)
+  s.writeHandler(move(msg))
 
 method getWrapped*(s: TestBufferStream): Connection =
   nil
