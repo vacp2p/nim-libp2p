@@ -370,19 +370,19 @@ when defined(libp2p_autotls_support):
   ): Future[ACMEChallengeResponseWrapper] {.
       async: (raises: [ACMEError, CancelledError])
   .} =
-    let orderResponse = await self.requestNewOrder(domains, key, kid)
-    if orderResponse.status != ACMEOrderStatus.PENDING and
-        orderResponse.status != ACMEOrderStatus.READY:
-      # ready is a valid status when renewing certs before expiry
-      raise
-        newException(ACMEError, "Invalid new order status: " & $orderResponse.status)
+    let orderResp = await self.requestNewOrder(domains, key, kid)
 
-    let resp = await self.requestAuthorizations(orderResponse.authorizations, key, kid)
+    let validRenewStatus = @[ACMEOrderStatus.PENDING, ACMEOrderStatus.READY]
+    if orderResp.status notin validRenewStatus:
+      raise newException(ACMEError, "Invalid new order status: " & $orderResp.status)
 
-    var challenges = resp.challenges.filterIt(it.`type` == ACMEChallengeType.DNS01)
+    let authResp = await self.requestAuthorizations(orderResp.authorizations, key, kid)
+
+    var challenges = authResp.challenges.filterIt(it.`type` == ACMEChallengeType.DNS01)
     if challenges.len == 0:
       # if there are no DNS01 use DNSPersist01
-      challenges = resp.challenges.filterIt(it.`type` == ACMEChallengeType.DNSPersist01)
+      challenges =
+        authResp.challenges.filterIt(it.`type` == ACMEChallengeType.DNSPersist01)
     if challenges.len == 0:
       raise newException(
         ACMEError,
