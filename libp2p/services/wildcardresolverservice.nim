@@ -63,17 +63,6 @@ proc new*(
   ## - A new instance of `WildcardAddressResolverService`.
   return T(networkInterfaceProvider: networkInterfaceProvider)
 
-proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byte]] =
-  for item in ma:
-    let
-      ritem = ?item
-      code = ?ritem.protoCode()
-    if code == codec:
-      let arg = ?ritem.protoAddress()
-      return ok(arg)
-
-  err("Multiaddress codec has not been found")
-
 proc getWildcardMultiAddresses(
     interfaceAddresses: seq[InterfaceAddress],
     protocol: Protocol,

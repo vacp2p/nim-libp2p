@@ -875,6 +875,18 @@ proc getPart*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] =
       return ok(part)
   err("no such codec in multiaddress")
 
+proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byte]] =
+  ## Returns the raw byte argument of the first component in ``ma`` matching
+  ## ``codec`` (e.g. the 2-byte port for ``/tcp/<port>``, the 4-byte address
+  ## bytes for ``/ip4/<addr>``).
+  for item in ma:
+    let
+      ritem = ?item
+      code = ?ritem.protoCode()
+    if code == codec:
+      return ok(?ritem.protoAddress())
+  err("Multiaddress codec has not been found")
+
 proc getProtocol(name: string): MAProtocol {.inline.} =
   let mc = MultiCodec.codec(name)
   if mc != InvalidMultiCodec:
