@@ -98,7 +98,7 @@ method unsubscribePeer*(f: FloodSub, peer: PeerId) =
 method rpcHandler*(
     f: FloodSub, peer: PubSubPeer, data: sink seq[byte]
 ) {.async: (raises: [CancelledError, PeerMessageDecodeError, PeerRateLimitError]).} =
-  var rpcMsg = decodeRpcMsg(data).valueOr:
+  var rpcMsg = decodeRpcMsg(move(data)).valueOr:
     debug "failed to decode msg from peer", peer, err = error
     raise newException(PeerMessageDecodeError, "Peer msg couldn't be decoded")
 
