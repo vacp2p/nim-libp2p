@@ -390,7 +390,7 @@ when defined(libp2p_autotls_support):
       )
 
     return ACMEChallengeResponseWrapper(
-      finalize: orderResponse.finalize, order: orderResponse.order, dns01: challenges[0]
+      finalize: orderResp.finalize, order: orderResp.order, dns01: challenges[0]
     )
 
   proc requestCheck*(
