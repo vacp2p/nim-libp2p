@@ -234,7 +234,7 @@ method readLp*(
   res
 
 method write*(
-    s: LPStream, msg: seq[byte]
+    s: LPStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true), base.} =
   # Write `msg` to stream, waiting for the write to be finished
   raiseAssert("[LPStream.write] abstract method not implemented!")
@@ -247,7 +247,7 @@ method writeLp*(
   var buf = newSeqUninit[byte](msg.len() + vbytes.len)
   buf[0 ..< vbytes.len] = vbytes.toOpenArray()
   buf[vbytes.len ..< buf.len] = msg
-  s.write(buf)
+  s.write(move(buf))
 
 method writeLp*(
     s: LPStream, msg: string
