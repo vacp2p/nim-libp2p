@@ -175,9 +175,10 @@ proc getBytes*(key: SkPublicKey): seq[byte] {.inline.} =
 
 proc getBytes*(sig: SkSignature): seq[byte] {.inline.} =
   ## Serialize Secp256k1 `signature` and return it.
-  result = newSeqUninit[byte](72)
-  let length = toBytes(sig, result)
-  result.setLen(length)
+  var buf = newSeqUninit[byte](72)
+  let length = toBytes(sig, buf)
+  buf.setLen(length)
+  buf
 
 proc sign*[T: byte | char](key: SkPrivateKey, msg: openArray[T]): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
