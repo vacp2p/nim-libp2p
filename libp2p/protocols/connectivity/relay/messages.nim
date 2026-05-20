@@ -47,28 +47,29 @@ type
     status*: Opt[StatusV1]
 
 proc encode*(msg: RelayMessage): ProtoBuffer =
-  result = initProtoBuffer()
+  var pb = initProtoBuffer()
 
   msg.msgType.withValue(typ):
-    result.write(1, typ.ord.uint)
+    pb.write(1, typ.ord.uint)
   msg.srcPeer.withValue(srcPeer):
     var peer = initProtoBuffer()
     peer.write(1, srcPeer.peerId)
     for ma in srcPeer.addrs:
       peer.write(2, ma.data.buffer)
     peer.finish()
-    result.write(2, peer.buffer)
+    pb.write(2, peer.buffer)
   msg.dstPeer.withValue(dstPeer):
     var peer = initProtoBuffer()
     peer.write(1, dstPeer.peerId)
     for ma in dstPeer.addrs:
       peer.write(2, ma.data.buffer)
     peer.finish()
-    result.write(3, peer.buffer)
+    pb.write(3, peer.buffer)
   msg.status.withValue(status):
-    result.write(4, status.ord.uint)
+    pb.write(4, status.ord.uint)
 
-  result.finish()
+  pb.finish()
+  pb
 
 proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
   var

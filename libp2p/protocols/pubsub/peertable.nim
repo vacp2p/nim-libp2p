@@ -11,16 +11,17 @@ export tables, sets
 type PeerTable* = Table[string, HashSet[PubSubPeer]] # topic string to peer map
 
 proc `$`*(table: PeerTable): string =
-  result.add("PeerTable ")
-  result.add("topics (" & $table.len & ")")
+  var s = "PeerTable "
+  s.add("topics (" & $table.len & ")")
 
   for topic, peers in table:
-    result.add(" topic: ")
-    result.add($topic)
-    result.add(" peers: ")
-    result.add("(" & $peers.len & ") [")
-    result.add(peers.mapIt($it).join(", "))
-    result.add("]")
+    s.add(" topic: ")
+    s.add($topic)
+    s.add(" peers: ")
+    s.add("(" & $peers.len & ") [")
+    s.add(peers.mapIt($it).join(", "))
+    s.add("]")
+  s
 
 proc hasPeerId*(t: PeerTable, topic: string, peerId: PeerId): bool =
   if topic in t:
