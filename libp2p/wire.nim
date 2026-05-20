@@ -150,9 +150,11 @@ proc getLocalAddress*(sock: AsyncFD): TransportAddress =
   ## Note: This procedure only used in `go-libp2p-daemon` wrapper.
   var saddr: Sockaddr_storage
   var slen = SockLen(sizeof(Sockaddr_storage))
+  var ta: TransportAddress
 
   if getsockname(SocketHandle(sock), cast[ptr SockAddr](addr saddr), addr slen) == 0:
-    fromSAddr(addr saddr, slen, result)
+    fromSAddr(addr saddr, slen, ta)
+  ta
 
 proc isPublicMA*(ma: MultiAddress): bool =
   if DNS.matchPartial(ma):

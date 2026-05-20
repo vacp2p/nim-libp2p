@@ -250,7 +250,8 @@ proc `==`*(a: Cid, b: Cid): bool =
       return false
     if MultiHash.decode(b.data.buffer.toOpenArray(b.hpos, b.data.high), bh).isErr:
       return false
-    ah == bh
+    return ah == bh
+  false
 
 proc base58*(cid: Cid): string =
   ## Get BASE58 encoded string representation of content identifier ``cid``.

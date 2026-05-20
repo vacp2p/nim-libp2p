@@ -85,26 +85,28 @@ proc newStreamInternal*(
   if id in m.channels[initiator]:
     raise newInvalidChannelIdError()
 
-  result = LPChannel.init(id, m.connection, initiator, name, timeout = timeout)
+  let channel = LPChannel.init(id, m.connection, initiator, name, timeout = timeout)
 
-  result.peerId = m.connection.peerId
-  result.observedAddr = m.connection.observedAddr
-  result.localAddr = m.connection.localAddr
-  result.transportDir = m.connection.transportDir
+  channel.peerId = m.connection.peerId
+  channel.observedAddr = m.connection.observedAddr
+  channel.localAddr = m.connection.localAddr
+  channel.transportDir = m.connection.transportDir
   when defined(libp2p_agents_metrics):
-    result.shortAgent = m.connection.shortAgent
+    channel.shortAgent = m.connection.shortAgent
 
-  trace "Creating new channel", m, channel = result, id, initiator, name
+  trace "Creating new channel", m, channel = channel, id, initiator, name
 
-  m.channels[initiator][id] = result
+  m.channels[initiator][id] = channel
 
   # All the errors are handled inside `cleanupChann()` procedure.
-  asyncSpawn m.cleanupChann(result)
+  asyncSpawn m.cleanupChann(channel)
 
   when defined(libp2p_expensive_metrics):
     libp2p_mplex_channels.set(
       m.channels[initiator].len.int64, labelValues = [$initiator, $m.connection.peerId]
     )
+
+  channel
 
 proc handleStream(m: Mplex, chann: LPChannel) {.async: (raises: []).} =
   ## call the muxer stream handler for this channel
@@ -242,7 +244,9 @@ method close*(m: Mplex) {.async: (raises: []).} =
   trace "Closed mplex", m
 
 method getStreams*(m: Mplex): seq[MuxedStream] {.gcsafe.} =
+  var streams: seq[MuxedStream]
   for c in m.channels[false].values:
-    result.add(c)
+    streams.add(c)
   for c in m.channels[true].values:
-    result.add(c)
+    streams.add(c)
+  streams

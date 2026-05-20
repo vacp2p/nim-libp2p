@@ -33,11 +33,13 @@ when defined(libp2p_autotls_support):
   method post*(
       self: MockACMEApi, uri: Uri, payload: string
   ): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
-    result = self.mockedResponses[0]
+    let resp = self.mockedResponses[0]
     self.mockedResponses.delete(0)
+    resp
 
   method get*(
       self: MockACMEApi, uri: Uri
   ): Future[HTTPResponse] {.async: (raises: [ACMEError, HttpError, CancelledError]).} =
-    result = self.mockedResponses[0]
+    let resp = self.mockedResponses[0]
     self.mockedResponses.delete(0)
+    resp

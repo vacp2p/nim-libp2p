@@ -53,14 +53,15 @@ proc init*(
     observedAddr: Opt[MultiAddress],
     localAddr: Opt[MultiAddress],
 ): ChronosStream =
-  result = C(
+  let s = C(
     client: client,
     timeout: timeout,
     dir: dir,
     observedAddr: observedAddr,
     localAddr: localAddr,
   )
-  result.initStream()
+  s.initStream()
+  s
 
 template withExceptions(body: untyped) =
   try:
@@ -95,13 +96,14 @@ method readOnce*(
   if s.atEof:
     raise newLPStreamEOFError()
   withExceptions:
-    result = await s.client.readOnce(pbytes, nbytes)
+    let bytesRead = await s.client.readOnce(pbytes, nbytes)
     s.activity = true # reset activity flag
-    libp2p_network_bytes.inc(result.int64, labelValues = ["in"])
+    libp2p_network_bytes.inc(bytesRead.int64, labelValues = ["in"])
     when defined(libp2p_agents_metrics):
       s.trackPeerIdentity()
       if s.tracked:
-        libp2p_peers_traffic_read.inc(result.int64, labelValues = [s.shortAgent])
+        libp2p_peers_traffic_read.inc(bytesRead.int64, labelValues = [s.shortAgent])
+    return bytesRead
 
 proc completeWrite(
     s: ChronosStream,

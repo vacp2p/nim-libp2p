@@ -121,31 +121,29 @@ proc initProtoBuffer*(
     data: seq[byte], offset = 0, options: set[ProtoFlags] = {}
 ): ProtoBuffer =
   ## Initialize ProtoBuffer with shallow copy of ``data``.
-  result.buffer = data
-  result.offset = offset
-  result.options = options
+  ProtoBuffer(buffer: data, offset: offset, options: options)
 
 proc initProtoBuffer*(
     data: openArray[byte], offset = 0, options: set[ProtoFlags] = {}
 ): ProtoBuffer =
   ## Initialize ProtoBuffer with copy of ``data``.
-  result.buffer = @data
-  result.offset = offset
-  result.options = options
+  ProtoBuffer(buffer: @data, offset: offset, options: options)
 
 proc initProtoBuffer*(options: set[ProtoFlags] = {}): ProtoBuffer =
   ## Initialize ProtoBuffer with new sequence of capacity ``cap``
-  result.options = options
+  var pb: ProtoBuffer
+  pb.options = options
   if WithVarintLength in options:
     # Our buffer will start from position 10, so we can store length of buffer
     # in [0, 9].
-    result.buffer = newSeqUninit[byte](10)
-    result.offset = 10
+    pb.buffer = newSeqUninit[byte](10)
+    pb.offset = 10
   elif {WithUint32LeLength, WithUint32BeLength} * options != {}:
     # Our buffer will start from position 4, so we can store length of buffer
     # in [0, 3].
-    result.buffer = newSeqUninit[byte](4)
-    result.offset = 4
+    pb.buffer = newSeqUninit[byte](4)
+    pb.offset = 4
+  pb
 
 proc write*[T: ProtoScalar](pb: var ProtoBuffer, field: int, value: T) =
   checkFieldNumber(field)

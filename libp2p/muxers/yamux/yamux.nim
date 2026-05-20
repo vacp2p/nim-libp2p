@@ -62,14 +62,15 @@ proc readHeader(
   var buffer: array[12, byte]
   await conn.readExactly(addr buffer[0], 12)
 
-  result.version = buffer[0]
+  var hdr: YamuxHeader
+  hdr.version = buffer[0]
   let flags = fromBytesBE(uint16, buffer[2 .. 3])
-  if not result.msgType.checkedEnumAssign(buffer[1]) or flags notin 0'u16 .. 15'u16:
+  if not hdr.msgType.checkedEnumAssign(buffer[1]) or flags notin 0'u16 .. 15'u16:
     raise newException(YamuxError, "Wrong header")
-  result.flags = cast[set[MsgFlags]](flags)
-  result.streamId = fromBytesBE(uint32, buffer[4 .. 7])
-  result.length = fromBytesBE(uint32, buffer[8 .. 11])
-  return result
+  hdr.flags = cast[set[MsgFlags]](flags)
+  hdr.streamId = fromBytesBE(uint32, buffer[4 .. 7])
+  hdr.length = fromBytesBE(uint32, buffer[8 .. 11])
+  hdr
 
 proc `$`(header: YamuxHeader): string =
   "{" & $header.msgType & ", " & "{" &
@@ -83,12 +84,14 @@ proc `$`(header: YamuxHeader): string =
     "}"
 
 proc encode(header: YamuxHeader): array[12, byte] =
-  result[0] = header.version
-  result[1] = uint8(header.msgType)
-  result[2 .. 3] = toBytesBE(uint16(cast[uint8](header.flags)))
+  var buf: array[12, byte]
+  buf[0] = header.version
+  buf[1] = uint8(header.msgType)
+  buf[2 .. 3] = toBytesBE(uint16(cast[uint8](header.flags)))
     # workaround https://github.com/nim-lang/Nim/issues/21789
-  result[4 .. 7] = toBytesBE(header.streamId)
-  result[8 .. 11] = toBytesBE(header.length)
+  buf[4 .. 7] = toBytesBE(header.streamId)
+  buf[8 .. 11] = toBytesBE(header.length)
+  buf
 
 proc write(
     conn: LPStream, header: YamuxHeader
@@ -153,8 +156,8 @@ type
     receivedData: AsyncEvent
 
 proc `$`(channel: YamuxChannel): string =
-  result = if channel.conn.dir == Out: "=> " else: "<= "
-  result &= $channel.id
+  var str = if channel.conn.dir == Out: "=> " else: "<= "
+  str &= $channel.id
   var s: seq[string] = @[]
   if channel.closedRemotely.isSet():
     s.add("ClosedRemotely")
@@ -163,7 +166,7 @@ proc `$`(channel: YamuxChannel): string =
   if channel.isReset:
     s.add("Reset")
   if s.len > 0:
-    result &=
+    str &=
       " {" &
       s.foldl(
         if a != "":
@@ -172,6 +175,7 @@ proc `$`(channel: YamuxChannel): string =
           b,
         "",
       ) & "}"
+  str
 
 proc lengthSendQueue(channel: YamuxChannel): int =
   ## Returns the length of what remains to be sent
@@ -464,9 +468,11 @@ type Yamux* = ref object of Muxer
 
 when defined(libp2p_yamux_metrics):
   proc lenBySrc(m: Yamux, isSrc: bool): int =
+    var count = 0
     for v in m.channels.values():
       if v.isSrc == isSrc:
-        result += 1
+        count += 1
+    count
 
 proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   try:
@@ -673,8 +679,10 @@ method handle*(m: Yamux) {.async: (raises: []).} =
   trace "Stopped yamux handler"
 
 method getStreams*(m: Yamux): seq[MuxedStream] {.gcsafe.} =
+  var streams: seq[MuxedStream]
   for c in m.channels.values:
-    result.add(c)
+    streams.add(c)
+  streams
 
 method newStream*(
     m: Yamux, name: string = "", lazy: bool = false

@@ -243,9 +243,7 @@ proc getPublicKey*(key: RsaPrivateKey): RsaPublicKey =
   pubkey.key.n = addr pubkey.buffer[0]
   pubkey.key.e = addr pubkey.buffer[key.pubk.nlen]
   copyMem(addr pubkey.buffer[0], cast[pointer](key.pubk.n), key.pubk.nlen)
-  copyMem(
-    addr pubkey.buffer[key.pubk.nlen], cast[pointer](key.pubk.e), key.pubk.elen
-  )
+  copyMem(addr pubkey.buffer[key.pubk.nlen], cast[pointer](key.pubk.e), key.pubk.elen)
   pubkey.key.nlen = key.pubk.nlen
   pubkey.key.elen = key.pubk.elen
   pubkey

@@ -160,7 +160,7 @@ proc new*(
     timeout: Duration = DefaultConnectionTimeout,
     timeoutHandler: TimeoutHandler = nil,
 ): Connection =
-  result = C(
+  let conn = C(
     peerId: peerId,
     dir: dir,
     timeout: timeout,
@@ -169,4 +169,5 @@ proc new*(
     localAddr: localAddr,
   )
 
-  result.initStream()
+  conn.initStream()
+  conn

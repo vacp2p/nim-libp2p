@@ -16,27 +16,29 @@ template compilesOr*(a, b: untyped): untyped =
 
 func shortLog*(item: openArray[byte]): string =
   if item.len <= ShortDumpMax:
-    result = item.toHex()
+    item.toHex()
   else:
     const
       split = ShortDumpMax div 2
       dumpLen = (ShortDumpMax * 2) + 3
-    result = newStringOfCap(dumpLen)
-    result &= item.toOpenArray(0, split - 1).toHex()
-    result &= "..."
-    result &= item.toOpenArray(item.len - split, item.high).toHex()
+    var s = newStringOfCap(dumpLen)
+    s &= item.toOpenArray(0, split - 1).toHex()
+    s &= "..."
+    s &= item.toOpenArray(item.len - split, item.high).toHex()
+    s
 
 func shortLog*(item: string): string =
   if item.len <= ShortDumpMax:
-    result = item
+    item
   else:
     const
       split = ShortDumpMax div 2
       dumpLen = ShortDumpMax + 3
-    result = newStringOfCap(dumpLen)
-    result &= item[0 ..< split]
-    result &= "..."
-    result &= item[(item.len - split) .. item.high]
+    var s = newStringOfCap(dumpLen)
+    s &= item[0 ..< split]
+    s &= "..."
+    s &= item[(item.len - split) .. item.high]
+    s
 
 when defined(libp2p_agents_metrics):
   import strutils
