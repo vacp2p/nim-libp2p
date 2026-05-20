@@ -59,8 +59,10 @@ suite "MultiAddress testing tools":
         MultiAddress.init("/ip4/203.0.113.7/udp/9000/quic-v1").get
       MultiAddress.init("/ip6/::1/tcp/1234").get.replaceIp(ip6).get ==
         MultiAddress.init("/ip6/2001:db8::1/tcp/1234").get
-      # family mismatch
-      MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get.replaceIp(ip6).isErr
-      MultiAddress.init("/ip6/::1/tcp/1234").get.replaceIp(ip4).isErr
+      # cross-family swap (IPv6 -> IPv4 and vice versa)
+      MultiAddress.init("/ip6/::/tcp/80/ws").get.replaceIp(ip4).get ==
+        MultiAddress.init("/ip4/203.0.113.7/tcp/80/ws").get
+      MultiAddress.init("/ip4/0.0.0.0/tcp/80").get.replaceIp(ip6).get ==
+        MultiAddress.init("/ip6/2001:db8::1/tcp/80").get
       # no IP component
       MultiAddress.init("/unix/tmp/sock").get.replaceIp(ip4).isErr

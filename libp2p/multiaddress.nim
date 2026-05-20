@@ -1263,10 +1263,11 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
 
 proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
   ## Returns a copy of ``ma`` with its leading IP4/IP6 component replaced by
-  ## ``ip``. The remainder of the multiaddress (transport, port, and any
-  ## suffix such as ``/quic-v1``, ``/ws``, ``/wss``, ``/tls/ws``) is
-  ## preserved. Returns an error if ``ma`` has no IP component or its IP
-  ## family does not match ``ip``.
+  ## ``ip``. If ``ip``'s family differs from the original, the IP codec is
+  ## swapped accordingly (``/ip6/...`` becomes ``/ip4/...`` or vice versa).
+  ## The remainder of the multiaddress (transport, port, and any suffix such
+  ## as ``/quic-v1``, ``/ws``, ``/wss``, ``/tls/ws``) is preserved. Returns
+  ## an error if ``ma`` has no IP component.
   let
     ip4 = multiCodec("ip4")
     ip6 = multiCodec("ip6")
@@ -1288,8 +1289,6 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
     let part = ?item
     let code = ?part.protoCode
     if not found and (code == ip4 or code == ip6):
-      if code != targetCodec:
-        return err("multiaddress: IP family mismatch")
       ?res.append(newIp)
       found = true
     else:

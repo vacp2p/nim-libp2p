@@ -4,9 +4,8 @@
 {.push raises: [].}
 
 import std/sequtils
-import stew/endians2
 import chronos, chronos/transports/[osnet, ipnet], chronicles, results
-import ../[multiaddress, multicodec]
+import ../[multiaddress]
 import ../switch
 
 logScope:
@@ -63,86 +62,47 @@ proc new*(
   ## - A new instance of `WildcardAddressResolverService`.
   return T(networkInterfaceProvider: networkInterfaceProvider)
 
-proc getWildcardMultiAddresses(
-    interfaceAddresses: seq[InterfaceAddress],
-    protocol: Protocol,
-    port: Port,
-    isQuic: bool,
-): seq[MultiAddress] =
-  var addresses: seq[MultiAddress]
-  for ifaddr in interfaceAddresses:
-    var address = ifaddr.host
-    address.port = port
-    MultiAddress.init(address, protocol).withValue(maddress):
-      addresses.add(maddress)
-
-  if isQuic:
-    let quicV1 = MultiAddress.init("/quic-v1").value()
-    return addresses.mapIt(it.concat(quicV1).value())
-
-  addresses
-
-proc getWildcardAddress(
-    maddress: MultiAddress,
-    addrFamily: AddressFamily,
-    port: Port,
-    proto: Protocol,
-    isQuic: bool,
-    networkInterfaceProvider: NetworkInterfaceProvider,
-): seq[MultiAddress] =
-  let filteredInterfaceAddresses = networkInterfaceProvider(addrFamily)
-  getWildcardMultiAddresses(filteredInterfaceAddresses, proto, port, isQuic)
+proc isWildcardIp(ip: IpAddress): bool =
+  case ip.family
+  of IpAddressFamily.IPv4:
+    ip.address_v4 == AnyAddress.address_v4
+  of IpAddressFamily.IPv6:
+    ip.address_v6 == AnyAddress6.address_v6
 
 proc expandWildcardAddresses(
     networkInterfaceProvider: NetworkInterfaceProvider, listenAddrs: seq[MultiAddress]
 ): seq[MultiAddress] =
+  ## Expand bound wildcard addresses (``0.0.0.0`` / ``::``) into one address
+  ## per matching network interface. Non-wildcard addresses are passed through
+  ## unchanged. The transport, port, and any suffix (e.g. ``/quic-v1``,
+  ## ``/ws``, ``/wss``, ``/tls/ws``) of the listen address are preserved on
+  ## the expanded copies.
   var addresses: seq[MultiAddress]
-
-  # In this loop we expand bound addresses like `0.0.0.0` and `::` to list of interface addresses.
   for listenAddr in listenAddrs:
-    let tcpMatchPartial = TCP_IP.matchPartial(listenAddr)
-    let quicMatchPartial = QUIC_V1_IP.matchPartial(listenAddr)
-    if tcpMatchPartial or quicMatchPartial:
-      let (netCodec, proto, isQuic) =
-        if tcpMatchPartial:
-          (multiCodec("tcp"), IPPROTO_TCP, false)
-        else:
-          (multiCodec("udp"), IPPROTO_UDP, true)
-      listenAddr.getProtocolArgument(netCodec).withValue(portArg):
-        let port = Port(uint16.fromBytesBE(portArg))
-        if IP4.matchPartial(listenAddr):
-          listenAddr.getProtocolArgument(multiCodec("ip4")).withValue(ip4):
-            if ip4 == AnyAddress.address_v4:
-              addresses.add(
-                getWildcardAddress(
-                  listenAddr, AddressFamily.IPv4, port, proto, isQuic,
-                  networkInterfaceProvider,
-                )
-              )
-            else:
-              addresses.add(listenAddr)
-        elif IP6.matchPartial(listenAddr):
-          listenAddr.getProtocolArgument(multiCodec("ip6")).withValue(ip6):
-            if ip6 == AnyAddress6.address_v6:
-              addresses.add(
-                getWildcardAddress(
-                  listenAddr, AddressFamily.IPv6, port, proto, isQuic,
-                  networkInterfaceProvider,
-                )
-              )
-              # IPv6 dual stack
-              addresses.add(
-                getWildcardAddress(
-                  listenAddr, AddressFamily.IPv4, port, proto, isQuic,
-                  networkInterfaceProvider,
-                )
-              )
-            else:
-              addresses.add(listenAddr)
-        else:
-          addresses.add(listenAddr)
-    else:
+    if not (TCP_IP.matchPartial(listenAddr) or QUIC_V1_IP.matchPartial(listenAddr)):
       addresses.add(listenAddr)
+      continue
+
+    let listenIp = listenAddr.getIp().valueOr:
+      addresses.add(listenAddr)
+      continue
+
+    if not isWildcardIp(listenIp):
+      addresses.add(listenAddr)
+      continue
+
+    let families =
+      case listenIp.family
+      of IpAddressFamily.IPv4:
+        @[AddressFamily.IPv4]
+      of IpAddressFamily.IPv6:
+        # IPv6 dual stack: also expand to IPv4 interfaces.
+        @[AddressFamily.IPv6, AddressFamily.IPv4]
+
+    for family in families:
+      for ifaddr in networkInterfaceProvider(family):
+        listenAddr.replaceIp(ifaddr.host.toIpAddress()).withValue(remapped):
+          addresses.add(remapped)
   addresses
 
 method setup*(

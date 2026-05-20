@@ -45,6 +45,10 @@ proc explicitIpMapped(
   ## mismatching family, are dropped.
   var addrs: seq[MultiAddress]
   for listenAddr in listenAddrs:
+    let ip = listenAddr.getIp().valueOr:
+      continue
+    if ip.family != explicitIp.family:
+      continue
     listenAddr.replaceIp(explicitIp).withValue(remapped):
       addrs.add(remapped)
   addrs
