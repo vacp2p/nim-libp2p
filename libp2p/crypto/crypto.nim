@@ -219,7 +219,7 @@ proc random*(
   ## Generate random key pair for scheme ``scheme``.
   ##
   ## ``bits`` is number of bits for RSA key, ``bits`` value must be in
-  ## [512, 4096], default value is 2048 bits.
+  ## [2048, 4096], default value is 3072 bits.
   case scheme
   of PKScheme.RSA:
     when supported(PKScheme.RSA):
