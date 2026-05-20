@@ -380,13 +380,16 @@ when defined(libp2p_autotls_support):
     let authorizationsResponse =
       await self.requestAuthorizations(orderResponse.authorizations, key, kid)
 
+    let dns01challenges = authorizationsResponse.challenges.filterIt(
+      it.`type` == ACMEChallengeType.DNS01 or it.`type` == ACMEChallengeType.DNSPersist01
+    )
+    if dns01challenges.len == 0:
+      raise newException(ACMEError, "Could not find DNS01 challenge type")
+
     return ACMEChallengeResponseWrapper(
       finalize: orderResponse.finalize,
       order: orderResponse.order,
-      dns01: authorizationsResponse.challenges.filterIt(
-        it.`type` == ACMEChallengeType.DNS01
-      )[0],
-        # getting the first element is safe since we checked that authorizationsResponse.challenges.len != 0
+      dns01: dns01challenges[0],
     )
 
   proc requestCheck*(
