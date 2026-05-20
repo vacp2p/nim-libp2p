@@ -54,6 +54,7 @@ type ACMEChallengeType* {.pure.} = enum
   DNS01 = "dns-01"
   HTTP01 = "http-01"
   TLSALPN01 = "tls-alpn-01"
+  DNSPersist01 = "dns-persist-01"
 
 type ACMEChallengeToken* = string
 
@@ -356,7 +357,8 @@ when defined(libp2p_autotls_support):
         try:
           challenges.add(challenge.to(ACMEChallenge))
         except ValueError, JsonKindError:
-          debug "Skipping challenge with unrecognized fields", challenge = $challenge
+          debug "Skipping challenge with unrecognized fields",
+            challenge = $challenge, msg = getCurrentExceptionMsg()
 
       if challenges.len == 0:
         raise newException(ACMEError, "No challenges received")
