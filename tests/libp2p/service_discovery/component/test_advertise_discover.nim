@@ -127,11 +127,16 @@ suite "Service Discovery Component - Advertise Discover":
     let svcBId = svcB.id.hashServiceId()
 
     advertiserNode.addProvidedService(svcA)
-    advertiserNode.addProvidedService(svcB)
 
     checkUntilTimeout:
       registrarNode.countAdsInCache(svcAId) == 1
+
+    advertiserNode.addProvidedService(svcB)
+
+    checkUntilTimeout:
       registrarNode.countAdsInCache(svcBId) == 1
+
+    checkUntilTimeout:
       block:
         let foundA = await discovererNode.lookup(svcAId)
         let foundB = await discovererNode.lookup(svcBId)

@@ -79,6 +79,8 @@ template mapExceptions(body: untyped): untyped =
     raise newLPStreamEOFError()
   except WebSocketError:
     raise newLPStreamEOFError()
+  except CancelledError as exc:
+    raise exc
   except CatchableError:
     raise newLPStreamEOFError()
 
