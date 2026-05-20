@@ -270,7 +270,7 @@ proc withWatermarkPolicy*(
     b: SwitchBuilder,
     lowWater: int,
     highWater: int,
-    gracePeriod: Duration = 1.minutes,
+    gracePeriod: Duration = 0.minutes,
     silencePeriod: Duration = 10.seconds,
 ): SwitchBuilder =
   ## Enable hi/lo watermark connection management.
