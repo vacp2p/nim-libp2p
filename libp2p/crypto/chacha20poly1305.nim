@@ -28,15 +28,21 @@ type
 
 proc intoChaChaPolyKey*(s: openArray[byte]): ChaChaPolyKey =
   assert s.len == ChaChaPolyKeySize
-  assign(result, s)
+  var key: ChaChaPolyKey
+  assign(key, s)
+  key
 
 proc intoChaChaPolyNonce*(s: openArray[byte]): ChaChaPolyNonce =
   assert s.len == ChaChaPolyNonceSize
-  assign(result, s)
+  var nonce: ChaChaPolyNonce
+  assign(nonce, s)
+  nonce
 
 proc intoChaChaPolyTag*(s: openArray[byte]): ChaChaPolyTag =
   assert s.len == ChaChaPolyTagSize
-  assign(result, s)
+  var tag: ChaChaPolyTag
+  assign(tag, s)
+  tag
 
 # bearssl allows us to use optimized versions
 # this is reconciled at runtime

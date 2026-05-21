@@ -45,8 +45,7 @@ proc init*(
   )
 
 proc init*(T: typedesc[PreambleStore]): T =
-  result.byId = initTable[MessageId, PreambleInfo]()
-  result.heap = initHeapQueue[PreambleInfo]()
+  T(byId: initTable[MessageId, PreambleInfo](), heap: initHeapQueue[PreambleInfo]())
 
 proc insert*(ps: var PreambleStore, info: PreambleInfo) =
   try:

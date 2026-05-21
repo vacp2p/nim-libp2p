@@ -48,7 +48,7 @@ proc new*(
     localAddr: Opt[MultiAddress],
     timeout: Duration = DefaultConnectionTimeout,
 ): T =
-  result = T(
+  let sconn = T(
     stream: conn,
     peerId: peerId,
     observedAddr: observedAddr,
@@ -57,7 +57,8 @@ proc new*(
     timeout: timeout,
     dir: conn.dir,
   )
-  result.initStream()
+  sconn.initStream()
+  sconn
 
 method initStream*(s: SecureConn) =
   if s.objName.len == 0:

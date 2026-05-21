@@ -56,26 +56,28 @@ proc isReachable*(self: NetworkReachability): bool =
   self == NetworkReachability.Reachable
 
 proc encode(p: AutonatPeerInfo): ProtoBuffer =
-  result = initProtoBuffer()
+  var pb = initProtoBuffer()
   p.id.withValue(id):
-    result.write(1, id)
+    pb.write(1, id)
   for ma in p.addrs:
-    result.write(2, ma.data.buffer)
-  result.finish()
+    pb.write(2, ma.data.buffer)
+  pb.finish()
+  pb
 
 proc encode*(d: AutonatDial): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, MsgType.Dial.uint)
+  var pb = initProtoBuffer()
+  pb.write(1, MsgType.Dial.uint)
   var dial = initProtoBuffer()
   d.peerInfo.withValue(pinfo):
     dial.write(1, encode(pinfo))
   dial.finish()
-  result.write(2, dial.buffer)
-  result.finish()
+  pb.write(2, dial.buffer)
+  pb.finish()
+  pb
 
 proc encode*(r: AutonatDialResponse): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, MsgType.DialResponse.uint)
+  var pb = initProtoBuffer()
+  pb.write(1, MsgType.DialResponse.uint)
   var bufferResponse = initProtoBuffer()
   bufferResponse.write(1, r.status.uint)
   r.text.withValue(text):
@@ -83,8 +85,9 @@ proc encode*(r: AutonatDialResponse): ProtoBuffer =
   r.ma.withValue(ma):
     bufferResponse.write(3, ma)
   bufferResponse.finish()
-  result.write(3, bufferResponse.buffer)
-  result.finish()
+  pb.write(3, bufferResponse.buffer)
+  pb.finish()
+  pb
 
 proc encode*(msg: AutonatMsg): ProtoBuffer =
   msg.dial.withValue(dial):
@@ -92,14 +95,14 @@ proc encode*(msg: AutonatMsg): ProtoBuffer =
   msg.response.withValue(res):
     return encode(res)
 
-proc decode*(_: typedesc[AutonatMsg], buf: seq[byte]): Opt[AutonatMsg] =
+proc decode*(_: typedesc[AutonatMsg], buf: sink seq[byte]): Opt[AutonatMsg] =
   var
     msgTypeOrd: uint32
     pbDial: ProtoBuffer
     pbResponse: ProtoBuffer
     msg: AutonatMsg
 
-  let pb = initProtoBuffer(buf)
+  let pb = initProtoBuffer(move(buf))
 
   if ?pb.getField(1, msgTypeOrd).toOpt() and
       not checkedEnumAssign(msg.msgType, msgTypeOrd):

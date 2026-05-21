@@ -52,7 +52,7 @@ method stop*(self: RelayTransport) {.async: (raises: []).} =
 method accept*(
     self: RelayTransport
 ): Future[RawConn] {.async: (raises: [transport.TransportError, CancelledError]).} =
-  result = await self.queue.popFirst()
+  await self.queue.popFirst()
 
 proc dial*(
     self: RelayTransport, ma: MultiAddress
@@ -111,7 +111,7 @@ method dial*(
   peerId.withValue(pid):
     try:
       let address = MultiAddress.init($ma & "/p2p/" & $pid).tryGet()
-      result = await self.dial(address)
+      return await self.dial(address)
     except CancelledError as e:
       raise e
     except CatchableError as e:
@@ -119,13 +119,15 @@ method dial*(
         newException(transport.TransportDialError, "Caught error in dial: " & e.msg, e)
 
 method handles*(self: RelayTransport, ma: MultiAddress): bool {.gcsafe.} =
+  var handles = false
   try:
     if ma.protocols.isOk():
       let sma = toSeq(ma.items())
-      result = sma.len >= 2 and CircuitRelay.match(sma[^1].tryGet())
+      handles = sma.len >= 2 and CircuitRelay.match(sma[^1].tryGet())
   except CatchableError:
-    result = false
-  trace "Handles return", ma, result
+    handles = false
+  trace "Handles return", ma, handles
+  handles
 
 proc new*(Self: typedesc[RelayTransport], cl: RelayClient, upgrader: Upgrade): Self =
   # Self instead of T to avoid clashing with withValue[T]'s type param under --lineDir:on

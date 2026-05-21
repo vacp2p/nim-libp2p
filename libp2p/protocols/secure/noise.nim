@@ -102,22 +102,25 @@ chronicles.formatIt(NoiseConnection):
   shortLog(it)
 
 proc genKeyPair(rng: Rng): KeyPair =
-  result.privateKey = Curve25519Key.random(rng)
-  result.publicKey = result.privateKey.public()
+  let privateKey = Curve25519Key.random(rng)
+  KeyPair(privateKey: privateKey, publicKey: privateKey.public())
 
 proc hashProtocol(name: string): MDigest[256] =
   # If protocol_name is less than or equal to HASHLEN bytes in length,
   # sets h to protocol_name with zero bytes appended to make HASHLEN bytes.
   # Otherwise sets h = HASH(protocol_name).
 
+  var h: MDigest[256]
   if name.len <= 32:
-    result.data[0 .. name.high] = name.toBytes
+    h.data[0 .. name.high] = name.toBytes
   else:
-    result = sha256.digest(name)
+    h = sha256.digest(name)
+  h
 
 proc dh(priv: Curve25519Key, pub: Curve25519Key): Curve25519Key =
-  result = pub
-  Curve25519.mul(result, priv)
+  var key = pub
+  Curve25519.mul(key, priv)
+  key
 
 # Cipherstate
 
@@ -128,26 +131,29 @@ proc encrypt(
     state: var CipherState, data: var openArray[byte], ad: openArray[byte]
 ): ChaChaPolyTag {.noinit, raises: [NoiseNonceMaxError].} =
   var nonce: ChaChaPolyNonce
+  var tag: ChaChaPolyTag
   nonce[4 ..< 12] = toBytesLE(state.n)
 
-  ChaChaPoly.encrypt(state.k, nonce, result, data, ad)
+  ChaChaPoly.encrypt(state.k, nonce, tag, data, ad)
 
   inc state.n
   if state.n > NonceMax:
     raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
+  tag
 
 proc encryptWithAd(
     state: var CipherState, ad, data: openArray[byte]
 ): seq[byte] {.raises: [NoiseNonceMaxError].} =
-  result = newSeqOfCap[byte](data.len + sizeof(ChaChaPolyTag))
-  result.add(data)
+  var buf = newSeqOfCap[byte](data.len + sizeof(ChaChaPolyTag))
+  buf.add(data)
 
-  let tag = encrypt(state, result, ad)
+  let tag = encrypt(state, buf, ad)
 
-  result.add(tag)
+  buf.add(tag)
 
   trace "encryptWithAd",
-    tag = byteutils.toHex(tag), data = result.shortLog, nonce = state.n - 1
+    tag = byteutils.toHex(tag), data = buf.shortLog, nonce = state.n - 1
+  buf
 
 proc decryptWithAd(
     state: var CipherState, ad, data: openArray[byte]
@@ -156,9 +162,9 @@ proc decryptWithAd(
     tagIn = data.toOpenArray(data.len - ChaChaPolyTag.len, data.high).intoChaChaPolyTag
     tagOut: ChaChaPolyTag
     nonce: ChaChaPolyNonce
+    buf = data[0 .. (data.high - ChaChaPolyTag.len)]
   nonce[4 ..< 12] = toBytesLE(state.n)
-  result = data[0 .. (data.high - ChaChaPolyTag.len)]
-  ChaChaPoly.decrypt(state.k, nonce, tagOut, result, ad)
+  ChaChaPoly.decrypt(state.k, nonce, tagOut, buf, ad)
   trace "decryptWithAd",
     tagIn = tagIn.shortLog, tagOut = tagOut.shortLog, nonce = state.n
   if tagIn != tagOut:
@@ -167,13 +173,13 @@ proc decryptWithAd(
   inc state.n
   if state.n > NonceMax:
     raise (ref NoiseNonceMaxError)(msg: "Noise max nonce value reached")
+  buf
 
 # Symmetricstate
 
 proc init(_: type[SymmetricState]): SymmetricState =
-  result.h = ProtocolXXName.hashProtocol
-  result.ck = result.h.data.intoChaChaPolyKey
-  result.cs = CipherState(k: EmptyKey)
+  let h = ProtocolXXName.hashProtocol
+  SymmetricState(h: h, ck: h.data.intoChaChaPolyKey, cs: CipherState(k: EmptyKey))
 
 proc mixKey(ss: var SymmetricState, ikm: ChaChaPolyKey) =
   var temp_keys: array[2, ChaChaPolyKey]
@@ -202,21 +208,25 @@ proc encryptAndHash(
     ss: var SymmetricState, data: openArray[byte]
 ): seq[byte] {.raises: [NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
-  if ss.cs.hasKey:
-    result = ss.cs.encryptWithAd(ss.h.data, data)
-  else:
-    result = @data
-  ss.mixHash(result)
+  let encrypted =
+    if ss.cs.hasKey:
+      ss.cs.encryptWithAd(ss.h.data, data)
+    else:
+      @data
+  ss.mixHash(encrypted)
+  encrypted
 
 proc decryptAndHash(
     ss: var SymmetricState, data: openArray[byte]
 ): seq[byte] {.raises: [NoiseDecryptTagError, NoiseNonceMaxError].} =
   # according to spec if key is empty leave plaintext
-  if ss.cs.hasKey and data.len > ChaChaPolyTag.len:
-    result = ss.cs.decryptWithAd(ss.h.data, data)
-  else:
-    result = @data
+  let decrypted =
+    if ss.cs.hasKey and data.len > ChaChaPolyTag.len:
+      ss.cs.decryptWithAd(ss.h.data, data)
+    else:
+      @data
   ss.mixHash(data)
+  decrypted
 
 proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   var temp_keys: array[2, ChaChaPolyKey]
@@ -224,7 +234,7 @@ proc split(ss: var SymmetricState): tuple[cs1, cs2: CipherState] =
   return (CipherState(k: temp_keys[0]), CipherState(k: temp_keys[1]))
 
 proc init(_: type[HandshakeState]): HandshakeState =
-  result.ss = SymmetricState.init()
+  HandshakeState(ss: SymmetricState.init())
 
 template write_e(): untyped =
   trace "noise write e"

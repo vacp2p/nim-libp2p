@@ -146,7 +146,7 @@ method stop*(
   await switch.peerInfo.update()
 
 proc getAddresses*(self: AutoRelayService): seq[MultiAddress] =
-  result = concat(toSeq(self.relayAddresses.values))
+  concat(toSeq(self.relayAddresses.values))
 
 proc new*(
     T: typedesc[AutoRelayService],

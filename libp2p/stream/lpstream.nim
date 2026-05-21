@@ -65,27 +65,27 @@ type
     closed*: uint64
 
 proc newLPStreamIncompleteError*(): ref LPStreamIncompleteError =
-  result = newException(LPStreamIncompleteError, "Incomplete data received")
+  newException(LPStreamIncompleteError, "Incomplete data received")
 
 proc newLPStreamLimitError*(): ref LPStreamLimitError =
-  result = newException(LPStreamLimitError, "Buffer limit reached")
+  newException(LPStreamLimitError, "Buffer limit reached")
 
 proc newLPStreamEOFError*(): ref LPStreamEOFError =
-  result = newException(LPStreamEOFError, "Stream EOF!")
+  newException(LPStreamEOFError, "Stream EOF!")
 
 proc newLPStreamResetError*(): ref LPStreamResetError =
-  result = newException(LPStreamResetError, "Stream Reset!")
+  newException(LPStreamResetError, "Stream Reset!")
 
 proc newLPStreamClosedError*(): ref LPStreamClosedError =
-  result = newException(LPStreamClosedError, "Stream Closed!")
+  newException(LPStreamClosedError, "Stream Closed!")
 
 proc newLPStreamRemoteClosedError*(): ref LPStreamRemoteClosedError =
-  result = newException(LPStreamRemoteClosedError, "Stream Remotely Closed!")
+  newException(LPStreamRemoteClosedError, "Stream Remotely Closed!")
 
 proc newLPStreamConnDownError*(
     parentException: ref Exception = nil
 ): ref LPStreamConnDownError =
-  result = newException(
+  newException(
     LPStreamConnDownError, "Stream Underlying Connection Closed!", parentException
   )
 
@@ -175,6 +175,7 @@ method readLine*(
   # TODO replace with something that exploits buffering better
   var lim = if limit <= 0: -1 else: limit
   var state = 0
+  var line: string
 
   while true:
     var ch: char
@@ -187,14 +188,15 @@ method readLine*(
     else:
       state = 0
       if limit > 0:
-        let missing = min(state, lim - len(result) - 1)
-        result.add(sep[0 ..< missing])
+        let missing = min(state, lim - len(line) - 1)
+        line.add(sep[0 ..< missing])
       else:
-        result.add(sep[0 ..< state])
+        line.add(sep[0 ..< state])
 
-      result.add(ch)
-      if len(result) == lim:
+      line.add(ch)
+      if len(line) == lim:
         break
+  line
 
 method readVarint*(
     conn: LPStream

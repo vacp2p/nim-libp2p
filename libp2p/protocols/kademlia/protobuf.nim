@@ -313,8 +313,8 @@ proc decode*(T: type Message, pb: ProtoBuffer): ProtoResult[T] =
 
   return ok(m)
 
-proc decode*(T: type Message, buf: seq[byte]): ProtoResult[T] =
-  var pb = initProtoBuffer(buf)
+proc decode*(T: type Message, buf: sink seq[byte]): ProtoResult[T] =
+  var pb = initProtoBuffer(move(buf))
   return Message.decode(pb)
 
 proc toBytes*(ticket: Ticket): seq[byte] {.raises: [], gcsafe.} =

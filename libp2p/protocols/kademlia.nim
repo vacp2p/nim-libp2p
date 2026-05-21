@@ -87,7 +87,7 @@ proc new*(
     defer:
       await stream.close()
     while not stream.atEof:
-      let buf =
+      var buf =
         try:
           await stream.readLp(MaxMsgSize)
         except LPStreamEOFError:
@@ -95,12 +95,13 @@ proc new*(
         except LPStreamError as exc:
           debug "Read error when handling kademlia RPC", stream = stream, err = exc.msg
           return
-      let msg = Message.decode(buf).valueOr:
+      let bufLen = buf.len
+      let msg = Message.decode(move(buf)).valueOr:
         debug "Failed to decode message", err = error
         return
 
       kad_messages_received.inc(labelValues = [$msg.msgType])
-      kad_message_bytes_received.inc(buf.len.int64, labelValues = [$msg.msgType])
+      kad_message_bytes_received.inc(bufLen.int64, labelValues = [$msg.msgType])
 
       case msg.msgType
       of MessageType.findNode:
