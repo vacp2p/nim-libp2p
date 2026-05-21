@@ -318,10 +318,10 @@ method readOnce*(
   return consumed
 
 proc gotDataFromRemote(
-    channel: YamuxChannel, b: seq[byte]
+    channel: YamuxChannel, b: sink seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   channel.recvWindow -= b.len
-  channel.recvQueue.push(b)
+  channel.recvQueue.push(move(b))
   channel.receivedData.fire()
   when defined(libp2p_yamux_metrics):
     libp2p_yamux_recv_queue.observe(channel.recvQueue.len.int64)
@@ -644,7 +644,7 @@ method handle*(m: Yamux) {.async: (raises: []).} =
             var buffer = newSeqUninit[byte](header.length)
             await m.connection.readExactly(addr buffer[0], int(header.length))
             trace "Msg Rcv", description = shortLog(buffer)
-            await channel.gotDataFromRemote(buffer)
+            await channel.gotDataFromRemote(move(buffer))
 
         if MsgFlags.Fin in header.flags:
           trace "remote closed channel"
