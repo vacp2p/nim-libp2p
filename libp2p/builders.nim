@@ -27,7 +27,7 @@ import
     relay/client,
     relay/rtransport,
   ],
-  services/[autorelayservice, hpservice, identify_pusher],
+  services/[autorelayservice, hpservice, identify_pusher, natservice],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
@@ -40,7 +40,7 @@ import services/wildcardresolverservice
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
-  connmanager.maxTotal, connmanager.maxInOut
+  connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -84,6 +84,7 @@ type
     autonatV2Client: AutonatV2Client
     autonatV2Service: Opt[AutonatV2Service]
     hpService: Opt[HPService]
+    natConfig: Opt[NATConfig]
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
@@ -341,6 +342,12 @@ proc withAutonatV2*(
   )
   b
 
+proc withNAT*(b: SwitchBuilder, config: NATConfig): SwitchBuilder =
+  ## Enable a NAT traversal service.
+  ## TODO: wire in autonat / hole-punching.
+  b.natConfig = Opt.some(config)
+  b
+
 proc withHolePunching*(
     b: SwitchBuilder, maxNumRelays: int, onReservationHandler: proc
 ): SwitchBuilder =
@@ -519,6 +526,9 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
 
   b.hpService.withValue(hpservice):
     switch.services.add(hpservice)
+
+  b.natConfig.withValue(natCfg):
+    switch.services.add(NATService.new(natCfg))
 
   if b.identifyPusherEnabled:
     switch.services.add(IdentifyPusher.new())
