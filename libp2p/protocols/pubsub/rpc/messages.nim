@@ -340,17 +340,18 @@ static:
     ],
   )
 proc byteSize*(rpc: RPCMsg): int =
-  result = rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages)
+  var size = rpc.subscriptions.foldl(a + b.byteSize, 0) + byteSize(rpc.messages)
   rpc.control.withValue(v):
-    result += v.byteSize
+    size += v.byteSize
   rpc.partialMessageExtension.withValue(v):
-    result += v.byteSize
+    size += v.byteSize
   rpc.testExtension.withValue(v):
-    result += v.byteSize
+    size += v.byteSize
   rpc.pingpongExtension.withValue(v):
-    result += v.byteSize
+    size += v.byteSize
   rpc.preambleExtension.withValue(v):
-    result += v.byteSize
+    size += v.byteSize
+  size
 
 proc withIWant*(
     _: typedesc[ControlMessage], msgIds: sink seq[MessageId]

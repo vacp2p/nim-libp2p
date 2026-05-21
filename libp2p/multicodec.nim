@@ -80,7 +80,7 @@ proc `==`*(mc: MultiCodec, name: string): bool {.inline.} =
   let mcname = CodeCodecs.getOrDefault(int(mc), "")
   if mcname == "":
     return false
-  result = (mcname == name)
+  mcname == name
 
 proc `==`*(mc: MultiCodec, code: int): bool {.inline.} =
   ## Compares MultiCodec ``mc`` with integer ``code``.

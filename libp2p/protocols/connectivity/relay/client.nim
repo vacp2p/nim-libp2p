@@ -108,18 +108,20 @@ proc reserve*(
   if reservation.expire > int64.high().uint64 or
       now().utc > reservation.expire.int64.fromUnix.utc:
     raise newException(ReservationError, "Bad expiration date")
-  result.expire = reservation.expire
-  result.addrs = reservation.addrs
+  var rsvp: Rsvp
+  rsvp.expire = reservation.expire
+  rsvp.addrs = reservation.addrs
 
   reservation.svoucher.withValue(sv):
     let svoucher = SignedVoucher.decode(sv).valueOr:
       raise newException(ReservationError, "Invalid voucher")
     if svoucher.data.relayPeerId != peerId:
       raise newException(ReservationError, "Invalid voucher PeerId")
-    result.voucher = Opt.some(svoucher.data)
+    rsvp.voucher = Opt.some(svoucher.data)
 
-  result.limitDuration = msg.limit.duration
-  result.limitData = msg.limit.data
+  rsvp.limitDuration = msg.limit.duration
+  rsvp.limitData = msg.limit.data
+  rsvp
 
 proc dialPeerV1*(
     cl: RelayClient, stream: Stream, dstPeerId: PeerId, dstAddrs: seq[MultiAddress]
@@ -178,7 +180,7 @@ proc dialPeerV1*(
     raise newException(
       RelayV1DialError, "Exception reading msg in dialPeerV1: " & exc.msg, exc
     )
-  result = stream
+  stream
 
 proc dialPeerV2*(
     cl: RelayClient,

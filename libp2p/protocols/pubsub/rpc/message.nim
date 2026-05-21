@@ -54,6 +54,7 @@ proc extractPublicKey(m: Message): Opt[PublicKey] =
     Opt.none(PublicKey)
 
 proc verify*(m: Message): bool =
+  var verified = false
   if m.signature.len > 0:
     var msg = m
     msg.signature = @[]
@@ -66,12 +67,13 @@ proc verify*(m: Message): bool =
 
     if remote.init(m.signature):
       trace "verifying signature", remoteSignature = remote
-      result = remote.verify(PubSubPrefix & encodeMessage(msg, false), key)
+      verified = remote.verify(PubSubPrefix & encodeMessage(msg, false), key)
 
-  if result:
+  if verified:
     libp2p_pubsub_sig_verify_success.inc()
   else:
     libp2p_pubsub_sig_verify_failure.inc()
+  verified
 
 proc init*(
     T: type Message,

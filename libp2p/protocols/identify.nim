@@ -76,29 +76,30 @@ chronicles.expandIt(IdentifyInfo):
 proc encodeMsg(
     peerInfo: PeerInfo, observedAddr: Opt[MultiAddress], sendSpr: bool
 ): ProtoBuffer {.raises: [].} =
-  result = initProtoBuffer()
+  var pb = initProtoBuffer()
 
   let pkey = peerInfo.publicKey
 
-  result.write(1, pkey.getBytes().expect("valid key"))
+  pb.write(1, pkey.getBytes().expect("valid key"))
   for ma in peerInfo.addrs:
-    result.write(2, ma.data.buffer)
+    pb.write(2, ma.data.buffer)
   for proto in peerInfo.protocols:
-    result.write(3, proto)
+    pb.write(3, proto)
   observedAddr.withValue(observed):
-    result.write(4, observed.data.buffer)
-  result.write(5, ProtoVersion)
+    pb.write(4, observed.data.buffer)
+  pb.write(5, ProtoVersion)
   let agentVersion =
     if peerInfo.agentVersion.len <= 0: AgentVersion else: peerInfo.agentVersion
-  result.write(6, agentVersion)
+  pb.write(6, agentVersion)
 
   ## Optionally populate signedPeerRecord field.
   ## See https://github.com/libp2p/go-libp2p/blob/ddf96ce1cfa9e19564feb9bd3e8269958bbc0aba/p2p/protocol/identify/pb/identify.proto for reference.
   if sendSpr:
     peerInfo.signedPeerRecord.envelope.encode().toOpt().withValue(sprBuff):
-      result.write(8, sprBuff)
+      pb.write(8, sprBuff)
 
-  result.finish()
+  pb.finish()
+  pb
 
 proc decodeMsg*(buf: sink seq[byte]): Opt[IdentifyInfo] =
   var

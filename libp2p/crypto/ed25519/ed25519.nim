@@ -45,10 +45,10 @@ type
     EdIncorrectError
 
 proc `-`(x: uint32): uint32 {.inline.} =
-  result = (0xFFFF_FFFF'u32 - x) + 1'u32
+  (0xFFFF_FFFF'u32 - x) + 1'u32
 
 proc `-`(x: uint8): uint8 {.inline.} =
-  result = (0xFF'u8 - x) + 1'u8
+  (0xFF'u8 - x) + 1'u8
 
 proc fe0(h: var Fe) =
   h[0] = 0
@@ -234,15 +234,17 @@ proc feCopy(h: var Fe, f: Fe) =
   h[9] = f9
 
 proc load_3(inp: openArray[byte]): uint64 =
-  result = safeConvert[uint64](inp[0])
-  result = result or (safeConvert[uint64](inp[1]) shl 8)
-  result = result or (safeConvert[uint64](inp[2]) shl 16)
+  var r = safeConvert[uint64](inp[0])
+  r = r or (safeConvert[uint64](inp[1]) shl 8)
+  r = r or (safeConvert[uint64](inp[2]) shl 16)
+  r
 
 proc load_4(inp: openArray[byte]): uint64 =
-  result = safeConvert[uint64](inp[0])
-  result = result or (safeConvert[uint64](inp[1]) shl 8)
-  result = result or (safeConvert[uint64](inp[2]) shl 16)
-  result = result or (safeConvert[uint64](inp[3]) shl 24)
+  var r = safeConvert[uint64](inp[0])
+  r = r or (safeConvert[uint64](inp[1]) shl 8)
+  r = r or (safeConvert[uint64](inp[2]) shl 16)
+  r = r or (safeConvert[uint64](inp[3]) shl 24)
+  r
 
 proc feFromBytes(h: var Fe, s: openArray[byte]) =
   var c0, c1, c2, c3, c4, c5, c6, c7, c8, c9: int64
@@ -667,17 +669,17 @@ proc verify32(x: openArray[byte], y: openArray[byte]): int32 =
   d = d or (x[29] xor y[29])
   d = d or (x[30] xor y[30])
   d = d or (x[31] xor y[31])
-  result = cast[int32]((1'u32 and ((d - 1) shr 8)) - 1)
+  cast[int32]((1'u32 and ((d - 1) shr 8)) - 1)
 
 proc feIsNegative(f: Fe): int32 =
   var s: array[32, byte]
   feToBytes(s, f)
-  result = safeConvert[int32](s[0] and 1'u8)
+  return safeConvert[int32](s[0] and 1'u8)
 
 proc feIsNonZero(f: Fe): int32 =
   var s: array[32, byte]
   feToBytes(s, f)
-  result = verify32(s, ZeroFe)
+  return verify32(s, ZeroFe)
 
 proc feSq(h: var Fe, f: Fe) =
   var f0 = f[0]
@@ -1232,12 +1234,12 @@ proc equal(b, c: int8): byte =
   var y = safeConvert[uint32](x)
   y = y - 1
   y = y shr 31
-  result = cast[byte](y)
+  cast[byte](y)
 
 proc negative(b: int8): byte =
   var x = cast[uint8](b)
   x = x shr 7
-  result = cast[byte](x)
+  cast[byte](x)
 
 proc cmov(t: var GePrecomp, u: GePrecomp, b: byte) =
   feCmov(t.yplusx, u.yplusx, b)
@@ -2150,21 +2152,21 @@ proc geDoubleScalarMultVartime(
 
 proc GT(x, y: uint32): uint32 {.inline.} =
   var z = cast[uint32](y - x)
-  result = (z xor ((x xor y) and (x xor z))) shr 31
+  (z xor ((x xor y) and (x xor z))) shr 31
 
 proc CMP(x, y: uint32): int32 {.inline.} =
   cast[int32](GT(x, y)) or -(cast[int32](GT(y, x)))
 
 proc EQ0(x: int32): uint32 {.inline.} =
   var q = cast[uint32](x)
-  result = not (q or -q) shr 31
+  not (q or -q) shr 31
 
 proc NEQ(x, y: uint32): uint32 {.inline.} =
   var q = cast[uint32](x xor y)
-  result = ((q or -q) shr 31)
+  (q or -q) shr 31
 
 proc LT0(x: int32): uint32 {.inline.} =
-  result = cast[uint32](x) shr 31
+  cast[uint32](x) shr 31
 
 proc checkScalar*(scalar: openArray[byte]): uint32 =
   var z = 0'u32
@@ -2176,7 +2178,7 @@ proc checkScalar*(scalar: openArray[byte]): uint32 =
       c = c or (-(cast[int32](EQ0(c))) and CMP(scalar[i], CurveOrder[i]))
   else:
     c = -1
-  result = NEQ(z, 0'u32) and LT0(c)
+  NEQ(z, 0'u32) and LT0(c)
 
 proc random*(t: typedesc[EdPrivateKey], rng: Rng): EdPrivateKey =
   ## Generate new random ED25519 private key using the given random number generator
@@ -2239,7 +2241,9 @@ proc random*(t: typedesc[EdKeyPair], rng: Rng): EdKeyPair =
 
 proc getPublicKey*(key: EdPrivateKey): EdPublicKey =
   ## Calculate and return ED25519 public key from private key ``key``.
-  copyMem(addr result.data[0], unsafeAddr key.data[32], 32)
+  var pubkey: EdPublicKey
+  copyMem(addr pubkey.data[0], unsafeAddr key.data[32], 32)
+  pubkey
 
 proc toBytes*(key: EdPrivateKey, data: var openArray[byte]): int =
   ## Serialize ED25519 `private key` ``key`` to raw binary form and store it
@@ -2247,9 +2251,10 @@ proc toBytes*(key: EdPrivateKey, data: var openArray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store
   ## ED25519 private key.
-  result = len(key.data)
-  if len(data) >= result:
+  let blen = len(key.data)
+  if len(data) >= blen:
     copyMem(addr data[0], unsafeAddr key.data[0], len(key.data))
+  blen
 
 proc toBytes*(key: EdPublicKey, data: var openArray[byte]): int =
   ## Serialize ED25519 `public key` ``key`` to raw binary form and store it
@@ -2257,9 +2262,10 @@ proc toBytes*(key: EdPublicKey, data: var openArray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store
   ## ED25519 public key.
-  result = len(key.data)
-  if len(data) >= result:
+  let blen = len(key.data)
+  if len(data) >= blen:
     copyMem(addr data[0], unsafeAddr key.data[0], len(key.data))
+  blen
 
 proc toBytes*(sig: EdSignature, data: var openArray[byte]): int =
   ## Serialize ED25519 `signature` ``sig`` to raw binary form and store it
@@ -2267,9 +2273,10 @@ proc toBytes*(sig: EdSignature, data: var openArray[byte]): int =
   ##
   ## Procedure returns number of bytes (octets) needed to store
   ## ED25519 signature.
-  result = len(sig.data)
-  if len(data) >= result:
+  let blen = len(sig.data)
+  if len(data) >= blen:
     copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
+  blen
 
 proc getBytes*(key: EdPrivateKey): seq[byte] =
   @(key.data) ## Serialize ED25519 `private key` and return it.
@@ -2282,15 +2289,15 @@ proc getBytes*(sig: EdSignature): seq[byte] =
 
 proc `==`*(eda, edb: EdPrivateKey): bool =
   ## Compare ED25519 `private key` objects for equality.
-  result = CT.isEqual(eda.data, edb.data)
+  CT.isEqual(eda.data, edb.data)
 
 proc `==`*(eda, edb: EdPublicKey): bool =
   ## Compare ED25519 `public key` objects for equality.
-  result = CT.isEqual(eda.data, edb.data)
+  CT.isEqual(eda.data, edb.data)
 
 proc `==`*(eda, edb: EdSignature): bool =
   ## Compare ED25519 `signature` objects for equality.
-  result = CT.isEqual(eda.data, edb.data)
+  CT.isEqual(eda.data, edb.data)
 
 proc `$`*(key: EdPrivateKey): string =
   ## Return string representation of ED25519 `private key`.
@@ -2312,7 +2319,8 @@ proc init*(key: var EdPrivateKey, data: openArray[byte]): bool =
   let length = EdPrivateKeySize
   if len(data) >= length:
     copyMem(addr key.data[0], unsafeAddr data[0], length)
-    result = true
+    return true
+  false
 
 proc init*(key: var EdPublicKey, data: openArray[byte]): bool =
   ## Initialize ED25519 `public key` ``key`` from raw binary
@@ -2322,7 +2330,8 @@ proc init*(key: var EdPublicKey, data: openArray[byte]): bool =
   let length = EdPublicKeySize
   if len(data) >= length:
     copyMem(addr key.data[0], unsafeAddr data[0], length)
-    result = true
+    return true
+  false
 
 proc init*(sig: var EdSignature, data: openArray[byte]): bool =
   ## Initialize ED25519 `signature` ``sig`` from raw binary
@@ -2332,7 +2341,8 @@ proc init*(sig: var EdSignature, data: openArray[byte]): bool =
   let length = EdSignatureSize
   if len(data) >= length:
     copyMem(addr sig.data[0], unsafeAddr data[0], length)
-    result = true
+    return true
+  false
 
 proc init*(key: var EdPrivateKey, data: string): bool =
   ## Initialize ED25519 `private key` ``key`` from hexadecimal string
@@ -2438,6 +2448,7 @@ proc sign*[T: byte | char](
   ## Create ED25519 signature of data ``message`` using private key ``key``.
   var ctx: sha512
   var r: GeP3
+  var sig {.noinit.}: EdSignature
 
   ctx.init()
   ctx.update(key.data.toOpenArray(0, 31))
@@ -2454,10 +2465,10 @@ proc sign*[T: byte | char](
 
   scReduce(nonce.data)
   geScalarMultBase(r, nonce.data)
-  geP3ToBytes(result.data.toOpenArray(0, 31), r)
+  geP3ToBytes(sig.data.toOpenArray(0, 31), r)
 
   ctx.init()
-  ctx.update(result.data.toOpenArray(0, 31))
+  ctx.update(sig.data.toOpenArray(0, 31))
   ctx.update(key.data.toOpenArray(32, 63))
   ctx.update(message)
   var hram = ctx.finish()
@@ -2465,11 +2476,12 @@ proc sign*[T: byte | char](
 
   scReduce(hram.data)
   scMulAdd(
-    result.data.toOpenArray(32, 63),
+    sig.data.toOpenArray(32, 63),
     hram.data.toOpenArray(0, 31),
     hash.data.toOpenArray(0, 31),
     nonce.data.toOpenArray(0, 31),
   )
+  sig
 
 proc verify*[T: byte | char](
     sig: EdSignature, message: openArray[T], key: EdPublicKey
@@ -2503,4 +2515,4 @@ proc verify*[T: byte | char](
   )
   geToBytes(rcheck, r)
 
-  result = (verify32(sig.data.toOpenArray(0, 31), rcheck) == 0)
+  verify32(sig.data.toOpenArray(0, 31), rcheck) == 0
