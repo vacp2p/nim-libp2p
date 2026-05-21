@@ -225,6 +225,7 @@ proc generateNodes*(
       Opt.none(PreambleExtensionConfig),
     transport: TransportType = TransportType.QUIC,
 ): seq[PubSub] =
+  var pubsubs: seq[PubSub]
   for i in 0 ..< num:
     let switch = makeStandardSwitchBuilder(transport = transport)
       .withSignedPeerRecord(sendSignedPeerRecord)
@@ -283,13 +284,14 @@ proc generateNodes*(
         ).PubSub
 
     switch.mount(pubsub)
-    result.add(pubsub)
+    pubsubs.add(pubsub)
+  pubsubs
 
 proc toFloodSub*(nodes: seq[PubSub]): seq[FloodSub] =
-  return nodes.mapIt(FloodSub(it))
+  nodes.mapIt(FloodSub(it))
 
 proc toGossipSub*(nodes: seq[PubSub]): seq[GossipSub] =
-  return nodes.mapIt(GossipSub(it))
+  nodes.mapIt(GossipSub(it))
 
 proc setDefaultTopicParams*(nodes: seq[GossipSub], topic: string): void =
   for node in nodes:

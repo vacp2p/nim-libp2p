@@ -11,7 +11,7 @@ import ../../tools/unittest
 
 suite "GossipSubParams validation":
   proc newDefaultValidParams(): GossipSubParams =
-    result = GossipSubParams.init()
+    GossipSubParams.init()
 
   test "default parameters are valid":
     var params = newDefaultValidParams()
@@ -359,7 +359,7 @@ suite "GossipSubParams validation":
 
 suite "TopicParams validation":
   proc newDefaultValidTopicParams(): TopicParams =
-    result = TopicParams.init()
+    TopicParams.init()
 
   test "default topic parameters are valid":
     var params = newDefaultValidTopicParams()

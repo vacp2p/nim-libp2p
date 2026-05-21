@@ -49,9 +49,9 @@ proc allocServiceInfoArrayFromSeq(
 ): ptr Libp2pServiceInfo {.inline.} =
   if services.len == 0:
     return nil
-  result =
+  let ret =
     cast[ptr Libp2pServiceInfo](allocShared(sizeof(Libp2pServiceInfo) * services.len))
-  let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](result)
+  let servicesArr = cast[ptr UncheckedArray[Libp2pServiceInfo]](ret)
   for i, svc in services:
     servicesArr[i].id = svc.id.alloc()
     servicesArr[i].dataLen = svc.data.len.csize_t
@@ -60,6 +60,7 @@ proc allocServiceInfoArrayFromSeq(
     else:
       servicesArr[i].data = cast[ptr byte](allocShared(svc.data.len))
       copyMem(servicesArr[i].data, addr svc.data[0], svc.data.len)
+  ret
 
 proc createShared*(
     T: type KademliaRequest,
