@@ -71,7 +71,7 @@ proc encode*(msg: RelayMessage): ProtoBuffer =
   pb.finish()
   pb
 
-proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
+proc decode*(_: typedesc[RelayMessage], buf: sink seq[byte]): Opt[RelayMessage] =
   var
     rMsg: RelayMessage
     msgTypeOrd: uint32
@@ -81,7 +81,7 @@ proc decode*(_: typedesc[RelayMessage], buf: seq[byte]): Opt[RelayMessage] =
     pbSrc: ProtoBuffer
     pbDst: ProtoBuffer
 
-  let pb = initProtoBuffer(buf)
+  let pb = initProtoBuffer(move(buf))
 
   if ?pb.getField(1, msgTypeOrd).toOpt():
     if msgTypeOrd.int notin RelayType:
@@ -112,8 +112,8 @@ type Voucher* = object
   reservingPeerId*: PeerId # peer ID of the reserving peer
   expiration*: uint64 # UNIX UTC expiration time for the reservation
 
-proc decode*(_: typedesc[Voucher], buf: seq[byte]): Result[Voucher, ProtoError] =
-  let pb = initProtoBuffer(buf)
+proc decode*(_: typedesc[Voucher], buf: sink seq[byte]): Result[Voucher, ProtoError] =
+  let pb = initProtoBuffer(move(buf))
   var v = Voucher()
 
   ?pb.getRequiredField(1, v.relayPeerId)
@@ -228,9 +228,9 @@ proc encode*(msg: HopMessage): ProtoBuffer =
   pb.finish()
   pb
 
-proc decode*(_: typedesc[HopMessage], buf: seq[byte]): Opt[HopMessage] =
+proc decode*(_: typedesc[HopMessage], buf: sink seq[byte]): Opt[HopMessage] =
   var msg: HopMessage
-  let pb = initProtoBuffer(buf)
+  let pb = initProtoBuffer(move(buf))
 
   var msgTypeOrd: uint32
   ?pb.getRequiredField(1, msgTypeOrd).toOpt()
@@ -306,10 +306,10 @@ proc encode*(msg: StopMessage): ProtoBuffer =
   pb.finish()
   pb
 
-proc decode*(_: typedesc[StopMessage], buf: seq[byte]): Opt[StopMessage] =
+proc decode*(_: typedesc[StopMessage], buf: sink seq[byte]): Opt[StopMessage] =
   var msg: StopMessage
 
-  let pb = initProtoBuffer(buf)
+  let pb = initProtoBuffer(move(buf))
 
   var msgTypeOrd: uint32
   ?pb.getRequiredField(1, msgTypeOrd).toOpt()

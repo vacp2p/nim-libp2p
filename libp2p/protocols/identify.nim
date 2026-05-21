@@ -101,7 +101,7 @@ proc encodeMsg(
   pb.finish()
   pb
 
-proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
+proc decodeMsg*(buf: sink seq[byte]): Opt[IdentifyInfo] =
   var
     iinfo: IdentifyInfo
     pubkey: PublicKey
@@ -110,7 +110,7 @@ proc decodeMsg*(buf: seq[byte]): Opt[IdentifyInfo] =
     agentVersion: string
     signedPeerRecord: SignedPeerRecord
 
-  var pb = initProtoBuffer(buf)
+  var pb = initProtoBuffer(move(buf))
   if ?pb.getField(1, pubkey).toOpt():
     iinfo.pubkey = Opt.some(pubkey)
     if ?pb.getField(8, signedPeerRecord).toOpt() and
@@ -174,7 +174,7 @@ proc identify*(
     trace "identify: Empty message received!", stream
     raise newException(IdentityInvalidMsgError, "Empty message received!")
 
-  var info = decodeMsg(message).valueOr:
+  var info = decodeMsg(move(message)).valueOr:
     raise newException(IdentityInvalidMsgError, "Incorrect message received!")
   debug "identify: info received", stream, info
   let
@@ -211,7 +211,7 @@ proc init*(p: IdentifyPush) =
     try:
       var message = await stream.readLp(maxMsgSize)
 
-      var identInfo = decodeMsg(message).valueOr:
+      var identInfo = decodeMsg(move(message)).valueOr:
         raise newException(IdentityInvalidMsgError, "Incorrect message received!")
       debug "identify push: info received", stream, identInfo
 
