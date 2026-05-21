@@ -140,10 +140,11 @@ suite "Service Discovery Component - Advertise Discover":
     checkUntilTimeout:
       block:
         let foundA = await discovererNode.lookup(svcAId)
-        let foundB = await discovererNode.lookup(svcBId)
         foundA.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
-          foundA.get().len == 1 and
-          foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
+          foundA.get().len == 1
+      block:
+        let foundB = await discovererNode.lookup(svcBId)
+        foundB.get().anyIt(it.data.peerId == advertiserNode.switch.peerInfo.peerId) and
           foundB.get().len == 1
           # Regression for vacp2p/nim-libp2p#2431: this lookup previously returned a duplicate.
 
@@ -280,7 +281,7 @@ suite "Service Discovery Component - Advertise Discover":
     )
 
     # Malformed bytes force a Rejected reply.
-    let badAdvert = Opt.some(@[1'u8, 2, 3, 4])
+    let badAdvert = @[1'u8, 2, 3, 4]
 
     # The advertiser should hit Rejected, break its retry loop, and return.
     await advertiserNode

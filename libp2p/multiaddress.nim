@@ -875,6 +875,18 @@ proc getPart*(ma: MultiAddress, codec: MultiCodec): MaResult[MultiAddress] =
       return ok(part)
   err("no such codec in multiaddress")
 
+proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byte]] =
+  ## Returns the raw byte argument of the first component in ``ma`` matching
+  ## ``codec`` (e.g. the 2-byte port for ``/tcp/<port>``, the 4-byte address
+  ## bytes for ``/ip4/<addr>``).
+  for item in ma:
+    let
+      ritem = ?item
+      code = ?ritem.protoCode()
+    if code == codec:
+      return ok(?ritem.protoAddress())
+  err("Multiaddress codec has not been found")
+
 proc getProtocol(name: string): MAProtocol {.inline.} =
   let mc = MultiCodec.codec(name)
   if mc != InvalidMultiCodec:
@@ -1248,6 +1260,38 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
 
       cursor.offset = cursor.offset + skipLen
     # Marker - nothing to skip
+
+proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
+  ## Returns a copy of ``ma`` with its leading IP4/IP6 component replaced by
+  ## ``ip``. If ``ip``'s family differs from the original, the IP codec is
+  ## swapped accordingly (``/ip6/...`` becomes ``/ip4/...`` or vice versa).
+  ## The remainder of the multiaddress (transport, port, and any suffix such
+  ## as ``/quic-v1``, ``/ws``, ``/wss``, ``/tls/ws``) is preserved. Returns
+  ## an error if ``ma`` has no IP component.
+  let
+    ip4 = multiCodec("ip4")
+    ip6 = multiCodec("ip6")
+    newIp =
+      case ip.family
+      of IpAddressFamily.IPv4:
+        ?MultiAddress.init(ip4, ip.address_v4)
+      of IpAddressFamily.IPv6:
+        ?MultiAddress.init(ip6, ip.address_v6)
+
+  var
+    found = false
+    res = MultiAddress.init()
+  for item in ma.items:
+    let part = ?item
+    let code = ?part.protoCode
+    if not found and (code == ip4 or code == ip6):
+      ?res.append(newIp)
+      found = true
+    else:
+      ?res.append(part)
+  if not found:
+    return err("multiaddress: no IP component to replace")
+  ok(res)
 
 const AvgMultiAddressStringLength = 32
 
