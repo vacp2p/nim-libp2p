@@ -125,17 +125,17 @@ proc checkPublic(key: openArray[byte], curve: cint): uint32 =
   discard impl.order(curve, orderlen)
   impl.mul(unsafeAddr ckey[0], uint(len(ckey)), addr x[0], uint(len(x)), curve)
 
-proc getOffset(pubkey: EcPublicKey): int {.inline.} =
+proc getOffset(pubkey: EcPublicKey): Opt[int] {.inline.} =
   let o = cast[uint](pubkey.key.q) - cast[uint](unsafeAddr pubkey.buffer[0])
   if o + cast[uint](pubkey.key.qlen) > uint(len(pubkey.buffer)):
-    return -1
-  cast[int](o)
+    return Opt.none(int)
+  Opt.some(cast[int](o))
 
-proc getOffset(seckey: EcPrivateKey): int {.inline.} =
+proc getOffset(seckey: EcPrivateKey): Opt[int] {.inline.} =
   let o = cast[uint](seckey.key.x) - cast[uint](unsafeAddr seckey.buffer[0])
   if o + cast[uint](seckey.key.xlen) > uint(len(seckey.buffer)):
-    return -1
-  cast[int](o)
+    return Opt.none(int)
+  Opt.some(cast[int](o))
 
 template getPublicKeyLength*(curve: EcCurveKind): int =
   case curve
@@ -159,8 +159,7 @@ proc copy*[T: EcPKI](dst: var T, src: T): bool =
   when T is EcPrivateKey:
     let length = src.key.xlen
     if length > 0 and len(src.buffer) > 0:
-      let offset = getOffset(src)
-      if offset >= 0:
+      getOffset(src).withValue(offset):
         dst.buffer = src.buffer
         dst.key.curve = src.key.curve
         dst.key.xlen = length
@@ -169,8 +168,7 @@ proc copy*[T: EcPKI](dst: var T, src: T): bool =
   elif T is EcPublicKey:
     let length = src.key.qlen
     if length > 0 and len(src.buffer) > 0:
-      let offset = getOffset(src)
-      if offset >= 0:
+      getOffset(src).withValue(offset):
         dst.buffer = src.buffer
         dst.key.curve = src.key.curve
         dst.key.qlen = length
@@ -273,11 +271,10 @@ proc `$`*(seckey: EcPrivateKey): string =
     return "Empty or uninitialized ECNIST key"
   if seckey.key.curve notin EcSupportedCurvesCint:
     return "Unknown key"
-  let offset = seckey.getOffset()
-  if offset < 0:
-    return "Corrupted key"
-  let e = offset + cast[int](seckey.key.xlen) - 1
-  ncrutils.toHex(seckey.buffer.toOpenArray(offset, e))
+  seckey.getOffset().withValue(offset):
+    let e = offset + cast[int](seckey.key.xlen) - 1
+    return ncrutils.toHex(seckey.buffer.toOpenArray(offset, e))
+  return "Corrupted key"
 
 proc `$`*(pubkey: EcPublicKey): string =
   ## Return string representation of EC public key.
@@ -286,11 +283,10 @@ proc `$`*(pubkey: EcPublicKey): string =
     return "Empty or uninitialized ECNIST key"
   if pubkey.key.curve notin EcSupportedCurvesCint:
     return "Unknown key"
-  let offset = pubkey.getOffset()
-  if offset < 0:
-    return "Corrupted key"
-  let e = offset + cast[int](pubkey.key.qlen) - 1
-  ncrutils.toHex(pubkey.buffer.toOpenArray(offset, e))
+  pubkey.getOffset().withValue(offset):
+    let e = offset + cast[int](pubkey.key.qlen) - 1
+    return ncrutils.toHex(pubkey.buffer.toOpenArray(offset, e))
+  return "Corrupted key"
 
 proc `$`*(sig: EcSignature): string =
   ## Return hexadecimal string representation of EC signature.
@@ -343,7 +339,6 @@ proc toRawBytes*(sig: EcSignature, data: var openArray[byte]): int =
   blen
 
 proc buildPrivateKeyBytes(seckey: EcPrivateKey): EcResult[seq[byte]] =
-  var offset, length: int
   var pubkey = ?seckey.getPublicKey()
   var b = Asn1Buffer.init()
   var p = Asn1Composite.init(Asn1Tag.Sequence)
@@ -356,18 +351,22 @@ proc buildPrivateKeyBytes(seckey: EcPrivateKey): EcResult[seq[byte]] =
   elif seckey.key.curve == EC_secp521r1:
     c0.write(Asn1Tag.Oid, Asn1OidSecp521r1)
   c0.finish()
-  offset = pubkey.getOffset()
-  if offset < 0:
+  pubkey.getOffset().withValue(offset):
+    let length = int(pubkey.key.qlen)
+    c1.write(
+      Asn1Tag.BitString, pubkey.buffer.toOpenArray(offset, offset + length - 1)
+    )
+  do:
     return err(EcKeyIncorrectError)
-  length = int(pubkey.key.qlen)
-  c1.write(Asn1Tag.BitString, pubkey.buffer.toOpenArray(offset, offset + length - 1))
   c1.finish()
-  offset = seckey.getOffset()
-  if offset < 0:
+  seckey.getOffset().withValue(offset):
+    let length = int(seckey.key.xlen)
+    p.write(
+      Asn1Tag.OctetString, seckey.buffer.toOpenArray(offset, offset + length - 1)
+    )
+  do:
     return err(EcKeyIncorrectError)
-  length = int(seckey.key.xlen)
   p.write(1'u64)
-  p.write(Asn1Tag.OctetString, seckey.buffer.toOpenArray(offset, offset + length - 1))
   p.write(c0)
   p.write(c1)
   p.finish()
@@ -414,11 +413,13 @@ proc buildPublicKeyBytes(pubkey: EcPublicKey): EcResult[seq[byte]] =
     c.write(Asn1Tag.Oid, Asn1OidSecp521r1)
   c.finish()
   p.write(c)
-  let offset = getOffset(pubkey)
-  if offset < 0:
+  getOffset(pubkey).withValue(offset):
+    let length = int(pubkey.key.qlen)
+    p.write(
+      Asn1Tag.BitString, pubkey.buffer.toOpenArray(offset, offset + length - 1)
+    )
+  do:
     return err(EcKeyIncorrectError)
-  let length = int(pubkey.key.qlen)
-  p.write(Asn1Tag.BitString, pubkey.buffer.toOpenArray(offset, offset + length - 1))
   p.finish()
   b.write(p)
   b.finish()
@@ -532,9 +533,9 @@ proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
     return false
   if pubkey1.key.qlen != pubkey2.key.qlen:
     return false
-  let op1 = pubkey1.getOffset()
-  let op2 = pubkey2.getOffset()
-  if op1 == -1 or op2 == -1:
+  let op1 = pubkey1.getOffset().valueOr:
+    return false
+  let op2 = pubkey2.getOffset().valueOr:
     return false
   CT.isEqual(
     pubkey1.buffer.toOpenArray(op1, pubkey1.key.qlen - 1),
@@ -551,9 +552,9 @@ proc `==`*(seckey1, seckey2: EcPrivateKey): bool =
     return false
   if seckey1.key.xlen != seckey2.key.xlen:
     return false
-  let op1 = seckey1.getOffset()
-  let op2 = seckey2.getOffset()
-  if op1 == -1 or op2 == -1:
+  let op1 = seckey1.getOffset().valueOr:
+    return false
+  let op2 = seckey2.getOffset().valueOr:
     return false
   CT.isEqual(
     seckey1.buffer.toOpenArray(op1, seckey1.key.xlen - 1),
@@ -869,18 +870,19 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
     if pub.key.curve == sec.key.curve:
       var key = new EcPublicKey
       if key.copy(pub):
-        let poffset = key.getOffset()
-        let soffset = sec.getOffset()
-        if poffset >= 0 and soffset >= 0:
-          let res = impl.mul(
-            addr key.buffer[poffset],
-            key.key.qlen,
-            unsafeAddr sec.buffer[soffset],
-            sec.key.xlen,
-            key.key.curve,
-          )
-          if res != 0:
-            return key
+        let poffset = key.getOffset().valueOr:
+          return nil
+        let soffset = sec.getOffset().valueOr:
+          return nil
+        let res = impl.mul(
+          addr key.buffer[poffset],
+          key.key.qlen,
+          unsafeAddr sec.buffer[soffset],
+          sec.key.xlen,
+          key.key.curve,
+        )
+        if res != 0:
+          return key
   nil
 
 proc toSecret*(
