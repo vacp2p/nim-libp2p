@@ -359,6 +359,7 @@ proc buildPrivateKeyBytes(seckey: EcPrivateKey): EcResult[seq[byte]] =
   do:
     return err(EcKeyIncorrectError)
   c1.finish()
+  p.write(1'u64)
   seckey.getOffset().withValue(offset):
     let length = int(seckey.key.xlen)
     p.write(
@@ -366,7 +367,6 @@ proc buildPrivateKeyBytes(seckey: EcPrivateKey): EcResult[seq[byte]] =
     )
   do:
     return err(EcKeyIncorrectError)
-  p.write(1'u64)
   p.write(c0)
   p.write(c1)
   p.finish()
@@ -538,8 +538,8 @@ proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
   let op2 = pubkey2.getOffset().valueOr:
     return false
   CT.isEqual(
-    pubkey1.buffer.toOpenArray(op1, pubkey1.key.qlen - 1),
-    pubkey2.buffer.toOpenArray(op2, pubkey2.key.qlen - 1),
+    pubkey1.buffer.toOpenArray(op1, op1 + pubkey1.key.qlen - 1),
+    pubkey2.buffer.toOpenArray(op2, op2 + pubkey2.key.qlen - 1),
   )
 
 proc `==`*(seckey1, seckey2: EcPrivateKey): bool =
@@ -557,8 +557,8 @@ proc `==`*(seckey1, seckey2: EcPrivateKey): bool =
   let op2 = seckey2.getOffset().valueOr:
     return false
   CT.isEqual(
-    seckey1.buffer.toOpenArray(op1, seckey1.key.xlen - 1),
-    seckey2.buffer.toOpenArray(op2, seckey2.key.xlen - 1),
+    seckey1.buffer.toOpenArray(op1, op1 + seckey1.key.xlen - 1),
+    seckey2.buffer.toOpenArray(op2, op2 + seckey2.key.xlen - 1),
   )
 
 proc `==`*(a, b: EcSignature): bool =
