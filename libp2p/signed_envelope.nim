@@ -61,15 +61,15 @@ proc decode*(
 proc init*(
     T: typedesc[Envelope],
     privateKey: PrivateKey,
-    payloadType: seq[byte],
-    payload: seq[byte],
+    payloadType: sink seq[byte],
+    payload: sink seq[byte],
     domain: string,
 ): Result[Envelope, CryptoError] =
   var envelope = Envelope(
     publicKey: ?privateKey.getPublicKey(),
     domain: domain,
-    payloadType: payloadType,
-    payload: payload,
+    payloadType: move(payloadType),
+    payload: move(payload),
   )
 
   envelope.signature = ?privateKey.sign(envelope.getSignatureBuffer())
