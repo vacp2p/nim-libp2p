@@ -186,12 +186,13 @@ method readLine*(
       if state == len(sep):
         break
     else:
+      let matched = state
       state = 0
       if limit > 0:
-        let missing = min(state, lim - len(line) - 1)
+        let missing = min(matched, lim - len(line) - 1)
         line.add(sep[0 ..< missing])
       else:
-        line.add(sep[0 ..< state])
+        line.add(sep[0 ..< matched])
 
       line.add(ch)
       if len(line) == lim:

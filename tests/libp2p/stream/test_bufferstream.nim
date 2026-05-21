@@ -178,6 +178,13 @@ suite "BufferStream":
 
     await buff.close() # all data should still be read after close
 
+  asyncTest "readLine keeps partial separator on mismatch":
+    let buff = BufferStream.new()
+    await buff.pushData("\rX\r\n".toBytes())
+
+    check (await buff.readLine(sep = "\r\n")) == "\rX"
+    await buff.close()
+
   asyncTest "read more data after eof":
     let buff = BufferStream.new()
     check buff.len == 0
