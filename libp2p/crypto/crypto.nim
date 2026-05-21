@@ -425,9 +425,10 @@ proc toBytes*(sig: Signature, data: var openArray[byte]): int =
   ## Serialize signature ``sig`` and store it to ``data``.
   ##
   ## Returns number of bytes (octets) needed to store signature ``sig``.
-  result = len(sig.data)
-  if len(data) >= result and result > 0:
+  let blen = len(sig.data)
+  if len(data) >= blen and blen > 0:
     copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
+  blen
 
 proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
   ## Return private key ``key`` in binary form (using libp2p's protobuf
@@ -449,7 +450,7 @@ proc getBytes*(key: PublicKey): CryptoResult[seq[byte]] =
 
 proc getBytes*(sig: Signature): seq[byte] =
   ## Return signature ``sig`` in binary form.
-  result = sig.data
+  sig.data
 
 template initImpl[T: PrivateKey | PublicKey](key: var T, data: openArray[byte]): bool =
   ## Initialize private key ``key`` from libp2p's protobuf serialized raw
@@ -528,7 +529,8 @@ proc init*(sig: var Signature, data: openArray[byte]): bool =
   ## Returns ``true`` on success.
   if len(data) > 0:
     sig.data = @data
-    result = true
+    return true
+  false
 
 proc init*[T: PrivateKey | PublicKey](key: var T, data: string): bool =
   ## Initialize private/public key ``key`` from libp2p's protobuf serialized
@@ -716,7 +718,7 @@ func shortLog*(key: PrivateKey | PublicKey): string =
 
 proc `$`*(sig: Signature): string =
   ## Get string representation of signature ``sig``.
-  result = ncrutils.toHex(sig.data)
+  ncrutils.toHex(sig.data)
 
 proc sign*(key: PrivateKey, data: openArray[byte]): CryptoResult[Signature] {.gcsafe.} =
   ## Sign message ``data`` using private key ``key`` and return generated
@@ -823,25 +825,27 @@ proc stretchKeys*(
     cipherType: string, hashType: string, sharedSecret: seq[byte]
 ): Secret =
   ## Expand shared secret to cryptographic keys.
+  var secret: Secret
   if cipherType == "AES-128":
-    result.ivsize = aes128.sizeBlock
-    result.keysize = aes128.sizeKey
+    secret.ivsize = aes128.sizeBlock
+    secret.keysize = aes128.sizeKey
   elif cipherType == "AES-256":
-    result.ivsize = aes256.sizeBlock
-    result.keysize = aes256.sizeKey
+    secret.ivsize = aes256.sizeBlock
+    secret.keysize = aes256.sizeKey
   elif cipherType == "TwofishCTR":
-    result.ivsize = twofish256.sizeBlock
-    result.keysize = twofish256.sizeKey
+    secret.ivsize = twofish256.sizeBlock
+    secret.keysize = twofish256.sizeKey
 
   var seed = "key expansion"
-  result.macsize = 20
-  let length = result.ivsize + result.keysize + result.macsize
-  result.data = newSeqUninit[byte](2 * length)
+  secret.macsize = 20
+  let length = secret.ivsize + secret.keysize + secret.macsize
+  secret.data = newSeqUninit[byte](2 * length)
 
   if hashType == "SHA256":
-    makeSecret(result.data, HMAC[sha256], sharedSecret, seed)
+    makeSecret(secret.data, HMAC[sha256], sharedSecret, seed)
   elif hashType == "SHA512":
-    makeSecret(result.data, HMAC[sha512], sharedSecret, seed)
+    makeSecret(secret.data, HMAC[sha512], sharedSecret, seed)
+  secret
 
 template goffset*(secret, id, o: untyped): untyped =
   id * (len(secret.data) shr 1) + o
@@ -867,33 +871,36 @@ template macOpenArray*(secret: Secret, id: int): untyped =
 
 proc iv*(secret: Secret, id: int): seq[byte] {.inline.} =
   ## Get array of bytes with with initial vector.
-  result = newSeqUninit[byte](secret.ivsize)
+  var buf = newSeqUninit[byte](secret.ivsize)
   var offset =
     if id == 0:
       0
     else:
       (len(secret.data) div 2)
-  copyMem(addr result[0], unsafeAddr secret.data[offset], secret.ivsize)
+  copyMem(addr buf[0], unsafeAddr secret.data[offset], secret.ivsize)
+  buf
 
 proc key*(secret: Secret, id: int): seq[byte] {.inline.} =
-  result = newSeqUninit[byte](secret.keysize)
+  var buf = newSeqUninit[byte](secret.keysize)
   var offset =
     if id == 0:
       0
     else:
       (len(secret.data) div 2)
   offset += secret.ivsize
-  copyMem(addr result[0], unsafeAddr secret.data[offset], secret.keysize)
+  copyMem(addr buf[0], unsafeAddr secret.data[offset], secret.keysize)
+  buf
 
 proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
-  result = newSeqUninit[byte](secret.macsize)
+  var buf = newSeqUninit[byte](secret.macsize)
   var offset =
     if id == 0:
       0
     else:
       (len(secret.data) div 2)
   offset += secret.ivsize + secret.keysize
-  copyMem(addr result[0], unsafeAddr secret.data[offset], secret.macsize)
+  copyMem(addr buf[0], unsafeAddr secret.data[offset], secret.macsize)
+  buf
 
 proc getOrder*(
     remotePubkey, localNonce: openArray[byte], localPubkey, remoteNonce: openArray[byte]

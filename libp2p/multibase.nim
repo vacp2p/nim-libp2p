@@ -48,11 +48,11 @@ proc idd(
   let length = len(inbytes)
   if length > len(outbytes):
     outlen = length
-    result = MultiBaseStatus.Overrun
+    MultiBaseStatus.Overrun
   else:
     copyMem(addr outbytes[0], unsafeAddr inbytes[0], length)
     outlen = length
-    result = MultiBaseStatus.Success
+    MultiBaseStatus.Success
 
 proc ide(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
@@ -60,11 +60,11 @@ proc ide(
   let length = len(inbytes)
   if length > len(outbytes):
     outlen = length
-    result = MultiBaseStatus.Overrun
+    MultiBaseStatus.Overrun
   else:
     copyMem(addr outbytes[0], unsafeAddr inbytes[0], length)
     outlen = length
-    result = MultiBaseStatus.Success
+    MultiBaseStatus.Success
 
 proc idel(length: int): int =
   length
@@ -99,111 +99,111 @@ proc b16dl(length: int): int =
   (length + 1) div 2
 
 proc b32ce(r: Base32Status): MultiBaseStatus {.inline.} =
-  result = MultiBaseStatus.Error
   if r == Base32Status.Incorrect:
-    result = MultiBaseStatus.Incorrect
-  elif r == Base32Status.Overrun:
-    result = MultiBaseStatus.Overrun
-  elif r == Base32Status.Success:
-    result = MultiBaseStatus.Success
+    return MultiBaseStatus.Incorrect
+  if r == Base32Status.Overrun:
+    return MultiBaseStatus.Overrun
+  if r == Base32Status.Success:
+    return MultiBaseStatus.Success
+  MultiBaseStatus.Error
 
 proc b58ce(r: Base58Status): MultiBaseStatus {.inline.} =
-  result = MultiBaseStatus.Error
   if r == Base58Status.Incorrect:
-    result = MultiBaseStatus.Incorrect
-  elif r == Base58Status.Overrun:
-    result = MultiBaseStatus.Overrun
-  elif r == Base58Status.Success:
-    result = MultiBaseStatus.Success
+    return MultiBaseStatus.Incorrect
+  if r == Base58Status.Overrun:
+    return MultiBaseStatus.Overrun
+  if r == Base58Status.Success:
+    return MultiBaseStatus.Success
+  MultiBaseStatus.Error
 
 proc b64ce(r: Base64Status): MultiBaseStatus {.inline.} =
-  result = MultiBaseStatus.Error
   if r == Base64Status.Incorrect:
-    result = MultiBaseStatus.Incorrect
-  elif r == Base64Status.Overrun:
-    result = MultiBaseStatus.Overrun
-  elif r == Base64Status.Success:
-    result = MultiBaseStatus.Success
+    return MultiBaseStatus.Incorrect
+  if r == Base64Status.Overrun:
+    return MultiBaseStatus.Overrun
+  if r == Base64Status.Success:
+    return MultiBaseStatus.Success
+  MultiBaseStatus.Error
 
 proc b32hd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(HexBase32Lower.decode(inbytes, outbytes, outlen))
+  b32ce(HexBase32Lower.decode(inbytes, outbytes, outlen))
 
 proc b32he(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(HexBase32Lower.encode(inbytes, outbytes, outlen))
+  b32ce(HexBase32Lower.encode(inbytes, outbytes, outlen))
 
 proc b32hud(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(HexBase32Upper.decode(inbytes, outbytes, outlen))
+  b32ce(HexBase32Upper.decode(inbytes, outbytes, outlen))
 
 proc b32hue(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(HexBase32Upper.encode(inbytes, outbytes, outlen))
+  b32ce(HexBase32Upper.encode(inbytes, outbytes, outlen))
 
 proc b32hpd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(HexBase32LowerPad.decode(inbytes, outbytes, outlen))
+  b32ce(HexBase32LowerPad.decode(inbytes, outbytes, outlen))
 
 proc b32hpe(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(HexBase32LowerPad.encode(inbytes, outbytes, outlen))
+  b32ce(HexBase32LowerPad.encode(inbytes, outbytes, outlen))
 
 proc b32hpud(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(HexBase32UpperPad.decode(inbytes, outbytes, outlen))
+  b32ce(HexBase32UpperPad.decode(inbytes, outbytes, outlen))
 
 proc b32hpue(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(HexBase32UpperPad.encode(inbytes, outbytes, outlen))
+  b32ce(HexBase32UpperPad.encode(inbytes, outbytes, outlen))
 
 proc b32d(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(Base32Lower.decode(inbytes, outbytes, outlen))
+  b32ce(Base32Lower.decode(inbytes, outbytes, outlen))
 
 proc b32e(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(Base32Lower.encode(inbytes, outbytes, outlen))
+  b32ce(Base32Lower.encode(inbytes, outbytes, outlen))
 
 proc b32ud(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(Base32Upper.decode(inbytes, outbytes, outlen))
+  b32ce(Base32Upper.decode(inbytes, outbytes, outlen))
 
 proc b32ue(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(Base32Upper.encode(inbytes, outbytes, outlen))
+  b32ce(Base32Upper.encode(inbytes, outbytes, outlen))
 
 proc b32pd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(Base32LowerPad.decode(inbytes, outbytes, outlen))
+  b32ce(Base32LowerPad.decode(inbytes, outbytes, outlen))
 
 proc b32pe(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(Base32LowerPad.encode(inbytes, outbytes, outlen))
+  b32ce(Base32LowerPad.encode(inbytes, outbytes, outlen))
 
 proc b32pud(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(Base32UpperPad.decode(inbytes, outbytes, outlen))
+  b32ce(Base32UpperPad.decode(inbytes, outbytes, outlen))
 
 proc b32pue(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b32ce(Base32UpperPad.encode(inbytes, outbytes, outlen))
+  b32ce(Base32UpperPad.encode(inbytes, outbytes, outlen))
 
 proc b32el(length: int): int =
   Base32Lower.encodedLength(length)
@@ -220,22 +220,22 @@ proc b32pdl(length: int): int =
 proc b58fd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b58ce(FLCBase58.decode(inbytes, outbytes, outlen))
+  b58ce(FLCBase58.decode(inbytes, outbytes, outlen))
 
 proc b58fe(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b58ce(FLCBase58.encode(inbytes, outbytes, outlen))
+  b58ce(FLCBase58.encode(inbytes, outbytes, outlen))
 
 proc b58bd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b58ce(BTCBase58.decode(inbytes, outbytes, outlen))
+  b58ce(BTCBase58.decode(inbytes, outbytes, outlen))
 
 proc b58be(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b58ce(BTCBase58.encode(inbytes, outbytes, outlen))
+  b58ce(BTCBase58.encode(inbytes, outbytes, outlen))
 
 proc b58el(length: int): int =
   Base58.encodedLength(length)
@@ -258,42 +258,42 @@ proc b64pdl(length: int): int =
 proc b64e(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b64ce(Base64.encode(inbytes, outbytes, outlen))
+  b64ce(Base64.encode(inbytes, outbytes, outlen))
 
 proc b64d(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b64ce(Base64.decode(inbytes, outbytes, outlen))
+  b64ce(Base64.decode(inbytes, outbytes, outlen))
 
 proc b64pe(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b64ce(Base64Pad.encode(inbytes, outbytes, outlen))
+  b64ce(Base64Pad.encode(inbytes, outbytes, outlen))
 
 proc b64pd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b64ce(Base64Pad.decode(inbytes, outbytes, outlen))
+  b64ce(Base64Pad.decode(inbytes, outbytes, outlen))
 
 proc b64ue(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b64ce(Base64Url.encode(inbytes, outbytes, outlen))
+  b64ce(Base64Url.encode(inbytes, outbytes, outlen))
 
 proc b64ud(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b64ce(Base64Url.decode(inbytes, outbytes, outlen))
+  b64ce(Base64Url.decode(inbytes, outbytes, outlen))
 
 proc b64upe(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
-  result = b64ce(Base64UrlPad.encode(inbytes, outbytes, outlen))
+  b64ce(Base64UrlPad.encode(inbytes, outbytes, outlen))
 
 proc b64upd(
     inbytes: openArray[char], outbytes: var openArray[byte], outlen: var int
 ): MultiBaseStatus =
-  result = b64ce(Base64UrlPad.decode(inbytes, outbytes, outlen))
+  b64ce(Base64UrlPad.decode(inbytes, outbytes, outlen))
 
 const MultiBaseCodecs = [
   MBCodec(
@@ -399,24 +399,22 @@ proc encodedLength*(mbtype: typedesc[MultiBase], encoding: string, length: int):
   ## not present.
   let mb = NameMultiBases.getOrDefault(encoding)
   if len(mb.name) == 0 or isNil(mb.encl):
-    result = -1
+    return -1
+  if length == 0:
+    1
   else:
-    if length == 0:
-      result = 1
-    else:
-      result = mb.encl(length) + 1
+    mb.encl(length) + 1
 
 proc decodedLength*(mbtype: typedesc[MultiBase], encoding: char, length: int): int =
   ## Return estimated size of buffer to store MultiBase decoded value with
   ## encoding character ``encoding`` of length ``length``.
   let mb = CodeMultiBases.getOrDefault(encoding)
   if len(mb.name) == 0 or isNil(mb.decl) or length == 0:
-    result = -1
+    return -1
+  if length == 1:
+    0
   else:
-    if length == 1:
-      result = 0
-    else:
-      result = mb.decl(length - 1)
+    mb.decl(length - 1)
 
 proc encode*(
     mbtype: typedesc[MultiBase],
@@ -446,20 +444,21 @@ proc encode*(
   if isNil(mb.encr) or isNil(mb.encl):
     return MultiBaseStatus.NotSupported
   if len(outbytes) > 1:
-    result = mb.encr(inbytes, outbytes.toOpenArray(1, outbytes.high), outlen)
-    if result == MultiBaseStatus.Overrun:
+    let encResult = mb.encr(inbytes, outbytes.toOpenArray(1, outbytes.high), outlen)
+    if encResult == MultiBaseStatus.Overrun:
       outlen += 1
-    elif result == MultiBaseStatus.Success:
+    elif encResult == MultiBaseStatus.Success:
       outlen += 1
       outbytes[0] = mb.code
+    encResult
   else:
     if len(inbytes) == 0 and len(outbytes) == 1:
-      result = MultiBaseStatus.Success
       outlen = 1
       outbytes[0] = mb.code
+      MultiBaseStatus.Success
     else:
-      result = MultiBaseStatus.Overrun
       outlen = mb.encl(len(inbytes)) + 1
+      MultiBaseStatus.Overrun
 
 proc decode*(
     mbtype: typedesc[MultiBase],
@@ -491,9 +490,9 @@ proc decode*(
     return MultiBaseStatus.NotSupported
   if length == 1:
     outlen = 0
-    result = MultiBaseStatus.Success
+    MultiBaseStatus.Success
   else:
-    result = mb.decr(inbytes.toOpenArray(1, length - 1), outbytes, outlen)
+    mb.decr(inbytes.toOpenArray(1, length - 1), outbytes, outlen)
 
 proc encode*(
     mbtype: typedesc[MultiBase], encoding: string, inbytes: openArray[byte]

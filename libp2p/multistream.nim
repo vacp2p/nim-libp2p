@@ -120,7 +120,7 @@ proc list*(
     if s.len() > 0:
       list.add(s)
 
-  result = list
+  list
 
 proc handle*(
     _: type MultistreamSelect,

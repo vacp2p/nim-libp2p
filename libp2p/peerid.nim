@@ -60,9 +60,10 @@ func toBytes*(pid: PeerId, data: var openArray[byte]): int =
   ## Store PeerId ``pid`` to array of bytes ``data``.
   ##
   ## Returns number of bytes needed to store ``pid``.
-  result = len(pid.data)
-  if len(data) >= result and result > 0:
-    copyMem(addr data[0], unsafeAddr pid.data[0], result)
+  let n = len(pid.data)
+  if len(data) >= n and n > 0:
+    copyMem(addr data[0], unsafeAddr pid.data[0], n)
+  n
 
 template getBytes*(pid: PeerId): seq[byte] =
   ## Return PeerId ``pid`` as array of bytes.
@@ -86,11 +87,11 @@ func cmp*(a, b: PeerId): int =
   var i = 0
   var m = min(len(a.data), len(b.data))
   while i < m:
-    result = ord(a.data[i]) - ord(b.data[i])
-    if result != 0:
-      return
+    let diff = ord(a.data[i]) - ord(b.data[i])
+    if diff != 0:
+      return diff
     inc(i)
-  result = len(a.data) - len(b.data)
+  len(a.data) - len(b.data)
 
 template `<=`*(a, b: PeerId): bool =
   (cmp(a, b) <= 0)
@@ -120,7 +121,8 @@ func hasPublicKey*(pid: PeerId): bool =
     var mh: MultiHash
     if MultiHash.decode(pid.data, mh).isOk:
       if mh.mcodec == multiCodec("identity"):
-        result = true
+        return true
+  false
 
 func extractPublicKey*(pid: PeerId, pubkey: var PublicKey): bool =
   ## Returns ``true`` if public key was successfully decoded from PeerId
@@ -132,7 +134,8 @@ func extractPublicKey*(pid: PeerId, pubkey: var PublicKey): bool =
     if MultiHash.decode(pid.data, mh).isOk:
       if mh.mcodec == multiCodec("identity"):
         let length = len(mh.data.buffer)
-        result = pubkey.init(mh.data.buffer.toOpenArray(mh.dpos, length - 1))
+        return pubkey.init(mh.data.buffer.toOpenArray(mh.dpos, length - 1))
+  false
 
 func getPubKey*(pid: PeerId): Opt[PublicKey] =
   ## Extract the public key embedded in `pid`, or `none` if not present.
@@ -149,7 +152,8 @@ func init*(pid: var PeerId, data: openArray[byte]): bool =
   var p = PeerId(data: @data)
   if p.validate():
     pid = p
-    result = true
+    return true
+  false
 
 func init*(pid: var PeerId, data: string): bool =
   ## Initialize peer id from base58 encoded string representation.
@@ -163,7 +167,8 @@ func init*(pid: var PeerId, data: string): bool =
     opid.data = p
     if opid.validate():
       pid = opid
-      result = true
+      return true
+  false
 
 func init*(t: typedesc[PeerId], data: openArray[byte]): Result[PeerId, cstring] =
   ## Create new peer id from raw binary representation ``data``.

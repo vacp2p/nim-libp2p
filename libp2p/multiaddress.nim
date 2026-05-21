@@ -98,22 +98,25 @@ proc ip4StB(s: string, vb: var VBuffer): bool =
     var a = parseIpAddress(s)
     if a.family == IpAddressFamily.IPv4:
       vb.writeArray(a.address_v4)
-      result = true
+      return true
   except CatchableError:
     discard
+  false
 
 proc ip4BtS(vb: var VBuffer, s: var string): bool =
   ## IPv4 bufferToString() implementation.
   var a = IpAddress(family: IpAddressFamily.IPv4)
   if vb.readArray(a.address_v4) == 4:
     s = $a
-    result = true
+    return true
+  false
 
 proc ip4VB(vb: var VBuffer): bool =
   ## IPv4 validateBuffer() implementation.
   var a = IpAddress(family: IpAddressFamily.IPv4)
   if vb.readArray(a.address_v4) == 4:
-    result = true
+    return true
+  false
 
 proc ip6StB(s: string, vb: var VBuffer): bool =
   ## IPv6 stringToBuffer() implementation.
@@ -121,22 +124,25 @@ proc ip6StB(s: string, vb: var VBuffer): bool =
     var a = parseIpAddress(s)
     if a.family == IpAddressFamily.IPv6:
       vb.writeArray(a.address_v6)
-      result = true
+      return true
   except CatchableError:
     discard
+  false
 
 proc ip6BtS(vb: var VBuffer, s: var string): bool =
   ## IPv6 bufferToString() implementation.
   var a = IpAddress(family: IpAddressFamily.IPv6)
   if vb.readArray(a.address_v6) == 16:
     s = $a
-    result = true
+    return true
+  false
 
 proc ip6VB(vb: var VBuffer): bool =
   ## IPv6 validateBuffer() implementation.
   var a = IpAddress(family: IpAddressFamily.IPv6)
   if vb.readArray(a.address_v6) == 16:
-    result = true
+    return true
+  false
 
 template pathStringToBuffer(s: string, vb: var VBuffer): bool =
   if len(s) > 0:
@@ -194,9 +200,10 @@ proc portStB(s: string, vb: var VBuffer): bool =
       port[0] = cast[byte]((nport shr 8) and 0xFF)
       port[1] = cast[byte](nport and 0xFF)
       vb.writeArray(port)
-      result = true
+      return true
   except CatchableError:
     discard
+  false
 
 proc portBtS(vb: var VBuffer, s: var string): bool =
   ## Port number bufferToString() implementation.
@@ -204,13 +211,15 @@ proc portBtS(vb: var VBuffer, s: var string): bool =
   if vb.readArray(port) == 2:
     let nport = (safeConvert[uint16](port[0]) shl 8) or safeConvert[uint16](port[1])
     s = $nport
-    result = true
+    return true
+  false
 
 proc portVB(vb: var VBuffer): bool =
   ## Port number validateBuffer() implementation.
   var port: array[2, byte]
   if vb.readArray(port) == 2:
-    result = true
+    return true
+  false
 
 proc p2pStB(s: string, vb: var VBuffer): bool =
   ## P2P address stringToBuffer() implementation.
@@ -219,9 +228,10 @@ proc p2pStB(s: string, vb: var VBuffer): bool =
     var mh: MultiHash
     if MultiHash.decode(data, mh).isOk:
       vb.writeSeq(data)
-      result = true
+      return true
   except CatchableError:
     discard
+  false
 
 proc p2pBtS(vb: var VBuffer, s: var string): bool =
   ## P2P address bufferToString() implementation.
@@ -230,7 +240,8 @@ proc p2pBtS(vb: var VBuffer, s: var string): bool =
     var mh: MultiHash
     if MultiHash.decode(address, mh).isOk:
       s = Base58.encode(address)
-      result = true
+      return true
+  false
 
 proc p2pVB(vb: var VBuffer): bool =
   ## P2P address validateBuffer() implementation.
@@ -238,7 +249,8 @@ proc p2pVB(vb: var VBuffer): bool =
   if vb.readSeq(address) > 0:
     var mh: MultiHash
     if MultiHash.decode(address, mh).isOk:
-      result = true
+      return true
+  false
 
 proc onionStB(s: string, vb: var VBuffer): bool =
   try:
@@ -254,9 +266,10 @@ proc onionStB(s: string, vb: var VBuffer): bool =
       address[10] = cast[byte]((nport shr 8) and 0xFF)
       address[11] = cast[byte](nport and 0xFF)
       vb.writeArray(address)
-      result = true
+      return true
   except CatchableError:
     discard
+  false
 
 proc onionBtS(vb: var VBuffer, s: var string): bool =
   ## ONION address bufferToString() implementation.
@@ -266,13 +279,15 @@ proc onionBtS(vb: var VBuffer, s: var string): bool =
     s = Base32Lower.encode(buf.toOpenArray(0, 9))
     s.add(":")
     s.add($nport)
-    result = true
+    return true
+  false
 
 proc onionVB(vb: var VBuffer): bool =
   ## ONION address validateBuffer() implementation.
   var buf: array[12, byte]
   if vb.readArray(buf) == 12:
-    result = true
+    return true
+  false
 
 proc onion3StB(s: string, vb: var VBuffer): bool =
   try:
@@ -288,9 +303,10 @@ proc onion3StB(s: string, vb: var VBuffer): bool =
       address[35] = cast[byte]((nport shr 8) and 0xFF)
       address[36] = cast[byte](nport and 0xFF)
       vb.writeArray(address)
-      result = true
+      return true
   except CatchableError:
     discard
+  false
 
 proc onion3BtS(vb: var VBuffer, s: var string): bool =
   ## ONION address bufferToString() implementation.
@@ -300,13 +316,15 @@ proc onion3BtS(vb: var VBuffer, s: var string): bool =
     s = Base32Lower.encode(buf.toOpenArray(0, 34))
     s.add(":")
     s.add($nport)
-    result = true
+    return true
+  false
 
 proc onion3VB(vb: var VBuffer): bool =
   ## ONION address validateBuffer() implementation.
   var buf: array[37, byte]
   if vb.readArray(buf) == 37:
-    result = true
+    return true
+  false
 
 proc unixStB(s: string, vb: var VBuffer): bool =
   ## Unix socket name stringToBuffer() implementation.
@@ -334,18 +352,15 @@ proc dnsVB(vb: var VBuffer): bool =
 
 proc mapEq*(codec: string): MaPattern =
   ## ``Equal`` operator for pattern
-  result.operator = Eq
-  result.value = multiCodec(codec)
+  MaPattern(operator: Eq, value: multiCodec(codec))
 
 proc mapOr*(args: varargs[MaPattern]): MaPattern =
   ## ``Or`` operator for pattern
-  result.operator = Or
-  result.args = @args
+  MaPattern(operator: Or, args: @args)
 
 proc mapAnd*(args: varargs[MaPattern]): MaPattern =
   ## ``And`` operator for pattern
-  result.operator = And
-  result.args = @args
+  MaPattern(operator: And, args: @args)
 
 const
   TranscoderIP4* =
@@ -506,7 +521,7 @@ proc trimRight(s: string, ch: char): string =
       inc(m)
     else:
       break
-  result = s[0 .. (s.high - m)]
+  s[0 .. (s.high - m)]
 
 proc protoCode*(ma: MultiAddress): MaResult[MultiCodec] =
   ## Returns MultiAddress ``ma`` protocol code.
@@ -782,7 +797,7 @@ proc encode*(
 ): string {.inline.} =
   ## Get MultiBase encoded representation of ``ma`` using encoding
   ## ``encoding``.
-  result = MultiBase.encode(encoding, ma.data.buffer)
+  MultiBase.encode(encoding, ma.data.buffer)
 
 proc validate*(ma: MultiAddress): bool =
   ## Returns ``true`` if MultiAddress ``ma`` is valid.
@@ -803,7 +818,7 @@ proc validate*(ma: MultiAddress): bool =
         return false
     else:
       discard
-  result = true
+  true
 
 proc init*(
     mtype: typedesc[MultiAddress], protocol: MultiCodec, value: openArray[byte] = []
@@ -890,7 +905,9 @@ proc getProtocolArgument*(ma: MultiAddress, codec: MultiCodec): MaResult[seq[byt
 proc getProtocol(name: string): MAProtocol {.inline.} =
   let mc = MultiCodec.codec(name)
   if mc != InvalidMultiCodec:
-    result = CodeAddresses.getOrDefault(mc)
+    CodeAddresses.getOrDefault(mc)
+  else:
+    default(MAProtocol)
 
 proc init*(mtype: typedesc[MultiAddress], value: string): MaResult[MultiAddress] =
   ## Initialize MultiAddress object from string representation ``value``.
@@ -962,7 +979,7 @@ proc init*(
 
 proc init*(mtype: typedesc[MultiAddress]): MultiAddress =
   ## Initialize empty MultiAddress.
-  result.data = initVBuffer(256) # should be enough to accommodate any multiaddress 
+  MultiAddress(data: initVBuffer(256)) # should be enough to accommodate any multiaddress
 
 proc init*(
     mtype: typedesc[MultiAddress],
@@ -1033,7 +1050,7 @@ proc init*(
 
 proc isEmpty*(ma: MultiAddress): bool =
   ## Returns ``true``, if MultiAddress ``ma`` is empty or non initialized.
-  result = len(ma.data) == 0
+  len(ma.data) == 0
 
 proc concat*(m1, m2: MultiAddress): MaResult[MultiAddress] =
   var res: MultiAddress
@@ -1086,15 +1103,17 @@ proc `<`*(a, b: MultiAddress): bool =
 proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
   var empty: seq[MultiCodec]
   var pcs = protos
-  if pat.operator == Or:
-    result = MaPatResult(flag: false, rem: empty)
+  case pat.operator
+  of Or:
+    var r = MaPatResult(flag: false, rem: empty)
     for a in pat.args:
       let res = a.matchPart(pcs)
       if res.flag:
         #Greedy Or
-        if result.flag == false or result.rem.len > res.rem.len:
-          result = res
-  elif pat.operator == And:
+        if r.flag == false or r.rem.len > res.rem.len:
+          r = res
+    r
+  of And:
     if len(pcs) < len(pat.args):
       return MaPatResult(flag: false, rem: empty)
     for i in 0 ..< len(pat.args):
@@ -1102,13 +1121,13 @@ proc matchPart(pat: MaPattern, protos: seq[MultiCodec]): MaPatResult =
       if not res.flag:
         return MaPatResult(flag: false, rem: res.rem)
       pcs = res.rem
-    result = MaPatResult(flag: true, rem: pcs)
-  elif pat.operator == Eq:
+    MaPatResult(flag: true, rem: pcs)
+  of Eq:
     if len(pcs) == 0:
       return MaPatResult(flag: false, rem: empty)
     if pcs[0] == pat.value:
       return MaPatResult(flag: true, rem: pcs[1 ..^ 1])
-    result = MaPatResult(flag: false, rem: empty)
+    MaPatResult(flag: false, rem: empty)
 
 proc match*(pat: MaPattern, address: MultiAddress): bool =
   ## Match full ``address`` using pattern ``pat`` and return ``true`` if
@@ -1131,12 +1150,13 @@ proc `$`*(pat: MaPattern): string =
   var sub = newSeq[string]()
   for a in pat.args:
     sub.add($a)
-  if pat.operator == And:
-    result = sub.join("/")
-  elif pat.operator == Or:
-    result = "(" & sub.join("|") & ")"
-  elif pat.operator == Eq:
-    result = $pat.value
+  case pat.operator
+  of And:
+    sub.join("/")
+  of Or:
+    "(" & sub.join("|") & ")"
+  of Eq:
+    $pat.value
 
 proc bytes*(value: MultiAddress): seq[byte] =
   value.data.buffer

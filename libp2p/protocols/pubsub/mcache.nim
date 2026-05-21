@@ -40,11 +40,13 @@ func put*(c: var MCache, msgId: MessageId, msg: Message) =
 func window*(c: MCache, topic: string): HashSet[MessageId] =
   let len = min(c.windowSize, c.history.len)
 
+  var msgIds: HashSet[MessageId]
   for i in 0 ..< len:
     # Work backwards from `pos` in the circular buffer
     for entry in c.history[(c.pos + c.history.len - i) mod c.history.len]:
       if entry.topic == topic:
-        result.incl(entry.msgId)
+        msgIds.incl(entry.msgId)
+  msgIds
 
 func shift*(c: var MCache) =
   # Shift circular buffer to write to a new position, clearing it from past

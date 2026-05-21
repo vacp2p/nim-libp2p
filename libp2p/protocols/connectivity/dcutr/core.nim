@@ -27,11 +27,12 @@ type
   DcutrError* = object of LPError
 
 proc encode*(msg: DcutrMsg): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, msg.msgType.uint)
+  var pb = initProtoBuffer()
+  pb.write(1, msg.msgType.uint)
   for addr in msg.addrs:
-    result.write(2, addr)
-  result.finish()
+    pb.write(2, addr)
+  pb.finish()
+  pb
 
 proc decode*(
     _: typedesc[DcutrMsg], buf: sink seq[byte]
