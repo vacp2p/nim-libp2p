@@ -70,7 +70,7 @@ type
     dOut*: Opt[int]
     dLazy*: Opt[int]
 
-proc noop*(data: seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
+proc noop*(data: sink seq[byte]) {.async: (raises: [CancelledError, LPStreamError]).} =
   discard
 
 proc voidTopicHandler*(topic: string, data: seq[byte]) {.async.} =

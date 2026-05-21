@@ -114,19 +114,20 @@ method readOnce*(
   return readLen
 
 method write*(
-    stream: QuicStream, bytes: seq[byte]
+    stream: QuicStream, bytes: sink seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   if stream.wasResetLocally:
     raise newLPStreamClosedError()
 
+  let bytesLen = bytes.len
   try:
     await stream.stream.write(bytes)
-    libp2p_network_bytes.inc(bytes.len.int64, labelValues = ["out"])
+    libp2p_network_bytes.inc(bytesLen.int64, labelValues = ["out"])
     when defined(libp2p_agents_metrics):
       stream.session.trackPeerIdentity()
       if stream.session.tracked:
         libp2p_peers_traffic_write.inc(
-          bytes.len.int64, labelValues = [stream.shortAgent]
+          bytesLen.int64, labelValues = [stream.shortAgent]
         )
   except StreamError:
     raise newLPStreamResetError()
