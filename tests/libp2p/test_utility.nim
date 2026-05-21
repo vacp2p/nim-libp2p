@@ -14,8 +14,7 @@ suite "Utility":
 
   test "unsuccessful safeConvert from int16 to int8":
     check not (compiles do:
-      result:
-        int8 = safeConvert[int8](32767'i16))
+      let converted: int8 = safeConvert[int8](32767'i16))
 
   test "successful safeConvert from uint8 to uint16":
     let res: uint16 = safeConvert[uint16](255'u8)
@@ -23,13 +22,11 @@ suite "Utility":
 
   test "unsuccessful safeConvert from uint16 to uint8":
     check not (compiles do:
-      result:
-        uint8 = safeConvert[uint8](256'u16))
+      let converted: uint8 = safeConvert[uint8](256'u16))
 
   test "unsuccessful safeConvert from int to char":
     check not (compiles do:
-      result:
-        char = safeConvert[char](128))
+      let converted: char = safeConvert[char](128))
 
   test "successful safeConvert from bool to int":
     let res: int = safeConvert[int](true)
@@ -37,8 +34,7 @@ suite "Utility":
 
   test "unsuccessful safeConvert from int to bool":
     check not (compiles do:
-      result:
-        bool = safeConvert[bool](2))
+      let converted: bool = safeConvert[bool](2))
 
   test "successful safeConvert from enum to int":
     type Color = enum
@@ -56,8 +52,7 @@ suite "Utility":
       blue
 
     check not (compiles do:
-      result:
-        Color = safeConvert[Color](3))
+      let converted: Color = safeConvert[Color](3))
 
   test "successful safeConvert from range to int":
     let res: int = safeConvert[int, range[1 .. 10]](5)
@@ -65,18 +60,15 @@ suite "Utility":
 
   test "unsuccessful safeConvert from int to range":
     check not (compiles do:
-      result:
-        range[1 .. 10] = safeConvert[range[1 .. 10], int](11))
+      let converted: range[1 .. 10] = safeConvert[range[1 .. 10], int](11))
 
   test "unsuccessful safeConvert from int to uint":
     check not (compiles do:
-      result:
-        uint = safeConvert[uint](11))
+      let converted: uint = safeConvert[uint](11))
 
   test "unsuccessful safeConvert from uint to int":
     check not (compiles do:
-      result:
-        uint = safeConvert[int](11.uint))
+      let converted: uint = safeConvert[int](11.uint))
 
   asyncTest "collectCompleted collects all futures that have finished":
     proc futFinishes(): Future[int] {.async: (raises: [CancelledError]).} =

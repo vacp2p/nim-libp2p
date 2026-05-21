@@ -214,7 +214,7 @@ suite "GossipSub Component - Message Handling":
     ): Future[ValidationResult] {.async.} =
       check validatorTopic == topic
       validatorFut.complete(true)
-      result = ValidationResult.Accept
+      ValidationResult.Accept
 
     nodes[1].addValidator(topic, validator)
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -241,8 +241,8 @@ suite "GossipSub Component - Message Handling":
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      result = ValidationResult.Reject
       validatorFut.complete(true)
+      ValidationResult.Reject
 
     nodes[1].addValidator(topic, validator)
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -269,8 +269,8 @@ suite "GossipSub Component - Message Handling":
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      result = ValidationResult.Ignore
       validatorFut.complete(true)
+      ValidationResult.Ignore
 
     nodes[1].addValidator(topic, validator)
     tryPublish await nodes[0].publish(topic, "Hello!".toBytes()), 1
@@ -299,13 +299,12 @@ suite "GossipSub Component - Message Handling":
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      result =
-        if topic == topicFoo:
-          passed.complete(true)
-          ValidationResult.Accept
-        else:
-          failed.complete(true)
-          ValidationResult.Reject
+      if topic == topicFoo:
+        passed.complete(true)
+        ValidationResult.Accept
+      else:
+        failed.complete(true)
+        ValidationResult.Reject
 
     nodes[1].addValidator(topicFoo, topicBar, validator)
     tryPublish await nodes[0].publish(topicFoo, "Hello!".toBytes()), 1
@@ -355,8 +354,7 @@ suite "GossipSub Component - Message Handling":
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      result =
-        if topic == topicFoo: ValidationResult.Accept else: ValidationResult.Reject
+      if topic == topicFoo: ValidationResult.Accept else: ValidationResult.Reject
 
     nodes[1].addValidator(topicFoo, topicBar, validator)
 
@@ -445,10 +443,10 @@ suite "GossipSub Component - Message Handling":
           except KeyError:
             false
         )
-        result = ValidationResult.Accept
-        bFinished.done()
       except CancelledError:
         raiseAssert "err on slowValidator"
+      bFinished.done()
+      ValidationResult.Accept
 
     nodes[1].addValidator(topic, slowValidator)
 

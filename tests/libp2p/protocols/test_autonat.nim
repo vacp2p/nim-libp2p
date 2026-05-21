@@ -48,8 +48,9 @@ proc makeAutonatServicePrivate(): Switch =
     finally:
       await stream.close()
   autonatProtocol.codec = AutonatCodec
-  result = makeSwitch()
-  result.mount(autonatProtocol)
+  let switch = makeSwitch()
+  switch.mount(autonatProtocol)
+  switch
 
 suite "Autonat":
   teardown:

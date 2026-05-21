@@ -16,7 +16,7 @@ import
 import ../../tools/[unittest, crypto]
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
-  var switch = SwitchBuilder
+  let switch = SwitchBuilder
     .new()
     .withRng(rng())
     .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
@@ -28,12 +28,12 @@ proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
 
   switch.add(autorelay)
 
-  return switch
+  switch
 
 proc buildRelayMA(switchRelay: Switch, switchClient: Switch): seq[MultiAddress] =
-  result = newSeq[MultiAddress]()
+  var addrs: seq[MultiAddress]
   for i in 0 ..< switchRelay.peerInfo.addrs.len():
-    result.add(
+    addrs.add(
       MultiAddress
         .init(
           $switchRelay.peerInfo.addrs[i] & "/p2p/" & $switchRelay.peerInfo.peerId &
@@ -41,6 +41,7 @@ proc buildRelayMA(switchRelay: Switch, switchClient: Switch): seq[MultiAddress] 
         )
         .get()
     )
+  addrs
 
 suite "Autorelay":
   asyncTeardown:
