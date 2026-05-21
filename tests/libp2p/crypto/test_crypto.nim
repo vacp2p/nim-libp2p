@@ -315,9 +315,10 @@ const
   ]
 
 proc cmp(a, b: openArray[byte]): bool =
-  result = (@a == @b)
+  @a == @b
 
 proc testStretcher(s, e: int, cs: string, ds: string): bool =
+  var allMatch = false
   for i in s ..< e:
     var sharedsecret = fromHex(stripSpaces(Secrets[i]))
     var secret = stretchKeys(cs, ds, sharedsecret)
@@ -339,10 +340,11 @@ proc testStretcher(s, e: int, cs: string, ds: string): bool =
     var rA = cmp(secret.macOpenArray(1), mkey2) == true
     var rB = secret.mac(0) == mkey1
     var rC = secret.mac(1) == mkey2
-    result =
+    allMatch =
       r1 and r2 and r3 and r4 and r5 and r6 and r7 and r8 and r9 and rA and rB and rC
-    if not result:
+    if not allMatch:
       break
+  allMatch
 
 suite "Key interface test suite":
   test "Go test vectors":

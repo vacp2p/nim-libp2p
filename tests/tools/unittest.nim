@@ -90,7 +90,7 @@ macro checkUntilTimeoutCustom*(
   # Build the combined expression
   let combinedBoolExpr = buildAndExpr(code)
 
-  result = quote:
+  quote:
     proc checkExpiringInternal(): Future[void] {.gensym, async.} =
       let start = Moment.now()
       while true:
@@ -130,7 +130,7 @@ macro checkUntilTimeout*(code: untyped): untyped =
   ##       a == 2
   ##       b == 1
   ##   ```
-  result = quote:
+  quote:
     checkUntilTimeoutCustom(timeoutDefault, sleepIntervalDefault, `code`)
 
 template finalCheckTrackers*(): untyped =

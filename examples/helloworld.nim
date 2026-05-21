@@ -29,21 +29,19 @@ proc new(T: typedesc[TestProto]): T =
 # Helper to create a switch/node
 ##
 proc createSwitch(ma: MultiAddress, rng: Rng): Switch =
-  var switch = SwitchBuilder
+  SwitchBuilder
     .new()
     .withRng(rng)
-    # Give the application RNG
+  # Give the application RNG
     .withAddress(ma)
-    # Our local address(es)
+  # Our local address(es)
     .withTcpTransport()
-    # Use TCP as transport
+  # Use TCP as transport
     .withMplex()
-    # Use Mplex as muxer
+  # Use Mplex as muxer
     .withNoise()
-    # Use Noise as secure manager
+  # Use Noise as secure manager
     .build()
-
-  result = switch
 
 ##
 # The actual application

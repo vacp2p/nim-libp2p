@@ -67,8 +67,7 @@ method close(s: TestSelectStream) {.async: (raises: [], raw: true).} =
   newFutureCompleted[void]()
 
 proc newTestSelectStream(): TestSelectStream =
-  new result
-  result.step = 1
+  TestSelectStream(step: 1)
 
 ## Mock stream for handles `ls` test
 type
@@ -125,9 +124,7 @@ method close(s: TestLsStream): Future[void] {.async: (raises: [], raw: true).} =
   newFutureCompleted[void]()
 
 proc newTestLsStream(ls: LsHandler): TestLsStream {.gcsafe.} =
-  new result
-  result.ls = ls
-  result.step = 1
+  TestLsStream(ls: ls, step: 1)
 
 ## Mock stream for handles `na` test
 type
@@ -184,9 +181,7 @@ method close(s: TestNaStream): Future[void] {.async: (raises: [], raw: true).} =
   newFutureCompleted[void]()
 
 proc newTestNaStream(na: NaHandler): TestNaStream =
-  new result
-  result.na = na
-  result.step = 1
+  TestNaStream(na: na, step: 1)
 
 proc noReachHandler(
     stream: Stream, proto: string
