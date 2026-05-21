@@ -19,4 +19,4 @@ websock;https://github.com/status-im/nim-websock@#387a8eb7e961e8fdd3b1a717d36bc5
 zlib;https://github.com/status-im/nim-zlib@#e680f269fb01af2c34a2ba879ff281795a5258fe
 bearssl_pkey_decoder;https://github.com/vacp2p/bearssl_pkey_decoder@#d34aa46bf9d0a3ffff810fbd3c4d2fa024eb9368
 jwt;https://github.com/vacp2p/nim-jwt@#057ec95eb5af0eea9c49bfe9025b3312c95dc5f2
-protobuf_serialization;https://github.com/status-im/nim-protobuf-serialization@#46753f2b90365035bc0f75c6894e160c35880be1
+protobuf_serialization;https://github.com/status-im/nim-protobuf-serialization@#38d24eb3bd93e605fb88199da71d36b1ec0ad60d
