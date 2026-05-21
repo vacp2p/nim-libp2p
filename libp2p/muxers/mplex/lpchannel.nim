@@ -198,7 +198,7 @@ method readOnce*(
     raise newLPStreamConnDownError(exc)
 
 proc prepareWrite(
-    s: LPChannel, msg: seq[byte]
+    s: LPChannel, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   # prepareWrite is the slow path of writing a message - see conditions in
   # write
@@ -267,12 +267,14 @@ proc completeWrite(
     s.writes -= 1
 
 method write*(
-    s: LPChannel, msg: seq[byte]
+    s: LPChannel, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   ## Write to mplex channel - there may be up to MaxWrite concurrent writes
   ## pending after which the peer is disconnected
 
-  let closed = s.closedLocal or s.conn.closed
+  let
+    msgLen = msg.len
+    closed = s.closedLocal or s.conn.closed
 
   let fut =
     if (not closed) and msg.len > 0 and s.writes < MaxWrites and s.isOpen:
@@ -281,9 +283,9 @@ method write*(
       # in prepareWrite
       s.conn.writeMsg(s.id, s.msgCode, msg)
     else:
-      prepareWrite(s, msg)
+      prepareWrite(s, move(msg))
 
-  s.completeWrite(fut, msg.len)
+  s.completeWrite(fut, msgLen)
 
 method getWrapped*(s: LPChannel): Connection =
   s.conn

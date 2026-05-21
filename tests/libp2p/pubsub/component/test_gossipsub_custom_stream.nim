@@ -14,7 +14,7 @@ type DummyStream* = ref object of Connection
   data: seq[byte]
 
 method write*(
-    self: DummyStream, msg: seq[byte]
+    self: DummyStream, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   self.data.add(msg)
 

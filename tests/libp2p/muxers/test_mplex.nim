@@ -22,7 +22,7 @@ import
 import ../../tools/[unittest, trackers, futures, bufferstream, compare]
 
 proc noopWriteHandler(
-    data: seq[byte]
+    data: sink seq[byte]
 ) {.async: (raises: [CancelledError, LPStreamError]).} =
   discard
 
@@ -33,7 +33,7 @@ suite "Mplex":
   suite "channel encoding":
     asyncTest "encode header with channel id 0":
       proc encHandler(
-          msg: seq[byte]
+          msg: sink seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("000873747265616d2031")
 
@@ -43,7 +43,7 @@ suite "Mplex":
 
     asyncTest "encode header with channel id other than 0":
       proc encHandler(
-          msg: seq[byte]
+          msg: sink seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("88010873747265616d2031")
 
@@ -53,7 +53,7 @@ suite "Mplex":
 
     asyncTest "encode header and body with channel id 0":
       proc encHandler(
-          msg: seq[byte]
+          msg: sink seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("020873747265616d2031")
 
@@ -63,7 +63,7 @@ suite "Mplex":
 
     asyncTest "encode header and body with channel id other than 0":
       proc encHandler(
-          msg: seq[byte]
+          msg: sink seq[byte]
       ) {.async: (raises: [CancelledError, LPStreamError]).} =
         check msg == fromHex("8a010873747265616d2031")
 
