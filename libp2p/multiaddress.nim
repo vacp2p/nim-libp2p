@@ -1297,7 +1297,8 @@ proc readFieldInto*(
   var buffer = default(seq[byte])
 
   if readFieldInto(stream, buffer, header, pbytes):
-    value.data.buffer = buffer
+    value = MultiAddress.init(buffer).valueOr:
+      raise newException(ProtobufValueError, "Invalid protobuf MultiAddress")
     true
   else:
     false
