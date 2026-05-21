@@ -79,10 +79,6 @@ proc expandWildcardAddresses(
   ## the expanded copies.
   var addresses: seq[MultiAddress]
   for listenAddr in listenAddrs:
-    if not (TCP_IP.matchPartial(listenAddr) or QUIC_V1_IP.matchPartial(listenAddr)):
-      addresses.add(listenAddr)
-      continue
-
     let listenIp = listenAddr.getIp().valueOr:
       addresses.add(listenAddr)
       continue

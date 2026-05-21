@@ -35,14 +35,16 @@ type
 proc new*(T: typedesc[NATService], config: NATConfig): T =
   T(config: config)
 
-proc explicitIpMapped(
+proc explicitIpMapped*(
     listenAddrs: seq[MultiAddress], explicitIp: IpAddress
 ): seq[MultiAddress] =
   ## For each listen address that carries an IP component matching the family
   ## of ``explicitIp``, emit a copy with the IP swapped to ``explicitIp``.
   ## Transport, port, and any suffix (e.g. ``/quic-v1``, ``/ws``, ``/wss``,
   ## ``/tls/ws``) are preserved. Addresses without an IP component, or with a
-  ## mismatching family, are dropped.
+  ## mismatching family, are dropped. Duplicates (which can arise when the
+  ## wildcard resolver expands a wildcard listen addr across multiple
+  ## interfaces sharing the same port) are collapsed.
   var addrs: seq[MultiAddress]
   for listenAddr in listenAddrs:
     let ip = listenAddr.getIp().valueOr:
@@ -50,7 +52,8 @@ proc explicitIpMapped(
     if ip.family != explicitIp.family:
       continue
     listenAddr.replaceIp(explicitIp).withValue(remapped):
-      addrs.add(remapped)
+      if remapped notin addrs:
+        addrs.add(remapped)
   addrs
 
 method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} =
@@ -61,11 +64,10 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
     # TODO: wire autonat / hole-punching in here.
     discard
   of natModeExplicitIp:
-    let explicitIp = self.config.explicitIp
     self.addressMapper = proc(
         listenAddrs: seq[MultiAddress]
     ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-      return explicitIpMapped(listenAddrs, explicitIp)
+      return explicitIpMapped(listenAddrs, self.config.explicitIp)
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
   trace "Starting NATService", mode = self.config.mode

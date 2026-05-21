@@ -43,26 +43,26 @@ suite "MultiAddress testing tools":
         Opt.some(IpAddress(family: IpAddressFamily.IPv4, address_v4: [5'u8, 6, 7, 8]))
 
   test "replaceIp":
+    proc ma(s: string): MultiAddress =
+      MultiAddress.init(s).get()
+
     let
       ip4 = parseIpAddress("203.0.113.7")
       ip6 = parseIpAddress("2001:db8::1")
     check:
-      MultiAddress.init("/ip4/1.2.3.4/tcp/1234").get.replaceIp(ip4).get ==
-        MultiAddress.init("/ip4/203.0.113.7/tcp/1234").get
-      MultiAddress.init("/ip4/1.2.3.4/tcp/80/ws").get.replaceIp(ip4).get ==
-        MultiAddress.init("/ip4/203.0.113.7/tcp/80/ws").get
-      MultiAddress.init("/ip4/1.2.3.4/tcp/80/wss").get.replaceIp(ip4).get ==
-        MultiAddress.init("/ip4/203.0.113.7/tcp/80/wss").get
-      MultiAddress.init("/ip4/1.2.3.4/tcp/80/tls/ws").get.replaceIp(ip4).get ==
-        MultiAddress.init("/ip4/203.0.113.7/tcp/80/tls/ws").get
-      MultiAddress.init("/ip4/1.2.3.4/udp/9000/quic-v1").get.replaceIp(ip4).get ==
-        MultiAddress.init("/ip4/203.0.113.7/udp/9000/quic-v1").get
-      MultiAddress.init("/ip6/::1/tcp/1234").get.replaceIp(ip6).get ==
-        MultiAddress.init("/ip6/2001:db8::1/tcp/1234").get
+      ma("/ip4/1.2.3.4/tcp/1234").replaceIp(ip4).get == ma("/ip4/203.0.113.7/tcp/1234")
+      ma("/ip4/1.2.3.4/tcp/80/ws").replaceIp(ip4).get == ma(
+        "/ip4/203.0.113.7/tcp/80/ws"
+      )
+      ma("/ip4/1.2.3.4/tcp/80/wss").replaceIp(ip4).get ==
+        ma("/ip4/203.0.113.7/tcp/80/wss")
+      ma("/ip4/1.2.3.4/tcp/80/tls/ws").replaceIp(ip4).get ==
+        ma("/ip4/203.0.113.7/tcp/80/tls/ws")
+      ma("/ip4/1.2.3.4/udp/9000/quic-v1").replaceIp(ip4).get ==
+        ma("/ip4/203.0.113.7/udp/9000/quic-v1")
+      ma("/ip6/::1/tcp/1234").replaceIp(ip6).get == ma("/ip6/2001:db8::1/tcp/1234")
       # cross-family swap (IPv6 -> IPv4 and vice versa)
-      MultiAddress.init("/ip6/::/tcp/80/ws").get.replaceIp(ip4).get ==
-        MultiAddress.init("/ip4/203.0.113.7/tcp/80/ws").get
-      MultiAddress.init("/ip4/0.0.0.0/tcp/80").get.replaceIp(ip6).get ==
-        MultiAddress.init("/ip6/2001:db8::1/tcp/80").get
+      ma("/ip6/::/tcp/80/ws").replaceIp(ip4).get == ma("/ip4/203.0.113.7/tcp/80/ws")
+      ma("/ip4/0.0.0.0/tcp/80").replaceIp(ip6).get == ma("/ip6/2001:db8::1/tcp/80")
       # no IP component
-      MultiAddress.init("/unix/tmp/sock").get.replaceIp(ip4).isErr
+      ma("/unix/tmp/sock").replaceIp(ip4).isErr

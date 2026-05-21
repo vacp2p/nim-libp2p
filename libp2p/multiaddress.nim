@@ -1271,16 +1271,12 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
   let
     ip4 = multiCodec("ip4")
     ip6 = multiCodec("ip6")
-    targetCodec =
-      case ip.family
-      of IpAddressFamily.IPv4: ip4
-      of IpAddressFamily.IPv6: ip6
     newIp =
       case ip.family
       of IpAddressFamily.IPv4:
-        ?MultiAddress.init(targetCodec, ip.address_v4)
+        ?MultiAddress.init(ip4, ip.address_v4)
       of IpAddressFamily.IPv6:
-        ?MultiAddress.init(targetCodec, ip.address_v6)
+        ?MultiAddress.init(ip6, ip.address_v6)
 
   var
     found = false
