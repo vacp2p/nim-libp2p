@@ -21,9 +21,9 @@ type
     addresses*: seq[AddressInfo]
 
 proc decode*(
-    T: typedesc[AddressInfo], buffer: seq[byte]
+    T: typedesc[AddressInfo], buffer: sink seq[byte]
 ): Result[AddressInfo, ProtoError] =
-  let pb = initProtoBuffer(buffer)
+  let pb = initProtoBuffer(move(buffer))
   var addInfo = AddressInfo()
 
   ?pb.getRequiredField(1, addInfo.address)
@@ -31,9 +31,9 @@ proc decode*(
   ok(addInfo)
 
 proc decode*(
-    T: typedesc[PeerRecord], buffer: seq[byte]
+    T: typedesc[PeerRecord], buffer: sink seq[byte]
 ): Result[PeerRecord, ProtoError] =
-  let pb = initProtoBuffer(buffer)
+  let pb = initProtoBuffer(move(buffer))
   var record = PeerRecord()
 
   ?pb.getRequiredField(1, record.peerId)
@@ -41,8 +41,8 @@ proc decode*(
 
   var addressInfos: seq[seq[byte]]
   if ?pb.getRepeatedField(3, addressInfos):
-    for addressBuf in addressInfos:
-      let addressInfo = AddressInfo.decode(addressBuf).valueOr:
+    for addressBuf in addressInfos.mitems:
+      let addressInfo = AddressInfo.decode(move(addressBuf)).valueOr:
         continue
 
       record.addresses &= addressInfo
