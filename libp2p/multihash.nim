@@ -498,9 +498,9 @@ proc decode*(
   ## On success decoded MultiHash will be stored into ``mhash`` and number of
   ## bytes consumed will be returned.
   ##
-  ## On error ``-1`` will be returned.
+  ## On error ``ErrDecodeError`` will be returned.
   var code, size: uint64
-  var res, dpos: int
+  var dpos: int
   if len(data) < 2:
     return err(ErrDecodeError)
 
@@ -508,16 +508,12 @@ proc decode*(
   if vb.isEmpty():
     return err(ErrDecodeError)
 
-  res = vb.readVarint(code)
-  if res == -1:
+  let codeLen = vb.readVarint(code).valueOr:
     return err(ErrDecodeError)
-
-  dpos += res
-  res = vb.readVarint(size)
-  if res == -1:
+  dpos += codeLen
+  let sizeLen = vb.readVarint(size).valueOr:
     return err(ErrDecodeError)
-
-  dpos += res
+  dpos += sizeLen
   if size > 0x7FFF_FFFF'u64:
     return err(ErrDecodeError)
 

@@ -92,36 +92,31 @@ proc decode(data: openArray[byte]): Result[Cid, CidError] =
     )
   else:
     var version, codec: uint64
-    var res, offset: int
+    var offset: int
     var vb = initVBuffer(data)
     if vb.isEmpty():
       err(CidError.Incorrect)
     else:
-      res = vb.readVarint(version)
-      if res == -1:
+      let versionLen = vb.readVarint(version).valueOr:
+        return err(CidError.Incorrect)
+      offset += versionLen
+      if version != 1'u64:
         err(CidError.Incorrect)
       else:
-        offset += res
-        if version != 1'u64:
+        let codecLen = vb.readVarint(codec).valueOr:
+          return err(CidError.Incorrect)
+        offset += codecLen
+        var mcodec = CodeContentIds.getOrDefault(cast[int](codec), InvalidMultiCodec)
+        if mcodec == InvalidMultiCodec:
           err(CidError.Incorrect)
         else:
-          res = vb.readVarint(codec)
-          if res == -1:
+          if not MultiHash.validate(
+            vb.buffer.toOpenArray(vb.offset, vb.buffer.high)
+          ):
             err(CidError.Incorrect)
           else:
-            offset += res
-            var mcodec =
-              CodeContentIds.getOrDefault(cast[int](codec), InvalidMultiCodec)
-            if mcodec == InvalidMultiCodec:
-              err(CidError.Incorrect)
-            else:
-              if not MultiHash.validate(
-                vb.buffer.toOpenArray(vb.offset, vb.buffer.high)
-              ):
-                err(CidError.Incorrect)
-              else:
-                vb.finish()
-                ok(Cid(cidver: CIDv1, mcodec: mcodec, hpos: offset, data: vb))
+            vb.finish()
+            ok(Cid(cidver: CIDv1, mcodec: mcodec, hpos: offset, data: vb))
 
 proc decode(data: openArray[char]): Result[Cid, CidError] =
   var buffer: seq[byte]
