@@ -76,21 +76,13 @@ proc advertiseToRegistrar*(
     serviceId: ServiceId,
     registrar: PeerId,
     ticket: Opt[Ticket],
-    advert: Opt[seq[byte]],
+    advert: seq[byte],
 ) {.async: (raises: [CancelledError]).} =
   doAssert not disco.clientMode, "not supported in client mode"
 
   if not disco.rtManager.hasService(serviceId):
     error "no service routing table found", serviceId
     return
-
-  let advertBuff = advert.valueOr:
-    let extRecord = disco.record().valueOr:
-      error "failed create extended peer record", error
-      return
-    extRecord.encode().valueOr:
-      error "failed to encode advertisement", error
-      return
 
   cd_advertiser_actions_executed.inc()
 
@@ -100,7 +92,7 @@ proc advertiseToRegistrar*(
 
   while true:
     let response = (
-      await disco.sendRegister(registrar, serviceId, advertBuff, currentTicket)
+      await disco.sendRegister(registrar, serviceId, advert, currentTicket)
     ).valueOr:
       error "failed to register ad", error
       return
@@ -156,6 +148,21 @@ proc addProvidedService*(
     error "service not found", serviceId
     return
 
+  # Build the advert once so every registrar caches the same bytes.
+  # disco.record() sets seqNo from a clock with 1-second resolution.
+  # An advert built inside each advertiseToRegistrar task could differ in seqNo 
+  # when those builds land in different seconds.
+  let advertBytes =
+    if advert.isSome():
+      advert.get()
+    else:
+      let extRecord = disco.record().valueOr:
+        error "failed to create extended peer record", error
+        return
+      extRecord.encode().valueOr:
+        error "failed to encode advertisement", error
+        return
+
   # Remote advertising
   for bucket in advTable.buckets:
     if bucket.peers.len == 0:
@@ -170,13 +177,13 @@ proc addProvidedService*(
         continue
 
       let fut =
-        disco.advertiseToRegistrar(serviceId, registrar, Opt.none(Ticket), advert)
+        disco.advertiseToRegistrar(serviceId, registrar, Opt.none(Ticket), advertBytes)
       disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
       cd_advertiser_pending_actions.inc()
 
   # Local advertising
   let fut = disco.advertiseToRegistrar(
-    serviceId, disco.switch.peerInfo.peerId, Opt.none(Ticket), advert
+    serviceId, disco.switch.peerInfo.peerId, Opt.none(Ticket), advertBytes
   )
   disco.advertiser.running.incl(AdvertiseTask(fut: fut, serviceId: serviceId))
   cd_advertiser_pending_actions.inc()
