@@ -147,15 +147,19 @@ template pathStringToBuffer(s: string, vb: var VBuffer): bool =
 
 template pathBufferToString(vb: var VBuffer, s: var string): bool =
   s = ""
-  vb.readSeq(s).withValue(readLen):
-    return readLen > 0 and len(s) > 0
-  false
+  let readLen = vb.readSeq(s)
+  if readLen.isNone():
+    false
+  else:
+    readLen.get() > 0 and len(s) > 0
 
 template pathBufferToStringNoSlash(vb: var VBuffer, s: var string): bool =
   s = ""
-  vb.readSeq(s).withValue(readLen):
-    return readLen > 0 and len(s) > 0 and (s.find('/') == -1)
-  false
+  let readLen = vb.readSeq(s)
+  if readLen.isNone():
+    false
+  else:
+    readLen.get() > 0 and len(s) > 0 and (s.find('/') == -1)
 
 template pathValidateBuffer(vb: var VBuffer): bool =
   var s = ""

@@ -127,14 +127,14 @@ proc peekSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): Opt[int] =
       .getUVarint(toOpenArray(vb.buffer, vb.offset, vb.buffer.high), length, size)
       .isOk():
     vb.offset += length
-    var result = length
+    var totalRead = length
     if vb.isEnough(int(size)):
       value.setLen(size)
       if size > 0'u64:
         copyMem(addr value[0], addr vb.buffer[vb.offset], size)
-      result += int(size)
+      totalRead += int(size)
       vb.offset -= length
-      return Opt.some(result)
+      return Opt.some(totalRead)
     vb.offset -= length
   Opt.none(int)
 
