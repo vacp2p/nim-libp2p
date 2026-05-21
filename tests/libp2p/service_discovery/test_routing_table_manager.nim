@@ -3,8 +3,7 @@
 
 {.used.}
 
-import chronos, results, sets, tables
-import nimcrypto/sha2
+import chronos, results, sets, tables, sequtils
 import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
@@ -247,6 +246,18 @@ suite "ServiceRoutingTableManager":
       not manager.hasService(makeKey(1))
       not manager.hasService(makeKey(2))
 
+  test "manager has selfIdPreHashed set to true":
+    let manager = ServiceRoutingTableManager.new()
+    let serviceId = makeServiceId(1)
+    let mainRt = RoutingTable.new(makeKey(0))
+
+    check manager.addService(
+      serviceId, mainRt, DefaultReplication, DefaultMaxBuckets, Interest
+    )
+
+    check:
+      manager.getTable(serviceId).get().config.selfIdPreHashed
+
 suite "ServiceRoutingTableManager - refreshAllTables":
   teardown:
     checkTrackers()
@@ -346,30 +357,3 @@ suite "ServiceRoutingTableManager - refreshAllTables":
       selfId notin peers # local node must be rejected
       peer1 in peers
       peer2 in peers
-
-proc xorDistanceNoHashing(a, b: openArray[byte]): XorDistance =
-  for i in 0 ..< IdLength:
-    result[i] = a[i] xor b[i]
-
-suite "ServiceRoutingTableManager - XOR distance":
-  test "service id hash is re-hashed when computing service-table distance":
-    # `serviceId` is SHA256(protocol_id): already a 256-bit keyspace value.
-    # Per spec the distance from the service to a peer is
-    # `serviceId XOR SHA256(peerKey)`: the service id is XORed directly and
-    # only the peer key is mapped into the keyspace.
-    let
-      serviceId = hashServiceId("/logos/service-discovery/1.0.0")
-      peerKey = makeKey(7)
-      peerHash = sha256.digest(peerKey).data
-
-    # A service routing table is centered on `serviceId` and uses the default
-    # Kademlia hasher. `xorDistance` applies that hasher to BOTH operands, so
-    # the service id passes through SHA-256 a second time.
-    let actual = xorDistance(serviceId, peerKey, Opt.none(XorDHasher))
-
-    let expected = xorDistanceNoHashing(serviceId, peerHash)
-    let doubleHashed = xorDistanceNoHashing(sha256.digest(serviceId).data, peerHash)
-
-    check:
-      actual == doubleHashed # the service id is SHA-256'd a second time
-      actual != expected # which diverges from the spec distance

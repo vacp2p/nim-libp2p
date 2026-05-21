@@ -22,7 +22,12 @@ import ../utils
 const MaxRegistrarSetupAttempts = 1000
 
 proc bucketOf(r: ServiceDiscovery, serviceId: ServiceId): int =
-  bucketIndex(serviceId, r.switch.peerInfo.peerId.toKey(), Opt.none(XorDHasher))
+  bucketIndex(
+    serviceId,
+    r.switch.peerInfo.peerId.toKey(),
+    Opt.none(XorDHasher),
+    selfIdPreHashed = true,
+  )
 
 proc setupRegistrarsInDistinctBuckets(
     conf: ServiceDiscoveryConfig, serviceId: ServiceId

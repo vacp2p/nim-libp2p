@@ -19,8 +19,14 @@ proc new*(
     replication = DefaultReplication,
     hasher: Opt[XorDHasher] = NoneHasher,
     maxBuckets: int = DefaultMaxBuckets,
+    selfIdPreHashed = false,
 ): T =
-  RoutingTableConfig(replication: replication, hasher: hasher, maxBuckets: maxBuckets)
+  RoutingTableConfig(
+    replication: replication,
+    hasher: hasher,
+    maxBuckets: maxBuckets,
+    selfIdPreHashed: selfIdPreHashed,
+  )
 
 proc `$`*(rt: RoutingTable): string =
   "selfId(" & $rt.selfId & ") buckets(" & $rt.buckets & ")"
@@ -35,8 +41,17 @@ proc new*(
     selfId: selfId, localNodeId: localNodeId.get(selfId), buckets: @[], config: config
   )
 
-proc bucketIndex*(selfId, key: Key, hasher: Opt[XorDHasher]): int =
-  return xorDistance(selfId, key, hasher).leadingZeros
+proc bucketIndex*(
+    selfId, key: Key, hasher: Opt[XorDHasher], selfIdPreHashed = false
+): int =
+  let
+    selfHash =
+      if selfIdPreHashed:
+        selfId
+      else:
+        selfId.hashFor(hasher)
+    keyHash = key.hashFor(hasher)
+  return xorDistance(selfHash, keyHash).leadingZeros
 
 proc peerIndexInBucket(bucket: Bucket, nodeId: Key): Opt[int] =
   for i, p in bucket.peers:
@@ -83,7 +98,9 @@ proc insert*(rtable: RoutingTable, nodeId: Key): bool =
     debug "Cannot insert self in routing table", nodeId = nodeId
     return false # No self insertion
 
-  let idx = bucketIndex(rtable.selfId, nodeId, rtable.config.hasher)
+  let idx = bucketIndex(
+    rtable.selfId, nodeId, rtable.config.hasher, rtable.config.selfIdPreHashed
+  )
   if idx >= rtable.config.maxBuckets:
     debug "Cannot insert node, max buckets have been reached",
       nodeId = nodeId, bucketIdx = idx, maxBuckets = rtable.config.maxBuckets

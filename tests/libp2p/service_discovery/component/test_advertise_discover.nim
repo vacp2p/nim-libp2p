@@ -325,13 +325,13 @@ suite "Service Discovery Component - Advertise Discover":
   asyncTest "addProvidedService drops a known registrar at Kad bucketIndex 16":
     # TODO: nim-libp2p#2499 service-disco: valid service-table peers are dropped when Kad bucketIndex is 16 or higher
     # Precomputed private key to pin the registrar identity and service name.
-    # Their Kad bucketIndex is exactly 16 for this serviceId.
+    # Their service table bucket index is 18 for this serviceId.
     # A ServiceDiscovery service table accepts indexes 0 through 15.
     const
       serviceName = "service-bucket-indexing-component"
       droppedRegistrarPrivateKey =
-        "08011240239527C04B874F2C1754D2DA3F502C1EDA30FDF582ED7A914D2341F6" &
-        "B329C384698E046CD619D98957A92AC02D1701511571CA1E12A47830D29A4871C9F9C26B"
+        "080112404911f67066496ac09c4924a8ef86ec0d8532c9fb50046aa27fdb4132" &
+        "130a2c8ecf17e8057d0e5c6fcef5a3aeec98d70b43feffac4301c141a08071498ce89a1e"
 
     let
       conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
@@ -356,10 +356,12 @@ suite "Service Discovery Component - Advertise Discover":
       workingRegistrarPeerKey = workingRegistrarNode.switch.peerInfo.peerId.toKey()
 
     check:
-      bucketIndex(serviceId, droppedRegistrarPeerKey, Opt.none(XorDHasher)) ==
-        conf.bucketsCount
-      bucketIndex(serviceId, workingRegistrarPeerKey, Opt.none(XorDHasher)) <
-        conf.bucketsCount
+      bucketIndex(
+        serviceId, droppedRegistrarPeerKey, Opt.none(XorDHasher), selfIdPreHashed = true
+      ) > conf.bucketsCount
+      bucketIndex(
+        serviceId, workingRegistrarPeerKey, Opt.none(XorDHasher), selfIdPreHashed = true
+      ) < conf.bucketsCount
       advertiserNode.rtable.hasPeer(droppedRegistrarPeerKey)
       advertiserNode.rtable.hasPeer(workingRegistrarPeerKey)
 
