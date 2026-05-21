@@ -74,12 +74,12 @@ template generate*[V](rng: Rng, v: var seq[V]) =
   rng.generate(v.toOpenArray(0, v.high()))
 
 proc generateBytes*(rng: Rng, n: int): seq[byte] =
-  if n > 0:
-    var buf = newSeqUninit[byte](n)
-    rng.generate(buf)
-    buf
-  else:
-    @[]
+  if n <= 0:
+    return @[]
+
+  var buf = newSeqUninit[byte](n)
+  rng.generate(buf)
+  buf
 
 proc generate*(rng: Rng, T: type): T {.noinit.} =
   ## Create a new instance of `T` filled with random data.

@@ -164,11 +164,7 @@ proc sendDiscoverResponseError*(
   await stream.writeLp(msg)
 
 proc countRegister*[E](rdv: GenericRendezVous[E], peerId: PeerId): int =
-  var count = 0
-  for data in rdv.registered:
-    if data.peerId == peerId:
-      count.inc()
-  count
+  rdv.registered.countIt(it.peerId == peerId)
 
 proc save*[E](
     rdv: GenericRendezVous[E],

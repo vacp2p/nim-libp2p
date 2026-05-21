@@ -74,25 +74,25 @@ type
 const EcSupportedCurvesCint* = @[cint(Secp256r1), cint(Secp384r1), cint(Secp521r1)]
 
 proc `-`(x: uint32): uint32 {.inline.} =
-  (0xFFFF_FFFF'u32 - x) + 1'u32
+  return (0xFFFF_FFFF'u32 - x) + 1'u32
 
 proc GT(x, y: uint32): uint32 {.inline.} =
   var z = cast[uint32](y - x)
-  (z xor ((x xor y) and (x xor z))) shr 31
+  return (z xor ((x xor y) and (x xor z))) shr 31
 
 proc CMP(x, y: uint32): int32 {.inline.} =
-  cast[int32](GT(x, y)) or -(cast[int32](GT(y, x)))
+  return cast[int32](GT(x, y)) or -(cast[int32](GT(y, x)))
 
 proc EQ0(x: int32): uint32 {.inline.} =
   var q = cast[uint32](x)
-  not (q or -q) shr 31
+  return not (q or -q) shr 31
 
 proc NEQ(x, y: uint32): uint32 {.inline.} =
   var q = cast[uint32](x xor y)
-  ((q or -q) shr 31)
+  return ((q or -q) shr 31)
 
 proc LT0(x: int32): uint32 {.inline.} =
-  cast[uint32](x) shr 31
+  return cast[uint32](x) shr 31
 
 proc checkScalar(scalar: openArray[byte], curve: cint): uint32 =
   ## Return ``1`` if all of the following hold:
@@ -337,9 +337,8 @@ proc toRawBytes*(sig: EcSignature, data: var openArray[byte]): int =
   ## if signature is not in supported curve.
   doAssert(not isNil(sig))
   let blen = len(sig.buffer)
-  if len(data) >= blen:
-    if blen > 0:
-      copyMem(addr data[0], unsafeAddr sig.buffer[0], blen)
+  if blen > 0 and len(data) >= blen:
+    copyMem(addr data[0], unsafeAddr sig.buffer[0], blen)
   blen
 
 proc buildPrivateKeyBytes(seckey: EcPrivateKey): EcResult[seq[byte]] =

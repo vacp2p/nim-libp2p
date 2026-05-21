@@ -468,11 +468,7 @@ type Yamux* = ref object of Muxer
 
 when defined(libp2p_yamux_metrics):
   proc lenBySrc(m: Yamux, isSrc: bool): int =
-    var count = 0
-    for v in m.channels.values():
-      if v.isSrc == isSrc:
-        count += 1
-    count
+    m.channels.values.countIt(it.isSrc == isSrc)
 
 proc cleanupChannel(m: Yamux, channel: YamuxChannel) {.async: (raises: []).} =
   try:
