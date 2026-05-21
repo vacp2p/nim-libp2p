@@ -100,7 +100,8 @@ proc peekVarint*(vb: var VBuffer, value: var LPSomeUVarint): Opt[int] =
   ##
   ## This procedure will not adjust internal offset.
   ##
-  ## Returns number of bytes peeked from ``vb``.
+  ## Returns number of bytes peeked from ``vb`` on success, or
+  ## ``Opt.none(int)`` on error.
   value = cast[type(value)](0)
   var length = 0
   if not vb.isEmpty():
@@ -116,7 +117,8 @@ proc peekSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): Opt[int] =
   ##
   ## This procedure will not adjust internal offset.
   ##
-  ## Returns number of bytes peeked from ``vb``.
+  ## Returns number of bytes peeked from ``vb`` on success, or
+  ## ``Opt.none(int)`` on error.
   value.setLen(0)
   var length = 0
   var size = 0'u64
@@ -143,7 +145,8 @@ proc peekArray*[T: char | byte](
   ##
   ## This procedure will not adjust internal offset.
   ##
-  ## Returns number of bytes peeked from ``vb``.
+  ## Returns number of bytes peeked from ``vb`` on success, or
+  ## ``Opt.none(int)`` on error.
   let length = len(value)
   if vb.isEnough(length):
     if length > 0:
@@ -154,7 +157,8 @@ proc peekArray*[T: char | byte](
 proc readVarint*(vb: var VBuffer, value: var LPSomeUVarint): Opt[int] {.inline.} =
   ## Read unsigned integer from buffer ``vb`` and store result to ``value``.
   ##
-  ## Returns number of bytes consumed from ``vb``.
+  ## Returns number of bytes consumed from ``vb`` on success, or
+  ## ``Opt.none(int)`` on error.
   let readLength = vb.peekVarint(value).valueOr:
     return Opt.none(int)
   vb.offset += readLength
@@ -164,7 +168,8 @@ proc readSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): Opt[int] {.
   ## Read length prefixed array from buffer ``vb`` and store result to
   ## ``value``.
   ##
-  ## Returns number of bytes consumed from ``vb``.
+  ## Returns number of bytes consumed from ``vb`` on success, or
+  ## ``Opt.none(int)`` on error.
   let readLength = vb.peekSeq(value).valueOr:
     return Opt.none(int)
   vb.offset += readLength
@@ -175,7 +180,8 @@ proc readArray*[T: char | byte](
 ): Opt[int] {.inline.} =
   ## Read array from buffer ``vb`` and store result to ``value``.
   ##
-  ## Returns number of bytes consumed from ``vb``.
+  ## Returns number of bytes consumed from ``vb`` on success, or
+  ## ``Opt.none(int)`` on error.
   let readLength = vb.peekArray(value).valueOr:
     return Opt.none(int)
   vb.offset += readLength
