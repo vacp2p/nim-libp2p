@@ -674,12 +674,12 @@ proc verify32(x: openArray[byte], y: openArray[byte]): int32 =
 proc feIsNegative(f: Fe): int32 =
   var s: array[32, byte]
   feToBytes(s, f)
-  return safeConvert[int32](s[0] and 1'u8)
+  safeConvert[int32](s[0] and 1'u8)
 
 proc feIsNonZero(f: Fe): int32 =
   var s: array[32, byte]
   feToBytes(s, f)
-  return verify32(s, ZeroFe)
+  verify32(s, ZeroFe)
 
 proc feSq(h: var Fe, f: Fe) =
   var f0 = f[0]
