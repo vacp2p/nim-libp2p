@@ -73,7 +73,7 @@ proc writeMsg*(
 
   # Write all chunks in a single write to avoid async races where a close
   # message gets written before some of the chunks
-  conn.write(buf.buffer)
+  conn.write(move(buf.buffer))
 
 proc writeMsg*(
     conn: RawConn, id: uint64, msgType: MessageType, data: string

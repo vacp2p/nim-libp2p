@@ -443,7 +443,7 @@ proc encryptFrame(
   cipherFrame[2 + src.len() ..< cipherFrame.len] = tag
 
 method write*(
-    sconn: NoiseConnection, message: seq[byte]
+    sconn: NoiseConnection, message: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   # Fast path: `{.async.}` would introduce a copy of `message`
   const FramingSize = 2 + sizeof(ChaChaPolyTag)
@@ -486,7 +486,7 @@ method write*(
 
   # Write all `cipherFrames` in a single write, to avoid interleaving /
   # sequencing issues
-  sconn.stream.write(cipherFrames)
+  sconn.stream.write(move(cipherFrames))
 
 method handshake*(
     p: Noise, conn: RawConn, initiator: bool, peerId: Opt[PeerId]

@@ -20,14 +20,15 @@ method readOnce*(
   self.stream.readOnce(pbytes, nbytes)
 
 method write*(
-    self: RelayConnection, msg: seq[byte]
+    self: RelayConnection, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
-  self.dataSent.inc(msg.len)
+  let msgLen = msg.len
+  self.dataSent.inc(msgLen)
   if self.limitData != 0 and self.dataSent > self.limitData:
     await self.close()
     return
   self.activity = true
-  await self.stream.write(msg)
+  await self.stream.write(move(msg))
 
 method closeImpl*(self: RelayConnection): Future[void] {.async: (raises: []).} =
   await self.stream.close()
