@@ -8,17 +8,15 @@ proc ma1StB(s: string, vb: var VBuffer): bool =
   return true
 
 proc ma1BtS(vb: var VBuffer, s: var string): bool =
-  var matches = false
   vb.readSeq(s).withValue(readLen):
-    matches = readLen == 5 and s == "test"
-  return matches
+    return readLen == 5 and s == "test"
+  return false
 
 proc ma1VB(vb: var VBuffer): bool =
   var temp: string
-  var matches = false
   vb.readSeq(temp).withValue(readLen):
-    matches = readLen == 5 and temp == "test"
-  return matches
+    return readLen == 5 and temp == "test"
+  return false
 
 const TranscoderMA1 =
   Transcoder(stringToBuffer: ma1StB, bufferToString: ma1BtS, validateBuffer: ma1VB)

@@ -147,17 +147,15 @@ template pathStringToBuffer(s: string, vb: var VBuffer): bool =
 
 template pathBufferToString(vb: var VBuffer, s: var string): bool =
   s = ""
-  var ok = false
   vb.readSeq(s).withValue(readLen):
-    ok = readLen > 0 and len(s) > 0
-  ok
+    return readLen > 0 and len(s) > 0
+  false
 
 template pathBufferToStringNoSlash(vb: var VBuffer, s: var string): bool =
   s = ""
-  var ok = false
   vb.readSeq(s).withValue(readLen):
-    ok = readLen > 0 and len(s) > 0 and (s.find('/') == -1)
-  ok
+    return readLen > 0 and len(s) > 0 and (s.find('/') == -1)
+  false
 
 template pathValidateBuffer(vb: var VBuffer): bool =
   var s = ""
@@ -232,25 +230,23 @@ proc p2pStB(s: string, vb: var VBuffer): bool =
 proc p2pBtS(vb: var VBuffer, s: var string): bool =
   ## P2P address bufferToString() implementation.
   var address = newSeqUninit[byte](0)
-  var hasAddress = false
   vb.readSeq(address).withValue(readLen):
-    hasAddress = readLen > 0
-  if hasAddress:
-    var mh: MultiHash
-    if MultiHash.decode(address, mh).isOk:
-      s = Base58.encode(address)
-      result = true
+    if readLen > 0:
+      var mh: MultiHash
+      if MultiHash.decode(address, mh).isOk:
+        s = Base58.encode(address)
+        return true
+  false
 
 proc p2pVB(vb: var VBuffer): bool =
   ## P2P address validateBuffer() implementation.
   var address = newSeqUninit[byte](0)
-  var hasAddress = false
   vb.readSeq(address).withValue(readLen):
-    hasAddress = readLen > 0
-  if hasAddress:
-    var mh: MultiHash
-    if MultiHash.decode(address, mh).isOk:
-      result = true
+    if readLen > 0:
+      var mh: MultiHash
+      if MultiHash.decode(address, mh).isOk:
+        return true
+  false
 
 proc onionStB(s: string, vb: var VBuffer): bool =
   try:
