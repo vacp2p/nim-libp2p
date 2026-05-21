@@ -15,7 +15,7 @@ requires "nim >= 2.2.4",
   "serialization", "lsquic >= 0.4.1",
   "https://github.com/status-im/nim-websock >= 0.4.0",
   "https://github.com/vacp2p/nim-jwt.git#057ec95eb5af0eea9c49bfe9025b3312c95dc5f2",
-  "https://github.com/status-im/nim-protobuf-serialization#46753f2b90365035bc0f75c6894e160c35880be1"
+  "https://github.com/status-im/nim-protobuf-serialization >= 0.4.0"
 
 import os, sequtils, strutils
 
