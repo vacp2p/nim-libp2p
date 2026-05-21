@@ -74,25 +74,25 @@ type
 const EcSupportedCurvesCint* = @[cint(Secp256r1), cint(Secp384r1), cint(Secp521r1)]
 
 proc `-`(x: uint32): uint32 {.inline.} =
-  return (0xFFFF_FFFF'u32 - x) + 1'u32
+  (0xFFFF_FFFF'u32 - x) + 1'u32
 
 proc GT(x, y: uint32): uint32 {.inline.} =
   var z = cast[uint32](y - x)
-  return (z xor ((x xor y) and (x xor z))) shr 31
+  (z xor ((x xor y) and (x xor z))) shr 31
 
 proc CMP(x, y: uint32): int32 {.inline.} =
-  return cast[int32](GT(x, y)) or -(cast[int32](GT(y, x)))
+  cast[int32](GT(x, y)) or -(cast[int32](GT(y, x)))
 
 proc EQ0(x: int32): uint32 {.inline.} =
   var q = cast[uint32](x)
-  return not (q or -q) shr 31
+  not (q or -q) shr 31
 
 proc NEQ(x, y: uint32): uint32 {.inline.} =
   var q = cast[uint32](x xor y)
-  return ((q or -q) shr 31)
+  ((q or -q) shr 31)
 
 proc LT0(x: int32): uint32 {.inline.} =
-  return cast[uint32](x) shr 31
+  cast[uint32](x) shr 31
 
 proc checkScalar(scalar: openArray[byte], curve: cint): uint32 =
   ## Return ``1`` if all of the following hold:

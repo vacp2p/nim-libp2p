@@ -77,7 +77,7 @@ suite "FloodSub Component":
     ): Future[ValidationResult] {.async.} =
       check topic == topic
       validatorFut.complete(true)
-      result = ValidationResult.Accept
+      ValidationResult.Accept
 
     nodes[1].addValidator(topic, validator)
 
@@ -101,7 +101,7 @@ suite "FloodSub Component":
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
       validatorFut.complete(true)
-      result = ValidationResult.Reject
+      ValidationResult.Reject
 
     nodes[1].addValidator(topic, validator)
 
@@ -129,10 +129,7 @@ suite "FloodSub Component":
     proc validator(
         topic: string, message: Message
     ): Future[ValidationResult] {.async.} =
-      if topic == topicFoo:
-        result = ValidationResult.Accept
-      else:
-        result = ValidationResult.Reject
+      if topic == topicFoo: ValidationResult.Accept else: ValidationResult.Reject
 
     nodes[1].addValidator(topicFoo, topicBar, validator)
 

@@ -44,10 +44,11 @@ type
 {.push raises: [].}
 
 proc encode(m: Metric): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, m.name)
-  result.write(2, m.value)
-  result.finish()
+  var pb = initProtoBuffer()
+  pb.write(1, m.name)
+  pb.write(2, m.value)
+  pb.finish()
+  pb
 
 proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   var res: Metric
@@ -63,10 +64,11 @@ proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   ok(res)
 
 proc encode(m: MetricList): ProtoBuffer =
-  result = initProtoBuffer()
+  var pb = initProtoBuffer()
   for metric in m.metrics:
-    result.write(1, metric.encode())
-  result.finish()
+    pb.write(1, metric.encode())
+  pb.finish()
+  pb
 
 proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] =
   var
@@ -146,11 +148,12 @@ proc main() {.async.} =
   let rng = newRng()
   proc randomMetricGenerator(): Future[MetricList] {.async: (raises: [CancelledError]).} =
     let metricCount = rng.generate(uint32) mod 16
+    var metricList: MetricList
     for i in 0 ..< metricCount + 1:
-      result.metrics.add(
+      metricList.metrics.add(
         Metric(name: "metric_" & $i, value: float(rng.generate(uint16)) / 1000.0)
       )
-    return result
+    metricList
 
   let
     metricProto1 = MetricProto.new(randomMetricGenerator)

@@ -129,29 +129,31 @@ const LPedgeExpects = [
 ]
 
 proc hexChar*(c: byte, lowercase: bool = false): string =
-  var alpha: int
-  if lowercase:
-    alpha = ord('a')
-  else:
-    alpha = ord('A')
-  result = newString(2)
+  let alpha =
+    if lowercase:
+      ord('a')
+    else:
+      ord('A')
+  var hex = newString(2)
   let t1 = ord(c) shr 4
   let t0 = ord(c) and 0x0F
   case t1
   of 0 .. 9:
-    result[0] = chr(t1 + ord('0'))
+    hex[0] = chr(t1 + ord('0'))
   else:
-    result[0] = chr(t1 - 10 + alpha)
+    hex[0] = chr(t1 - 10 + alpha)
   case t0
   of 0 .. 9:
-    result[1] = chr(t0 + ord('0'))
+    hex[1] = chr(t0 + ord('0'))
   else:
-    result[1] = chr(t0 - 10 + alpha)
+    hex[1] = chr(t0 - 10 + alpha)
+  hex
 
 proc toHex*(a: openArray[byte], lowercase: bool = false): string =
-  result = ""
+  var hex = ""
   for i in a:
-    result = result & hexChar(i, lowercase)
+    hex &= hexChar(i, lowercase)
+  hex
 
 suite "Variable integer test suite":
   test "vsizeof() edge cases test":
