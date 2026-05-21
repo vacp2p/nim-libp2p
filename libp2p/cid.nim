@@ -101,22 +101,21 @@ proc decode(data: openArray[byte]): Result[Cid, CidError] =
         return err(CidError.Incorrect)
       offset += versionLen
       if version != 1'u64:
+        return err(CidError.Incorrect)
+      let codecLen = vb.readVarint(codec).valueOr:
+        return err(CidError.Incorrect)
+      offset += codecLen
+      var mcodec = CodeContentIds.getOrDefault(cast[int](codec), InvalidMultiCodec)
+      if mcodec == InvalidMultiCodec:
         err(CidError.Incorrect)
       else:
-        let codecLen = vb.readVarint(codec).valueOr:
-          return err(CidError.Incorrect)
-        offset += codecLen
-        var mcodec = CodeContentIds.getOrDefault(cast[int](codec), InvalidMultiCodec)
-        if mcodec == InvalidMultiCodec:
+        if not MultiHash.validate(
+          vb.buffer.toOpenArray(vb.offset, vb.buffer.high)
+        ):
           err(CidError.Incorrect)
         else:
-          if not MultiHash.validate(
-            vb.buffer.toOpenArray(vb.offset, vb.buffer.high)
-          ):
-            err(CidError.Incorrect)
-          else:
-            vb.finish()
-            ok(Cid(cidver: CIDv1, mcodec: mcodec, hpos: offset, data: vb))
+          vb.finish()
+          ok(Cid(cidver: CIDv1, mcodec: mcodec, hpos: offset, data: vb))
 
 proc decode(data: openArray[char]): Result[Cid, CidError] =
   var buffer: seq[byte]

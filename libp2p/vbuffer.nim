@@ -160,8 +160,6 @@ proc readVarint*(vb: var VBuffer, value: var LPSomeUVarint): Opt[int] {.inline.}
   ## Returns number of bytes consumed from ``vb`` on success, or
   ## ``Opt.none(int)`` on error.
   let readLength = vb.peekVarint(value).valueOr:
-    # read* procs intentionally keep the same coarse-grained failure contract as
-    # peek*: failure is represented as Opt.none(int).
     return Opt.none(int)
   vb.offset += readLength
   Opt.some(readLength)
@@ -173,8 +171,6 @@ proc readSeq*[T: string | seq[byte]](vb: var VBuffer, value: var T): Opt[int] {.
   ## Returns number of bytes consumed from ``vb`` on success, or
   ## ``Opt.none(int)`` on error.
   let readLength = vb.peekSeq(value).valueOr:
-    # read* procs intentionally keep the same coarse-grained failure contract as
-    # peek*: failure is represented as Opt.none(int).
     return Opt.none(int)
   vb.offset += readLength
   Opt.some(readLength)
@@ -187,8 +183,6 @@ proc readArray*[T: char | byte](
   ## Returns number of bytes consumed from ``vb`` on success, or
   ## ``Opt.none(int)`` on error.
   let readLength = vb.peekArray(value).valueOr:
-    # read* procs intentionally keep the same coarse-grained failure contract as
-    # peek*: failure is represented as Opt.none(int).
     return Opt.none(int)
   vb.offset += readLength
   Opt.some(readLength)
