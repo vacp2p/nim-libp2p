@@ -1377,7 +1377,7 @@ proc readFieldInto*(
 
   if readFieldInto(stream, data, header, pbytes):
     let ma = MultiAddress.init(data).valueOr:
-      # debug "Unsupported MultiAddress in blob", ma = data
+      debug "Unsupported MultiAddress in blob", ma = data
       return false
     value.add(ma)
     true
