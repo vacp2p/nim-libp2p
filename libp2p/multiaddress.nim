@@ -19,7 +19,7 @@ import
   errors,
   utility
 import stew/[base58, base32, endians2]
-export results, vbuffer, errors, utility
+export results, vbuffer, errors, utility, chronicles
 import ./utils/sequninit
 
 logScope:
