@@ -1366,3 +1366,22 @@ proc readFieldInto*(
     true
   else:
     false
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var seq[MultiAddress],
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var items: seq[seq[byte]]
+  value.setLen(0)
+  if readFieldInto(stream, items, header, pbytes):
+    for item in items:
+      let ma = MultiAddress.init(item).valueOr:
+        continue
+
+      value.add(ma)
+
+    if value.len > 0: true else: false
+  else:
+    false
