@@ -39,8 +39,8 @@ type
     kind: MAKind
     coder*: Transcoder
 
-  MultiAddress* = object
-    data: VBuffer
+  MultiAddress* {.proto2.} = object
+    data {.fieldNumber: 1, required, ext.}: VBuffer
 
   MaPatternOp* = enum
     Eq
@@ -1358,10 +1358,10 @@ proc readFieldInto*(
     header: FieldHeader,
     ProtoType: type ProtobufExt,
 ): bool {.raises: [SerializationError, IOError].} =
-  var buffer = default(seq[byte])
+  var data = default(seq[byte])
 
-  if readFieldInto(stream, buffer, header, pbytes):
-    value = MultiAddress.init(buffer).valueOr:
+  if readFieldInto(stream, data, header, pbytes):
+    value = MultiAddress.init(data).valueOr:
       raise newException(ProtobufValueError, "Invalid protobuf MultiAddress")
     true
   else:
