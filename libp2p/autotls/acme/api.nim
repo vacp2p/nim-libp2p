@@ -188,23 +188,20 @@ when defined(libp2p_autotls_support):
       raise newException(ACMEError, msg & ": Unexpected error", exc)
 
   proc checkAPIError(resp: HTTPResponse) {.raises: [ACMEError].} =
-    const typeErrorPrefix = "urn:ietf:params:acme:error"
-
     let `type` =
       try:
         resp.body["type"].getStr()
       except KeyError:
         return
 
-    if `type`.startsWith(typeErrorPrefix):
-      let errorType = `type`[(typeErrorPrefix.len + 1) .. ^1]
+    if `type`.contains("acme:error"):
       let detail =
         try:
           resp.body["detail"].getStr()
         except KeyError:
           ""
       raise newException(
-        ACMEError, "API request failed. type: " & errorType & " detail: " & detail
+        ACMEError, "API request failed. type: " & `type` & " detail: " & detail
       )
 
   method post*(
@@ -385,7 +382,6 @@ when defined(libp2p_autotls_support):
             challenge = $challenge, msg = getCurrentExceptionMsg()
 
       if challenges.len == 0:
-        debug "requestAuthorizations response", response = $acmeResponse.body
         raise newException(ACMEError, "No challenges received")
 
       ACMEAuthorizationsResponse(challenges: challenges)
