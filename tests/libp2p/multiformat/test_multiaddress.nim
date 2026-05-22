@@ -10,10 +10,14 @@ import ../../tools/[unittest]
 
 {.push raises: [].}
 
-type PatternVector = object
-  pattern: MaPattern
-  good: seq[string]
-  bad: seq[string]
+type
+  PatternVector = object
+    pattern: MaPattern
+    good: seq[string]
+    bad: seq[string]
+
+  Serializable {.proto2.} = object
+    addrs* {.fieldNumber: 1, ext.}: seq[MultiAddress]
 
 const
   SuccessVectors = [
@@ -232,15 +236,14 @@ const
     "90030c2a04",
   ]
 
-suite "MultiAddress test suite (protobuf_serialization)":
-  test "getField returns ok(true) for valid multiaddress (protobuf_serialization)":
+suite "Protobuf serialization of types containing MultiAddress":
+  test "encode and decode":
     let
-      ma = MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()
-      maEncoded = Protobuf.encode(ma)
-      maDecoded = Protobuf.decode(maEncoded, MultiAddress)
+      serializable = Serializable(addrs: @[MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()])
+      encoded = Protobuf.encode(serializable)
+      decoded = Protobuf.decode(encoded, Serializable)
 
-    check:
-      maDecoded == ma
+    check decoded == serializable
 
 suite "MultiAddress test suite":
   test "go-multiaddr success test vectors":
