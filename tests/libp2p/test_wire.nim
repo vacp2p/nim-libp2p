@@ -185,3 +185,34 @@ suite "isFilterablePrivateMA":
         "/ip4/127.0.0.1/tcp/4001/p2p/QmcgpsyWgH8Y8ajJz1Cu72KnS5uo2Aa2LpzU7kinSupNKC/p2p-circuit"
       )
     )
+
+suite "isPrivateMA":
+  proc ma(s: string): MultiAddress =
+    MultiAddress.init(s).tryGet()
+
+  test "RFC1918 IPv4 ranges are private":
+    check isPrivateMA(ma("/ip4/10.0.0.1/tcp/4001"))
+    check isPrivateMA(ma("/ip4/172.16.0.1/tcp/4001"))
+    check isPrivateMA(ma("/ip4/172.31.255.255/tcp/4001"))
+    check isPrivateMA(ma("/ip4/192.168.1.5/tcp/4001"))
+
+  test "IPv6 ULA fc00::/7 is private":
+    check isPrivateMA(ma("/ip6/fc00::1/tcp/4001"))
+    check isPrivateMA(ma("/ip6/fd00::1/tcp/4001"))
+
+  test "link-local IPv4 / IPv6 is private":
+    check isPrivateMA(ma("/ip4/169.254.1.1/tcp/4001"))
+    check isPrivateMA(ma("/ip6/fe80::1/tcp/4001"))
+
+  test "loopback is not private (already directly reachable)":
+    check not isPrivateMA(ma("/ip4/127.0.0.1/tcp/4001"))
+    check not isPrivateMA(ma("/ip6/::1/tcp/4001"))
+
+  test "public IPs are not private":
+    check not isPrivateMA(ma("/ip4/1.1.1.1/tcp/4001"))
+    check not isPrivateMA(ma("/ip4/203.0.113.7/tcp/4001"))
+    check not isPrivateMA(ma("/ip6/2001:db8::1/tcp/4001"))
+
+  test "non-IP multiaddrs return false":
+    check not isPrivateMA(ma("/dns4/example.com/tcp/4001"))
+    check not isPrivateMA(ma("/unix/tmp/sock"))

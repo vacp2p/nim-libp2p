@@ -4,7 +4,7 @@
 {.push raises: [].}
 
 ## This module implements wire network connection procedures.
-import chronos, stew/endians2
+import chronos, chronos/transports/ipnet, stew/endians2
 import multiaddress, multicodec, errors, utility
 
 export multiaddress, chronos
@@ -174,3 +174,15 @@ proc isLoopbackMA*(ma: MultiAddress): bool =
     return false
 
   return hostIP.isLoopback()
+
+proc isPrivateMA*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` carries an IPv4 RFC1918 / IPv6 ULA / link-local
+  ## address — i.e. an address that is not reachable from the public Internet
+  ## without traversal (UPnP / NAT-PMP / hole-punching). Returns ``false`` for
+  ## DNS, circuit-relay, or non-IP multiaddresses; callers that need a
+  ## reachability decision for those should combine this with
+  ## ``isPublicMA``/``isCircuitRelayMA``.
+  let hostIP = initTAddress(ma).valueOr:
+    return false
+
+  hostIP.isPrivate() or hostIP.isUniqueLocal() or hostIP.isLinkLocal()

@@ -3,14 +3,16 @@
 
 {.used.}
 
-import std/net
-import chronos
+import std/[net, sequtils, strutils]
+import chronos, results
 import ../../../libp2p/[builders, switch, multiaddress, multicodec]
 import ../../../libp2p/services/natservice
 import ../../tools/[unittest, crypto]
 
 proc makeSwitch(
-    config: NATConfig, listenAddrs: seq[MultiAddress]
+    config: NATConfig,
+    listenAddrs: seq[MultiAddress],
+    mapperFactory: NATPortMapperFactory = nil,
 ): Switch {.raises: [LPError].} =
   SwitchBuilder
     .new()
@@ -19,8 +21,78 @@ proc makeSwitch(
     .withTcpTransport()
     .withMplex()
     .withNoise()
-    .withNAT(config)
+    .withNAT(config, mapperFactory)
     .build()
+
+# ---------------------------------------------------------------------------
+# FakeNATPortMapper — records all calls and lets tests script the responses.
+# Used in place of the real miniupnpc / libnatpmp backend so tests don't touch
+# the network or require an IGD on the host running CI.
+# ---------------------------------------------------------------------------
+type
+  FakeCallKind = enum
+    fckDiscover
+    fckAdd
+    fckDelete
+    fckClose
+
+  FakeCall = object
+    kind: FakeCallKind
+    internalPort: Port
+    externalPort: Port
+    protocol: NATProtocol
+
+  FakeNATPortMapper = ref object of NATPortMapper
+    externalIp: IpAddress
+    portOffset: int # mapped external = internal + portOffset
+    discoverFails: int # how many discover calls should err before succeeding
+    discoverCount: int
+    addFails: int # how many addMapping calls should err before succeeding
+    addCount: int
+    calls: seq[FakeCall]
+
+method discoverExternalIp(
+    self: FakeNATPortMapper
+): Result[IpAddress, string] {.gcsafe.} =
+  inc self.discoverCount
+  self.calls.add(FakeCall(kind: fckDiscover))
+  if self.discoverFails > 0:
+    dec self.discoverFails
+    return err("fake: discovery failed")
+  ok(self.externalIp)
+
+method addMapping(
+    self: FakeNATPortMapper,
+    internalPort: Port,
+    protocol: NATProtocol,
+    leaseDuration: Duration,
+    description: string,
+): Result[Port, string] {.gcsafe.} =
+  inc self.addCount
+  self.calls.add(FakeCall(kind: fckAdd, internalPort: internalPort, protocol: protocol))
+  if self.addFails > 0:
+    dec self.addFails
+    return err("fake: add failed")
+  ok(Port(uint16(internalPort) + uint16(self.portOffset)))
+
+method deleteMapping(
+    self: FakeNATPortMapper,
+    externalPort: Port,
+    internalPort: Port,
+    protocol: NATProtocol,
+): Result[void, string] {.gcsafe.} =
+  self.calls.add(
+    FakeCall(
+      kind: fckDelete,
+      internalPort: internalPort,
+      externalPort: externalPort,
+      protocol: protocol,
+    )
+  )
+  ok()
+
+method close(self: FakeNATPortMapper) {.gcsafe.} =
+  self.calls.add(FakeCall(kind: fckClose))
 
 suite "NATService":
   teardown:
@@ -89,3 +161,118 @@ suite "NATService":
     check switch.peerInfo.announcedAddrs.len == 0
     # addrs falls back to mapper-chain output (which here is just listenAddrs).
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
+
+  test "mappedAnnouncements rewrites both IP and port; preserves transport suffix":
+    proc ma(s: string): MultiAddress =
+      MultiAddress.init(s).get()
+
+    let
+      extIp = parseIpAddress("203.0.113.7")
+      mappings = @[
+        PortMapping(
+          internalPort: Port(4001), externalPort: Port(50001), protocol: NATProtoTcp
+        ),
+        PortMapping(
+          internalPort: Port(9000), externalPort: Port(59000), protocol: NATProtoUdp
+        ),
+      ]
+      input = @[
+        ma("/ip4/192.168.1.10/tcp/4001"),
+        ma("/ip4/192.168.1.10/tcp/4001/ws"),
+        ma("/ip4/192.168.1.10/udp/9000/quic-v1"),
+        ma("/ip4/192.168.1.10/tcp/7777"), # no matching mapping -> dropped
+        ma("/unix/tmp/sock"), # no ip -> dropped
+      ]
+    check mappedAnnouncements(input, extIp, mappings) ==
+      @[
+        ma("/ip4/203.0.113.7/tcp/50001"),
+        ma("/ip4/203.0.113.7/tcp/50001/ws"),
+        ma("/ip4/203.0.113.7/udp/59000/quic-v1"),
+      ]
+
+  test "mappedAnnouncements drops listen addrs whose IP family disagrees with ext IP":
+    proc ma(s: string): MultiAddress =
+      MultiAddress.init(s).get()
+
+    let
+      extIp = parseIpAddress("203.0.113.7")
+      mappings = @[
+        PortMapping(
+          internalPort: Port(4001), externalPort: Port(50001), protocol: NATProtoTcp
+        )
+      ]
+      input = @[ma("/ip6/2001:db8::1/tcp/4001"), ma("/ip4/192.168.1.10/tcp/4001")]
+    check mappedAnnouncements(input, extIp, mappings) ==
+      @[ma("/ip4/203.0.113.7/tcp/50001")]
+
+  asyncTest "natModeUpnp acquires mapping at start, announces ext IP, deletes on stop":
+    let mapper =
+      FakeNATPortMapper(externalIp: parseIpAddress("203.0.113.7"), portOffset: 10000)
+    proc factory(): NATPortMapper {.gcsafe, raises: [NATMapperError].} =
+      mapper
+
+    let
+      cfg = upnpConfig(
+        description = "test",
+        refreshInterval = 1.hours, # don't fire during the test
+        leaseDuration = 1.hours,
+      )
+      switch =
+        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], factory)
+
+    await switch.start()
+
+    # The mapper sees one discover + one add at startup.
+    check mapper.discoverCount == 1
+    check mapper.addCount == 1
+    check mapper.calls.anyIt(it.kind == fckAdd and it.protocol == NATProtoTcp)
+
+    # peerInfo.addrs surfaces the (extIp, mappedPort) pair from the fake mapper.
+    let boundPort =
+      uint16(
+        switch.peerInfo.listenAddrs[0][multiCodec("tcp")].get().protoArgument().tryGet()[
+          0
+        ]
+      ) shl 8 or
+      uint16(
+        switch.peerInfo.listenAddrs[0][multiCodec("tcp")].get().protoArgument().tryGet()[
+          1
+        ]
+      )
+    let extPort = boundPort.int + mapper.portOffset
+    let expected = MultiAddress.init("/ip4/203.0.113.7/tcp/" & $extPort).tryGet()
+    check switch.peerInfo.addrs == @[expected]
+
+    await switch.stop()
+
+    # On stop the fake sees a delete for each mapping it handed out plus close().
+    check mapper.calls.anyIt(it.kind == fckDelete)
+    check mapper.calls.anyIt(it.kind == fckClose)
+
+  asyncTest "natModeNatPmp uses the configured factory and the NAT-PMP mode":
+    let mapper =
+      FakeNATPortMapper(externalIp: parseIpAddress("198.51.100.42"), portOffset: 20000)
+    proc factory(): NATPortMapper {.gcsafe, raises: [NATMapperError].} =
+      mapper
+
+    let
+      cfg = natPmpConfig(refreshInterval = 1.hours, leaseDuration = 1.hours)
+      switch =
+        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], factory)
+
+    await switch.start()
+    defer:
+      await switch.stop()
+
+    check mapper.discoverCount == 1
+    check switch.peerInfo.addrs.len == 1
+    check ($switch.peerInfo.addrs[0]).find("/ip4/198.51.100.42/") >= 0
+
+  asyncTest "factory error during setup surfaces as ServiceSetupError":
+    proc factory(): NATPortMapper {.gcsafe, raises: [NATMapperError].} =
+      raise newException(NATMapperError, "no IGD reachable")
+
+    let cfg = upnpConfig(refreshInterval = 1.hours, leaseDuration = 1.hours)
+    expect ServiceSetupError:
+      discard
+        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], factory)
