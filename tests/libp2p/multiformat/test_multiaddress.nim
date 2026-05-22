@@ -257,7 +257,7 @@ suite "Protobuf serialization of types containing MultiAddress":
     expect ProtobufValueError:
       discard Protobuf.decode(encoded, Serializable)
 
-  test "decode should not fail if some multiaddresses are invalid":
+  test "decode should skip invalid multiaddresses":
     let
       serializable = Serializable(
         ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
