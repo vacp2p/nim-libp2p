@@ -4,6 +4,7 @@
 {.used.}
 
 import chronos
+import stew/byteutils
 import ../../../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../../../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../../../libp2p/protocols/connectivity/autonat/types import NetworkReachability
@@ -26,10 +27,12 @@ suite "Dcutr":
     let connectMsg = DcutrMsg(msgType: MsgType.Connect, addrs: addrs)
 
     let pb = connectMsg.encode()
+    let pbHexReference = "08641208040000000006000012080400000000060000"
     let connectMsgDecoded = DcutrMsg.decode(pb).valueOr:
       raise newException(DcutrError, "Failed to decode a Connect message.")
 
     check connectMsg == connectMsgDecoded
+    check pb == hexToSeqByte(pbHexReference)
 
   asyncTest "Sync msg Encode / Decode":
     let addrs = @[
