@@ -7,10 +7,10 @@ import std/macros, results, protobuf_serialization
 
 macro serializerFor*(_: type Protobuf, Types: untyped): untyped =
   ## This generates encode/decode protobuf procs for `Types`
-  result = newStmtList()
+  var stmts = newStmtList()
   for T in Types:
     let decodeName = ident("decode" & $T)
-    result.add quote do:
+    stmts.add quote do:
       proc encode*(c: `T`): seq[byte] =
         encode(Protobuf, c)
 
@@ -22,3 +22,5 @@ macro serializerFor*(_: type Protobuf, Types: untyped): untyped =
           Opt.some(`decodeName`(buf))
         except SerializationError:
           Opt.none(`T`)
+
+  stmts

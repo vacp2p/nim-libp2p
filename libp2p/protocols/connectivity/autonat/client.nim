@@ -83,7 +83,7 @@ method dialMe*(
   except CatchableError as e:
     raise newException(AutonatError, "read Dial response failed: " & e.msg, e)
 
-  let response = getResponseOrRaise(AutonatMsg.decode(respBytes))
+  let response = getResponseOrRaise(AutonatMsg.decode(move(respBytes)))
 
   return
     case response.status

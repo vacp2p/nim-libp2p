@@ -112,7 +112,7 @@ proc getMarkdownReport*(
   return markdown
 
 proc getCsvFilename*(outputDir: string, prNumber: string): string =
-  result = fmt"{outputDir}/pr{prNumber}_latency.csv"
+  fmt"{outputDir}/pr{prNumber}_latency.csv"
 
 proc getCsvReport*(
     results: Table[string, Stats], validNodes: Table[string, int]
@@ -127,7 +127,7 @@ proc getCsvReport*(
     let stats = results[scenarioName]
     let nodes = validNodes[scenarioName]
     output.add fmt"{stats.scenarioName},{nodes},{stats.totalSent},{stats.totalReceived},{stats.latency.minLatencyMs:.3f},{stats.latency.maxLatencyMs:.3f},{stats.latency.avgLatencyMs:.3f}"
-  result = output.join("\n")
+  output.join("\n")
 
 proc main() =
   let env = getGitHubEnv()

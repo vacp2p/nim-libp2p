@@ -123,6 +123,7 @@ proc expandDnsAddr(
   debug "resolved addresses",
     originalAddresses = toResolve, resolvedAddresses = resolved
 
+  var addrs: seq[(MultiAddress, Opt[PeerId])]
   for resolvedAddress in resolved:
     let lastPart = resolvedAddress[^1].tryGet()
     if lastPart.protoCode == Result[MultiCodec, string].ok(multiCodec("p2p")):
@@ -133,9 +134,10 @@ proc expandDnsAddr(
         raiseAssert "expandDnsAddr failed in expandDnsAddr protoArgument: " & e.msg
 
       let addrPeerId = PeerId.init(peerIdBytes).tryGet()
-      result.add((resolvedAddress[0 ..^ 2].tryGet(), Opt.some(addrPeerId)))
+      addrs.add((resolvedAddress[0 ..^ 2].tryGet(), Opt.some(addrPeerId)))
     else:
-      result.add((resolvedAddress, peerId))
+      addrs.add((resolvedAddress, peerId))
+  addrs
 
 method dialAndUpgrade*(
     self: Dialer, peerId: Opt[PeerId], addrs: seq[MultiAddress], dir = Direction.Out
@@ -163,9 +165,9 @@ method dialAndUpgrade*(
         resolvedAddresses = resolvedAddresses
 
       for resolvedAddress in resolvedAddresses:
-        result = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress, dir)
-        if not isNil(result):
-          return result
+        let mux = await self.dialAndUpgrade(addrPeerId, hostname, resolvedAddress, dir)
+        if not isNil(mux):
+          return mux
 
 proc tryReusingConnection(self: Dialer, peerId: PeerId): Opt[Muxer] =
   let muxer = self.connManager.selectMuxer(peerId)

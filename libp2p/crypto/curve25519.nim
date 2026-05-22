@@ -27,7 +27,9 @@ type
 
 proc intoCurve25519Key*(s: openArray[byte]): Curve25519Key =
   assert s.len == Curve25519KeySize
-  assign(result, s)
+  var key: Curve25519Key
+  assign(key, s)
+  key
 
 proc getBytes*(key: Curve25519Key): seq[byte] =
   @key
@@ -65,7 +67,9 @@ proc mulgen(_: type[Curve25519], dst: var Curve25519Key, point: Curve25519Key) =
   assert size == Curve25519KeySize
 
 proc public*(private: Curve25519Key): Curve25519Key =
-  Curve25519.mulgen(result, private)
+  var key: Curve25519Key
+  Curve25519.mulgen(key, private)
+  key
 
 proc random*(_: type[Curve25519Key], rng: Rng): Curve25519Key =
   var res: Curve25519Key

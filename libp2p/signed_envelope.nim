@@ -41,9 +41,9 @@ proc getSignatureBuffer(e: Envelope): seq[byte] =
   buffer.buffer
 
 proc decode*(
-    T: typedesc[Envelope], buf: seq[byte], domain: string
+    T: typedesc[Envelope], buf: sink seq[byte], domain: string
 ): Result[Envelope, EnvelopeError] =
-  let pb = initProtoBuffer(buf)
+  let pb = initProtoBuffer(move(buf))
   var envelope = Envelope()
 
   envelope.domain = domain
@@ -61,15 +61,15 @@ proc decode*(
 proc init*(
     T: typedesc[Envelope],
     privateKey: PrivateKey,
-    payloadType: seq[byte],
-    payload: seq[byte],
+    payloadType: sink seq[byte],
+    payload: sink seq[byte],
     domain: string,
 ): Result[Envelope, CryptoError] =
   var envelope = Envelope(
     publicKey: ?privateKey.getPublicKey(),
     domain: domain,
-    payloadType: payloadType,
-    payload: payload,
+    payloadType: move(payloadType),
+    payload: move(payload),
   )
 
   envelope.signature = ?privateKey.sign(envelope.getSignatureBuffer())
@@ -102,7 +102,7 @@ proc getField*(
   if not (res):
     ok(false)
   else:
-    value = Envelope.decode(buffer, domain).valueOr:
+    value = Envelope.decode(move(buffer), domain).valueOr:
       return err(ProtoError.IncorrectBlob)
     ok(true)
 
@@ -137,10 +137,10 @@ proc getField*[T](
     ok(true)
 
 proc decode*[T](
-    _: typedesc[SignedPayload[T]], buffer: seq[byte]
+    _: typedesc[SignedPayload[T]], buffer: sink seq[byte]
 ): Result[SignedPayload[T], EnvelopeError] =
   let
-    envelope = ?Envelope.decode(buffer, T.payloadDomain)
+    envelope = ?Envelope.decode(move(buffer), T.payloadDomain)
     data = ?T.decode(envelope.payload).mapErr(x => EnvelopeInvalidProtobuf)
     signedPayload = SignedPayload[T](envelope: envelope, data: data)
 

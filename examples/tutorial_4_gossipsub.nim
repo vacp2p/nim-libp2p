@@ -33,10 +33,11 @@ type
 {.push raises: [].}
 
 proc encode(m: Metric): ProtoBuffer =
-  result = initProtoBuffer()
-  result.write(1, m.name)
-  result.write(2, m.value)
-  result.finish()
+  var pb = initProtoBuffer()
+  pb.write(1, m.name)
+  pb.write(2, m.value)
+  pb.finish()
+  pb
 
 proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   var res: Metric
@@ -46,11 +47,12 @@ proc decode(_: type Metric, buf: seq[byte]): Result[Metric, ProtoError] =
   ok(res)
 
 proc encode(m: MetricList): ProtoBuffer =
-  result = initProtoBuffer()
+  var pb = initProtoBuffer()
   for metric in m.metrics:
-    result.write(1, metric.encode())
-  result.write(2, m.hostname)
-  result.finish()
+    pb.write(1, metric.encode())
+  pb.write(2, m.hostname)
+  pb.finish()
+  pb
 
 proc decode(_: type MetricList, buf: seq[byte]): Result[MetricList, ProtoError] =
   var

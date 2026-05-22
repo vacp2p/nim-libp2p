@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Nim-LibP2P
 # Copyright (c) 2023-2026 Status Research & Development GmbH
 # Licensed under either of
@@ -6,8 +7,6 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
-#!/usr/bin/env bash
-
 set -euo pipefail
 
 usage() {
@@ -93,4 +92,3 @@ cat >> "$OUTFILE" <<'EOF'
 EOF
 
 echo "[✓] Wrote $OUTFILE"
-

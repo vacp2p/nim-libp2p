@@ -29,9 +29,9 @@ type
     services*: seq[ServiceInfo]
 
 proc decode*(
-    T: typedesc[ServiceInfo], buffer: seq[byte]
+    T: typedesc[ServiceInfo], buffer: sink seq[byte]
 ): Result[ServiceInfo, ProtoError] =
-  var pb = initProtoBuffer(buffer)
+  var pb = initProtoBuffer(move(buffer))
   var servInf = ServiceInfo()
 
   ?pb.getRequiredField(1, servInf.id)
@@ -40,9 +40,9 @@ proc decode*(
   ok(servInf)
 
 proc decode*(
-    T: typedesc[ExtendedPeerRecord], buffer: seq[byte]
+    T: typedesc[ExtendedPeerRecord], buffer: sink seq[byte]
 ): Result[ExtendedPeerRecord, ProtoError] =
-  var pb = initProtoBuffer(buffer)
+  var pb = initProtoBuffer(move(buffer))
   var record = ExtendedPeerRecord()
 
   ?pb.getRequiredField(1, record.peerId)
@@ -50,8 +50,8 @@ proc decode*(
 
   var addressInfos: seq[seq[byte]]
   if ?pb.getRepeatedField(3, addressInfos):
-    for addressBuf in addressInfos:
-      let addressInfo = AddressInfo.decode(addressBuf).valueOr:
+    for addressBuf in addressInfos.mitems:
+      let addressInfo = AddressInfo.decode(move(addressBuf)).valueOr:
         continue
 
       record.addresses &= addressInfo
@@ -61,8 +61,8 @@ proc decode*(
 
   var serviceInfos: seq[seq[byte]]
   if ?pb.getRepeatedField(4, serviceInfos):
-    for serviceBuf in serviceInfos:
-      record.services &= ?ServiceInfo.decode(serviceBuf)
+    for serviceBuf in serviceInfos.mitems:
+      record.services &= ?ServiceInfo.decode(move(serviceBuf))
 
   ok(record)
 

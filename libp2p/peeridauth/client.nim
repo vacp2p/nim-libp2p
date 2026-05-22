@@ -224,7 +224,7 @@ proc parse3339DateTime(timeStr: string): DateTime {.raises: [ValueError].} =
   let parts = timeStr.split('.')
   let base = parse(parts[0], "yyyy-MM-dd'T'HH:mm:ss")
   let millis = parseInt(parts[1].strip(chars = {'Z'}))
-  result = base + initDuration(milliseconds = millis)
+  base + initDuration(milliseconds = millis)
 
 proc requestAuthorization*(
     self: PeerIDAuthClient,
