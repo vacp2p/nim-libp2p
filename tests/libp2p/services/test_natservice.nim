@@ -44,7 +44,10 @@ type
 
   FakeNATPortMapper = ref object of NATPortMapper
     externalIp: IpAddress
-    portOffset: int # mapped external = internal + portOffset
+    mappedExternalPort: Port
+      # what addMapping returns regardless of internal port; fixed (not derived
+      # from internalPort) so an OS-assigned ephemeral listen port can't push
+      # the mapped value past uint16 and trip multiaddress encoding
     discoverFails: int # how many discover calls should err before succeeding
     discoverCount: int
     addFails: int # how many addMapping calls should err before succeeding
@@ -73,7 +76,7 @@ method addMapping(
   if self.addFails > 0:
     dec self.addFails
     return err("fake: add failed")
-  ok(Port(uint16(internalPort) + uint16(self.portOffset)))
+  ok(self.mappedExternalPort)
 
 method deleteMapping(
     self: FakeNATPortMapper,
@@ -206,8 +209,9 @@ suite "NATService":
       @[ma("/ip4/203.0.113.7/tcp/50001")]
 
   asyncTest "natModeUpnp acquires mapping at start, announces ext IP, deletes on stop":
-    let mapper =
-      FakeNATPortMapper(externalIp: parseIpAddress("203.0.113.7"), portOffset: 10000)
+    let mapper = FakeNATPortMapper(
+      externalIp: parseIpAddress("203.0.113.7"), mappedExternalPort: Port(50001)
+    )
     proc factory(): NATPortMapper {.gcsafe, raises: [NATMapperError].} =
       mapper
 
@@ -228,19 +232,7 @@ suite "NATService":
     check mapper.calls.anyIt(it.kind == fckAdd and it.protocol == NATProtoTcp)
 
     # peerInfo.addrs surfaces the (extIp, mappedPort) pair from the fake mapper.
-    let boundPort =
-      uint16(
-        switch.peerInfo.listenAddrs[0][multiCodec("tcp")].get().protoArgument().tryGet()[
-          0
-        ]
-      ) shl 8 or
-      uint16(
-        switch.peerInfo.listenAddrs[0][multiCodec("tcp")].get().protoArgument().tryGet()[
-          1
-        ]
-      )
-    let extPort = boundPort.int + mapper.portOffset
-    let expected = MultiAddress.init("/ip4/203.0.113.7/tcp/" & $extPort).tryGet()
+    let expected = MultiAddress.init("/ip4/203.0.113.7/tcp/50001").tryGet()
     check switch.peerInfo.addrs == @[expected]
 
     await switch.stop()
@@ -250,8 +242,9 @@ suite "NATService":
     check mapper.calls.anyIt(it.kind == fckClose)
 
   asyncTest "natModeNatPmp uses the configured factory and the NAT-PMP mode":
-    let mapper =
-      FakeNATPortMapper(externalIp: parseIpAddress("198.51.100.42"), portOffset: 20000)
+    let mapper = FakeNATPortMapper(
+      externalIp: parseIpAddress("198.51.100.42"), mappedExternalPort: Port(50042)
+    )
     proc factory(): NATPortMapper {.gcsafe, raises: [NATMapperError].} =
       mapper
 

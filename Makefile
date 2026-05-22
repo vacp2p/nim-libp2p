@@ -100,20 +100,27 @@ else
   NAT_PMP_CFLAGS = -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4
 endif
 
-nat_libs: $(NAT_UPNP_LIB) $(NAT_PMP_LIB)
+# Stamp-based rebuild: if the recipe ever runs in this checkout, the stamp
+# records "the .a files in this package dir were built by our recipe with the
+# right compiler". Without it, we'd see the .a files dropped by nimble's
+# `before install` hook (which uses `cc`, not the gcc wrapper that injects -m32
+# on i386) or a stale cache restored from another OS/arch, and skip rebuild.
+NAT_LIBS_STAMP := $(NAT_PKG_DIR)/.libp2p-nat-libs.stamp
 
-$(NAT_UPNP_LIB) $(NAT_PMP_LIB): | nat_pkg_dir_check
+nat_libs: $(NAT_LIBS_STAMP)
 
 .PHONY: nat_pkg_dir_check
 nat_pkg_dir_check:
 	@test -n "$(NAT_PKG_DIR)" || \
 	  (echo "Error: nat_traversal package not found under nimbledeps/pkgs2/. Run 'nimble install_pinned' first." && exit 1)
 
-$(NAT_UPNP_LIB):
+$(NAT_LIBS_STAMP): | nat_pkg_dir_check
+	rm -f "$(NAT_UPNP_LIB)" "$(NAT_PMP_LIB)"
+	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" clean
+	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" clean
 	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" $(NAT_UPNP_MAKE_ARGS)
-
-$(NAT_PMP_LIB):
 	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" libnatpmp.a
+	touch "$@"
 
 test: nimble.paths nat_libs
 ifeq ($(TEST_PATH),)
