@@ -17,7 +17,8 @@ type
     bad: seq[string]
 
   Serializable {.proto2.} = object
-    addrs* {.fieldNumber: 1, ext.}: seq[MultiAddress]
+    ma {.fieldNumber: 1, required, ext.}: MultiAddress
+    addrs {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
 const
   SuccessVectors = [
@@ -237,14 +238,36 @@ const
   ]
 
 suite "Protobuf serialization of types containing MultiAddress":
-  test "encode and decode":
+  test "valid multiaddress":
     let
-      serializable =
-        Serializable(addrs: @[MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()])
+      serializable = Serializable(
+        ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
+        addrs: @[MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()],
+      )
       encoded = Protobuf.encode(serializable)
       decoded = Protobuf.decode(encoded, Serializable)
 
     check decoded == serializable
+
+  test "invalid multiaddress":
+    let
+      serializable = Serializable(ma: MultiAddress(), addrs: @[])
+      encoded = Protobuf.encode(serializable)
+
+    expect ProtobufValueError:
+      discard Protobuf.decode(encoded, Serializable)
+
+  test "decode should not fail if some multiaddresses are invalid":
+    let
+      serializable = Serializable(
+        ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
+        addrs: @[MultiAddress(), MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()],
+      )
+      encoded = Protobuf.encode(serializable)
+      decoded = Protobuf.decode(encoded, Serializable)
+
+    check decoded.ma == serializable.ma
+    check decoded.addrs[0] == serializable.addrs[1]
 
 suite "MultiAddress test suite":
   test "go-multiaddr success test vectors":
