@@ -379,7 +379,7 @@ when defined(libp2p_autotls_support):
           challenges.add(challenge.to(ACMEChallenge))
         except ValueError, JsonKindError:
           debug "Could not parse challenge",
-            challenge = $challenge, msg = getCurrentExceptionMsg()
+            msg = getCurrentExceptionMsg()
 
       if challenges.len == 0:
         raise newException(ACMEError, "No challenges received")
