@@ -39,8 +39,8 @@ type
     kind: MAKind
     coder*: Transcoder
 
-  MultiAddress* {.proto2.} = object
-    data {.fieldNumber: 1, required, ext.}: VBuffer
+  MultiAddress* = object
+    data: VBuffer
 
   MaPatternOp* = enum
     Eq
@@ -1327,3 +1327,55 @@ func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
     res.add($(addrs.len - maxAddrs))
     res.add(" more)")
   return res
+
+## protobuf_serialization extension
+
+func supportsPacked*(T: type MultiAddress, ProtoType: type ProtobufExt): bool =
+  false
+func supportsPacked*(T: type seq[MultiAddress], ProtoType: type ProtobufExt): bool =
+  false
+
+func computeFieldSize*(
+    field: int,
+    value: MultiAddress,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool,
+): int =
+  computeFieldSize(field, value.data.buffer, pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: MultiAddress,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  writeField(stream, field, value.data.buffer, pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var MultiAddress,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var data = default(seq[byte])
+
+  if readFieldInto(stream, data, header, pbytes):
+    value = MultiAddress.init(data).valueOr:
+      raise newException(ProtobufValueError, "Invalid protobuf MultiAddress")
+    true
+  else:
+    false
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var seq[MultiAddress],
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var val = default(typeof(value[0]))
+  if stream.readFieldInto(val, header, ProtoType):
+    value.add move(val)
+    true
+  else:
+    false

@@ -6,7 +6,6 @@
 {.push raises: [].}
 
 import varint, strutils
-import protobuf_serialization
 import ./utils/sequninit
 
 type VBuffer* = object
@@ -189,38 +188,3 @@ proc `$`*(vb: VBuffer): string =
   for i in 0 ..< len(vb.buffer):
     s.add(toHex(vb.buffer[i]))
   s
-
-## protobuf_serialization extension
-
-func supportsPacked*(T: type VBuffer, ProtoType: type ProtobufExt): bool =
-  false
-func supportsPacked*(T: type seq[VBuffer], ProtoType: type ProtobufExt): bool =
-  false
-
-func computeFieldSize*(
-    field: int, value: VBuffer, ProtoType: type ProtobufExt, skipDefault: static bool
-): int =
-  computeFieldSize(field, value.buffer, pbytes, skipDefault)
-
-proc writeField*(
-    stream: OutputStream,
-    field: int,
-    value: VBuffer,
-    ProtoType: type ProtobufExt,
-    skipDefault: static bool = false,
-) {.raises: [IOError].} =
-  writeField(stream, field, value.buffer, pbytes, skipDefault)
-
-proc readFieldInto*(
-    stream: InputStream,
-    value: var VBuffer,
-    header: FieldHeader,
-    ProtoType: type ProtobufExt,
-): bool {.raises: [SerializationError, IOError].} =
-  var data = default(seq[byte])
-
-  if readFieldInto(stream, data, header, pbytes):
-    value = initVBuffer(data)
-    true
-  else:
-    false
