@@ -239,3 +239,11 @@ suite "Dcutr":
     let res = getHolePunchableAddrs(testAddrs)
 
     check res == expected
+
+  test "decode should fail if all multiaddresses are invalid":
+    let addrs = @[MultiAddress(), MultiAddress()]
+    let connectMsg = DcutrMsg(msgType: MsgType.Connect, addrs: addrs)
+
+    let pb = connectMsg.encode()
+
+    check DcutrMsg.decode(pb).isErr
