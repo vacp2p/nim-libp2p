@@ -19,7 +19,7 @@ import
   errors,
   utility
 import stew/[base58, base32, endians2]
-export results, vbuffer, errors, utility, chronicles
+export results, vbuffer, errors, utility
 import ./utils/sequninit
 
 logScope:
@@ -1377,8 +1377,8 @@ proc readFieldInto*(
 
   if readFieldInto(stream, data, header, pbytes):
     let ma = MultiAddress.init(data).valueOr:
-      debug "Unsupported MultiAddress in blob", ma = data
       return false
+
     value.add(ma)
     true
   else:
