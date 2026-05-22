@@ -197,7 +197,7 @@ when defined(libp2p_autotls_support):
         return
 
     if `type`.startsWith(typeErrorPrefix):
-      let errorType = `type`[typeErrorPrefix.len .. ^1]
+      let errorType = `type`[(typeErrorPrefix.len + 1) .. ^1]
       let detail =
         try:
           resp.body["detail"].getStr()
