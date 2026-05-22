@@ -188,20 +188,20 @@ when defined(libp2p_autotls_support):
       raise newException(ACMEError, msg & ": Unexpected error", exc)
 
   proc checkAPIError(resp: HTTPResponse) {.raises: [ACMEError].} =
-    let `type` =
+    let respType =
       try:
         resp.body["type"].getStr()
       except KeyError:
         return
 
-    if `type`.contains("acme:error"):
+    if respType.contains("acme:error"):
       let detail =
         try:
           resp.body["detail"].getStr()
         except KeyError:
           ""
       raise newException(
-        ACMEError, "API request failed. type: " & `type` & " detail: " & detail
+        ACMEError, "API request failed. type: " & respType & " detail: " & detail
       )
 
   method post*(
