@@ -189,6 +189,7 @@ proc `$`*(vb: VBuffer): string =
   for i in 0 ..< len(vb.buffer):
     s.add(toHex(vb.buffer[i]))
   s
+
 ## protobuf_serialization extension
 
 func supportsPacked*(T: type VBuffer, ProtoType: type ProtobufExt): bool =
@@ -197,10 +198,7 @@ func supportsPacked*(T: type seq[VBuffer], ProtoType: type ProtobufExt): bool =
   false
 
 func computeFieldSize*(
-    field: int,
-    value: VBuffer,
-    ProtoType: type ProtobufExt,
-    skipDefault: static bool,
+    field: int, value: VBuffer, ProtoType: type ProtobufExt, skipDefault: static bool
 ): int =
   computeFieldSize(field, value.buffer, pbytes, skipDefault)
 
