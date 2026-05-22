@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, results, sets, tables
+import chronos, nimcrypto/sha2, results, sets, tables
 import
   ../../../libp2p/protocols/kademlia,
   ../../../libp2p/protocols/service_discovery/[types, routing_table_manager]
@@ -357,3 +357,28 @@ suite "ServiceRoutingTableManager - refreshAllTables":
       selfId notin peers # local node must be rejected
       peer1 in peers
       peer2 in peers
+
+suite "ServiceRoutingTableManager - service id hashing":
+  test "service table buckets peers by the service id, not its re-hash":
+    let
+      serviceId = hashServiceId("/logos/service-discovery/1.0.0")
+      peer = makeKey(1)
+      manager = ServiceRoutingTableManager.new()
+      mainRt = RoutingTable.new(makeKey(0))
+    check manager.addService(serviceId, mainRt, 100, DefaultMaxBuckets, Interest)
+
+    manager.insertPeer(serviceId, peer)
+
+    # The peer lands in the bucket determined by XOR(serviceId, H(peer)),
+    # not XOR(H(serviceId), H(peer))
+    let
+      table = manager.getTable(serviceId).get()
+      peerHash = @(sha256.digest(peer).data)
+      expectedBucket = leadingZeros(xorDistance(serviceId, peerHash))
+      doubleHashBucket =
+        leadingZeros(xorDistance(@(sha256.digest(serviceId).data), peerHash))
+
+    check:
+      expectedBucket != doubleHashBucket
+      table.buckets[expectedBucket].peers.len == 1
+      table.buckets[expectedBucket].peers[0].nodeId == peer
