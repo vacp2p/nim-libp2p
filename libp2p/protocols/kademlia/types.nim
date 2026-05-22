@@ -142,7 +142,9 @@ proc hashFor*(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
   return @(hasher.get(defaultHasher)(k))
 
 proc xorDistance*(a, b: Key): XorDistance =
-  doAssert a.len == IdLength and b.len == IdLength
+  doAssert a.len == IdLength and b.len == IdLength,
+    "both keys must be " & $IdLength & " bytes"
+
   var response: XorDistance
   for i in 0 ..< a.len:
     response[i] = a[i] xor b[i]
