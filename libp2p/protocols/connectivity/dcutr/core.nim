@@ -39,10 +39,15 @@ proc decode*(_: type DcutrMsg, buf: seq[byte]): Opt[DcutrMsg] =
   try:
     let decoded = decodeDcutrMsg(buf)
 
-    if len(decoded.addrs) > 0:
+    case decoded.msgType
+    of MsgType.Connect:
+      if len(decoded.addrs) > 0:
+        Opt.some(decoded)
+      else:
+        Opt.none(DcutrMsg)
+    of MsgType.Sync:
       Opt.some(decoded)
-    else:
-      Opt.none(DcutrMsg)
+
   except SerializationError:
     Opt.none(DcutrMsg)
 
