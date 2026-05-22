@@ -699,36 +699,38 @@ use the sane defaults shipped with libp2p.</p>
 <a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="sx">{.push</span><span class="w"> </span><span class="sx">raises</span>:<span class="w"> </span><span class="sx">[].}</span>
 <a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
 <a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="sx">proc</span><span class="w"> </span><span class="sx">encode(m</span>:<span class="w"> </span><span class="sx">Metric): ProtoBuffer</span><span class="w"> </span><span class="sx">=</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="sx">  result</span><span class="w"> </span><span class="sx">= initProtoBuffer()</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="sx">  result.write(1</span>,<span class="w"> </span><span class="sx">m.name)</span>
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="sx">  result.write(2</span>,<span class="w"> </span><span class="sx">m.value)</span>
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="sx">  result.finish()</span>
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="sx">proc</span><span class="w"> </span><span class="sx">decode(_</span>:<span class="w"> </span><span class="sx">type</span><span class="w"> </span><span class="sx">Metric</span>,<span class="w"> </span><span class="sx">buf</span>:<span class="w"> </span><span class="sx">seq[byte]): Result[Metric</span>,<span class="w"> </span><span class="sx">ProtoError] =</span>
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="sx">  var</span><span class="w"> </span><span class="sx">res</span>:<span class="w"> </span><span class="sx">Metric</span>
-<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">  </span><span class="sx">let</span><span class="w"> </span><span class="sx">pb</span><span class="w"> </span><span class="sx">= initProtoBuffer(buf)</span>
-<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="sx">  discard</span><span class="w"> </span><span class="sx">?pb.getField(1</span>,<span class="w"> </span><span class="sx">res.name)</span>
-<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="sx">  discard</span><span class="w"> </span><span class="sx">?pb.getField(2</span>,<span class="w"> </span><span class="sx">res.value)</span>
-<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="sx">  ok(res)</span>
-<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>
-<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="sx">proc</span><span class="w"> </span><span class="sx">encode(m</span>:<span class="w"> </span><span class="sx">MetricList): ProtoBuffer</span><span class="w"> </span><span class="sx">=</span>
-<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="sx">  result</span><span class="w"> </span><span class="sx">= initProtoBuffer()</span>
-<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="sx">  for</span><span class="w"> </span><span class="sx">metric</span><span class="w"> </span><span class="sx">in</span><span class="w"> </span><span class="sx">m.metrics</span>:
-<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="w">    </span><span class="sx">result.write(1</span>,<span class="w"> </span><span class="sx">metric.encode())</span>
-<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="sx">  result.write(2</span>,<span class="w"> </span><span class="sx">m.hostname)</span>
-<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="sx">  result.finish()</span>
-<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a>
-<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="sx">proc</span><span class="w"> </span><span class="sx">decode(_</span>:<span class="w"> </span><span class="sx">type</span><span class="w"> </span><span class="sx">MetricList</span>,<span class="w"> </span><span class="sx">buf</span>:<span class="w"> </span><span class="sx">seq[byte]): Result[MetricList</span>,<span class="w"> </span><span class="sx">ProtoError] =</span>
-<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a><span class="sx">  var</span>
-<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a><span class="w">    </span><span class="sx">res</span>:<span class="w"> </span><span class="sx">MetricList</span>
-<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a><span class="w">    </span><span class="sx">metrics</span>:<span class="w"> </span><span class="sx">seq[seq[byte]]</span>
-<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="sx">  let</span><span class="w"> </span><span class="sx">pb</span><span class="w"> </span><span class="sx">= initProtoBuffer(buf)</span>
-<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a><span class="sx">  discard</span><span class="w"> </span><span class="sx">?pb.getRepeatedField(1</span>,<span class="w"> </span><span class="sx">metrics)</span>
-<a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a>
-<a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a><span class="sx">  for</span><span class="w"> </span><span class="sx">metric</span><span class="w"> </span><span class="sx">in</span><span class="w"> </span><span class="sx">metrics</span>:
-<a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a><span class="w">    </span><span class="sx">res.metrics</span><span class="w"> </span><span class="sx">&amp;= ?Metric.decode(metric)</span>
-<a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a><span class="sx">  ?pb.getRequiredField(2</span>,<span class="w"> </span><span class="sx">res.hostname)</span>
-<a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a><span class="sx">  ok(res)</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="sx">  var</span><span class="w"> </span><span class="sx">pb</span><span class="w"> </span><span class="sx">= initProtoBuffer()</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="sx">  pb.write(1</span>,<span class="w"> </span><span class="sx">m.name)</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="sx">  pb.write(2</span>,<span class="w"> </span><span class="sx">m.value)</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="sx">  pb.finish()</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="sx">  pb</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="sx">proc</span><span class="w"> </span><span class="sx">decode(_</span>:<span class="w"> </span><span class="sx">type</span><span class="w"> </span><span class="sx">Metric</span>,<span class="w"> </span><span class="sx">buf</span>:<span class="w"> </span><span class="sx">seq[byte]): Result[Metric</span>,<span class="w"> </span><span class="sx">ProtoError] =</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="sx">  var</span><span class="w"> </span><span class="sx">res</span>:<span class="w"> </span><span class="sx">Metric</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">  </span><span class="sx">let</span><span class="w"> </span><span class="sx">pb</span><span class="w"> </span><span class="sx">= initProtoBuffer(buf)</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="sx">  discard</span><span class="w"> </span><span class="sx">?pb.getField(1</span>,<span class="w"> </span><span class="sx">res.name)</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="sx">  discard</span><span class="w"> </span><span class="sx">?pb.getField(2</span>,<span class="w"> </span><span class="sx">res.value)</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="sx">  ok(res)</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="sx">proc</span><span class="w"> </span><span class="sx">encode(m</span>:<span class="w"> </span><span class="sx">MetricList): ProtoBuffer</span><span class="w"> </span><span class="sx">=</span>
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="sx">  var</span><span class="w"> </span><span class="sx">pb</span><span class="w"> </span><span class="sx">= initProtoBuffer()</span>
+<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="sx">  for</span><span class="w"> </span><span class="sx">metric</span><span class="w"> </span><span class="sx">in</span><span class="w"> </span><span class="sx">m.metrics</span>:
+<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="w">    </span><span class="sx">pb.write(1</span>,<span class="w"> </span><span class="sx">metric.encode())</span>
+<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a><span class="sx">  pb.write(2</span>,<span class="w"> </span><span class="sx">m.hostname)</span>
+<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a><span class="sx">  pb.finish()</span>
+<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a><span class="sx">  pb</span>
+<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a>
+<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a><span class="sx">proc</span><span class="w"> </span><span class="sx">decode(_</span>:<span class="w"> </span><span class="sx">type</span><span class="w"> </span><span class="sx">MetricList</span>,<span class="w"> </span><span class="sx">buf</span>:<span class="w"> </span><span class="sx">seq[byte]): Result[MetricList</span>,<span class="w"> </span><span class="sx">ProtoError] =</span>
+<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a><span class="sx">  var</span>
+<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="w">    </span><span class="sx">res</span>:<span class="w"> </span><span class="sx">MetricList</span>
+<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a><span class="w">    </span><span class="sx">metrics</span>:<span class="w"> </span><span class="sx">seq[seq[byte]]</span>
+<a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a><span class="sx">  let</span><span class="w"> </span><span class="sx">pb</span><span class="w"> </span><span class="sx">= initProtoBuffer(buf)</span>
+<a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a><span class="sx">  discard</span><span class="w"> </span><span class="sx">?pb.getRepeatedField(1</span>,<span class="w"> </span><span class="sx">metrics)</span>
+<a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a>
+<a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a><span class="sx">  for</span><span class="w"> </span><span class="sx">metric</span><span class="w"> </span><span class="sx">in</span><span class="w"> </span><span class="sx">metrics</span>:
+<a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a><span class="w">    </span><span class="sx">res.metrics</span><span class="w"> </span><span class="sx">&amp;= ?Metric.decode(metric)</span>
+<a id="__codelineno-1-49" name="__codelineno-1-49" href="#__codelineno-1-49"></a><span class="sx">  ?pb.getRequiredField(2</span>,<span class="w"> </span><span class="sx">res.hostname)</span>
+<a id="__codelineno-1-50" name="__codelineno-1-50" href="#__codelineno-1-50"></a><span class="sx">  ok(res)</span>
 </code></pre></div>
 This is exactly like the previous structure, except that we added
 a <code>hostname</code> to distinguish where the metric is coming from.</p>
