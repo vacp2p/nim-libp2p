@@ -239,7 +239,8 @@ const
 suite "Protobuf serialization of types containing MultiAddress":
   test "encode and decode":
     let
-      serializable = Serializable(addrs: @[MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()])
+      serializable =
+        Serializable(addrs: @[MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()])
       encoded = Protobuf.encode(serializable)
       decoded = Protobuf.decode(encoded, Serializable)
 
