@@ -1373,9 +1373,13 @@ proc readFieldInto*(
     header: FieldHeader,
     ProtoType: type ProtobufExt,
 ): bool {.raises: [SerializationError, IOError].} =
-  var val = default(typeof(value[0]))
-  if stream.readFieldInto(val, header, ProtoType):
-    value.add move(val)
+  var data = default(seq[byte])
+
+  if readFieldInto(stream, data, header, pbytes):
+    let ma = MultiAddress.init(data).valueOr:
+      # debug "Unsupported MultiAddress in blob", ma = data
+      return false
+    value.add(ma)
     true
   else:
     false
