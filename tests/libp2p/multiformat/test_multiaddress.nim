@@ -4,6 +4,7 @@
 {.used.}
 
 import std/[sequtils, net], stew/byteutils
+import protobuf_serialization
 import ../../../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
 import ../../tools/[unittest]
 
@@ -230,6 +231,16 @@ const
     "047f000001062a2a042a8000142a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2ad52a2a2a2a2a2a2a2a2a2a50900350900302030406005090030c2f622f00000203040600030406005090030c2f612f2a622f63030406005090030c2f612f2a622f632a2a002a2a2a2a2a2a37d52a2a2a2a2a2a2a2a2a2a5090032a",
     "90030c2a04",
   ]
+
+suite "MultiAddress test suite (protobuf_serialization)":
+  test "getField returns ok(true) for valid multiaddress (protobuf_serialization)":
+    let
+      ma = MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()
+      maEncoded = Protobuf.encode(ma)
+      maDecoded = Protobuf.decode(maEncoded, MultiAddress)
+
+    check:
+      maDecoded == ma
 
 suite "MultiAddress test suite":
   test "go-multiaddr success test vectors":
