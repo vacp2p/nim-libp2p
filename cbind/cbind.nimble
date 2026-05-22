@@ -52,7 +52,9 @@ task examples, "Build and run C bindings examples":
   let natLibs =
     "../nimbledeps/pkgs2/nat_traversal-*/vendor/miniupnp/miniupnpc/build/libminiupnpc.a " &
     "../nimbledeps/pkgs2/nat_traversal-*/vendor/libnatpmp-upstream/libnatpmp.a"
-  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a " & natLibs & " -pthread"
-  exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a " & natLibs & " -pthread"
+  exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a " &
+    natLibs & " -pthread"
+  exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a " & natLibs &
+    " -pthread"
   exec "../build/cbindings"
   exec "../build/echo"
