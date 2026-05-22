@@ -47,7 +47,6 @@ proc decode*(_: type DcutrMsg, buf: seq[byte]): Opt[DcutrMsg] =
         Opt.none(DcutrMsg)
     of MsgType.Sync:
       Opt.some(decoded)
-
   except SerializationError:
     Opt.none(DcutrMsg)
 
