@@ -288,7 +288,9 @@ when defined(libp2p_autotls_support):
       .get()
       .send()
     let body = await rawResponse.getResponseBody()
-    HTTPResponse(body: body, headers: rawResponse.headers)
+    let resp = HTTPResponse(body: body, headers: rawResponse.headers)
+    checkAPIError(resp)
+    return resp
 
   method get*(
       self: ACMEApi, uri: Uri
