@@ -25,7 +25,7 @@ type
 
   DcutrMsg* {.proto2.} = object
     msgType* {.fieldNumber: 1, required, ext.}: MsgType
-    addrs* {.fieldNumber: 2, ext.}: seq[MultiAddress]
+    addrs* {.fieldNumber: 2.}: seq[MultiAddress]
 
   DcutrError* = object of LPError
 
