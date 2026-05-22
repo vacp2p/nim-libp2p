@@ -8,9 +8,9 @@ import std/sequtils
 import chronos
 import stew/objects
 import protobuf_serialization, protobuf_serialization/std/enums
+import results
 
 import ../../../multiaddress, ../../../errors, ../../../stream/connection
-import ../../../protobuf/utils
 
 export multiaddress
 
@@ -29,7 +29,22 @@ type
 
   DcutrError* = object of LPError
 
-Protobuf.serializerFor([DcutrMsg])
+proc encode*(msg: DcutrMsg): seq[byte] =
+  Protobuf.encode(msg)
+
+proc decodeDcutrMsg*(buf: seq[byte]): DcutrMsg {.raises: [SerializationError].}=
+  Protobuf.decode(buf, DcutrMsg)
+
+proc decode*(_: type DcutrMsg, buf: seq[byte]): Opt[DcutrMsg] =
+  try:
+    let decoded = decodeDcutrMsg(buf)
+
+    if len(decoded.addrs) > 0:
+      Opt.some(decoded)
+    else:
+      Opt.none(DcutrMsg)
+  except SerializationError:
+    Opt.none(DcutrMsg)
 
 proc send*(
     stream: Stream, msgType: MsgType, addrs: seq[MultiAddress]
