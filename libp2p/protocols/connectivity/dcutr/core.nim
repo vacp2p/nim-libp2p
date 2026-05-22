@@ -32,7 +32,7 @@ type
 proc encode*(msg: DcutrMsg): seq[byte] =
   Protobuf.encode(msg)
 
-proc decodeDcutrMsg*(buf: seq[byte]): DcutrMsg {.raises: [SerializationError].}=
+proc decodeDcutrMsg*(buf: seq[byte]): DcutrMsg {.raises: [SerializationError].} =
   Protobuf.decode(buf, DcutrMsg)
 
 proc decode*(_: type DcutrMsg, buf: seq[byte]): Opt[DcutrMsg] =
