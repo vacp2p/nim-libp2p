@@ -84,7 +84,6 @@ nimble.paths: $(wildcard nimbledeps/pkgs2/*/*.nimble) $(wildcard nimbledeps/pkgs
 # package dir (it carries a version + commit-hash suffix) and invoke each
 # vendor Makefile directly, matching the approach in nwaku's Nat.mk.
 NAT_PKG_DIR := $(firstword $(wildcard nimbledeps/pkgs2/nat_traversal-*))
-NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/build/libminiupnpc.a
 NAT_PMP_LIB  := $(NAT_PKG_DIR)/vendor/libnatpmp-upstream/libnatpmp.a
 
 # Use gcc rather than `cc` so the linux-i386 wrapper (external/bin/gcc, which
@@ -92,10 +91,15 @@ NAT_PMP_LIB  := $(NAT_PKG_DIR)/vendor/libnatpmp-upstream/libnatpmp.a
 # compatibility shim, so this stays ABI-compatible with nim's choice.
 NAT_CC ?= gcc
 
+# miniupnpc's unix Makefile drops the .a under `build/`, but its Windows
+# Makefile.mingw drops it at the package root with no `build/` target — match
+# each one (the nat_traversal Nim wrapper expects the same paths on each OS).
 ifeq ($(OS),Windows_NT)
-  NAT_UPNP_MAKE_ARGS = -f Makefile.mingw CC=$(NAT_CC) build/libminiupnpc.a
+  NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/libminiupnpc.a
+  NAT_UPNP_MAKE_ARGS = -f Makefile.mingw CC=$(NAT_CC) libminiupnpc.a
   NAT_PMP_CFLAGS = -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 -DWIN32 -DNATPMP_STATICLIB
 else
+  NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/build/libminiupnpc.a
   NAT_UPNP_MAKE_ARGS = CC=$(NAT_CC) CFLAGS="-Os -fPIC" build/libminiupnpc.a
   NAT_PMP_CFLAGS = -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4
 endif
