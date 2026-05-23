@@ -37,6 +37,7 @@ type Dialer* = ref object of Dial
   transports: seq[Transport]
   peerStore: PeerStore
   nameResolver: NameResolver
+  ms*: MultistreamSelect
 
 method dialAndUpgrade*(
     self: Dialer,
@@ -296,6 +297,17 @@ method negotiateStream*(
       DialFailedError,
       "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
     )
+
+  # reserve outbound budget if we have a reference to MultistreamSelect
+  if not self.ms.isNil:
+    self.ms.lookupProtocol(selected).withValue(protocol):
+      if not protocol.canOpenOutgoing(stream.peerId):
+        await stream.closeWithEOF()
+        raise newException(
+          DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
+        )
+      protocol.reserveOutgoing(stream.peerId)
+
   return stream
 
 method tryDial*(
