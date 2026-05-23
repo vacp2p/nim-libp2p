@@ -174,3 +174,12 @@ proc isLoopbackMA*(ma: MultiAddress): bool =
     return false
 
   return hostIP.isLoopback()
+
+proc isPrivateMA*(ma: MultiAddress): bool =
+  ## True for addresses on private/non-routable networks: RFC1918, CGNAT
+  ## (RFC6598), link-local. These are the cases where a NAT port mapping is
+  ## actually useful.
+  let hostIP = initTAddress(ma).valueOr:
+    return false
+
+  hostIP.isPrivate() or hostIP.isShared() or hostIP.isLinkLocal()
