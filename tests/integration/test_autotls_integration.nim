@@ -26,8 +26,7 @@ when defined(linux) and defined(amd64) and defined(libp2p_autotls_support):
       challenge.finalize.len > 0
       challenge.order.len > 0
       challenge.dns01.url.len > 0
-      challenge.dns01.`type` == ACMEChallengeType.DNS01 or
-        challenge.dns01.`type` == ACMEChallengeType.DNSPersist01
+      challenge.dns01.`type` == ACMEChallengeType.DNS01
       challenge.dns01.status == ACMEChallengeStatus.PENDING
       challenge.dns01.token.len > 0
 
