@@ -10,7 +10,11 @@ import stew/objects
 import protobuf_serialization, protobuf_serialization/std/enums
 import results
 
-import ../../../multiaddress, ../../../errors, ../../../stream/connection
+import
+  ../../../multiaddress,
+  ../../../errors,
+  ../../../stream/connection,
+  ../../../protobuf/utils
 
 export multiaddress
 
@@ -29,26 +33,7 @@ type
 
   DcutrError* = object of LPError
 
-proc encode*(msg: DcutrMsg): seq[byte] =
-  Protobuf.encode(msg)
-
-proc decodeDcutrMsg*(buf: seq[byte]): DcutrMsg {.raises: [SerializationError].} =
-  Protobuf.decode(buf, DcutrMsg)
-
-proc decode*(_: type DcutrMsg, buf: seq[byte]): Opt[DcutrMsg] =
-  try:
-    let decoded = decodeDcutrMsg(buf)
-
-    case decoded.msgType
-    of MsgType.Connect:
-      if len(decoded.addrs) > 0:
-        Opt.some(decoded)
-      else:
-        Opt.none(DcutrMsg)
-    of MsgType.Sync:
-      Opt.some(decoded)
-  except SerializationError:
-    Opt.none(DcutrMsg)
+Protobuf.serializerFor([DcutrMsg])
 
 proc send*(
     stream: Stream, msgType: MsgType, addrs: seq[MultiAddress]
