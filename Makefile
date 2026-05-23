@@ -94,13 +94,22 @@ NAT_CC ?= gcc
 # miniupnpc's unix Makefile drops the .a under `build/`, but its Windows
 # Makefile.mingw drops it at the package root with no `build/` target — match
 # each one (the nat_traversal Nim wrapper expects the same paths on each OS).
+#
+# libnatpmp's Makefile keys off `$(OS)`: when it contains mingw/cygwin/msys it
+# adds `wingettimeofday.o` to LIBOBJS (which defines `natpmp_gettimeofday` used
+# by natpmp.c). On Windows we must explicitly pass `OS=mingw` — the env-var OS
+# on Windows is `Windows_NT`, which doesn't match — otherwise the resulting
+# libnatpmp.a is missing that symbol and linking fails with `ld.lld: error:
+# undefined symbol: natpmp_gettimeofday`.
 ifeq ($(OS),Windows_NT)
   NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/libminiupnpc.a
   NAT_UPNP_MAKE_ARGS = -f Makefile.mingw CC=$(NAT_CC) libminiupnpc.a
+  NAT_PMP_MAKE_EXTRA = OS=mingw
   NAT_PMP_CFLAGS = -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 -DWIN32 -DNATPMP_STATICLIB
 else
   NAT_UPNP_LIB := $(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc/build/libminiupnpc.a
   NAT_UPNP_MAKE_ARGS = CC=$(NAT_CC) CFLAGS="-Os -fPIC" build/libminiupnpc.a
+  NAT_PMP_MAKE_EXTRA =
   NAT_PMP_CFLAGS = -Wall -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4
 endif
 
@@ -123,7 +132,7 @@ $(NAT_LIBS_STAMP): | nat_pkg_dir_check
 	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" clean
 	-$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" clean
 	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/miniupnp/miniupnpc" $(NAT_UPNP_MAKE_ARGS)
-	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" libnatpmp.a
+	$(MAKE) -C "$(NAT_PKG_DIR)/vendor/libnatpmp-upstream" $(NAT_PMP_MAKE_EXTRA) CC=$(NAT_CC) CFLAGS="$(NAT_PMP_CFLAGS)" libnatpmp.a
 	touch "$@"
 
 test: nimble.paths nat_libs
