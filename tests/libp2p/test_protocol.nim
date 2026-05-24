@@ -4,7 +4,7 @@
 {.used.}
 
 import chronos
-import ../../libp2p/[peerid, protocols/protocol, stream/connection, utility]
+import ../../libp2p/[peerid, protocols/protocol, stream/connection]
 import ../tools/[unittest, crypto]
 
 proc handler(
