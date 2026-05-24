@@ -113,34 +113,34 @@ proc reserveIncoming*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     return
-  budget.totalIncoming += 1
+  budget.totalIncoming.inc
   budget.perPeerIncoming.inc(peerId)
 
 proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     return
-  budget.totalIncoming -= 1
+  budget.totalIncoming.dec
   if budget.totalIncoming < 0:
     budget.totalIncoming = 0
   budget.perPeerIncoming.inc(peerId, -1)
-  if budget.perPeerIncoming[peerId] == 0:
+  if budget.perPeerIncoming[peerId] <= 0:
     budget.perPeerIncoming.del(peerId)
 
 proc reserveOutgoing*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     return
-  budget.totalOutgoing += 1
+  budget.totalOutgoing.inc
   budget.perPeerOutgoing.inc(peerId)
 
 proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     return
-  budget.totalOutgoing -= 1
+  budget.totalOutgoing.dec
   if budget.totalOutgoing < 0:
     budget.totalOutgoing = 0
   budget.perPeerOutgoing.inc(peerId, -1)
-  if budget.perPeerOutgoing[peerId] == 0:
+  if budget.perPeerOutgoing[peerId] <= 0:
     budget.perPeerOutgoing.del(peerId)
