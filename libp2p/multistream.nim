@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[strutils, sequtils, tables]
+import std/[strutils, sequtils]
 import chronos, results, chronicles, stew/byteutils
 import stream/connection, protocols/protocol
 
