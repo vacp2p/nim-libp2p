@@ -515,7 +515,7 @@ suite "Multistream :: stream limits":
 
   proc makeBlockedHandler(): LPProtoHandler =
     let blocker = newWaitGroup(1)
-    # block stream progress in order to make stream occupide while test is running.
+    # block stream progress in order to make stream occupied while test is running.
     # if handler finishes fast we would never reach limit - it would be a race otherwise.
 
     proc testHandler(
