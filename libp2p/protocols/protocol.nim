@@ -9,8 +9,6 @@ import ../stream/connection
 
 export results
 
-const DefaultMaxIncomingStreams* = 10
-
 type
   LPProtoHandler* = proc(stream: Stream, proto: string): Future[void] {.
     async: (raises: [CancelledError])
