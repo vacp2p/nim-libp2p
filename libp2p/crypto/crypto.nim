@@ -514,14 +514,11 @@ template initImpl[T: PrivateKey | PublicKey](key: var T, data: openArray[byte]):
           else:
             false
 
-{.push warning[ProveField]: off.} # https://github.com/nim-lang/Nim/issues/22060
 proc init*(key: var PrivateKey, data: openArray[byte]): bool =
   initImpl(key, data)
 
 proc init*(key: var PublicKey, data: openArray[byte]): bool =
   initImpl(key, data)
-
-{.pop.}
 
 proc init*(sig: var Signature, data: openArray[byte]): bool =
   ## Initialize signature ``sig`` from raw binary form.
