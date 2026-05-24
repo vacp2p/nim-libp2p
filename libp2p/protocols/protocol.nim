@@ -6,6 +6,7 @@
 import std/[tables]
 import chronos, results
 import ../stream/connection
+import ../utils/opt
 
 export results
 
@@ -58,12 +59,6 @@ template `handler`*(p: LPProtocol, stream: Stream, proto: string): Future[void] 
 func `handler=`*(p: LPProtocol, handler: LPProtoHandler) =
   p.handlerImpl = handler
 
-proc toOptInt(v: Opt[int] | int): Opt[int] =
-  when v is int:
-    Opt.some(v)
-  else:
-    v
-
 proc new*(
     T: type LPProtocol,
     codecs: seq[string],
@@ -76,10 +71,10 @@ proc new*(
   T(
     codecs: codecs,
     handlerImpl: handler,
-    maxIncomingStreamsTotal: toOptInt(maxIncomingStreamsTotal),
-    maxIncomingStreamsPerPeer: toOptInt(maxIncomingStreamsPerPeer),
-    maxOutgoingStreamsTotal: toOptInt(maxOutgoingStreamsTotal),
-    maxOutgoingStreamsPerPeer: toOptInt(maxOutgoingStreamsPerPeer),
+    maxIncomingStreamsTotal: toOpt(maxIncomingStreamsTotal),
+    maxIncomingStreamsPerPeer: toOpt(maxIncomingStreamsPerPeer),
+    maxOutgoingStreamsTotal: toOpt(maxOutgoingStreamsTotal),
+    maxOutgoingStreamsPerPeer: toOpt(maxOutgoingStreamsPerPeer),
     streamBudget: StreamBudgetState(
       perPeerIncoming: initCountTable[PeerId](),
       perPeerOutgoing: initCountTable[PeerId](),
