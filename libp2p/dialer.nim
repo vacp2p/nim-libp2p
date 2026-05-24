@@ -37,7 +37,7 @@ type Dialer* = ref object of Dial
   transports: seq[Transport]
   peerStore: PeerStore
   nameResolver: NameResolver
-  ms*: MultistreamSelect
+  ms: MultistreamSelect
 
 method dialAndUpgrade*(
     self: Dialer,
@@ -408,6 +408,7 @@ proc new*(
     peerStore: PeerStore,
     transports: seq[Transport],
     nameResolver: NameResolver = nil,
+    ms: MultistreamSelect = nil,
 ): Dialer =
   T(
     localPeerId: localPeerId,
@@ -415,4 +416,5 @@ proc new*(
     transports: transports,
     peerStore: peerStore,
     nameResolver: nameResolver,
+    ms: ms,
   )

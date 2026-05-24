@@ -6,7 +6,6 @@
 import std/[tables]
 import chronos, results
 import ../stream/connection
-import ../utils/future
 
 export results
 
@@ -27,30 +26,21 @@ type
     codecs*: seq[string]
     handlerImpl: LPProtoHandler ## invoked by the protocol negotiator
     started*: bool
-    maxIncomingStreams: Opt[int]
-    # V1 stream budget fields (opt-in; default Opt.none means unlimited)
-    maxTotalIncomingStreams*: Opt[int]
-    maxOutgoingStreams*: Opt[int] ## outbound per-peer cap
-    maxTotalOutgoingStreams*: Opt[int] ## outbound total cap
+    maxIncomingStreamsTotal*: Opt[int]
+    maxIncomingStreamsPerPeer: Opt[int]
+    maxOutgoingStreamsTotal*: Opt[int]
+    maxOutgoingStreamsPerPeer*: Opt[int]
     # Runtime counters shared across all codecs of this protocol
     streamBudget*: StreamBudgetState
 
 method init*(p: LPProtocol) {.base, gcsafe.} =
   discard
 
-method start*(p: LPProtocol) {.base, async: (raises: [CancelledError], raw: true).} =
+method start*(p: LPProtocol) {.base, async: (raises: [CancelledError]).} =
   p.started = true
-  newFutureCompleted[void]()
 
-method stop*(p: LPProtocol) {.base, async: (raises: [], raw: true).} =
+method stop*(p: LPProtocol) {.base, async: (raises: []).} =
   p.started = false
-  newFutureCompleted[void]()
-
-proc maxIncomingStreams*(p: LPProtocol): int =
-  p.maxIncomingStreams.get(DefaultMaxIncomingStreams)
-
-proc `maxIncomingStreams=`*(p: LPProtocol, val: int) =
-  p.maxIncomingStreams = Opt.some(val)
 
 func codec*(p: LPProtocol): string =
   doAssert(p.codecs.len > 0, "Codecs sequence was empty!")
@@ -80,18 +70,18 @@ proc new*(
     T: type LPProtocol,
     codecs: seq[string],
     handler: LPProtoHandler,
-    maxIncomingStreams: Opt[int] | int = Opt.none(int),
-    maxTotalIncomingStreams: Opt[int] | int = Opt.none(int),
-    maxOutgoingStreams: Opt[int] | int = Opt.none(int),
-    maxTotalOutgoingStreams: Opt[int] | int = Opt.none(int),
+    maxIncomingStreamsTotal: Opt[int] | int = Opt.none(int),
+    maxIncomingStreamsPerPeer: Opt[int] | int = 10,
+    maxOutgoingStreamsTotal: Opt[int] | int = Opt.none(int),
+    maxOutgoingStreamsPerPeer: Opt[int] | int = 10,
 ): T =
   T(
     codecs: codecs,
     handlerImpl: handler,
-    maxIncomingStreams: toOptInt(maxIncomingStreams),
-    maxTotalIncomingStreams: toOptInt(maxTotalIncomingStreams),
-    maxOutgoingStreams: toOptInt(maxOutgoingStreams),
-    maxTotalOutgoingStreams: toOptInt(maxTotalOutgoingStreams),
+    maxIncomingStreamsTotal: toOptInt(maxIncomingStreamsTotal),
+    maxIncomingStreamsPerPeer: toOptInt(maxIncomingStreamsPerPeer),
+    maxOutgoingStreamsTotal: toOptInt(maxOutgoingStreamsTotal),
+    maxOutgoingStreamsPerPeer: toOptInt(maxOutgoingStreamsPerPeer),
     streamBudget: StreamBudgetState(
       perPeerIncoming: initCountTable[PeerId](),
       perPeerOutgoing: initCountTable[PeerId](),
@@ -104,11 +94,11 @@ func canAcceptIncoming*(p: LPProtocol, peerId: PeerId): bool =
   let budget = p.streamBudget
   if budget.isNil:
     return true
-  if p.maxIncomingStreams.isSome and
-      budget.perPeerIncoming.getOrDefault(peerId) >= p.maxIncomingStreams.get:
+  if p.maxIncomingStreamsPerPeer.isSome and
+      budget.perPeerIncoming.getOrDefault(peerId) >= p.maxIncomingStreamsPerPeer.get:
     return false
-  if p.maxTotalIncomingStreams.isSome and
-      budget.totalIncoming >= p.maxTotalIncomingStreams.get:
+  if p.maxIncomingStreamsTotal.isSome and
+      budget.totalIncoming >= p.maxIncomingStreamsTotal.get:
     return false
   return true
 
@@ -118,11 +108,11 @@ func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   let budget = p.streamBudget
   if budget.isNil:
     return true
-  if p.maxOutgoingStreams.isSome and
-      budget.perPeerOutgoing.getOrDefault(peerId) >= p.maxOutgoingStreams.get:
+  if p.maxOutgoingStreamsPerPeer.isSome and
+      budget.perPeerOutgoing.getOrDefault(peerId) >= p.maxOutgoingStreamsPerPeer.get:
     return false
-  if p.maxTotalOutgoingStreams.isSome and
-      budget.totalOutgoing >= p.maxTotalOutgoingStreams.get:
+  if p.maxOutgoingStreamsTotal.isSome and
+      budget.totalOutgoing >= p.maxOutgoingStreamsTotal.get:
     return false
   return true
 

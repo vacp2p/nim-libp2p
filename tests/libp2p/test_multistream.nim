@@ -316,7 +316,7 @@ suite "Multistream select":
         await stream.close()
 
     var protocol: LPProtocol =
-      LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxIncomingStreams = 5)
+      LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxIncomingStreamsPerPeer = 5)
 
     protocol.handler = testHandler
     let msListen = MultistreamSelect.new()
@@ -496,7 +496,7 @@ suite "Multistream select":
     await transport2.stop()
     await transport1.stop()
 
-suite "Multistream :: limits":
+suite "Multistream :: stream limits":
   teardown:
     checkTrackers()
 
@@ -537,7 +537,7 @@ suite "Multistream :: limits":
     let protocol = LPProtocol.new(
       @["/test/proto/1.0.0"],
       makeBlockedHandler(),
-      maxTotalIncomingStreams = maxTotalStreams,
+      maxIncomingStreamsTotal = maxTotalStreams,
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
@@ -575,7 +575,7 @@ suite "Multistream :: limits":
     let protocol = LPProtocol.new(
       @["/test/proto1/1.0.0", "/test/proto2/1.0.0"],
       makeBlockedHandler(),
-      maxTotalIncomingStreams = 2,
+      maxIncomingStreamsTotal = 2,
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
@@ -625,7 +625,7 @@ suite "Multistream :: limits":
           handlerResolved.complete()
 
     let protocol =
-      LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxTotalIncomingStreams = 1)
+      LPProtocol.new(@["/test/proto/1.0.0"], testHandler, maxIncomingStreamsTotal = 1)
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
     await transport1.start(ma)
@@ -657,7 +657,7 @@ suite "Multistream :: limits":
 
   asyncTest "e2e - inbound per-peer limit":
     let protocol = LPProtocol.new(
-      @["/test/proto/1.0.0"], makeBlockedHandler(), maxIncomingStreams = 2
+      @["/test/proto/1.0.0"], makeBlockedHandler(), maxIncomingStreamsPerPeer = 2
     )
 
     let transport1 = TcpTransport.new(upgrade = Upgrade())
