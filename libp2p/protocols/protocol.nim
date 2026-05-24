@@ -15,22 +15,22 @@ type
     async: (raises: [CancelledError])
   .}
 
-  StreamBudgetState* = ref object
-    totalIncoming*: int
-    totalOutgoing*: int
-    perPeerIncoming*: CountTable[PeerId]
-    perPeerOutgoing*: CountTable[PeerId]
+  StreamBudgetState = ref object
+    totalIncoming: int
+    totalOutgoing: int
+    perPeerIncoming: CountTable[PeerId]
+    perPeerOutgoing: CountTable[PeerId]
 
   LPProtocol* = ref object of RootObj
+    started*: bool
     codecs*: seq[string]
     handlerImpl: LPProtoHandler ## invoked by the protocol negotiator
-    started*: bool
-    maxIncomingStreamsTotal*: Opt[int]
+    maxIncomingStreamsTotal: Opt[int]
     maxIncomingStreamsPerPeer: Opt[int]
-    maxOutgoingStreamsTotal*: Opt[int]
-    maxOutgoingStreamsPerPeer*: Opt[int]
-    # Runtime counters shared across all codecs of this protocol
-    streamBudget*: StreamBudgetState
+    maxOutgoingStreamsTotal: Opt[int]
+    maxOutgoingStreamsPerPeer: Opt[int]
+    streamBudget: StreamBudgetState
+      ## Runtime counters shared across all codecs of this protocol
 
 method init*(p: LPProtocol) {.base, gcsafe.} =
   discard
