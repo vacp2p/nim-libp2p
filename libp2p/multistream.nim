@@ -197,16 +197,16 @@ proc handle*(
           protos.add(proto)
       await MultistreamSelect.handle(stream, protos, matchers, active)
     except LPStreamError as e:
-      trace "Exception in multistream", stream, description = e.msg
+      trace "Exception in MultistreamSelect.handle", stream, description = e.msg
       return
     except MultiStreamError as e:
-      trace "Exception in multistream", stream, description = e.msg
+      trace "Exception in MultistreamSelect.handle", stream, description = e.msg
       return
 
   m.lookupProtocol(ms).withValue(p):
     trace "found handler", stream, protocol = ms
 
-    if not protocol.reserveIncoming(stream.peerId):
+    if not p.reserveIncoming(stream.peerId):
       debug "Inbound stream budget exceeded, rejecting incoming stream",
         stream, protocol = ms, peerId = stream.peerId
       return
