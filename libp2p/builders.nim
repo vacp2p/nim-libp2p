@@ -500,7 +500,7 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
     )
 
   let dialer =
-    Dialer.new(peerInfo.peerId, connManager, peerStore, transports, b.nameResolver, ms)
+    Dialer.new(peerInfo.peerId, connManager, peerStore, transports, ms, b.nameResolver)
 
   let switch = Switch(
     peerInfo: peerInfo,

@@ -299,25 +299,23 @@ method negotiateStream*(
       "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
     )
 
-  # reserve outbound budget if we have a reference to MultistreamSelect
-  if not self.ms.isNil:
-    self.ms.lookupProtocol(selected).withValue(protocol):
-      if not protocol.reserveOutgoing(stream.peerId):
-        await stream.closeWithEOF()
-        raise newException(
-          DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
-        )
+  self.ms.lookupProtocol(selected).withValue(protocol):
+    if not protocol.reserveOutgoing(stream.peerId):
+      await stream.closeWithEOF()
+      raise newException(
+        DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
+      )
 
-      proc releaseOnClose() {.async: (raises: []).} =
-        await noCancel stream.join()
-        protocol.releaseOutgoing(stream.peerId)
+    proc releaseOnClose() {.async: (raises: []).} =
+      await noCancel stream.join()
+      protocol.releaseOutgoing(stream.peerId)
 
-      let fut = releaseOnClose()
-      self.ongoingReleaseOnClose.add(fut)
-      fut.addCallback proc(udata: pointer) =
-        let idx = self.ongoingReleaseOnClose.find(fut)
-        if idx >= 0:
-          self.ongoingReleaseOnClose.del(idx)
+    let fut = releaseOnClose()
+    self.ongoingReleaseOnClose.add(fut)
+    fut.addCallback proc(udata: pointer) =
+      let idx = self.ongoingReleaseOnClose.find(fut)
+      if idx >= 0:
+        self.ongoingReleaseOnClose.del(idx)
 
   return stream
 
@@ -418,8 +416,8 @@ proc new*(
     connManager: ConnManager,
     peerStore: PeerStore,
     transports: seq[Transport],
+    ms: MultistreamSelect,
     nameResolver: NameResolver = nil,
-    ms: MultistreamSelect = nil,
 ): Dialer =
   T(
     localPeerId: localPeerId,
