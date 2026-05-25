@@ -41,8 +41,7 @@ export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
   connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig, natservice.NATMode,
-  natservice.NATPortMapper, natservice.NATPortMapperFactory, natservice.upnpConfig,
-  natservice.natPmpConfig
+  natservice.NATPortMapper
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -87,7 +86,6 @@ type
     autonatV2Service: Opt[AutonatV2Service]
     hpService: Opt[HPService]
     natConfig: Opt[NATConfig]
-    natMapperFactory: NATPortMapperFactory
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
@@ -345,15 +343,10 @@ proc withAutonatV2*(
   )
   b
 
-proc withNAT*(
-    b: SwitchBuilder, config: NATConfig, mapperFactory: NATPortMapperFactory = nil
-): SwitchBuilder =
+proc withNAT*(b: SwitchBuilder, config: NATConfig): SwitchBuilder =
   ## Enable a NAT traversal service.
   ## TODO: wire in autonat / hole-punching.
-  ## ``mapperFactory`` is intended for tests; when ``nil``, NATService picks
-  ## the production UPnP / NAT-PMP backend matching ``config.mode``.
   b.natConfig = Opt.some(config)
-  b.natMapperFactory = mapperFactory
   b
 
 proc withHolePunching*(
@@ -536,7 +529,7 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     switch.services.add(hpservice)
 
   b.natConfig.withValue(natCfg):
-    switch.services.add(NATService.new(natCfg, b.natMapperFactory))
+    switch.services.add(NATService.new(natCfg))
 
   if b.identifyPusherEnabled:
     switch.services.add(IdentifyPusher.new())

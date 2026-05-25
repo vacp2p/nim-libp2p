@@ -17,96 +17,79 @@ logScope:
 
 type
   NATMode* = enum
-    natModeAuto
-      ## Use libp2p-native mechanisms (autonat / hole-punching). No port-mapping
-      ## is performed.
-      ## TODO: In this skeleton it is a no-op;
-    natModeExplicitIp
-      ## Static external IP, no probing. The configured ``explicitIp`` is combined
-      ## with the bound listen addresses to produce the announced address set.
-    natModeUpnp
-      ## Request port mappings from an UPnP-capable Internet Gateway Device via
-      ## the SSDP/UPnP-IGD protocol. The mapper periodically renews the lease
-      ## and deletes the mapping on shutdown.
-    natModeNatPmp
-      ## Request port mappings via NAT-PMP (RFC 6886). Same lifecycle as
-      ## ``natModeUpnp``, but talks to the default gateway directly.
+    Auto ## No port mapping; relies on autonat/hole-punching. TODO: not yet wired.
+    ExplicitIp ## Static external IP combined with bound listen ports.
+    Upnp ## Request port mappings from a UPnP IGD.
+    NatPmp ## Request port mappings via NAT-PMP (RFC 6886).
 
   NATConfig* = object
     case mode*: NATMode
-    of natModeAuto:
+    of Auto:
       discard
-    of natModeExplicitIp:
+    of ExplicitIp:
       explicitIp*: IpAddress
-    of natModeUpnp, natModeNatPmp:
-      description*: string
-        ## Human-readable label registered with the gateway for the mapping
-        ## (UPnP IGDs surface this in their admin UI).
-      refreshInterval*: Duration
-        ## How often we re-request the mapping. Must be strictly less than
-        ## ``leaseDuration``, otherwise the lease expires before we renew.
-      leaseDuration*: Duration
-        ## Lease lifetime requested from the gateway. ``0.seconds`` asks UPnP
-        ## for an infinite lease (NAT-PMP requires a positive lifetime).
+    of Upnp, NatPmp:
+      description*: string ## Label shown by UPnP IGDs in their admin UI.
+      refreshInterval*: Duration ## Renewal cadence; must be < ``leaseDuration``.
+      leaseDuration*: Duration ## Lease lifetime requested from the gateway.
 
   NATService* = ref object of Service
     config: NATConfig
     addressMapper: AddressMapper
-    mapperFactory: NATPortMapperFactory
     portMapper: NATPortMapper
     externalIp: Opt[IpAddress]
     activeMappings: seq[PortMapping]
     refreshFut: Future[void]
 
 const
-  DefaultUpnpRefreshInterval* = 20.minutes
-  DefaultUpnpLeaseDuration* = 60.minutes
+  DefaultNATRefreshInterval* = 20.minutes
+  DefaultNATLeaseDuration* = 60.minutes
   DefaultNATDescription* = "nim-libp2p"
 
-proc upnpConfig*(
+proc new*(
+    T: typedesc[NATConfig],
+    mode: NATMode,
     description = DefaultNATDescription,
-    refreshInterval = DefaultUpnpRefreshInterval,
-    leaseDuration = DefaultUpnpLeaseDuration,
-): NATConfig =
-  NATConfig(
-    mode: natModeUpnp,
-    description: description,
-    refreshInterval: refreshInterval,
-    leaseDuration: leaseDuration,
-  )
+    refreshInterval = DefaultNATRefreshInterval,
+    leaseDuration = DefaultNATLeaseDuration,
+): T =
+  ## For ``Auto``, ``Upnp``, or ``NatPmp``. Use the ``explicitIp`` overload
+  ## for ``ExplicitIp``.
+  case mode
+  of Auto:
+    NATConfig(mode: Auto)
+  of Upnp:
+    NATConfig(
+      mode: Upnp,
+      description: description,
+      refreshInterval: refreshInterval,
+      leaseDuration: leaseDuration,
+    )
+  of NatPmp:
+    NATConfig(
+      mode: NatPmp,
+      description: description,
+      refreshInterval: refreshInterval,
+      leaseDuration: leaseDuration,
+    )
+  of ExplicitIp:
+    raiseAssert "use NATConfig.new(explicitIp) for ExplicitIp"
 
-proc natPmpConfig*(
-    description = DefaultNATDescription,
-    refreshInterval = DefaultUpnpRefreshInterval,
-    leaseDuration = DefaultUpnpLeaseDuration,
-): NATConfig =
-  NATConfig(
-    mode: natModeNatPmp,
-    description: description,
-    refreshInterval: refreshInterval,
-    leaseDuration: leaseDuration,
-  )
+proc new*(T: typedesc[NATConfig], explicitIp: IpAddress): T =
+  NATConfig(mode: ExplicitIp, explicitIp: explicitIp)
 
 proc new*(
-    T: typedesc[NATService],
-    config: NATConfig,
-    mapperFactory: NATPortMapperFactory = nil,
+    T: typedesc[NATService], config: NATConfig, portMapper: NATPortMapper = nil
 ): T =
-  ## ``mapperFactory`` is used by tests to inject a fake port-mapper. When
-  ## ``nil`` and ``config.mode`` is ``natModeUpnp``/``natModeNatPmp``, the
-  ## service builds the production miniupnpc/libnatpmp-backed mapper at
-  ## setup time.
-  T(config: config, mapperFactory: mapperFactory)
+  ## Optional ``portMapper`` overrides the default backend. When ``nil`` and
+  ## ``config.mode`` is ``Upnp``/``NatPmp``, setup builds the production mapper.
+  T(config: config, portMapper: portMapper)
 
 proc acquireMappings(
     self: NATService, listenAddrs: seq[MultiAddress]
 ): Result[void, string] =
-  ## Runs the (blocking) discovery + mapping calls against ``self.portMapper``
-  ## using ``listenAddrs``. On success, populates ``self.externalIp`` and
-  ## ``self.activeMappings``. Safe to call multiple times — refresh ticks
-  ## reuse it. Callers pass the currently bound listen addresses; this proc
-  ## does not reach into ``Switch`` because the initial mapping runs from the
-  ## address mapper, where the bound listen set is the function argument.
+  ## Discover the external IP and request a mapping per listen address.
+  ## Populates ``externalIp``/``activeMappings``. Safe to call repeatedly.
   let extIp = ?self.portMapper.discoverExternalIp()
   let wanted = collectInternalPorts(listenAddrs)
   if wanted.len == 0:
@@ -126,6 +109,9 @@ proc acquireMappings(
     )
   if acquired.len == 0:
     return err("NAT: no port mappings were acquired")
+  if acquired.len < wanted.len:
+    warn "NAT: only some port mappings were acquired",
+      acquired = acquired.len, requested = wanted.len
   self.externalIp = Opt.some(extIp)
   self.activeMappings = acquired
   ok()
@@ -134,67 +120,63 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
   debug "Setting up NATService", mode = self.config.mode
 
   case self.config.mode
-  of natModeAuto:
+  of Auto:
     # TODO: wire autonat / hole-punching in here.
     discard
-  of natModeExplicitIp:
+  of ExplicitIp:
     self.addressMapper = proc(
         listenAddrs: seq[MultiAddress]
     ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
       return explicitIpMapped(listenAddrs, self.config.explicitIp)
-  of natModeUpnp, natModeNatPmp:
-    if self.mapperFactory == nil:
-      self.mapperFactory =
-        case self.config.mode
-        of natModeUpnp: newMiniupnpcMapper
-        of natModeNatPmp: newNatPmpMapper
-        else: nil
-    try:
-      self.portMapper = self.mapperFactory()
-    except NATMapperError as e:
-      raise newException(ServiceSetupError, "NAT mapper factory failed: " & e.msg)
+  of Upnp, NatPmp:
+    if self.portMapper == nil:
+      try:
+        self.portMapper =
+          case self.config.mode
+          of Upnp:
+            newMiniupnpcMapper()
+          of NatPmp:
+            newNatPmpMapper()
+          else:
+            nil
+      except NATMapperError as e:
+        raise
+          newException(ServiceSetupError, "NAT mapper construction failed: " & e.msg)
     self.addressMapper = proc(
         listenAddrs: seq[MultiAddress]
     ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-      # First invocation runs while Switch.start is finishing — at that point
-      # transports have bound and ``listenAddrs`` carries real ports, so this
-      # is where we actually request the mapping from the gateway.
+      # First call runs at the tail of ``Switch.start``, after transports have
+      # bound real ports — that's when we actually ask the gateway.
       if self.externalIp.isNone:
         self.acquireMappings(listenAddrs).isOkOr:
           warn "NAT initial mapping failed", error = error
           return @[]
       let extIp = self.externalIp.valueOr:
         return @[]
-      return mappedAnnouncements(listenAddrs, extIp, self.activeMappings)
+      return gatewayMapped(listenAddrs, extIp, self.activeMappings)
 
-proc refreshLoop(self: NATService, switch: Switch) {.async: (raises: []).} =
+proc refreshLoop(
+    self: NATService, switch: Switch
+) {.async: (raises: [CancelledError]).} =
   let interval =
     if self.config.refreshInterval > 0.seconds:
       self.config.refreshInterval
     else:
-      DefaultUpnpRefreshInterval
-  try:
-    heartbeat "nat refresh", interval, sleepFirst = true:
-      self.acquireMappings(switch.peerInfo.listenAddrs).isOkOr:
-        warn "NAT mapping refresh failed", error = error
-        continue
-      try:
-        await switch.peerInfo.update()
-      except CancelledError:
-        return
-  except CancelledError:
-    return
+      DefaultNATRefreshInterval
+  heartbeat "nat refresh", interval, sleepFirst = true:
+    self.acquireMappings(switch.peerInfo.listenAddrs).isOkOr:
+      warn "NAT mapping refresh failed", error = error
+      continue
+    await switch.peerInfo.update()
 
 method start*(self: NATService, switch: Switch) {.async: (raises: [CancelledError]).} =
   trace "Starting NATService", mode = self.config.mode
   if self.addressMapper != nil:
     switch.peerInfo.addressMappers.add(self.addressMapper)
   case self.config.mode
-  of natModeUpnp, natModeNatPmp:
-    # Initial mapping acquisition is deferred to the addressMapper, which is
-    # invoked by Switch.start after transports have bound (``peerInfo.update``
-    # at the tail of ``Switch.start``). The refresh loop only re-acquires
-    # afterwards, so its first tick must sleep before doing any work.
+  of Upnp, NatPmp:
+    # Initial mapping is acquired lazily by the addressMapper; the refresh
+    # loop only renews, so its first tick must sleep before doing any work.
     self.refreshFut = self.refreshLoop(switch)
   else:
     discard
@@ -214,7 +196,5 @@ method stop*(self: NATService, switch: Switch) {.async: (raises: [CancelledError
   self.externalIp = Opt.none(IpAddress)
   if self.addressMapper != nil:
     switch.peerInfo.addressMappers.keepItIf(it != self.addressMapper)
-  # Do not touch peerInfo.announcedAddrs here: those may have been set by the
-  # user via withAnnouncedAddresses, and triggering peerInfo.update during
-  # shutdown can cause observers (e.g. IdentifyPusher) to broadcast while the
-  # switch is tearing down.
+  # Don't touch peerInfo.announcedAddrs / call peerInfo.update here — it can
+  # make observers (e.g. IdentifyPusher) broadcast mid-shutdown.

@@ -24,8 +24,6 @@ type
     ## tests (in-memory fakes). Method bodies block the calling thread and
     ## must not be invoked on the chronos event loop without yielding.
 
-  NATPortMapperFactory* = proc(): NATPortMapper {.gcsafe, raises: [NATMapperError].}
-
 method discoverExternalIp*(
     m: NATPortMapper
 ): Result[IpAddress, string] {.base, gcsafe, raises: [].} =

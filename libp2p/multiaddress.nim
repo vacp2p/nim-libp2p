@@ -1281,6 +1281,29 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
       cursor.offset = cursor.offset + skipLen
     # Marker - nothing to skip
 
+proc replacePort*(ma: MultiAddress, port: Port): MaResult[MultiAddress] =
+  ## Returns a copy of ``ma`` with its leading /tcp or /udp port replaced by
+  ## ``port``. The transport codec (tcp or udp) is preserved, as is the rest
+  ## of the multiaddress. Returns an error if ``ma`` has no /tcp or /udp
+  ## component.
+  let
+    tcpCodec = multiCodec("tcp")
+    udpCodec = multiCodec("udp")
+  var
+    found = false
+    res = MultiAddress.init()
+  for item in ma.items:
+    let part = ?item
+    let code = ?part.protoCode
+    if not found and (code == tcpCodec or code == udpCodec):
+      ?res.append(?MultiAddress.init(code, int(port)))
+      found = true
+    else:
+      ?res.append(part)
+  if not found:
+    return err("multiaddress: no tcp/udp component to replace")
+  ok(res)
+
 proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
   ## Returns a copy of ``ma`` with its leading IP4/IP6 component replaced by
   ## ``ip``. If ``ip``'s family differs from the original, the IP codec is

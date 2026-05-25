@@ -10,9 +10,7 @@ import ../../../libp2p/services/natservice
 import ../../tools/[unittest, crypto]
 
 proc makeSwitch(
-    config: NATConfig,
-    listenAddrs: seq[MultiAddress],
-    mapperFactory: NATPortMapperFactory = nil,
+    config: NATConfig, listenAddrs: seq[MultiAddress]
 ): Switch {.raises: [LPError].} =
   SwitchBuilder
     .new()
@@ -21,8 +19,27 @@ proc makeSwitch(
     .withTcpTransport()
     .withMplex()
     .withNoise()
-    .withNAT(config, mapperFactory)
+    .withNAT(config)
     .build()
+
+proc makeSwitchWithMapper(
+    config: NATConfig, listenAddrs: seq[MultiAddress], mapper: NATPortMapper
+): Switch {.raises: [LPError].} =
+  ## Build the switch without ``withNAT``, then attach a ``NATService`` with
+  ## the supplied (fake) mapper. Used by tests to bypass production mapper
+  ## construction.
+  let switch = SwitchBuilder
+    .new()
+    .withRng(rng())
+    .withAddresses(listenAddrs, false)
+    .withTcpTransport()
+    .withMplex()
+    .withNoise()
+    .build()
+  let nat = NATService.new(config, mapper)
+  switch.services.add(nat)
+  nat.setup(switch)
+  switch
 
 # ---------------------------------------------------------------------------
 # FakeNATPortMapper — records all calls and lets tests script the responses.
@@ -136,10 +153,10 @@ suite "NATService":
       resolved = @[ma("/ip4/192.168.1.10/tcp/50000"), ma("/ip4/10.0.0.5/tcp/50000")]
     check explicitIpMapped(resolved, ip4) == @[ma("/ip4/203.0.113.7/tcp/50000")]
 
-  asyncTest "natModeExplicitIp announces the explicit IP with bound ports":
+  asyncTest "ExplicitIp announces the explicit IP with bound ports":
     let
       explicitIp = parseIpAddress("203.0.113.7")
-      cfg = NATConfig(mode: natModeExplicitIp, explicitIp: explicitIp)
+      cfg = NATConfig.new(explicitIp)
       switch = makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
 
     await switch.start()
@@ -152,9 +169,9 @@ suite "NATService":
 
     check switch.peerInfo.addrs == @[expected]
 
-  asyncTest "natModeAuto is a no-op on announced addresses":
+  asyncTest "Auto is a no-op on announced addresses":
     let
-      cfg = NATConfig(mode: natModeAuto)
+      cfg = NATConfig.new(Auto)
       switch = makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
 
     await switch.start()
@@ -165,7 +182,7 @@ suite "NATService":
     # addrs falls back to mapper-chain output (which here is just listenAddrs).
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
 
-  test "mappedAnnouncements rewrites both IP and port; preserves transport suffix":
+  test "gatewayMapped rewrites both IP and port; preserves transport suffix":
     proc ma(s: string): MultiAddress =
       MultiAddress.init(s).get()
 
@@ -186,14 +203,14 @@ suite "NATService":
         ma("/ip4/192.168.1.10/tcp/7777"), # no matching mapping -> dropped
         ma("/unix/tmp/sock"), # no ip -> dropped
       ]
-    check mappedAnnouncements(input, extIp, mappings) ==
+    check gatewayMapped(input, extIp, mappings) ==
       @[
         ma("/ip4/203.0.113.7/tcp/50001"),
         ma("/ip4/203.0.113.7/tcp/50001/ws"),
         ma("/ip4/203.0.113.7/udp/59000/quic-v1"),
       ]
 
-  test "mappedAnnouncements drops listen addrs whose IP family disagrees with ext IP":
+  test "gatewayMapped drops listen addrs whose IP family disagrees with ext IP":
     proc ma(s: string): MultiAddress =
       MultiAddress.init(s).get()
 
@@ -205,24 +222,23 @@ suite "NATService":
         )
       ]
       input = @[ma("/ip6/2001:db8::1/tcp/4001"), ma("/ip4/192.168.1.10/tcp/4001")]
-    check mappedAnnouncements(input, extIp, mappings) ==
+    check gatewayMapped(input, extIp, mappings) ==
       @[ma("/ip4/203.0.113.7/tcp/50001")]
 
-  asyncTest "natModeUpnp acquires mapping at start, announces ext IP, deletes on stop":
+  asyncTest "Upnp acquires mapping at start, announces ext IP, deletes on stop":
     let mapper = FakeNATPortMapper(
       externalIp: parseIpAddress("203.0.113.7"), mappedExternalPort: Port(50001)
     )
-    proc factory(): NATPortMapper {.gcsafe, raises: [NATMapperError].} =
-      mapper
-
     let
-      cfg = upnpConfig(
+      cfg = NATConfig.new(
+        Upnp,
         description = "test",
         refreshInterval = 1.hours, # don't fire during the test
         leaseDuration = 1.hours,
       )
-      switch =
-        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], factory)
+      switch = makeSwitchWithMapper(
+        cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper
+      )
 
     await switch.start()
 
@@ -241,17 +257,16 @@ suite "NATService":
     check mapper.calls.anyIt(it.kind == fckDelete)
     check mapper.calls.anyIt(it.kind == fckClose)
 
-  asyncTest "natModeNatPmp uses the configured factory and the NAT-PMP mode":
+  asyncTest "NatPmp uses the supplied mapper and announces the NAT-PMP ext IP":
     let mapper = FakeNATPortMapper(
       externalIp: parseIpAddress("198.51.100.42"), mappedExternalPort: Port(50042)
     )
-    proc factory(): NATPortMapper {.gcsafe, raises: [NATMapperError].} =
-      mapper
-
     let
-      cfg = natPmpConfig(refreshInterval = 1.hours, leaseDuration = 1.hours)
-      switch =
-        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], factory)
+      cfg =
+        NATConfig.new(NatPmp, refreshInterval = 1.hours, leaseDuration = 1.hours)
+      switch = makeSwitchWithMapper(
+        cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper
+      )
 
     await switch.start()
     defer:
@@ -260,12 +275,3 @@ suite "NATService":
     check mapper.discoverCount == 1
     check switch.peerInfo.addrs.len == 1
     check ($switch.peerInfo.addrs[0]).find("/ip4/198.51.100.42/") >= 0
-
-  asyncTest "factory error during setup surfaces as ServiceSetupError":
-    proc factory(): NATPortMapper {.gcsafe, raises: [NATMapperError].} =
-      raise newException(NATMapperError, "no IGD reachable")
-
-    let cfg = upnpConfig(refreshInterval = 1.hours, leaseDuration = 1.hours)
-    expect ServiceSetupError:
-      discard
-        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], factory)
