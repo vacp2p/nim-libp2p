@@ -213,6 +213,38 @@ suite "Multistream select":
     ms.addHandler("/test/proto/1.0.0", protocol)
     await ms.handle(stream)
 
+  asyncTest "test handle invokes only first matching handler":
+    let ms = MultistreamSelect.new()
+    let stream = newTestSelectStream()
+
+    var firstCalls = 0
+    var secondCalls = 0
+
+    var firstProtocol: LPProtocol = new LPProtocol
+    proc firstHandler(
+        stream: Stream, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      firstCalls += 1
+      check proto == "/test/proto/1.0.0"
+      await stream.close()
+
+    var secondProtocol: LPProtocol = new LPProtocol
+    proc secondHandler(
+        stream: Stream, proto: string
+    ): Future[void] {.async: (raises: [CancelledError]).} =
+      secondCalls += 1
+      check proto == "/test/proto/1.0.0"
+      await stream.close()
+
+    firstProtocol.handler = firstHandler
+    secondProtocol.handler = secondHandler
+    ms.addHandler("/test/proto/1.0.0", firstProtocol)
+    ms.addHandler("/test/proto/1.0.0", secondProtocol)
+    await ms.handle(stream)
+
+    check firstCalls == 1
+    check secondCalls == 0
+
   asyncTest "test handle `ls`":
     let ms = MultistreamSelect.new()
 
