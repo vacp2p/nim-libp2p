@@ -182,7 +182,7 @@ proc handle*(
   trace "Starting multistream handler", stream, handshaked = active
   defer:
     trace "Stopped multistream handler", stream
-    await stream.close()
+    await noCancel stream.close()
 
   let ms =
     try:
