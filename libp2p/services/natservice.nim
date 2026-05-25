@@ -59,6 +59,11 @@ proc new*(
   of Auto:
     NATConfig(mode: Auto)
   of Upnp:
+    doAssert refreshInterval > 0.seconds, "refreshInterval must be positive"
+    # leaseDuration == 0 asks UPnP for an infinite lease.
+    if leaseDuration > 0.seconds:
+      doAssert refreshInterval < leaseDuration,
+        "refreshInterval must be less than leaseDuration"
     NATConfig(
       mode: Upnp,
       description: description,
@@ -66,6 +71,9 @@ proc new*(
       leaseDuration: leaseDuration,
     )
   of NatPmp:
+    doAssert leaseDuration > 0.seconds, "NAT-PMP requires leaseDuration > 0"
+    doAssert refreshInterval > 0.seconds and refreshInterval < leaseDuration,
+      "refreshInterval must be in (0, leaseDuration)"
     NATConfig(
       mode: NatPmp,
       description: description,
@@ -90,6 +98,10 @@ proc acquireMappings(
 ): Result[void, string] =
   ## Discover the external IP and request a mapping per listen address.
   ## Populates ``externalIp``/``activeMappings``. Safe to call repeatedly.
+  ## TODO: ``NATPortMapper`` methods are blocking (miniupnpc discover takes
+  ## seconds). This proc runs on the chronos event loop via both the address
+  ## mapper and ``refreshLoop`` — offload to a worker thread once chronos
+  ## ``ThreadSignalPtr``-based plumbing is wired up.
   let extIp = ?self.portMapper.discoverExternalIp()
   let wanted = collectInternalPorts(listenAddrs)
   if wanted.len == 0:
@@ -158,12 +170,7 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
 proc refreshLoop(
     self: NATService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  let interval =
-    if self.config.refreshInterval > 0.seconds:
-      self.config.refreshInterval
-    else:
-      DefaultNATRefreshInterval
-  heartbeat "nat refresh", interval, sleepFirst = true:
+  heartbeat "nat refresh", self.config.refreshInterval, sleepFirst = true:
     self.acquireMappings(switch.peerInfo.listenAddrs).isOkOr:
       warn "NAT mapping refresh failed", error = error
       continue

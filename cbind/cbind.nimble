@@ -9,6 +9,30 @@ license = "MIT"
 # The rest of dependencies is inherited from parent libp2p.nimble via nimble.paths
 requires "taskpools >= 0.1.0"
 
+import std/[os, strutils]
+
+proc natTraversalPkgDir(): string =
+  ## Resolve the version-suffixed ``nat_traversal-...`` directory under
+  ## ``nimbledeps/pkgs2``. Avoids shell globs that don't expand under cmd.exe.
+  for d in listDirs("../nimbledeps/pkgs2"):
+    if d.extractFilename.startsWith("nat_traversal-"):
+      return d
+  raise newException(
+    OSError, "nat_traversal package not found; run 'nimble install_pinned' first"
+  )
+
+proc natLibLinkFlags(): string =
+  let pkg = natTraversalPkgDir()
+  # miniupnpc's unix Makefile drops the .a under build/; the Windows
+  # Makefile.mingw drops it at the package root. Match each.
+  let upnp =
+    when defined(windows):
+      pkg / "vendor" / "miniupnp" / "miniupnpc" / "libminiupnpc.a"
+    else:
+      pkg / "vendor" / "miniupnp" / "miniupnpc" / "build" / "libminiupnpc.a"
+  let natpmp = pkg / "vendor" / "libnatpmp-upstream" / "libnatpmp.a"
+  upnp & " " & natpmp
+
 proc getLibExt(libType: string): string =
   if libType == "static":
     "a"
@@ -47,11 +71,9 @@ task examples, "Build and run C bindings examples":
   buildCBindings "static", ""
   # libp2p.a contains nat_traversal Nim wrappers that reference miniupnpc /
   # libnatpmp C symbols. Build the vendored .a's via the parent Makefile and
-  # link them in (shell globs resolve the version-suffixed package dir).
+  # link them in.
   exec "make -C .. nat_libs"
-  let natLibs =
-    "../nimbledeps/pkgs2/nat_traversal-*/vendor/miniupnp/miniupnpc/build/libminiupnpc.a " &
-    "../nimbledeps/pkgs2/nat_traversal-*/vendor/libnatpmp-upstream/libnatpmp.a"
+  let natLibs = natLibLinkFlags()
   exec "g++ -I. -o ../build/cbindings ./examples/cbindings.c ../build/libp2p.a " &
     natLibs & " -pthread"
   exec "g++ -I. -o ../build/echo ./examples/echo.c ../build/libp2p.a " & natLibs &

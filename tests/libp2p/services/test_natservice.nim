@@ -222,8 +222,7 @@ suite "NATService":
         )
       ]
       input = @[ma("/ip6/2001:db8::1/tcp/4001"), ma("/ip4/192.168.1.10/tcp/4001")]
-    check gatewayMapped(input, extIp, mappings) ==
-      @[ma("/ip4/203.0.113.7/tcp/50001")]
+    check gatewayMapped(input, extIp, mappings) == @[ma("/ip4/203.0.113.7/tcp/50001")]
 
   asyncTest "Upnp acquires mapping at start, announces ext IP, deletes on stop":
     let mapper = FakeNATPortMapper(
@@ -233,7 +232,7 @@ suite "NATService":
       cfg = NATConfig.new(
         Upnp,
         description = "test",
-        refreshInterval = 1.hours, # don't fire during the test
+        refreshInterval = 30.minutes, # don't fire during the test
         leaseDuration = 1.hours,
       )
       switch = makeSwitchWithMapper(
@@ -262,8 +261,7 @@ suite "NATService":
       externalIp: parseIpAddress("198.51.100.42"), mappedExternalPort: Port(50042)
     )
     let
-      cfg =
-        NATConfig.new(NatPmp, refreshInterval = 1.hours, leaseDuration = 1.hours)
+      cfg = NATConfig.new(NatPmp, refreshInterval = 30.minutes, leaseDuration = 1.hours)
       switch = makeSwitchWithMapper(
         cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper
       )
