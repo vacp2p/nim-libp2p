@@ -426,5 +426,6 @@ proc new*(
     connManager: connManager,
     transports: transports,
     peerStore: peerStore,
-    nameResolver: nameResolver, # ms: ms,
+    nameResolver: nameResolver,
+    ms: ms,
   )
