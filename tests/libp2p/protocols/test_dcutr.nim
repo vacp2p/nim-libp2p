@@ -4,6 +4,7 @@
 {.used.}
 
 import chronos
+import stew/byteutils
 import ../../../libp2p/protocols/connectivity/dcutr/core as dcore
 import ../../../libp2p/protocols/connectivity/dcutr/[client, server]
 from ../../../libp2p/protocols/connectivity/autonat/types import NetworkReachability
@@ -19,6 +20,8 @@ suite "Dcutr":
     checkTrackers()
 
   asyncTest "Connect msg Encode / Decode":
+    const pbHexReference = "08641208040000000006000012080400000000060000"
+
     let addrs = @[
       MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
       MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
@@ -26,11 +29,15 @@ suite "Dcutr":
     let connectMsg = DcutrMsg(msgType: MsgType.Connect, addrs: addrs)
 
     let pb = connectMsg.encode()
-    let connectMsgDecoded = DcutrMsg.decode(pb.buffer)
+    let connectMsgDecoded = DcutrMsg.decode(pb).valueOr:
+      raise newException(DcutrError, "Failed to decode a Connect message.")
 
     check connectMsg == connectMsgDecoded
+    check pb == hexToSeqByte(pbHexReference)
 
   asyncTest "Sync msg Encode / Decode":
+    const pbHexReference = "08ac021208040000000006000012080400000000060000"
+
     let addrs = @[
       MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
       MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet(),
@@ -38,9 +45,11 @@ suite "Dcutr":
     let syncMsg = DcutrMsg(msgType: MsgType.Sync, addrs: addrs)
 
     let pb = syncMsg.encode()
-    let syncMsgDecoded = DcutrMsg.decode(pb.buffer)
+    let syncMsgDecoded = DcutrMsg.decode(pb).valueOr:
+      raise newException(DcutrError, "Failed to decode a Sync message.")
 
     check syncMsg == syncMsgDecoded
+    check pb == hexToSeqByte(pbHexReference)
 
   asyncTest "DCUtR establishes a new connection":
     let behindNATSwitch = makeSwitch()
