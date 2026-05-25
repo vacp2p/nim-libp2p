@@ -4,15 +4,21 @@
 {.used.}
 
 import std/[sequtils, net], stew/byteutils
+import protobuf_serialization
 import ../../../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
 import ../../tools/[unittest]
 
 {.push raises: [].}
 
-type PatternVector = object
-  pattern: MaPattern
-  good: seq[string]
-  bad: seq[string]
+type
+  PatternVector = object
+    pattern: MaPattern
+    good: seq[string]
+    bad: seq[string]
+
+  Serializable {.proto2.} = object
+    ma {.fieldNumber: 1, required, ext.}: MultiAddress
+    addrs {.fieldNumber: 2, ext.}: seq[MultiAddress]
 
 const
   SuccessVectors = [
@@ -230,6 +236,38 @@ const
     "047f000001062a2a042a8000142a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2ad52a2a2a2a2a2a2a2a2a2a50900350900302030406005090030c2f622f00000203040600030406005090030c2f612f2a622f63030406005090030c2f612f2a622f632a2a002a2a2a2a2a2a37d52a2a2a2a2a2a2a2a2a2a5090032a",
     "90030c2a04",
   ]
+
+suite "Protobuf serialization of types containing MultiAddress":
+  test "valid multiaddress":
+    let
+      serializable = Serializable(
+        ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
+        addrs: @[MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()],
+      )
+      encoded = Protobuf.encode(serializable)
+      decoded = Protobuf.decode(encoded, Serializable)
+
+    check decoded == serializable
+
+  test "invalid multiaddress":
+    let
+      serializable = Serializable(ma: MultiAddress(), addrs: @[])
+      encoded = Protobuf.encode(serializable)
+
+    expect ProtobufValueError:
+      discard Protobuf.decode(encoded, Serializable)
+
+  test "decode should skip invalid multiaddresses":
+    let
+      serializable = Serializable(
+        ma: MultiAddress.init("/ip4/1.2.3.4/tcp/80").get(),
+        addrs: @[MultiAddress(), MultiAddress.init("/ip4/1.2.3.4/tcp/80").get()],
+      )
+      encoded = Protobuf.encode(serializable)
+      decoded = Protobuf.decode(encoded, Serializable)
+
+    check decoded.ma == serializable.ma
+    check decoded.addrs[0] == serializable.addrs[1]
 
 suite "MultiAddress test suite":
   test "go-multiaddr success test vectors":
