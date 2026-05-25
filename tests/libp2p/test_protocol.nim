@@ -276,11 +276,13 @@ suite "LPProtocol stream budget":
       maxOutgoingStreamsPerPeer = Opt.none(int),
     )
 
-    p.reserveIncoming(peerId1)
-    check p.canAcceptIncoming(peerId1)
+    check:
+      p.reserveIncoming(peerId1)
+      p.canAcceptIncoming(peerId1)
 
-    p.reserveIncoming(peerId2)
-    check not p.canAcceptIncoming(peerId3)
+    check:
+      p.reserveIncoming(peerId2)
+      not p.canAcceptIncoming(peerId3)
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId3)
