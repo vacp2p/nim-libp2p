@@ -187,6 +187,23 @@ when defined(libp2p_autotls_support):
     except CatchableError as exc:
       raise newException(ACMEError, msg & ": Unexpected error", exc)
 
+  proc checkAPIError(resp: HTTPResponse) {.raises: [ACMEError].} =
+    let respType =
+      try:
+        resp.body["type"].getStr()
+      except KeyError:
+        return
+
+    if respType.contains("acme:error"):
+      let detail =
+        try:
+          resp.body["detail"].getStr()
+        except KeyError:
+          ""
+      raise newException(
+        ACMEError, "API request failed. type: " & respType & " detail: " & detail
+      )
+
   method post*(
     self: ACMEApi, uri: Uri, payload: string
   ): Future[HTTPResponse] {.
@@ -268,7 +285,9 @@ when defined(libp2p_autotls_support):
       .get()
       .send()
     let body = await rawResponse.getResponseBody()
-    HTTPResponse(body: body, headers: rawResponse.headers)
+    let resp = HTTPResponse(body: body, headers: rawResponse.headers)
+    checkAPIError(resp)
+    return resp
 
   method get*(
       self: ACMEApi, uri: Uri
@@ -277,7 +296,9 @@ when defined(libp2p_autotls_support):
   .} =
     let rawResponse = await HttpClientRequestRef.get(self.session, $uri).get().send()
     let body = await rawResponse.getResponseBody()
-    HTTPResponse(body: body, headers: rawResponse.headers)
+    let resp = HTTPResponse(body: body, headers: rawResponse.headers)
+    checkAPIError(resp)
+    return resp
 
   proc createSignedAcmeRequest(
       self: ACMEApi,
@@ -351,14 +372,13 @@ when defined(libp2p_autotls_support):
       doAssert authorizations.len > 0
 
       let acmeResponse = await self.get(parseUri(authorizations[0]))
-      var challenges: seq[ACMEChallenge]
 
+      var challenges: seq[ACMEChallenge]
       for challenge in acmeResponse.body.getOrDefault("challenges").getElems():
         try:
           challenges.add(challenge.to(ACMEChallenge))
         except ValueError, JsonKindError:
-          debug "Skipping challenge with unrecognized fields",
-            challenge = $challenge, msg = getCurrentExceptionMsg()
+          debug "Could not parse challenge", msg = getCurrentExceptionMsg()
 
       if challenges.len == 0:
         raise newException(ACMEError, "No challenges received")
@@ -380,14 +400,8 @@ when defined(libp2p_autotls_support):
 
     var challenges = authResp.challenges.filterIt(it.`type` == ACMEChallengeType.DNS01)
     if challenges.len == 0:
-      # if there are no DNS01 use DNSPersist01
-      challenges =
-        authResp.challenges.filterIt(it.`type` == ACMEChallengeType.DNSPersist01)
-    if challenges.len == 0:
-      raise newException(
-        ACMEError,
-        "Could not find supported DNS challenge type (dns-01 or dns-persist-01)",
-      )
+      raise
+        newException(ACMEError, "Could not find supported DNS challenge type (dns-01)")
 
     return ACMEChallengeResponseWrapper(
       finalize: orderResp.finalize, order: orderResp.order, dns01: challenges[0]

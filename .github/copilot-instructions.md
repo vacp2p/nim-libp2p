@@ -163,8 +163,8 @@ The test runner (`libp2p.nimble`) always compiles with:
 - **secp256k1** — Secp256k1 curve operations
 - **bearssl** — TLS/SSL
 - **dnsclient** (`>= 0.3.0, < 0.4.0`) — DNS client (used by AutoTLS)
-- **websock** — WebSocket transport (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
-- **lsquic** (`>= 0.2.0`) — QUIC transport
+- **websock** (`>= 0.4.0`) — WebSocket transport (GitHub dependency; see `libp2p.nimble`)
+- **lsquic** (`>= 0.4.1`) — QUIC transport
 - **nim-jwt** — JWT library for AutoTLS/ACME (pinned to a specific GitHub commit; see `libp2p.nimble` for the exact pin)
 - **unittest2** — Testing framework
 
@@ -492,6 +492,7 @@ nimble examples      # Build and run C examples
 | `daily_ci_report.yml` | Daily CI failure reporting: opens/updates GitHub issues for failed daily CI runs |
 | `daily_common.yml` | Shared steps/config reused by daily workflows |
 | `daily_nimbus.yml` | Nimbus-specific test matrix |
+| `daily_runnable_examples.yml` | Daily runnable examples checks |
 | `daily_tests_no_flags.yml` | Tests without experimental flags |
 | `cbindings.yml` | C bindings compilation and tests |
 | `coverage.yml` | Code coverage (uploads to codecov) |
@@ -523,7 +524,7 @@ Run `nimble format` locally before pushing. The `linters.yml` CI workflow checks
 `--define:nimRawSetjmp` is set on Windows (non-MSVC) to avoid stack corruption with SEH and exceptions.
 
 ### QUIC transport
-Uses `lsquic` (`>= 0.2.0`). May require extra system dependencies for building.
+Uses `lsquic` (`>= 0.4.1`). May require extra system dependencies for building.
 
 ---
 
