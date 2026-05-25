@@ -3,41 +3,43 @@
 
 {.push raises: [].}
 
+import std/[tables]
 import chronos, results
 import ../stream/connection
-import ../utils/future
+import ../utils/opt
 
 export results
-
-const DefaultMaxIncomingStreams* = 10
 
 type
   LPProtoHandler* = proc(stream: Stream, proto: string): Future[void] {.
     async: (raises: [CancelledError])
   .}
 
+  StreamBudgetState = ref object
+    totalIncoming: int
+    totalOutgoing: int
+    perPeerIncoming: CountTable[PeerId]
+    perPeerOutgoing: CountTable[PeerId]
+
   LPProtocol* = ref object of RootObj
+    started*: bool
     codecs*: seq[string]
     handlerImpl: LPProtoHandler ## invoked by the protocol negotiator
-    started*: bool
-    maxIncomingStreams: Opt[int]
+    maxIncomingStreamsTotal: Opt[int]
+    maxIncomingStreamsPerPeer: Opt[int]
+    maxOutgoingStreamsTotal: Opt[int]
+    maxOutgoingStreamsPerPeer: Opt[int]
+    streamBudget: StreamBudgetState
+      ## Runtime counters shared across all codecs of this protocol
 
 method init*(p: LPProtocol) {.base, gcsafe.} =
   discard
 
-method start*(p: LPProtocol) {.base, async: (raises: [CancelledError], raw: true).} =
+method start*(p: LPProtocol) {.base, async: (raises: [CancelledError]).} =
   p.started = true
-  newFutureCompleted[void]()
 
-method stop*(p: LPProtocol) {.base, async: (raises: [], raw: true).} =
+method stop*(p: LPProtocol) {.base, async: (raises: []).} =
   p.started = false
-  newFutureCompleted[void]()
-
-proc maxIncomingStreams*(p: LPProtocol): int =
-  p.maxIncomingStreams.get(DefaultMaxIncomingStreams)
-
-proc `maxIncomingStreams=`*(p: LPProtocol, val: int) =
-  p.maxIncomingStreams = Opt.some(val)
 
 func codec*(p: LPProtocol): string =
   doAssert(p.codecs.len > 0, "Codecs sequence was empty!")
@@ -61,14 +63,94 @@ proc new*(
     T: type LPProtocol,
     codecs: seq[string],
     handler: LPProtoHandler,
-    maxIncomingStreams: Opt[int] | int = Opt.none(int),
+    maxIncomingStreamsTotal: Opt[int] | int = Opt.none(int),
+    maxIncomingStreamsPerPeer: Opt[int] | int = Opt.none(int),
+    maxOutgoingStreamsTotal: Opt[int] | int = Opt.none(int),
+    maxOutgoingStreamsPerPeer: Opt[int] | int = Opt.none(int),
 ): T =
   T(
     codecs: codecs,
     handlerImpl: handler,
-    maxIncomingStreams:
-      when maxIncomingStreams is int:
-        Opt.some(maxIncomingStreams)
-      else:
-        maxIncomingStreams,
+    maxIncomingStreamsTotal: toOpt(maxIncomingStreamsTotal),
+    maxIncomingStreamsPerPeer: toOpt(maxIncomingStreamsPerPeer),
+    maxOutgoingStreamsTotal: toOpt(maxOutgoingStreamsTotal),
+    maxOutgoingStreamsPerPeer: toOpt(maxOutgoingStreamsPerPeer),
+    streamBudget: StreamBudgetState(
+      perPeerIncoming: initCountTable[PeerId](),
+      perPeerOutgoing: initCountTable[PeerId](),
+    ),
   )
+
+func canAcceptIncoming*(p: LPProtocol, peerId: PeerId): bool =
+  ## Returns true if an incoming stream from `peerId` is within all configured
+  ## inbound budgets. Returns false when any limit would be exceeded.
+  let budget = p.streamBudget
+  if budget.isNil:
+    return true
+  if p.maxIncomingStreamsPerPeer.isSome and
+      budget.perPeerIncoming.getOrDefault(peerId) >= p.maxIncomingStreamsPerPeer.get:
+    return false
+  if p.maxIncomingStreamsTotal.isSome and
+      budget.totalIncoming >= p.maxIncomingStreamsTotal.get:
+    return false
+  return true
+
+proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
+  if not p.canAcceptIncoming(peerId):
+    return false
+
+  let budget = p.streamBudget
+  if budget.isNil:
+    return true
+
+  budget.totalIncoming.inc
+  budget.perPeerIncoming.inc(peerId)
+  return true
+
+proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
+  let budget = p.streamBudget
+  if budget.isNil:
+    return
+  budget.totalIncoming.dec
+  if budget.totalIncoming < 0:
+    budget.totalIncoming = 0
+  budget.perPeerIncoming.inc(peerId, -1)
+  if budget.perPeerIncoming[peerId] <= 0:
+    budget.perPeerIncoming.del(peerId)
+
+func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
+  ## Returns true if an outgoing stream to `peerId` is within all configured
+  ## outbound budgets. Returns false when any limit would be exceeded.
+  let budget = p.streamBudget
+  if budget.isNil:
+    return true
+  if p.maxOutgoingStreamsPerPeer.isSome and
+      budget.perPeerOutgoing.getOrDefault(peerId) >= p.maxOutgoingStreamsPerPeer.get:
+    return false
+  if p.maxOutgoingStreamsTotal.isSome and
+      budget.totalOutgoing >= p.maxOutgoingStreamsTotal.get:
+    return false
+  return true
+
+proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
+  if not p.canOpenOutgoing(peerId):
+    return false
+
+  let budget = p.streamBudget
+  if budget.isNil:
+    return true
+
+  budget.totalOutgoing.inc
+  budget.perPeerOutgoing.inc(peerId)
+  return true
+
+proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
+  let budget = p.streamBudget
+  if budget.isNil:
+    return
+  budget.totalOutgoing.dec
+  if budget.totalOutgoing < 0:
+    budget.totalOutgoing = 0
+  budget.perPeerOutgoing.inc(peerId, -1)
+  if budget.perPeerOutgoing[peerId] <= 0:
+    budget.perPeerOutgoing.del(peerId)
