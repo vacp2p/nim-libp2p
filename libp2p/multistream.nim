@@ -217,7 +217,7 @@ proc handle*(
     finally:
       p.releaseIncoming(stream.peerId)
   else:
-    debug "no handlers", stream, ms
+    debug "no handlers", stream, protocol = ms
 
 proc addHandler*(
     m: MultistreamSelect,
