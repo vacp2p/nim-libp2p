@@ -308,12 +308,11 @@ method negotiateStream*(
           DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
         )
 
-      let peerId = stream.peerId
-      protocol.reserveOutgoing(peerId)
+      protocol.reserveOutgoing(stream.peerId)
 
       proc releaseOnClose() {.async: (raises: []).} =
         await noCancel stream.join()
-        protocol.releaseOutgoing(peerId)
+        protocol.releaseOutgoing(stream.peerId)
 
       let fut = releaseOnClose()
       self.ongoingReleaseOnClose.add(fut)
