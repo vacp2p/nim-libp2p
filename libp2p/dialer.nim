@@ -38,6 +38,7 @@ type Dialer* = ref object of Dial
   peerStore: PeerStore
   nameResolver: NameResolver
   ms: MultistreamSelect
+  ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
 method dialAndUpgrade*(
     self: Dialer,
@@ -314,7 +315,12 @@ method negotiateStream*(
         await noCancel stream.join()
         protocol.releaseOutgoing(peerId)
 
-      asyncSpawn releaseOnClose()
+      let fut = releaseOnClose()
+      self.ongoingReleaseOnClose.add(fut)
+      fut.addCallback proc(udata: pointer) =
+        let idx = self.ongoingReleaseOnClose.find(fut)
+        if idx >= 0:
+          self.ongoingReleaseOnClose.del(idx)
 
   return stream
 
