@@ -64,9 +64,9 @@ proc new*(
     codecs: seq[string],
     handler: LPProtoHandler,
     maxIncomingStreamsTotal: Opt[int] | int = Opt.none(int),
-    maxIncomingStreamsPerPeer: Opt[int] | int = 10,
+    maxIncomingStreamsPerPeer: Opt[int] | int = Opt.none(int),
     maxOutgoingStreamsTotal: Opt[int] | int = Opt.none(int),
-    maxOutgoingStreamsPerPeer: Opt[int] | int = 10,
+    maxOutgoingStreamsPerPeer: Opt[int] | int = Opt.none(int),
 ): T =
   T(
     codecs: codecs,
