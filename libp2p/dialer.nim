@@ -37,6 +37,8 @@ type Dialer* = ref object of Dial
   transports: seq[Transport]
   peerStore: PeerStore
   nameResolver: NameResolver
+  ms: MultistreamSelect
+  ongoingReleaseOnClose: seq[Future[void].Raising([])]
 
 method dialAndUpgrade*(
     self: Dialer,
@@ -296,6 +298,25 @@ method negotiateStream*(
       DialFailedError,
       "Unable to select sub-protocol. Selected: " & $selected & ". Available: " & $protos,
     )
+
+  self.ms.lookupProtocol(selected).withValue(protocol):
+    if not protocol.reserveOutgoing(stream.peerId):
+      await stream.closeWithEOF()
+      raise newException(
+        DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
+      )
+
+    proc releaseOnClose() {.async: (raises: []).} =
+      await noCancel stream.join()
+      protocol.releaseOutgoing(stream.peerId)
+
+    let fut = releaseOnClose()
+    self.ongoingReleaseOnClose.add(fut)
+    fut.addCallback proc(udata: pointer) =
+      let idx = self.ongoingReleaseOnClose.find(fut)
+      if idx >= 0:
+        self.ongoingReleaseOnClose.del(idx)
+
   return stream
 
 method tryDial*(
@@ -395,6 +416,7 @@ proc new*(
     connManager: ConnManager,
     peerStore: PeerStore,
     transports: seq[Transport],
+    ms: MultistreamSelect,
     nameResolver: NameResolver = nil,
 ): Dialer =
   T(
@@ -403,4 +425,5 @@ proc new*(
     transports: transports,
     peerStore: peerStore,
     nameResolver: nameResolver,
+    ms: ms,
   )

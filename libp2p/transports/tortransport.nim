@@ -312,7 +312,7 @@ proc new*(
     peerStore: switch.peerStore,
     dialer: Dialer.new(
       switch.peerInfo.peerId, switch.connManager, switch.peerStore, switch.transports,
-      nil,
+      switch.ms, nil,
     ),
     nameResolver: nil,
   )
