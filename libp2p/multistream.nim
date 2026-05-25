@@ -195,13 +195,13 @@ proc handle*(
       if (h.match != nil and h.match(ms)) or h.protos.contains(ms):
         trace "found handler", stream, protocol = ms
 
-        # Check inbound budgets via LPProtocol (per-peer + total)
         let protocol = h.protocol
-        if not protocol.canAcceptIncoming(stream.peerId):
+
+        if not protocol.reserveIncoming(stream.peerId):
           debug "Inbound stream budget exceeded, rejecting incoming stream",
             stream, protocol = ms, peerId = stream.peerId
           return
-        protocol.reserveIncoming(stream.peerId)
+
         try:
           await protocol.handler(stream, ms)
         finally:

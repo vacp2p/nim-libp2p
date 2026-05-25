@@ -95,6 +95,29 @@ func canAcceptIncoming*(p: LPProtocol, peerId: PeerId): bool =
     return false
   return true
 
+proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
+  if not p.canAcceptIncoming(peerId):
+    return false
+
+  let budget = p.streamBudget
+  if budget.isNil:
+    return true
+
+  budget.totalIncoming.inc
+  budget.perPeerIncoming.inc(peerId)
+  return true
+
+proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
+  let budget = p.streamBudget
+  if budget.isNil:
+    return
+  budget.totalIncoming.dec
+  if budget.totalIncoming < 0:
+    budget.totalIncoming = 0
+  budget.perPeerIncoming.inc(peerId, -1)
+  if budget.perPeerIncoming[peerId] <= 0:
+    budget.perPeerIncoming.del(peerId)
+
 func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   ## Returns true if an outgoing stream to `peerId` is within all configured
   ## outbound budgets. Returns false when any limit would be exceeded.
@@ -109,30 +132,17 @@ func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
     return false
   return true
 
-proc reserveIncoming*(p: LPProtocol, peerId: PeerId) =
-  let budget = p.streamBudget
-  if budget.isNil:
-    return
-  budget.totalIncoming.inc
-  budget.perPeerIncoming.inc(peerId)
+proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
+  if not p.canOpenOutgoing(peerId):
+    return false
 
-proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
-    return
-  budget.totalIncoming.dec
-  if budget.totalIncoming < 0:
-    budget.totalIncoming = 0
-  budget.perPeerIncoming.inc(peerId, -1)
-  if budget.perPeerIncoming[peerId] <= 0:
-    budget.perPeerIncoming.del(peerId)
+    return true
 
-proc reserveOutgoing*(p: LPProtocol, peerId: PeerId) =
-  let budget = p.streamBudget
-  if budget.isNil:
-    return
   budget.totalOutgoing.inc
   budget.perPeerOutgoing.inc(peerId)
+  return true
 
 proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget

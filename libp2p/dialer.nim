@@ -302,13 +302,11 @@ method negotiateStream*(
   # reserve outbound budget if we have a reference to MultistreamSelect
   if not self.ms.isNil:
     self.ms.lookupProtocol(selected).withValue(protocol):
-      if not protocol.canOpenOutgoing(stream.peerId):
+      if not protocol.reserveOutgoing(stream.peerId):
         await stream.closeWithEOF()
         raise newException(
           DialFailedError, "Outbound stream budget exceeded for protocol: " & selected
         )
-
-      protocol.reserveOutgoing(stream.peerId)
 
       proc releaseOnClose() {.async: (raises: []).} =
         await noCancel stream.join()
@@ -428,6 +426,5 @@ proc new*(
     connManager: connManager,
     transports: transports,
     peerStore: peerStore,
-    nameResolver: nameResolver,
-    ms: ms,
+    nameResolver: nameResolver, # ms: ms,
   )

@@ -59,11 +59,12 @@ suite "LPProtocol stream budget":
 
     check p.canAcceptIncoming(peerId1)
 
-    p.reserveIncoming(peerId1)
-    check p.canAcceptIncoming(peerId1)
-
-    p.reserveIncoming(peerId1)
     check:
+      p.reserveIncoming(peerId1)
+      p.canAcceptIncoming(peerId1)
+
+    check:
+      p.reserveIncoming(peerId1)
       not p.canAcceptIncoming(peerId1)
       p.canAcceptIncoming(peerId2) # other peer not affected
 
@@ -85,11 +86,13 @@ suite "LPProtocol stream budget":
 
     check p.canAcceptIncoming(peerId1)
 
-    p.reserveIncoming(peerId1)
-    check p.canAcceptIncoming(peerId1)
+    check:
+      p.reserveIncoming(peerId1)
+      p.canAcceptIncoming(peerId1)
 
-    p.reserveIncoming(peerId2)
-    check not p.canAcceptIncoming(peerId3)
+    check:
+      p.reserveIncoming(peerId2)
+      not p.canAcceptIncoming(peerId3)
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId3)
@@ -108,11 +111,12 @@ suite "LPProtocol stream budget":
 
     check p.canOpenOutgoing(peerId1)
 
-    p.reserveOutgoing(peerId1)
-    check p.canOpenOutgoing(peerId1)
-
-    p.reserveOutgoing(peerId1)
     check:
+      p.reserveOutgoing(peerId1)
+      p.canOpenOutgoing(peerId1)
+
+    check:
+      p.reserveOutgoing(peerId1)
       not p.canOpenOutgoing(peerId1)
       p.canOpenOutgoing(peerId2)
 
@@ -135,11 +139,13 @@ suite "LPProtocol stream budget":
     check:
       p.canOpenOutgoing(peerId1)
 
-    p.reserveOutgoing(peerId1)
-    check p.canOpenOutgoing(peerId1)
+    check:
+      p.reserveOutgoing(peerId1)
+      p.canOpenOutgoing(peerId1)
 
-    p.reserveOutgoing(peerId2)
-    check not p.canOpenOutgoing(peerId3)
+    check:
+      p.reserveOutgoing(peerId2)
+      not p.canOpenOutgoing(peerId3)
 
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId3)
@@ -157,29 +163,31 @@ suite "LPProtocol stream budget":
     )
 
     # Fill incoming per-peer for peerId1
-    p.reserveIncoming(peerId1)
-    p.reserveIncoming(peerId1)
     check:
+      p.reserveIncoming(peerId1)
+      p.reserveIncoming(peerId1)
       not p.canAcceptIncoming(peerId1) # per-peer limit hit
       p.canAcceptIncoming(peerId2) # other peer ok
 
     # Fill incoming total
-    p.reserveIncoming(peerId2)
-    p.reserveIncoming(peerId3)
     check:
+      p.reserveIncoming(peerId2)
+      p.reserveIncoming(peerId3)
       not p.canAcceptIncoming(peerId2) # total limit reached
       not p.canAcceptIncoming(peerId3) # total limit reached
 
     # Check outgoing concurrently
     check p.canOpenOutgoing(peerId1)
 
-    p.reserveOutgoing(peerId1)
-    p.reserveOutgoing(peerId1)
-    check not p.canOpenOutgoing(peerId1) # per-peer limit hit
+    check:
+      p.reserveOutgoing(peerId1)
+      p.reserveOutgoing(peerId1)
+      not p.canOpenOutgoing(peerId1) # per-peer limit hit
 
-    p.reserveOutgoing(peerId2)
-    p.reserveOutgoing(peerId3)
-    check not p.canOpenOutgoing(peerId2) # total outgoing limit reached
+    check:
+      p.reserveOutgoing(peerId2)
+      p.reserveOutgoing(peerId3)
+      not p.canOpenOutgoing(peerId2) # total outgoing limit reached
 
     # Release incoming and verify
     p.releaseIncoming(peerId1)
@@ -205,9 +213,10 @@ suite "LPProtocol stream budget":
     check p.canAcceptIncoming(peerId1)
 
     # Reserve up to limit, then release extra should keep within limits
-    p.reserveIncoming(peerId1)
-    p.reserveIncoming(peerId1)
-    check not p.canAcceptIncoming(peerId1)
+    check:
+      p.reserveIncoming(peerId1)
+      p.reserveIncoming(peerId1)
+      not p.canAcceptIncoming(peerId1)
 
     p.releaseIncoming(peerId1)
     p.releaseIncoming(peerId1)
@@ -231,11 +240,13 @@ suite "LPProtocol stream budget":
 
     check p.canAcceptIncoming(peerId1)
 
-    p.reserveIncoming(peerId1)
-    check not p.canAcceptIncoming(peerId1) # per-peer limit 1
+    check:
+      p.reserveIncoming(peerId1)
+      not p.canAcceptIncoming(peerId1) # per-peer limit 1
 
-    p.reserveIncoming(peerId2)
-    check not p.canAcceptIncoming(peerId3) # total limit 2 reached
+    check:
+      p.reserveIncoming(peerId2)
+      not p.canAcceptIncoming(peerId3) # total limit 2 reached
 
     p.releaseIncoming(peerId1)
     check p.canAcceptIncoming(peerId1)
@@ -243,12 +254,14 @@ suite "LPProtocol stream budget":
     # Outgoing
     check p.canOpenOutgoing(peerId1)
 
-    p.reserveOutgoing(peerId1)
-    check not p.canOpenOutgoing(peerId1) # per-peer limit 1
+    check:
+      p.reserveOutgoing(peerId1)
+      not p.canOpenOutgoing(peerId1) # per-peer limit 1
 
-    p.reserveOutgoing(peerId2)
-    p.reserveOutgoing(peerId3)
-    check not p.canOpenOutgoing(peerId1) # total limit 3 reached
+    check:
+      p.reserveOutgoing(peerId2)
+      p.reserveOutgoing(peerId3)
+      not p.canOpenOutgoing(peerId1) # total limit 3 reached
 
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId1)
@@ -275,9 +288,10 @@ suite "LPProtocol stream budget":
     p.releaseIncoming(peerId2)
 
     # Outgoing
-    p.reserveOutgoing(peerId1)
-    p.reserveOutgoing(peerId2)
-    check not p.canOpenOutgoing(peerId3)
+    check:
+      p.reserveOutgoing(peerId1)
+      p.reserveOutgoing(peerId2)
+      not p.canOpenOutgoing(peerId3)
 
     p.releaseOutgoing(peerId1)
     check p.canOpenOutgoing(peerId3)
@@ -294,8 +308,8 @@ suite "LPProtocol stream budget":
 
     check p.canAcceptIncoming(peerId1)
 
-    p.reserveIncoming(peerId1)
     check:
+      p.reserveIncoming(peerId1)
       not p.canAcceptIncoming(peerId1)
       p.canAcceptIncoming(peerId2) # other peer still allowed
 
@@ -314,8 +328,8 @@ suite "LPProtocol stream budget":
 
     check p.canOpenOutgoing(peerId1)
 
-    p.reserveOutgoing(peerId1)
     check:
+      p.reserveOutgoing(peerId1)
       not p.canOpenOutgoing(peerId1)
       p.canOpenOutgoing(peerId2)
 
