@@ -229,12 +229,9 @@ suite "NATService":
       externalIp: parseIpAddress("203.0.113.7"), mappedExternalPort: Port(50001)
     )
     let
-      cfg = NATConfig.new(
-        Upnp,
-        description = "test",
-        refreshInterval = 30.minutes, # don't fire during the test
-        leaseDuration = 1.hours,
-      )
+      # leaseDuration is long enough that the refresh tick (lease / 2) won't
+      # fire during the test.
+      cfg = NATConfig.new(Upnp, description = "test", leaseDuration = 1.hours)
       switch = makeSwitchWithMapper(
         cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper
       )
@@ -261,7 +258,7 @@ suite "NATService":
       externalIp: parseIpAddress("198.51.100.42"), mappedExternalPort: Port(50042)
     )
     let
-      cfg = NATConfig.new(NatPmp, refreshInterval = 30.minutes, leaseDuration = 1.hours)
+      cfg = NATConfig.new(NatPmp, leaseDuration = 1.hours)
       switch = makeSwitchWithMapper(
         cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper
       )

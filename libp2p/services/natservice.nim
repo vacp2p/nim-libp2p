@@ -42,7 +42,6 @@ type
     refreshFut: Future[void]
 
 const
-  DefaultNATRefreshInterval* = 20.minutes
   DefaultNATLeaseDuration* = 60.minutes
   DefaultNATDescription* = "nim-libp2p"
 
@@ -50,34 +49,42 @@ proc new*(
     T: typedesc[NATConfig],
     mode: NATMode,
     description = DefaultNATDescription,
-    refreshInterval = DefaultNATRefreshInterval,
+    refreshInterval = Opt.none(Duration),
     leaseDuration = DefaultNATLeaseDuration,
 ): T =
   ## For ``Auto``, ``Upnp``, or ``NatPmp``. Use the ``explicitIp`` overload
-  ## for ``ExplicitIp``.
+  ## for ``ExplicitIp``. When ``refreshInterval`` is unset, it defaults to
+  ## ``leaseDuration div 2``.
   case mode
   of Auto:
     NATConfig(mode: Auto)
   of Upnp:
-    doAssert refreshInterval > 0.seconds, "refreshInterval must be positive"
-    # leaseDuration == 0 asks UPnP for an infinite lease.
+    # leaseDuration == 0 asks UPnP for an infinite lease — caller must then
+    # set refreshInterval explicitly.
+    doAssert leaseDuration > 0.seconds or refreshInterval.isSome,
+      "refreshInterval must be set when leaseDuration is 0 (infinite UPnP lease)"
+    let refresh = refreshInterval.valueOr:
+      leaseDuration div 2
+    doAssert refresh > 0.seconds, "refreshInterval must be positive"
     if leaseDuration > 0.seconds:
-      doAssert refreshInterval < leaseDuration,
+      doAssert refresh < leaseDuration,
         "refreshInterval must be less than leaseDuration"
     NATConfig(
       mode: Upnp,
       description: description,
-      refreshInterval: refreshInterval,
+      refreshInterval: refresh,
       leaseDuration: leaseDuration,
     )
   of NatPmp:
     doAssert leaseDuration > 0.seconds, "NAT-PMP requires leaseDuration > 0"
-    doAssert refreshInterval > 0.seconds and refreshInterval < leaseDuration,
+    let refresh = refreshInterval.valueOr:
+      leaseDuration div 2
+    doAssert refresh > 0.seconds and refresh < leaseDuration,
       "refreshInterval must be in (0, leaseDuration)"
     NATConfig(
       mode: NatPmp,
       description: description,
-      refreshInterval: refreshInterval,
+      refreshInterval: refresh,
       leaseDuration: leaseDuration,
     )
   of ExplicitIp:
