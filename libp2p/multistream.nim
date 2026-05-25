@@ -180,42 +180,44 @@ proc handle*(
     m: MultistreamSelect, stream: Stream, active: bool = false
 ) {.async: (raises: [CancelledError]).} =
   trace "Starting multistream handler", stream, handshaked = active
-  var
-    protos: seq[string]
-    matchers: seq[Matcher]
-  for h in m.handlers:
-    if h.match != nil:
-      matchers.add(h.match)
-    for proto in h.protos:
-      protos.add(proto)
-
-  try:
-    let ms = await MultistreamSelect.handle(stream, protos, matchers, active)
-    for h in m.handlers:
-      if (h.match != nil and h.match(ms)) or h.protos.contains(ms):
-        trace "found handler", stream, protocol = ms
-
-        let protocol = h.protocol
-
-        if not protocol.reserveIncoming(stream.peerId):
-          debug "Inbound stream budget exceeded, rejecting incoming stream",
-            stream, protocol = ms, peerId = stream.peerId
-          return
-
-        try:
-          await protocol.handler(stream, ms)
-        finally:
-          protocol.releaseIncoming(stream.peerId)
-        return
-    debug "no handlers", stream, ms
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "Exception in multistream", stream, description = exc.msg
-  finally:
+  defer:
+    trace "Stopped multistream handler", stream
     await stream.close()
 
-  trace "Stopped multistream handler", stream
+  let ms =
+    try:
+      var
+        protos: seq[string]
+        matchers: seq[Matcher]
+
+      for h in m.handlers:
+        if h.match != nil:
+          matchers.add(h.match)
+        for proto in h.protos:
+          protos.add(proto)
+      await MultistreamSelect.handle(stream, protos, matchers, active)
+    except LPStreamError as e:
+      trace "Exception in multistream", stream, description = e.msg
+      return
+    except MultiStreamError as e:
+      trace "Exception in multistream", stream, description = e.msg
+      return
+
+  m.lookupProtocol(ms).withValue(p):
+    trace "found handler", stream, protocol = ms
+
+    if not protocol.reserveIncoming(stream.peerId):
+      debug "Inbound stream budget exceeded, rejecting incoming stream",
+        stream, protocol = ms, peerId = stream.peerId
+      return
+
+    try:
+      let h = p.handler
+      await h(stream, ms)
+    finally:
+      p.releaseIncoming(stream.peerId)
+  else:
+    debug "no handlers", stream, ms
 
 proc addHandler*(
     m: MultistreamSelect,
