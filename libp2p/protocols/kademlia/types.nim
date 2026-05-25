@@ -138,16 +138,20 @@ proc `<`*(a, b: XorDistance): bool =
 proc `<=`*(a, b: XorDistance): bool =
   cmp(a, b) <= 0
 
-proc hashFor(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
+proc hashFor*(k: Key, hasher: Opt[XorDHasher]): seq[byte] =
   return @(hasher.get(defaultHasher)(k))
 
-proc xorDistance*(a, b: Key, hasher: Opt[XorDHasher]): XorDistance =
-  let hashA = a.hashFor(hasher)
-  let hashB = b.hashFor(hasher)
+proc xorDistance*(a, b: Key): XorDistance =
+  doAssert a.len == IdLength and b.len == IdLength,
+    "both keys must be " & $IdLength & " bytes"
+
   var response: XorDistance
-  for i in 0 ..< hashA.len:
-    response[i] = hashA[i] xor hashB[i]
+  for i in 0 ..< a.len:
+    response[i] = a[i] xor b[i]
   return response
+
+proc xorDistance*(a, b: Key, hasher: Opt[XorDHasher]): XorDistance =
+  xorDistance(a.hashFor(hasher), b.hashFor(hasher))
 
 proc xorDistance*(a: PeerId, b: Key, hasher: Opt[XorDHasher]): XorDistance =
   xorDistance(a.toKey(), b, hasher)
@@ -170,6 +174,7 @@ type
     replication*: int
     hasher*: Opt[XorDHasher]
     maxBuckets*: int
+    selfIdPreHashed*: bool
 
   RoutingTable* = ref object
     selfId*: Key
