@@ -3,8 +3,8 @@
 
 {.push raises: [].}
 
-import std/[strutils, sequtils, tables]
-import chronos, chronicles, stew/byteutils
+import std/[strutils, sequtils]
+import chronos, results, chronicles, stew/byteutils
 import stream/connection, protocols/protocol
 
 logScope:
@@ -26,7 +26,6 @@ type
     protos*: seq[string]
     protocol*: LPProtocol
     match*: Matcher
-    openedStreams: CountTable[PeerId]
 
   MultistreamSelect* = ref object of RootObj
     handlers*: seq[HandlerHolder]
@@ -169,6 +168,14 @@ proc handle*(
       trace "no handlers", stream, protocol = ms
       await stream.writeLp(Na)
 
+proc lookupProtocol*(m: MultistreamSelect, proto: string): Opt[LPProtocol] =
+  ## Find the LPProtocol registered for the given protocol string, if any.
+  ## Returns `Opt.none` when no handler matches.
+  for h in m.handlers:
+    if (h.match != nil and h.match(proto)) or h.protos.contains(proto):
+      return Opt.some(h.protocol)
+  return Opt.none(LPProtocol)
+
 proc handle*(
     m: MultistreamSelect, stream: Stream, active: bool = false
 ) {.async: (raises: [CancelledError]).} =
@@ -188,19 +195,17 @@ proc handle*(
       if (h.match != nil and h.match(ms)) or h.protos.contains(ms):
         trace "found handler", stream, protocol = ms
 
-        var protocolHolder = h
-        let maxIncomingStreams = protocolHolder.protocol.maxIncomingStreams
-        if protocolHolder.openedStreams.getOrDefault(stream.peerId) >= maxIncomingStreams:
-          debug "Max streams for protocol reached, blocking new stream",
-            stream, protocol = ms, maxIncomingStreams
+        let protocol = h.protocol
+
+        if not protocol.reserveIncoming(stream.peerId):
+          debug "Inbound stream budget exceeded, rejecting incoming stream",
+            stream, protocol = ms, peerId = stream.peerId
           return
-        protocolHolder.openedStreams.inc(stream.peerId)
+
         try:
-          await protocolHolder.protocol.handler(stream, ms)
+          await protocol.handler(stream, ms)
         finally:
-          protocolHolder.openedStreams.inc(stream.peerId, -1)
-          if protocolHolder.openedStreams[stream.peerId] == 0:
-            protocolHolder.openedStreams.del(stream.peerId)
+          protocol.releaseIncoming(stream.peerId)
         return
     debug "no handlers", stream, ms
   except CancelledError as exc:

@@ -5,7 +5,7 @@
 
 {.push raises: [].}
 
-import pkg/[chronos, chronicles, results]
+import pkg/[chronos, chronicles, results, protobuf_serialization]
 import std/[nativesockets, net, hashes]
 import tables, strutils, sets
 import
@@ -1327,3 +1327,59 @@ func shortLog*(addrs: seq[MultiAddress], maxAddrs: int): string =
     res.add($(addrs.len - maxAddrs))
     res.add(" more)")
   return res
+
+## protobuf_serialization extension
+
+func supportsPacked*(T: type MultiAddress, ProtoType: type ProtobufExt): bool =
+  false
+func supportsPacked*(T: type seq[MultiAddress], ProtoType: type ProtobufExt): bool =
+  false
+
+func computeFieldSize*(
+    field: int,
+    value: MultiAddress,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool,
+): int =
+  computeFieldSize(field, value.data.buffer, pbytes, skipDefault)
+
+proc writeField*(
+    stream: OutputStream,
+    field: int,
+    value: MultiAddress,
+    ProtoType: type ProtobufExt,
+    skipDefault: static bool = false,
+) {.raises: [IOError].} =
+  writeField(stream, field, value.data.buffer, pbytes, skipDefault)
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var MultiAddress,
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var data = default(seq[byte])
+
+  if readFieldInto(stream, data, header, pbytes):
+    value = MultiAddress.init(data).valueOr:
+      raise newException(ProtobufValueError, "Invalid protobuf MultiAddress")
+    true
+  else:
+    false
+
+proc readFieldInto*(
+    stream: InputStream,
+    value: var seq[MultiAddress],
+    header: FieldHeader,
+    ProtoType: type ProtobufExt,
+): bool {.raises: [SerializationError, IOError].} =
+  var data = default(seq[byte])
+
+  if readFieldInto(stream, data, header, pbytes):
+    let ma = MultiAddress.init(data).valueOr:
+      return false
+
+    value.add(ma)
+    true
+  else:
+    false

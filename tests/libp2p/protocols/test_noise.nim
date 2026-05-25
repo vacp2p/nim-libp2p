@@ -72,7 +72,7 @@ proc makeSwitch(ma: MultiAddress, outgoing: bool, plaintext: bool = false): Swit
     ms = MultistreamSelect.new()
     muxedUpgrade = MuxedUpgrade.new(muxers, secureManagers, ms)
     transports = @[Transport(TcpTransport.new(upgrade = muxedUpgrade))]
-    dialer = Dialer.new(peerInfo.peerId, connManager, peerStore, transports, nil)
+    dialer = Dialer.new(peerInfo.peerId, connManager, peerStore, transports, ms, nil)
 
   Switch(
     peerInfo: peerInfo,
