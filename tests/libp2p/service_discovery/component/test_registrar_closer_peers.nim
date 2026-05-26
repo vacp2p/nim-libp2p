@@ -145,11 +145,8 @@ suite "Service Discovery Component - Registrar Closer Peers":
     check not tableAfterConfirmed.get().hasPeer(waitKey)
 
     # The cache is full so the registrar returns Wait.
-    let waitAdBytes = makeAdvertisement(
-        serviceName, waitNode.switch.peerInfo.privateKey
-      )
-      .encode()
-      .get()
+    let waitAdBytes =
+      makeAdvertisement(serviceName, waitNode.switch.peerInfo.privateKey).encode().get()
     let waitResponse = await waitNode.sendRegister(
       registrarNode.switch.peerInfo.peerId, serviceId, waitAdBytes
     )
