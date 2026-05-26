@@ -121,10 +121,19 @@ proc new*(T: type[SwitchBuilder]): T =
   )
 
 proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
-  ## Set the private key of the switch. Will be used to
-  ## generate a PeerId
+  ## Set the private key of the switch. Will be used to generate a PeerId
 
   b.privKey = Opt.some(privateKey)
+  b
+
+proc withPrivateKey*(b: SwitchBuilder, privateKey: Opt[PrivateKey]): SwitchBuilder =
+  ## Set the private key of the switch. Will be used to generate a PeerId
+
+  b.privKey = privateKey
+  b
+
+proc withWildcardResolver*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
+  b.enableWildcardResolver = enabled
   b
 
 proc withAddresses*(
