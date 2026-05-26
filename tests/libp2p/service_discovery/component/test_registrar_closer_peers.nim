@@ -113,7 +113,7 @@ suite "Service Discovery Component - Registrar Closer Peers":
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
-    let serviceName = "wait-no-insert"
+    let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
     let adBytes = makeAdvertisement(
         serviceName, advertiserNode.switch.peerInfo.privateKey
@@ -131,11 +131,7 @@ suite "Service Discovery Component - Registrar Closer Peers":
     # Implementation: RegT is not created until Confirmed.
     let advertiserKey = advertiserNode.switch.peerInfo.peerId.toKey()
     let serviceTable = registrarNode.rtManager.getTable(serviceId)
-    if serviceTable.isSome():
-      check not serviceTable.get().hasPeer(advertiserKey)
-    else:
-      # RegT not created at all — confirms the divergence.
-      check true
+    check serviceTable.isNone()
 
   asyncTest "REGISTER with Confirmed is the only path that writes to RegT":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
@@ -144,7 +140,7 @@ suite "Service Discovery Component - Registrar Closer Peers":
     startAndDeferStop(@[registrarNode, advertiserNode])
     await connect(registrarNode, advertiserNode)
 
-    let serviceName = "confirmed-insert"
+    let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
     let adBytes = makeAdvertisement(
         serviceName, advertiserNode.switch.peerInfo.privateKey
@@ -171,7 +167,7 @@ suite "Service Discovery Component - Registrar Closer Peers":
     startAndDeferStop(@[registrarNode, advertiserNode, discovererNode])
     await connect(registrarNode, advertiserNode)
 
-    let serviceName = "get-ads-no-disco-insert"
+    let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
     let adBytes = makeAdvertisement(
         serviceName, advertiserNode.switch.peerInfo.privateKey
@@ -191,8 +187,9 @@ suite "Service Discovery Component - Registrar Closer Peers":
 
     let discovererKey = discovererNode.switch.peerInfo.peerId.toKey()
     let tableBefore = registrarNode.rtManager.getTable(serviceId)
-    check tableBefore.isSome()
-    check not tableBefore.get().hasPeer(discovererKey)
+    check:
+      tableBefore.isSome()
+      not tableBefore.get().hasPeer(discovererKey)
 
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()
@@ -201,5 +198,6 @@ suite "Service Discovery Component - Registrar Closer Peers":
     # Spec: the registrar adds the discoverer to RegT on GET_ADS.
     # Implementation: GET_ADS never writes to RegT.
     let tableAfter = registrarNode.rtManager.getTable(serviceId)
-    check tableAfter.isSome()
-    check not tableAfter.get().hasPeer(discovererKey)
+    check:
+      tableAfter.isSome()
+      not tableAfter.get().hasPeer(discovererKey)
