@@ -61,7 +61,7 @@ proc identhash(data: openArray[byte], output: var openArray[byte]) =
         len(output)
       else:
         len(data)
-    copyMem(addr output[0], unsafeAddr data[0], length)
+    copyMem(addr output[0], addr data[0], length)
 
 proc sha1hash(data: openArray[byte], output: var openArray[byte]) =
   if len(output) > 0:
@@ -208,7 +208,7 @@ proc shake_128hash(data: openArray[byte], output: var openArray[byte]) =
   var sctx: shake128
   if len(output) > 0:
     sctx.init()
-    sctx.update(cast[ptr uint8](unsafeAddr data[0]), uint(len(data)))
+    sctx.update(cast[ptr uint8](addr data[0]), uint(len(data)))
     sctx.xof()
     discard sctx.output(addr output[0], uint(len(output)))
     sctx.clear()
@@ -217,7 +217,7 @@ proc shake_256hash(data: openArray[byte], output: var openArray[byte]) =
   var sctx: shake256
   if len(output) > 0:
     sctx.init()
-    sctx.update(cast[ptr uint8](unsafeAddr data[0]), uint(len(data)))
+    sctx.update(cast[ptr uint8](addr data[0]), uint(len(data)))
     sctx.xof()
     discard sctx.output(addr output[0], uint(len(output)))
     sctx.clear()
