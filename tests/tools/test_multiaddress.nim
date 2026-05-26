@@ -8,7 +8,6 @@ import ../../libp2p/[multiaddress]
 import ./[unittest, multiaddress]
 
 suite "MultiAddress testing tools":
-  
   test "countAddressesWithPattern":
     let ma = @[
       MultiAddress.init("/ip4/127.0.0.1/tcp/48643").get(),
@@ -27,4 +26,3 @@ suite "MultiAddress testing tools":
       countAddressesWithPattern(ma, IPv4Tcp) == 4
       countAddressesWithPattern(ma, IPv6Tcp) == 2
       countAddressesWithPattern(ma, IPv4Ws) == 0
-
