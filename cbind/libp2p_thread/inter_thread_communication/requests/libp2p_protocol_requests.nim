@@ -78,7 +78,7 @@ proc processMount*(
       foreignThreadGc:
         let protoPtr =
           if selectedProto.len > 0:
-            cast[ptr cchar](unsafeAddr selectedProto[0])
+            cast[ptr cchar](addr selectedProto[0])
           else:
             cast[ptr cchar](nil)
         handler(

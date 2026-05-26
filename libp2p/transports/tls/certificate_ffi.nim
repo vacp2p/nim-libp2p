@@ -4,7 +4,6 @@
 import boringssl
 import strutils
 import results
-import ../../utils/sequninit
 
 const LIBP2P_OID = "1.3.6.1.4.1.53594.1.1"
 
