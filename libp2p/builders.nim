@@ -34,7 +34,7 @@ import
   autotls/service,
   nameresolving/nameresolver,
   errors,
-  utility
+  utils/opt
 import services/wildcardresolverservice
 
 export

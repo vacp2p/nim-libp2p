@@ -17,9 +17,9 @@ import
   peerid,
   protobuf/minprotobuf,
   errors,
-  utility
+  utils/[opt, shortlog, conversion, collections]
 import stew/[base58, base32, endians2]
-export results, vbuffer, errors, utility
+export results, vbuffer, errors, opt, shortlog, collections
 import ./utils/sequninit
 
 logScope:
@@ -508,6 +508,7 @@ proc initMultiAddressCodeTable(
   return res
 
 when libp2p_multiaddress_exts != "":
+  import ./utils/macroutils
   includeFile(libp2p_multiaddress_exts)
   const CodeAddresses = initMultiAddressCodeTable(@ProtocolsList & @AddressExts)
 else:

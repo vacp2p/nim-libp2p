@@ -5,9 +5,9 @@
 
 {.push raises: [].}
 
-import ../varint, ../utility, stew/endians2, results
+import ../varint, ../utils/[opt, shortlog, collections], stew/endians2, results
 import ../utils/sequninit
-export results, utility
+export results, opt, shortlog, collections
 
 type
   ProtoFieldKind* = enum

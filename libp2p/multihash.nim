@@ -23,7 +23,6 @@ import nimcrypto/[sha, sha2, keccak, blake2, hash, utils]
 import varint, vbuffer, multicodec, multibase
 import stew/base58
 import results
-import ./utility
 export results
 # This is workaround for Nim `import` bug.
 export sha, sha2, keccak, blake2, hash, utils, vbuffer
@@ -357,6 +356,7 @@ proc initMultiHashCodeTable(
   return res
 
 when libp2p_multihash_exts != "":
+  import ./utils/macroutils
   includeFile(libp2p_multihash_exts)
   const CodeHashes = initMultiHashCodeTable(@HashesList & @HashExts)
 else:

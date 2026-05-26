@@ -19,7 +19,7 @@ import stew/ctops
 import results
 import ../utils/sequninit
 
-import ../utility
+import ../utils/conversion
 import rng
 
 export results

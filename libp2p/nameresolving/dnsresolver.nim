@@ -9,7 +9,6 @@ import
   chronicles,
   stew/byteutils,
   dnsclientpkg/[protocol, types],
-  ../utility,
   ../utils/sequninit
 
 import nameresolver

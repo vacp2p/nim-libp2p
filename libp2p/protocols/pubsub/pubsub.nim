@@ -23,7 +23,7 @@ import
   ../../peerid,
   ../../peerinfo,
   ../../errors,
-  ../../utility,
+  ../../utils/opt,
   ../../utils/[sequninit, future]
 
 import results

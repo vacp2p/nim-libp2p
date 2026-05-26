@@ -5,7 +5,7 @@
 
 import stew/assign2
 import chronicles
-import messages, ../../../peerid, ../../../utility, ../../../protobuf/minprotobuf
+import messages, ../../../peerid, ../../../utils/opt, ../../../protobuf/minprotobuf
 
 logScope:
   topics = "libp2p pubsubprotobuf"
