@@ -3,7 +3,7 @@
 
 {.push raises: [].}
 
-import std/[sets, sequtils, random], chronos, chronicles, ./dnsmessage, ../utility
+import std/[sets, sequtils, random], chronos, chronicles, ./dnsmessage
 
 import nameresolver
 

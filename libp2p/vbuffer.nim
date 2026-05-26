@@ -6,7 +6,6 @@
 {.push raises: [].}
 
 import varint, strutils
-import ./utils/sequninit
 
 type VBuffer* = object
   buffer*: seq[byte]
@@ -40,7 +39,7 @@ proc initVBuffer*(data: openArray[byte], offset = 0): VBuffer =
   ## Initialize VBuffer with copy of ``data``.
   var buf = newSeqUninit[byte](len(data))
   if len(data) > 0:
-    copyMem(addr buf[0], unsafeAddr data[0], len(data))
+    copyMem(addr buf[0], addr data[0], len(data))
   VBuffer(buffer: buf, offset: offset)
 
 proc initVBuffer*(cap: int = 128): VBuffer =
@@ -81,7 +80,7 @@ proc writeSeq*[T: byte | char](vb: var VBuffer, value: openArray[T]) =
   doAssert(res.isOk())
   vb.offset += length
   if len(value) > 0:
-    copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))
+    copyMem(addr vb.buffer[vb.offset], addr value[0], len(value))
     vb.offset += len(value)
 
 proc writeArray*[T: byte | char](vb: var VBuffer, value: openArray[T]) =
@@ -89,7 +88,7 @@ proc writeArray*[T: byte | char](vb: var VBuffer, value: openArray[T]) =
   ## varint length of the array.
   if len(value) > 0:
     vb.buffer.setLen(len(vb.buffer) + len(value))
-    copyMem(addr vb.buffer[vb.offset], unsafeAddr value[0], len(value))
+    copyMem(addr vb.buffer[vb.offset], addr value[0], len(value))
     vb.offset += len(value)
 
 proc finish*(vb: var VBuffer) =

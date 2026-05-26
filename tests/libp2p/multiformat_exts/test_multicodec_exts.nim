@@ -4,7 +4,7 @@
 {.used.}
 
 import std/tables
-import ../../../libp2p/[multicodec, utils/sequninit]
+import ../../../libp2p/multicodec
 import ../../tools/unittest
 
 suite "Multicodec extensions":
