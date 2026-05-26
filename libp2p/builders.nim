@@ -131,7 +131,7 @@ proc withWildcardResolver*(b: SwitchBuilder, enabled: bool = true): SwitchBuilde
   b
 
 proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder =
-  ## | Set the listening addresses of the switch
+  ## Set the listening addresses of the switch
   b.addresses = addresses
   b
 
@@ -441,9 +441,6 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
-
-  if b.addresses.len == 0:
-    raise newException(Defect, "use withAddress() to specify listen address")
 
   let pkRes = PrivateKey.random(b.rng)
   let seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
