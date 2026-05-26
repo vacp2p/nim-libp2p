@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
   cfg2.kad_bootstrap_nodes = bootstrap_nodes;
   cfg2.kad_bootstrap_nodes_len = 1;
   cfg2.muxer = LIBP2P_MUXER_MPLEX;
-  cfg2.transport = LIBP2P_TRANSPORT_TCP
+  cfg2.transport = LIBP2P_TRANSPORT_TCP;
   cfg2.addrs = peer2_addrs;
   cfg2.addrsLen = 1;
 
