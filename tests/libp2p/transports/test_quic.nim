@@ -7,7 +7,7 @@ import chronos, random, stew/byteutils
 import
   ../../../libp2p/
     [transports/transport, transports/quictransport, upgrademngrs/upgrade, muxers/muxer]
-import ../../tools/[unittest, crypto as cryptoTools]
+import ../../tools/[unittest, crypto as cryptoTools, multiaddress]
 import ./basic_tests
 import ./stream_tests
 import ./utils
@@ -117,12 +117,9 @@ suite "Quic transport":
     await runClient()
 
   asyncTest "should allow multiple local addresses":
-    let addr1 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get()
-    let addr2 = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get()
-
     let key = PrivateKey.random(ECDSA, rng()).tryGet()
     let server = QuicTransport.new(Upgrade(), key)
-    await server.start(@[addr1, addr2])
+    await server.start(@[QuicAutoAddress, QuicAutoAddress])
     defer:
       await server.stop()
 

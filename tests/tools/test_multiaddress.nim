@@ -43,9 +43,6 @@ suite "MultiAddress testing tools":
         Opt.some(IpAddress(family: IpAddressFamily.IPv4, address_v4: [5'u8, 6, 7, 8]))
 
   test "replaceIp":
-    proc ma(s: string): MultiAddress =
-      MultiAddress.init(s).get()
-
     let
       ip4 = parseIpAddress("203.0.113.7")
       ip6 = parseIpAddress("2001:db8::1")
