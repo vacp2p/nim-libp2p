@@ -94,13 +94,6 @@
     fetchSubmodules = true;
   };
 
-  dnsclient = pkgs.fetchgit {
-    url = "https://github.com/ba0f3/dnsclient.nim";
-    rev = "23214235d4784d24aceed99bbfe153379ea557c8";
-    sha256 = "03mf3lw5c0m5nq9ppa49nylrl8ibkv2zzlc0wyhqg7w09kz6hks6";
-    fetchSubmodules = true;
-  };
-
   jwt = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-jwt.git";
     rev = "057ec95eb5af0eea9c49bfe9025b3312c95dc5f2";

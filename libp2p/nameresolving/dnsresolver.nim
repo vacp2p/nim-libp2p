@@ -3,14 +3,7 @@
 
 {.push raises: [].}
 
-import
-  std/[streams, sets, sequtils],
-  chronos,
-  chronicles,
-  stew/byteutils,
-  dnsclientpkg/[protocol, types],
-  ../utility,
-  ../utils/sequninit
+import std/[sets, sequtils, random], chronos, chronicles, ./dnsmessage, ../utility
 
 import nameresolver
 
@@ -26,40 +19,12 @@ const DefaultDnsServers* = @[
 type DnsResolver* = ref object of NameResolver
   nameServers*: seq[TransportAddress]
 
-proc questionToBuf(address: string, kind: QKind): seq[byte] =
-  try:
-    var
-      header = initHeader()
-      question = initQuestion(address, kind)
-
-      requestStream = header.toStream()
-    question.toStream(requestStream)
-
-    let dataLen = requestStream.getPosition()
-    requestStream.setPosition(0)
-
-    var buf = newSeqUninit[byte](dataLen)
-    discard requestStream.readData(addr buf[0], dataLen)
-    buf
-  except IOError as exc:
-    info "Failed to created DNS buffer", description = exc.msg
-    newSeqUninit[byte](0)
-  except OSError as exc:
-    info "Failed to created DNS buffer", description = exc.msg
-    newSeqUninit[byte](0)
-  except ValueError as exc:
-    info "Failed to created DNS buffer", description = exc.msg
-    newSeqUninit[byte](0)
-
 proc getDnsResponse(
-    dnsServer: TransportAddress, address: string, kind: QKind
-): Future[Response] {.
-    async: (raises: [CancelledError, IOError, OSError, TransportError, ValueError])
+    dnsServer: TransportAddress, address: string, kind: DnsRecordKind
+): Future[seq[DnsAnswer]] {.
+    async: (raises: [CancelledError, IOError, TransportError, ValueError])
 .} =
-  var sendBuf = questionToBuf(address, kind)
-
-  if sendBuf.len == 0:
-    raise newException(ValueError, "Incorrect DNS query")
+  var sendBuf = encodeQuery(rand(uint16.high.int).uint16, address, kind)
 
   let receivedDataFuture = Future[void].Raising([CancelledError]).init()
 
@@ -82,20 +47,7 @@ proc getDnsResponse(
     except AsyncTimeoutError as e:
       raise newException(IOError, "DNS server timeout: " & e.msg, e)
 
-    let rawResponse = sock.getMessage()
-    try:
-      parseResponse(string.fromBytes(rawResponse))
-    except IOError as exc:
-      raise newException(IOError, "Failed to parse DNS response: " & exc.msg, exc)
-    except OSError as exc:
-      raise newException(OSError, "Failed to parse DNS response: " & exc.msg, exc)
-    except ValueError as exc:
-      raise newException(ValueError, "Failed to parse DNS response: " & exc.msg, exc)
-    except Exception as exc:
-      # Nim 1.6: parseResponse can has a raises: [Exception, ..] because of
-      # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
-      # Let's raise as an IOError
-      raise newException(IOError, "Exception parsing DNS response: " & exc.msg)
+    parseAnswers(sock.getMessage())
   finally:
     await sock.closeWait()
 
@@ -108,8 +60,8 @@ method resolveIp*(
   for _ in 0 ..< self.nameServers.len:
     let server = self.nameServers[0]
     var responseFutures: seq[
-      Future[Response].Raising(
-        [CancelledError, IOError, OSError, TransportError, ValueError]
+      Future[seq[DnsAnswer]].Raising(
+        [CancelledError, IOError, TransportError, ValueError]
       )
     ]
     if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
@@ -134,8 +86,8 @@ method resolveIp*(
     for fut in responseFutures:
       try:
         let resp = await fut
-        for answer in resp.answers:
-          resolvedAddresses.incl(answer.toString())
+        for answer in resp:
+          resolvedAddresses.incl(answer.value)
       except CancelledError as e:
         raise e
       except ValueError as e:
@@ -143,15 +95,8 @@ method resolveIp*(
         return @[]
       except IOError as e:
         handleFail(e)
-      except OSError as e:
-        handleFail(e)
       except TransportError as e:
         handleFail(e)
-      except Exception as e:
-        # Nim 1.6: answer.toString can has a raises: [Exception, ..] because of
-        # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
-        # it can't actually raise though
-        raiseAssert e.msg
 
     if resolveFailed:
       self.nameServers.add(self.nameServers[0])
@@ -178,24 +123,16 @@ method resolveTxt*(
 
     try:
       let response = await getDnsResponse(server, address, TXT)
-      trace "Got TXT response",
-        server = $server, answer = response.answers.mapIt(it.toString())
-      return response.answers.mapIt(it.toString())
+      trace "Got TXT response", server = $server, answer = response.mapIt(it.value)
+      return response.mapIt(it.value)
     except CancelledError as e:
       raise e
     except IOError as e:
-      handleFail(e)
-    except OSError as e:
       handleFail(e)
     except TransportError as e:
       handleFail(e)
     except ValueError as e:
       handleFail(e)
-    except Exception as e:
-      # Nim 1.6: toString can has a raises: [Exception, ..] because of
-      # https://github.com/nim-lang/Nim/commit/035134de429b5d99c5607c5fae912762bebb6008
-      # it can't actually raise though
-      raiseAssert e.msg
 
   debug "Failed to resolve TXT, returning empty set"
   return @[]

@@ -157,3 +157,27 @@ suite "withValue and valueOr templates":
       fail()
       return
     check obj.x == 3
+
+  test "ipv4ToString renders dotted-decimal IPv4":
+    check ipv4ToString([1'u8, 2, 3, 4]) == "1.2.3.4"
+    check ipv4ToString([0'u8, 0, 0, 0]) == "0.0.0.0"
+    check ipv4ToString([255'u8, 255, 255, 255]) == "255.255.255.255"
+
+  test "ipv4ToString rejects wrong length":
+    expect ValueError:
+      discard ipv4ToString([1'u8, 2, 3])
+    expect ValueError:
+      discard ipv4ToString([1'u8, 2, 3, 4, 5])
+
+  test "ipv6ToString renders compressed IPv6":
+    check ipv6ToString(
+      [0x26'u8, 0x06, 0x47, 0x00, 0x00, 0x10, 0, 0, 0, 0, 0, 0, 0x68, 0x16, 0x19, 0xb5]
+    ) == "2606:4700:10::6816:19b5"
+    check ipv6ToString([0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]) == "::1"
+    check ipv6ToString([0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) == "::"
+
+  test "ipv6ToString rejects wrong length":
+    expect ValueError:
+      discard ipv6ToString([0'u8, 0, 0, 0])
+    expect ValueError:
+      discard ipv6ToString(newSeq[byte](17))
