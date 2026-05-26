@@ -98,12 +98,9 @@ type
 proc new*(T: type[SwitchBuilder]): T =
   ## Creates a SwitchBuilder
 
-  let address =
-    MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should initialize to default")
-
   SwitchBuilder(
     privKey: Opt.none(PrivateKey),
-    addresses: @[address],
+    addresses: @[],
     secureManagers: @[],
     maxConnsPerPeer: -1,
     limits: Opt.none(ConnectionLimits),
