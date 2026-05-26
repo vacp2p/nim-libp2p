@@ -105,56 +105,64 @@ suite "Service Discovery Component - Registrar Closer Peers":
       not discovererNode.rtable.hasPeer(serviceOnlyKey)
         # node is in RegT with valid addresses, but RegT is not used.
 
-  asyncTest "REGISTER with Wait does not add advertiser to RegT":
-    let registrarNode = setupServiceDiscoveryNode()
-    let advertiserNode = setupServiceDiscoveryNode()
-    startAndDeferStop(@[registrarNode, advertiserNode])
-    await connect(registrarNode, advertiserNode)
+  asyncTest "REGISTER with Wait does not add advertiser to existing RegT":
+    # Use safetyParam = 0 so the first registration is Confirmed, and
+    # advertCacheCap = 1 so the cache is full after that, forcing the
+    # second registration to return Wait.
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0, advertCacheCap = 1)
+    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let confirmedNode = setupServiceDiscoveryNode(discoConfig = conf)
+    let waitNode = setupServiceDiscoveryNode(discoConfig = conf)
+    startAndDeferStop(@[registrarNode, confirmedNode, waitNode])
+    await connect(registrarNode, confirmedNode)
 
     let serviceName = "service"
     let serviceId = serviceName.hashServiceId()
-    let adBytes = makeAdvertisement(
-        serviceName, advertiserNode.switch.peerInfo.privateKey
+
+    let confirmedAdBytes = makeAdvertisement(
+        serviceName, confirmedNode.switch.peerInfo.privateKey
       )
       .encode()
       .get()
-
-    let response = await advertiserNode.sendRegister(
-      registrarNode.switch.peerInfo.peerId, serviceId, adBytes
+    let confirmedResponse = await confirmedNode.sendRegister(
+      registrarNode.switch.peerInfo.peerId, serviceId, confirmedAdBytes
     )
-    check response.isOk()
-    check response.get().status == kad_protobuf.RegistrationStatus.Wait
+    check:
+      confirmedResponse.isOk()
+      confirmedResponse.get().status == kad_protobuf.RegistrationStatus.Confirmed
+
+    let confirmedKey = confirmedNode.switch.peerInfo.peerId.toKey()
+    let tableAfterConfirmed = registrarNode.rtManager.getTable(serviceId)
+    check:
+      tableAfterConfirmed.isSome()
+      tableAfterConfirmed.get().hasPeer(confirmedKey)
+
+    # Connect waitNode after the service table is created so it is not
+    # seeded into it from the main Kad table.
+    await connect(registrarNode, waitNode)
+
+    let waitKey = waitNode.switch.peerInfo.peerId.toKey()
+    check not tableAfterConfirmed.get().hasPeer(waitKey)
+
+    # The cache is full so the registrar returns Wait.
+    let waitAdBytes = makeAdvertisement(
+        serviceName, waitNode.switch.peerInfo.privateKey
+      )
+      .encode()
+      .get()
+    let waitResponse = await waitNode.sendRegister(
+      registrarNode.switch.peerInfo.peerId, serviceId, waitAdBytes
+    )
+    check:
+      waitResponse.isOk()
+      waitResponse.get().status == kad_protobuf.RegistrationStatus.Wait
 
     # Spec: the registrar adds the advertiser to RegT on every REGISTER.
-    # Implementation: RegT is not created until Confirmed.
-    let serviceTable = registrarNode.rtManager.getTable(serviceId)
-    check serviceTable.isNone()
-
-  asyncTest "REGISTER with Confirmed is the only path that writes to RegT":
-    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
-    let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
-    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
-    startAndDeferStop(@[registrarNode, advertiserNode])
-    await connect(registrarNode, advertiserNode)
-
-    let serviceName = "service"
-    let serviceId = serviceName.hashServiceId()
-    let adBytes = makeAdvertisement(
-        serviceName, advertiserNode.switch.peerInfo.privateKey
-      )
-      .encode()
-      .get()
-
-    let response = await advertiserNode.sendRegister(
-      registrarNode.switch.peerInfo.peerId, serviceId, adBytes
-    )
-    check response.isOk()
-    check response.get().status == kad_protobuf.RegistrationStatus.Confirmed
-
-    let advertiserKey = advertiserNode.switch.peerInfo.peerId.toKey()
-    let serviceTable = registrarNode.rtManager.getTable(serviceId)
-    check serviceTable.isSome()
-    check serviceTable.get().hasPeer(advertiserKey)
+    # Implementation: the Wait path skips the service table write.
+    let tableAfterWait = registrarNode.rtManager.getTable(serviceId)
+    check:
+      tableAfterWait.isSome()
+      not tableAfterWait.get().hasPeer(waitKey)
 
   asyncTest "GET_ADS does not add discoverer to RegT":
     let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
