@@ -57,9 +57,18 @@ proc buildCBindings(libType: string, params = "") =
   let ext = getLibExt(libType)
   let app = if libType == "static": "staticlib" else: "lib"
 
+  # A shared library (--app:lib) is fully linked, so it must resolve the
+  # miniupnpc / libnatpmp C symbols pulled in via nat_traversal. Build the
+  # vendored .a's and hand them to the linker. A static lib (--app:staticlib)
+  # is only archived; its consumer links those in later (see the examples task).
+  var linkFlags = ""
+  if libType == "dynamic":
+    exec "make -C .. nat_libs"
+    linkFlags = " --passL:\"" & natLibLinkFlags() & "\""
+
   exec "nim c --out:" & buildDir & "/libp2p." & ext & " --threads:on --app:" & app &
     " --opt:size --noMain --mm:refc --header --undef:metrics" &
-    " --nimMainPrefix:libp2p --nimcache:nimcache libp2p.nim"
+    " --nimMainPrefix:libp2p --nimcache:nimcache" & linkFlags & " libp2p.nim"
 
 task libDynamic, "Generate dynamic bindings":
   buildCBindings "dynamic", ""

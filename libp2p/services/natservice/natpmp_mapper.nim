@@ -69,3 +69,8 @@ method deleteMapping*(
   ).isOkOr:
     return err(error)
   ok()
+
+method close*(self: NatPmpMapper) =
+  if self.initialized:
+    self.npmp.close()
+    self.initialized = false

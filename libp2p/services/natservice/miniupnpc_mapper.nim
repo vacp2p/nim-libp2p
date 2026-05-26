@@ -80,3 +80,9 @@ method deleteMapping*(
   self.upnp.deletePortMapping(externalPort = $int(externalPort), protocol = proto).isOkOr:
     return err($error)
   ok()
+
+method close*(self: MiniupnpcMapper) =
+  if self.discovered:
+    # Frees the discovered IGD device list / URLs held by the C struct.
+    self.upnp.close()
+    self.discovered = false

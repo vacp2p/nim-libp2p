@@ -29,6 +29,14 @@ proc explicitIpMapped*(
       addrs.add(remapped)
   addrs
 
+proc isLoopback(ip: IpAddress): bool =
+  ## True for 127.0.0.0/8 (IPv4) or ::1 (IPv6).
+  case ip.family
+  of IpAddressFamily.IPv4:
+    ip.address_v4[0] == 127'u8
+  of IpAddressFamily.IPv6:
+    ip.address_v6 == [0'u8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+
 type MappablePort = object
   port: Port
   protocol: NATProtocol
@@ -92,6 +100,10 @@ proc collectInternalPorts*(listenAddrs: seq[MultiAddress]): seq[PortMapping] =
   ## initially equal to the internal port (gateway fills it in later).
   var seen: seq[PortMapping]
   for listenAddr in listenAddrs:
+    # A gateway can't map a host-local port, so don't bother requesting it.
+    let ip = listenAddr.getIp()
+    if ip.isSome and ip.get.isLoopback:
+      continue
     let mappable = extractPort(listenAddr).valueOr:
       continue
     let candidate = PortMapping(
