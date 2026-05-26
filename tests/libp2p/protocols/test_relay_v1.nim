@@ -22,7 +22,7 @@ import
     upgrademngrs/upgrade,
     varint,
   ]
-import ../../tools/[unittest, crypto, switch_builder]
+import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
 proc new(T: typedesc[RelayTransport], relay: Relay): T =
   T.new(relay = relay, upgrader = relay.switch.transports[0].upgrader)
@@ -97,33 +97,9 @@ suite "Circuit Relay":
     clSrc = RelayClient.new()
     clDst = RelayClient.new()
     r = Relay.new(circuitRelayV1 = true)
-    src = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .withCircuitRelay(clSrc)
-      .build()
-    dst = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .withCircuitRelay(clDst)
-      .build()
-    srelay = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .withCircuitRelay(r)
-      .build()
+    src = makeStandardSwitchBuilder(TcpAutoAddress).withCircuitRelay(clSrc).build()
+    dst = makeStandardSwitchBuilder(TcpAutoAddress).withCircuitRelay(clDst).build()
+    srelay = makeStandardSwitchBuilder(TcpAutoAddress).withCircuitRelay(r).build()
 
     dst.mount(customProto)
 

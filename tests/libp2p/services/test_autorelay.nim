@@ -13,18 +13,10 @@ import
     protocols/connectivity/relay/client,
     services/autorelayservice,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
-  let switch = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .withCircuitRelay(r)
-    .build()
+  let switch = makeStandardSwitchBuilder(TcpAutoAddress).withCircuitRelay(r).build()
 
   switch.add(autorelay)
 
