@@ -250,7 +250,8 @@ suite "Service Discovery Component - Lookup Get Ads":
     check:
       found.get().len == 0
 
-    let serviceTable = discovererNode.rtManager.getTable(serviceId).get()
-    check:
-      serviceTable.hasPeer(otherKey)
+    checkUntilTimeout:
+      block:
+        let serviceTable = discovererNode.rtManager.getTable(serviceId).get()
+        serviceTable.hasPeer(otherKey)
       discovererNode.rtable.hasPeer(otherKey)
