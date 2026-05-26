@@ -55,11 +55,13 @@ proc handleMessage*(
 ) {.async: (raises: [CancelledError]).} =
   cd_messages_received.inc(labelValues = [$msg.msgType])
 
+  let peerId = stream.peerId
+
   let response =
     if msg.msgType == MessageType.register:
-      disco.registration(msg)
+      disco.registration(peerId, msg)
     else:
-      disco.getAdvertisements(msg)
+      disco.getAdvertisements(peerId, msg)
 
   let bytes = response.encode().buffer
 

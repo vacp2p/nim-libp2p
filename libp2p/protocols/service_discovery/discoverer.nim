@@ -32,7 +32,7 @@ proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
   return validAds
 
 proc localGetAds(disco: ServiceDiscovery, msg: Message): Result[Message, string] =
-  return ok(disco.getAdvertisements(msg))
+  return ok(disco.getAdvertisements(disco.switch.peerInfo.peerId, msg))
 
 proc dispatchGetAds(
     disco: ServiceDiscovery, peerId: PeerId, serviceId: ServiceId

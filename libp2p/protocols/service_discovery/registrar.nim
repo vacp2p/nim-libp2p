@@ -410,9 +410,12 @@ proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
   else:
     default
 
-proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
+proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Message =
   let serviceId = inMsg.key
-  let closerPeers = disco.findClosestPeers(serviceId)
+
+  # Add peer to both tables
+  discard disco.rtable.insert(peerId)
+  disco.rtManager.insertPeer(serviceId, peerId.toKey())
 
   var msg = Message(
     msgType: MessageType.register,
@@ -423,7 +426,7 @@ proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
         ticket: Opt.none(Ticket),
       )
     ),
-    closerPeers: closerPeers,
+    closerPeers: @[],
   )
 
   let regMsg = inMsg.register.valueOr:
@@ -459,6 +462,10 @@ proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
       labelValues = [$kademlia_protobuf.RegistrationStatus.Confirmed]
     )
 
+    let closerKeys = disco.rtManager.findClosest(serviceId, disco.discoConfig.fReturn)
+
+    msg.closerPeers = disco.switch.toPeers(closerKeys)
+
     return msg
 
   disco.registrar.updateLowerBounds(serviceId, ad, tWait, now)
@@ -486,16 +493,25 @@ proc registration*(disco: ServiceDiscovery, inMsg: Message): Message =
 
   return msg
 
-proc getAdvertisements*(disco: ServiceDiscovery, msg: Message): Message =
+proc getAdvertisements*(
+    disco: ServiceDiscovery, peerId: PeerId, msg: Message
+): Message =
   let serviceId = msg.key
+
+  # Add peer to both tables
+  discard disco.rtable.insert(peerId)
+  disco.rtManager.insertPeer(serviceId, peerId.toKey())
+
   let ads = disco.registrar.cache.getOrDefault(serviceId, @[])
 
   let cap = disco.discoConfig.fReturn
 
+  let closerKeys = disco.rtManager.findClosest(serviceId, cap)
+
   let response = Message(
     msgType: MessageType.getAds,
     getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
-    closerPeers: disco.findClosestPeers(serviceId),
+    closerPeers: disco.switch.toPeers(closerKeys),
   )
 
   return response
