@@ -10,7 +10,7 @@ import std/oids
 import stew/byteutils
 import chronicles, chronos, metrics
 import ../varint, ../peerinfo, ../multiaddress, ../utility, ../errors
-import ../utils/[sequninit, future]
+import ../utils/future
 
 export errors
 

@@ -70,7 +70,7 @@ proc fromBytes*(
 ): InteropPartialMessage =
   doAssert groupIdBytes.len == GroupIdLen, "groupId must be 8 bytes"
   var groupIdArr: array[GroupIdLen, byte]
-  copyMem(addr groupIdArr[0], unsafeAddr groupIdBytes[0], GroupIdLen)
+  copyMem(addr groupIdArr[0], addr groupIdBytes[0], GroupIdLen)
   InteropPartialMessage(groupIdBytes: groupIdArr)
 
 func isComplete*(pm: InteropPartialMessage): bool =

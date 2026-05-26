@@ -235,7 +235,7 @@ proc libp2p_new_private_key(
   foreignThreadGc:
     let dataPtr =
       if keyData.len > 0:
-        unsafeAddr keyData[0]
+        addr keyData[0]
       else:
         nil
 

@@ -6,7 +6,6 @@
 # This file implements procedures for allocating and deallocating shared memory
 # used for communication between client and library threads.
 
-import ../libp2p/utils/sequninit
 import ./ffi_types
 
 ## Can be shared safely between threads
