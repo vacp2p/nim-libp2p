@@ -6,7 +6,7 @@
 import std/[sequtils, net], stew/byteutils
 import protobuf_serialization
 import ../../../libp2p/[multicodec, multiaddress, protobuf/minprotobuf]
-import ../../tools/[unittest]
+import ../../tools/[unittest, multiaddress]
 
 {.push raises: [].}
 
