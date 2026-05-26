@@ -27,15 +27,16 @@ import
     relay/client,
     relay/rtransport,
   ],
-  services/[autorelayservice, hpservice, identify_pusher, natservice],
+  services/
+    [autorelayservice, hpservice, identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
   autotls/service,
   nameresolving/nameresolver,
   errors,
-  utility
-import services/wildcardresolverservice
+  utility,
+  utils/opt
 
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
@@ -120,16 +121,12 @@ proc new*(T: type[SwitchBuilder]): T =
     addressTtls: AddressConfidenceTtls(),
   )
 
-proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
+proc withPrivateKey*(
+    b: SwitchBuilder, privateKey: PrivateKey | Opt[PrivateKey]
+): SwitchBuilder =
   ## Set the private key of the switch. Will be used to generate a PeerId
 
-  b.privKey = Opt.some(privateKey)
-  b
-
-proc withPrivateKey*(b: SwitchBuilder, privateKey: Opt[PrivateKey]): SwitchBuilder =
-  ## Set the private key of the switch. Will be used to generate a PeerId
-
-  b.privKey = privateKey
+  b.privKey = toOpt(privateKey)
   b
 
 proc withWildcardResolver*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
