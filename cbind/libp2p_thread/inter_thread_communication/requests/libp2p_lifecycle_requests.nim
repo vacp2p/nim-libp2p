@@ -251,17 +251,18 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     .withNameResolver(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
     .withNoise()
 
-  if addrs.len > 0:
-    switchBuilder = switchBuilder.withAddresses(addrs)
-
   privKey.withValue(pkey):
     switchBuilder = switchBuilder.withPrivateKey(pkey)
 
   case transport
   of TransportType.QUIC:
     switchBuilder = switchBuilder.withQuicTransport()
+    if addrs.len == 0:
+      addrs.add(MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get())
   of TransportType.TCP:
     switchBuilder = switchBuilder.withTcpTransport()
+    if addrs.len == 0:
+      addrs.add(MultiAddress.init("/ip4/127.0.0.1/tcp/0").get())
 
     let muxer = MuxerType.fromCint(config.muxer).valueOr:
       raiseAssert "invalid muxer type"
@@ -270,6 +271,8 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
       switchBuilder = switchBuilder.withMplex()
     of MuxerType.YAMUX:
       switchBuilder = switchBuilder.withYamux()
+
+  switchBuilder = switchBuilder.withAddresses(addrs)
 
   if config.maxIn > 0 and config.maxOut > 0:
     switchBuilder = switchBuilder.withConnectionLimits(
