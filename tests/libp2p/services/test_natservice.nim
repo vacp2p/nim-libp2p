@@ -7,7 +7,7 @@ import std/[net, sequtils, strutils]
 import chronos, results
 import ../../../libp2p/[builders, switch, multiaddress, multicodec]
 import ../../../libp2p/services/natservice
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 
 proc makeSwitch(
     config: NATConfig, listenAddrs: seq[MultiAddress], mapper: NATPortMapper = nil
@@ -102,9 +102,6 @@ suite "NATService":
     checkTrackers()
 
   test "explicitIpMapped preserves port and suffix; drops mismatching family":
-    proc ma(s: string): MultiAddress =
-      MultiAddress.init(s).get()
-
     let
       ip4 = parseIpAddress("203.0.113.7")
       ip6 = parseIpAddress("2001:db8::1")

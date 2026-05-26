@@ -5,7 +5,7 @@
 
 import
   results, ../../libp2p/[errors, switch, builders, multiaddress, transports/wstransport]
-import ./crypto
+import ./[crypto, multiaddress]
 
 export builders
 
@@ -34,14 +34,11 @@ proc makeStandardSwitchBuilder*(
       else:
         case transport
         of TransportType.QUIC:
-          MultiAddress.init("/ip4/0.0.0.0/udp/0/quic-v1").valueOr:
-            raise newException(LPError, error)
+          QuicAutoAddress
         of TransportType.TCP:
-          MultiAddress.init("/ip4/127.0.0.1/tcp/0").valueOr:
-            raise newException(LPError, error)
+          TcpAutoAddress
         of TransportType.Websocket:
-          MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").valueOr:
-            raise newException(LPError, error)
+          WsAutoAddress
         of TransportType.Memory:
           MultiAddress.init(MemoryAutoAddress).valueOr:
             raise newException(LPError, error)

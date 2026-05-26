@@ -8,7 +8,7 @@ import ../../../libp2p/[muxers/muxer, connmanager, switch]
 import
   ../../../libp2p/protocols/pubsub/
     [floodsub, gossipsub, mcache, peertable, pubsubpeer, rpc/message, rpc/protobuf]
-import ../../tools/[unittest, bufferstream, crypto, switch_builder]
+import ../../tools/[unittest, bufferstream, crypto, switch_builder, multiaddress]
 
 func withSubs*(T: type RPCMsg, topics: openArray[string], subscribe: bool): RPCMsg =
   RPCMsg.withSubscriptions(topics.mapIt(SubOpts(subscribe: subscribe, topic: it)))
@@ -192,7 +192,7 @@ suite "GossipSub":
       await teardownGossipSub(gossipSub, conns)
 
     # And peer has an address and is in peersInIP
-    let testAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+    let testAddress = TcpAutoAddress
     peer.address = Opt.some(testAddress)
     gossipSub.peersInIP[testAddress] = initHashSet[PeerId]()
     gossipSub.peersInIP[testAddress].incl(peerId)

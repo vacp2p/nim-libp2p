@@ -5,14 +5,14 @@
 
 import chronos
 import ../../libp2p/[switch, builders, peerid, protocols/kademlia, wire]
-import ../tools/[crypto, unittest]
+import ../tools/[crypto, unittest, multiaddress]
 import ./kad
 
 proc createSwitch(mountKad = true): Switch =
   let switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
+    .withAddresses(@[TcpAutoAddress])
     .withTcpTransport()
     .withMplex()
     .withNoise()

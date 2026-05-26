@@ -4,7 +4,7 @@
 {.used.}
 
 import ../../libp2p/[multiaddress, wire]
-import ../tools/[unittest]
+import ../tools/[unittest, multiaddress]
 
 suite "Wire":
   test "initTAddress returns ok and correct result for a Unix domain address":
@@ -147,9 +147,6 @@ suite "Wire":
     check initTAddress(ma).isErr
 
 suite "isFilterablePrivateMA":
-  proc ma(s: string): MultiAddress =
-    MultiAddress.init(s).tryGet()
-
   test "RFC1918 addresses are filterable":
     check not isPublicMA(ma("/ip4/10.0.0.1/tcp/4001"))
     check not isPublicMA(ma("/ip4/172.16.0.1/tcp/4001"))
