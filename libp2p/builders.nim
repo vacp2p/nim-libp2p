@@ -86,6 +86,7 @@ type
     autonatV2Service: Opt[AutonatV2Service]
     hpService: Opt[HPService]
     natConfig: Opt[NATConfig]
+    natPortMapper: NATPortMapper
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
@@ -343,10 +344,14 @@ proc withAutonatV2*(
   )
   b
 
-proc withNAT*(b: SwitchBuilder, config: NATConfig): SwitchBuilder =
-  ## Enable a NAT traversal service.
+proc withNAT*(
+    b: SwitchBuilder, config: NATConfig, portMapper: NATPortMapper = nil
+): SwitchBuilder =
+  ## Enable a NAT traversal service. Tests can pass ``portMapper`` to inject
+  ## a fake backend in place of the production miniupnpc / libnatpmp mapper.
   ## TODO: wire in autonat / hole-punching.
   b.natConfig = Opt.some(config)
+  b.natPortMapper = portMapper
   b
 
 proc withHolePunching*(
@@ -529,7 +534,7 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     switch.services.add(hpservice)
 
   b.natConfig.withValue(natCfg):
-    switch.services.add(NATService.new(natCfg))
+    switch.services.add(NATService.new(natCfg, b.natPortMapper))
 
   if b.identifyPusherEnabled:
     switch.services.add(IdentifyPusher.new())

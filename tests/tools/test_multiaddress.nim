@@ -42,6 +42,29 @@ suite "MultiAddress testing tools":
       MultiAddress.init("/ip4/5.6.7.8/tcp/80/ws").get().getIp() ==
         Opt.some(IpAddress(family: IpAddressFamily.IPv4, address_v4: [5'u8, 6, 7, 8]))
 
+  test "hasIp":
+    proc ma(s: string): MultiAddress =
+      MultiAddress.init(s).get()
+
+    check:
+      ma("/ip4/1.2.3.4/tcp/1234").hasIp()
+      ma("/ip6/::1/tcp/1234").hasIp()
+      ma("/ip4/5.6.7.8/tcp/80/ws").hasIp()
+      not ma("/tcp/1234").hasIp()
+      not ma("/unix/tmp/sock").hasIp()
+
+  test "hasPort":
+    proc ma(s: string): MultiAddress =
+      MultiAddress.init(s).get()
+
+    check:
+      ma("/ip4/1.2.3.4/tcp/1234").hasPort()
+      ma("/ip4/1.2.3.4/udp/9000/quic-v1").hasPort()
+      ma("/ip6/::1/tcp/1234").hasPort()
+      ma("/tcp/1234").hasPort()
+      not ma("/ip4/1.2.3.4").hasPort()
+      not ma("/unix/tmp/sock").hasPort()
+
   test "replaceIp":
     proc ma(s: string): MultiAddress =
       MultiAddress.init(s).get()
@@ -64,5 +87,20 @@ suite "MultiAddress testing tools":
       # cross-family swap (IPv6 -> IPv4 and vice versa)
       ma("/ip6/::/tcp/80/ws").replaceIp(ip4).get == ma("/ip4/203.0.113.7/tcp/80/ws")
       ma("/ip4/0.0.0.0/tcp/80").replaceIp(ip6).get == ma("/ip6/2001:db8::1/tcp/80")
-      # no IP component
-      ma("/unix/tmp/sock").replaceIp(ip4).isErr
+      # no IP component -> no-op (returns input unchanged)
+      ma("/unix/tmp/sock").replaceIp(ip4).get == ma("/unix/tmp/sock")
+      ma("/tcp/1234").replaceIp(ip4).get == ma("/tcp/1234")
+
+  test "replacePort":
+    proc ma(s: string): MultiAddress =
+      MultiAddress.init(s).get()
+
+    check:
+      ma("/ip4/1.2.3.4/tcp/1234").replacePort(Port(5678)).get ==
+        ma("/ip4/1.2.3.4/tcp/5678")
+      ma("/ip4/1.2.3.4/udp/9000/quic-v1").replacePort(Port(9001)).get ==
+        ma("/ip4/1.2.3.4/udp/9001/quic-v1")
+      ma("/ip6/::1/tcp/80/ws").replacePort(Port(443)).get == ma("/ip6/::1/tcp/443/ws")
+      # no port component -> no-op (returns input unchanged)
+      ma("/ip4/1.2.3.4").replacePort(Port(5678)).get == ma("/ip4/1.2.3.4")
+      ma("/unix/tmp/sock").replacePort(Port(5678)).get == ma("/unix/tmp/sock")

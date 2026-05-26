@@ -1281,11 +1281,40 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
       cursor.offset = cursor.offset + skipLen
     # Marker - nothing to skip
 
+proc hasIp*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` contains an ``/ip4`` or ``/ip6`` component.
+  let
+    ip4 = multiCodec("ip4")
+    ip6 = multiCodec("ip6")
+  for item in ma.items:
+    let part = item.valueOr:
+      return false
+    let code = part.protoCode.valueOr:
+      return false
+    if code == ip4 or code == ip6:
+      return true
+  false
+
+proc hasPort*(ma: MultiAddress): bool =
+  ## Returns ``true`` if ``ma`` contains a ``/tcp`` or ``/udp`` component.
+  let
+    tcpCodec = multiCodec("tcp")
+    udpCodec = multiCodec("udp")
+  for item in ma.items:
+    let part = item.valueOr:
+      return false
+    let code = part.protoCode.valueOr:
+      return false
+    if code == tcpCodec or code == udpCodec:
+      return true
+  false
+
 proc replacePort*(ma: MultiAddress, port: Port): MaResult[MultiAddress] =
   ## Returns a copy of ``ma`` with its leading /tcp or /udp port replaced by
   ## ``port``. The transport codec (tcp or udp) is preserved, as is the rest
-  ## of the multiaddress. Returns an error if ``ma`` has no /tcp or /udp
-  ## component.
+  ## of the multiaddress. If ``ma`` has no /tcp or /udp component this is a
+  ## no-op and ``ma`` is returned unchanged — gate with ``hasPort`` if the
+  ## caller needs to distinguish.
   let
     tcpCodec = multiCodec("tcp")
     udpCodec = multiCodec("udp")
@@ -1301,7 +1330,7 @@ proc replacePort*(ma: MultiAddress, port: Port): MaResult[MultiAddress] =
     else:
       ?res.append(part)
   if not found:
-    return err("multiaddress: no tcp/udp component to replace")
+    return ok(ma)
   ok(res)
 
 proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
@@ -1309,8 +1338,9 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
   ## ``ip``. If ``ip``'s family differs from the original, the IP codec is
   ## swapped accordingly (``/ip6/...`` becomes ``/ip4/...`` or vice versa).
   ## The remainder of the multiaddress (transport, port, and any suffix such
-  ## as ``/quic-v1``, ``/ws``, ``/wss``, ``/tls/ws``) is preserved. Returns
-  ## an error if ``ma`` has no IP component.
+  ## as ``/quic-v1``, ``/ws``, ``/wss``, ``/tls/ws``) is preserved. If ``ma``
+  ## has no IP component this is a no-op and ``ma`` is returned unchanged —
+  ## gate with ``hasIp`` if the caller needs to distinguish.
   let
     ip4 = multiCodec("ip4")
     ip6 = multiCodec("ip6")
@@ -1333,7 +1363,7 @@ proc replaceIp*(ma: MultiAddress, ip: IpAddress): MaResult[MultiAddress] =
     else:
       ?res.append(part)
   if not found:
-    return err("multiaddress: no IP component to replace")
+    return ok(ma)
   ok(res)
 
 const AvgMultiAddressStringLength = 32

@@ -17,13 +17,16 @@ proc explicitIpMapped*(
   ## without an IP or with a mismatching family. Deduplicates.
   var addrs: seq[MultiAddress]
   for listenAddr in listenAddrs:
+    if not listenAddr.hasIp():
+      continue
     let ip = listenAddr.getIp().valueOr:
       continue
     if ip.family != explicitIp.family:
       continue
-    listenAddr.replaceIp(explicitIp).withValue(remapped):
-      if remapped notin addrs:
-        addrs.add(remapped)
+    let remapped = listenAddr.replaceIp(explicitIp).valueOr:
+      continue
+    if remapped notin addrs:
+      addrs.add(remapped)
   addrs
 
 type MappablePort = object
@@ -67,6 +70,8 @@ proc gatewayMapped*(
   ## matching gateway mapping. Drops unmatched or mismatched-family addresses.
   var announces: seq[MultiAddress]
   for listenAddr in listenAddrs:
+    if not listenAddr.hasIp() or not listenAddr.hasPort():
+      continue
     let
       mapping = findMappingFor(listenAddr, mappings).valueOr:
         continue

@@ -10,8 +10,10 @@ import ../../../libp2p/services/natservice
 import ../../tools/[unittest, crypto]
 
 proc makeSwitch(
-    config: NATConfig, listenAddrs: seq[MultiAddress]
+    config: NATConfig, listenAddrs: seq[MultiAddress], mapper: NATPortMapper = nil
 ): Switch {.raises: [LPError].} =
+  ## Tests pass ``mapper`` to inject a fake in place of the production
+  ## miniupnpc / libnatpmp backend.
   SwitchBuilder
     .new()
     .withRng(rng())
@@ -19,27 +21,8 @@ proc makeSwitch(
     .withTcpTransport()
     .withMplex()
     .withNoise()
-    .withNAT(config)
+    .withNAT(config, mapper)
     .build()
-
-proc makeSwitchWithMapper(
-    config: NATConfig, listenAddrs: seq[MultiAddress], mapper: NATPortMapper
-): Switch {.raises: [LPError].} =
-  ## Build the switch without ``withNAT``, then attach a ``NATService`` with
-  ## the supplied (fake) mapper. Used by tests to bypass production mapper
-  ## construction.
-  let switch = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(listenAddrs, false)
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
-  let nat = NATService.new(config, mapper)
-  switch.services.add(nat)
-  nat.setup(switch)
-  switch
 
 # ---------------------------------------------------------------------------
 # FakeNATPortMapper — records all calls and lets tests script the responses.
@@ -232,9 +215,8 @@ suite "NATService":
       # leaseDuration is long enough that the refresh tick (lease / 2) won't
       # fire during the test.
       cfg = NATConfig.new(Upnp, description = "test", leaseDuration = 1.hours)
-      switch = makeSwitchWithMapper(
-        cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper
-      )
+      switch =
+        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper)
 
     await switch.start()
 
@@ -259,9 +241,8 @@ suite "NATService":
     )
     let
       cfg = NATConfig.new(NatPmp, leaseDuration = 1.hours)
-      switch = makeSwitchWithMapper(
-        cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper
-      )
+      switch =
+        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper)
 
     await switch.start()
     defer:
