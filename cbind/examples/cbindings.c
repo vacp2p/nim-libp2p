@@ -117,6 +117,8 @@ int main(int argc, char **argv) {
   libp2p_peerinfo(ctx1, peerinfo_handler, &pInfo1);
   waitForCallback();
 
+  const char *peer2_addrs[] = {"/ip4/127.0.0.1/tcp/0"};
+
   libp2p_config_t cfg2 = libp2p_new_default_config();
   cfg2.mount_gossipsub = 1;
   cfg2.gossipsub_trigger_self = 1;
@@ -132,10 +134,8 @@ int main(int argc, char **argv) {
   cfg2.kad_bootstrap_nodes = bootstrap_nodes;
   cfg2.kad_bootstrap_nodes_len = 1;
   cfg2.muxer = LIBP2P_MUXER_MPLEX;
-  cfg2.transport = LIBP2P_TRANSPORT_TCP;
-
-  const char *peer1_addrs[] = {"/ip4/127.0.0.1/tcp/0"};
-  cfg2.addrs = peer1_addrs;
+  cfg2.transport = LIBP2P_TRANSPORT_TCP
+  cfg2.addrs = peer2_addrs;
   cfg2.addrsLen = 1;
 
   ctx2 = libp2p_new(&cfg2, event_handler, NULL);

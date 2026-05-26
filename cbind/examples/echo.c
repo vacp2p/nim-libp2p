@@ -92,15 +92,15 @@ int main(void) {
     printf("  %s\n", serverInfo.addrs[i]);
   }
 
+  const char *client_addrs[] = {"/ip4/127.0.0.1/tcp/0"};
+
   libp2p_config_t clientCfg = libp2p_new_default_config();
   clientCfg.mount_gossipsub = 0;
   clientCfg.mount_kad = 0;
   clientCfg.mount_service_discovery = 0;
   clientCfg.muxer = LIBP2P_MUXER_MPLEX;
   clientCfg.transport = LIBP2P_TRANSPORT_TCP;
-  
-  const char *peer1_addrs[] = {"/ip4/127.0.0.1/tcp/0"};
-  clientCfg.addrs = peer1_addrs;
+  clientCfg.addrs = client_addrs;
   clientCfg.addrsLen = 1;
 
   client = libp2p_new(&clientCfg, event_handler, NULL);
