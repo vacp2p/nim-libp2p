@@ -8,11 +8,11 @@ import chronos/apps/http/httpclient
 
 import
   ./acme/client,
+  ./broker,
   ./utils,
   ../crypto/crypto,
   ../nameresolving/nameresolver,
   ../nameresolving/dnsresolver,
-  ../peeridauth/client,
   ../switch,
   ../peerinfo,
   ../wire
@@ -20,16 +20,13 @@ import
 logScope:
   topics = "libp2p autotls"
 
-export LetsEncryptURL, AutoTLSError, DefaultDnsServers
+export LetsEncryptURL, AutoTLSError, DefaultDnsServers, DefaultBrokerURL, AutotlsBroker
 
 const
   DefaultRenewCheckTime* = 1.hours
   DefaultRenewBufferTime* = 1.hours
 
-  AutoTLSBroker* = "registration.libp2p.direct"
   AutoTLSDNSServer* = "libp2p.direct"
-  HttpOk* = 200
-  HttpCreated* = 201
 
 type AutotlsCert* = ref object
   cert*: TLSCertificate
@@ -55,8 +52,7 @@ type AutotlsConfig* = ref object # todo: should not be ref object
 
 type AutotlsService* = ref object of Service
   acmeClient*: ACMEClient
-  brokerClient*: PeerIDAuthClient
-  bearer*: Opt[BearerToken]
+  broker*: AutotlsBroker
   cert*: Opt[AutotlsCert]
   certReady*: AsyncEvent
   running*: AsyncEvent
@@ -66,7 +62,7 @@ type AutotlsService* = ref object of Service
   rng*: Rng
 
 when defined(libp2p_autotls_support):
-  import json, sequtils, bearssl/pem
+  import sequtils, strutils, bearssl/pem
 
   const
     DefaultIssueRetries = 3
@@ -101,7 +97,7 @@ when defined(libp2p_autotls_support):
       renewBufferTime: Duration = DefaultRenewBufferTime,
       issueRetries: int = DefaultIssueRetries,
       issueRetryTime: Duration = DefaultIssueRetryTime,
-      brokerURL: string = AutoTLSBroker,
+      brokerURL: string = DefaultBrokerURL,
       dnsServerURL: string = AutoTLSDNSServer,
       dnsRetries: int = 10,
       dnsRetryTime: Duration = 1.seconds,
@@ -135,8 +131,7 @@ when defined(libp2p_autotls_support):
       acmeClient: ACMEClient.new(
         api = ACMEApi.new(acmeServerURL = config.acmeServerURL), rng = rng
       ),
-      brokerClient: PeerIDAuthClient.new(rng),
-      bearer: Opt.none(BearerToken),
+      broker: AutotlsBroker.new(rng, brokerURL = config.brokerURL),
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),
       running: newAsyncEvent(),
@@ -181,27 +176,10 @@ when defined(libp2p_autotls_support):
     let keyAuth = acmeClient.genKeyAuthorization(dns01Challenge.dns01.token)
 
     let addrs = await self.peerInfo.expandAddrs()
-    if addrs.len == 0:
-      error "Unable to authenticate with broker: no addresses"
-      return false
 
-    let strMultiaddresses: seq[string] = addrs.mapIt($it)
-    let payload = %*{"value": keyAuth, "addresses": strMultiaddresses}
-    let registrationURL =
-      parseUri("https://" & self.config.brokerURL & "/v1/_acme-challenge")
-
-    trace "Sending challenge to AutoTLS broker"
-    let (bearer, response) =
-      await self.brokerClient.send(registrationURL, self.peerInfo, payload, self.bearer)
-    if self.bearer.isNone():
-      # save bearer token for future
-      self.bearer = Opt.some(bearer)
-    if response.status != HttpOk:
-      error "Failed to authenticate with AutoTLS Broker",
-        brokerURL = self.config.brokerURL
-      debug "Broker message",
-        body = bytesToString(response.body), peerinfo = self.peerInfo
-      return false
+    # broker encapsulates request construction, bearer handling and response
+    # validation: it either registers the challenge or raises on failure
+    await self.broker.sendChallenge(self.peerInfo, addrs, keyAuth)
 
     let dashedIpAddr = ($self.config.ipAddress.get()).replace(".", "-")
     let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
@@ -299,8 +277,8 @@ when defined(libp2p_autotls_support):
   ) {.async: (raises: [CancelledError]).} =
     if not self.acmeClient.isNil():
       await self.acmeClient.close()
-    if not self.brokerClient.isNil():
-      await self.brokerClient.close()
+    if not self.broker.isNil():
+      await self.broker.close()
     if not self.managerFut.isNil():
       await self.managerFut.cancelAndWait()
       self.managerFut = nil

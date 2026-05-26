@@ -70,7 +70,7 @@ type ACMEChallengeResponse* = object
   finalize*: string
   order*: string
 
-type ACMEChallengeResponseWrapper* = object
+type ACMEChallengeDns01Response* = object
   finalize*: string
   order*: string
   dns01*: ACMEChallenge
@@ -387,9 +387,7 @@ when defined(libp2p_autotls_support):
 
   proc requestChallenge*(
       self: ACMEApi, domains: seq[Domain], key: KeyPair, kid: Kid
-  ): Future[ACMEChallengeResponseWrapper] {.
-      async: (raises: [ACMEError, CancelledError])
-  .} =
+  ): Future[ACMEChallengeDns01Response] {.async: (raises: [ACMEError, CancelledError]).} =
     let orderResp = await self.requestNewOrder(domains, key, kid)
 
     let validRenewStatus = @[ACMEOrderStatus.PENDING, ACMEOrderStatus.READY]
@@ -403,7 +401,7 @@ when defined(libp2p_autotls_support):
       raise
         newException(ACMEError, "Could not find supported DNS challenge type (dns-01)")
 
-    return ACMEChallengeResponseWrapper(
+    return ACMEChallengeDns01Response(
       finalize: orderResp.finalize, order: orderResp.order, dns01: challenges[0]
     )
 
