@@ -176,6 +176,19 @@ proc lookupProtocol*(m: MultistreamSelect, proto: string): Opt[LPProtocol] =
       return Opt.some(h.protocol)
   return Opt.none(LPProtocol)
 
+func allProtosAndMatchers(m: MultistreamSelect): (seq[string], seq[Matcher]) =
+  var
+    protos: seq[string]
+    matchers: seq[Matcher]
+
+  for h in m.handlers:
+    if h.match != nil:
+      matchers.add(h.match)
+    for proto in h.protos:
+      protos.add(proto)
+
+  return (protos, matchers)
+
 proc handle*(
     m: MultistreamSelect, stream: Stream, active: bool = false
 ) {.async: (raises: [CancelledError]).} =
@@ -186,15 +199,7 @@ proc handle*(
 
   let ms =
     try:
-      var
-        protos: seq[string]
-        matchers: seq[Matcher]
-
-      for h in m.handlers:
-        if h.match != nil:
-          matchers.add(h.match)
-        for proto in h.protos:
-          protos.add(proto)
+      let (protos, matchers) = m.allProtosAndMatchers()
       await MultistreamSelect.handle(stream, protos, matchers, active)
     except LPStreamError as e:
       trace "Exception in MultistreamSelect.handle", stream, description = e.msg
