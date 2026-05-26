@@ -176,46 +176,53 @@ proc lookupProtocol*(m: MultistreamSelect, proto: string): Opt[LPProtocol] =
       return Opt.some(h.protocol)
   return Opt.none(LPProtocol)
 
-proc handle*(
-    m: MultistreamSelect, stream: Stream, active: bool = false
-) {.async: (raises: [CancelledError]).} =
-  trace "Starting multistream handler", stream, handshaked = active
+func allProtosAndMatchers(m: MultistreamSelect): (seq[string], seq[Matcher]) =
   var
     protos: seq[string]
     matchers: seq[Matcher]
+
   for h in m.handlers:
     if h.match != nil:
       matchers.add(h.match)
     for proto in h.protos:
       protos.add(proto)
 
-  try:
-    let ms = await MultistreamSelect.handle(stream, protos, matchers, active)
-    for h in m.handlers:
-      if (h.match != nil and h.match(ms)) or h.protos.contains(ms):
-        trace "found handler", stream, protocol = ms
+  return (protos, matchers)
 
-        let protocol = h.protocol
+proc handle*(
+    m: MultistreamSelect, stream: Stream, active: bool = false
+) {.async: (raises: [CancelledError]).} =
+  trace "Starting multistream handler", stream, handshaked = active
+  defer:
+    trace "Stopped multistream handler", stream
+    await noCancel stream.close()
 
-        if not protocol.reserveIncoming(stream.peerId):
-          debug "Inbound stream budget exceeded, rejecting incoming stream",
-            stream, protocol = ms, peerId = stream.peerId
-          return
+  let ms =
+    try:
+      let (protos, matchers) = m.allProtosAndMatchers()
+      await MultistreamSelect.handle(stream, protos, matchers, active)
+    except LPStreamError as e:
+      trace "Exception in MultistreamSelect.handle", stream, description = e.msg
+      return
+    except MultiStreamError as e:
+      trace "Exception in MultistreamSelect.handle", stream, description = e.msg
+      return
 
-        try:
-          await protocol.handler(stream, ms)
-        finally:
-          protocol.releaseIncoming(stream.peerId)
-        return
-    debug "no handlers", stream, ms
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    trace "Exception in multistream", stream, description = exc.msg
-  finally:
-    await stream.close()
+  m.lookupProtocol(ms).withValue(p):
+    trace "found handler", stream, protocol = ms
 
-  trace "Stopped multistream handler", stream
+    if not p.reserveIncoming(stream.peerId):
+      debug "Inbound stream budget exceeded, rejecting incoming stream",
+        stream, protocol = ms, peerId = stream.peerId
+      return
+
+    try:
+      let h = p.handler
+      await h(stream, ms)
+    finally:
+      p.releaseIncoming(stream.peerId)
+  else:
+    debug "no handlers", stream, protocol = ms
 
 proc addHandler*(
     m: MultistreamSelect,
