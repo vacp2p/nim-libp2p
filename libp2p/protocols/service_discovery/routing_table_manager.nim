@@ -46,8 +46,9 @@ proc addService*(
   # Create new routing table
   var rtable = RoutingTable.new(
     serviceId,
-    config =
-      RoutingTableConfig.new(replication = replication, maxBuckets = bucketsCount),
+    config = RoutingTableConfig.new(
+      replication = replication, maxBuckets = bucketsCount, selfIdPreHashed = true
+    ),
     localNodeId = Opt.some(mainRoutingTable.localNodeId),
   )
 

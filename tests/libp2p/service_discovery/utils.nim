@@ -31,7 +31,9 @@ proc randomPeerId*(): PeerId =
   PeerId.init(randomKey()).get()
 
 proc makeServiceId*(id: byte = 1'u8): ServiceId =
-  @[id, 2'u8, 3, 4]
+  var buf = newSeq[byte](IdLength)
+  buf[0] = id
+  return buf
 
 proc makeServiceInfo*(id: string = "test-service"): ServiceInfo =
   ServiceInfo(id: id, data: @[1, 2, 3, 4])
