@@ -5,8 +5,6 @@
 import chronos, results, sequtils
 import
   ../../../../libp2p/[
-    crypto/crypto,
-    multiaddress,
     peerid,
     protocols/kademlia/types,
     protocols/service_discovery/advertiser,
@@ -129,7 +127,6 @@ suite "Service Discovery Component - Registrar Closer Peers":
 
     # Spec: the registrar adds the advertiser to RegT on every REGISTER.
     # Implementation: RegT is not created until Confirmed.
-    let advertiserKey = advertiserNode.switch.peerInfo.peerId.toKey()
     let serviceTable = registrarNode.rtManager.getTable(serviceId)
     check serviceTable.isNone()
 
