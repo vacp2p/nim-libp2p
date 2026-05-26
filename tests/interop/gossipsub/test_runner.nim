@@ -14,10 +14,7 @@ import
   ]
 import
   ../../../interop/gossipsub/src/[node, instructions, runner, interop_partial_message]
-import ../../tools/[unittest]
-
-template localhost(): MultiAddress =
-  MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
+import ../../tools/[unittest, multiaddress]
 
 proc getAddr(node: GossipSub): MultiAddress =
   node.switch.peerInfo.addrs[0]
@@ -25,7 +22,7 @@ proc getAddr(node: GossipSub): MultiAddress =
 suite "GossipSub Interop - Script runner - Component":
   asyncTest "script runs connect + subscribe + publish":
     # Standalone peer node (no runner)
-    let peer = createNode(1, localhost)
+    let peer = createNode(1, TcpAutoAddress)
     await peer.switch.start()
     defer:
       await peer.switch.stop()
@@ -64,7 +61,7 @@ suite "GossipSub Interop - Script runner - Component":
     let runner = newScriptRunner(
       nodeId = 0,
       logStream = stream,
-      listenAddr = localhost,
+      listenAddr = TcpAutoAddress,
       resolveAddr = proc(id: int): MultiAddress {.gcsafe.} =
         return peerAddr,
     )
@@ -78,7 +75,7 @@ suite "GossipSub Interop - Script runner - Component":
 
   asyncTest "ifNodeIDEquals filters correctly":
     # Standalone peer node (no runner)
-    let peer = createNode(1, localhost)
+    let peer = createNode(1, TcpAutoAddress)
     await peer.switch.start()
     defer:
       await peer.switch.stop()
@@ -98,7 +95,7 @@ suite "GossipSub Interop - Script runner - Component":
     let runner = newScriptRunner(
       nodeId = 0,
       logStream = stream,
-      listenAddr = localhost,
+      listenAddr = TcpAutoAddress,
       resolveAddr = proc(id: int): MultiAddress {.gcsafe.} =
         return peerAddr,
     )
@@ -117,7 +114,7 @@ suite "GossipSub Interop - Script runner - Component":
     let runner2 = newScriptRunner(
       nodeId = 0,
       logStream = stream,
-      listenAddr = localhost,
+      listenAddr = TcpAutoAddress,
       resolveAddr = proc(id: int): MultiAddress {.gcsafe.} =
         return peerAddr,
     )
@@ -140,13 +137,13 @@ suite "GossipSub Interop - Script runner - Component":
     let runner0 = newScriptRunner(
       nodeId = 0,
       logStream = logStream0,
-      listenAddr = localhost,
+      listenAddr = TcpAutoAddress,
       enablePartialMessages = true,
     )
     let runner1 = newScriptRunner(
       nodeId = 1,
       logStream = logStream1,
-      listenAddr = localhost,
+      listenAddr = TcpAutoAddress,
       enablePartialMessages = true,
     )
 
@@ -211,13 +208,13 @@ suite "GossipSub Interop - Script runner - Component":
     let runner0 = newScriptRunner(
       nodeId = 0,
       logStream = logStream0,
-      listenAddr = localhost,
+      listenAddr = TcpAutoAddress,
       enablePartialMessages = true,
     )
     let runner1 = newScriptRunner(
       nodeId = 1,
       logStream = logStream1,
-      listenAddr = localhost,
+      listenAddr = TcpAutoAddress,
       enablePartialMessages = true,
     )
 
@@ -272,10 +269,10 @@ suite "GossipSub Interop - Script runner - Component":
       logStream1.data.contains("All parts received")
 
   asyncTest "received message logs include duplicates once per inbound rpc":
-    let sender = createNode(0, localhost)
+    let sender = createNode(0, TcpAutoAddress)
     let receiverLog = newStringStream()
     let receiver =
-      newScriptRunner(nodeId = 1, logStream = receiverLog, listenAddr = localhost)
+      newScriptRunner(nodeId = 1, logStream = receiverLog, listenAddr = TcpAutoAddress)
 
     await sender.switch.start()
     await receiver.start()

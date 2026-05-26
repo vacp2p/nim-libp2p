@@ -7,7 +7,7 @@ import chronos, std/[sequtils, tables], stew/byteutils, utils, chronicles, resul
 import ../../../libp2p/[routing_record, crypto/crypto, multiaddress]
 import
   ../../../libp2p/protocols/pubsub/[floodsub, gossipsub, mcache, peertable, rpc/message]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 
 suite "GossipSub Behavior":
   const
@@ -151,9 +151,8 @@ suite "GossipSub Behavior":
     let
       mockPrivKey0 = PrivateKey.random(ECDSA, rng()).tryGet()
       mockPrivKey2 = PrivateKey.random(ECDSA, rng()).tryGet()
-      mockAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
-      peerRecord0 = PeerRecord.init(peers[0].peerId, @[mockAddr], 1)
-      peerRecord2 = PeerRecord.init(peers[2].peerId, @[mockAddr], 1)
+      peerRecord0 = PeerRecord.init(peers[0].peerId, @[TcpAutoAddress], 1)
+      peerRecord2 = PeerRecord.init(peers[2].peerId, @[TcpAutoAddress], 1)
       mockRecord0 = SignedPeerRecord.init(mockPrivKey0, peerRecord0).tryGet()
       mockRecord2 = SignedPeerRecord.init(mockPrivKey2, peerRecord2).tryGet()
     gossipSub.switch.peerStore[SPRBook][peers[0].peerId] = mockRecord0.envelope
