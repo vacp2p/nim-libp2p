@@ -12,7 +12,6 @@
 import tables
 import results
 import stew/[base32, base58, base64]
-import ./utils/sequninit
 import ./utility
 
 type
@@ -50,7 +49,7 @@ proc idd(
     outlen = length
     MultiBaseStatus.Overrun
   else:
-    copyMem(addr outbytes[0], unsafeAddr inbytes[0], length)
+    copyMem(addr outbytes[0], addr inbytes[0], length)
     outlen = length
     MultiBaseStatus.Success
 
@@ -62,7 +61,7 @@ proc ide(
     outlen = length
     MultiBaseStatus.Overrun
   else:
-    copyMem(addr outbytes[0], unsafeAddr inbytes[0], length)
+    copyMem(addr outbytes[0], addr inbytes[0], length)
     outlen = length
     MultiBaseStatus.Success
 

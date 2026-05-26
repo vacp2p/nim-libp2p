@@ -9,7 +9,7 @@ proc mb1Decode(
   if inbytes.len < 4:
     return MultiBaseStatus.Error
 
-  copyMem(addr outbytes[0], unsafeAddr inbytes[4], inbytes.len - 4)
+  copyMem(addr outbytes[0], addr inbytes[4], inbytes.len - 4)
   outlen = outbytes.len
   MultiBaseStatus.Success
 
@@ -17,7 +17,7 @@ proc mb1Encode(
     inbytes: openArray[byte], outbytes: var openArray[char], outlen: var int
 ): MultiBaseStatus =
   let inp = "ext_".toBytes & @inbytes
-  copyMem(addr outbytes[0], unsafeAddr inp[0], inp.len)
+  copyMem(addr outbytes[0], addr inp[0], inp.len)
   outlen = inp.len
   MultiBaseStatus.Success
 

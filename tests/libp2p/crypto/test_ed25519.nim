@@ -201,7 +201,7 @@ suite "Ed25519 test suite":
     # Generate a random key, extract its seed, recreate with fromSeed
     let randomKey = EdPrivateKey.random(rng())
     var seed: array[32, byte]
-    copyMem(addr seed[0], unsafeAddr randomKey.data[0], 32)
+    copyMem(addr seed[0], addr randomKey.data[0], 32)
     let recreated = EdPrivateKey.fromSeed(seed)
     check randomKey == recreated
 
