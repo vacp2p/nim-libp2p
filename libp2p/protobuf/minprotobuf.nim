@@ -6,7 +6,6 @@
 {.push raises: [].}
 
 import ../varint, ../utility, stew/endians2, results
-import ../utils/sequninit
 export results, utility
 
 type
@@ -97,7 +96,7 @@ template isEnough*(pb: ProtoBuffer, length: uint64): bool =
   pb.offset <= len(pb.buffer) and length <= uint64(len(pb.buffer) - pb.offset)
 
 template getPtr*(pb: ProtoBuffer): pointer =
-  cast[pointer](unsafeAddr pb.buffer[pb.offset])
+  cast[pointer](addr pb.buffer[pb.offset])
 
 template getLen*(pb: ProtoBuffer): int =
   len(pb.buffer) - pb.offset
@@ -256,7 +255,7 @@ proc write*[T: byte | char](pb: var ProtoBuffer, field: int, value: openArray[T]
   pb.offset += length
   if len(value) > 0:
     doAssert(pb.isEnough(value.lenu64))
-    copyMem(addr pb.buffer[pb.offset], unsafeAddr value[0], len(value))
+    copyMem(addr pb.buffer[pb.offset], addr value[0], len(value))
     pb.offset += len(value)
 
 proc write*(pb: var ProtoBuffer, field: int, value: ProtoBuffer) {.inline.} =

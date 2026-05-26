@@ -19,8 +19,7 @@ import
   ./multicodec,
   ./multihash,
   ./vbuffer,
-  ./protobuf/minprotobuf,
-  ./utils/sequninit
+  ./protobuf/minprotobuf
 
 export results, utility
 
@@ -62,7 +61,7 @@ func toBytes*(pid: PeerId, data: var openArray[byte]): int =
   ## Returns number of bytes needed to store ``pid``.
   let n = len(pid.data)
   if len(data) >= n and n > 0:
-    copyMem(addr data[0], unsafeAddr pid.data[0], n)
+    copyMem(addr data[0], addr pid.data[0], n)
   n
 
 template getBytes*(pid: PeerId): seq[byte] =

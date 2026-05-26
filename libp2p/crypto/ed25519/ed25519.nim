@@ -2208,7 +2208,7 @@ proc fromSeed*(t: typedesc[EdPrivateKey], seed: openArray[byte]): EdPrivateKey =
     pk: array[EdPublicKeySize, byte]
     res: EdPrivateKey
 
-  copyMem(addr res.data[0], unsafeAddr seed[0], 32)
+  copyMem(addr res.data[0], addr seed[0], 32)
 
   var hh = sha512.digest(res.data.toOpenArray(0, 31))
   hh.data[0] = hh.data[0] and 0xF8'u8
@@ -2242,7 +2242,7 @@ proc random*(t: typedesc[EdKeyPair], rng: Rng): EdKeyPair =
 proc getPublicKey*(key: EdPrivateKey): EdPublicKey =
   ## Calculate and return ED25519 public key from private key ``key``.
   var pubkey: EdPublicKey
-  copyMem(addr pubkey.data[0], unsafeAddr key.data[32], 32)
+  copyMem(addr pubkey.data[0], addr key.data[32], 32)
   pubkey
 
 proc toBytes*(key: EdPrivateKey, data: var openArray[byte]): int =
@@ -2253,7 +2253,7 @@ proc toBytes*(key: EdPrivateKey, data: var openArray[byte]): int =
   ## ED25519 private key.
   let blen = len(key.data)
   if len(data) >= blen:
-    copyMem(addr data[0], unsafeAddr key.data[0], len(key.data))
+    copyMem(addr data[0], addr key.data[0], len(key.data))
   blen
 
 proc toBytes*(key: EdPublicKey, data: var openArray[byte]): int =
@@ -2264,7 +2264,7 @@ proc toBytes*(key: EdPublicKey, data: var openArray[byte]): int =
   ## ED25519 public key.
   let blen = len(key.data)
   if len(data) >= blen:
-    copyMem(addr data[0], unsafeAddr key.data[0], len(key.data))
+    copyMem(addr data[0], addr key.data[0], len(key.data))
   blen
 
 proc toBytes*(sig: EdSignature, data: var openArray[byte]): int =
@@ -2275,7 +2275,7 @@ proc toBytes*(sig: EdSignature, data: var openArray[byte]): int =
   ## ED25519 signature.
   let blen = len(sig.data)
   if len(data) >= blen:
-    copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
+    copyMem(addr data[0], addr sig.data[0], len(sig.data))
   blen
 
 proc getBytes*(key: EdPrivateKey): seq[byte] =
@@ -2318,7 +2318,7 @@ proc init*(key: var EdPrivateKey, data: openArray[byte]): bool =
   ## Procedure returns ``true`` on success.
   let length = EdPrivateKeySize
   if len(data) >= length:
-    copyMem(addr key.data[0], unsafeAddr data[0], length)
+    copyMem(addr key.data[0], addr data[0], length)
     return true
   false
 
@@ -2329,7 +2329,7 @@ proc init*(key: var EdPublicKey, data: openArray[byte]): bool =
   ## Procedure returns ``true`` on success.
   let length = EdPublicKeySize
   if len(data) >= length:
-    copyMem(addr key.data[0], unsafeAddr data[0], length)
+    copyMem(addr key.data[0], addr data[0], length)
     return true
   false
 
@@ -2340,7 +2340,7 @@ proc init*(sig: var EdSignature, data: openArray[byte]): bool =
   ## Procedure returns ``true`` on success.
   let length = EdSignatureSize
   if len(data) >= length:
-    copyMem(addr sig.data[0], unsafeAddr data[0], length)
+    copyMem(addr sig.data[0], addr data[0], length)
     return true
   false
 

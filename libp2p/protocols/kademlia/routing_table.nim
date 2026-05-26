@@ -7,7 +7,6 @@ import ./types
 import ./kademlia_metrics
 import ../../peerid
 import ../../crypto/crypto
-import ../../utils/sequninit
 
 logScope:
   topics = "kad-dht rtable"
