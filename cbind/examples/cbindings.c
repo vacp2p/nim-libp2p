@@ -134,6 +134,10 @@ int main(int argc, char **argv) {
   cfg2.muxer = LIBP2P_MUXER_MPLEX;
   cfg2.transport = LIBP2P_TRANSPORT_TCP;
 
+  const char *peer1_addrs[] = {"/ip4/127.0.0.1/tcp/0"};
+  cfg2.addrs = peer1_addrs;
+  cfg2.addrsLen = 1;
+
   ctx2 = libp2p_new(&cfg2, event_handler, NULL);
   waitForCallback();
 

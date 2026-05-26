@@ -98,6 +98,10 @@ int main(void) {
   clientCfg.mount_service_discovery = 0;
   clientCfg.muxer = LIBP2P_MUXER_MPLEX;
   clientCfg.transport = LIBP2P_TRANSPORT_TCP;
+  
+  const char *peer1_addrs[] = {"/ip4/127.0.0.1/tcp/0"};
+  clientCfg.addrs = peer1_addrs;
+  clientCfg.addrsLen = 1;
 
   client = libp2p_new(&clientCfg, event_handler, NULL);
   waitForCallback();
