@@ -27,7 +27,8 @@ import
     transports/wstransport,
     transports/quictransport,
   ]
-import ../tools/[unittest, trackers, futures, crypto, sync, switch_builder]
+import
+  ../tools/[unittest, trackers, futures, crypto, sync, switch_builder, multiaddress]
 
 const TestCodec = "/test/proto/1.0.0"
 
@@ -953,10 +954,7 @@ suite "Switch":
       testProto.codec = TestCodec
       testProto.handler = handle
 
-      let addrs = @[
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet(),
-        MultiAddress.init("/ip6/::1/tcp/0").tryGet(),
-      ]
+      let addrs = @[TcpAutoAddressIP4, TcpAutoAddressIP6]
 
       let switch1 = makeStandardSwitchBuilder(transport = TransportType.TCP)
         .withAddresses(addrs)
@@ -1027,17 +1025,14 @@ suite "Switch":
     let resolver = MockResolver.new()
 
     let
-      wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
-      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
-
       srcTcpSwitch =
-        makeStandardSwitchBuilder(tcpAddress).withNameResolver(resolver).build()
+        makeStandardSwitchBuilder(TcpAutoAddress).withNameResolver(resolver).build()
       srcWsSwitch =
-        makeStandardSwitchBuilder(wsAddress).withNameResolver(resolver).build()
+        makeStandardSwitchBuilder(WsAutoAddress).withNameResolver(resolver).build()
 
       destSwitch = SwitchBuilder
         .new()
-        .withAddresses(@[tcpAddress, wsAddress])
+        .withAddresses(@[TcpAutoAddress, WsAutoAddress])
         .withRng(rng())
         .withMplex()
         .withTransport(
@@ -1086,13 +1081,9 @@ suite "Switch":
 
   asyncTest "e2e multiple transports coexistence":
     let
-      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
-      wsAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0/ws").tryGet()
-      quicAddress = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-
       destSwitch = SwitchBuilder
         .new()
-        .withAddresses(@[tcpAddress, wsAddress, quicAddress])
+        .withAddresses(@[TcpAutoAddress, WsAutoAddress, QuicAutoAddress])
         .withRng(rng())
         .withMplex()
         .withTcpTransport()
@@ -1104,9 +1095,9 @@ suite "Switch":
         .withNoise()
         .build()
 
-      srcTcpSwitch = makeStandardSwitch(tcpAddress)
-      srcWsSwitch = makeStandardSwitch(wsAddress)
-      srcQuicSwitch = makeStandardSwitch(quicAddress)
+      srcTcpSwitch = makeStandardSwitch(TcpAutoAddress)
+      srcWsSwitch = makeStandardSwitch(WsAutoAddress)
+      srcQuicSwitch = makeStandardSwitch(QuicAutoAddress)
 
     let switches = @[destSwitch, srcTcpSwitch, srcWsSwitch, srcQuicSwitch]
     await allFutures(switches.mapIt(it.start()))
@@ -1197,12 +1188,11 @@ suite "Switch":
     # peerInfo.addrs verbatim regardless of the mapper chain (including the
     # wildcard resolver, which would normally rewrite/expand listenAddrs).
     let
-      listenAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
       announcedAddr = MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet()
       switch = SwitchBuilder
         .new()
         .withRng(rng())
-        .withAddresses(@[listenAddr])
+        .withAddresses(@[TcpAutoAddress])
         .withAnnouncedAddresses(@[announcedAddr])
         .withTcpTransport()
         .withMplex()
@@ -1216,7 +1206,7 @@ suite "Switch":
     # Transport actually bound a local socket — listenAddrs is populated, and
     # the *original* zero-port address has been resolved to something else.
     check switch.peerInfo.listenAddrs.len == 1
-    check switch.peerInfo.listenAddrs[0] != listenAddr
+    check switch.peerInfo.listenAddrs[0] != TcpAutoAddress
 
     # Announced set wins regardless of wildcard-resolver or other mappers.
     check switch.peerInfo.addrs == @[announcedAddr]

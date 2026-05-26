@@ -7,14 +7,14 @@ import chronos, stew/byteutils
 import ../../libp2p/[switch, builders, peerid, wire]
 import ../../libp2p/protocols/pubsub/[gossipsub, gossipsub/extensions, rpc/message]
 import ../libp2p/pubsub/extensions/my_partial_message
-import ../tools/[crypto, unittest]
+import ../tools/[crypto, unittest, multiaddress]
 import ./partial_message
 
 proc createOtherPeer(): tuple[switch: Switch, gossipsub: GossipSub] =
   let switch = SwitchBuilder
     .new()
     .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
+    .withAddresses(@[TcpAutoAddress])
     .withTcpTransport()
     .withMplex()
     .withNoise()
