@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright (c) Status Research & Development GmbH
+
+## Minimal JSON Web Signature (JWS) producer for the ACME client.
+##
+## libp2p only ever needs to *issue* RS256-signed requests to the ACME server,
+## so this module implements just the flattened JWS JSON serialization
+## (RFC 7515, section 7.2.2) using RSASSA-PKCS1-v1_5 with SHA-256. The signing
+## reuses `crypto/rsa`, whose `sign` is already exactly an RS256 signer (same
+## PKCS#1 v1.5 padding, SHA-256 digest and DigestInfo OID), so no signing code
+## is vendored. This replaces the former `nim-jwt` dependency, of which only
+## this slice was ever used.
+
+{.push raises: [].}
+
+when defined(libp2p_autotls_support):
+  import json
+  import results
+  import stew/byteutils
+  import ./utils
+  import ../../crypto/rsa
+
+  proc toFlattenedJws*(
+      protectedHeader: JsonNode, payload: JsonNode, key: rsa.RsaPrivateKey
+  ): JsonNode {.raises: [ValueError].} =
+    ## Signs `protectedHeader`/`payload` with `key` (RS256) and returns the
+    ## flattened JWS JSON serialization: the base64url-encoded `protected`,
+    ## `payload` and `signature` members.
+    ##
+    ## The signature covers `BASE64URL(protected) || '.' || BASE64URL(payload)`
+    ## exactly as transmitted, so the JSON key ordering of the inputs does not
+    ## affect verification.
+    let
+      protectedB64 = base64UrlEncode(($protectedHeader).toBytes)
+      payloadB64 = base64UrlEncode(($payload).toBytes)
+      signingInput = protectedB64 & "." & payloadB64
+
+    let signature = key.sign(signingInput).valueOr:
+      raise newException(ValueError, "Failed to RS256-sign JWS")
+    let signatureBytes = signature.getBytes().valueOr:
+      raise newException(ValueError, "Failed to serialize JWS signature")
+
+    %*{
+      "payload": payloadB64,
+      "protected": protectedB64,
+      "signature": base64UrlEncode(signatureBytes),
+    }
