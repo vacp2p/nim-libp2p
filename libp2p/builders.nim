@@ -442,6 +442,9 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   if b.rng == nil: # newRng could fail
     raise newException(Defect, "Cannot initialize RNG")
 
+  if b.addresses.len == 0:
+    raise newException(Defect, "use withAddress() to specify listen address")
+
   let pkRes = PrivateKey.random(b.rng)
   let seckey = b.privKey.get(otherwise = pkRes.expect("Expected default Private Key"))
 
