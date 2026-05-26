@@ -4,6 +4,12 @@ let
   deps = import ./deps.nix { inherit pkgs; };
   cbindDeps = import ./cbind-deps.nix { inherit pkgs; };
 
+  # Static C archives (miniupnpc / libnatpmp) pulled in via nat_traversal.
+  natLibs = import ./nat-libs.nix {
+    inherit pkgs;
+    natSrc = deps.nat_traversal;
+  };
+
   pathArgs =
     builtins.concatStringsSep " "
       (map (p: "--path:${p}") (builtins.attrValues deps));
@@ -38,6 +44,9 @@ pkgs.stdenv.mkDerivation {
     mkdir -p build $NIMCACHE
 
     echo "== Building C bindings (dynamic/shared) =="
+    # A shared library is fully linked, so it must resolve the miniupnpc /
+    # libnatpmp C symbols — pass the prebuilt archives to the linker. The static
+    # build below only archives Nim objects, so its consumer links these later.
     nim c \
       --noNimblePath \
       ${cbindPathArgs} \
@@ -52,6 +61,8 @@ pkgs.stdenv.mkDerivation {
       --header \
       --undef:metrics \
       --nimMainPrefix:libp2p \
+      --passL:"${natLibs}/lib/libminiupnpc.a" \
+      --passL:"${natLibs}/lib/libnatpmp.a" \
       --nimcache:$NIMCACHE \
       cbind/libp2p.nim
 
