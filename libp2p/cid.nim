@@ -7,7 +7,7 @@
 {.used.}
 
 import tables, hashes
-import multibase, multicodec, multihash, vbuffer, varint, results, utility
+import multibase, multicodec, multihash, vbuffer, varint, results
 import stew/base58
 
 export results
@@ -75,6 +75,7 @@ proc initCidCodeTable(
   return res
 
 when libp2p_contentids_exts != "":
+  import utils/macroutils
   includeFile(libp2p_contentids_exts)
   const CodeContentIds = initCidCodeTable(@ContentIdsList & @ContentIdsExts)
 else:

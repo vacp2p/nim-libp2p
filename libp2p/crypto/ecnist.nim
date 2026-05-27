@@ -18,7 +18,7 @@ export minasn1.Asn1Error
 import stew/ctops
 import results
 
-import ../utility
+import ../utils/conversion
 import rng
 
 export results

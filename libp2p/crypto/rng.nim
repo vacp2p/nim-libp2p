@@ -5,7 +5,7 @@
 
 import typetraits
 import bearssl/[rand, hash]
-import ../utility
+import results
 
 type Rng* = ref object
   drbg: ref HmacDrbgContext

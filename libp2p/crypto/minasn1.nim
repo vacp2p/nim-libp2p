@@ -10,7 +10,7 @@ import results
 export results
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
-import ../utility
+import ../utils/conversion
 
 type
   Asn1Error* {.pure.} = enum

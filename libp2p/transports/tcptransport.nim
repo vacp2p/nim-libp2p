@@ -14,7 +14,6 @@ import
   ../stream/connection,
   ../stream/chronosstream,
   ../upgrademngrs/upgrade,
-  ../utility,
   ../utils/future
 
 logScope:

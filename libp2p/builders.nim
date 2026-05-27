@@ -35,7 +35,6 @@ import
   autotls/service,
   nameresolving/nameresolver,
   errors,
-  utility,
   utils/opt
 
 export

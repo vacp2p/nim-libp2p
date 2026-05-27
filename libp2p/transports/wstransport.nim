@@ -15,7 +15,7 @@ import
   ../multicodec,
   ../multistream,
   ../multiaddress,
-  ../utility,
+  ../utils/opt,
   ../crypto/rng,
   ../stream/connection,
   ../upgrademngrs/upgrade,

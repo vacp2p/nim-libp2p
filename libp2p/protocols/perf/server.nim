@@ -7,7 +7,7 @@
 
 import chronos, chronicles
 import stew/endians2
-import ./core, ../protocol, ../../stream/connection, ../../utility
+import ./core, ../protocol, ../../stream/connection
 
 export chronicles, connection
 
