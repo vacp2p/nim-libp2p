@@ -65,9 +65,13 @@ suite "DNS message codec":
       discard encodeQuery(0, "host..domain", A)
     expect ValueError:
       discard encodeQuery(0, strutils.repeat("a", 64) & ".com", A)
+    # 128 single-char labels: each label is legal, but the encoded name (257
+    # bytes) exceeds the RFC 1035 255-byte limit.
+    expect ValueError:
+      discard encodeQuery(0, strutils.repeat("a.", 127) & "a", A)
 
   test "parseAnswers decodes A records (with compression)":
-    let answers = parseAnswers(statusImA.toBytes())
+    let answers = parseAnswers(statusImA.toBytes(), 0xaebf'u16)
     check answers.allIt(it.kind == A)
     check answers.mapIt(initTAddress(it.value, Port(0))) ==
       @["104.22.24.181", "172.67.10.161", "104.22.25.181"].mapIt(
@@ -75,7 +79,7 @@ suite "DNS message codec":
       )
 
   test "parseAnswers decodes AAAA records (with compression)":
-    let answers = parseAnswers(statusImAAAA.toBytes())
+    let answers = parseAnswers(statusImAAAA.toBytes(), 0xe8c5'u16)
     check answers.allIt(it.kind == AAAA)
     check answers.mapIt(initTAddress(it.value, Port(0))) ==
       @["2606:4700:10::6816:19b5", "2606:4700:10::6816:18b5", "2606:4700:10::ac43:aa1"].mapIt(
@@ -129,16 +133,82 @@ suite "DNS message codec":
       ord('l').uint8,
       ord('d').uint8,
     ]
-    let answers = parseAnswers(txt)
+    let answers = parseAnswers(txt, 0x0001'u16)
     check answers.len == 1
     check answers[0].kind == TXT
     check answers[0].value == "helloworld"
 
   test "parseAnswers rejects malformed input without defects":
     expect ValueError:
-      discard parseAnswers(@[0x00'u8, 0x01, 0x02]) # shorter than header
-    # ancount claims an answer, but the message is truncated mid-record
+      discard parseAnswers(@[0x00'u8, 0x01, 0x02], 0) # shorter than header
+    # qdcount=1/ancount=1, but the message is truncated right after the header
     let truncated =
-      @[0x00'u8, 0x01, 0x81, 0x80, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]
+      @[0x00'u8, 0x01, 0x81, 0x80, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]
     expect ValueError:
-      discard parseAnswers(truncated)
+      discard parseAnswers(truncated, 0x0001'u16)
+
+  test "parseAnswers rejects a response whose id does not match the query":
+    expect ValueError:
+      discard parseAnswers(statusImA.toBytes(), 0x0000'u16)
+
+  test "parseAnswers rejects a message that is not a response":
+    # QR bit clear in the flags (0x0100 = query, rd=1)
+    let query =
+      @[0x00'u8, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    expect ValueError:
+      discard parseAnswers(query, 0x0001'u16)
+
+  test "parseAnswers rejects a response without a question":
+    let noQuestion =
+      @[0x00'u8, 0x01, 0x81, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    expect ValueError:
+      discard parseAnswers(noQuestion, 0x0001'u16)
+
+  test "parseAnswers rejects an A record with the wrong length":
+    let badA = @[
+      0x00'u8,
+      0x01,
+      0x81,
+      0x80,
+      0x00,
+      0x01,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      ord('x').uint8,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x01, # question: "x", A, IN
+      0xc0,
+      0x0c,
+      0x00,
+      0x01,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x03,
+      0x01,
+      0x02,
+      0x03, # answer: A, IN, rdlength=3 (invalid), 3 bytes rdata
+    ]
+    expect ValueError:
+      discard parseAnswers(badA, 0x0001'u16)
+
+  test "parseAnswers rejects a reserved DNS label type":
+    # question label starts with 0x40 (reserved label type, top two bits 01)
+    let reserved = @[
+      0x00'u8, 0x01, 0x81, 0x80, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+      0x00,
+    ]
+    expect ValueError:
+      discard parseAnswers(reserved, 0x0001'u16)

@@ -3,9 +3,10 @@
 
 {.push raises: [].}
 
-import std/[sets, sequtils, random], chronos, chronicles, ./dnsmessage
+import std/[sets, sequtils], chronos, chronicles, ./dnsmessage
 
 import nameresolver
+import ../crypto/rng
 
 logScope:
   topics = "libp2p dnsresolver"
@@ -18,13 +19,15 @@ const DefaultDnsServers* = @[
 
 type DnsResolver* = ref object of NameResolver
   nameServers*: seq[TransportAddress]
+  rng: Rng
 
 proc getDnsResponse(
-    dnsServer: TransportAddress, address: string, kind: DnsRecordKind
+    rng: Rng, dnsServer: TransportAddress, address: string, kind: DnsRecordKind
 ): Future[seq[DnsAnswer]] {.
     async: (raises: [CancelledError, IOError, TransportError, ValueError])
 .} =
-  var sendBuf = encodeQuery(rand(uint16.high.int).uint16, address, kind)
+  let queryId = rng.generate(uint16)
+  var sendBuf = encodeQuery(queryId, address, kind)
 
   let receivedDataFuture = Future[void].Raising([CancelledError]).init()
 
@@ -47,7 +50,7 @@ proc getDnsResponse(
     except AsyncTimeoutError as e:
       raise newException(IOError, "DNS server timeout: " & e.msg, e)
 
-    parseAnswers(sock.getMessage())
+    parseAnswers(sock.getMessage(), queryId)
   finally:
     await sock.closeWait()
 
@@ -65,10 +68,10 @@ method resolveIp*(
       )
     ]
     if domain == Domain.AF_INET or domain == Domain.AF_UNSPEC:
-      responseFutures.add(getDnsResponse(server, address, A))
+      responseFutures.add(getDnsResponse(self.rng, server, address, A))
 
     if domain == Domain.AF_INET6 or domain == Domain.AF_UNSPEC:
-      let fut = getDnsResponse(server, address, AAAA)
+      let fut = getDnsResponse(self.rng, server, address, AAAA)
       if server.family == AddressFamily.IPv6:
         trace "IPv6 DNS server, puting AAAA records first", server = $server
         responseFutures.insert(fut)
@@ -122,7 +125,7 @@ method resolveTxt*(
       continue
 
     try:
-      let response = await getDnsResponse(server, address, TXT)
+      let response = await getDnsResponse(self.rng, server, address, TXT)
       trace "Got TXT response", server = $server, answer = response.mapIt(it.value)
       return response.mapIt(it.value)
     except CancelledError as e:
@@ -137,5 +140,7 @@ method resolveTxt*(
   debug "Failed to resolve TXT, returning empty set"
   return @[]
 
-proc new*(T: typedesc[DnsResolver], nameServers: seq[TransportAddress]): T =
-  T(nameServers: nameServers)
+proc new*(
+    T: typedesc[DnsResolver], nameServers: seq[TransportAddress], rng: Rng = newRng()
+): T =
+  T(nameServers: nameServers, rng: rng)
