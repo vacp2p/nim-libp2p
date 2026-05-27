@@ -17,7 +17,7 @@ import
   ../multiaddress,
   ../multicodec,
   ../protocols/protocol,
-  ../utility,
+  ../utils/opt,
   ../errors,
   ../observedaddrmanager
 

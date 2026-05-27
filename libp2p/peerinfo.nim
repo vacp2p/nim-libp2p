@@ -13,7 +13,7 @@ import
   routing_record,
   peeraddrpolicy,
   errors,
-  utility
+  utils/shortlog
 
 export peerid, multiaddress, crypto, routing_record, peeraddrpolicy, errors, results
 

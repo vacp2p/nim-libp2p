@@ -5,7 +5,7 @@
 
 ## This module implements wire network connection procedures.
 import chronos, stew/endians2
-import multiaddress, multicodec, errors, utility
+import multiaddress, multicodec, errors, utils/macroutils
 
 export multiaddress, chronos
 

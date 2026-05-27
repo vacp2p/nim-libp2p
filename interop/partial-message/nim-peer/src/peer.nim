@@ -4,6 +4,7 @@
 import chronos, os
 import ../../../../tests/interop/partial_message
 import ../../../../libp2p/[multiaddress, peerid, wire]
+import ../../../../libp2p/utils/future
 
 # Note: ipv6 is intentionally used here as it ensures ipv6 interop with other implementation.
 const

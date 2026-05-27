@@ -25,7 +25,7 @@ import
   peerid,
   peerstore,
   errors,
-  utility,
+  results,
   dialer,
   utils/future,
   crypto/rng

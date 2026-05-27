@@ -16,7 +16,7 @@ import
   ../../stream/connection,
   ../../peerid,
   ../../peerinfo,
-  ../../utility
+  ../../utils/opt
 
 ## Simple flood-based publishing.
 
