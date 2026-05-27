@@ -167,7 +167,8 @@ when defined(libp2p_autotls_support):
       api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.dnsServerURL)
 
     trace "Requesting ACME challenge"
-    let dns01Challenge = await self.acmeClient.getChallenge(@[api.Domain("*." & baseDomain)])
+    let dns01Challenge =
+      await self.acmeClient.getChallenge(@[api.Domain("*." & baseDomain)])
     trace "Generating key authorization"
     let keyAuth = self.acmeClient.genKeyAuthorization(dns01Challenge.dns01.token)
 
