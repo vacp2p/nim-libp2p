@@ -230,9 +230,7 @@ func write*(pb: var ProtoBuffer, field: int, pid: PeerId) =
   ## Write PeerId value ``peerid`` to object ``pb`` using ProtoBuf's encoding.
   write(pb, field, pid.data)
 
-func getField*(
-    pb: ProtoBuffer, field: int, pid: var PeerId
-): ProtoResult[bool] {.inline.} =
+func getField*(pb: ProtoBuffer, field: int, pid: var PeerId): ProtoResult[bool] =
   ## Read ``PeerId`` from ProtoBuf's message and validate it
   var buffer: seq[byte]
   let res = ?pb.getField(field, buffer)

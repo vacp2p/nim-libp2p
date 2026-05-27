@@ -22,7 +22,7 @@ template toOpt*[T, E](self: Result[T, E]): Opt[T] =
   else:
     Opt.none(type(T))
 
-proc toOpt*[T: ref object](x: T): Opt[T] {.inline.} =
+proc toOpt*[T: ref object](x: T): Opt[T] =
   if x.isNil:
     Opt.none(T)
   else:

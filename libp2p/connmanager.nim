@@ -208,7 +208,7 @@ proc new*(
     scoring: scoring,
   )
 
-proc connCount*(c: ConnManager, peerId: PeerId): int {.inline.} =
+proc connCount*(c: ConnManager, peerId: PeerId): int =
   c.muxerStore.count(peerId)
 
 proc getReadyEvent(
@@ -497,7 +497,7 @@ proc getOutgoingSlot*(
 
   return ConnectionSlot(connManager: c, direction: Out)
 
-func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore {.inline.} =
+func semaphore(c: ConnManager, dir: Direction): AsyncSemaphore =
   return if dir == In: c.inSema else: c.outSema
 
 proc availableSlots*(c: ConnManager, dir: Direction): int =

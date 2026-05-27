@@ -130,7 +130,7 @@ proc checkValid*(spr: SignedExtendedPeerRecord): Result[void, EnvelopeError] =
   else:
     ok()
 
-proc isValid*(si: ServiceInfo): bool {.inline.} =
+proc isValid*(si: ServiceInfo): bool =
   si.data.len <= MaxServiceDataSize
 
 proc isValid*(xpr: SignedExtendedPeerRecord): bool =
