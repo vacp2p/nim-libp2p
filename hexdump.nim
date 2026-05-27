@@ -87,4 +87,4 @@ proc dumpHex*[T](v: openArray[T], items: int = 0, ascii = true): string =
       i = 1
   else:
     i = items
-  dumpHex(unsafeAddr v[0], sizeof(T) * len(v), i, ascii)
+  dumpHex(addr v[0], sizeof(T) * len(v), i, ascii)
