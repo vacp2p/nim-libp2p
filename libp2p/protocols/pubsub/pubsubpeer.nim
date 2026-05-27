@@ -331,8 +331,7 @@ proc closeSendStream(
     await p.sendStream.close()
     p.sendStream = nil
 
-  if not p.connectedFut.finished:
-    p.connectedFut.complete()
+  p.connectedFut.completeOnce()
 
   try:
     if p.onEvent != nil:
@@ -388,8 +387,7 @@ proc connectImpl(p: PubSubPeer) {.async: (raises: []).} =
     # issue so we try to get a new one
     while true:
       if p.disconnected:
-        if not p.connectedFut.finished:
-          p.connectedFut.complete()
+        p.connectedFut.completeOnce()
         return
       await connectOnce(p)
   except CancelledError as exc:
