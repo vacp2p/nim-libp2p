@@ -165,10 +165,9 @@ when defined(libp2p_autotls_support):
     # generate autotls domain string: "*.{peerID}.{dnsServerURL}"
     let baseDomain =
       api.Domain(encodePeerId(self.peerInfo.peerId) & "." & self.config.dnsServerURL)
-    let domain = api.Domain("*." & baseDomain)
 
     trace "Requesting ACME challenge"
-    let dns01Challenge = await self.acmeClient.getChallenge(@[domain])
+    let dns01Challenge = await self.acmeClient.getChallenge(@[api.Domain("*." & baseDomain)])
     trace "Generating key authorization"
     let keyAuth = self.acmeClient.genKeyAuthorization(dns01Challenge.dns01.token)
 
@@ -190,13 +189,14 @@ when defined(libp2p_autotls_support):
       raise newException(AutoTLSError, "DNS records not set")
 
     trace "Notifying challenge completion to ACME and downloading cert"
-    let certKeyPair = KeyPair.random(PKScheme.RSA, self.rng).get()
+    let certKeyPair = KeyPair.random(PKScheme.RSA, self.rng).valueOr:
+      raise newException(AutoTLSError, "Unable to generate certificate key pair")
     let derPrivKey = certKeyPair.seckey.rsakey.getBytes.valueOr:
       raise newException(AutoTLSError, "Unable to get TLS private key")
 
     let certificate = await self.acmeClient.getCertificate(
-      domain, certKeyPair, dns01Challenge, self.config.acmeRetries,
-      self.config.finalizeRetries,
+      api.Domain("*." & baseDomain), certKeyPair, dns01Challenge,
+      self.config.acmeRetries, self.config.finalizeRetries,
     )
 
     trace "Installing certificate"
