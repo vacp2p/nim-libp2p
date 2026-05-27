@@ -5,7 +5,9 @@
 
 import std/sets
 
-proc capLen*[T](s: var seq[T], length: Natural) =
+proc capLen*[T](s: var seq[T], length: int) =
+  doAssert length >= 0, "length must be >= 0"
+
   if s.len > length:
     s.setLen(length)
 
