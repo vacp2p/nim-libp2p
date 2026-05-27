@@ -52,7 +52,7 @@ type
     muxedUpgrade*: MuxedUpgrade
     ms*: MultistreamSelect
     acceptFuts: seq[Future[void]]
-    dialer*: Dial
+    dialer*: Dialer
     peerStore*: PeerStore
     nameResolver*: NameResolver
     started: bool
