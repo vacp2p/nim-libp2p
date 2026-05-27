@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 when defined(libp2p_autotls_support):
-  import ./service, ./acme/client, ../peeridauth/client
+  import ./service, ./acme/client, ./broker
 
   import ../crypto/crypto, ../crypto/rsa, websock/websock
 
@@ -19,8 +19,7 @@ when defined(libp2p_autotls_support):
       acmeClient: ACMEClient.new(
         rng = rng, api = ACMEApi.new(acmeServerURL = config.acmeServerURL)
       ),
-      brokerClient: PeerIDAuthClient.new(rng),
-      bearer: Opt.none(BearerToken),
+      broker: AutotlsBroker.new(rng, brokerURL = config.brokerURL),
       cert: Opt.none(AutotlsCert),
       certReady: newAsyncEvent(),
       running: newAsyncEvent(),
