@@ -9,14 +9,14 @@ when defined(libp2p_autotls_support):
   import json, base64, strutils
   import stew/byteutils
   import ../../../libp2p/[crypto/crypto, crypto/rsa]
-  import ../../../libp2p/autotls/acme/jws
+  import ../../../libp2p/autotls/acme/[jws, utils]
   import ../../tools/[unittest, crypto]
 
   proc b64UrlDecode(s: string): seq[byte] {.raises: [ValueError].} =
     var padded = s.replace('-', '+').replace('_', '/')
     while padded.len mod 4 != 0:
       padded &= "="
-    cast[seq[byte]](base64.decode(padded))
+    base64.decode(padded).toBytes()
 
   suite "ACME JWS":
     var key {.threadvar.}: KeyPair
@@ -57,3 +57,9 @@ when defined(libp2p_autotls_support):
       let signingInput = jws["protected"].getStr & "." & jws["payload"].getStr
       let sig = RsaSignature.init(b64UrlDecode(jws["signature"].getStr)).get()
       check rsa.verify(sig, signingInput, key.pubkey.rsakey)
+
+    test "rejects an unsupported algorithm":
+      expect(ACMEError):
+        discard toFlattenedJws(%*{"alg": "ES256"}, %*{"a": 1}, key.seckey.rsakey)
+      expect(ACMEError):
+        discard toFlattenedJws(%*{"typ": "JWT"}, %*{"a": 1}, key.seckey.rsakey)

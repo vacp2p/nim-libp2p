@@ -314,8 +314,7 @@ when defined(libp2p_autotls_support):
 
     let acmeHeader = await self.acmeHeader(uri, key, needsJwk, kid)
     handleError("createSignedAcmeRequest"):
-      let body = %*{"header": acmeHeader, "claims": payload}
-      $toFlattenedJws(body["header"], body["claims"], key.seckey.rsakey)
+      $toFlattenedJws(%*acmeHeader, %*payload, key.seckey.rsakey)
 
   proc requestRegister*(
       self: ACMEApi, key: KeyPair
