@@ -18,7 +18,7 @@ import
     protocols/service_discovery/types,
     switch,
   ]
-import ../../tools/crypto
+import ../../tools/[crypto, switch_builder, multiaddress]
 
 export protobuf, registrar, routing_table_manager, types
 
@@ -72,24 +72,13 @@ proc makeAdvertisement*(
   SignedExtendedPeerRecord.init(privateKey, extRecord).get()
 
 proc createSwitch*(privateKey: Opt[PrivateKey] = Opt.none(PrivateKey)): Switch =
-  var builder = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-
-  privateKey.withValue(key):
-    discard builder.withPrivateKey(key)
-
-  builder.build()
+  makeStandardSwitchBuilder(TcpAutoAddress).withPrivateKey(privateKey).build()
 
 proc testKadDHTConfig(): KadDHTConfig =
   KadDHTConfig.new(
     ExtEntryValidator(),
     ExtEntrySelector(),
-    timeout = 1.secs,
+    timeout = 3.secs,
     cleanupProvidersInterval = 100.millis,
     providerExpirationInterval = 1.secs,
     republishProvidedKeysInterval = 50.millis,

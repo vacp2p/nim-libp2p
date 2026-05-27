@@ -50,7 +50,7 @@ proc reserveAndUpdate(
       self.relayAddresses[relayPid] = relayedAddr
       await switch.peerInfo.update()
       debug "Updated relay addresses", relayPid, relayedAddr
-      if not self.onReservation.isNil():
+      if self.running and not self.onReservation.isNil():
         self.onReservation(concat(toSeq(self.relayAddresses.values)))
     await sleepAsync chronos.seconds(ttl - 30)
 
@@ -87,7 +87,7 @@ proc manageBackedOff(
 proc innerRun(
     self: AutoRelayService, switch: Switch
 ) {.async: (raises: [CancelledError]).} =
-  while true:
+  while self.running:
     # Remove relayPeers that failed
     let peers = toSeq(self.relayPeers.keys())
     for k in peers:
@@ -95,7 +95,7 @@ proc innerRun(
         if self.relayPeers[k].finished():
           self.relayPeers.del(k)
           self.relayAddresses.del(k)
-          if not self.onReservation.isNil():
+          if self.running and not self.onReservation.isNil():
             self.onReservation(concat(toSeq(self.relayAddresses.values)))
           # To avoid ddosing our peers in certain conditions
           self.backingOff.add(k)

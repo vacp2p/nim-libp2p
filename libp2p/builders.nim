@@ -27,15 +27,16 @@ import
     relay/client,
     relay/rtransport,
   ],
-  services/[autorelayservice, hpservice, identify_pusher, natservice],
+  services/
+    [autorelayservice, hpservice, identify_pusher, natservice, wildcardresolverservice],
   connmanager,
   upgrademngrs/muxedupgrade,
   observedaddrmanager,
   autotls/service,
   nameresolving/nameresolver,
   errors,
-  utility
-import services/wildcardresolverservice
+  utility,
+  utils/opt
 
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
@@ -99,12 +100,9 @@ type
 proc new*(T: type[SwitchBuilder]): T =
   ## Creates a SwitchBuilder
 
-  let address =
-    MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should initialize to default")
-
   SwitchBuilder(
     privKey: Opt.none(PrivateKey),
-    addresses: @[address],
+    addresses: @[],
     secureManagers: @[],
     maxConnsPerPeer: -1,
     limits: Opt.none(ConnectionLimits),
@@ -122,27 +120,39 @@ proc new*(T: type[SwitchBuilder]): T =
     addressTtls: AddressConfidenceTtls(),
   )
 
-proc withPrivateKey*(b: SwitchBuilder, privateKey: PrivateKey): SwitchBuilder =
-  ## Set the private key of the switch. Will be used to
-  ## generate a PeerId
+proc withPrivateKey*(
+    b: SwitchBuilder, privateKey: PrivateKey | Opt[PrivateKey]
+): SwitchBuilder =
+  ## Set the private key of the switch. Will be used to generate a PeerId
 
-  b.privKey = Opt.some(privateKey)
+  b.privKey = toOpt(privateKey)
   b
 
+proc withWildcardResolver*(b: SwitchBuilder, enabled: bool = true): SwitchBuilder =
+  b.enableWildcardResolver = enabled
+  b
+
+proc withAddresses*(b: SwitchBuilder, addresses: seq[MultiAddress]): SwitchBuilder =
+  ## Set the listening addresses of the switch
+  b.addresses = addresses
+  b
+
+proc withAddress*(b: SwitchBuilder, address: MultiAddress): SwitchBuilder =
+  ## Set the listening address of the switch
+  b.withAddresses(@[address])
+
 proc withAddresses*(
-    b: SwitchBuilder, addresses: seq[MultiAddress], enableWildcardResolver: bool = true
-): SwitchBuilder =
-  ## | Set the listening addresses of the switch
-  ## | Calling it multiple time will override the value
+    b: SwitchBuilder, addresses: seq[MultiAddress], enableWildcardResolver: bool
+): SwitchBuilder {.deprecated: "use withWildcardResolver()".} =
+  ## Set the listening addresses of the switch
   b.addresses = addresses
   b.enableWildcardResolver = enableWildcardResolver
   b
 
 proc withAddress*(
-    b: SwitchBuilder, address: MultiAddress, enableWildcardResolver: bool = true
-): SwitchBuilder =
-  ## | Set the listening address of the switch
-  ## | Calling it multiple time will override the value
+    b: SwitchBuilder, address: MultiAddress, enableWildcardResolver: bool
+): SwitchBuilder {.deprecated: "use withWildcardResolver()".} =
+  ## Set the listening address of the switch
   b.withAddresses(@[address], enableWildcardResolver)
 
 proc withAnnouncedAddresses*(
@@ -152,7 +162,6 @@ proc withAnnouncedAddresses*(
   ## switch's listening addresses. When non-empty, these replace the output
   ## of the address mapper chain (the `addressPolicy` filter is still applied).
   ## Use this to announce a public NAT-mapped address while binding locally.
-  ## Calling it multiple times overrides the previous value.
   b.announcedAddrs = addresses
   b
 
@@ -167,8 +176,8 @@ proc withSignedPeerRecord*(b: SwitchBuilder, sendIt = true): SwitchBuilder =
 proc withMplex*(
     b: SwitchBuilder, inTimeout = 5.minutes, outTimeout = 5.minutes, maxChannCount = 200
 ): SwitchBuilder =
-  ## | Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
-  ## | `Timeout` is the duration after which a inactive connection will be closed
+  ## Uses `Mplex <https://docs.libp2p.io/concepts/stream-multiplexing/#mplex>`_ as a multiplexer
+  ## `Timeout` is the duration after which a inactive connection will be closed
   proc newMuxer(conn: RawConn): Muxer =
     Mplex.new(conn, inTimeout, outTimeout, maxChannCount)
 
@@ -370,10 +379,7 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-    if config.isNil:
-      b.autotlsConfig = Opt.none(AutotlsConfig)
-    else:
-      b.autotlsConfig = Opt.some(config)
+    b.autotlsConfig = Opt.some(config)
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
@@ -387,11 +393,7 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
 proc withRendezVous*(
     b: SwitchBuilder, config: RendezVousConfig = RendezVousConfig.new()
 ): SwitchBuilder =
-  if config.isNil:
-    b.rdvConfig = Opt.none(RendezVousConfig)
-  else:
-    b.rdvConfig = Opt.some(config)
-
+  b.rdvConfig = Opt.some(config)
   b
 
 proc withKademlia*(
@@ -568,12 +570,10 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     switch.mount(relay)
 
   b.kad.withValue(kadInfo):
-    kadInfo.config.addressPolicy = b.addressPolicy
+    var config = kadInfo.config
+    config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch,
-      bootstrapNodes = kadInfo.bootstrapNodes,
-      config = kadInfo.config,
-      rng = b.rng,
+      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = config, rng = b.rng
     )
     switch.mount(kad)
 
