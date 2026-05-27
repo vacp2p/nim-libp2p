@@ -17,13 +17,6 @@
     fetchSubmodules = true;
   };
 
-  bearssl_pkey_decoder = pkgs.fetchgit {
-    url = "https://github.com/vacp2p/bearssl_pkey_decoder";
-    rev = "d34aa46bf9d0a3ffff810fbd3c4d2fa024eb9368";
-    sha256 = "0200f7lf3x2hypwr2v9gms6qv7wj8m1phwd25025bfa1w9f2nkbg";
-    fetchSubmodules = true;
-  };
-
   boringssl = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-boringssl";
     rev = "03bd48b54bc2bdc12d8c1bd9c95a32951f2c5962";
@@ -98,13 +91,6 @@
     url = "https://github.com/ba0f3/dnsclient.nim";
     rev = "23214235d4784d24aceed99bbfe153379ea557c8";
     sha256 = "03mf3lw5c0m5nq9ppa49nylrl8ibkv2zzlc0wyhqg7w09kz6hks6";
-    fetchSubmodules = true;
-  };
-
-  jwt = pkgs.fetchgit {
-    url = "https://github.com/vacp2p/nim-jwt.git";
-    rev = "057ec95eb5af0eea9c49bfe9025b3312c95dc5f2";
-    sha256 = "1hnxsl5762fdn80hl4xxfdqrcgmxrrfck66js1iqaqfxc4m0fv63";
     fetchSubmodules = true;
   };
 
