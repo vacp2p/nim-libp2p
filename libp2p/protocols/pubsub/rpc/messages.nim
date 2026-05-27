@@ -4,7 +4,8 @@
 {.push raises: [].}
 
 import sequtils
-import ../../../[peerid, routing_record, utility]
+import ../../../[peerid, routing_record]
+import ../../../utils/[opt, shortlog]
 
 export results
 

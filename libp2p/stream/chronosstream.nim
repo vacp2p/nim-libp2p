@@ -7,7 +7,7 @@ import std/[strformat]
 import results
 import chronos, chronicles, metrics
 import connection
-import ../utility
+import ../utils/shortlog
 
 export results
 

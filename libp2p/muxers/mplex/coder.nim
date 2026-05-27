@@ -4,7 +4,7 @@
 {.push raises: [].}
 
 import pkg/[chronos, chronicles, stew/byteutils]
-import ../../stream/connection, ../../utility, ../../varint, ../../vbuffer, ../muxer
+import ../../stream/connection, ../../varint, ../../vbuffer, ../muxer
 
 logScope:
   topics = "libp2p mplexcoder"

@@ -38,7 +38,10 @@ import
   ./stream/connection,
   ./multistream,
   ./muxers/muxer,
-  utility
+  utils/opt
+
+when defined(libp2p_agents_metrics):
+  import utils/agents
 
 type
   #################

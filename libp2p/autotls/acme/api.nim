@@ -110,7 +110,8 @@ type ACMECertificate* = object
   certKeyPair*: KeyPair
 
 when defined(libp2p_autotls_support):
-  import sequtils, strutils, jwt, bearssl/pem
+  import sequtils, strutils
+  import ./jws
 
   const
     Alg = "RS256"
@@ -313,11 +314,7 @@ when defined(libp2p_autotls_support):
 
     let acmeHeader = await self.acmeHeader(uri, key, needsJwk, kid)
     handleError("createSignedAcmeRequest"):
-      var token = toJWT(%*{"header": acmeHeader, "claims": payload})
-      let derPrivKey = key.seckey.rsakey.getBytes.get
-      let pemPrivKey: string = pemEncode(derPrivKey, "PRIVATE KEY")
-      token.sign(pemPrivKey)
-      $token.toFlattenedJson()
+      $toFlattenedJws(%*acmeHeader, %*payload, key.seckey.rsakey)
 
   proc requestRegister*(
       self: ACMEApi, key: KeyPair
