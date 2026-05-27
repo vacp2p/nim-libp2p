@@ -411,7 +411,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
   asyncTest "Receiver rejects ADD_PROVIDER when per-key limit reached":
     # kads[0] is sender, kads[1] is receiver with maxProvidersPerKey = 1
     let senderKad = setupKad(testKadConfig(providerRejection = true))
-    let receiverConfig = testKadConfig(providerRejection = true)
+    var receiverConfig = testKadConfig(providerRejection = true)
     receiverConfig.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
@@ -443,7 +443,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # Since addProviderRecord removes then re-adds the same record, the count stays the same
     # so a re-advertisement is not blocked by the per-key limit check.
     let senderKad = setupKad(testKadConfig(providerRejection = true))
-    let receiverConfig = testKadConfig(providerRejection = true)
+    var receiverConfig = testKadConfig(providerRejection = true)
     receiverConfig.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
@@ -470,7 +470,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # senderKad should then store the record at farKad (spillover).
     let senderKad = setupKad(testKadConfig(providerRejection = true))
 
-    let closeConfig = testKadConfig(providerRejection = true)
+    var closeConfig = testKadConfig(providerRejection = true)
     closeConfig.maxProvidersPerKey = Opt.some(1)
     let closeKad = setupKad(closeConfig)
 
@@ -539,7 +539,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     let senderKad = setupKad(
       testKadConfig(providerRejection = true, providerExpirationInterval = 30.seconds)
     )
-    let receiverConfig =
+    var receiverConfig =
       testKadConfig(providerRejection = false, providerExpirationInterval = 30.seconds)
     receiverConfig.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
@@ -571,7 +571,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
 
   asyncTest "providerRejection=true: receiver enforces limit and rejects":
     let senderKad = setupKad(testKadConfig(providerRejection = true))
-    let receiverConfig = testKadConfig(providerRejection = true)
+    var receiverConfig = testKadConfig(providerRejection = true)
     receiverConfig.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 
@@ -599,7 +599,7 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     # Receiver has providerRejection=true and sends rejection replies.
     # The sender stores the key and moves on regardless.
     let senderKad = setupKad(testKadConfig(providerRejection = false))
-    let receiverConfig = testKadConfig(providerRejection = true)
+    var receiverConfig = testKadConfig(providerRejection = true)
     receiverConfig.maxProvidersPerKey = Opt.some(1)
     let receiverKad = setupKad(receiverConfig)
 

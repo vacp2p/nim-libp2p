@@ -4,7 +4,7 @@
 
 import algorithm, chronos, chronicles, results, sequtils, sets, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders, stream/connection]
-import ../../tools/[crypto, unittest]
+import ../../tools/[crypto, unittest, switch_builder, multiaddress]
 import ./mock_kademlia
 
 trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
@@ -32,16 +32,6 @@ method select*(
   if values.len == 1:
     return ok(0)
   ok(1)
-
-proc createSwitch*(): Switch =
-  SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .build()
 
 proc testKadConfig*(
     validator: EntryValidator = PermissiveValidator(),
@@ -74,7 +64,7 @@ proc setupKad*(
     config: KadDHTConfig = testKadConfig(),
     bootstrapNodes: seq[(PeerId, seq[MultiAddress])] = @[],
 ): KadDHT =
-  let switch = createSwitch()
+  let switch = makeStandardSwitch(TcpAutoAddress)
   let kad = KadDHT.new(switch, bootstrapNodes, config, rng = rng())
   kad.switch.mount(kad)
   kad
@@ -86,7 +76,7 @@ proc setupMockKad*(
     handleAddProviderMessage: Opt[Message] = Opt.none(Message),
     handleFindNodeDelay: Duration = ZeroDuration,
 ): MockKadDHT =
-  let switch = createSwitch()
+  let switch = makeStandardSwitch(TcpAutoAddress)
   let kad = MockKadDHT.new(switch, bootstrapNodes, config, rng = rng())
   kad.getValueResponse = getValueResponse
   kad.handleAddProviderMessage = handleAddProviderMessage

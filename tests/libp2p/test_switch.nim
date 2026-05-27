@@ -1189,14 +1189,8 @@ suite "Switch":
     # wildcard resolver, which would normally rewrite/expand listenAddrs).
     let
       announcedAddr = MultiAddress.init("/ip4/203.0.113.7/tcp/9000").tryGet()
-      switch = SwitchBuilder
-        .new()
-        .withRng(rng())
-        .withAddresses(@[TcpAutoAddress])
+      switch = makeStandardSwitchBuilder(TcpAutoAddress)
         .withAnnouncedAddresses(@[announcedAddr])
-        .withTcpTransport()
-        .withMplex()
-        .withNoise()
         .build()
 
     await switch.start()

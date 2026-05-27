@@ -13,19 +13,13 @@ import ../../../libp2p/protocols/connectivity/relay/[relay, client]
 import ../../../libp2p/protocols/connectivity/autonat/[service]
 import ../../../libp2p/nameresolving/[nameresolver, mockresolver]
 import ../../stubs/[autonatclientstub, switchstub]
-import ../../tools/[unittest, futures, resolver, crypto]
+import ../../tools/[unittest, futures, resolver, crypto, switch_builder, multiaddress]
 
 proc createSwitch(
     r: Relay = nil, hpService: Service = nil, nameResolver: NameResolver = nil
 ): Switch {.raises: [LPError].} =
-  var switch = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
+  let switch = makeStandardSwitchBuilder(TcpAutoAddress)
     .withAutonat()
-    .withNoise()
     .withMaxConnsPerPeer(2)
     # HP needs relay + direct to coexist briefly during upgrade
     .withCircuitRelay(r)
