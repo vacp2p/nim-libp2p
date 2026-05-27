@@ -1,14 +1,18 @@
 { pkgs, src }:
 
 let
-  deps = import ./deps.nix { inherit pkgs; };
+  rawDeps = import ./deps.nix { inherit pkgs; };
   cbindDeps = import ./cbind-deps.nix { inherit pkgs; };
 
-  # Static C archives (miniupnpc / libnatpmp) pulled in via nat_traversal.
-  natLibs = import ./nat-libs.nix {
+  # Replace nat_traversal with a copy whose vendored miniupnpc / libnatpmp
+  # static archives are prebuilt in-tree. The wrappers' `{.passL.}` paths are
+  # currentSourcePath-relative, so the linker needs the .a files alongside the
+  # Nim sources — separate derivation outputs won't satisfy them.
+  natTraversal = import ./nat-libs.nix {
     inherit pkgs;
-    natSrc = deps.nat_traversal;
+    natSrc = rawDeps.nat_traversal;
   };
+  deps = rawDeps // { nat_traversal = natTraversal; };
 
   pathArgs =
     builtins.concatStringsSep " "
@@ -45,7 +49,10 @@ pkgs.stdenv.mkDerivation {
 
     echo "== Building C bindings (dynamic/shared) =="
     # A shared library is fully linked, so it must resolve the miniupnpc /
-    # libnatpmp C symbols — pass the prebuilt archives to the linker. The static
+    # libnatpmp C symbols. The nat_traversal wrappers reference the vendored
+    # static archives via `{.passL.}` paths relative to their own source dir;
+    # we route --path:nat_traversal to a copy with those archives prebuilt
+    # in-tree, so the linker finds them at the expected location. The static
     # build below only archives Nim objects, so its consumer links these later.
     nim c \
       --noNimblePath \
@@ -61,8 +68,6 @@ pkgs.stdenv.mkDerivation {
       --header \
       --undef:metrics \
       --nimMainPrefix:libp2p \
-      --passL:"${natLibs}/lib/libminiupnpc.a" \
-      --passL:"${natLibs}/lib/libnatpmp.a" \
       --nimcache:$NIMCACHE \
       cbind/libp2p.nim
 
