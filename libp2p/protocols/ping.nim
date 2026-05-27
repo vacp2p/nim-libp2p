@@ -7,11 +7,7 @@
 
 import chronos, chronicles
 import
-  ../stream/connection,
-  ../peerid,
-  ../crypto/crypto,
-  ../protocols/protocol,
-  ../errors
+  ../stream/connection, ../peerid, ../crypto/crypto, ../protocols/protocol, ../errors
 
 export chronicles, rng, connection
 
@@ -49,9 +45,6 @@ method init*(p: Ping) =
         await stream.write(@buf)
         if not isNil(p.pingHandler):
           await p.pingHandler(stream.peerId)
-    except CancelledError as exc:
-      trace "cancelled ping handler"
-      raise exc
     except LPStreamEOFError as exc:
       trace "ping stream closed", description = exc.msg, stream
     except LPStreamError as exc:
