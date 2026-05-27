@@ -50,9 +50,10 @@ suite "Autorelay":
     relayClient = RelayClient.new()
     let fut = newFuture[void]()
     proc checkMA(addresses: seq[MultiAddress]) =
-      check:
-        addresses == buildRelayMA(switchRelay, switchClient)
-      fut.complete()
+      if not fut.finished:
+        check:
+          addresses == buildRelayMA(switchRelay, switchClient)
+        fut.complete()
 
     autorelay = AutoRelayService.new(3, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
@@ -69,9 +70,10 @@ suite "Autorelay":
     relayClient = RelayClient.new()
     let fut = newFuture[void]()
     proc checkMA(address: seq[MultiAddress]) =
-      check:
-        address == buildRelayMA(switchRelay, switchClient)
-      fut.complete()
+      if not fut.finished:
+        check:
+          address == buildRelayMA(switchRelay, switchClient)
+        fut.complete()
 
     let autorelay = AutoRelayService.new(3, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
@@ -112,8 +114,9 @@ suite "Autorelay":
           check:
             relayMA in addresses
         if state == Relay1Reserved:
-          state = Relay1AndRelay2Reserved
-          rel1Checked.complete()
+          if not rel1Checked.finished:
+            state = Relay1AndRelay2Reserved
+            rel1Checked.complete()
         elif state == Relay2UnreservedAndRelay1Reserved:
           state = Relay1AndRelay3Reserved
       elif state == Relay1AndRelay2Reserved:
@@ -125,8 +128,9 @@ suite "Autorelay":
         for relayMA in relay2MAs:
           check:
             relayMA in addresses
-        state = Relay2UnreservedAndRelay1Reserved
-        rel1And2Checked.complete()
+        if not rel1And2Checked.finished:
+          state = Relay2UnreservedAndRelay1Reserved
+          rel1And2Checked.complete()
       elif state == Relay1AndRelay3Reserved:
         let relay1MAs = buildRelayMA(rel1, switchClient)
         for relayMA in relay1MAs:
@@ -136,7 +140,8 @@ suite "Autorelay":
         for relayMA in relay3MAs:
           check:
             relayMA in addresses
-        allChecksCompleted.complete()
+        if not allChecksCompleted.finished:
+          allChecksCompleted.complete()
 
     let autorelay = AutoRelayService.new(maxNumRelays = 2, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
