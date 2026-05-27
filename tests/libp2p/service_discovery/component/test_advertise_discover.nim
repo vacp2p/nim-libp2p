@@ -292,6 +292,29 @@ suite "Service Discovery Component - Advertise Discover":
 
     check registrarNode.countAdsInCache(serviceId) == 0
 
+  asyncTest "advertiser stops on send failure":
+    let advertiserNode = setupServiceDiscoveryNode()
+    startAndDeferStop(@[advertiserNode])
+
+    let serviceId = makeServiceId()
+
+    check advertiserNode.rtManager.addService(
+      serviceId, advertiserNode.rtable, advertiserNode.config.replication,
+      advertiserNode.discoConfig.bucketsCount, Provided,
+    )
+
+    # A peer with no address in the peer store triggers an immediate send failure.
+    let unreachablePeer = randomPeerId()
+
+    # sendRegister fails and the task returns without retrying.
+    await advertiserNode
+      .advertiseToRegistrar(
+        serviceId, unreachablePeer, Opt.none(Ticket), @[1'u8, 2, 3, 4]
+      )
+      .wait(5.seconds)
+
+    check advertiserNode.countAdsInCache(serviceId) == 0
+
   asyncTest "auto-advertise on start":
     # Using ipSimCoefficient = 0.0 to not trigger sybil protection when advertising multiple services
     # TODO: vacp2p/nim-libp2p#2430 service-disco: missing API for multi-service registration
@@ -381,3 +404,38 @@ suite "Service Discovery Component - Advertise Discover":
     checkUntilTimeout:
       workingRegistrarNode.countAdsInCache(serviceId) == 1
       droppedRegistrarNode.countAdsInCache(serviceId) == 0
+
+  asyncTest "advertiser does not register with peers discovered after addProvidedService":
+    # TODO: vacp2p/nim-libp2p#2540 advertiser should continuously maintain K_register per bucket
+    let conf = ServiceDiscoveryConfig.new(safetyParam = 0.0)
+    let initialRegistrar = setupServiceDiscoveryNode(discoConfig = conf)
+    let lateRegistrar = setupServiceDiscoveryNode(discoConfig = conf)
+    let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
+
+    # maintainServiceTables runs every bucketRefreshTime (default 10 min).
+    # Set it short so multiple refresh cycles complete within the test window.
+    advertiserNode.config.bucketRefreshTime = 50.millis
+
+    startAndDeferStop(@[initialRegistrar, lateRegistrar, advertiserNode])
+
+    # Only initialRegistrar is known when addProvidedService spawns tasks.
+    await connect(initialRegistrar, advertiserNode)
+
+    let service = makeServiceInfo("service")
+    let serviceId = service.id.hashServiceId()
+
+    advertiserNode.addProvidedService(service)
+
+    checkUntilTimeout:
+      initialRegistrar.countAdsInCache(serviceId) == 1
+
+    # Simulate a peer discovered after the initial task spawn
+    await connect(lateRegistrar, advertiserNode)
+    advertiserNode.rtManager.insertPeer(
+      serviceId, lateRegistrar.switch.peerInfo.peerId.toKey()
+    )
+
+    # Wait for several refresh cycles.
+    await sleepAsync(500.millis)
+
+    check lateRegistrar.countAdsInCache(serviceId) == 0
