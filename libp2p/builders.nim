@@ -89,9 +89,7 @@ type
     autonatV2ServerConfig: Opt[AutonatV2Config]
     autonatV2Config: Opt[AutonatV2ServiceConfig]
     autonatV2Client: AutonatV2Client
-    autonatV2Service: Opt[AutonatV2Service]
     holePunchingConfig: Opt[HolePunchingConfig]
-    hpService: Opt[HPService]
     natConfig: Opt[NATConfig]
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
@@ -117,9 +115,7 @@ proc new*(T: type[SwitchBuilder]): T =
     agentVersion: AgentVersion,
     autonatV2ServerConfig: Opt.none(AutonatV2Config),
     autonatV2Config: Opt.none(AutonatV2ServiceConfig),
-    autonatV2Service: Opt.none(AutonatV2Service),
     holePunchingConfig: Opt.none(HolePunchingConfig),
-    hpService: Opt.none(HPService),
     natConfig: Opt.none(NATConfig),
     autotlsConfig: Opt.none(AutotlsConfig),
     circuitRelay: Opt.none(Relay),
@@ -446,22 +442,6 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
   let seckey = b.privKey.valueOr:
     PrivateKey.random(b.rng).expect("Expected default Private Key")
 
-  b.autonatV2Config.withValue(serviceConfig):
-    b.autonatV2Client = AutonatV2Client.new(b.rng)
-    b.autonatV2Service = Opt.some(
-      AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
-    )
-
-  b.holePunchingConfig.withValue(config):
-    let
-      autonatService = AutonatService.new(AutonatClient(), b.rng)
-      autoRelayService = AutoRelayService.new(
-        config.maxNumRelays, RelayClient.new(), config.onReservationHandler, b.rng
-      )
-      hpService = HPService.new(autonatService, autoRelayService)
-
-    b.hpService = Opt.some(hpService)
-
   if b.secureManagers.len == 0:
     debug "no secure managers defined. Adding noise by default"
     b.secureManagers.add(SecureProtocol.Noise)
@@ -547,11 +527,20 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
   if b.enableWildcardResolver:
     switch.services.add(WildcardAddressResolverService.new())
 
-  b.autonatV2Service.withValue(autonatV2Service):
-    switch.services.add(autonatV2Service)
+  b.autonatV2Config.withValue(serviceConfig):
+    b.autonatV2Client = AutonatV2Client.new(b.rng)
+    switch.services.add(
+      AutonatV2Service.new(b.rng, client = b.autonatV2Client, config = serviceConfig)
+    )
 
-  b.hpService.withValue(hpservice):
-    switch.services.add(hpservice)
+  b.holePunchingConfig.withValue(config):
+    let
+      autonatService = AutonatService.new(AutonatClient(), b.rng)
+      autoRelayService = AutoRelayService.new(
+        config.maxNumRelays, RelayClient.new(), config.onReservationHandler, b.rng
+      )
+
+    switch.services.add(HPService.new(autonatService, autoRelayService))
 
   b.natConfig.withValue(natCfg):
     switch.services.add(NATService.new(natCfg))
