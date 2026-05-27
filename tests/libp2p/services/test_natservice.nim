@@ -7,7 +7,7 @@ import std/net
 import chronos
 import ../../../libp2p/[builders, switch, multiaddress, multicodec]
 import ../../../libp2p/services/natservice
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, multiaddress]
 
 proc makeSwitch(
     config: NATConfig, listenAddrs: seq[MultiAddress]
@@ -27,9 +27,6 @@ suite "NATService":
     checkTrackers()
 
   test "explicitIpMapped preserves port and suffix; drops mismatching family":
-    proc ma(s: string): MultiAddress =
-      MultiAddress.init(s).get()
-
     let
       ip4 = parseIpAddress("203.0.113.7")
       ip6 = parseIpAddress("2001:db8::1")
@@ -65,7 +62,7 @@ suite "NATService":
     let
       explicitIp = parseIpAddress("203.0.113.7")
       cfg = NATConfig(mode: natModeExplicitIp, explicitIp: explicitIp)
-      switch = makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
+      switch = makeSwitch(cfg, @[TcpAutoAddress])
 
     await switch.start()
     defer:
@@ -80,7 +77,7 @@ suite "NATService":
   asyncTest "natModeAuto is a no-op on announced addresses":
     let
       cfg = NATConfig(mode: natModeAuto)
-      switch = makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()])
+      switch = makeSwitch(cfg, @[TcpAutoAddress])
 
     await switch.start()
     defer:

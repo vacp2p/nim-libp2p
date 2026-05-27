@@ -14,7 +14,7 @@ import
     multicodec,
     muxers/muxer,
   ]
-import ../../tools/[unittest, crypto as cryptoTools]
+import ../../tools/[unittest, crypto as cryptoTools, multiaddress]
 
 # TCP
 
@@ -80,7 +80,7 @@ proc createQuicTransport*(
     isServer: bool = false,
     withInvalidCert: bool = false,
     privateKey: Opt[PrivateKey] = Opt.none(PrivateKey),
-    address: MultiAddress = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").get(),
+    address: MultiAddress = QuicAutoAddress,
 ): Future[QuicTransport] {.async.} =
   let key =
     if privateKey.isNone:

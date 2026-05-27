@@ -45,7 +45,7 @@ const
 type PeerRecordValidator*[E] =
   proc(_: E, spr: seq[byte], peerId: PeerId): Result[void, string] {.gcsafe.}
 
-type RendezVousConfig* = ref object # todo: should not be ref object
+type RendezVousConfig* = object
   minDuration*: Duration
   maxDuration*: Duration
   minTTL*: uint64

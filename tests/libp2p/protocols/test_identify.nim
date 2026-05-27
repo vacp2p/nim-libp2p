@@ -284,14 +284,11 @@ suite "Identify":
         switch1.peerStore[AddressBook][oldPeerId] != switch2.peerInfo.addrs
 
   asyncTest "identify exposes QUIC transport addresses":
+    # Server switch with both QUIC and TCP
     let
-      quicAddress = MultiAddress.init("/ip4/127.0.0.1/udp/0/quic-v1").tryGet()
-      tcpAddress = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()
-
-      # Server switch with both QUIC and TCP
       server = SwitchBuilder
         .new()
-        .withAddresses(@[quicAddress, tcpAddress])
+        .withAddresses(@[QuicAutoAddress, TcpAutoAddress])
         .withRng(rng())
         .withMplex()
         .withTcpTransport()

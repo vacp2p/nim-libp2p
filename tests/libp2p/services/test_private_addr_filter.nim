@@ -16,10 +16,7 @@ import
     protocols/identify,
     protocols/kademlia,
   ]
-import ../../tools/[unittest, crypto]
-
-proc ma(s: string): MultiAddress =
-  MultiAddress.init(s).tryGet()
+import ../../tools/[unittest, crypto, multiaddress]
 
 suite "PeerStore addressPolicy":
   test "updatePeerInfo stores all addresses with default policy":
@@ -102,7 +99,7 @@ suite "KadDHT updatePeers address policy":
     let switch = SwitchBuilder
       .new()
       .withRng(rng())
-      .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")])
+      .withAddresses(@[TcpAutoAddress])
       .withTcpTransport()
       .withMplex()
       .withNoise()
@@ -130,7 +127,7 @@ suite "KadDHT updatePeers address policy":
     let switch = SwitchBuilder
       .new()
       .withRng(rng())
-      .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")])
+      .withAddresses(@[TcpAutoAddress])
       .withTcpTransport()
       .withMplex()
       .withNoise()
@@ -156,7 +153,7 @@ suite "KadDHT updatePeers address policy":
     let switch = SwitchBuilder
       .new()
       .withRng(rng())
-      .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")])
+      .withAddresses(@[TcpAutoAddress])
       .withTcpTransport()
       .withMplex()
       .withNoise()
@@ -184,7 +181,7 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
     let switch = SwitchBuilder
       .new()
       .withRng(rng())
-      .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")], false)
+      .withAddresses(@[TcpAutoAddress], false)
       # disable wildcard resolver
       .withTcpTransport()
       .withMplex()
@@ -204,7 +201,7 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
     let switch = SwitchBuilder
       .new()
       .withRng(rng())
-      .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")], false)
+      .withAddresses(@[TcpAutoAddress], false)
       .withTcpTransport()
       .withMplex()
       .withNoise()
@@ -228,7 +225,7 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
     let switch = SwitchBuilder
       .new()
       .withRng(rng())
-      .withAddresses(@[ma("/ip4/127.0.0.1/tcp/0")], false)
+      .withAddresses(@[TcpAutoAddress], false)
       .withTcpTransport()
       .withMplex()
       .withNoise()

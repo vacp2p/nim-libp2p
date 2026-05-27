@@ -15,7 +15,6 @@ import results
 import stew/[bitops2, ctops]
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
-import ../utils/sequninit
 import rng
 
 export Asn1Error, results
@@ -74,7 +73,7 @@ type
 
 template getStart(bs, os, ls: untyped): untyped =
   let p = cast[uint](os)
-  let s = cast[uint](unsafeAddr bs[0])
+  let s = cast[uint](addr bs[0])
   var so = 0
   if p >= s:
     so = cast[int](p - s)
@@ -82,7 +81,7 @@ template getStart(bs, os, ls: untyped): untyped =
 
 template getFinish(bs, os, ls: untyped): untyped =
   let p = cast[uint](os)
-  let s = cast[uint](unsafeAddr bs[0])
+  let s = cast[uint](addr bs[0])
   var eo = -1
   if p >= s:
     let so = cast[int](p - s)
@@ -772,7 +771,7 @@ proc sign*[T: byte | char](
   var kv = addr sha256Vtable
   kv.init(addr hc.vtable)
   if len(message) > 0:
-    kv.update(addr hc.vtable, unsafeAddr message[0], uint(len(message)))
+    kv.update(addr hc.vtable, addr message[0], uint(len(message)))
   else:
     kv.update(addr hc.vtable, nil, 0)
   kv.out(addr hc.vtable, addr hash[0])
@@ -801,7 +800,7 @@ proc verify*[T: byte | char](
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:
-      kv.update(addr hc.vtable, unsafeAddr message[0], uint(len(message)))
+      kv.update(addr hc.vtable, addr message[0], uint(len(message)))
     else:
       kv.update(addr hc.vtable, nil, 0)
     kv.out(addr hc.vtable, addr hash[0])
