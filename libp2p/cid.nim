@@ -9,7 +9,6 @@
 import tables, hashes
 import multibase, multicodec, multihash, vbuffer, varint, results, utility
 import stew/base58
-import ./utils/sequninit
 
 export results
 

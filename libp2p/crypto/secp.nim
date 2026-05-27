@@ -4,7 +4,6 @@
 {.push raises: [].}
 
 import secp256k1, results, stew/byteutils, nimcrypto/[hash, sha2]
-import ../utils/sequninit
 import rng as libp2p_rng
 
 export sha2, results
