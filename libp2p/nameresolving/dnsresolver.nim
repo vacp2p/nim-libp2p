@@ -8,8 +8,7 @@ import
   chronos,
   chronicles,
   stew/byteutils,
-  dnsclientpkg/[protocol, types],
-  ../utils/sequninit
+  dnsclientpkg/[protocol, types]
 
 import nameresolver
 

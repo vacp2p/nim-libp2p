@@ -24,7 +24,7 @@ import
   ../../peerinfo,
   ../../errors,
   ../../utils/opt,
-  ../../utils/[sequninit, future]
+  ../../utils/future
 
 import results
 export results

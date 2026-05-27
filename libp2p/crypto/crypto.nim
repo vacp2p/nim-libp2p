@@ -5,7 +5,6 @@
 {.push raises: [].}
 
 from strutils import split, strip, cmpIgnoreCase
-import ../utils/sequninit
 
 const libp2p_pki_schemes* {.strdefine.} = "rsa,ed25519,secp256k1,ecnist"
 
@@ -427,7 +426,7 @@ proc toBytes*(sig: Signature, data: var openArray[byte]): int =
   ## Returns number of bytes (octets) needed to store signature ``sig``.
   let blen = len(sig.data)
   if len(data) >= blen and blen > 0:
-    copyMem(addr data[0], unsafeAddr sig.data[0], len(sig.data))
+    copyMem(addr data[0], addr sig.data[0], len(sig.data))
   blen
 
 proc getBytes*(key: PrivateKey): CryptoResult[seq[byte]] =
@@ -874,7 +873,7 @@ proc iv*(secret: Secret, id: int): seq[byte] {.inline.} =
       0
     else:
       (len(secret.data) div 2)
-  copyMem(addr buf[0], unsafeAddr secret.data[offset], secret.ivsize)
+  copyMem(addr buf[0], addr secret.data[offset], secret.ivsize)
   buf
 
 proc key*(secret: Secret, id: int): seq[byte] {.inline.} =
@@ -885,7 +884,7 @@ proc key*(secret: Secret, id: int): seq[byte] {.inline.} =
     else:
       (len(secret.data) div 2)
   offset += secret.ivsize
-  copyMem(addr buf[0], unsafeAddr secret.data[offset], secret.keysize)
+  copyMem(addr buf[0], addr secret.data[offset], secret.keysize)
   buf
 
 proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
@@ -896,7 +895,7 @@ proc mac*(secret: Secret, id: int): seq[byte] {.inline.} =
     else:
       (len(secret.data) div 2)
   offset += secret.ivsize + secret.keysize
-  copyMem(addr buf[0], unsafeAddr secret.data[offset], secret.macsize)
+  copyMem(addr buf[0], addr secret.data[offset], secret.macsize)
   buf
 
 proc getOrder*(

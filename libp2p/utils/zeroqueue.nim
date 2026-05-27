@@ -2,7 +2,6 @@
 # Copyright (c) Status Research & Development GmbH
 
 import std/deques
-import ./sequninit
 
 type Chunk = ref object
   data: seq[byte]
@@ -61,7 +60,7 @@ proc consumeTo*(q: var ZeroQueue, pbytes: pointer, nbytes: int): int =
   while consumed < nbytes and not q.isEmpty():
     let chunk = q.popChunk(nbytes - consumed)
     let dest = cast[pointer](cast[uint](pbytes) + consumed.uint)
-    let offsetPtr = cast[ptr byte](cast[int](unsafeAddr chunk.data[0]) + chunk.start)
+    let offsetPtr = cast[ptr byte](cast[int](addr chunk.data[0]) + chunk.start)
     copyMem(dest, offsetPtr, chunk.len())
     consumed += chunk.len()
 
@@ -73,7 +72,7 @@ proc popChunkSeq*(q: var ZeroQueue, count: int): seq[byte] =
 
   let chunk = q.popChunk(count)
   var dest = newSeqUninit[byte](chunk.len())
-  let offsetPtr = cast[ptr byte](cast[int](unsafeAddr chunk.data[0]) + chunk.start)
+  let offsetPtr = cast[ptr byte](cast[int](addr chunk.data[0]) + chunk.start)
   copyMem(dest[0].addr, offsetPtr, chunk.len())
 
   return dest

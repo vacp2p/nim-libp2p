@@ -149,7 +149,7 @@ proc processGetPeerInfo*(
       if keyBytes.len > 0:
         entryPtr[].publicKeyLen = keyBytes.len.csize_t
         entryPtr[].publicKey = cast[ptr byte](allocShared(keyBytes.len))
-        copyMem(entryPtr[].publicKey, unsafeAddr keyBytes[0], keyBytes.len)
+        copyMem(entryPtr[].publicKey, addr keyBytes[0], keyBytes.len)
 
     entryPtr[].agentVersion = peerStore[AgentBook][peerId].alloc()
     entryPtr[].protoVersion = peerStore[ProtoVersionBook][peerId].alloc()

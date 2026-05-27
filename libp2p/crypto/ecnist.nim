@@ -17,7 +17,6 @@ import minasn1
 export minasn1.Asn1Error
 import stew/ctops
 import results
-import ../utils/sequninit
 
 import ../utils/conversion
 import rng
@@ -123,16 +122,16 @@ proc checkPublic(key: openArray[byte], curve: cint): uint32 =
   var impl = ecGetDefault()
   var orderlen: uint = 0
   discard impl.order(curve, orderlen)
-  impl.mul(unsafeAddr ckey[0], uint(len(ckey)), addr x[0], uint(len(x)), curve)
+  impl.mul(addr ckey[0], uint(len(ckey)), addr x[0], uint(len(x)), curve)
 
 proc getOffset(pubkey: EcPublicKey): int {.inline.} =
-  let o = cast[uint](pubkey.key.q) - cast[uint](unsafeAddr pubkey.buffer[0])
+  let o = cast[uint](pubkey.key.q) - cast[uint](addr pubkey.buffer[0])
   if o + cast[uint](pubkey.key.qlen) > uint(len(pubkey.buffer)):
     return -1
   cast[int](o)
 
 proc getOffset(seckey: EcPrivateKey): int {.inline.} =
-  let o = cast[uint](seckey.key.x) - cast[uint](unsafeAddr seckey.buffer[0])
+  let o = cast[uint](seckey.key.x) - cast[uint](addr seckey.buffer[0])
   if o + cast[uint](seckey.key.xlen) > uint(len(seckey.buffer)):
     return -1
   cast[int](o)
@@ -247,7 +246,7 @@ proc getPublicKey*(seckey: EcPrivateKey): EcResult[EcPublicKey] =
   if seckey.key.curve in EcSupportedCurvesCint:
     var res = new EcPublicKey
     assert res.buffer.len > getPublicKeyLength(cast[EcCurveKind](seckey.key.curve))
-    if ecComputePub(ecimp, addr res.key, addr res.buffer[0], unsafeAddr seckey.key) == 0:
+    if ecComputePub(ecimp, addr res.key, addr res.buffer[0], addr seckey.key) == 0:
       err(EcKeyIncorrectError)
     else:
       ok(res)
@@ -309,7 +308,7 @@ proc toRawBytes*(seckey: EcPrivateKey, data: var openArray[byte]): EcResult[int]
   if seckey.key.curve in EcSupportedCurvesCint:
     let klen = getPrivateKeyLength(cast[EcCurveKind](seckey.key.curve))
     if len(data) >= klen:
-      copyMem(addr data[0], unsafeAddr seckey.buffer[0], klen)
+      copyMem(addr data[0], addr seckey.buffer[0], klen)
     ok(klen)
   else:
     err(EcKeyIncorrectError)
@@ -325,7 +324,7 @@ proc toRawBytes*(pubkey: EcPublicKey, data: var openArray[byte]): EcResult[int] 
   if pubkey.key.curve in EcSupportedCurvesCint:
     let klen = getPublicKeyLength(cast[EcCurveKind](pubkey.key.curve))
     if len(data) >= klen:
-      copyMem(addr data[0], unsafeAddr pubkey.buffer[0], klen)
+      copyMem(addr data[0], addr pubkey.buffer[0], klen)
     ok(klen)
   else:
     err(EcKeyIncorrectError)
@@ -338,7 +337,7 @@ proc toRawBytes*(sig: EcSignature, data: var openArray[byte]): int =
   doAssert(not isNil(sig))
   let blen = len(sig.buffer)
   if blen > 0 and len(data) >= blen:
-    copyMem(addr data[0], unsafeAddr sig.buffer[0], blen)
+    copyMem(addr data[0], addr sig.buffer[0], blen)
   blen
 
 proc buildPrivateKeyBytes(seckey: EcPrivateKey): EcResult[seq[byte]] =
@@ -395,7 +394,7 @@ proc toBytes*(seckey: EcPrivateKey, target: var openArray[byte]): EcResult[int] 
     elif blen == 0:
       err(EcKeyIncorrectError)
     else:
-      copyMem(addr target[0], unsafeAddr bytes[0], blen)
+      copyMem(addr target[0], addr bytes[0], blen)
       ok(blen)
   else:
     err(EcKeyIncorrectError)
@@ -441,7 +440,7 @@ proc toBytes*(pubkey: EcPublicKey, target: var openArray[byte]): EcResult[int] =
     elif blen == 0:
       err(EcKeyIncorrectError)
     else:
-      copyMem(addr target[0], unsafeAddr bytes[0], blen)
+      copyMem(addr target[0], addr bytes[0], blen)
       ok(blen)
   else:
     err(EcKeyIncorrectError)
@@ -456,7 +455,7 @@ proc toBytes*(sig: EcSignature, data: var openArray[byte]): EcResult[int] =
     return err(EcSignatureError)
   let slen = len(sig.buffer)
   if len(data) >= slen:
-    copyMem(addr data[0], unsafeAddr sig.buffer[0], slen)
+    copyMem(addr data[0], addr sig.buffer[0], slen)
   ok(slen)
 
 proc getBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
@@ -484,7 +483,7 @@ proc getBytes*(sig: EcSignature): EcResult[seq[byte]] =
   let slen = len(sig.buffer)
   var res = newSeqUninit[byte](slen)
   if slen > 0:
-    copyMem(addr res[0], unsafeAddr sig.buffer[0], slen)
+    copyMem(addr res[0], addr sig.buffer[0], slen)
   ok(res)
 
 proc getRawBytes*(seckey: EcPrivateKey): EcResult[seq[byte]] =
@@ -518,7 +517,7 @@ proc getRawBytes*(sig: EcSignature): EcResult[seq[byte]] =
   let slen = len(sig.buffer)
   var res = newSeqUninit[byte](slen)
   if slen > 0:
-    copyMem(addr res[0], unsafeAddr sig.buffer[0], slen)
+    copyMem(addr res[0], addr sig.buffer[0], slen)
   ok(res)
 
 proc `==`*(pubkey1, pubkey2: EcPublicKey): bool =
@@ -766,7 +765,7 @@ proc initRaw*(key: var EcPrivateKey, data: openArray[byte]): bool =
   if checkScalar(data, curve) == 1'u32:
     let length = len(data)
     key = new EcPrivateKey
-    copyMem(addr key.buffer[0], unsafeAddr data[0], length)
+    copyMem(addr key.buffer[0], addr data[0], length)
     key.key.x = addr key.buffer[0]
     key.key.xlen = uint(length)
     key.key.curve = curve
@@ -796,7 +795,7 @@ proc initRaw*(pubkey: var EcPublicKey, data: openArray[byte]): bool =
   if checkPublic(data, curve) != 0:
     let length = len(data)
     pubkey = new EcPublicKey
-    copyMem(addr pubkey.buffer[0], unsafeAddr data[0], length)
+    copyMem(addr pubkey.buffer[0], addr data[0], length)
     pubkey.key.q = addr pubkey.buffer[0]
     pubkey.key.qlen = uint(length)
     pubkey.key.curve = curve
@@ -874,7 +873,7 @@ proc scalarMul*(pub: EcPublicKey, sec: EcPrivateKey): EcPublicKey =
           let res = impl.mul(
             addr key.buffer[poffset],
             key.key.qlen,
-            unsafeAddr sec.buffer[soffset],
+            addr sec.buffer[soffset],
             sec.key.xlen,
             key.key.curve,
           )
@@ -942,7 +941,7 @@ proc sign*[T: byte | char](
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:
-      kv.update(addr hc.vtable, unsafeAddr message[0], uint(len(message)))
+      kv.update(addr hc.vtable, addr message[0], uint(len(message)))
     else:
       kv.update(addr hc.vtable, nil, 0)
     kv.out(addr hc.vtable, addr hash[0])
@@ -974,7 +973,7 @@ proc verify*[T: byte | char](
     var kv = addr sha256Vtable
     kv.init(addr hc.vtable)
     if len(message) > 0:
-      kv.update(addr hc.vtable, unsafeAddr message[0], uint(len(message)))
+      kv.update(addr hc.vtable, addr message[0], uint(len(message)))
     else:
       kv.update(addr hc.vtable, nil, 0)
     kv.out(addr hc.vtable, addr hash[0])
@@ -982,7 +981,7 @@ proc verify*[T: byte | char](
       impl,
       addr hash[0],
       uint(len(hash)),
-      unsafeAddr pubkey.key,
+      addr pubkey.key,
       addr sig.buffer[0],
       uint(len(sig.buffer)),
     )

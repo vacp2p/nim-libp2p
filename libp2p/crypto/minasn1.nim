@@ -11,7 +11,6 @@ export results
 # We use `ncrutils` for constant-time hexadecimal encoding/decoding procedures.
 import nimcrypto/utils as ncrutils
 import ../utils/conversion
-import ../utils/sequninit
 
 type
   Asn1Error* {.pure.} = enum
@@ -108,7 +107,7 @@ proc len*(field: Asn1Field): int {.inline.} =
   field.length
 
 template getPtr*(field: untyped): pointer =
-  cast[pointer](unsafeAddr field.buffer[field.offset])
+  cast[pointer](addr field.buffer[field.offset])
 
 proc extend*[T: Asn1Buffer | Asn1Composite](abc: var T, length: int) {.inline.} =
   ## Extend buffer or composite's internal buffer by ``length`` octets.
@@ -195,7 +194,7 @@ proc asn1EncodeInteger*(dest: var openArray[byte], value: openArray[byte]): int 
       if value[offset] >= 0x80'u8:
         dest[1 + lenlen] = 0x00'u8
         shift = 2
-      copyMem(addr dest[shift + lenlen], unsafeAddr value[offset], len(value) - offset)
+      copyMem(addr dest[shift + lenlen], addr value[offset], len(value) - offset)
   destlen
 
 proc asn1EncodeInteger*[T: SomeUnsignedInt](dest: var openArray[byte], value: T): int =
@@ -247,7 +246,7 @@ proc asn1EncodeOctetString*(dest: var openArray[byte], value: openArray[byte]): 
     dest[0] = Asn1Tag.OctetString.code()
     copyMem(addr dest[1], addr buffer[0], lenlen)
     if len(value) > 0:
-      copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
+      copyMem(addr dest[1 + lenlen], addr value[0], len(value))
   res
 
 proc asn1EncodeBitString*(
@@ -282,7 +281,7 @@ proc asn1EncodeBitString*(
     dest[1 + lenlen] = byte(unused)
     if bytelen > 0:
       let lastbyte = value[bytelen - 1]
-      copyMem(addr dest[2 + lenlen], unsafeAddr value[0], bytelen)
+      copyMem(addr dest[2 + lenlen], addr value[0], bytelen)
       # Set unused bits to zero
       dest[2 + lenlen + bytelen - 1] = lastbyte and mask
   res
@@ -303,7 +302,7 @@ proc asn1EncodeOid*(dest: var openArray[byte], value: openArray[byte]): int =
   if len(dest) >= res:
     dest[0] = Asn1Tag.Oid.code()
     copyMem(addr dest[1], addr buffer[0], lenlen)
-    copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
+    copyMem(addr dest[1 + lenlen], addr value[0], len(value))
   res
 
 proc asn1EncodeSequence*(dest: var openArray[byte], value: openArray[byte]): int =
@@ -319,7 +318,7 @@ proc asn1EncodeSequence*(dest: var openArray[byte], value: openArray[byte]): int
   if len(dest) >= res:
     dest[0] = Asn1Tag.Sequence.code()
     copyMem(addr dest[1], addr buffer[0], lenlen)
-    copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
+    copyMem(addr dest[1 + lenlen], addr value[0], len(value))
   res
 
 proc asn1EncodeComposite*(dest: var openArray[byte], value: Asn1Composite): int =
@@ -334,7 +333,7 @@ proc asn1EncodeComposite*(dest: var openArray[byte], value: Asn1Composite): int 
   if len(dest) >= res:
     dest[0] = value.tag.code()
     copyMem(addr dest[1], addr buffer[0], lenlen)
-    copyMem(addr dest[1 + lenlen], unsafeAddr value.buffer[0], len(value.buffer))
+    copyMem(addr dest[1 + lenlen], addr value.buffer[0], len(value.buffer))
   res
 
 proc asn1EncodeContextTag*(
@@ -355,7 +354,7 @@ proc asn1EncodeContextTag*(
   if len(dest) >= res:
     dest[0] = 0xA0'u8 or (byte(tag and 0xFF) and 0x0F'u8)
     copyMem(addr dest[1], addr buffer[0], lenlen)
-    copyMem(addr dest[1 + lenlen], unsafeAddr value[0], len(value))
+    copyMem(addr dest[1 + lenlen], addr value[0], len(value))
   res
 
 proc getLength(ab: var Asn1Buffer): Asn1Result[int] =

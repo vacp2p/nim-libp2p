@@ -13,7 +13,7 @@ import ../../peerid
 import ../../peerinfo
 import ../../protobuf/minprotobuf
 import ../../utils/[opt, shortlog]
-import ../../utils/[bytesview, sequninit]
+import ../../utils/bytesview
 
 import secure, ../../crypto/[crypto, chacha20poly1305, curve25519, hkdf]
 

@@ -20,7 +20,6 @@ import
   utils/[opt, shortlog, conversion, collections]
 import stew/[base58, base32, endians2]
 export results, vbuffer, errors, opt, shortlog, collections
-import ./utils/sequninit
 
 logScope:
   topics = "libp2p multiaddress"

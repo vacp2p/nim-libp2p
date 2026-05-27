@@ -5,7 +5,6 @@
 
 import typetraits
 import bearssl/[rand, hash]
-import ../utils/sequninit
 import results
 
 type Rng* = ref object
