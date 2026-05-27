@@ -250,12 +250,8 @@ proc createLibp2p(appCallbacks: AppCallbacks, config: Libp2pConfig): LibP2P =
     .withMaxConnsPerPeer(config.maxConnsPerPeer)
     .withNameResolver(cast[NameResolver](DnsResolver.new(dnsServersAddrs)))
     .withNoise()
-
-  if addrs.len > 0:
-    switchBuilder = switchBuilder.withAddresses(addrs)
-
-  privKey.withValue(pkey):
-    switchBuilder = switchBuilder.withPrivateKey(pkey)
+    .withPrivateKey(privKey)
+    .withAddresses(addrs)
 
   case transport
   of TransportType.QUIC:
