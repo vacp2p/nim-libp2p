@@ -105,8 +105,14 @@ suite "Autorelay":
       rel3 = createSwitch(Relay.new())
       rel1Checked = newFuture[void]()
       rel1And2Checked = newFuture[void]()
-      allChecksCompleted = newFuture[void]()
     relayClient = RelayClient.new()
+
+    proc containsAll(addresses, expected: seq[MultiAddress]): bool =
+      for a in expected:
+        if a notin addresses:
+          return false
+      true
+
     proc checkMA(addresses: seq[MultiAddress]) =
       if state == Relay1Reserved or state == Relay2UnreservedAndRelay1Reserved:
         let relayMAs = buildRelayMA(rel1, switchClient)
@@ -132,16 +138,7 @@ suite "Autorelay":
           state = Relay2UnreservedAndRelay1Reserved
           rel1And2Checked.complete()
       elif state == Relay1AndRelay3Reserved:
-        let relay1MAs = buildRelayMA(rel1, switchClient)
-        for relayMA in relay1MAs:
-          check:
-            relayMA in addresses
-        let relay3MAs = buildRelayMA(rel3, switchClient)
-        for relayMA in relay3MAs:
-          check:
-            relayMA in addresses
-        if not allChecksCompleted.finished:
-          allChecksCompleted.complete()
+        discard # final state is checked below with retry/polling
 
     let autorelay = AutoRelayService.new(maxNumRelays = 2, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
@@ -152,5 +149,13 @@ suite "Autorelay":
     await switchClient.connect(rel3.peerInfo.peerId, rel3.peerInfo.addrs)
     await rel1And2Checked.wait(500.millis)
     await rel2.stop()
-    await allChecksCompleted.wait(1.seconds)
+
+    # final state check
+    let relay1MAs = buildRelayMA(rel1, switchClient)
+    let relay3MAs = buildRelayMA(rel3, switchClient)
+    checkUntilTimeout:
+      block:
+        let addresses = autorelay.getAddresses()
+        containsAll(addresses, relay1MAs) and containsAll(addresses, relay3MAs)
+
     await allFutures(switchClient.stop(), rel1.stop(), rel3.stop())
