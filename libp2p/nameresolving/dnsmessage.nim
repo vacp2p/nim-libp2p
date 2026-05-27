@@ -12,7 +12,7 @@
 
 import std/strutils
 import stew/endians2
-import ../utility
+import ../utils/conversion
 
 const
   MaxLabelLength = 63 # RFC 1035, section 2.3.4

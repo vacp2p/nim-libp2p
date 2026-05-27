@@ -7,7 +7,8 @@ import chronos
 import std/[tables, sets]
 import ".."/[floodsub, peertable, mcache, pubsubpeer]
 import "../rpc"/[messages]
-import "../../.."/[peerid, multiaddress, utility]
+import "../../.."/[peerid, multiaddress]
+import results
 import extensions, preamblestore
 
 export results, tables, sets

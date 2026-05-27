@@ -5,6 +5,7 @@ import std/[tables, sequtils, algorithm]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
+import ../../utils/future
 import ./[routing_table, protobuf, types, kademlia_metrics]
 
 logScope:

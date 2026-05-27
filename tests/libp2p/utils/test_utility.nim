@@ -4,8 +4,8 @@
 {.used.}
 
 import chronos
-import ../../libp2p/utility
-import ../tools/[unittest]
+import ../../../libp2p/utils/[opt, conversion, collections, future]
+import ../../tools/[unittest]
 
 suite "Utility":
   test "successful safeConvert from int8 to int16":

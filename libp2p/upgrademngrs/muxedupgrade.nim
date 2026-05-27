@@ -8,7 +8,7 @@ import pkg/[chronos, chronicles, metrics]
 
 import ../upgrademngrs/upgrade, ../muxers/muxer
 import ../connmanager
-import ../utility
+import ../utils/opt
 
 export Upgrade
 
