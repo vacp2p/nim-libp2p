@@ -196,8 +196,11 @@ when defined(libp2p_autotls_support):
       raise newException(AutoTLSError, "Unable to get TLS private key")
 
     let certificate = await self.acmeClient.getCertificate(
-      api.Domain("*." & baseDomain), certKeyPair, dns01Challenge,
-      self.config.acmeRetries, self.config.finalizeRetries,
+      api.Domain("*." & baseDomain),
+      certKeyPair,
+      dns01Challenge,
+      self.config.acmeRetries,
+      self.config.finalizeRetries,
     )
 
     trace "Installing certificate"
