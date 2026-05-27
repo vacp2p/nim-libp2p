@@ -238,6 +238,11 @@ proc handlePartialRPC(
     ext.config.updatePeerBehaviorPenalty(peerId, 0.1)
     return
 
+  let nodeRequestsPartial = ext.config.nodeTopicOpts(rpc.topicID).requestsPartial
+  if not nodeRequestsPartial:
+    # node is not interested in partial messages for this topic
+    return
+
   let validateRes = ext.config.validateRPC(rpc)
   if validateRes.isErr():
     debug "RPC did not pass application validation", msg = validateRes.error
