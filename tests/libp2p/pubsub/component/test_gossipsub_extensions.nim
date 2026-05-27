@@ -12,6 +12,7 @@ import
     pubsubpeer,
     rpc/message,
   ]
+import ../../../../libp2p/utils/future
 import ../../../tools/[lifecycle, unittest]
 import ../extensions/my_partial_message
 import ../utils
@@ -79,15 +80,15 @@ suite "GossipSub Component - Extensions":
     nodes[1].addObserver(
       PubSubObserver(
         onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
-          if peer.peerId == receiverPeerId and not dialerFirstMsgFut.finished:
-            dialerFirstMsgFut.complete(msg)
+          if peer.peerId == receiverPeerId:
+            dialerFirstMsgFut.completeOnce(msg)
       )
     )
     nodes[0].addObserver(
       PubSubObserver(
         onSend: proc(peer: PubSubPeer, msg: var RPCMsg) {.gcsafe, raises: [].} =
-          if peer.peerId == dialerPeerId and not receiverFirstMsgFut.finished:
-            receiverFirstMsgFut.complete(msg)
+          if peer.peerId == dialerPeerId:
+            receiverFirstMsgFut.completeOnce(msg)
       )
     )
 
