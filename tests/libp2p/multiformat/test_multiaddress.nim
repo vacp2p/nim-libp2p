@@ -601,5 +601,5 @@ suite "MultiAddress IP utilities":
       # cross-family swap (IPv6 -> IPv4 and vice versa)
       ma("/ip6/::/tcp/80/ws").replaceIp(ip4).get == ma("/ip4/203.0.113.7/tcp/80/ws")
       ma("/ip4/0.0.0.0/tcp/80").replaceIp(ip6).get == ma("/ip6/2001:db8::1/tcp/80")
-      # no IP component
-      ma("/unix/tmp/sock").replaceIp(ip4).isErr
+      # no IP component: no-op (callers gate with hasIp if they need to detect)
+      ma("/unix/tmp/sock").replaceIp(ip4).get == ma("/unix/tmp/sock")

@@ -212,8 +212,10 @@ suite "NATService":
       # leaseDuration is long enough that the refresh tick (lease / 2) won't
       # fire during the test.
       cfg = NATConfig.new(Upnp, description = "test", leaseDuration = 1.hours)
+      # 0.0.0.0 (non-loopback) is required: collectInternalPorts skips
+      # loopback addrs since a gateway can't map host-local ports.
       switch =
-        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper)
+        makeSwitch(cfg, @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], mapper)
 
     await switch.start()
 
@@ -239,7 +241,7 @@ suite "NATService":
     let
       cfg = NATConfig.new(NatPmp, leaseDuration = 1.hours)
       switch =
-        makeSwitch(cfg, @[MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet()], mapper)
+        makeSwitch(cfg, @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()], mapper)
 
     await switch.start()
     defer:
