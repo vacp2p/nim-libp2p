@@ -143,3 +143,37 @@ suite "Future":
 
   asyncTest "allFuturesWaitOrTimeout handles empty sequence":
     await newSeq[Future[void]]().allFuturesWaitOrTimeout(100.milliseconds)
+
+  asyncTest "completeOnce completes a pending Future[void]":
+    var f = newFuture[void]()
+    check not f.finished()
+    f.completeOnce()
+    check f.completed()
+
+  asyncTest "completeOnce completes a pending Future[T] with a value":
+    var f = newFuture[int]()
+    check not f.finished()
+    f.completeOnce(42)
+    check f.completed()
+    check (await f) == 42
+
+  asyncTest "completeOnce is no-op for already-completed futures":
+    var f = newFuture[void]()
+    f.complete()
+    check f.completed()
+    f.completeOnce()
+    check f.completed()
+
+  asyncTest "completeOnce is no-op for failed futures":
+    var f = newFuture[void]()
+    f.fail(newException(CatchableError, "error"))
+    check f.failed()
+    f.completeOnce()
+    check f.failed()
+
+  asyncTest "completeOnce is no-op for cancelled futures":
+    var f = newFuture[void]()
+    await f.cancelAndWait()
+    check f.cancelled()
+    f.completeOnce()
+    check f.cancelled()

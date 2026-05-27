@@ -7,6 +7,7 @@ import chronos
 import ../../../libp2p/protocols/pubsub/pubsubpeer
 import ../../../libp2p/protocols/pubsub/gossipsub/types
 import ../../../libp2p/peerid
+import ../../../libp2p/utils/future
 import ../../tools/[unittest, crypto]
 
 proc dummyGetConn(): Future[Stream] {.
@@ -74,8 +75,8 @@ method getWrapped*(s: RecorderConnection): Connection =
   s
 
 method closeImpl*(s: RecorderConnection) {.async: (raises: []).} =
-  if not s.firstWriteFut.isNil and not s.firstWriteFut.finished:
-    s.firstWriteFut.complete()
+  if not s.firstWriteFut.isNil:
+    s.firstWriteFut.completeOnce()
   await procCall Connection(s).closeImpl()
 
 proc createRecorderConnection(): RecorderConnection {.raises: [].} =
@@ -94,8 +95,7 @@ proc callbacksDrained(
 
   proc continuation(udata: pointer) {.gcsafe, raises: [].} =
     let drained = cast[Future[void]](udata)
-    if not drained.finished:
-      drained.complete()
+    drained.completeOnce()
 
   fut.addCallback(continuation, cast[pointer](drained))
   drained

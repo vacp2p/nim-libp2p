@@ -13,6 +13,7 @@ import
     protocols/connectivity/autonatv2/mockclient,
     nameresolving/nameresolver,
     nameresolving/mockresolver,
+    utils/future,
   ]
 import ../../tools/[unittest, futures, crypto]
 
@@ -141,8 +142,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
@@ -189,23 +189,21 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not notReachableObserved.finished:
-          notReachableObserved.complete()
+        notReachableObserved.completeOnce()
 
-          client.response = AutonatV2Response(
-            reachability: Reachable,
-            dialResp: DialResponse(
-              status: ResponseStatus.Ok,
-              dialStatus: Opt.some(DialStatus.Ok),
-              addrIdx: Opt.some(0.AddrIdx),
-            ),
-              # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
-          )
+        client.response = AutonatV2Response(
+          reachability: Reachable,
+          dialResp: DialResponse(
+            status: ResponseStatus.Ok,
+            dialStatus: Opt.some(DialStatus.Ok),
+            addrIdx: Opt.some(0.AddrIdx),
+          ),
+            # addrs: Opt.none(MultiAddress), # this will be inferred from sendDialRequest
+        )
 
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not reachableObserved.finished:
-          reachableObserved.complete()
+        reachableObserved.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
@@ -243,8 +241,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
@@ -321,8 +318,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -375,8 +371,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter1.finished:
-          awaiter1.complete()
+        awaiter1.completeOnce()
 
     proc statusAndConfidenceHandler2(
         networkReachability: NetworkReachability,
@@ -385,8 +380,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter2.finished:
-          awaiter2.complete()
+        awaiter2.completeOnce()
 
     service1.setStatusAndConfidenceHandler(statusAndConfidenceHandler1)
     service2.setStatusAndConfidenceHandler(statusAndConfidenceHandler2)
@@ -436,8 +430,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter1.finished:
-          awaiter1.complete()
+        awaiter1.completeOnce()
 
     service1.setStatusAndConfidenceHandler(statusAndConfidenceHandler1)
 
@@ -485,8 +478,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
 
@@ -554,8 +546,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not awaiter.finished:
-          awaiter.complete(dialBackAddr)
+        awaiter.completeOnce(dialBackAddr)
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
@@ -583,8 +574,7 @@ suite "AutonatV2 Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not awaiter.finished:
-          awaiter.complete(dialBackAddr)
+        awaiter.completeOnce(dialBackAddr)
 
     service.setStatusAndConfidenceHandler(statusAndConfidenceHandler)
     await switch.startAndConnect(switches)
