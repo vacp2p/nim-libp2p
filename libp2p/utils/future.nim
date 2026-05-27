@@ -54,6 +54,16 @@ proc allFuturesWaitOrTimeout*[Fut](
   except AsyncTimeoutError:
     discard
 
+template completeOnce*(fut: auto) =
+  ## Complete a future only if it is not already finished.
+  if not fut.finished:
+    fut.complete()
+
+template completeOnce*(fut: auto, val: auto) =
+  ## Complete a future only if it is not already finished.
+  if not fut.finished:
+    fut.complete(val)
+
 proc collectCompleted*[T, E](
     futs: seq[InternalRaisesFuture[T, E]], timeout: chronos.Duration
 ): Future[seq[T]] {.async: (raises: [CancelledError]).} =
