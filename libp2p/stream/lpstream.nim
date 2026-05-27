@@ -9,7 +9,7 @@
 import std/oids
 import stew/byteutils
 import chronicles, chronos, metrics
-import ../varint, ../peerinfo, ../multiaddress, ../utility, ../errors
+import ../varint, ../peerinfo, ../multiaddress, ../utils/shortlog, ../errors
 import ../utils/future
 
 export errors

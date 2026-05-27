@@ -4,8 +4,8 @@
 {.push raises: [].}
 
 ## This module implements wire network connection procedures.
-import chronos, chronos/transports/ipnet, stew/endians2
-import multiaddress, multicodec, errors, utility
+import chronos, stew/endians2
+import multiaddress, multicodec, errors, utils/macroutils
 
 export multiaddress, chronos
 

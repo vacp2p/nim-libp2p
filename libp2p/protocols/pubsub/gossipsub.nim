@@ -21,7 +21,7 @@ import
   ../../stream/connection,
   ../../peerinfo,
   ../../peerid,
-  ../../utility,
+  ../../utils/[opt, shortlog, collections],
   ../../switch
 import
   ./gossipsub/[types, scoring, behavior, preamblestore, extensions],

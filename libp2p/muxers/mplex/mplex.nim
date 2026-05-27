@@ -9,7 +9,7 @@ import
   ../muxer,
   ../../stream/connection,
   ../../stream/bufferstream,
-  ../../utility,
+  ../../utils/shortlog,
   ../../peerinfo,
   ./coder,
   ./lpchannel
