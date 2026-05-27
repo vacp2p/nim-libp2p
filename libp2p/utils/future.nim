@@ -53,12 +53,12 @@ proc allFuturesWaitOrTimeout*[Fut](
   except AsyncTimeoutError:
     discard
 
-template completeOnce*(fut: Future[void]) =
+template completeOnce*(fut: auto) =
   ## Complete a future only if it is not already finished.
   if not fut.finished:
     fut.complete()
 
-template completeOnce*[T](fut: Future[T], val: T) =
+template completeOnce*(fut: auto, val: auto) =
   ## Complete a future only if it is not already finished.
   if not fut.finished:
     fut.complete(val)
