@@ -13,7 +13,7 @@ import
   results,
   chronicles,
   nimcrypto/utils,
-  utility,
+  utils/[opt, shortlog, collections],
   protobuf_serialization,
   ./crypto/crypto,
   ./multicodec,
@@ -21,7 +21,7 @@ import
   ./vbuffer,
   ./protobuf/minprotobuf
 
-export results, utility
+export results, opt, shortlog, collections
 
 const maxInlineKeyLength* = 42
 

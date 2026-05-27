@@ -3,6 +3,7 @@
 
 import chronos
 import ../../../../libp2p/[peerid, wire]
+import ../../../../libp2p/utils/future
 import ../../../../tests/interop/kad
 
 const
