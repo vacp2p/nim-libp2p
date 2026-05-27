@@ -5,7 +5,7 @@ import std/hashes
 import chronos
 import ../../protobuf/minprotobuf
 import ../../varint
-import ../../utility
+import ../../utils/opt
 import results
 import ../../multiaddress
 import stew/[endians2, objects]

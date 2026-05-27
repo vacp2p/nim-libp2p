@@ -12,7 +12,7 @@ import
   "../../.."/[
     peerid,
     multiaddress,
-    utility,
+    utils/opt,
     switch,
     routing_record,
     signed_envelope,

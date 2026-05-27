@@ -15,7 +15,7 @@ import nimcrypto/utils as ncrutils
 import results
 import stew/ctops
 
-import ../../utility
+import ../../utils/conversion
 
 export results
 
