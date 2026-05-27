@@ -78,7 +78,7 @@ proc testKadDHTConfig(): KadDHTConfig =
   KadDHTConfig.new(
     ExtEntryValidator(),
     ExtEntrySelector(),
-    timeout = 1.secs,
+    timeout = 3.secs,
     cleanupProvidersInterval = 100.millis,
     providerExpirationInterval = 1.secs,
     republishProvidedKeysInterval = 50.millis,

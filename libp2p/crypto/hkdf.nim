@@ -20,7 +20,7 @@ proc hkdf*[T: sha256, len: static int](
     ctx,
     addr sha256Vtable,
     if salt.len > 0:
-      unsafeAddr salt[0]
+      addr salt[0]
     else:
       nil,
     csize_t(salt.len),
@@ -28,7 +28,7 @@ proc hkdf*[T: sha256, len: static int](
   hkdfInject(
     ctx,
     if ikm.len > 0:
-      unsafeAddr ikm[0]
+      addr ikm[0]
     else:
       nil,
     csize_t(ikm.len),
@@ -38,7 +38,7 @@ proc hkdf*[T: sha256, len: static int](
     discard hkdfProduce(
       ctx,
       if info.len > 0:
-        unsafeAddr info[0]
+        addr info[0]
       else:
         nil,
       csize_t(info.len),

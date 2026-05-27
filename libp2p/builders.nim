@@ -373,10 +373,7 @@ when defined(libp2p_autotls_support):
   proc withAutotls*(
       b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
   ): SwitchBuilder =
-    if config.isNil:
-      b.autotlsConfig = Opt.none(AutotlsConfig)
-    else:
-      b.autotlsConfig = Opt.some(config)
+    b.autotlsConfig = Opt.some(config)
     b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
@@ -390,11 +387,7 @@ proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder 
 proc withRendezVous*(
     b: SwitchBuilder, config: RendezVousConfig = RendezVousConfig.new()
 ): SwitchBuilder =
-  if config.isNil:
-    b.rdvConfig = Opt.none(RendezVousConfig)
-  else:
-    b.rdvConfig = Opt.some(config)
-
+  b.rdvConfig = Opt.some(config)
   b
 
 proc withKademlia*(
@@ -571,12 +564,10 @@ proc mountProtocols(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     switch.mount(relay)
 
   b.kad.withValue(kadInfo):
-    kadInfo.config.addressPolicy = b.addressPolicy
+    var config = kadInfo.config
+    config.addressPolicy = b.addressPolicy
     let kad = KadDHT.new(
-      switch,
-      bootstrapNodes = kadInfo.bootstrapNodes,
-      config = kadInfo.config,
-      rng = b.rng,
+      switch, bootstrapNodes = kadInfo.bootstrapNodes, config = config, rng = b.rng
     )
     switch.mount(kad)
 

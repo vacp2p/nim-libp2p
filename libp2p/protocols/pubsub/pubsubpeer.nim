@@ -15,7 +15,7 @@ import
   ../../crypto/crypto,
   ../../protobuf/minprotobuf,
   ../../utility,
-  ../../utils/[future, sequninit]
+  ../../utils/future
 
 export peerid, connection, deques
 

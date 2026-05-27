@@ -6,7 +6,7 @@
 import sequtils, std/[tables]
 import chronos, chronicles, metrics, stew/[endians2, byteutils, objects]
 import ../muxer, ../../stream/connection
-import ../../utils/[zeroqueue, sequninit]
+import ../../utils/zeroqueue
 
 export muxer
 

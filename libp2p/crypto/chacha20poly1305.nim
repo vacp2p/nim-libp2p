@@ -58,13 +58,13 @@ proc encrypt*(
 ) =
   let ad =
     if aad.len > 0:
-      unsafeAddr aad[0]
+      addr aad[0]
     else:
       nil
 
   poly1305CtmulRun(
-    unsafeAddr key[0],
-    unsafeAddr nonce[0],
+    addr key[0],
+    addr nonce[0],
     baseAddr(data),
     uint(data.len),
     ad,
@@ -85,13 +85,13 @@ proc decrypt*(
 ) =
   let ad =
     if aad.len > 0:
-      unsafeAddr aad[0]
+      addr aad[0]
     else:
       nil
 
   poly1305CtmulRun(
-    unsafeAddr key[0],
-    unsafeAddr nonce[0],
+    addr key[0],
+    addr nonce[0],
     baseAddr(data),
     uint(data.len),
     ad,
