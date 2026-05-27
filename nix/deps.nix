@@ -24,27 +24,6 @@
     fetchSubmodules = true;
   };
 
-  bearssl_pkey_decoder = pkgs.fetchgit {
-    url = "https://github.com/vacp2p/bearssl_pkey_decoder";
-    rev = "d34aa46bf9d0a3ffff810fbd3c4d2fa024eb9368";
-    sha256 = "0200f7lf3x2hypwr2v9gms6qv7wj8m1phwd25025bfa1w9f2nkbg";
-    fetchSubmodules = true;
-  };
-
-  jwt = pkgs.fetchgit {
-    url = "https://github.com/vacp2p/nim-jwt.git";
-    rev = "057ec95eb5af0eea9c49bfe9025b3312c95dc5f2";
-    sha256 = "1hnxsl5762fdn80hl4xxfdqrcgmxrrfck66js1iqaqfxc4m0fv63";
-    fetchSubmodules = true;
-  };
-
-  testutils = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-testutils";
-    rev = "6ce5e5e2301ccbc04b09d27ff78741ff4d352b4d";
-    sha256 = "1vbkr6i5yxhc2ai3b7rbglhmyc98f99x874fqdp6a152a6kqgwxy";
-    fetchSubmodules = true;
-  };
-
   boringssl = pkgs.fetchgit {
     url = "https://github.com/vacp2p/nim-boringssl";
     rev = "03bd48b54bc2bdc12d8c1bd9c95a32951f2c5962";
@@ -77,13 +56,6 @@
     url = "https://github.com/status-im/nim-stew";
     rev = "4382b18f04b3c43c8409bfcd6b62063773b2bbaa";
     sha256 = "0mx9g5m636h3sk5pllcpylk51brf7lx91izx3gc23k3ih3hrxyk2";
-    fetchSubmodules = true;
-  };
-
-  zlib = pkgs.fetchgit {
-    url = "https://github.com/status-im/nim-zlib";
-    rev = "e680f269fb01af2c34a2ba879ff281795a5258fe";
-    sha256 = "1xw9f1gjsgqihdg7kdkbaq1wankgnx2vn9l3ihc6nqk2jzv5bvk5";
     fetchSubmodules = true;
   };
 
@@ -150,10 +122,10 @@
     fetchSubmodules = true;
   };
 
-  nimcrypto = pkgs.fetchgit {
-    url = "https://github.com/cheatfate/nimcrypto";
-    rev = "b3dbc9c4d08e58c5b7bfad6dc7ef2ee52f2f4c08";
-    sha256 = "1v4rz42lwcazs6isi3kmjylkisr84mh0kgmlqycx4i885dn3g0l4";
+  zlib = pkgs.fetchgit {
+    url = "https://github.com/status-im/nim-zlib";
+    rev = "c9e64574438e69f3dd9b64da048f9fffc89e2809";
+    sha256 = "1yj9d3z96pyad0dnb1a1cbl4rwgrzqmbjk8wc7ynh4sbh7nwxh4q";
     fetchSubmodules = true;
   };
 
@@ -175,6 +147,13 @@
     url = "https://github.com/status-im/nim-secp256k1";
     rev = "d8f1288b7c72f00be5fc2c5ea72bf5cae1eafb15";
     sha256 = "1qjrmwbngb73f6r1fznvig53nyal7wj41d1cmqfksrmivk2sgrn2";
+    fetchSubmodules = true;
+  };
+
+  nimcrypto = pkgs.fetchgit {
+    url = "https://github.com/cheatfate/nimcrypto";
+    rev = "721fb99ee099b632eb86dfad1f0d96ee87583774";
+    sha256 = "178vzb3q8wzjq295ik2pd25rrqf32w381ck76hm5x2d8qnzfmkkc";
     fetchSubmodules = true;
   };
 
