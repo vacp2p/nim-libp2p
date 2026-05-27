@@ -59,6 +59,7 @@ when defined(libp2p_autotls_support):
     let dashedIpAddr = ($ipAddress).replace(".", "-")
     let acmeChalDomain = api.Domain("_acme-challenge." & baseDomain)
     let ip4Domain = api.Domain(dashedIpAddr & "." & baseDomain)
+    debug "Waiting for DNS record to be set", ip = ip4Domain, acme = acmeChalDomain
 
     var txt: seq[string]
     var ip4: seq[TransportAddress]

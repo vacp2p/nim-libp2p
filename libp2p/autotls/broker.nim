@@ -21,8 +21,8 @@ type AutotlsBroker* = ref object
   bearer: Opt[BearerToken]
 
 when defined(libp2p_autotls_support):
-  import json, sequtils, uri
-  import chronos/apps/http/httpclient
+  import json, sequtils, times, uri
+  import chronos/apps/http/httpcommon
   import ../peerinfo, ../multiaddress
   import ./acme/client
 
@@ -57,12 +57,18 @@ when defined(libp2p_autotls_support):
     let payload = %*{"value": keyAuth, "addresses": strMultiaddresses}
     let registrationURL = parseUri("https://" & self.brokerURL & "/v1/_acme-challenge")
 
+    # drop a bearer we already know to be expired so we re-authenticate
+    # instead of looping on `PeerIDAuthError("Bearer expired")`
+    if self.bearer.isSome():
+      let cached = self.bearer.get()
+      if cached.expires.isSome() and cached.expires.get() <= now():
+        self.bearer = Opt.none(BearerToken)
+
     trace "Sending challenge to AutoTLS broker", brokerURL = self.brokerURL
     let (bearer, response) =
       await self.peerIdAuthClient.send(registrationURL, peerInfo, payload, self.bearer)
-    if self.bearer.isNone():
-      # save bearer token for future requests
-      self.bearer = Opt.some(bearer)
+    # remember the latest bearer in case the broker rotated it
+    self.bearer = Opt.some(bearer)
 
     if response.status != HttpOk:
       raise newException(
