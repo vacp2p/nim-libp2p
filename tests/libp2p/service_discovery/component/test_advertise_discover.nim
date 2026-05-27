@@ -235,6 +235,8 @@ suite "Service Discovery Component - Advertise Discover":
     check ads[0].data.peerId == advertiserNode.switch.peerInfo.peerId
 
   asyncTest "advertiser re-advertises after advertExpiry":
+    # TODO: vacp2p/nim-libp2p#2540 spec breaks after Confirmed and lets the outer loop
+    # pick a possibly different registrar, the implementation pins to the same one.
     let conf = ServiceDiscoveryConfig.new(advertExpiry = 500.millis, safetyParam = 0.0)
     let registrarNode = setupServiceDiscoveryNode(discoConfig = conf)
     let advertiserNode = setupServiceDiscoveryNode(discoConfig = conf)
