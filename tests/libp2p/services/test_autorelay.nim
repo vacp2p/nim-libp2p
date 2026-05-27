@@ -13,18 +13,10 @@ import
     protocols/connectivity/relay/client,
     services/autorelayservice,
   ]
-import ../../tools/[unittest, crypto]
+import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
 proc createSwitch(r: Relay, autorelay: Service = nil): Switch =
-  let switch = SwitchBuilder
-    .new()
-    .withRng(rng())
-    .withAddresses(@[MultiAddress.init("/ip4/0.0.0.0/tcp/0").tryGet()])
-    .withTcpTransport()
-    .withMplex()
-    .withNoise()
-    .withCircuitRelay(r)
-    .build()
+  let switch = makeStandardSwitchBuilder(TcpAutoAddress).withCircuitRelay(r).build()
 
   switch.add(autorelay)
 
@@ -58,9 +50,10 @@ suite "Autorelay":
     relayClient = RelayClient.new()
     let fut = newFuture[void]()
     proc checkMA(addresses: seq[MultiAddress]) =
-      check:
-        addresses == buildRelayMA(switchRelay, switchClient)
-      fut.complete()
+      if not fut.finished:
+        check:
+          addresses == buildRelayMA(switchRelay, switchClient)
+        fut.complete()
 
     autorelay = AutoRelayService.new(3, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
@@ -77,9 +70,10 @@ suite "Autorelay":
     relayClient = RelayClient.new()
     let fut = newFuture[void]()
     proc checkMA(address: seq[MultiAddress]) =
-      check:
-        address == buildRelayMA(switchRelay, switchClient)
-      fut.complete()
+      if not fut.finished:
+        check:
+          address == buildRelayMA(switchRelay, switchClient)
+        fut.complete()
 
     let autorelay = AutoRelayService.new(3, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
@@ -111,8 +105,14 @@ suite "Autorelay":
       rel3 = createSwitch(Relay.new())
       rel1Checked = newFuture[void]()
       rel1And2Checked = newFuture[void]()
-      allChecksCompleted = newFuture[void]()
     relayClient = RelayClient.new()
+
+    proc containsAll(addresses, expected: seq[MultiAddress]): bool =
+      for a in expected:
+        if a notin addresses:
+          return false
+      true
+
     proc checkMA(addresses: seq[MultiAddress]) =
       if state == Relay1Reserved or state == Relay2UnreservedAndRelay1Reserved:
         let relayMAs = buildRelayMA(rel1, switchClient)
@@ -120,8 +120,9 @@ suite "Autorelay":
           check:
             relayMA in addresses
         if state == Relay1Reserved:
-          state = Relay1AndRelay2Reserved
-          rel1Checked.complete()
+          if not rel1Checked.finished:
+            state = Relay1AndRelay2Reserved
+            rel1Checked.complete()
         elif state == Relay2UnreservedAndRelay1Reserved:
           state = Relay1AndRelay3Reserved
       elif state == Relay1AndRelay2Reserved:
@@ -133,18 +134,11 @@ suite "Autorelay":
         for relayMA in relay2MAs:
           check:
             relayMA in addresses
-        state = Relay2UnreservedAndRelay1Reserved
-        rel1And2Checked.complete()
+        if not rel1And2Checked.finished:
+          state = Relay2UnreservedAndRelay1Reserved
+          rel1And2Checked.complete()
       elif state == Relay1AndRelay3Reserved:
-        let relay1MAs = buildRelayMA(rel1, switchClient)
-        for relayMA in relay1MAs:
-          check:
-            relayMA in addresses
-        let relay3MAs = buildRelayMA(rel3, switchClient)
-        for relayMA in relay3MAs:
-          check:
-            relayMA in addresses
-        allChecksCompleted.complete()
+        discard # final state is checked below with retry/polling
 
     let autorelay = AutoRelayService.new(maxNumRelays = 2, relayClient, checkMA, rng())
     switchClient = createSwitch(relayClient, autorelay)
@@ -155,5 +149,13 @@ suite "Autorelay":
     await switchClient.connect(rel3.peerInfo.peerId, rel3.peerInfo.addrs)
     await rel1And2Checked.wait(500.millis)
     await rel2.stop()
-    await allChecksCompleted.wait(1.seconds)
+
+    # final state check
+    let relay1MAs = buildRelayMA(rel1, switchClient)
+    let relay3MAs = buildRelayMA(rel3, switchClient)
+    checkUntilTimeout:
+      block:
+        let addresses = autorelay.getAddresses()
+        containsAll(addresses, relay1MAs) and containsAll(addresses, relay3MAs)
+
     await allFutures(switchClient.stop(), rel1.stop(), rel3.stop())

@@ -313,7 +313,7 @@ method select*(
 
   return ok(bestIdx)
 
-type KadDHTConfig* = ref object
+type KadDHTConfig* = object
   validator*: EntryValidator
   selector*: EntrySelector
   timeout*: chronos.Duration
