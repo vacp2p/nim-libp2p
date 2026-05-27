@@ -16,7 +16,7 @@ import
     protocols/identify,
     protocols/kademlia,
   ]
-import ../../tools/[unittest, crypto, multiaddress]
+import ../../tools/[unittest, crypto, switch_builder, multiaddress]
 
 suite "PeerStore addressPolicy":
   test "updatePeerInfo stores all addresses with default policy":
@@ -96,14 +96,7 @@ suite "PeerStore addressPolicy":
 
 suite "KadDHT updatePeers address policy":
   test "updatePeers stores all addresses with default policy":
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .build()
+    let switch = makeStandardSwitch(TcpAutoAddress)
 
     let config = KadDHTConfig.new()
     let kad = KadDHT.new(switch, @[], config, rng = rng())
@@ -124,14 +117,7 @@ suite "KadDHT updatePeers address policy":
       @[ma("/ip4/192.168.1.5/tcp/4001"), ma("/ip4/1.1.1.1/tcp/4001")].toHashSet()
 
   test "updatePeers filters private addresses when addressPolicy is set":
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .build()
+    let switch = makeStandardSwitch(TcpAutoAddress)
 
     let config = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy)
     let kad = KadDHT.new(switch, @[], config, rng = rng())
@@ -150,14 +136,7 @@ suite "KadDHT updatePeers address policy":
     check switch.peerStore[AddressBook][remotePeer] == @[ma("/ip4/1.1.1.1/tcp/4001")]
 
   test "updatePeers does not add peer to AddressBook when all addresses filtered":
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress])
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .build()
+    let switch = makeStandardSwitch(TcpAutoAddress)
 
     let config = KadDHTConfig.new(addressPolicy = publicRoutableAddressPolicy)
     let kad = KadDHT.new(switch, @[], config, rng = rng())
@@ -178,14 +157,8 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
   asyncTest "private addresses are removed from peerInfo.addrs when filter is enabled":
     # Listen on loopback — a non-public address that is always available.
     # The filter should remove it, leaving no announced addresses.
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress], false)
-      # disable wildcard resolver
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
+    let switch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withWildcardResolver(false)
       .withPrivateAddressFilter()
       .build()
 
@@ -198,13 +171,8 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
     # to surface a routable address to the announcement pipeline. The filter
     # must keep the public address while dropping the private listen address.
     let publicAddr = ma("/ip4/1.2.3.4/tcp/4001")
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress], false)
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
+    let switch = makeStandardSwitchBuilder(TcpAutoAddress)
+      .withWildcardResolver(false)
       .withPrivateAddressFilter()
       .build()
 
@@ -222,14 +190,8 @@ suite "SwitchBuilder withPrivateAddressFilter outbound":
 
   asyncTest "withPrivateAddressFilter default is off":
     # Without calling withPrivateAddressFilter, private addresses pass through
-    let switch = SwitchBuilder
-      .new()
-      .withRng(rng())
-      .withAddresses(@[TcpAutoAddress], false)
-      .withTcpTransport()
-      .withMplex()
-      .withNoise()
-      .build()
+    let switch =
+      makeStandardSwitchBuilder(TcpAutoAddress).withWildcardResolver(false).build()
 
     await switch.start()
     check switch.peerInfo.addrs.len > 0
