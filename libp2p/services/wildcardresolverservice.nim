@@ -98,7 +98,8 @@ proc expandWildcardAddresses(
     for family in families:
       for ifaddr in networkInterfaceProvider(family):
         listenAddr.replaceIp(ifaddr.host.toIpAddress()).withValue(remapped):
-          addresses.add(remapped)
+          if remapped notin addresses:
+            addresses.add(remapped)
   addresses
 
 method setup*(

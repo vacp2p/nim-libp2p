@@ -16,11 +16,15 @@ proc getAddressesMock(
     if addrFamily == AddressFamily.IPv4:
       return @[
         InterfaceAddress.init(initTAddress("127.0.0.1:0"), 8),
+        InterfaceAddress.init(initTAddress("127.0.0.1:0"), 8),
+        InterfaceAddress.init(initTAddress("192.168.1.22:0"), 24),
         InterfaceAddress.init(initTAddress("192.168.1.22:0"), 24),
       ]
     else:
       return @[
         InterfaceAddress.init(initTAddress("::1:0"), 8),
+        InterfaceAddress.init(initTAddress("::1:0"), 8),
+        InterfaceAddress.init(initTAddress("fe80::1:0"), 64),
         InterfaceAddress.init(initTAddress("fe80::1:0"), 64),
       ]
   except TransportAddressError as e:
