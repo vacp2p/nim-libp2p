@@ -386,7 +386,7 @@ when defined(libp2p_autotls_support):
       let kid = await acme.getOrInitKid()
       check kid == "some-expected-kid"
 
-      let challenge = ACMEChallengeResponseWrapper(
+      let challenge = ACMEChallengeDns01Response(
         finalize: "https://finalize.com",
         order: "https://order.com",
         dns01: ACMEChallenge(

@@ -7,6 +7,7 @@ import chronos, std/[sequtils, strutils], stew/byteutils
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, pubsubpeer, rpc/messages]
+import ../../../../libp2p/utils/future
 import ../../../tools/[lifecycle, topology, unittest, futures]
 import ../utils
 
@@ -303,8 +304,8 @@ suite "GossipSub Component - Scoring":
         handler = proc(topicName: string, data: seq[byte]) {.async.} =
           seen.mgetOrPut(peerName, 0).inc()
           check topicName == topic
-          if not seenFut.finished() and seen.len >= numberOfNodes:
-            seenFut.complete()
+          if seen.len >= numberOfNodes:
+            seenFut.completeOnce()
 
       dialer.subscribe(topic, handler)
 
