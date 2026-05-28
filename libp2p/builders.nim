@@ -41,8 +41,7 @@ export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
   connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig, natservice.NATMode,
-  natservice.PortMapperFactory, natservice.upnpConfig, natservice.natPmpConfig,
-  natservice.NATService
+  natservice.PortMapperFactory, natservice.NATService
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 

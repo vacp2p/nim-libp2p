@@ -58,10 +58,10 @@ suite "NATService":
       resolved = @[ma("/ip4/192.168.1.10/tcp/50000"), ma("/ip4/10.0.0.5/tcp/50000")]
     check explicitIpMapped(resolved, ip4) == @[ma("/ip4/203.0.113.7/tcp/50000")]
 
-  asyncTest "natModeExplicitIp announces the explicit IP with bound ports":
+  asyncTest "ExplicitIp announces the explicit IP with bound ports":
     let
       explicitIp = parseIpAddress("203.0.113.7")
-      cfg = NATConfig(mode: natModeExplicitIp, explicitIp: explicitIp)
+      cfg = NATConfig(mode: ExplicitIp, explicitIp: explicitIp)
       switch = makeSwitch(cfg, @[TcpAutoAddress])
 
     await switch.start()
@@ -74,9 +74,9 @@ suite "NATService":
 
     check switch.peerInfo.addrs == @[expected]
 
-  asyncTest "natModeAuto is a no-op on announced addresses":
+  asyncTest "Auto is a no-op on announced addresses":
     let
-      cfg = NATConfig(mode: natModeAuto)
+      cfg = NATConfig(mode: Auto)
       switch = makeSwitch(cfg, @[TcpAutoAddress])
 
     await switch.start()
