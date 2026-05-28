@@ -201,77 +201,76 @@ suite "WebSocket transport":
 
     await transport1.stop()
 
-when defined(libp2p_autotls_support):
-  import ../../../libp2p/autotls/mockservice
+import ../../../libp2p/autotls/mockservice
 
-  suite "WebSocket transport with autotls":
-    asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+suite "WebSocket transport with autotls":
+  asyncTest "autotls certificate is used when manual tlscertificate is not spcified":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-      let key = KeyPair.random(PKScheme.RSA, rng()).get()
-      let (privkey, cert) = tlsCertGenerator(Opt.some(key))
-      let autotls = MockAutotlsService.new(rng())
-      autotls.mockedKey = privkey
-      autotls.mockedCert = cert
-      await autotls.setup()
+    let key = KeyPair.random(PKScheme.RSA, rng()).get()
+    let (privkey, cert) = tlsCertGenerator(Opt.some(key))
+    let autotls = MockAutotlsService.new(rng())
+    autotls.mockedKey = privkey
+    autotls.mockedCert = cert
+    await autotls.setup()
 
-      let wstransport = WsTransport.new(
-        Upgrade(),
-        nil, # TLSPrivateKey
-        nil, # TLSCertificate
-        Opt.some(AutotlsService(autotls)),
-        rng(),
-      )
-      await wstransport.start(ma)
-      defer:
-        await wstransport.stop()
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.some(AutotlsService(autotls)),
+      rng(),
+    )
+    await wstransport.start(ma)
+    defer:
+      await wstransport.stop()
 
-      # TLSPrivateKey and TLSCertificate should be set
-      check wstransport.secure
+    # TLSPrivateKey and TLSCertificate should be set
+    check wstransport.secure
 
-      # autotls should be used
-      let autotlsCert = await autotls.getCertWhenReady()
-      check wstransport.tlsCertificate == autotlsCert.cert
+    # autotls should be used
+    let autotlsCert = await autotls.getCertWhenReady()
+    check wstransport.tlsCertificate == autotlsCert.cert
 
-    asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+  asyncTest "manually set tlscertificate is preferred over autotls when both are specified":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
 
-      let key = KeyPair.random(PKScheme.RSA, rng()).get()
-      let (privkey, cert) = tlsCertGenerator(Opt.some(key))
-      let autotls = MockAutotlsService.new(rng())
-      autotls.mockedKey = privkey
-      autotls.mockedCert = cert
-      await autotls.setup()
+    let key = KeyPair.random(PKScheme.RSA, rng()).get()
+    let (privkey, cert) = tlsCertGenerator(Opt.some(key))
+    let autotls = MockAutotlsService.new(rng())
+    autotls.mockedKey = privkey
+    autotls.mockedCert = cert
+    await autotls.setup()
 
-      # Use different cert from autotls to verify manual cert is preferred
-      let (manualKey, manualCert) = tlsCertGenerator()
+    # Use different cert from autotls to verify manual cert is preferred
+    let (manualKey, manualCert) = tlsCertGenerator()
 
-      let wstransport = WsTransport.new(
-        Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls)), rng()
-      )
-      await wstransport.start(ma)
-      defer:
-        await wstransport.stop()
+    let wstransport = WsTransport.new(
+      Upgrade(), manualKey, manualCert, Opt.some(AutotlsService(autotls)), rng()
+    )
+    await wstransport.start(ma)
+    defer:
+      await wstransport.stop()
 
-      # TLSPrivateKey and TLSCertificate should be set
-      check wstransport.secure
+    # TLSPrivateKey and TLSCertificate should be set
+    check wstransport.secure
 
-      # autotls should be ignored - manual cert should be used
-      check wstransport.tlsCertificate == manualCert
-      check wstransport.tlsPrivateKey == manualKey
+    # autotls should be ignored - manual cert should be used
+    check wstransport.tlsCertificate == manualCert
+    check wstransport.tlsPrivateKey == manualKey
 
-    asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
-      let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
-      let wstransport = WsTransport.new(
-        Upgrade(),
-        nil, # TLSPrivateKey
-        nil, # TLSCertificate
-        Opt.none(AutotlsService),
-        rng(),
-      )
-      await wstransport.start(ma)
-      defer:
-        await wstransport.stop()
+  asyncTest "wstransport is not secure when both manual tlscertificate and autotls are not specified":
+    let ma = @[MultiAddress.init("/ip4/0.0.0.0/tcp/0/tls/ws").tryGet()]
+    let wstransport = WsTransport.new(
+      Upgrade(),
+      nil, # TLSPrivateKey
+      nil, # TLSCertificate
+      Opt.none(AutotlsService),
+      rng(),
+    )
+    await wstransport.start(ma)
+    defer:
+      await wstransport.stop()
 
-      # TLSPrivateKey and TLSCertificate should not be set
-      check not wstransport.secure
+    # TLSPrivateKey and TLSCertificate should not be set
+    check not wstransport.secure
