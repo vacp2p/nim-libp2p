@@ -4,7 +4,7 @@
 {.push raises: [].}
 
 import chronos, chronicles, results
-import ../crypto/crypto, ../peeridauth/client, ./utils
+import ../crypto/crypto, ../peeridauth/client
 
 export PeerIDAuthError
 
