@@ -56,7 +56,9 @@ proc isExpired(now, ts: Moment, expiry: Duration): bool {.inline.} =
   now - ts > expiry
 
 proc hasAdReference(
-    registrar: Registrar, key: AdvertisementKey, excludeSid: ServiceId = default(ServiceId)
+    registrar: Registrar,
+    key: AdvertisementKey,
+    excludeSid: ServiceId = default(ServiceId),
 ): bool {.raises: [].} =
   ## Returns true if the ad key is still present in any service's cache list
   ## (optionally ignoring one service, e.g. the one currently being pruned).
@@ -421,9 +423,7 @@ proc insertNewAd*(
   disco.registrar.ipTree.insertAd(ad)
   return true
 
-proc acceptAdvertisement*(
-    disco: ServiceDiscovery, now: Moment, ad: Advertisement
-) =
+proc acceptAdvertisement*(disco: ServiceDiscovery, now: Moment, ad: Advertisement) =
   let claimedServices = ad.advertisedServices()
 
   # Ensure routing tables + peer presence for every service the ad claims
