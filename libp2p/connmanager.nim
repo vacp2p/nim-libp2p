@@ -6,6 +6,7 @@
 import std/[algorithm, tables, sets, sequtils]
 import pkg/[chronos, chronicles, metrics]
 import peerinfo, peerstore, stream/connection, muxers/muxer, errors, muxer_store
+import utils/future
 
 logScope:
   topics = "libp2p connmanager"
@@ -224,8 +225,7 @@ proc getReadyEvent(
 proc notifyPeerReady(c: ConnManager, peerId: PeerId) =
   c.readyPeers.incl(peerId)
   c.readyEvents.withValue(peerId, readyEvent):
-    if not readyEvent[].finished:
-      readyEvent[].complete()
+    readyEvent[].completeOnce()
     c.readyEvents.del(peerId)
 
 proc clearPeerReadyState(c: ConnManager, peerId: PeerId) =

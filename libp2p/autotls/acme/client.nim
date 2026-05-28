@@ -49,16 +49,14 @@ when defined(libp2p_autotls_support):
 
   proc getChallenge*(
       self: ACMEClient, domains: seq[api.Domain]
-  ): Future[ACMEChallengeResponseWrapper] {.
-      async: (raises: [ACMEError, CancelledError])
-  .} =
+  ): Future[ACMEChallengeDns01Response] {.async: (raises: [ACMEError, CancelledError]).} =
     await self.api.requestChallenge(domains, self.key, await self.getOrInitKid())
 
   proc getCertificate*(
       self: ACMEClient,
       domain: api.Domain,
       certKeyPair: KeyPair,
-      challenge: ACMEChallengeResponseWrapper,
+      challenge: ACMEChallengeDns01Response,
       acmeRetries: int = 10,
       finalizeRetries: int = 10,
   ): Future[ACMECertificateResponse] {.async: (raises: [ACMEError, CancelledError]).} =

@@ -13,6 +13,7 @@ import
     nameresolving/nameresolver,
     nameresolving/mockresolver,
   ]
+import ../../../libp2p/utils/future
 import ../../stubs/autonatclientstub
 import ../../tools/[unittest, futures, crypto]
 
@@ -99,8 +100,7 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
@@ -148,9 +148,8 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not awaiter.finished:
-          autonatClientStub.answer = Reachable
-          awaiter.complete()
+        autonatClientStub.answer = Reachable
+        awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
@@ -196,8 +195,7 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
@@ -241,9 +239,8 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.NotReachable and confidence.isSome() and
           confidence.get() >= 0.3:
-        if not awaiter.finished:
-          autonatClientStub.answer = Unknown
-          awaiter.complete()
+        autonatClientStub.answer = Unknown
+        awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
@@ -289,8 +286,7 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
@@ -338,16 +334,14 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter1.finished:
-          awaiter1.complete()
+        awaiter1.completeOnce()
 
     proc statusAndConfidenceHandler2(
         networkReachability: NetworkReachability, confidence: Opt[float]
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter2.finished:
-          awaiter2.complete()
+        awaiter2.completeOnce()
 
     check autonatService1.networkReachability == NetworkReachability.Unknown
     check autonatService2.networkReachability == NetworkReachability.Unknown
@@ -392,8 +386,7 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter1.finished:
-          awaiter1.complete()
+        awaiter1.completeOnce()
 
     check autonatService1.networkReachability == NetworkReachability.Unknown
 
@@ -441,8 +434,7 @@ suite "Autonat Service":
     ) {.async: (raises: [CancelledError]).} =
       if networkReachability == NetworkReachability.Reachable and confidence.isSome() and
           confidence.get() == 1:
-        if not awaiter.finished:
-          awaiter.complete()
+        awaiter.completeOnce()
 
     check autonatService.networkReachability == NetworkReachability.Unknown
 
