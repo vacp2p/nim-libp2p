@@ -7,6 +7,7 @@ import chronos, std/[sequtils, enumerate], stew/byteutils, sugar, chronicles
 import
   ../../../../libp2p/protocols/pubsub/
     [gossipsub, mcache, peertable, pubsubpeer, timedcache, rpc/message]
+import ../../../../libp2p/utils/future
 import ../../../tools/[lifecycle, topology, unittest, futures, sync, switch_builder]
 import ../utils
 
@@ -495,8 +496,8 @@ suite "GossipSub Component - Message Handling":
     nodes[0].addOnRecvObserver(
       proc(peer: PubSubPeer, msgs: var RPCMsg) {.gcsafe, raises: [].} =
         for message in msgs.messages:
-          if message.data == msgData and not relayedToA.finished:
-            relayedToA.complete()
+          if message.data == msgData:
+            relayedToA.completeOnce()
     )
 
     # Remove C from A's mesh and gossipsub so A only sends to B when publishing.
@@ -614,8 +615,8 @@ suite "GossipSub Component - Message Handling":
         handler = proc(handlerTopic: string, data: seq[byte]) {.async.} =
           seen.mgetOrPut(peerName, 0).inc()
           check handlerTopic == topic
-          if not seenFut.finished() and seen.len >= numberOfNodes:
-            seenFut.complete()
+          if seen.len >= numberOfNodes:
+            seenFut.completeOnce()
 
       dialer.subscribe(topic, handler)
     await waitSubGraph(nodes, topic)
@@ -660,8 +661,8 @@ suite "GossipSub Component - Message Handling":
           except KeyError:
             raiseAssert "seen checked before"
           check handlerTopic == topic
-          if not seenFut.finished() and seen.len >= numberOfNodes:
-            seenFut.complete()
+          if seen.len >= numberOfNodes:
+            seenFut.completeOnce()
 
       dialer.subscribe(topic, handler)
 
@@ -708,8 +709,8 @@ suite "GossipSub Component - Message Handling":
           seen.mgetOrPut(peerName, 0).inc()
           info "seen up", count = seen.len
           check handlerTopic == topic
-          if not seenFut.finished() and seen.len >= numberOfNodes:
-            seenFut.complete()
+          if seen.len >= numberOfNodes:
+            seenFut.completeOnce()
 
       dialer.subscribe(topic, handler)
       waitSubscribe(nodes[0], dialer, topic)
