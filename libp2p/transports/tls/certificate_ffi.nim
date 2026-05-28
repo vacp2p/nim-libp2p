@@ -115,6 +115,9 @@ proc cert_generate_key*(): Result[CertificateKey, CertError] =
   return ok(CertificateKey(pkey: pkey))
 
 proc cert_new_key_t*(seckey: seq[byte]): Result[CertificateKey, CertError] =
+  if seckey.len == 0:
+    return err(CERT_ERROR_NULL_PARAM)
+
   let bio =
     BIO_new_mem_buf(seckey[0].addr, ossl_ssize_t(seckey.len)).notNil(CERT_ERROR_BIO_GEN)
   defer:
@@ -193,6 +196,8 @@ proc cert_generate*(
 ): Result[seq[byte], CertError] =
   if key.pkey.isNil:
     return err(CERT_ERROR_NULL_PARAM)
+  if signature.len == 0 or ident_pubk.len == 0:
+    return err(CERT_ERROR_EXTENSION_DATA)
 
   let x509 = X509_new().notNil(CERT_ERROR_CERT_GEN)
   defer:
@@ -318,6 +323,9 @@ proc cert_generate*(
 proc cert_parse*(
     cert: seq[byte], format: cert_format_t
 ): Result[ParsedCertificate, CertError] =
+  if cert.len == 0:
+    return err(CERT_ERROR_PARSE)
+
   let bio =
     BIO_new_mem_buf(cert[0].addr, ossl_ssize_t(cert.len)).notNil(CERT_ERROR_BIO_GEN)
   defer:
@@ -343,14 +351,17 @@ proc cert_parse*(
 
   # Get extension data
   let ext_data = X509_EXTENSION_get_data(ex).notNil(CERT_ERROR_EXTENSION_DATA)
+  let ext_data_len = ASN1_STRING_length(ext_data)
+  if ext_data_len <= 0:
+    return err(CERT_ERROR_EXTENSION_DATA)
 
   # Point to the data
   # const unsigned char *p;
-  let p = ASN1_STRING_get0_data(ext_data)
+  let p = ASN1_STRING_get0_data(ext_data).notNil(CERT_ERROR_EXTENSION_DATA)
 
-  let as1Seq = d2i_ASN1_SEQUENCE_ANY(nil, p.addr, ASN1_STRING_length(ext_data)).notNil(
-      CERT_ERROR_DECODE_SEQUENCE
-    )
+  let as1Seq = d2i_ASN1_SEQUENCE_ANY(nil, p.addr, ext_data_len).notNil(
+    CERT_ERROR_DECODE_SEQUENCE
+  )
   defer:
     let proc1 = proc(freeFunc: OPENSSL_sk_free_func, v: pointer) {.cdecl.} =
       freeFunc(v)
@@ -368,6 +379,10 @@ proc cert_parse*(
   if type1.type_field != V_ASN1_OCTET_STRING:
     return err(CERT_ERROR_NOT_OCTET_STR)
   let oct1 = type1.value.octet_string
+  let oct1_len = ASN1_STRING_length(oct1)
+  if oct1_len <= 0:
+    return err(CERT_ERROR_EXTENSION_DATA)
+  let oct1_data = ASN1_STRING_get0_data(oct1).notNil(CERT_ERROR_EXTENSION_DATA)
 
   # Get the second octet string
   let type2 =
@@ -375,12 +390,16 @@ proc cert_parse*(
   if type2.type_field != V_ASN1_OCTET_STRING:
     return err(CERT_ERROR_NOT_OCTET_STR)
   let oct2 = type2.value.octet_string
+  let oct2_len = ASN1_STRING_length(oct2)
+  if oct2_len <= 0:
+    return err(CERT_ERROR_EXTENSION_DATA)
+  let oct2_data = ASN1_STRING_get0_data(oct2).notNil(CERT_ERROR_EXTENSION_DATA)
 
-  let ident_pubk = newSeqUninit[byte](ASN1_STRING_length(oct1))
-  copyMem(addr ident_pubk[0], ASN1_STRING_get0_data(oct1), ASN1_STRING_length(oct1))
+  let ident_pubk = newSeqUninit[byte](oct1_len)
+  copyMem(addr ident_pubk[0], oct1_data, oct1_len)
 
-  let signature = newSeqUninit[byte](ASN1_STRING_length(oct2))
-  copyMem(addr signature[0], ASN1_STRING_get0_data(oct2), ASN1_STRING_length(oct2))
+  let signature = newSeqUninit[byte](oct2_len)
+  copyMem(addr signature[0], oct2_data, oct2_len)
 
   # Get public key
   let pkey = X509_get_pubkey(x509).notNil(CERT_ERROR_PUBKEY_GET)
@@ -391,7 +410,7 @@ proc cert_parse*(
   if (pubkey_len <= 0):
     return err(CERT_ERROR_PUBKEY_DER_LEN)
 
-  var pubkey_buf = OPENSSL_malloc(pubkey_len.csize_t)
+  var pubkey_buf = OPENSSL_malloc(pubkey_len.csize_t).notNil(CERT_ERROR_MEMORY)
   defer:
     OPENSSL_free(pubkey_buf)
   var temp = cast[ptr uint8](pubkey_buf)
