@@ -40,7 +40,9 @@ import
 export
   switch, peerid, peerinfo, peeraddrpolicy, connection, multiaddress, crypto, errors,
   TLSPrivateKey, TLSCertificate, TLSFlags, ServerFlags, connmanager.ConnectionLimits,
-  connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig
+  connmanager.maxTotal, connmanager.maxInOut, natservice.NATConfig, natservice.NATMode,
+  natservice.PortMapperFactory, natservice.upnpConfig, natservice.natPmpConfig,
+  natservice.NATService
 
 const MemoryAutoAddress* = memorytransport.MemoryAutoAddress
 
@@ -91,6 +93,7 @@ type
     autonatV2Client: AutonatV2Client
     holePunchingConfig: Opt[HolePunchingConfig]
     natConfig: Opt[NATConfig]
+    natPortMapperFactory: PortMapperFactory
     autotlsConfig: Opt[AutotlsConfig]
     circuitRelay: Opt[Relay]
     rdvConfig: Opt[RendezVousConfig]
@@ -357,10 +360,15 @@ proc withAutonatV2*(
   b.autonatV2Config = Opt.some(serviceConfig)
   b
 
-proc withNAT*(b: SwitchBuilder, config: NATConfig): SwitchBuilder =
+proc withNAT*(
+    b: SwitchBuilder, config: NATConfig, portMapperFactory: PortMapperFactory = nil
+): SwitchBuilder =
   ## Enable a NAT traversal service.
   ## TODO: wire in autonat / hole-punching.
+  ## ``portMapperFactory`` is intended for tests; when ``nil``, NATService picks
+  ## the production UPnP / NAT-PMP backend matching ``config.mode``.
   b.natConfig = Opt.some(config)
+  b.natPortMapperFactory = portMapperFactory
   b
 
 proc withHolePunching*(
@@ -373,12 +381,11 @@ proc withHolePunching*(
   )
   b
 
-when defined(libp2p_autotls_support):
-  proc withAutotls*(
-      b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
-  ): SwitchBuilder =
-    b.autotlsConfig = Opt.some(config)
-    b
+proc withAutotls*(
+    b: SwitchBuilder, config: AutotlsConfig = AutotlsConfig.new()
+): SwitchBuilder =
+  b.autotlsConfig = Opt.some(config)
+  b
 
 proc withCircuitRelay*(b: SwitchBuilder, r: Relay = Relay.new()): SwitchBuilder =
   if r.isNil:
@@ -485,11 +492,10 @@ proc buildSwitch(b: SwitchBuilder): Switch {.raises: [LPError].} =
 
   var services: seq[Service]
   var autotlsOpt = Opt.none(AutotlsService)
-  when defined(libp2p_autotls_support):
-    b.autotlsConfig.withValue(config):
-      let autotlsService = AutotlsService.new(b.rng, config)
-      autotlsOpt = Opt.some(autotlsService)
-      services.add(autotlsService)
+  b.autotlsConfig.withValue(config):
+    let autotlsService = AutotlsService.new(b.rng, config)
+    autotlsOpt = Opt.some(autotlsService)
+    services.add(autotlsService)
 
   var transports: seq[Transport]
   for tProvider in b.transports:
@@ -543,7 +549,12 @@ proc setupServices(b: SwitchBuilder, switch: Switch) {.raises: [LPError].} =
     switch.services.add(HPService.new(autonatService, autoRelayService))
 
   b.natConfig.withValue(natCfg):
-    switch.services.add(NATService.new(natCfg))
+    let svc =
+      if b.natPortMapperFactory.isNil:
+        NATService.new(natCfg)
+      else:
+        NATService.new(natCfg, b.natPortMapperFactory)
+    switch.services.add(svc)
 
   if b.identifyPusherEnabled:
     switch.services.add(IdentifyPusher.new())
