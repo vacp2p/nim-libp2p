@@ -282,33 +282,41 @@ type QuicTransport* = ref object of Transport
   rng: Rng
   certGenerator: CertGenerator
 
-proc verifyCertificates(
-    certificatesDer: seq[seq[byte]], expectedPeerId: Opt[PeerId] = Opt.none(PeerId)
-): bool =
+proc parseCertificate(certificatesDer: seq[seq[byte]]): Opt[P2pCertificate] =
   if certificatesDer.len != 1:
     trace "CertificateVerifier: expected one certificate in the chain",
       cert_count = certificatesDer.len
-    return false
+    return Opt.none(P2pCertificate)
 
   let cert =
     try:
       parse(certificatesDer[0])
     except CertificateParsingError as e:
       trace "CertificateVerifier: failed to parse certificate", msg = e.msg
-      return false
+      return Opt.none(P2pCertificate)
 
-  if expectedPeerId.isSome:
-    let peerId = expectedPeerId.get()
-    if not cert.verify(peerId):
-      trace "CertificateVerifier: certificate did not match expected peer id",
-        expectedPeerId = peerId
-      return false
-    return true
+  Opt.some(cert)
+
+proc verifyCertificates(certificatesDer: seq[seq[byte]]): bool =
+  let cert = parseCertificate(certificatesDer).valueOr:
+    return false
 
   if cert.verifiedIdentityKey().isNone:
     trace "CertificateVerifier: certificate verification failed"
     return false
-  return true
+  true
+
+proc verifyCertificatesForPeer(
+    certificatesDer: seq[seq[byte]], expectedPeerId: PeerId
+): bool =
+  let cert = parseCertificate(certificatesDer).valueOr:
+    return false
+
+  if not cert.verify(expectedPeerId):
+    trace "CertificateVerifier: certificate did not match expected peer id",
+      expectedPeerId = expectedPeerId
+    return false
+  true
 
 proc certificateVerifier(_: string, certificatesDer: seq[seq[byte]]): bool {.gcsafe.} =
   verifyCertificates(certificatesDer)
@@ -522,12 +530,13 @@ method dial*(
 
     let client = self.client.get()
     let quicConnection = await client.dial(taAddress)
-    if peerId.isSome and not verifyCertificates(quicConnection.certificates(), peerId):
-      quicConnection.close()
-      raise newException(
-        QuicTransportDialError,
-        "error in quic dial: certificate does not match expected peer id",
-      )
+    peerId.withValue(expectedPeerId):
+      if not verifyCertificatesForPeer(quicConnection.certificates(), expectedPeerId):
+        quicConnection.close()
+        raise newException(
+          QuicTransportDialError,
+          "error in quic dial: certificate does not match expected peer id",
+        )
     return self.wrapConnection(quicConnection, Direction.Out)
   except QuicConfigError as e:
     raise newException(
