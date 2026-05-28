@@ -267,9 +267,10 @@ suite "GossipSub Interop - Script runner - Component":
       key in runner0.messages
       key in runner1.messages
       runner0.messages[key].isComplete()
-      runner1.messages[key].isComplete()
+      not runner1.messages[key].isComplete()
+        # will never receive message since it is not subscribed
       logStream0.data.contains("All parts received")
-      logStream1.data.contains("All parts received")
+      not logStream1.data.contains("All parts received") # should not receive all parts
 
   asyncTest "received message logs include duplicates once per inbound rpc":
     let sender = createNode(0, localhost)
