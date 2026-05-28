@@ -26,14 +26,9 @@ suite "Service Discovery Component - Find Random":
       check record.peerId in peerIds
 
   asyncTest "lookupRandom completes when findNode finishes without enqueuing peers":
-    # Regression test for the empty-queue / in-flight-findNodeFut hang:
-    # with an empty routing table, findNode completes immediately without ever
-    # enqueuing a peer.  The loop condition `not findNodeFut.finished or not
-    # queue.empty()` is true on the first iteration (findNodeFut hasn't run yet),
-    # so we enter the queue.empty() branch.  The old code called
-    # `await queue.popFirst()` which blocked forever once findNodeFut finished
-    # silently; the fix uses `await one(popFirstFut, findNodeFut)` so that
-    # findNodeFut completing is sufficient to unblock and exit.
+    # With an empty routing table, findNode completes immediately without ever
+    # pushing a peer onto the heap. The drain loop then sees an empty heap and
+    # exits, so lookupRandom must complete rather than hang.
     let discos = setupServiceDiscoveryNodes(1)
     startAndDeferStop(discos)
 
@@ -41,12 +36,10 @@ suite "Service Discovery Component - Find Random":
     # without adding anything to the queue.  This must complete, not hang.
     check await discos[0].lookupRandom().withTimeout(5.seconds)
 
-  asyncTest "lookupRandom can be cancelled while suspended on the queue-empty event":
-    # Regression: without the popFirstFut cancel guard, cancelling randomRecords
-    # while it awaits wakeEvent.wait() leaves popFirstFut attached to the queue
-    # as an orphaned getter. That getter silently consumes the next peer enqueued
-    # by the still-running findNodeFut, leaking transport resources that are
-    # caught by teardown checkTrackers.
+  asyncTest "lookupRandom can be cancelled while the lookup is in flight":
+    # Cancelling lookupRandom while it is awaiting findNode must propagate the
+    # cancellation cleanly without leaking transport resources, which teardown's
+    # checkTrackers verifies.
     let discos = setupServiceDiscoveryNodes(3)
     startAndDeferStop(discos)
     await connectStar(discos)

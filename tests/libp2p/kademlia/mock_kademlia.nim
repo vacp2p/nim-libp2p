@@ -6,7 +6,6 @@ import
   ../../../libp2p/protocols/kademlia/
     [types, routing_table, protobuf, get, provider, find]
 import ../../../libp2p/[peerid, stream/connection]
-import ../../../libp2p/utils/asyncheapqueue
 
 type MockKadDHT* = ref object of KadDHT
   findNodeCalls*: seq[Key]
@@ -16,16 +15,13 @@ type MockKadDHT* = ref object of KadDHT
   handleFindNodeCalls*: int
 
 method findNode*(
-    kad: MockKadDHT,
-    target: Key,
-    rtable: RoutingTable,
-    queue = newAsyncHeapQueue[PeerDistance](),
+    kad: MockKadDHT, target: Key, rtable: RoutingTable, queue = newPeerDistanceHeap()
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   kad.findNodeCalls.add(target)
   return rtable.findClosestPeerIds(target, kad.config.replication)
 
 method findNode*(
-    kad: MockKadDHT, target: Key, queue = newAsyncHeapQueue[PeerDistance]()
+    kad: MockKadDHT, target: Key, queue = newPeerDistanceHeap()
 ): Future[seq[PeerId]] {.async: (raises: [CancelledError]).} =
   kad.findNodeCalls.add(target)
   return kad.rtable.findClosestPeerIds(target, kad.config.replication)

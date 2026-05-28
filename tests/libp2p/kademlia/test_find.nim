@@ -6,7 +6,6 @@
 import chronos, sequtils
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../../libp2p/protocols/kademlia/[find, types]
-import ../../../libp2p/utils/asyncheapqueue
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
 
@@ -311,30 +310,3 @@ suite "KadDHT Find":
     check:
       responsiveKad.switch.peerInfo.peerId in peerIds
       mockKad.handleFindNodeCalls == retries + 1 # (initial call + retries)
-
-suite "KadDHT PeerDistance heap":
-  test "AsyncHeapQueue[PeerDistance] pops closest peer first":
-    # Push entries with shuffled distances and verify pop order is by distance,
-    # independent of insertion order. This is the property findNode relies on
-    # to feed randomRecords closer peers before farther ones.
-    let queue = newAsyncHeapQueue[PeerDistance]()
-
-    proc dist(b: byte): XorDistance =
-      var d: XorDistance
-      d[0] = b
-      d
-
-    let entries = @[
-      PeerDistance(peerId: randomPeerId(), distance: dist(0x40)),
-      PeerDistance(peerId: randomPeerId(), distance: dist(0x10)),
-      PeerDistance(peerId: randomPeerId(), distance: dist(0x80)),
-      PeerDistance(peerId: randomPeerId(), distance: dist(0x20)),
-    ]
-    for e in entries:
-      queue.push(e)
-
-    var popped: seq[XorDistance]
-    while not queue.empty:
-      popped.add((waitFor queue.pop()).distance)
-
-    check popped == @[dist(0x10), dist(0x20), dist(0x40), dist(0x80)]

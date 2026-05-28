@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright (c) Status Research & Development GmbH
 
-import std/[tables, sequtils, algorithm]
+import std/[tables, sequtils, algorithm, heapqueue]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
-import ../../utils/[asyncheapqueue, future]
+import ../../utils/future
 import ./[routing_table, protobuf, types, kademlia_metrics]
 
 logScope:
@@ -22,6 +22,11 @@ type PeerDistance* = object
 
 proc `<`*(a, b: PeerDistance): bool {.inline.} =
   a.distance < b.distance
+
+proc newPeerDistanceHeap*(): ref HeapQueue[PeerDistance] =
+  ## Min-heap of peers ordered by XOR distance to the lookup target. Held by
+  ## ``ref`` so ``findNode`` can populate it as an out-parameter.
+  new(HeapQueue[PeerDistance])
 
 type LookupState* = object
   kad: KadDHT
@@ -274,10 +279,7 @@ proc iterativeLookup*(
   await kad.iterativeLookup(target, kad.rtable, dispatch, onReply, stopCond)
 
 method findNode*(
-    kad: KadDHT,
-    target: Key,
-    rtable: RoutingTable,
-    queue = newAsyncHeapQueue[PeerDistance](),
+    kad: KadDHT, target: Key, rtable: RoutingTable, queue = newPeerDistanceHeap()
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a `target` key.
 
@@ -287,7 +289,7 @@ method findNode*(
   ): Future[void] {.async: (raises: []), gcsafe.} =
     # Can't access `state` here: async closures can't capture `var` params.
     let distance = xorDistance(peerId, target, hasher)
-    queue.push(PeerDistance(peerId: peerId, distance: distance))
+    queue[].push(PeerDistance(peerId: peerId, distance: distance))
 
   let state = await kad.iterativeLookup(
     target, rtable, findNodeDispatch, collectReply, closestAvailableStop
@@ -296,7 +298,7 @@ method findNode*(
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 
 method findNode*(
-    kad: KadDHT, target: Key, queue = newAsyncHeapQueue[PeerDistance]()
+    kad: KadDHT, target: Key, queue = newPeerDistanceHeap()
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   await kad.findNode(target, kad.rtable, queue)
 
