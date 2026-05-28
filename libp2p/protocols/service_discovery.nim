@@ -77,6 +77,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
+    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
     rtManager: ServiceRoutingTableManager.new(),
     clientMode: client,
     advertiser: Advertiser.new(),

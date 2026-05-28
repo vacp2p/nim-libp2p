@@ -69,7 +69,7 @@ proc new*(
     config: config,
     providerManager:
       ProviderManager.new(config.providerRecordCapacity, config.providedKeyCapacity),
-    rpcSem: newAsyncSemaphore(config.maxConcurrentRpcs),
+    rpcSem: newAsyncSemaphore(config.limits.maxConcurrentRpcs),
   )
 
   # Fill up buckets with initial bootstrap nodes

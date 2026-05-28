@@ -95,9 +95,9 @@ proc getValue*(
   let onReply = proc(
       peer: PeerId, msgOpt: Opt[Message], state: var LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
-    if not received.hasKey(peer) and received.len >= kad.config.maxReceivedSize:
+    if not received.hasKey(peer) and received.len >= kad.config.limits.maxReceivedSize:
       debug "GetValue: ReceivedTable cap reached, dropping reply",
-        peer = peer, cap = kad.config.maxReceivedSize
+        peer = peer, cap = kad.config.limits.maxReceivedSize
       return
 
     received[peer] = Opt.none(EntryRecord)
@@ -119,9 +119,9 @@ proc getValue*(
       debug "GetValue returned record with no value", reply = reply
       return
 
-    if value.len > kad.config.maxValueSize:
+    if value.len > kad.config.limits.maxValueSize:
       debug "GetValue dropped: value exceeds maxValueSize",
-        peer = peer, size = value.len, cap = kad.config.maxValueSize
+        peer = peer, size = value.len, cap = kad.config.limits.maxValueSize
       return
 
     let time = record.timeReceived.valueOr:

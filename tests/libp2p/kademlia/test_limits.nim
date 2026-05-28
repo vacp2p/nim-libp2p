@@ -3,7 +3,7 @@
 
 {.used.}
 
-import chronos, chronicles, results, sequtils, sets, tables
+import chronos, chronicles, results, tables
 import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
@@ -16,7 +16,7 @@ suite "KadDHT - Limits":
 
   test "updateShortlist caps shortlist at maxShortlistSize":
     let kad = setupKad()
-    kad.config.maxShortlistSize = 5
+    kad.config.limits.maxShortlistSize = 5
 
     let targetKey = randomPeerId().toKey()
     var state = LookupState.init(kad, targetKey)
@@ -29,11 +29,11 @@ suite "KadDHT - Limits":
     let msg = Message(msgType: MessageType.findNode, closerPeers: peers)
     discard state.updateShortlist(msg)
 
-    check state.shortlist.len <= kad.config.maxShortlistSize
+    check state.shortlist.len <= kad.config.limits.maxShortlistSize
 
   test "updateShortlist prefers closer peers when over cap":
     let kad = setupKad()
-    kad.config.maxShortlistSize = 3
+    kad.config.limits.maxShortlistSize = 3
 
     # Use the no-op hasher so XOR distance is a function of the key bytes
     # directly, making "close" peers easy to construct.
@@ -60,14 +60,14 @@ suite "KadDHT - Limits":
     let closeMsg = Message(msgType: MessageType.findNode, closerPeers: closePeers)
     discard state.updateShortlist(closeMsg)
 
-    check state.shortlist.len == kad.config.maxShortlistSize
+    check state.shortlist.len == kad.config.limits.maxShortlistSize
 
   asyncTest "putValue rejects values larger than maxValueSize":
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
     await connect(kads[0], kads[1])
 
-    kads[1].config.maxValueSize = 16
+    kads[1].config.limits.maxValueSize = 16
 
     let key = kads[0].rtable.selfId
     let big = newSeq[byte](32)
@@ -85,8 +85,8 @@ suite "KadDHT - Limits":
 
     # Lower the receiver's cap so the sender's normal-size put is rejected
     # on the wire even though the sender accepts it locally.
-    kads[0].config.maxValueSize = 8
-    kads[1].config.maxValueSize = 1024
+    kads[0].config.limits.maxValueSize = 8
+    kads[1].config.limits.maxValueSize = 1024
 
     let key = kads[0].rtable.selfId
     let value = newSeq[byte](64)
@@ -111,7 +111,7 @@ suite "KadDHT - Limits":
       discard await kads[i].putValue(key, value)
 
     # Cap kads[0]'s ReceivedTable below the available peers
-    kads[0].config.maxReceivedSize = 1
+    kads[0].config.limits.maxReceivedSize = 1
     let res = await kads[0].getValue(key, quorumOverride = Opt.some(1))
 
     check res.isOk()

@@ -34,11 +34,30 @@ type ReplyHandler* = proc(
 
 type StopCond* = proc(state: LookupState): bool {.raises: [], gcsafe.}
 
+proc tryEvictFarthestUnresponded(
+    state: var LookupState, newDist: XorDistance
+): bool {.raises: [].} =
+  var worstPid: PeerId
+  var worstDist: XorDistance
+  var found = false
+  for pid, d in state.shortlist.pairs():
+    if state.responded.contains(pid):
+      continue
+    if not found or worstDist < d:
+      worstPid = pid
+      worstDist = d
+      found = true
+  if not found or newDist >= worstDist:
+    return false
+  state.shortlist.del(worstPid)
+  state.attempts.del(worstPid)
+  return true
+
 proc updateShortlist*(
     state: var LookupState, msg: Message
 ): seq[PeerInfo] {.raises: [].} =
   var newPeerInfos: seq[PeerInfo]
-  let cap = state.kad.config.maxShortlistSize
+  let cap = state.kad.config.limits.maxShortlistSize
 
   for newPeer in msg.closerPeers:
     let pid = PeerId.init(newPeer.id).valueOr:
@@ -48,24 +67,8 @@ proc updateShortlist*(
 
     let dist = xorDistance(pid, state.target, state.kad.rtable.config.hasher)
 
-    if state.shortlist.len >= cap:
-      # Evict the farthest peer (if any) only when the new peer is closer.
-      # Peers that already responded are still useful for the result set, so
-      # we prefer evicting un-responded farthest entries.
-      var worstPid: PeerId
-      var worstDist: XorDistance
-      var found = false
-      for pid2, d in state.shortlist.pairs():
-        if state.responded.contains(pid2):
-          continue
-        if not found or worstDist < d:
-          worstPid = pid2
-          worstDist = d
-          found = true
-      if not found or dist >= worstDist:
-        continue
-      state.shortlist.del(worstPid)
-      state.attempts.del(worstPid)
+    if state.shortlist.len >= cap and not state.tryEvictFarthestUnresponded(dist):
+      continue
 
     state.shortlist[pid] = dist
     newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs))

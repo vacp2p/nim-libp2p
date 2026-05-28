@@ -2,7 +2,7 @@
 # Copyright (c) Status Research & Development GmbH
 
 ## Provider record management for the Kademlia DHT.
-## Receivers always enforce ``KadDHTConfig.maxProvidersPerKey``; when
+## Receivers always enforce ``KadDHTConfig.limits.maxProvidersPerKey``; when
 ## ``providerRejection`` is true they additionally reply accepted/rejected on
 ## field 11 so senders can spill over to farther peers. Without
 ## ``providerRejection`` the limit is enforced silently — over-cap
@@ -257,7 +257,7 @@ method handleAddProvider*(
   # Per-key cap is enforced regardless of providerRejection: when rejection is
   # disabled the receiver still drops over-cap providers, just silently.
   var atCap = false
-  kad.config.maxProvidersPerKey.withValue(limit):
+  kad.config.limits.maxProvidersPerKey.withValue(limit):
     let existingProviders =
       kad.providerManager.knownKeys.getOrDefault(msg.key, initHashSet[Provider]())
     let senderIsKnown = existingProviders.anyIt(it.id == peerBytes)

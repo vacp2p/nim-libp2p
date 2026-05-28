@@ -97,10 +97,10 @@ proc dispatchPutVal*(
 proc putValue*(
     kad: KadDHT, key: Key, value: seq[byte]
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  if value.len > kad.config.maxValueSize:
+  if value.len > kad.config.limits.maxValueSize:
     return err(
-      "value exceeds maxValueSize (" & $value.len & " > " & $kad.config.maxValueSize &
-        ")"
+      "value exceeds maxValueSize (" & $value.len & " > " &
+        $kad.config.limits.maxValueSize & ")"
     )
 
   let record = EntryRecord(value: value, time: Timestamp.now())
@@ -136,9 +136,9 @@ proc handlePutValue*(
     error "No value in record", msg = msg, stream = stream
     return
 
-  if value.len > kad.config.maxValueSize:
+  if value.len > kad.config.limits.maxValueSize:
     debug "PUT_VALUE dropped: value exceeds maxValueSize",
-      stream = stream, size = value.len, cap = kad.config.maxValueSize
+      stream = stream, size = value.len, cap = kad.config.limits.maxValueSize
     return
 
   let entryRecord = EntryRecord(value: value, time: Timestamp.now())
