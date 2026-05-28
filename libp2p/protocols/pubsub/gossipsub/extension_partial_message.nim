@@ -255,12 +255,8 @@ proc handlePartialRPC(
   let shouldHandlePartialRPC =
     nodeTopicOpts.requestsPartial or
     (nodeTopicOpts.supportsSendingPartial and peerTopicOpts.requestsPartial)
-  if not shouldHandlePartialRPC:
-    # node neither requests partial messages nor serves them for this topic,
-    # and the sending peer did not announce that it requests partials.
-    return
-
-  ext.config.onIncomingRPC(peerId, rpc)
+  if shouldHandlePartialRPC:
+    ext.config.onIncomingRPC(peerId, rpc)
 
 method onHandleRPC*(
     ext: PartialMessageExtension, peerId: PeerId, rpc: RPCMsg
