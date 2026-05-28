@@ -38,16 +38,37 @@ proc updateShortlist*(
     state: var LookupState, msg: Message
 ): seq[PeerInfo] {.raises: [].} =
   var newPeerInfos: seq[PeerInfo]
+  let cap = state.kad.config.maxShortlistSize
 
   for newPeer in msg.closerPeers:
     let pid = PeerId.init(newPeer.id).valueOr:
       continue
-    if not state.shortlist.contains(pid):
-      state.shortlist[pid] =
-        xorDistance(pid, state.target, state.kad.rtable.config.hasher)
+    if state.shortlist.contains(pid):
+      continue
 
-      let peerInfo = PeerInfo(peerId: pid, addrs: newPeer.addrs)
-      newPeerInfos.add(peerInfo)
+    let dist = xorDistance(pid, state.target, state.kad.rtable.config.hasher)
+
+    if state.shortlist.len >= cap:
+      # Evict the farthest peer (if any) only when the new peer is closer.
+      # Peers that already responded are still useful for the result set, so
+      # we prefer evicting un-responded farthest entries.
+      var worstPid: PeerId
+      var worstDist: XorDistance
+      var found = false
+      for pid2, d in state.shortlist.pairs():
+        if state.responded.contains(pid2):
+          continue
+        if not found or worstDist < d:
+          worstPid = pid2
+          worstDist = d
+          found = true
+      if not found or dist >= worstDist:
+        continue
+      state.shortlist.del(worstPid)
+      state.attempts.del(worstPid)
+
+    state.shortlist[pid] = dist
+    newPeerInfos.add(PeerInfo(peerId: pid, addrs: newPeer.addrs))
 
   return newPeerInfos
 
@@ -128,43 +149,44 @@ proc dispatchFindNode*(
     target: Key,
     addrs: Opt[seq[MultiAddress]] = Opt.none(seq[MultiAddress]),
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
-  let streamRes = catch:
-    await kad.switch.dial(peer, addrs, kad.codec)
-  if streamRes.isErr:
-    return err(streamRes.error.msg)
-  let stream = streamRes.value()
-  defer:
-    await stream.close()
+  withRpcSlot(kad):
+    let addrs = addrs.valueOr(kad.switch.peerStore[AddressBook][peer])
+    let streamRes = catch:
+      await kad.switch.dial(peer, addrs, kad.codec)
+    if streamRes.isErr:
+      return err(streamRes.error.msg)
+    let stream = streamRes.value()
+    defer:
+      await stream.close()
 
-  let msg = Message(msgType: MessageType.findNode, key: target)
-  let encoded = msg.encode(kad.config.hideConnectionStatus)
+    let msg = Message(msgType: MessageType.findNode, key: target)
+    let encoded = msg.encode(kad.config.hideConnectionStatus)
 
-  kad_messages_sent.inc(labelValues = [$MessageType.findNode])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
-  )
+    kad_messages_sent.inc(labelValues = [$MessageType.findNode])
+    kad_message_bytes_sent.inc(
+      encoded.buffer.len.int64, labelValues = [$MessageType.findNode]
+    )
 
-  var replyBuf: seq[byte]
-  var ioRes: Result[void, ref CatchableError]
-  kad_message_duration_ms.time(labelValues = [$MessageType.findNode]):
-    ioRes = catch:
-      await stream.writeLp(encoded.buffer)
-      replyBuf = await stream.readLp(MaxMsgSize)
-  if ioRes.isErr:
-    return err(ioRes.error.msg)
+    var replyBuf: seq[byte]
+    var ioRes: Result[void, ref CatchableError]
+    kad_message_duration_ms.time(labelValues = [$MessageType.findNode]):
+      ioRes = catch:
+        await stream.writeLp(encoded.buffer)
+        replyBuf = await stream.readLp(MaxMsgSize)
+    if ioRes.isErr:
+      return err(ioRes.error.msg)
 
-  kad_message_bytes_received.inc(
-    replyBuf.len.int64, labelValues = [$MessageType.findNode]
-  )
+    kad_message_bytes_received.inc(
+      replyBuf.len.int64, labelValues = [$MessageType.findNode]
+    )
 
-  let reply = Message.decode(replyBuf).valueOr:
-    return err("FindNode reply decode fail")
+    let reply = Message.decode(replyBuf).valueOr:
+      return err("FindNode reply decode fail")
 
-  if reply.closerPeers.len > 0:
-    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.findNode])
+    if reply.closerPeers.len > 0:
+      kad_responses_with_closer_peers.inc(labelValues = [$MessageType.findNode])
 
-  return ok(reply)
+    return ok(reply)
 
 proc updatePeers*(
     switch: Switch,

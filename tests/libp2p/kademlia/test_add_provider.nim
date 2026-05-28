@@ -532,10 +532,10 @@ suite "KadDHT - ADD_PROVIDER Rejection":
       nodeA.providerManager.providerRecords.len == 1
       nodeB.providerManager.providerRecords.len == 1
 
-  asyncTest "providerRejection=false: receiver never sends rejection replies":
-    # A receiver with providerRejection=false (default) stores everything and
-    # never sends a reply, so the sender always sees accepted.
-    # Use a longer providerExpirationInterval so records survive the reply timeouts.
+  asyncTest "providerRejection=false: receiver enforces limit silently":
+    # The receiver enforces ``maxProvidersPerKey`` even with rejection disabled,
+    # but it does not send a rejection reply, so the sender treats the absence
+    # of a reply as accepted.
     let senderKad = setupKad(
       testKadConfig(providerRejection = true, providerExpirationInterval = 30.seconds)
     )
@@ -552,8 +552,8 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     checkUntilTimeout:
       receiverKad.providerManager.providerRecords.len == 1
 
-    # Second sender: receiver has no rejection enabled, so it stores again and
-    # never replies → sender treats absence of reply as accepted.
+    # Second sender: receiver is at the per-key cap and drops the record
+    # silently (no reply).
     let sender2Kad = setupKad(
       testKadConfig(providerRejection = true, providerExpirationInterval = 30.seconds)
     )
@@ -563,11 +563,11 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     let status =
       await sender2Kad.sendAddProviderAndGetStatus(receiverKad, key.toCid().toKey())
     check status.isOk()
-    # No rejection reply sent by receiver → treated as accepted by sender
+    # No reply sent by receiver → sender treats absence of reply as accepted
     check status.value() == AddProviderStatus.accepted
-    # Both providers stored (maxProvidersPerKey is ignored without rejection)
-    checkUntilTimeout:
-      receiverKad.providerManager.providerRecords.len == 2
+    # Limit enforced silently: still only one record at the receiver
+    await sleepAsync(200.milliseconds)
+    check receiverKad.providerManager.providerRecords.len == 1
 
   asyncTest "providerRejection=true: receiver enforces limit and rejects":
     let senderKad = setupKad(testKadConfig(providerRejection = true))

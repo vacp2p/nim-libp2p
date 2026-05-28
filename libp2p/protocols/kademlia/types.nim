@@ -30,6 +30,15 @@ const
     # KV entries older than this are considered stale and will be evicted
   DefaultCleanupDataEntriesInterval* = 1.hours # how often to scan for stale KV entries
 
+  DefaultMaxProvidersPerKey* = 20 ## upper bound on providers stored per key
+  DefaultMaxShortlistSize* = DefaultReplication * 2
+    ## upper bound on iterative-lookup shortlist
+  DefaultMaxReceivedSize* = DefaultReplication
+    ## upper bound on per-query ``ReceivedTable``
+  DefaultMaxValueSize* = 8 * 1024 ## upper bound (bytes) on a stored record value
+  DefaultMaxConcurrentRpcs* = 100
+    ## upper bound on in-flight outbound RPCs across find/get/put/provider
+
   MaxMsgSize* = 4096
 
 type Key* = seq[byte]
@@ -334,13 +343,26 @@ type KadDHTConfig* = object
   hideConnectionStatus*: bool
   disableBootstrapping*: bool
   providerRejection*: bool
-    ## When true, the node enforces ``maxProvidersPerKey`` and replies to
-    ## ADD_PROVIDER with accepted/rejected on field 11; the sender spills over
-    ## to farther peers when a full batch is rejected.
+    ## When true, ADD_PROVIDER receivers reply with accepted/rejected on
+    ## field 11; the sender spills over to farther peers when a full batch is
+    ## rejected. The per-key cap (``maxProvidersPerKey``) is always enforced
+    ## regardless of this flag — this only controls whether rejections are
+    ## acknowledged on the wire.
   maxProvidersPerKey*: Opt[int]
     ## Maximum number of distinct providers stored per key.
-    ## None (default) means unlimited.
-    ## Only enforced when ``providerRejection`` is true.
+    ## ``Opt.none`` means unlimited; the default is ``DefaultMaxProvidersPerKey``.
+  maxShortlistSize*: int
+    ## Maximum number of peers retained in an iterative-lookup shortlist.
+    ## When exceeded, farther peers are dropped so the shortlist stays bounded.
+  maxReceivedSize*: int
+    ## Maximum number of per-peer entries retained in a GET_VALUE
+    ## ``ReceivedTable``.
+  maxValueSize*: int
+    ## Maximum size (bytes) of an individual record value. Enforced on
+    ## ``putValue`` and on incoming PUT_VALUE / GET_VALUE records.
+  maxConcurrentRpcs*: int
+    ## Maximum number of in-flight outbound RPCs (find/get/put/provider)
+    ## across the whole node. Excess calls wait on a shared semaphore.
 
 proc new*(
     K: typedesc[KadDHTConfig],
@@ -363,10 +385,18 @@ proc new*(
     hideConnectionStatus: bool = true,
     disableBootstrapping: bool = false,
     providerRejection: bool = false,
-    maxProvidersPerKey: Opt[int] = Opt.none(int),
+    maxProvidersPerKey: Opt[int] = Opt.some(DefaultMaxProvidersPerKey),
+    maxShortlistSize: int = DefaultMaxShortlistSize,
+    maxReceivedSize: int = DefaultMaxReceivedSize,
+    maxValueSize: int = DefaultMaxValueSize,
+    maxConcurrentRpcs: int = DefaultMaxConcurrentRpcs,
 ): K {.raises: [].} =
   doAssert maxProvidersPerKey.isNone or maxProvidersPerKey.get() > 0,
     "maxProvidersPerKey must be > 0; use Opt.none(int) for unlimited"
+  doAssert maxShortlistSize > 0, "maxShortlistSize must be > 0"
+  doAssert maxReceivedSize > 0, "maxReceivedSize must be > 0"
+  doAssert maxValueSize > 0, "maxValueSize must be > 0"
+  doAssert maxConcurrentRpcs > 0, "maxConcurrentRpcs must be > 0"
   KadDHTConfig(
     validator: validator,
     selector: selector,
@@ -388,6 +418,10 @@ proc new*(
     disableBootstrapping: disableBootstrapping,
     providerRejection: providerRejection,
     maxProvidersPerKey: maxProvidersPerKey,
+    maxShortlistSize: maxShortlistSize,
+    maxReceivedSize: maxReceivedSize,
+    maxValueSize: maxValueSize,
+    maxConcurrentRpcs: maxConcurrentRpcs,
   )
 
 type KadDHT* = ref object of LPProtocol
@@ -401,3 +435,17 @@ type KadDHT* = ref object of LPProtocol
   dataTable*: LocalTable
   providerManager*: ProviderManager
   config*: KadDHTConfig
+  rpcSem*: AsyncSemaphore
+    ## Bounds in-flight outbound RPCs to ``config.maxConcurrentRpcs``.
+
+template withRpcSlot*(kad: KadDHT, body: untyped): untyped =
+  ## Acquire one ``rpcSem`` slot for the duration of ``body``. The slot is
+  ## released whether ``body`` completes normally, raises, or is cancelled.
+  await kad.rpcSem.acquire()
+  try:
+    body
+  finally:
+    try:
+      kad.rpcSem.release()
+    except AsyncSemaphoreError:
+      raiseAssert "rpcSem released without acquire"

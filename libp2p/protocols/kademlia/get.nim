@@ -14,45 +14,46 @@ logScope:
 proc dispatchGetVal*(
     kad: KadDHT, peer: PeerId, key: Key
 ): Future[Result[Message, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  let streamRes = catch:
-    await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
-  if streamRes.isErr:
-    return err(streamRes.error.msg)
-  let stream = streamRes.value()
-  defer:
-    await stream.close()
+  withRpcSlot(kad):
+    let streamRes = catch:
+      await kad.switch.dial(peer, kad.switch.peerStore[AddressBook][peer], kad.codec)
+    if streamRes.isErr:
+      return err(streamRes.error.msg)
+    let stream = streamRes.value()
+    defer:
+      await stream.close()
 
-  let msg = Message(msgType: MessageType.getValue, key: key)
-  let encoded = msg.encode(kad.config.hideConnectionStatus)
+    let msg = Message(msgType: MessageType.getValue, key: key)
+    let encoded = msg.encode(kad.config.hideConnectionStatus)
 
-  kad_messages_sent.inc(labelValues = [$MessageType.getValue])
-  kad_message_bytes_sent.inc(
-    encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
-  )
+    kad_messages_sent.inc(labelValues = [$MessageType.getValue])
+    kad_message_bytes_sent.inc(
+      encoded.buffer.len.int64, labelValues = [$MessageType.getValue]
+    )
 
-  var replyBuf: seq[byte]
-  var ioRes: Result[void, ref CatchableError]
-  kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
-    ioRes = catch:
-      await stream.writeLp(encoded.buffer)
-      replyBuf = await stream.readLp(MaxMsgSize)
-  if ioRes.isErr:
-    return err(ioRes.error.msg)
+    var replyBuf: seq[byte]
+    var ioRes: Result[void, ref CatchableError]
+    kad_message_duration_ms.time(labelValues = [$MessageType.getValue]):
+      ioRes = catch:
+        await stream.writeLp(encoded.buffer)
+        replyBuf = await stream.readLp(MaxMsgSize)
+    if ioRes.isErr:
+      return err(ioRes.error.msg)
 
-  kad_message_bytes_received.inc(
-    replyBuf.len.int64, labelValues = [$MessageType.getValue]
-  )
+    kad_message_bytes_received.inc(
+      replyBuf.len.int64, labelValues = [$MessageType.getValue]
+    )
 
-  let reply = Message.decode(replyBuf).valueOr:
-    return err("GetValue reply decode fail")
+    let reply = Message.decode(replyBuf).valueOr:
+      return err("GetValue reply decode fail")
 
-  if reply.closerPeers.len > 0:
-    kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
+    if reply.closerPeers.len > 0:
+      kad_responses_with_closer_peers.inc(labelValues = [$MessageType.getValue])
 
-  stream.observedAddr.withValue(observedAddr):
-    kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
+    stream.observedAddr.withValue(observedAddr):
+      kad.updatePeers(@[PeerInfo(peerId: stream.peerId, addrs: @[observedAddr])])
 
-  return ok(reply)
+    return ok(reply)
 
 proc bestValidRecord(
     kad: KadDHT, key: Key, received: ReceivedTable, quorum: int
@@ -94,6 +95,11 @@ proc getValue*(
   let onReply = proc(
       peer: PeerId, msgOpt: Opt[Message], state: var LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
+    if not received.hasKey(peer) and received.len >= kad.config.maxReceivedSize:
+      debug "GetValue: ReceivedTable cap reached, dropping reply",
+        peer = peer, cap = kad.config.maxReceivedSize
+      return
+
     received[peer] = Opt.none(EntryRecord)
 
     let reply = msgOpt.valueOr:
@@ -111,6 +117,11 @@ proc getValue*(
 
     let value = record.value.valueOr:
       debug "GetValue returned record with no value", reply = reply
+      return
+
+    if value.len > kad.config.maxValueSize:
+      debug "GetValue dropped: value exceeds maxValueSize",
+        peer = peer, size = value.len, cap = kad.config.maxValueSize
       return
 
     let time = record.timeReceived.valueOr:
@@ -138,11 +149,11 @@ proc getValue*(
   for p, r in received:
     let record = r.valueOr:
       # peer doesn't have value
-      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
+      rpcBatch.add(kad.dispatchPutVal(p, key, best.value))
       continue
     if record.value != best.value:
       # value is invalid or not best
-      rpcBatch.add(kad.switch.dispatchPutVal(p, key, best.value, kad.codec))
+      rpcBatch.add(kad.dispatchPutVal(p, key, best.value))
 
   await rpcBatch.allFuturesWaitOrTimeout(kad.config.timeout)
 
