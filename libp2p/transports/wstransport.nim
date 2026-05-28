@@ -327,23 +327,22 @@ method start*(
   let addrsTa = self.toTransportAddress(addrs).valueOr:
     raise newException(TransportStartError, $error)
 
-  when defined(libp2p_autotls_support):
-    if not self.secure and self.autotls.isSome():
-      self.autotls.withValue(autotls):
-        if not await autotls.running.wait().withTimeout(DefaultAutotlsWaitTimeout):
-          error "Unable to upgrade, autotls not running"
-          await self.stop()
-          return
+  if not self.secure and self.autotls.isSome():
+    self.autotls.withValue(autotls):
+      if not await autotls.running.wait().withTimeout(DefaultAutotlsWaitTimeout):
+        error "Unable to upgrade, autotls not running"
+        await self.stop()
+        return
 
-        trace "Waiting for autotls certificate"
-        try:
-          let autotlsCert = await autotls.getCertWhenReady()
-          self.tlsCertificate = autotlsCert.cert
-          self.tlsPrivateKey = autotlsCert.privkey
-        except AutoTLSError as e:
-          raise newException(LPError, e.msg, e)
-        except TLSStreamProtocolError as e:
-          raise newException(LPError, e.msg, e)
+      trace "Waiting for autotls certificate"
+      try:
+        let autotlsCert = await autotls.getCertWhenReady()
+        self.tlsCertificate = autotlsCert.cert
+        self.tlsPrivateKey = autotlsCert.privkey
+      except AutoTLSError as e:
+        raise newException(LPError, e.msg, e)
+      except TLSStreamProtocolError as e:
+        raise newException(LPError, e.msg, e)
 
   self.wsserver =
     WSServer.new(factories = self.factories, rng = bearSslDrbgRef(self.rng))

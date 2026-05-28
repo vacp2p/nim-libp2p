@@ -3,400 +3,391 @@
 
 {.used.}
 
-when defined(libp2p_autotls_support):
-  {.push raises: [].}
+import sequtils, json, uri, chronos, chronos/apps/http/httpclient
+import
+  ../../../libp2p/[
+    stream/connection,
+    upgrademngrs/upgrade,
+    autotls/acme/mockapi,
+    autotls/acme/client,
+    wire,
+  ]
+import ../../tools/[unittest, crypto]
 
-  import sequtils, json, uri, chronos, chronos/apps/http/httpclient
-  import
-    ../../../libp2p/[
-      stream/connection,
-      upgrademngrs/upgrade,
-      autotls/acme/mockapi,
-      autotls/acme/client,
-      wire,
-    ]
-  import ../../tools/[unittest, crypto]
+suite "AutoTLS ACME API":
+  var api {.threadvar.}: MockACMEApi
+  var key {.threadvar.}: KeyPair
 
-  suite "AutoTLS ACME API":
-    var api {.threadvar.}: MockACMEApi
-    var key {.threadvar.}: KeyPair
+  asyncTeardown:
+    await api.close()
+    checkTrackers()
 
-    asyncTeardown:
-      await api.close()
-      checkTrackers()
+  asyncSetup:
+    api = await MockACMEApi.new()
+    key = KeyPair.random(PKScheme.RSA, rng()).get()
 
-    asyncSetup:
-      api = await MockACMEApi.new()
-      key = KeyPair.random(PKScheme.RSA, rng()).get()
-
-    asyncTest "register to acme server":
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "valid"},
-          headers: HttpTable.init(@[("location", "some-expected-kid")]),
-        )
+  asyncTest "register to acme server":
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "valid"},
+        headers: HttpTable.init(@[("location", "some-expected-kid")]),
       )
+    )
 
-      let registerResponse = await api.requestRegister(key)
-      check registerResponse.kid == "some-expected-kid"
+    let registerResponse = await api.requestRegister(key)
+    check registerResponse.kid == "some-expected-kid"
 
-    asyncTest "request challenge for a domain":
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{
-            "status": "pending",
-            "authorizations": ["http://example.com/expected-authorizations-url"],
-            "finalize": "http://example.com/expected-finalize-url",
-          },
-          headers:
-            HttpTable.init(@[("location", "http://example.com/expected-order-url")]),
-        )
+  asyncTest "request challenge for a domain":
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{
+          "status": "pending",
+          "authorizations": ["http://example.com/expected-authorizations-url"],
+          "finalize": "http://example.com/expected-finalize-url",
+        },
+        headers:
+          HttpTable.init(@[("location", "http://example.com/expected-order-url")]),
       )
+    )
 
-      let challengeResponse =
-        await api.requestNewOrder(@["some.dummy.domain.com"], key, "kid")
-      check challengeResponse.status == ACMEOrderStatus.PENDING
-      check challengeResponse.authorizations ==
-        ["http://example.com/expected-authorizations-url"]
-      check challengeResponse.finalize == "http://example.com/expected-finalize-url"
-      check challengeResponse.order == "http://example.com/expected-order-url"
+    let challengeResponse =
+      await api.requestNewOrder(@["some.dummy.domain.com"], key, "kid")
+    check challengeResponse.status == ACMEOrderStatus.PENDING
+    check challengeResponse.authorizations ==
+      ["http://example.com/expected-authorizations-url"]
+    check challengeResponse.finalize == "http://example.com/expected-finalize-url"
+    check challengeResponse.order == "http://example.com/expected-order-url"
 
-      # reset mocked obj for second request
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{
-            "challenges": [
-              {
-                "url": "http://example.com/expected-dns01-url",
-                "type": "dns-01",
-                "status": "pending",
-                "token": "expected-dns01-token",
-              }
-            ]
-          },
-          headers:
-            HttpTable.init(@[("location", "http://example.com/expected-order-url")]),
-        )
+    # reset mocked obj for second request
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{
+          "challenges": [
+            {
+              "url": "http://example.com/expected-dns01-url",
+              "type": "dns-01",
+              "status": "pending",
+              "token": "expected-dns01-token",
+            }
+          ]
+        },
+        headers:
+          HttpTable.init(@[("location", "http://example.com/expected-order-url")]),
       )
+    )
 
-      let authorizationsResponse =
-        await api.requestAuthorizations(challengeResponse.authorizations, key, "kid")
-      check authorizationsResponse.challenges.len > 0
+    let authorizationsResponse =
+      await api.requestAuthorizations(challengeResponse.authorizations, key, "kid")
+    check authorizationsResponse.challenges.len > 0
 
-      let dns01 = authorizationsResponse.challenges.filterIt(
-        it.`type` == ACMEChallengeType.DNS01
-      )[0]
-      check dns01.url == "http://example.com/expected-dns01-url"
-      check dns01.`type` == ACMEChallengeType.DNS01
-      check dns01.token == ACMEChallengeToken("expected-dns01-token")
-      check dns01.status == ACMEChallengeStatus.PENDING
+    let dns01 = authorizationsResponse.challenges.filterIt(
+      it.`type` == ACMEChallengeType.DNS01
+    )[0]
+    check dns01.url == "http://example.com/expected-dns01-url"
+    check dns01.`type` == ACMEChallengeType.DNS01
+    check dns01.token == ACMEChallengeToken("expected-dns01-token")
+    check dns01.status == ACMEChallengeStatus.PENDING
 
-    asyncTest "register with unsupported keys":
-      let unsupportedSchemes = [PKScheme.Ed25519, PKScheme.Secp256k1, PKScheme.ECDSA]
-      for scheme in unsupportedSchemes:
-        let unsupportedKey = KeyPair.random(scheme, rng()).get()
-        expect(ACMEError):
-          discard await api.requestRegister(unsupportedKey)
-
-    asyncTest "challenge completed successful":
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"url": "http://example.com/some-check-url"},
-          headers: HttpTable.init(),
-        )
-      )
-      discard await api.sendChallengeCompleted(
-        parseUri("http://example.com/some-chal-url"), key, "kid"
-      )
-
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "valid"}, headers: HttpTable.init(@[("Retry-After", "0")])
-        )
-      )
-      let completed = await api.checkChallengeCompleted(
-        parseUri("http://example.com/some-chal-url"), key, "kid"
-      )
-      check completed == true
-
-    asyncTest "challenge completed max retries reached":
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"url": "http://example.com/some-check-url"},
-          headers: HttpTable.init(),
-        )
-      )
-      discard await api.sendChallengeCompleted(
-        parseUri("http://example.com/some-chal-url"), key, "kid"
-      )
-
-      # add this mocked response a few times since checkChallengeCompleted might get more than once
-      for _ in 0 .. 5:
-        api.mockedResponses.add(
-          HTTPResponse(
-            body: %*{"status": "pending"},
-            headers: HttpTable.init(@[("Retry-After", "0")]),
-          )
-        )
-      let completed = await api.checkChallengeCompleted(
-        parseUri("http://example.com/some-chal-url"), key, "kid", retries = 1
-      )
-      check completed == false
-
-    asyncTest "challenge completed invalid":
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"url": "http://example.com/some-check-url"},
-          headers: HttpTable.init(),
-        )
-      )
-      discard await api.sendChallengeCompleted(
-        parseUri("http://example.com/some-chal-url"), key, "kid"
-      )
-
-      # add this mocked response a few times since checkChallengeCompleted might get more than once
-      for _ in 0 .. 5:
-        api.mockedResponses.add(
-          HTTPResponse(
-            body: %*{"status": "invalid"},
-            headers: HttpTable.init(@[("Retry-After", "0")]),
-          )
-        )
-
+  asyncTest "register with unsupported keys":
+    let unsupportedSchemes = [PKScheme.Ed25519, PKScheme.Secp256k1, PKScheme.ECDSA]
+    for scheme in unsupportedSchemes:
+      let unsupportedKey = KeyPair.random(scheme, rng()).get()
       expect(ACMEError):
-        discard await api.checkChallengeCompleted(
-          parseUri("http://example.com/some-chal-url"), key, "kid"
-        )
+        discard await api.requestRegister(unsupportedKey)
 
-    asyncTest "finalize certificate successful":
-      # first status is processing, then valid
+  asyncTest "challenge completed successful":
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
+      )
+    )
+    discard await api.sendChallengeCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid"
+    )
+
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "valid"}, headers: HttpTable.init(@[("Retry-After", "0")])
+      )
+    )
+    let completed = await api.checkChallengeCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid"
+    )
+    check completed == true
+
+  asyncTest "challenge completed max retries reached":
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
+      )
+    )
+    discard await api.sendChallengeCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid"
+    )
+
+    # add this mocked response a few times since checkChallengeCompleted might get more than once
+    for _ in 0 .. 5:
       api.mockedResponses.add(
         HTTPResponse(
-          body: %*{"status": "processing"},
+          body: %*{"status": "pending"},
           headers: HttpTable.init(@[("Retry-After", "0")]),
         )
       )
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "valid"}, headers: HttpTable.init(@[("Retry-After", "0")])
-        )
-      )
-      let finalized = await api.certificateFinalized(
-        "some-domain",
-        parseUri("http://example.com/some-finalize-url"),
-        parseUri("http://example.com/some-order-url"),
-        KeyPair.random(PKScheme.RSA, rng()).get,
-        key,
-        "kid",
-      )
-      check finalized == true
+    let completed = await api.checkChallengeCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid", retries = 1
+    )
+    check completed == false
 
-    asyncTest "finalize certificate max retries reached":
-      # add this mocked response a few times since checkCertFinalized might get more than once
-      for _ in 0 .. 5:
-        api.mockedResponses.add(
-          HTTPResponse(
-            body: %*{"status": "processing"},
-            headers: HttpTable.init(@[("Retry-After", "0")]),
-          )
-        )
-      let finalized = await api.certificateFinalized(
-        "some-domain",
-        parseUri("http://example.com/some-finalize-url"),
-        parseUri("http://example.com/some-order-url"),
-        KeyPair.random(PKScheme.RSA, rng()).get,
-        key,
-        "kid",
-        retries = 1,
+  asyncTest "challenge completed invalid":
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
       )
-      check finalized == false
+    )
+    discard await api.sendChallengeCompleted(
+      parseUri("http://example.com/some-chal-url"), key, "kid"
+    )
 
-    asyncTest "finalize certificate invalid":
-      # first request is processing, then invalid
-      api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "processing"},
-          headers: HttpTable.init(@[("Retry-After", "0")]),
-        )
-      )
+    # add this mocked response a few times since checkChallengeCompleted might get more than once
+    for _ in 0 .. 5:
       api.mockedResponses.add(
         HTTPResponse(
           body: %*{"status": "invalid"},
           headers: HttpTable.init(@[("Retry-After", "0")]),
         )
       )
-      let finalized = await api.certificateFinalized(
-        "some-domain",
-        parseUri("http://example.com/some-finalize-url"),
-        parseUri("http://example.com/some-order-url"),
-        KeyPair.random(PKScheme.RSA, rng()).get,
-        key,
-        "kid",
+
+    expect(ACMEError):
+      discard await api.checkChallengeCompleted(
+        parseUri("http://example.com/some-chal-url"), key, "kid"
       )
-      check finalized == false
 
-    asyncTest "expect error on invalid JSON response":
-      # add a couple invalid responses as they get popped by every get or post call
-      for _ in 0 .. 20:
-        api.mockedResponses.add(
-          HTTPResponse(
-            body: %*{"inexistent field": "invalid value"}, headers: HttpTable.init()
-          )
-        )
+  asyncTest "finalize certificate successful":
+    # first status is processing, then valid
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "processing"},
+        headers: HttpTable.init(@[("Retry-After", "0")]),
+      )
+    )
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "valid"}, headers: HttpTable.init(@[("Retry-After", "0")])
+      )
+    )
+    let finalized = await api.certificateFinalized(
+      "some-domain",
+      parseUri("http://example.com/some-finalize-url"),
+      parseUri("http://example.com/some-order-url"),
+      KeyPair.random(PKScheme.RSA, rng()).get,
+      key,
+      "kid",
+    )
+    check finalized == true
 
-      expect(ACMEError):
-        # avoid calling overloaded mock method requestNonce here since we want to test the actual thing
-        discard await procCall requestNonce(ACMEApi(api))
-
-      expect(ACMEError):
-        discard await api.requestRegister(key)
-
-      expect(ACMEError):
-        discard await api.requestNewOrder(@["some-domain"], key, "kid")
-
-      expect(ACMEError):
-        discard await api.requestAuthorizations(@["auth-1", "auth-2"], key, "kid")
-
-      # clear leftover invalid responses so the mixed response is next in queue
-      api.mockedResponses = @[]
+  asyncTest "finalize certificate max retries reached":
+    # add this mocked response a few times since checkCertFinalized might get more than once
+    for _ in 0 .. 5:
       api.mockedResponses.add(
-        HTTPResponse(
-          body: %*{
-            "identifier": {"type": "dns", "value": "example.com"},
-            "status": "pending",
-            "challenges": [
-              {
-                "type": "dns-persist-01",
-                "url": "http://example.com/unknown-challenge",
-                "status": "pending",
-                "token": "unknown-token",
-              },
-              {
-                "type": "dns-01",
-                "url": "http://example.com/recognized-challenge",
-                "status": "pending",
-                "token": "recognized-token",
-              },
-            ],
-          },
-          headers: HttpTable.init(),
-        )
-      )
-
-      let mixedAuthResp = await api.requestAuthorizations(@["auth-3"], key, "kid")
-      check mixedAuthResp.challenges.len == 2
-
-      # replenish invalid responses for the remaining expect(ACMEError) blocks
-      for _ in 0 .. 5:
-        api.mockedResponses.add(
-          HTTPResponse(
-            body: %*{"inexistent field": "invalid value"}, headers: HttpTable.init()
-          )
-        )
-
-      expect(ACMEError):
-        discard await api.requestChallenge(@["domain-1", "domain-2"], key, "kid")
-
-      expect(ACMEError):
-        discard await api.requestCheck(
-          parseUri("http://example.com/some-check-url"),
-          ACMECheckKind.ACMEOrderCheck,
-          key,
-          "kid",
-        )
-
-      expect(ACMEError):
-        discard await api.requestCheck(
-          parseUri("http://example.com/some-check-url"),
-          ACMECheckKind.ACMEChallengeCheck,
-          key,
-          "kid",
-        )
-
-      expect(ACMEError):
-        discard await api.sendChallengeCompleted(
-          parseUri("http://example.com/some-chal-url"), key, "kid"
-        )
-
-      expect(ACMEError):
-        discard await api.requestFinalize(
-          "some-domain",
-          parseUri("http://example.com/some-finalize-url"),
-          KeyPair.random(PKScheme.RSA, rng()).get,
-          key,
-          "kid",
-        )
-
-      expect(ACMEError):
-        discard await api.requestGetOrder(parseUri("http://example.com/some-order-url"))
-
-  suite "AutoTLS ACME Client":
-    var acmeApi {.threadvar.}: MockACMEApi
-    var acme {.threadvar.}: ACMEClient
-
-    asyncSetup:
-      acmeApi = await MockACMEApi.new()
-
-    asyncTeardown:
-      await acme.close()
-      checkTrackers()
-
-    asyncTest "client registers new account when instantiated":
-      acmeApi.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "valid"},
-          headers: HttpTable.init(@[("location", "some-expected-kid")]),
-        )
-      )
-
-      acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi))
-      let kid = await acme.getOrInitKid()
-      check kid == "some-expected-kid"
-
-    asyncTest "getCertificate succeeds on sendChallengeCompleted but fails on requestFinalize":
-      # register successful
-      acmeApi.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "valid"},
-          headers: HttpTable.init(@[("location", "some-expected-kid")]),
-        )
-      )
-      # request completed successful
-      acmeApi.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"url": "http://example.com/some-check-url"},
-          headers: HttpTable.init(),
-        )
-      )
-      # finalize is invalid
-      # first request is processing, then invalid
-      acmeApi.mockedResponses.add(
         HTTPResponse(
           body: %*{"status": "processing"},
           headers: HttpTable.init(@[("Retry-After", "0")]),
         )
       )
-      acmeApi.mockedResponses.add(
-        HTTPResponse(
-          body: %*{"status": "invalid"},
-          headers: HttpTable.init(@[("Retry-After", "0")]),
-        )
-      )
-      acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi))
-      let kid = await acme.getOrInitKid()
-      check kid == "some-expected-kid"
+    let finalized = await api.certificateFinalized(
+      "some-domain",
+      parseUri("http://example.com/some-finalize-url"),
+      parseUri("http://example.com/some-order-url"),
+      KeyPair.random(PKScheme.RSA, rng()).get,
+      key,
+      "kid",
+      retries = 1,
+    )
+    check finalized == false
 
-      let challenge = ACMEChallengeDns01Response(
-        finalize: "https://finalize.com",
-        order: "https://order.com",
-        dns01: ACMEChallenge(
-          url: "https://some.domain",
-          `type`: ACMEChallengeType.DNS01,
-          status: ACMEChallengeStatus.VALID,
-          token: ACMEChallengeToken("some-token"),
-        ),
+  asyncTest "finalize certificate invalid":
+    # first request is processing, then invalid
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "processing"},
+        headers: HttpTable.init(@[("Retry-After", "0")]),
       )
-      expect(ACMEError):
-        discard await acme.getCertificate(
-          api.Domain("some.domain"), KeyPair.random(PKScheme.RSA, rng()).get, challenge
+    )
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "invalid"}, headers: HttpTable.init(@[("Retry-After", "0")])
+      )
+    )
+    let finalized = await api.certificateFinalized(
+      "some-domain",
+      parseUri("http://example.com/some-finalize-url"),
+      parseUri("http://example.com/some-order-url"),
+      KeyPair.random(PKScheme.RSA, rng()).get,
+      key,
+      "kid",
+    )
+    check finalized == false
+
+  asyncTest "expect error on invalid JSON response":
+    # add a couple invalid responses as they get popped by every get or post call
+    for _ in 0 .. 20:
+      api.mockedResponses.add(
+        HTTPResponse(
+          body: %*{"inexistent field": "invalid value"}, headers: HttpTable.init()
         )
+      )
+
+    expect(ACMEError):
+      # avoid calling overloaded mock method requestNonce here since we want to test the actual thing
+      discard await procCall requestNonce(ACMEApi(api))
+
+    expect(ACMEError):
+      discard await api.requestRegister(key)
+
+    expect(ACMEError):
+      discard await api.requestNewOrder(@["some-domain"], key, "kid")
+
+    expect(ACMEError):
+      discard await api.requestAuthorizations(@["auth-1", "auth-2"], key, "kid")
+
+    # clear leftover invalid responses so the mixed response is next in queue
+    api.mockedResponses = @[]
+    api.mockedResponses.add(
+      HTTPResponse(
+        body: %*{
+          "identifier": {"type": "dns", "value": "example.com"},
+          "status": "pending",
+          "challenges": [
+            {
+              "type": "dns-persist-01",
+              "url": "http://example.com/unknown-challenge",
+              "status": "pending",
+              "token": "unknown-token",
+            },
+            {
+              "type": "dns-01",
+              "url": "http://example.com/recognized-challenge",
+              "status": "pending",
+              "token": "recognized-token",
+            },
+          ],
+        },
+        headers: HttpTable.init(),
+      )
+    )
+
+    let mixedAuthResp = await api.requestAuthorizations(@["auth-3"], key, "kid")
+    check mixedAuthResp.challenges.len == 2
+
+    # replenish invalid responses for the remaining expect(ACMEError) blocks
+    for _ in 0 .. 5:
+      api.mockedResponses.add(
+        HTTPResponse(
+          body: %*{"inexistent field": "invalid value"}, headers: HttpTable.init()
+        )
+      )
+
+    expect(ACMEError):
+      discard await api.requestChallenge(@["domain-1", "domain-2"], key, "kid")
+
+    expect(ACMEError):
+      discard await api.requestCheck(
+        parseUri("http://example.com/some-check-url"),
+        ACMECheckKind.ACMEOrderCheck,
+        key,
+        "kid",
+      )
+
+    expect(ACMEError):
+      discard await api.requestCheck(
+        parseUri("http://example.com/some-check-url"),
+        ACMECheckKind.ACMEChallengeCheck,
+        key,
+        "kid",
+      )
+
+    expect(ACMEError):
+      discard await api.sendChallengeCompleted(
+        parseUri("http://example.com/some-chal-url"), key, "kid"
+      )
+
+    expect(ACMEError):
+      discard await api.requestFinalize(
+        "some-domain",
+        parseUri("http://example.com/some-finalize-url"),
+        KeyPair.random(PKScheme.RSA, rng()).get,
+        key,
+        "kid",
+      )
+
+    expect(ACMEError):
+      discard await api.requestGetOrder(parseUri("http://example.com/some-order-url"))
+
+suite "AutoTLS ACME Client":
+  var acmeApi {.threadvar.}: MockACMEApi
+  var acme {.threadvar.}: ACMEClient
+
+  asyncSetup:
+    acmeApi = await MockACMEApi.new()
+
+  asyncTeardown:
+    await acme.close()
+    checkTrackers()
+
+  asyncTest "client registers new account when instantiated":
+    acmeApi.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "valid"},
+        headers: HttpTable.init(@[("location", "some-expected-kid")]),
+      )
+    )
+
+    acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi))
+    let kid = await acme.getOrInitKid()
+    check kid == "some-expected-kid"
+
+  asyncTest "getCertificate succeeds on sendChallengeCompleted but fails on requestFinalize":
+    # register successful
+    acmeApi.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "valid"},
+        headers: HttpTable.init(@[("location", "some-expected-kid")]),
+      )
+    )
+    # request completed successful
+    acmeApi.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"url": "http://example.com/some-check-url"}, headers: HttpTable.init()
+      )
+    )
+    # finalize is invalid
+    # first request is processing, then invalid
+    acmeApi.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "processing"},
+        headers: HttpTable.init(@[("Retry-After", "0")]),
+      )
+    )
+    acmeApi.mockedResponses.add(
+      HTTPResponse(
+        body: %*{"status": "invalid"}, headers: HttpTable.init(@[("Retry-After", "0")])
+      )
+    )
+    acme = ACMEClient.new(rng = rng(), api = ACMEApi(acmeApi))
+    let kid = await acme.getOrInitKid()
+    check kid == "some-expected-kid"
+
+    let challenge = ACMEChallengeDns01Response(
+      finalize: "https://finalize.com",
+      order: "https://order.com",
+      dns01: ACMEChallenge(
+        url: "https://some.domain",
+        `type`: ACMEChallengeType.DNS01,
+        status: ACMEChallengeStatus.VALID,
+        token: ACMEChallengeToken("some-token"),
+      ),
+    )
+    expect(ACMEError):
+      discard await acme.getCertificate(
+        api.Domain("some.domain"), KeyPair.random(PKScheme.RSA, rng()).get, challenge
+      )
