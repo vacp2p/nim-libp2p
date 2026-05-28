@@ -249,9 +249,15 @@ proc handlePartialRPC(
     peerState.receivedPartsMetadata = Opt.some(rpc.partsMetadata)
     groupState.heartbeatsTillEviction = ext.config.heartbeatsTillEviction
 
-  let nodeRequestsPartial = ext.config.nodeTopicOpts(rpc.topicID).requestsPartial
-  if not nodeRequestsPartial:
-    # node is not interested in partial messages for this topic
+  let nodeTopicOpts = ext.config.nodeTopicOpts(rpc.topicID)
+  let peerTopicOpts =
+    ext.peerTopicOpts.getOrDefault(PeerTopicKey.new(peerId, rpc.topicID))
+  let shouldHandlePartialRPC =
+    nodeTopicOpts.requestsPartial or
+    (nodeTopicOpts.supportsSendingPartial and peerTopicOpts.requestsPartial)
+  if not shouldHandlePartialRPC:
+    # node neither requests partial messages nor serves them for this topic,
+    # and the sending peer did not announce that it requests partials.
     return
 
   ext.config.onIncomingRPC(peerId, rpc)
