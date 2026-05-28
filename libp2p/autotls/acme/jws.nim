@@ -11,41 +11,40 @@
 ## is vendored. This replaces the former `nim-jwt` dependency, of which only
 ## this slice was ever used.
 
-when defined(libp2p_autotls_support):
-  import json
-  import results
-  import stew/byteutils
-  import ./utils
-  import ../../crypto/rsa
+import json
+import results
+import stew/byteutils
+import ./utils
+import ../../crypto/rsa
 
-  const SupportedAlg = "RS256"
+const SupportedAlg = "RS256"
 
-  proc toFlattenedJws*(
-      protectedHeader: JsonNode, payload: JsonNode, key: rsa.RsaPrivateKey
-  ): JsonNode {.raises: [ACMEError].} =
-    ## Signs `protectedHeader`/`payload` with `key` (RS256) and returns the
-    ## flattened JWS JSON serialization: the base64url-encoded `protected`,
-    ## `payload` and `signature` members.
-    ##
-    ## The signature covers `BASE64URL(protected) || '.' || BASE64URL(payload)`
-    ## exactly as transmitted, so the JSON key ordering of the inputs does not
-    ## affect verification.
-    let alg = protectedHeader{"alg"}.getStr()
-    if alg != SupportedAlg:
-      raise newException(ACMEError, "Unsupported JWS algorithm: " & alg)
+proc toFlattenedJws*(
+    protectedHeader: JsonNode, payload: JsonNode, key: rsa.RsaPrivateKey
+): JsonNode {.raises: [ACMEError].} =
+  ## Signs `protectedHeader`/`payload` with `key` (RS256) and returns the
+  ## flattened JWS JSON serialization: the base64url-encoded `protected`,
+  ## `payload` and `signature` members.
+  ##
+  ## The signature covers `BASE64URL(protected) || '.' || BASE64URL(payload)`
+  ## exactly as transmitted, so the JSON key ordering of the inputs does not
+  ## affect verification.
+  let alg = protectedHeader{"alg"}.getStr()
+  if alg != SupportedAlg:
+    raise newException(ACMEError, "Unsupported JWS algorithm: " & alg)
 
-    let
-      protectedB64 = base64UrlEncode(($protectedHeader).toBytes)
-      payloadB64 = base64UrlEncode(($payload).toBytes)
-      signingInput = protectedB64 & "." & payloadB64
+  let
+    protectedB64 = base64UrlEncode(($protectedHeader).toBytes)
+    payloadB64 = base64UrlEncode(($payload).toBytes)
+    signingInput = protectedB64 & "." & payloadB64
 
-    let signature = key.sign(signingInput).valueOr:
-      raise newException(ACMEError, "Failed to create JWS signature")
-    let signatureBytes = signature.getBytes().valueOr:
-      raise newException(ACMEError, "Failed to encode JWS signature bytes")
+  let signature = key.sign(signingInput).valueOr:
+    raise newException(ACMEError, "Failed to create JWS signature")
+  let signatureBytes = signature.getBytes().valueOr:
+    raise newException(ACMEError, "Failed to encode JWS signature bytes")
 
-    %*{
-      "payload": payloadB64,
-      "protected": protectedB64,
-      "signature": base64UrlEncode(signatureBytes),
-    }
+  %*{
+    "payload": payloadB64,
+    "protected": protectedB64,
+    "signature": base64UrlEncode(signatureBytes),
+  }

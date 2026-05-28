@@ -136,6 +136,8 @@ method start*(self: HPService, switch: Switch) {.async: (raises: [CancelledError
 
 method stop*(self: HPService, switch: Switch) {.async: (raises: [CancelledError]).} =
   await self.autonatService.stop(switch)
+  if self.autoRelayService.isRunning():
+    await self.autoRelayService.stop(switch)
   if not isNil(self.newConnectedPeerHandler):
     switch.connManager.removePeerEventHandler(
       self.newConnectedPeerHandler, PeerEventKind.Identified
