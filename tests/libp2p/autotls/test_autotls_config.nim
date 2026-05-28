@@ -21,7 +21,7 @@ when defined(libp2p_autotls_support):
         config.acmeServerURL == parseUri(LetsEncryptURL)
         config.renewCheckTime == DefaultRenewCheckTime
         config.renewBufferTime == DefaultRenewBufferTime
-        config.brokerURL == AutoTLSBroker
+        config.brokerURL == DefaultBrokerURL
         config.dnsServerURL == AutoTLSDNSServer
         config.dnsRetries == 10
         config.dnsRetryTime == 1.seconds
@@ -81,5 +81,5 @@ when defined(libp2p_autotls_support):
         config2.acmeServerURL == parseUri(LetsEncryptURLStaging)
         config2.renewCheckTime == 5.minutes
         # New fields should have default values
-        config1.brokerURL == AutoTLSBroker
-        config2.brokerURL == AutoTLSBroker
+        config1.brokerURL == DefaultBrokerURL
+        config2.brokerURL == DefaultBrokerURL
