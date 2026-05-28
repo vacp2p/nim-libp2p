@@ -410,12 +410,23 @@ proc tInitOrDefault(ticket: Opt[Ticket], default: Moment): Moment =
   else:
     default
 
+proc getCloserPeers(
+    disco: ServiceDiscovery, serviceId: ServiceId, count: int
+): seq[Peer] =
+  let table = disco.rtManager.getTable(serviceId).get(disco.rtable)
+
+  let keys = table.findClosest(serviceId, count)
+
+  return disco.switch.toPeers(keys)
+
 proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Message =
   let serviceId = inMsg.key
 
   # Add peer to both tables
   discard disco.rtable.insert(peerId)
   disco.rtManager.insertPeer(serviceId, peerId.toKey())
+
+  let closerPeers = disco.getCloserPeers(serviceId, disco.discoConfig.fReturn)
 
   var msg = Message(
     msgType: MessageType.register,
@@ -426,7 +437,7 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
         ticket: Opt.none(Ticket),
       )
     ),
-    closerPeers: @[],
+    closerPeers: closerPeers,
   )
 
   let regMsg = inMsg.register.valueOr:
@@ -461,10 +472,6 @@ proc registration*(disco: ServiceDiscovery, peerId: PeerId, inMsg: Message): Mes
     cd_register_requests.inc(
       labelValues = [$kademlia_protobuf.RegistrationStatus.Confirmed]
     )
-
-    let closerKeys = disco.rtManager.findClosest(serviceId, disco.discoConfig.fReturn)
-
-    msg.closerPeers = disco.switch.toPeers(closerKeys)
 
     return msg
 
@@ -506,12 +513,12 @@ proc getAdvertisements*(
 
   let cap = disco.discoConfig.fReturn
 
-  let closerKeys = disco.rtManager.findClosest(serviceId, cap)
+  let closerPeers = disco.getCloserPeers(serviceId, cap)
 
   let response = Message(
     msgType: MessageType.getAds,
     getAds: Opt.some(GetAdsMessage(advertisements: ads.encode(cap))),
-    closerPeers: disco.switch.toPeers(closerKeys),
+    closerPeers: closerPeers,
   )
 
   return response

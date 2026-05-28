@@ -101,14 +101,6 @@ proc insertPeer*(
     cd_service_table_insertions.inc()
     manager.updateServiceTablesMetrics()
 
-proc findClosest*(
-    manager: ServiceRoutingTableManager, serviceId: ServiceId, count: int
-): seq[Key] =
-  let serviceTable = manager.getTable(serviceId).valueOr:
-    return @[]
-
-  return serviceTable.findClosest(serviceId, count)
-
 proc hasService*(
     manager: ServiceRoutingTableManager, serviceId: ServiceId
 ): bool {.inline.} =
