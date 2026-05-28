@@ -124,9 +124,8 @@ suite "KadDHT Routing Table":
     # Service discovery tables use pre-hashed serviceId as self + targets.
     # findClosest must compute dist(target_raw, H(peer)) not H(target) to match bucketIndex.
     let selfId = testKey(0)
-    let config = RoutingTableConfig.new(
-      hasher = Opt.none(XorDHasher), selfIdPreHashed = true
-    )
+    let config =
+      RoutingTableConfig.new(hasher = Opt.none(XorDHasher), selfIdPreHashed = true)
     var rt = RoutingTable.new(selfId, config)
     let p1 = testKey(1)
     let p2 = testKey(2)
@@ -134,7 +133,8 @@ suite "KadDHT Routing Table":
     for p in [p1, p2, p3]:
       discard rt.insert(p)
 
-    let target = testKey(0x10)  # stands in for a hashServiceId() result (already in ID space)
+    let target = testKey(0x10)
+      # stands in for a hashServiceId() result (already in ID space)
     let res = rt.findClosest(target, 3)
 
     # Expected order uses the *correct* prehashed metric (raw target vs hashed peers).
@@ -144,8 +144,7 @@ suite "KadDHT Routing Table":
     expected.sort(
       proc(a, b: Key): int =
         cmp(
-          xorDistance(a.hashFor(hasher), target),
-          xorDistance(b.hashFor(hasher), target),
+          xorDistance(a.hashFor(hasher), target), xorDistance(b.hashFor(hasher), target)
         )
     )
     check res == expected
