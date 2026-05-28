@@ -1093,14 +1093,18 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let oldAd = SignedExtendedPeerRecord
       .init(
         privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 1, addresses: @[], services: @[makeServiceInfo(svc)]),
+        ExtendedPeerRecord(
+          peerId: peerId, seqNo: 1, addresses: @[], services: @[makeServiceInfo(svc)]
+        ),
       )
       .get()
 
     let newAd = SignedExtendedPeerRecord
       .init(
         privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 2, addresses: @[], services: @[makeServiceInfo(svc)]),
+        ExtendedPeerRecord(
+          peerId: peerId, seqNo: 2, addresses: @[], services: @[makeServiceInfo(svc)]
+        ),
       )
       .get()
 
@@ -1124,14 +1128,18 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let newerAd = SignedExtendedPeerRecord
       .init(
         privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 10, addresses: @[], services: @[makeServiceInfo(svc)]),
+        ExtendedPeerRecord(
+          peerId: peerId, seqNo: 10, addresses: @[], services: @[makeServiceInfo(svc)]
+        ),
       )
       .get()
 
     let olderAd = SignedExtendedPeerRecord
       .init(
         privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 5, addresses: @[], services: @[makeServiceInfo(svc)]),
+        ExtendedPeerRecord(
+          peerId: peerId, seqNo: 5, addresses: @[], services: @[makeServiceInfo(svc)]
+        ),
       )
       .get()
 
