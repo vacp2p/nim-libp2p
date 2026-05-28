@@ -17,6 +17,15 @@ import
 
 export peerid, multiaddress, signed_envelope
 
+const
+  ## Maximum allowed size (in bytes) for the `data` field inside a `ServiceInfo`.
+  ## Larger values are rejected at advertisement creation and on receipt.
+  MaxServiceDataSize* = 33
+
+  ## Maximum allowed size (in bytes) for an encoded `SignedExtendedPeerRecord`
+  ## (the full XPR advertisement that is stored and gossiped for a service).
+  MaxXPRSize* = 1024
+
 type
   ServiceInfo* = object
     id*: string

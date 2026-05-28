@@ -20,12 +20,19 @@ type GetAdsResult = object
 proc validAds(ads: seq[seq[byte]], serviceId: ServiceId): seq[Advertisement] =
   var validAds: seq[Advertisement] = @[]
   for adBuf in ads:
+    if adBuf.len == 0 or adBuf.len > MaxXPRSize:
+      continue
+
     let ad = Advertisement.decode(adBuf).valueOr:
       error "failed to decode advertisement", error
       continue
 
     if not ad.advertisesService(serviceId):
       error "advert service mismatch", serviceId
+      continue
+
+    if ad.data.services.anyIt(it.data.len > MaxServiceDataSize):
+      error "advertisement contains oversized service data", serviceId
       continue
 
     validAds.add(ad)

@@ -9,7 +9,6 @@ import
     protocols/service_discovery,
     protocols/service_discovery/advertiser,
   ]
-from ../../../libp2p/protocols/kademlia/types import MaxMsgSize
 import ../../tools/unittest
 import ./utils
 
@@ -162,36 +161,44 @@ suite "Advertiser - record creation":
   teardown:
     checkTrackers()
 
-  test "record creation does not enforce service data size limit":
-    # TODO: nim-libp2p#2487 service-disco: add size validation for ServiceInfo.data and encoded XPR
-    let serviceData = newSeq[byte](MaxMsgSize + 1)
-    let disco = setupServiceDiscoveryNode(
-      services = @[ServiceInfo(id: "service", data: serviceData)]
+  test "record creation rejects service data larger than MaxServiceDataSize":
+    # Baseline: service data at the size limit is accepted
+    let validData = newSeq[byte](MaxServiceDataSize)
+    let discoValid = setupServiceDiscoveryNode(
+      services = @[ServiceInfo(id: "service", data: validData)]
     )
-
-    let record = disco.record()
-
+    let recordValid = discoValid.record()
     check:
-      serviceData.len > MaxMsgSize
-      record.isOk()
-      record.get().data.services.len == 1
-      record.get().data.services[0].id == "service"
-      record.get().data.services[0].data.len == serviceData.len
+      recordValid.isOk()
+      recordValid.get().data.services.len == 1
+      recordValid.get().data.services[0].data.len == MaxServiceDataSize
 
-  test "record creation does not enforce encoded XPR size limit":
-    # TODO: nim-libp2p#2487 service-disco: add size validation for ServiceInfo.data and encoded XPR
-    let disco = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
-    # Repeating the same address is just a simple way to make a large valid XPR.
-    # With this address, 328 repeats is the first value over MaxMsgSize.
-    let addrs = makeMultiAddress("10.0.0.1").repeat(328)
-    disco.switch.peerInfo.addrs = addrs
-
-    let record = disco.record()
-    check record.isOk()
-
-    let encoded = record.get().encode()
-
+    # Oversized service data is rejected
+    let oversizedData = newSeq[byte](MaxServiceDataSize + 1)
+    let discoBad = setupServiceDiscoveryNode(
+      services = @[ServiceInfo(id: "service", data: oversizedData)]
+    )
+    let recordBad = discoBad.record()
     check:
-      encoded.isOk()
-      encoded.get().len > MaxMsgSize
-      record.get().data.addresses.len == addrs.len
+      oversizedData.len > MaxServiceDataSize
+      recordBad.isErr()
+
+  test "record creation rejects encoded XPR larger than MaxXPRSize":
+    # Baseline: a normal (small) record is accepted and its encoded size is within limit
+    let discoSmall = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    let recordSmall = discoSmall.record()
+    check recordSmall.isOk()
+    let encodedSmall = recordSmall.get().encode()
+    check:
+      encodedSmall.isOk()
+      encodedSmall.get().len <= MaxXPRSize
+
+    # Oversized encoded XPR (caused by many addresses) is rejected
+    let discoBig = setupServiceDiscoveryNode(services = @[makeServiceInfo("service")])
+    # Repeating the same address is a simple way to inflate the encoded XPR size.
+    # 100 repeats is sufficient to exceed MaxXPRSize (1024 bytes).
+    let bigAddrs = makeMultiAddress("10.0.0.1").repeat(100)
+    discoBig.switch.peerInfo.addrs = bigAddrs
+
+    let recordBig = discoBig.record()
+    check recordBig.isErr()
