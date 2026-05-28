@@ -452,13 +452,18 @@ proc privateAddr(port: int = 9000): MultiAddress =
 # Tests
 # ---------------------------------------------------------------------------
 
-asyncTest "natModeUpnp announces external IP after successful mapping":
+asyncTest "Upnp announces external IP after successful mapping":
   let
     externalIp = parseIpAddress("203.0.113.42")
     mapper = newMockOk(externalIp)
     factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
       mapper
-    cfg = upnpConfig(refreshInterval = 1.hours)
+    cfg = NATConfig(
+      mode: Upnp,
+      refreshInterval: 1.hours,
+      discoveryTimeout: DefaultDiscoveryTimeout,
+      leaseDuration: DefaultLeaseDuration,
+    )
     switch = makeSwitch(cfg, @[loopbackAddr()], factory)
     svc = findNatService(switch)
 
@@ -476,9 +481,14 @@ asyncTest "natModeUpnp announces external IP after successful mapping":
   check annTa.address_v4 == externalIp.address_v4
   check annTa.port == Port(9000)
 
-asyncTest "natModeUpnp discovery failure leaves announced empty":
+asyncTest "Upnp discovery failure leaves announced empty":
   let
-    cfg = upnpConfig(refreshInterval = 1.hours)
+    cfg = NATConfig(
+      mode: Upnp,
+      refreshInterval: 1.hours,
+      discoveryTimeout: DefaultDiscoveryTimeout,
+      leaseDuration: DefaultLeaseDuration,
+    )
     switch = makeSwitch(cfg, @[loopbackAddr()], mockFactoryFail())
     svc = findNatService(switch)
 
@@ -490,7 +500,7 @@ asyncTest "natModeUpnp discovery failure leaves announced empty":
   check announced.len == 0
   check svc.externalIp.isNone
 
-asyncTest "natModeUpnp refresh loop reissues map calls":
+asyncTest "Upnp refresh loop reissues map calls":
   let
     externalIp = parseIpAddress("203.0.113.55")
     mapper = newMockOk(externalIp)
@@ -499,7 +509,12 @@ asyncTest "natModeUpnp refresh loop reissues map calls":
   let
     factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
       mapper
-    cfg = upnpConfig(refreshInterval = 50.milliseconds)
+    cfg = NATConfig(
+      mode: Upnp,
+      refreshInterval: 50.milliseconds,
+      discoveryTimeout: DefaultDiscoveryTimeout,
+      leaseDuration: DefaultLeaseDuration,
+    )
     switch = makeSwitch(cfg, @[loopbackAddr()], factory)
 
   await switch.start()
@@ -518,13 +533,18 @@ asyncTest "natModeUpnp refresh loop reissues map calls":
   await mapper.mapEvent.wait()
   check mapper.mapCalls.len > firstCalls
 
-asyncTest "natModeUpnp stop unmaps all created mappings":
+asyncTest "Upnp stop unmaps all created mappings":
   let
     externalIp = parseIpAddress("203.0.113.7")
     mapper = newMockOk(externalIp)
     factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
       mapper
-    cfg = upnpConfig(refreshInterval = 1.hours)
+    cfg = NATConfig(
+      mode: Upnp,
+      refreshInterval: 1.hours,
+      discoveryTimeout: DefaultDiscoveryTimeout,
+      leaseDuration: DefaultLeaseDuration,
+    )
     switch = makeSwitch(cfg, @[loopbackAddr()], factory)
     svc = findNatService(switch)
 
@@ -539,13 +559,18 @@ asyncTest "natModeUpnp stop unmaps all created mappings":
   check mapper.unmapCalls.len == mapsBefore
   check mapper.closed
 
-asyncTest "natModeNatPmp announces external IP after successful mapping":
+asyncTest "NatPmp announces external IP after successful mapping":
   let
     externalIp = parseIpAddress("203.0.113.99")
     mapper = newMockOk(externalIp)
     factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
       mapper
-    cfg = natPmpConfig(refreshInterval = 1.hours)
+    cfg = NATConfig(
+      mode: NatPmp,
+      refreshInterval: 1.hours,
+      discoveryTimeout: DefaultDiscoveryTimeout,
+      leaseDuration: DefaultLeaseDuration,
+    )
     switch = makeSwitch(cfg, @[loopbackAddr()], factory)
     svc = findNatService(switch)
 
@@ -564,7 +589,12 @@ asyncTest "non-private listen addresses are skipped":
     mapper = newMockOk(externalIp)
     factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
       mapper
-    cfg = upnpConfig(refreshInterval = 1.hours)
+    cfg = NATConfig(
+      mode: Upnp,
+      refreshInterval: 1.hours,
+      discoveryTimeout: DefaultDiscoveryTimeout,
+      leaseDuration: DefaultLeaseDuration,
+    )
     switch = makeSwitch(cfg, @[loopbackAddr()], factory)
     svc = findNatService(switch)
 
@@ -591,7 +621,12 @@ asyncTest "user-set announcedAddrs are not overwritten":
     mapper = newMockOk(externalIp)
     factory = proc(mode: NATMode): PortMapper {.gcsafe, raises: [].} =
       mapper
-    cfg = upnpConfig(refreshInterval = 1.hours)
+    cfg = NATConfig(
+      mode: Upnp,
+      refreshInterval: 1.hours,
+      discoveryTimeout: DefaultDiscoveryTimeout,
+      leaseDuration: DefaultLeaseDuration,
+    )
     switch = makeSwitch(cfg, @[loopbackAddr()], factory)
 
   switch.peerInfo.announcedAddrs = @[userAddr]
