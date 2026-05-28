@@ -139,6 +139,7 @@ proc handlePutValue*(
   if value.len > kad.config.limits.maxValueSize:
     debug "PUT_VALUE dropped: value exceeds maxValueSize",
       stream = stream, size = value.len, cap = kad.config.limits.maxValueSize
+    await stream.reset()
     return
 
   let entryRecord = EntryRecord(value: value, time: Timestamp.now())

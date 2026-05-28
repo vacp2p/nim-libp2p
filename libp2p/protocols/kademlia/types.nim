@@ -30,16 +30,18 @@ const
     # KV entries older than this are considered stale and will be evicted
   DefaultCleanupDataEntriesInterval* = 1.hours # how often to scan for stale KV entries
 
+  MaxMsgSize* = 4096
+
   DefaultMaxProvidersPerKey* = 20 ## upper bound on providers stored per key
   DefaultMaxShortlistSize* = DefaultReplication * 2
     ## upper bound on iterative-lookup shortlist
   DefaultMaxReceivedSize* = DefaultReplication
     ## upper bound on per-query ``ReceivedTable``
-  DefaultMaxValueSize* = 8 * 1024 ## upper bound (bytes) on a stored record value
+  DefaultMaxValueSize* = MaxMsgSize
+    ## upper bound (bytes) on a stored record value; kept equal to MaxMsgSize
+    ## so that accepted values can always be transmitted in a single LP frame
   DefaultMaxConcurrentRpcs* = 100
     ## upper bound on in-flight outbound RPCs across find/get/put/provider
-
-  MaxMsgSize* = 4096
 
 type Key* = seq[byte]
 

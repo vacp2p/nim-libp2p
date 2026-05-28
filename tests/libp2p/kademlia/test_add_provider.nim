@@ -565,8 +565,9 @@ suite "KadDHT - ADD_PROVIDER Rejection":
     check status.isOk()
     # No reply sent by receiver → sender treats absence of reply as accepted
     check status.value() == AddProviderStatus.accepted
-    # Limit enforced silently: still only one record at the receiver
-    await sleepAsync(200.milliseconds)
+    # Limit enforced silently: still only one record at the receiver.
+    # sendAddProviderAndGetStatus already waited for the reply timeout, so the
+    # receiver has finished processing by the time we reach this check.
     check receiverKad.providerManager.providerRecords.len == 1
 
   asyncTest "providerRejection=true: receiver enforces limit and rejects":

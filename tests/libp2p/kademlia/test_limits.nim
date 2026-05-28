@@ -8,7 +8,7 @@ import ../../../libp2p/[protocols/kademlia, switch, builders]
 import ../../tools/[lifecycle, topology, unittest]
 import ./utils.nim
 
-trace "chronicles has to be imported to fix Error: undeclared identifier: 'activeChroniclesStream'"
+# chronicles must be imported to avoid "undeclared identifier: 'activeChroniclesStream'"
 
 suite "KadDHT - Limits":
   teardown:
@@ -93,7 +93,8 @@ suite "KadDHT - Limits":
     discard await kads[1].putValue(key, value)
 
     # Sender stores locally (under its own cap); receiver drops the wire copy.
-    await sleepAsync(200.milliseconds)
+    # putValue awaited the full RPC batch, so the receiver has already processed
+    # (and dropped) the message by the time we reach this check.
     check:
       kads[1].containsData(key, value)
       kads[0].containsNoData(key)
@@ -118,9 +119,9 @@ suite "KadDHT - Limits":
     check res.value().value == value
 
   asyncTest "rpcSem bounds concurrent in-flight RPCs":
-    # With a 1-slot semaphore the second concurrent dispatchFindNode is forced
-    # to wait until the first releases — easy to observe by checking that the
-    # semaphore count never goes negative and reaches 0 mid-flight.
+    # With a 1-slot semaphore the second concurrent dispatchFindNode must wait
+    # for the first to release before it can start. We verify this by checking
+    # availableSlots mid-flight (should be 0) and after completion (should be 1).
     let kads = setupKadSwitches(2)
     startAndDeferStop(kads)
     await connect(kads[0], kads[1])
@@ -131,7 +132,12 @@ suite "KadDHT - Limits":
     let target = kads[1].rtable.selfId
     let f1 = kads[0].dispatchFindNode(kads[1].switch.peerInfo.peerId, target)
     let f2 = kads[0].dispatchFindNode(kads[1].switch.peerInfo.peerId, target)
+    # Yield so both coroutines get a chance to start; with a 1-slot semaphore
+    # f1 holds the slot (suspended in dial) while f2 is blocked on acquire.
+    await sleepAsync(0)
+    check kads[0].rpcSem.availableSlots == 0
     await allFutures(f1, f2)
     check:
+      kads[0].rpcSem.availableSlots == 1
       f1.read().isOk()
       f2.read().isOk()
