@@ -21,7 +21,6 @@ NIM_FLAGS = \
   -f \
   --threads:on \
   --opt:speed \
-  -d:libp2p_autotls_support \
   $(NIMFLAGS)
 
 RUNNER_FLAGS = --output-level=VERBOSE --console
