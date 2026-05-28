@@ -125,7 +125,7 @@ suite "Service Discovery Component - Lookup Get Ads":
     for _ in 0 ..< 4:
       let ad = makeAdvertisement(serviceName)
       let now = Moment.now()
-      registrarNode.acceptAdvertisement(now, serviceId, ad)
+      registrarNode.acceptAdvertisement(now, ad)
 
     let found = await discovererNode.lookup(serviceId)
     check found.isOk()

@@ -1061,11 +1061,12 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
     let now = Moment.now()
+    let svcKey = ad.advertisedServices()[0]
 
-    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(now, ad)
 
-    check disco.registrar.cache.getOrDefault(serviceId).len == 1
-    check disco.registrar.cache[serviceId][0].data.peerId == ad.data.peerId
+    check disco.registrar.cache.getOrDefault(svcKey).len == 1
+    check disco.registrar.cache[svcKey][0].data.peerId == ad.data.peerId
 
   test "same peer same seqNo is treated as duplicate and not added again":
     let disco =
@@ -1073,69 +1074,72 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
     let now = Moment.now()
+    let svcKey = ad.advertisedServices()[0]
 
-    disco.acceptAdvertisement(now, serviceId, ad)
-    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(now, ad)
+    disco.acceptAdvertisement(now, ad)
 
-    check disco.registrar.cache[serviceId].len == 1
+    check disco.registrar.cache[svcKey].len == 1
 
   test "same peer higher seqNo replaces existing ad":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
-    let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng()).get()
     let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
+    let svc = "seqno-higher-svc"
+    let svcKey = svc.hashServiceId()
 
     let oldAd = SignedExtendedPeerRecord
       .init(
         privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 1, addresses: @[], services: @[]),
+        ExtendedPeerRecord(peerId: peerId, seqNo: 1, addresses: @[], services: @[makeServiceInfo(svc)]),
       )
       .get()
 
     let newAd = SignedExtendedPeerRecord
       .init(
         privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 2, addresses: @[], services: @[]),
+        ExtendedPeerRecord(peerId: peerId, seqNo: 2, addresses: @[], services: @[makeServiceInfo(svc)]),
       )
       .get()
 
-    disco.acceptAdvertisement(now, serviceId, oldAd)
-    check disco.registrar.cache[serviceId][0].data.seqNo == 1
+    disco.acceptAdvertisement(now, oldAd)
+    check disco.registrar.cache[svcKey][0].data.seqNo == 1
 
-    disco.acceptAdvertisement(now, serviceId, newAd)
+    disco.acceptAdvertisement(now, newAd)
 
-    check disco.registrar.cache[serviceId].len == 1
-    check disco.registrar.cache[serviceId][0].data.seqNo == 2
+    check disco.registrar.cache[svcKey].len == 1
+    check disco.registrar.cache[svcKey][0].data.seqNo == 2
 
   test "same peer lower seqNo is silently dropped":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
-    let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng()).get()
     let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
+    let svc = "seqno-lower-svc"
+    let svcKey = svc.hashServiceId()
 
     let newerAd = SignedExtendedPeerRecord
       .init(
         privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 10, addresses: @[], services: @[]),
+        ExtendedPeerRecord(peerId: peerId, seqNo: 10, addresses: @[], services: @[makeServiceInfo(svc)]),
       )
       .get()
 
     let olderAd = SignedExtendedPeerRecord
       .init(
         privateKey,
-        ExtendedPeerRecord(peerId: peerId, seqNo: 5, addresses: @[], services: @[]),
+        ExtendedPeerRecord(peerId: peerId, seqNo: 5, addresses: @[], services: @[makeServiceInfo(svc)]),
       )
       .get()
 
-    disco.acceptAdvertisement(now, serviceId, newerAd)
-    disco.acceptAdvertisement(now, serviceId, olderAd)
+    disco.acceptAdvertisement(now, newerAd)
+    disco.acceptAdvertisement(now, olderAd)
 
-    check disco.registrar.cache[serviceId].len == 1
-    check disco.registrar.cache[serviceId][0].data.seqNo == 10
+    check disco.registrar.cache[svcKey].len == 1
+    check disco.registrar.cache[svcKey][0].data.seqNo == 10
 
   test "different peers each store their own ad":
     let disco =
@@ -1144,19 +1148,21 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
     let ad1 = makeAdvertisement($serviceId)
     let ad2 = makeAdvertisement($serviceId)
     let now = Moment.now()
+    let svcKey = ad1.advertisedServices()[0]
 
-    disco.acceptAdvertisement(now, serviceId, ad1)
-    disco.acceptAdvertisement(now, serviceId, ad2)
+    disco.acceptAdvertisement(now, ad1)
+    disco.acceptAdvertisement(now, ad2)
 
-    check disco.registrar.cache[serviceId].len == 2
+    check disco.registrar.cache[svcKey].len == 2
 
   test "seqNo replacement updates IP tree correctly":
     let disco =
       setupServiceDiscoveryNode(discoConfig = ServiceDiscoveryConfig.new(fReturn = 3))
-    let serviceId = makeServiceId()
     let privateKey = PrivateKey.random(rng()).get()
     let peerId = PeerId.init(privateKey).get()
     let now = Moment.now()
+    let svc = "seqno-ip2-svc"
+    let svcKey = svc.hashServiceId()
 
     let oldAd = SignedExtendedPeerRecord
       .init(
@@ -1165,7 +1171,7 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
           peerId: peerId,
           seqNo: 1,
           addresses: @[AddressInfo(address: makeMultiAddress("10.0.0.1"))],
-          services: @[],
+          services: @[makeServiceInfo(svc)],
         ),
       )
       .get()
@@ -1177,19 +1183,19 @@ suite "Service Discovery Registrar - acceptAdvertisement seqNo handling":
           peerId: peerId,
           seqNo: 2,
           addresses: @[AddressInfo(address: makeMultiAddress("10.0.0.2"))],
-          services: @[],
+          services: @[makeServiceInfo(svc)],
         ),
       )
       .get()
 
-    disco.acceptAdvertisement(now, serviceId, oldAd)
+    disco.acceptAdvertisement(now, oldAd)
     let counterAfterFirst = disco.registrar.ipTree.root.counter
     check counterAfterFirst > 0
 
-    disco.acceptAdvertisement(now, serviceId, newAd)
+    disco.acceptAdvertisement(now, newAd)
 
-    check disco.registrar.cache[serviceId].len == 1
-    check disco.registrar.cache[serviceId][0].data.seqNo == 2
+    check disco.registrar.cache[svcKey].len == 1
+    check disco.registrar.cache[svcKey][0].data.seqNo == 2
     check disco.registrar.ipTree.root.counter == counterAfterFirst
 
 suite "Service Discovery Registrar - waitingTime never negative":
@@ -1232,11 +1238,12 @@ suite "Service Discovery Registrar - concurrent same-peer registration":
     let serviceId = makeServiceId()
     let ad = makeAdvertisement($serviceId)
     let now = Moment.now()
+    let svcKey = ad.advertisedServices()[0]
 
-    disco.acceptAdvertisement(now, serviceId, ad)
-    disco.acceptAdvertisement(now, serviceId, ad)
+    disco.acceptAdvertisement(now, ad)
+    disco.acceptAdvertisement(now, ad)
 
-    check disco.registrar.cache[serviceId].len == 1
+    check disco.registrar.cache[svcKey].len == 1
 
 suite "Service Discovery Registrar - updateExistingAd":
   test "same seqNo refreshes timestamp and returns false":

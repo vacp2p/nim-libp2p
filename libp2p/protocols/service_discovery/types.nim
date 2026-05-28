@@ -153,6 +153,10 @@ proc advertisesService*(ad: Advertisement, serviceId: ServiceId): bool =
       return true
   false
 
+proc advertisedServices*(ad: Advertisement): seq[ServiceId] {.raises: [].} =
+  ## Return all service IDs advertised by this advertisement.
+  ad.data.services.mapIt(hashServiceId(it.id))
+
 proc new*(T: typedesc[Registrar]): T =
   T(
     cache: initOrderedTable[ServiceId, seq[Advertisement]](),
