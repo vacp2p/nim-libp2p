@@ -14,10 +14,15 @@ type MiniupnpcMapper* = ref object of NATPortMapper
   upnp: Miniupnp
   discovered: bool
 
-proc newMiniupnpcMapper*(): NATPortMapper {.raises: [NATMapperError].} =
+proc new*(T: typedesc[MiniupnpcMapper]): NATPortMapper {.raises: [NATMapperError].} =
   let m = MiniupnpcMapper(upnp: newMiniupnp())
   m.upnp.discoverDelay = 200
   m
+
+func toUpnpProtocol(protocol: NATProtocol): UPNPProtocol =
+  case protocol
+  of NATProtoTcp: UPNPProtocol.TCP
+  of NATProtoUdp: UPNPProtocol.UDP
 
 proc ensureDiscovered(self: MiniupnpcMapper): Result[void, string] =
   if self.discovered:
@@ -52,18 +57,13 @@ method addMapping*(
     description: string,
 ): Result[Port, string] =
   ?self.ensureDiscovered()
-  let proto =
-    case protocol
-    of NATProtoTcp: UPNPProtocol.TCP
-    of NATProtoUdp: UPNPProtocol.UDP
-  let leaseSecs = leaseDuration.seconds
   self.upnp.addPortMapping(
     externalPort = $int(internalPort),
-    protocol = proto,
+    protocol = protocol.toUpnpProtocol(),
     internalHost = self.upnp.lanAddr,
     internalPort = $int(internalPort),
     desc = description,
-    leaseDuration = int(leaseSecs),
+    leaseDuration = int(leaseDuration.seconds),
   ).isOkOr:
     return err($error)
   ok(internalPort)
@@ -73,11 +73,9 @@ method deleteMapping*(
 ): Result[void, string] =
   if not self.discovered:
     return ok()
-  let proto =
-    case protocol
-    of NATProtoTcp: UPNPProtocol.TCP
-    of NATProtoUdp: UPNPProtocol.UDP
-  self.upnp.deletePortMapping(externalPort = $int(externalPort), protocol = proto).isOkOr:
+  self.upnp.deletePortMapping(
+    externalPort = $int(externalPort), protocol = protocol.toUpnpProtocol()
+  ).isOkOr:
     return err($error)
   ok()
 

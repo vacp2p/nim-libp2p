@@ -1283,31 +1283,32 @@ proc getIp*(ma: MultiAddress): Opt[IpAddress] =
 
 proc hasIp*(ma: MultiAddress): bool =
   ## Returns ``true`` if ``ma`` contains an ``/ip4`` or ``/ip6`` component.
-  let
-    ip4 = multiCodec("ip4")
-    ip6 = multiCodec("ip6")
-  for item in ma.items:
-    let part = item.valueOr:
-      return false
-    let code = part.protoCode.valueOr:
-      return false
-    if code == ip4 or code == ip6:
-      return true
-  false
+  ma.contains(multiCodec("ip4")).get(false) or
+    ma.contains(multiCodec("ip6")).get(false)
 
 proc hasPort*(ma: MultiAddress): bool =
   ## Returns ``true`` if ``ma`` contains a ``/tcp`` or ``/udp`` component.
+  ma.contains(multiCodec("tcp")).get(false) or
+    ma.contains(multiCodec("udp")).get(false)
+
+proc getPort*(ma: MultiAddress): Opt[Port] =
+  ## Extract the first ``/tcp`` or ``/udp`` port from ``ma``.
+  ## Returns ``Opt.none`` if no ``/tcp`` or ``/udp`` component is found.
   let
     tcpCodec = multiCodec("tcp")
     udpCodec = multiCodec("udp")
   for item in ma.items:
     let part = item.valueOr:
-      return false
+      return Opt.none(Port)
     let code = part.protoCode.valueOr:
-      return false
+      return Opt.none(Port)
     if code == tcpCodec or code == udpCodec:
-      return true
-  false
+      let portBytes = part.protoArgument.valueOr:
+        return Opt.none(Port)
+      if portBytes.len != 2:
+        return Opt.none(Port)
+      return Opt.some(Port((uint16(portBytes[0]) shl 8) or uint16(portBytes[1])))
+  Opt.none(Port)
 
 proc replacePort*(ma: MultiAddress, port: Port): MaResult[MultiAddress] =
   ## Returns a copy of ``ma`` with its leading /tcp or /udp port replaced by

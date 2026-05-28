@@ -101,13 +101,11 @@ jobs:
         uses: actions/cache@v5
         with:
           path: nimbledeps
-          # nim-nat-traversal vendors miniupnpc and libnatpmp as C sources
-          # that get compiled into static archives (libminiupnpc.a, libnatpmp.a)
-          # that go into nimbledeps/pkgs2/nat_traversal-*/.....
-          # Those archives are platform-specific object code
-          # With the previous key, whichever matrix branch ran first and populated the cache
-          # and every other branch would restore that branch's binary artifacts
-          # and either fail to link or silently link wrong-architecture code.
+          # os/cpu are part of the key because nimbledeps contains
+          # platform-specific static archives (libminiupnpc.a, libnatpmp.a,
+          # ...) built from C sources vendored by nim-nat-traversal. Without
+          # them, the first matrix branch to populate the cache poisons every
+          # other branch with wrong-architecture object code.
           key: nimbledeps-${{ matrix.platform.os }}-${{ matrix.platform.cpu }}-${{ hashFiles('.pinned') }}
 
       - name: Restore llvm-mingw (Windows) from cache

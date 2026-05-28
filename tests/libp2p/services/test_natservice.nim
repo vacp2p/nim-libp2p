@@ -125,9 +125,6 @@ suite "NATService":
       explicitIpMapped(@[ma("/unix/tmp/sock")], ip4).len == 0
 
   test "explicitIpMapped dedupes addresses sharing port across interfaces":
-    proc ma(s: string): MultiAddress =
-      MultiAddress.init(s).get()
-
     let
       ip4 = parseIpAddress("203.0.113.7")
       resolved = @[ma("/ip4/192.168.1.10/tcp/50000"), ma("/ip4/10.0.0.5/tcp/50000")]
@@ -163,9 +160,6 @@ suite "NATService":
     check switch.peerInfo.addrs == switch.peerInfo.listenAddrs
 
   test "gatewayMapped rewrites both IP and port; preserves transport suffix":
-    proc ma(s: string): MultiAddress =
-      MultiAddress.init(s).get()
-
     let
       extIp = parseIpAddress("203.0.113.7")
       mappings = @[
@@ -191,9 +185,6 @@ suite "NATService":
       ]
 
   test "gatewayMapped drops listen addrs whose IP family disagrees with ext IP":
-    proc ma(s: string): MultiAddress =
-      MultiAddress.init(s).get()
-
     let
       extIp = parseIpAddress("203.0.113.7")
       mappings = @[

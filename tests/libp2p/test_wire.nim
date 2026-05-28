@@ -184,9 +184,6 @@ suite "isFilterablePrivateMA":
     )
 
 suite "isPrivateMA":
-  proc ma(s: string): MultiAddress =
-    MultiAddress.init(s).tryGet()
-
   test "RFC1918 IPv4 ranges are private":
     check isPrivateMA(ma("/ip4/10.0.0.1/tcp/4001"))
     check isPrivateMA(ma("/ip4/172.16.0.1/tcp/4001"))

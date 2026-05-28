@@ -97,8 +97,6 @@ proc expandWildcardAddresses(
 
     for family in families:
       for ifaddr in networkInterfaceProvider(family):
-        if not listenAddr.hasIp():
-          continue
         let remapped = listenAddr.replaceIp(ifaddr.host.toIpAddress()).valueOr:
           continue
         addresses.add(remapped)

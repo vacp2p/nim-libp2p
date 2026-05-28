@@ -153,9 +153,9 @@ method setup*(self: NATService, switch: Switch) {.raises: [ServiceSetupError].} 
         self.portMapper =
           case self.config.mode
           of Upnp:
-            newMiniupnpcMapper()
+            MiniupnpcMapper.new()
           of NatPmp:
-            newNatPmpMapper()
+            NatPmpMapper.new()
           else:
             nil
       except NATMapperError as e:

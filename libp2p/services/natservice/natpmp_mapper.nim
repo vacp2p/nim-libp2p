@@ -14,8 +14,13 @@ type NatPmpMapper* = ref object of NATPortMapper
   npmp: NatPmp
   initialized: bool
 
-proc newNatPmpMapper*(): NATPortMapper {.raises: [NATMapperError].} =
+proc new*(T: typedesc[NatPmpMapper]): NATPortMapper {.raises: [NATMapperError].} =
   NatPmpMapper(npmp: newNatPmp())
+
+func toNatPmpProtocol(protocol: NATProtocol): NatPmpProtocol =
+  case protocol
+  of NATProtoTcp: NatPmpProtocol.TCP
+  of NATProtoUdp: NatPmpProtocol.UDP
 
 proc ensureInitialized(self: NatPmpMapper): Result[void, string] =
   if self.initialized:
@@ -42,14 +47,10 @@ method addMapping*(
     description: string,
 ): Result[Port, string] =
   ?self.ensureInitialized()
-  let proto =
-    case protocol
-    of NATProtoTcp: NatPmpProtocol.TCP
-    of NATProtoUdp: NatPmpProtocol.UDP
   let extPort = self.npmp.addPortMapping(
     eport = cushort(internalPort),
     iport = cushort(internalPort),
-    protocol = proto,
+    protocol = protocol.toNatPmpProtocol(),
     lifetime = culong(leaseDuration.seconds),
   ).valueOr:
     return err(error)
@@ -60,12 +61,10 @@ method deleteMapping*(
 ): Result[void, string] =
   if not self.initialized:
     return ok()
-  let proto =
-    case protocol
-    of NATProtoTcp: NatPmpProtocol.TCP
-    of NATProtoUdp: NatPmpProtocol.UDP
   self.npmp.deletePortMapping(
-    eport = cushort(externalPort), iport = cushort(internalPort), protocol = proto
+    eport = cushort(externalPort),
+    iport = cushort(internalPort),
+    protocol = protocol.toNatPmpProtocol(),
   ).isOkOr:
     return err(error)
   ok()
