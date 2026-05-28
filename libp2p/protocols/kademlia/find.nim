@@ -5,7 +5,7 @@ import std/[tables, sequtils, algorithm]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, peeraddrpolicy]
 import ../protocol
-import ../../utils/future
+import ../../utils/[asyncheapqueue, future]
 import ./[routing_table, protobuf, types, kademlia_metrics]
 
 logScope:
@@ -14,6 +14,14 @@ logScope:
 type RespondedStatus* = enum
   Failed
   Success
+
+type PeerDistance* = object
+  ## Heap entry ordering peers by XOR distance to the lookup target.
+  peerId*: PeerId
+  distance*: XorDistance
+
+proc `<`*(a, b: PeerDistance): bool {.inline.} =
+  a.distance < b.distance
 
 type LookupState* = object
   kad: KadDHT
@@ -269,26 +277,26 @@ method findNode*(
     kad: KadDHT,
     target: Key,
     rtable: RoutingTable,
-    queue = newAsyncQueue[(PeerId, Opt[Message])](),
+    queue = newAsyncHeapQueue[PeerDistance](),
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   ## Iteratively search for the k closest peers to a `target` key.
 
-  let ignoreReply = proc(
+  let hasher = rtable.config.hasher
+  let collectReply = proc(
       peerId: PeerId, msgOpt: Opt[Message], _: var LookupState
   ): Future[void] {.async: (raises: []), gcsafe.} =
-    let queueRes = catch:
-      await queue.addLast((peerId, msgOpt))
-    if queueRes.isErr:
-      error "failed to queue find node reply", error = queueRes.error.msg
+    # Can't access `state` here: async closures can't capture `var` params.
+    let distance = xorDistance(peerId, target, hasher)
+    queue.push(PeerDistance(peerId: peerId, distance: distance))
 
   let state = await kad.iterativeLookup(
-    target, rtable, findNodeDispatch, ignoreReply, closestAvailableStop
+    target, rtable, findNodeDispatch, collectReply, closestAvailableStop
   )
 
   return state.selectCloserPeers(kad.config.replication, excludeResponded = false)
 
 method findNode*(
-    kad: KadDHT, target: Key, queue = newAsyncQueue[(PeerId, Opt[Message])]()
+    kad: KadDHT, target: Key, queue = newAsyncHeapQueue[PeerDistance]()
 ): Future[seq[PeerId]] {.base, async: (raises: [CancelledError]).} =
   await kad.findNode(target, kad.rtable, queue)
 

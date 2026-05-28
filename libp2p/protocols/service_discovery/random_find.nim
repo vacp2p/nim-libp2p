@@ -4,6 +4,7 @@
 import std/[sequtils, sets]
 import chronos, chronicles, results
 import ../../[peerid, peerinfo, switch, multihash, routing_record, extended_peer_record]
+import ../../utils/asyncheapqueue
 import ../protocol
 import ../kademlia/[types, find, get, protobuf, routing_table]
 import ./[types]
@@ -16,31 +17,31 @@ proc makeFireCallback(event: AsyncEvent): CallbackFunc =
     event.fire()
 
 proc nextPeer(
-    queue: AsyncQueue[(PeerId, Opt[Message])], findNodeFut: Future[seq[PeerId]]
+    queue: AsyncHeapQueue[PeerDistance], findNodeFut: Future[seq[PeerId]]
 ): Future[Opt[PeerId]] {.async: (raises: [CancelledError]).} =
-  ## Pop the next peer from the queue, blocking until one arrives or
+  ## Pop the closest peer from the heap, blocking until one arrives or
   ## findNodeFut finishes. Returns none when no more peers will come.
   if not queue.empty():
-    let (peerId, _) = await queue.popFirst()
-    return Opt.some(peerId)
+    let entry = await queue.pop()
+    return Opt.some(entry.peerId)
 
-  # Queue is temporarily empty while findNodeFut may still enqueue more peers.
+  # Heap is temporarily empty while findNodeFut may still push more peers.
   # Wait for whichever comes first.
-  let popFirstFut = queue.popFirst()
+  let popFut = queue.pop()
   let wakeEvent = newAsyncEvent()
-  popFirstFut.addCallback(makeFireCallback(wakeEvent))
+  popFut.addCallback(makeFireCallback(wakeEvent))
   findNodeFut.addCallback(makeFireCallback(wakeEvent))
   try:
     await wakeEvent.wait()
   except CancelledError as e:
-    await popFirstFut.cancelAndWait()
+    await popFut.cancelAndWait()
     raise e
 
-  if popFirstFut.completed:
-    let (peerId, _) = await popFirstFut
-    Opt.some(peerId)
+  if popFut.completed:
+    let entry = await popFut
+    Opt.some(entry.peerId)
   else:
-    await popFirstFut.cancelAndWait()
+    await popFut.cancelAndWait()
     Opt.none(PeerId)
 
 proc randomRecords(
@@ -54,14 +55,12 @@ proc randomRecords(
 
   let randomKey = randomPeerId.toKey()
 
-  let queue = newAsyncQueue[(PeerId, Opt[Message])]()
+  let queue = newAsyncHeapQueue[PeerDistance]()
 
   let peers = disco.rtable.findClosestPeerIds(randomKey, disco.config.replication)
   for peer in peers:
-    let addRes = catch:
-      queue.addFirstNoWait((peer, Opt.none(Message)))
-    if addRes.isErr:
-      error "cannot enqueue peer", error = addRes.error.msg
+    let distance = xorDistance(peer, randomKey, disco.rtable.config.hasher)
+    queue.push(PeerDistance(peerId: peer, distance: distance))
 
   let findNodeFut = disco.findNode(randomKey, queue)
 
