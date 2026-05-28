@@ -4,11 +4,29 @@
 {.push raises: [].}
 
 import std/[tables]
-import chronos, results
+import chronos, results, metrics
 import ../stream/connection
 import ../utils/opt
 
 export results
+
+declareCounter(
+  libp2p_protocol_stream_cap_rejections_total,
+  "protocol stream budget rejections",
+  labels = ["protocol", "direction", "scope"],
+)
+
+declareGauge(
+  libp2p_protocol_streams_open,
+  "protocol stream instances currently open",
+  labels = ["protocol", "direction"],
+)
+
+export libp2p_protocol_stream_cap_rejections_total, libp2p_protocol_streams_open
+
+const
+  scopeTotal = "total"
+  scopePeerPeer = "per_peer"
 
 type
   LPProtoHandler* = proc(stream: Stream, proto: string): Future[void] {.
@@ -81,36 +99,58 @@ proc new*(
     ),
   )
 
+func budgetReason(p: LPProtocol, peerId: PeerId, dir: Direction): (bool, string) =
+  ## Returns (canAccept, scope) indicating whether a stream can be accepted
+  ## and which scope would reject it.
+  let budget = p.streamBudget
+  if budget.isNil:
+    return (true, "")
+
+  if dir == Direction.In:
+    if p.maxIncomingStreamsPerPeer.isSome and
+        budget.perPeerIncoming.getOrDefault(peerId) >= p.maxIncomingStreamsPerPeer.get:
+      return (false, scopePeerPeer)
+    if p.maxIncomingStreamsTotal.isSome and
+        budget.totalIncoming >= p.maxIncomingStreamsTotal.get:
+      return (false, scopeTotal)
+  else:
+    if p.maxOutgoingStreamsPerPeer.isSome and
+        budget.perPeerOutgoing.getOrDefault(peerId) >= p.maxOutgoingStreamsPerPeer.get:
+      return (false, scopePeerPeer)
+    if p.maxOutgoingStreamsTotal.isSome and
+        budget.totalOutgoing >= p.maxOutgoingStreamsTotal.get:
+      return (false, scopeTotal)
+
+  return (true, "")
+
 func canAcceptIncoming*(p: LPProtocol, peerId: PeerId): bool =
   ## Returns true if an incoming stream from `peerId` is within all configured
   ## inbound budgets. Returns false when any limit would be exceeded.
-  let budget = p.streamBudget
-  if budget.isNil:
-    return true
-  if p.maxIncomingStreamsPerPeer.isSome and
-      budget.perPeerIncoming.getOrDefault(peerId) >= p.maxIncomingStreamsPerPeer.get:
-    return false
-  if p.maxIncomingStreamsTotal.isSome and
-      budget.totalIncoming >= p.maxIncomingStreamsTotal.get:
-    return false
-  return true
+  let (canAccept, _) = p.budgetReason(peerId, Direction.In)
+  canAccept
 
 proc reserveIncoming*(p: LPProtocol, peerId: PeerId): bool =
-  if not p.canAcceptIncoming(peerId):
-    return false
-
   let budget = p.streamBudget
   if budget.isNil:
     return true
+
+  let (canAccept, scope) = p.budgetReason(peerId, Direction.In)
+  if not canAccept:
+    libp2p_protocol_stream_cap_rejections_total.inc(
+      labelValues = [p.codec, "in", scope]
+    )
+    return false
 
   budget.totalIncoming.inc
   budget.perPeerIncoming.inc(peerId)
+  libp2p_protocol_streams_open.inc(labelValues = [p.codec, "in"])
   return true
 
 proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     return
+
   budget.totalIncoming.dec
   if budget.totalIncoming < 0:
     budget.totalIncoming = 0
@@ -118,39 +158,41 @@ proc releaseIncoming*(p: LPProtocol, peerId: PeerId) =
   if budget.perPeerIncoming[peerId] <= 0:
     budget.perPeerIncoming.del(peerId)
 
+  libp2p_protocol_streams_open.dec(labelValues = [p.codec, "in"])
+
 func canOpenOutgoing*(p: LPProtocol, peerId: PeerId): bool =
   ## Returns true if an outgoing stream to `peerId` is within all configured
   ## outbound budgets. Returns false when any limit would be exceeded.
-  let budget = p.streamBudget
-  if budget.isNil:
-    return true
-  if p.maxOutgoingStreamsPerPeer.isSome and
-      budget.perPeerOutgoing.getOrDefault(peerId) >= p.maxOutgoingStreamsPerPeer.get:
-    return false
-  if p.maxOutgoingStreamsTotal.isSome and
-      budget.totalOutgoing >= p.maxOutgoingStreamsTotal.get:
-    return false
-  return true
+  let (canAccept, _) = p.budgetReason(peerId, Direction.Out)
+  canAccept
 
 proc reserveOutgoing*(p: LPProtocol, peerId: PeerId): bool =
-  if not p.canOpenOutgoing(peerId):
-    return false
-
   let budget = p.streamBudget
   if budget.isNil:
     return true
+
+  let (canAccept, scope) = p.budgetReason(peerId, Direction.Out)
+  if not canAccept:
+    libp2p_protocol_stream_cap_rejections_total.inc(
+      labelValues = [p.codec, "out", scope]
+    )
+    return false
 
   budget.totalOutgoing.inc
   budget.perPeerOutgoing.inc(peerId)
+  libp2p_protocol_streams_open.inc(labelValues = [p.codec, "out"])
   return true
 
 proc releaseOutgoing*(p: LPProtocol, peerId: PeerId) =
   let budget = p.streamBudget
   if budget.isNil:
     return
+
   budget.totalOutgoing.dec
   if budget.totalOutgoing < 0:
     budget.totalOutgoing = 0
   budget.perPeerOutgoing.inc(peerId, -1)
   if budget.perPeerOutgoing[peerId] <= 0:
     budget.perPeerOutgoing.del(peerId)
+
+  libp2p_protocol_streams_open.dec(labelValues = [p.codec, "out"])
