@@ -13,7 +13,8 @@ requires "nim >= 2.2.4",
   "https://github.com/vacp2p/nim-boringssl >= 0.0.4", "chronicles >= 0.11.0",
   "chronos >= 4.2.2", "metrics", "secp256k1", "stew >= 0.4.2", "unittest2", "results",
   "serialization", "lsquic >= 0.4.1", "protobuf_serialization >= 0.4.0",
-  "https://github.com/status-im/nim-websock >= 0.4.0"
+  "https://github.com/status-im/nim-websock >= 0.4.0",
+  "https://github.com/status-im/nim-nat-traversal >= 0.0.1"
 
 import os, sequtils, strutils
 
