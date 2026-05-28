@@ -115,10 +115,17 @@
     fetchSubmodules = true;
   };
 
-  dnsclient = pkgs.fetchgit {
-    url = "https://github.com/ba0f3/dnsclient.nim";
-    rev = "23214235d4784d24aceed99bbfe153379ea557c8";
-    sha256 = "03mf3lw5c0m5nq9ppa49nylrl8ibkv2zzlc0wyhqg7w09kz6hks6";
+  httputils = pkgs.fetchgit {
+    url = "https://github.com/status-im/nim-http-utils";
+    rev = "f142cb2e8bd812dd002a6493b6082827bb248592";
+    sha256 = "03msj4zdxraz4qx9cidb17g7v0asazxv91nng6xxbzjxz0qaqxw6";
+    fetchSubmodules = true;
+  };
+
+  chronos = pkgs.fetchgit {
+    url = "https://github.com/status-im/nim-chronos";
+    rev = "45f43a9ad8bd8bcf5903b42f365c1c879bd54240";
+    sha256 = "1v1n59zfzznp97pvwgs9kf136bqmv4x2s2y9f24msspa7qv27w39";
     fetchSubmodules = true;
   };
 

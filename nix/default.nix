@@ -27,7 +27,6 @@ pkgs.stdenv.mkDerivation {
     nim c \
       --noNimblePath \
       ${pathArgs} \
-      --path:${deps.dnsclient}/src \
       --compileOnly \
       --styleCheck:usages \
       --styleCheck:error \
