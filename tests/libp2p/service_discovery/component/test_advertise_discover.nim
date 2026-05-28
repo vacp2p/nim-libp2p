@@ -370,12 +370,12 @@ suite "Service Discovery Component - Advertise Discover":
 
     # The in-range registrar is kept and receives the ad.
     # The out-of-range registrar is absent from the service table.
-    # No remote advertise task is scheduled for the out-of-range registrar.
+    # Only the remote task is tracked in running (local registration uses a dedicated loop).
     let serviceTable = advertiserNode.rtManager.getTable(serviceId).get()
     check:
       serviceTable.hasPeer(workingRegistrarPeerKey)
       not serviceTable.hasPeer(droppedRegistrarPeerKey)
-      advertiserNode.advertiser.running.len() == 2
+      advertiserNode.advertiser.running.len() == 1 # only the remote task (local registration is a separate dedicated loop)
       droppedRegistrarNode.countAdsInCache(serviceId) == 0
 
     checkUntilTimeout:
